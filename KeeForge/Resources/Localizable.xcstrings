@@ -10096,6 +10096,46 @@
         }
       }
     },
+    "Current Code" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktueller Code"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código actual"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code actuel"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のコード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前验证码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前驗證碼"
+          }
+        }
+      }
+    },
     "Custom Fields" : {
       "localizations" : {
         "de" : {
@@ -13372,6 +13412,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請輸入有效的電子郵件地址以便後續聯絡。"
+          }
+        }
+      }
+    },
+    "Enter a valid secret key to see the current code." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib einen gültigen geheimen Schlüssel ein, um den aktuellen Code zu sehen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduce una clave secreta válida para ver el código actual."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisis une clé secrète valide pour voir le code actuel."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のコードを表示するには、有効なシークレットキーを入力してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入有效的密钥以查看当前验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入有效的金鑰以查看目前驗證碼。"
           }
         }
       }
