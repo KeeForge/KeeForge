@@ -58,10 +58,11 @@ The release handoff is one state record, not a single build number:
 `repoBuild` is the globally monotonic `CURRENT_PROJECT_VERSION` in `project.yml`; it increases for
 every minor, major, patch, and respin candidate and is identical on `KeeForge`,
 `KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`. It is never reset for a new marketing
-version. The direct build's `CFBundleVersion` is this repo build. Xcode Cloud may assign separate,
-platform-specific TestFlight build numbers; record both and match each back to the RC tag and SHA.
-Existing App Store Connect uploads contribute a pre-candidate monotonic floor, but do not require
-the new platform TestFlight numbers to equal `repoBuild` or force the platform numbers to match.
+version. The direct build's `CFBundleVersion` is this repo build. Set `repoBuild` from the
+product-wide **Next Build Number** shown in App Store Connect under Xcode Cloud settings, after
+verifying that it does not trail the repository floor. Xcode Cloud may still assign separate,
+platform-specific TestFlight build numbers; record both and match each back to the RC tag and SHA
+rather than assuming the uploaded records match the preflight value.
 
 During a release, record the state in `scratch/release-manifests/{version}-b{repoBuild}.json`.
 That path is gitignored and is working state, not a secret store. The manifest must contain only
@@ -116,27 +117,27 @@ Identify which mode applies before touching anything. Ask the user if it is ambi
 
 ## App Store Connect build-number preflight
 
-For every candidate prepared in Mode A, B, or D, perform this read-only check as soon as the
-marketing version is confirmed and before changing `CURRENT_PROJECT_VERSION`:
+For every candidate prepared in Mode A, B, or D, perform this read-only check immediately before
+changing `CURRENT_PROJECT_VERSION`:
 
-1. Use browser control to open KeeForge in the signed-in App Store Connect website, then open
-   TestFlight. Inspect the upload history separately for **iOS** and **macOS**; checking only the
-   currently selected platform is insufficient.
-2. Record the greatest existing uploaded build number for each platform across marketing versions,
-   including builds that are processing, expired, rejected, or otherwise not distributable. An
-   upload has consumed its build number even when it never shipped. If one platform has no uploads,
-   record that explicitly and use the other platform's history.
-3. Set `ascNextBuild` to one greater than the larger of the iOS and macOS maxima. State both
-   platform maxima, the observation time, and `ascNextBuild` before editing the project. Carry this
-   non-secret evidence into the candidate manifest after A7 initializes it.
-4. If App Store Connect is inaccessible, either platform's history cannot be inspected, or the
-   next number is ambiguous, stop. Do not infer it from a stale setup note, one platform, local
-   tags, or the working tree.
+1. Use browser control to open the signed-in App Store Connect website, then navigate to
+   **Xcode Cloud → KeeForge product → Settings → Build Number**. Do not use TestFlight upload
+   history, the latest build page, a local tag, or a remembered value as a substitute.
+2. Read the integer displayed under **Next Build Number** and call it `xcodeCloudNextBuild`. This is
+   the product-wide counter shared by the KeeForge Xcode Cloud workflows, not an iOS-only or
+   macOS-only value. Record the page URL, observation time, displayed value, and screenshot or
+   equivalent browser evidence before editing the project. Carry this non-secret evidence into the
+   candidate manifest after A7 initializes it.
+3. If App Store Connect is inaccessible, the signed-in product cannot be identified, or the value
+   is absent, nonnumeric, or ambiguous, stop. Do not calculate a replacement from upload history or
+   continue with only the repository value.
+4. Return to the applicable A5, B2, or D2 candidate step and compare this displayed value with the
+   repository floor before editing the project.
 
-This check establishes the App Store upload floor. A5 or B2 also establishes the repository floor;
-the candidate uses the higher result. Xcode Cloud may still assign different platform-specific
-TestFlight numbers to the new archives, so record the actual uploaded numbers later in A9 rather
-than assuming they equal `repoBuild`.
+If any unrelated Xcode Cloud run starts between this observation and the RC tag push, refresh this
+page and repeat the preflight before committing the candidate. Record the actual iOS and macOS
+uploaded build records later in A9; the preflight value is authoritative for `repoBuild`, but it is
+not a substitute for verifying the binaries Xcode Cloud actually produced.
 
 Reference files, read on demand:
 
@@ -163,7 +164,9 @@ Reference files, read on demand:
    - `{version}` is valid semver (MAJOR.MINOR.PATCH) and greater than the current `MARKETING_VERSION`.
    - `release/{major}.{minor}` does not already exist. **If it does, this is Mode B or D, not Mode A.**
 5. If a version was not supplied, suggest the next minor bump and ask the user to confirm.
-6. Once the version is confirmed, immediately run the App Store Connect build-number preflight.
+6. Once the version is confirmed, verify that the signed-in App Store Connect Xcode Cloud product
+   settings are reachable. Read the actual Next Build Number at A5 immediately before changing the
+   project.
 
 ## A2. Update CHANGELOG.md
 
@@ -281,11 +284,14 @@ git fetch origin --tags 'refs/heads/release/*:refs/remotes/origin/release/*'
 ci_scripts/next_repo_build.sh --no-fetch
 ```
 
-Call the script's reported value `localNextBuild`. Set `repoBuild` to
-`max(localNextBuild, ascNextBuild)` and state which floor determined it. The App Store Connect
-preflight is mandatory even when `localNextBuild` is already higher; conversely, an App Store
-upload ahead of repository history must raise `repoBuild` so the shared project/direct build never
-trails a number already consumed by either store platform.
+Call the script's reported value `localNextBuild`. Complete the App Store Connect build-number
+preflight above, require `xcodeCloudNextBuild >= localNextBuild`, and set `repoBuild` to exactly
+`xcodeCloudNextBuild`. State both values and their evidence. Never derive `repoBuild` by incrementing
+the latest upload or by taking a maximum without reading the Xcode Cloud Build Number page. A
+higher Xcode Cloud value may intentionally skip unused repository numbers. If it is lower than
+`localNextBuild`, stop: do not silently take the maximum. The owner may explicitly authorize using
+**Edit** on the same page to raise the counter to `localNextBuild`; after any edit, read the page
+back and record the new displayed value before continuing.
 
 Stop if the current `project.yml` does not contain exactly one numeric
 `CURRENT_PROJECT_VERSION` for each of `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and
@@ -605,11 +611,12 @@ Never amend or force-push an existing release commit; the fix is always a new co
 ## B2. Bump the build number
 
 Run the App Store Connect build-number preflight again for this respin; never reuse the observation
-from the prior candidate. Then run A5's repository-floor command and set `repoBuild` to
-`max(localNextBuild, ascNextBuild)` on **all four** targets: `KeeForge`, `KeeForgeAutoFill`,
-`KeeForgeMac`, and `KeeForgeMacAutoFill`. Never reset it; `MARKETING_VERSION` does not change.
-Carry `repoBuild` and the new preflight evidence into the manifest after A7 initializes it, then
-rebuild iOS, MAS, and direct artifacts from the new RC commit.
+from the prior candidate. Then run A5's repository-floor command and apply A5's comparison and edit
+rules. Set `repoBuild` to exactly the verified `xcodeCloudNextBuild` on
+**all four** targets: `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`.
+Never reset it; `MARKETING_VERSION` does not change. Carry both preflight values and `repoBuild`
+into the manifest after A7 initializes it, then rebuild iOS, MAS, and direct artifacts from the new
+RC commit.
 
 If the fix warrants a user-visible changelog line, add it to the version's section in
 `CHANGELOG.md` (not `## Unreleased` — this version is no longer unreleased on this branch).
@@ -812,9 +819,10 @@ Verify the branch tip is at or after the `v{major}.{minor}.0` tag.
 
 1. Land the fix (Mode B1) and port it to `main` (Mode B5).
 2. Confirm the patch marketing version, then run the App Store Connect build-number preflight and
-   A5's repository-floor command. In `project.yml`, set `MARKETING_VERSION` to the patch version
-   and set the global `CURRENT_PROJECT_VERSION` on all four targets to
-   `max(localNextBuild, ascNextBuild)`. Never reset it to `"1"`.
+   A5's repository-floor command and apply A5's comparison and edit rules. In `project.yml`, set
+   `MARKETING_VERSION` to the patch version and set the global
+   `CURRENT_PROJECT_VERSION` on all four targets to exactly `xcodeCloudNextBuild`. Never reset it
+   to `"1"`.
 3. Add a `## v{version} ({date})` section to `CHANGELOG.md` above the previous version's section.
 4. Run A3 only if the patch has a user-visible highlight worth a What's New sheet. Most patches do
    not; confirm `WhatsNewCatalog` has no case rather than shipping an empty sheet.
