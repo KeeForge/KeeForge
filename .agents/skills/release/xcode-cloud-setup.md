@@ -6,7 +6,7 @@ web UI; none of it lives in this repo.
 
 ## Configured state
 
-Configured on 2026-09-06 in the App Store Connect web UI (verify the live account before
+Last verified on 2026-09-28 in the App Store Connect web UI (verify the live account before
 relying on this; Apple can change the UI and the account can drift):
 
 - KeeForge is App Store Connect app Apple ID `6759309295`. The app record now carries **both**
@@ -33,9 +33,8 @@ relying on this; Apple can change the UI and the account can drift):
   `••••••••••`, which is how App Store Connect displays a variable with the Secret/redaction flag
   set — a non-secret variable shows its plain value. The flag is therefore on for both. Never
   record or expose their values.
-- **Restrict Editing is off.** The doc previously assumed a **Restrict and Save** control; this
-  account presents a plain **Save**. Turning restriction on is a separate deliberate choice, not
-  a side effect of saving.
+- **Restrict Editing is on.** Preserve it when editing the workflow. The editor presents a
+  plain **Save** control; restriction is a separate checkbox.
 - External groups are **KeeForge Test** (the iOS public-link group, documented below) and
   **KeeForge Mac Test** (the native Mac group, public link
   `https://testflight.apple.com/join/ZKQRwPaa`, 300-tester cap). Do not send the MAS build to the
@@ -48,6 +47,27 @@ accepted, proceed with the first Beta App Review action (when required) and each
 distribution when the user has already authorized that named candidate action in the current task;
 otherwise obtain action-time confirmation. Beta authorization does not authorize production release,
 App Review submission, or legal declarations.
+
+## Prepared test partition — live activation pending
+
+The repo now shares `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`.
+They separate unit coverage from two serial UI groups to keep Cloud task retries well below
+the two-hour execution limit. `ci_scripts/README.md` documents the coverage guard and timeouts.
+
+As of 2026-09-28, App Store Connect still lists only the old schemes after a source push and
+full page reload. No live workflow changes have been saved. Native Xcode's workflow editor is
+the next route to check once the Mac is unlocked.
+
+To activate, replace the existing Test action's scheme with `KeeForgeCloudUnitTests` and add
+two Required-to-Pass iOS Test actions for UI A and UI B, all using **Test (Use Scheme Setting)**.
+Each must use the existing destinations: iPhone 18 Pro and iPhone SE (3rd generation), both
+**Latest from Selected Xcode** (currently iOS 27). Preserve both archives, start conditions,
+redacted environment variables, Clean, Restrict Editing, and the absence of post-actions.
+Save and verify five total actions, then update the configured-state and recovery sections here.
+
+The new workflow will require a commit containing these three schemes. Do not use it to rebuild
+an older commit without them. The manual `release/1.16` branch condition is historical; verify
+that it names the candidate's actual release branch before a recovery run.
 
 ## Required workflow shape
 
@@ -131,8 +151,8 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
   its own public-link group, **KeeForge Mac Test**. Do not send the MAS build to the iOS group.
 - After editing, verify that no external-testing post-action is present and save the workflow using
   the control App Store Connect presents. This account presents a plain **Save**; the separate
-  **Restrict Editing** checkbox is off and turning it on is its own decision, after which only the
-  Account Holder, Admins, and App Managers can change the workflow.
+  **Restrict Editing** checkbox is on, so only the Account Holder, Admins, and App Managers
+  can change the workflow. Preserve that setting.
 - The **first build of each new marketing version/platform** goes through Beta App Review before
   external testers can install it — budget roughly a day. Proceed when the user has already
   authorized that named candidate beta action in the current task; otherwise obtain action-time
