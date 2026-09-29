@@ -262,8 +262,16 @@ struct DatabaseOpenFailure: Equatable, Sendable {
     }
 
     var canRetryUnlock: Bool {
-        isAuthenticationFailure || category == .hardwareKey || errorCode.hasPrefix("key_file.")
+        isAuthenticationFailure || category == .biometric || category == .hardwareKey || errorCode.hasPrefix("key_file.")
     }
+
+    /// A saved key that could not be read fails the same way again, so a
+    /// retry goes to the master password instead.
+    var canRetryQuickUnlock: Bool {
+        errorCode != Self.storedKeyUnavailableErrorCode
+    }
+
+    private static let storedKeyUnavailableErrorCode = "biometric.stored_key_unavailable"
 
     var privacyNote: String {
         String(localized: "Database contents, passwords, key files, and raw vault files are never included. Visible diagnostics may include app/device metadata and short file hash prefixes.")
@@ -727,7 +735,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             title: String(localized: "Saved Unlock Key Unavailable"),
             summary: summary,
             technicalDetails: technicalDetails(for: error),
-            errorCode: "biometric.stored_key_unavailable",
+            errorCode: storedKeyUnavailableErrorCode,
             category: .biometric,
             countsTowardFailedAttempts: false,
             canChooseDifferentFile: false

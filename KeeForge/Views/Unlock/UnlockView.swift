@@ -528,7 +528,7 @@ struct UnlockView: View {
             return
         }
 
-        if viewModel.canUseBiometrics {
+        if viewModel.canUseBiometrics, viewModel.openFailure?.canRetryQuickUnlock ?? true {
             unlockWithBiometrics()
             return
         }

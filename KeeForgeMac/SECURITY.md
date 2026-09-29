@@ -119,8 +119,8 @@ master key may have changed on another device. A master-key change rewrites an
 existing item without checking either mechanism, and deletes it if that fails.
 If the item can no longer be read after authentication succeeds, for example
 because the enrolled fingerprints changed, the unlock screen reports
-"Saved Unlock Key Unavailable" and asks for the master password. That unlock
-writes a fresh item. Items written by earlier versions carry
+"Saved Unlock Key Unavailable" with the password form below it, and Try Again
+does not repeat the quick unlock. The next password unlock writes a fresh item. Items written by earlier versions carry
 `.biometryCurrentSet` alone. Touch ID still opens them, and the next unlock
 rewrites them with the combined policy.
 

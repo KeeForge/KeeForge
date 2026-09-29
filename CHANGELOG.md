@@ -6,9 +6,11 @@
 
 - Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
 - When the saved Face ID, Touch ID or Apple Watch key can no longer be used, for example after enrolled fingerprints change, the unlock screen now says so and asks for your master password, which saves a new key.
+- After a cancelled or failed Face ID or Touch ID unlock, the error screen now also shows the password field, so you can unlock with your master password right away.
 
 ### New Features
 
+- Mac: unlock a database with Touch ID or your Apple Watch (#66). After you unlock with your master password once, the unlock button accepts either one. KeeForge never starts the prompt on its own, the Mac login password is not accepted instead, and AutoFill still asks for Touch ID only.
 - A password or passkey saved through AutoFill no longer gets stuck when the cloud copy of the database changed in the meantime (#149). Open the database and tap "Merge Changes" in the notice at the top: KeeForge combines the change with the cloud copy the way KeePass merges databases and uploads the result. If the merge can't be done safely, nothing changes, and the message explains what to do instead, such as merging the change in another KeePass app.
 - Open a cloud database without syncing it first (#67). In Database Details, turn off Cloud Sync → "Sync When Opening" and KeeForge opens the copy saved on your device right away, without contacting Dropbox, OneDrive, WebDAV, or FTP. A banner in the unlocked database says the cloud wasn't checked and when it last synced; tap Sync Now there, or in Database Details, to get newer changes. Saving still checks the cloud copy first and stops with the usual conflict choices if it changed in the meantime. The first open still downloads the database, and changes saved through AutoFill still upload as before.
 
@@ -16,7 +18,6 @@
 
 ### New Features
 
-- Mac: unlock a database with Touch ID or your Apple Watch (#66). After you unlock with your master password once, the unlock button accepts either one. KeeForge never starts the prompt on its own, the Mac login password is not accepted instead, and AutoFill still asks for Touch ID only.
 - Standard KeePass icons now use distinct semantic colors throughout entry and group lists, icon pickers, entry details, and AutoFill. Settings → Display also offers an app-wide accent color picker. Custom icons and website icons continue to display in their original colors (#110).
 - KeeForge now speaks Japanese: a full Japanese (日本語) localization across the app and the AutoFill extension, plus translated README and contributor docs.
 - Open, save, and create databases directly on an FTP server (#115). Add Database → FTP asks for the server address, username, and password. FTP is unencrypted, so connecting requires turning on "Allow Unencrypted FTP"; use it only on a network you trust. Avoid editing the same FTP database from multiple apps or devices at once: simultaneous saves can overwrite each other. Encrypted FTPS and SFTP are not supported yet.

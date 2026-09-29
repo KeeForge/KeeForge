@@ -162,8 +162,40 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(failure.errorCode, "biometric.stored_key_unavailable")
         XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
         XCTAssertTrue(failure.summary.contains("master password"))
+        XCTAssertTrue(failure.canRetryUnlock)
+        XCTAssertFalse(failure.canRetryQuickUnlock)
         XCTAssertFalse(failure.canChooseDifferentFile)
         XCTAssertEqual(vm.failedAttempts, 0)
+    }
+
+    /// Every biometric failure leaves password unlock available, so the
+    /// failure screen must keep the password form up.
+    func testBiometricFailuresKeepThePasswordFormAvailable() {
+        let errors: [Error] = [
+            LAError(.userCancel),
+            LAError(.authenticationFailed),
+            LAError(.biometryLockout),
+            LAError(.companionNotAvailable),
+            LAError(.invalidContext),
+            KeychainService.KeychainError.retrieveFailed(errSecAuthFailed),
+        ]
+
+        for error in errors {
+            let failure = DatabaseOpenFailure.classify(error, isCloudBacked: false)
+            XCTAssertEqual(failure.category, .biometric, "\(error)")
+            XCTAssertTrue(failure.canRetryUnlock, failure.errorCode)
+        }
+    }
+
+    func testOnlyAnUnreadableStoredKeyStopsRetryingQuickUnlock() {
+        let transient = DatabaseOpenFailure.classify(LAError(.authenticationFailed), isCloudBacked: false)
+        let unreadable = DatabaseOpenFailure.classify(
+            KeychainService.KeychainError.retrieveFailed(errSecAuthFailed),
+            isCloudBacked: false
+        )
+
+        XCTAssertTrue(transient.canRetryQuickUnlock)
+        XCTAssertFalse(unreadable.canRetryQuickUnlock)
     }
 
     func testUnlockCloudDatabaseDoesNotRewriteSharedCache() async throws {
