@@ -5,10 +5,10 @@ import Security
 import XCTest
 @testable import KeeForge
 
-/// `KeychainService` stores composite keys behind a `.biometryCurrentSet`
-/// access control (see `storeCompositeKey(_:account:)`), so `SecItemAdd`
-/// never needs authentication, but `SecItemCopyMatching` for the actual bytes
-/// does. A headless XCTest run has no way to satisfy a Face ID/Touch ID
+/// `KeychainService` stores composite keys behind
+/// `quickUnlockAccessControlFlags` (see `storeCompositeKey(_:account:)`), so
+/// `SecItemAdd` never needs authentication, but `SecItemCopyMatching` for the
+/// actual bytes does. A headless XCTest run has no way to satisfy a Face ID/Touch ID
 /// prompt, so tests that retrieve a *stored* key pass an `LAContext` with
 /// `interactionNotAllowed = true` and accept either a successful decrypt
 /// (round trip) or an auth-required failure that is provably not
@@ -29,6 +29,69 @@ final class KeychainServiceTests: XCTestCase {
         databaseIDsToClean = []
         legacyFilenamesToClean = []
         super.tearDown()
+    }
+
+    // MARK: - Quick-unlock policy
+
+    func testQuickUnlockItemNeverAdmitsThePasscodeOrLoginPassword() {
+        let flags = KeychainService.quickUnlockAccessControlFlags
+
+        XCTAssertTrue(flags.contains(.biometryCurrentSet))
+        XCTAssertFalse(flags.contains(.userPresence))
+        XCTAssertFalse(flags.contains(.devicePasscode))
+        XCTAssertFalse(flags.contains(.applicationPassword))
+        #if os(macOS)
+        XCTAssertEqual(flags, [.biometryCurrentSet, .or, .companion])
+        #else
+        XCTAssertEqual(flags, .biometryCurrentSet, "iPhone and iPad stay biometric-only")
+        #endif
+    }
+
+    func testQuickUnlockPromptMatchesTheItemAccessControl() {
+        #if os(macOS)
+        XCTAssertEqual(BiometricService.quickUnlockPolicy, .deviceOwnerAuthenticationWithBiometricsOrCompanion)
+        #else
+        XCTAssertEqual(BiometricService.quickUnlockPolicy, .deviceOwnerAuthenticationWithBiometrics)
+        XCTAssertFalse(BiometricService.isCompanionAvailable)
+        #endif
+    }
+
+    /// The Mac item also admits Apple Watch, so a read must never let the
+    /// Keychain raise its own prompt: biometric-only AutoFill would otherwise
+    /// see a Watch sheet. An absent item keeps this free of any real prompt.
+    func testRetrievalLetsOnlyTheCallersEvaluatedPolicyPrompt() {
+        let context = LAContext()
+
+        XCTAssertThrowsError(try KeychainService.retrieveCompositeKey(for: trackedDatabaseID(), context: context))
+
+        #if os(macOS)
+        XCTAssertTrue(context.interactionNotAllowed)
+        #else
+        XCTAssertFalse(context.interactionNotAllowed)
+        #endif
+    }
+
+    /// The master key can change on another device, so on the Mac the next
+    /// unlock refreshes an existing item even with Touch ID and the watch
+    /// both out of reach. iPhone and iPad keep skipping, as before.
+    func testUnlockRefreshesAnExistingItemOnlyOnTheMacWhileNoMechanismIsAvailable() throws {
+        try XCTSkipIf(BiometricService.isQuickUnlockAvailable, "Needs a host where quick unlock cannot authenticate.")
+        let databaseID = trackedDatabaseID()
+        try requireStore(Data("old-key".utf8), for: databaseID)
+
+        let shouldStore = KeychainService.shouldStoreQuickUnlockKey(for: databaseID, legacyFilename: nil)
+
+        #if os(macOS)
+        XCTAssertTrue(shouldStore)
+        #else
+        XCTAssertFalse(shouldStore)
+        #endif
+    }
+
+    func testUnlockCreatesNoItemWhileNoMechanismIsAvailable() throws {
+        try XCTSkipIf(BiometricService.isQuickUnlockAvailable, "Needs a host where quick unlock cannot authenticate.")
+
+        XCTAssertFalse(KeychainService.shouldStoreQuickUnlockKey(for: trackedDatabaseID(), legacyFilename: nil))
     }
 
     // MARK: - isItemNotFound

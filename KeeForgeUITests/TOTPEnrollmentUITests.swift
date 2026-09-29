@@ -40,13 +40,14 @@ class TOTPEnrollmentUITestCase: UnlockedDatabaseUITestCase {
 
     func assertDetailRendersCode(
         digits: Int,
+        codeIdentifier: String = "entry.totp.code",
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let totpCode = app.staticTexts["entry.totp.code"]
+        let totpCode = app.staticTexts[codeIdentifier]
         XCTAssertTrue(
             revealElement(totpCode, in: scrollableContainer()),
-            "TOTP code was not visible in entry detail",
+            "TOTP code '\(codeIdentifier)' was not visible",
             file: file,
             line: line
         )
@@ -128,6 +129,7 @@ final class TOTPEnrollmentUITests: TOTPEnrollmentUITestCase {
             "TOTP secret field was not visible"
         )
         replaceText(in: secretField, with: "JBSWY3DPEHPK3PXP")
+        assertDetailRendersCode(digits: 6, codeIdentifier: "entry-edit.totp.preview-code")
 
         saveEditorAndWaitForDismissal()
         assertDetailRendersCode(digits: 6)
@@ -171,6 +173,8 @@ final class TOTPEnrollmentUITests: TOTPEnrollmentUITestCase {
             "45",
             "Applied setup link's period was not reflected in the form"
         )
+        // The code is there to verify with the service before saving.
+        assertDetailRendersCode(digits: 8, codeIdentifier: "entry-edit.totp.preview-code")
 
         saveEditorAndWaitForDismissal()
         assertDetailRendersCode(digits: 8)

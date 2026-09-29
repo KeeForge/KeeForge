@@ -373,6 +373,44 @@ final class EntryEditViewModel {
         return String(localized: "This entry stores its code in the legacy KeeOTP format, which only supports 6- or 8-digit codes.")
     }
 
+    struct TOTPPreview {
+        let config: TOTPConfig
+        let resolvedSecret: TOTPGenerator.ResolvedSecret
+
+        var period: Int { max(1, config.period) }
+
+        func code(at date: Date) -> String {
+            TOTPGenerator.generateCode(config: config, resolvedSecret: resolvedSecret, date: date)
+        }
+
+        func secondsRemaining(at date: Date) -> Int {
+            TOTPGenerator.secondsRemaining(period: config.period, date: date)
+        }
+    }
+
+    /// The code the entry will generate once saved, so a new setup can be
+    /// confirmed with the service first. Built from the configuration Save
+    /// writes rather than the raw fields, because a KeeOTP entry can revert
+    /// an edit on save. Nil when the secret does not decode, or while the
+    /// digit count blocks the save.
+    var totpPreview: TOTPPreview? {
+        guard unsupportedTOTPDigitsMessage == nil,
+              let configuration = normalizedTOTPConfiguration() else { return nil }
+        // `TOTPGenerator` resolves secrets only out of `EncryptedValue`s; a
+        // throwaway key keeps the preview on the exact path a saved entry takes.
+        let key = SymmetricKey(size: .bits256)
+        guard let config = try? TOTPConfig(
+                  secret: EncryptedValue.encrypt(configuration.secret, using: key),
+                  decodedSecret: configuration.decodedSecret.map { try EncryptedValue.encrypt($0, using: key) },
+                  keeOTPSource: configuration.keeOTPSource,
+                  period: configuration.period,
+                  digits: configuration.digits,
+                  algorithm: configuration.algorithm
+              ),
+              let resolvedSecret = TOTPGenerator.resolveSecret(config: config, sessionKey: key) else { return nil }
+        return TOTPPreview(config: config, resolvedSecret: resolvedSecret)
+    }
+
     /// A password the user is about to type is shown; one that came out of
     /// the database — an edit, or a duplicate — starts hidden.
     var isPasswordInitiallyVisible: Bool {

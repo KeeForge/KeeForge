@@ -5,12 +5,16 @@
 ### Fixes
 
 - Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
+- When the saved Face ID, Touch ID or Apple Watch key can no longer be used, for example after enrolled fingerprints change, the unlock screen now says so and asks for your master password, which saves a new key.
+- After a cancelled or failed Face ID or Touch ID unlock, the error screen now also shows the password field, so you can unlock with your master password right away.
 
 ### New Features
 
 - Add and remove an entry's attachments in the entry editor, on iPhone, iPad, and Mac (#162). Under Attachments, tap "Add Attachment" to pick one or more files, or the remove button next to an attachment to take it off the entry; the changes are saved with the entry. A file whose name is already taken on the entry gets a number, such as "scan (2).pdf". A removed attachment stays in the entry's history, as in other KeePass apps. Attachments you don't change stay exactly as they were.
+- Mac: unlock a database with Touch ID or your Apple Watch (#66). After you unlock with your master password once, the unlock button accepts either one. KeeForge never starts the prompt on its own, the Mac login password is not accepted instead, and AutoFill still asks for Touch ID only.
 - A password or passkey saved through AutoFill no longer gets stuck when the cloud copy of the database changed in the meantime (#149). Open the database and tap "Merge Changes" in the notice at the top: KeeForge combines the change with the cloud copy the way KeePass merges databases and uploads the result. If the merge can't be done safely, nothing changes, and the message explains what to do instead, such as merging the change in another KeePass app.
 - Open a cloud database without syncing it first (#67). In Database Details, turn off Cloud Sync → "Sync When Opening" and KeeForge opens the copy saved on your device right away, without contacting Dropbox, OneDrive, WebDAV, or FTP. A banner in the unlocked database says the cloud wasn't checked and when it last synced; tap Sync Now there, or in Database Details, to get newer changes. Saving still checks the cloud copy first and stops with the usual conflict choices if it changed in the meantime. The first open still downloads the database, and changes saved through AutoFill still upload as before.
+- The entry editor now shows the current verification code as soon as you add one, before you save the entry (#123). After scanning a QR code (iPhone and iPad), pasting a setup link, or typing a setup key, enter or copy the code shown under One-Time Password to finish turning on two-factor authentication for that account. The code follows your changes to the digits, period, and algorithm; while the secret key can't produce a code, the editor asks for a valid one instead.
 
 ## v1.17.0 (2026-09-27)
 
