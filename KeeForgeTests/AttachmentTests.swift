@@ -349,6 +349,56 @@ final class AttachmentTests: XCTestCase {
         XCTAssertEqual(reparsed.header.innerHeaderBinaryFields, fixture.header.innerHeaderBinaryFields)
     }
 
+    func test_addingAFile_refusesToClaimAnotherEntrysDanglingRef() throws {
+        // The pool holds one entry, so the next append would land at index 1,
+        // where `Bare`'s attachment already points at nothing.
+        let fixture = try makeEditableFixture(bareAttachments: [KPAttachment(name: "old-missing.txt", ref: 1)])
+        let entry = try fixture.entry()
+
+        XCTAssertThrowsError(try fixture.draft().apply(.updateEntry(
+            entryID: entry.id,
+            draft: payload(for: entry, attachments: [
+                .existing(name: "alpha.txt", ref: 0),
+                .new(name: "unrelated.bin", data: Data("unrelated".utf8)),
+            ])
+        ))) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .attachmentWouldClaimMissingReference)
+        }
+    }
+
+    func test_addingAFile_refusesToClaimADanglingRefInHistory() throws {
+        let fixture = try makeEditableFixture(bareHistoryAttachments: [KPAttachment(name: "old-missing.txt", ref: 1)])
+
+        XCTAssertThrowsError(try fixture.draft().apply(.createEntry(
+            parentGroupID: fixture.rootGroup.id,
+            draft: EntryDraftPayload(
+                title: "Created",
+                password: "created-password",
+                attachments: [.new(name: "unrelated.bin", data: Data("unrelated".utf8))]
+            )
+        ))) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .attachmentWouldClaimMissingReference)
+        }
+    }
+
+    func test_addingBytesThePoolAlreadyHolds_stillWorksNextToADanglingRef() throws {
+        let fixture = try makeEditableFixture(bareAttachments: [KPAttachment(name: "old-missing.txt", ref: 1)])
+        let entry = try fixture.entry()
+
+        let draft = try fixture.draft().apply(.updateEntry(
+            entryID: entry.id,
+            draft: payload(for: entry, attachments: [
+                .existing(name: "alpha.txt", ref: 0),
+                .new(name: "alpha-again.txt", data: Data("alpha-bytes".utf8)),
+            ])
+        ))
+
+        XCTAssertEqual(draft.binaryPoolFields, fixture.header.innerHeaderBinaryFields)
+        let bare = try XCTUnwrap(draft.rootGroup.allEntries.first { $0.title == "Bare" })
+        XCTAssertEqual(bare.attachments.map(\.name), ["old-missing.txt"])
+        XCTAssertEqual(bare.attachments.map(\.ref), [1])
+    }
+
     func test_discardingEdits_restoresTheOpenedPool() throws {
         let fixture = try makeEditableFixture()
         let entry = try fixture.entry()
@@ -390,7 +440,10 @@ final class AttachmentTests: XCTestCase {
     /// A parsed database with one entry carrying a tag, a custom field, and an
     /// attachment, and one bare entry, so edits run against parser-recorded
     /// positions rather than hand-built ones.
-    private func makeEditableFixture() throws -> EditableFixture {
+    private func makeEditableFixture(
+        bareAttachments: [KPAttachment] = [],
+        bareHistoryAttachments: [KPAttachment]? = nil
+    ) throws -> EditableFixture {
         let compositeKey = KDBXCrypto.compositeKey(password: "attachment-edit-password")
         let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
         let withAttachment = KPEntry(
@@ -404,11 +457,22 @@ final class AttachmentTests: XCTestCase {
             lastModificationTime: timestamp,
             attachments: [KPAttachment(name: "alpha.txt", ref: 0)]
         )
+        let bareHistory = try bareHistoryAttachments.map {
+            [KPEntry(
+                title: "Bare",
+                password: try EncryptedValue.encrypt("old-bare-secret", using: sessionKey),
+                creationTime: timestamp,
+                lastModificationTime: timestamp,
+                attachments: $0
+            )]
+        } ?? []
         let bare = KPEntry(
             title: "Bare",
             password: try EncryptedValue.encrypt("bare-secret", using: sessionKey),
             creationTime: timestamp,
-            lastModificationTime: timestamp
+            lastModificationTime: timestamp,
+            history: bareHistory,
+            attachments: bareAttachments
         )
         let root = KPGroup(name: "Root", entries: [withAttachment, bare])
         let meta = KPMeta(

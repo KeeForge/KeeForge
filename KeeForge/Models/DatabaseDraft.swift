@@ -13,6 +13,7 @@ struct DatabaseDraft: Sendable {
         case moveDestinationInsideMovedGroup(groupID: UUID, destinationGroupID: UUID)
         case attachmentNotFound(name: String)
         case attachmentPoolUnavailable
+        case attachmentWouldClaimMissingReference
 
         var errorDescription: String? {
             switch self {
@@ -36,6 +37,8 @@ struct DatabaseDraft: Sendable {
                 String(localized: "The attachment \"\(name)\" is no longer part of this entry.")
             case .attachmentPoolUnavailable:
                 String(localized: "Attachments can't be added here.")
+            case .attachmentWouldClaimMissingReference:
+                String(localized: "This database has attachments whose data is missing. A new file would take their place, so it can't be added.")
             }
         }
     }
@@ -228,6 +231,7 @@ struct DatabaseDraft: Sendable {
                 attachments,
                 of: newEntry,
                 keeping: [],
+                referencedRefs: Self.attachmentRefs(in: currentRootGroupStorage),
                 binaryPoolFields: &binaryPoolFields
             )
         }
@@ -578,6 +582,7 @@ struct DatabaseDraft: Sendable {
                 attachments,
                 of: updatedEntry,
                 keeping: entryLocation.entry.attachments,
+                referencedRefs: Self.attachmentRefs(in: currentRootGroupStorage),
                 binaryPoolFields: &binaryPoolFields
             )
         }
@@ -592,10 +597,15 @@ struct DatabaseDraft: Sendable {
     /// pushed onto the history still points at the bytes, as in KeePass, so
     /// the pool entry stays. A new file whose bytes the pool already holds
     /// reuses that entry, as KeePassXC does on save.
+    ///
+    /// Appending never takes an index some attachment already names: a
+    /// dangling ref there, on any entry or history version, would silently
+    /// start resolving to the new file's bytes.
     private static func resolvedAttachments(
         _ payloads: [EntryAttachmentPayload],
         of entry: KPEntry,
         keeping original: [KPAttachment],
+        referencedRefs: Set<Int>,
         binaryPoolFields: inout [Data]?
     ) throws -> [KPAttachment] {
         var unclaimed = original
@@ -615,6 +625,9 @@ struct DatabaseDraft: Sendable {
                 if let existing = pool.firstIndex(where: { $0.dropFirst() == data }) {
                     ref = existing
                 } else {
+                    guard referencedRefs.contains(pool.count) == false else {
+                        throw DraftError.attachmentWouldClaimMissingReference
+                    }
                     // KeePassXC flags every pool entry it writes as protected.
                     pool.append(Data([0x01]) + data)
                     ref = pool.count - 1
@@ -628,6 +641,19 @@ struct DatabaseDraft: Sendable {
             }
         }
         return resolved
+    }
+
+    /// Every pool ref an attachment in `group`'s subtree names, history
+    /// versions included.
+    private static func attachmentRefs(in group: KPGroup) -> Set<Int> {
+        var refs = Set<Int>()
+        for entry in group.allEntries {
+            refs.formUnion(entry.attachments.map(\.ref))
+            for version in entry.history {
+                refs.formUnion(version.attachments.map(\.ref))
+            }
+        }
+        return refs
     }
 
     /// The `KPAttachment.insertionIndex` that writes a `<Binary>` directly

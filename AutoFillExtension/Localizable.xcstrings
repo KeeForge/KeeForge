@@ -5104,6 +5104,46 @@
         }
       }
     },
+    "This database has attachments whose data is missing. A new file would take their place, so it can't be added." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank enthält Anhänge, deren Daten fehlen. Eine neue Datei würde ihren Platz einnehmen und kann deshalb nicht hinzugefügt werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos tiene archivos adjuntos cuyos datos faltan. Un archivo nuevo ocuparía su lugar, así que no se puede añadir."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données contient des pièces jointes dont les données sont manquantes. Un nouveau fichier prendrait leur place ; il ne peut donc pas être ajouté."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースには、データが見つからない添付ファイルがあります。新しいファイルがその代わりになってしまうため、追加できません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库中有数据缺失的附件。新文件会占用它们的位置，因此无法添加。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫中有資料遺失的附件。新檔案會佔用它們的位置，因此無法新增。"
+          }
+        }
+      }
+    },
     "This database is read-only." : {
       "localizations" : {
         "de" : {
