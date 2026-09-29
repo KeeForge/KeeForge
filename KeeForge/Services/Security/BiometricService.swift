@@ -28,57 +28,51 @@ enum BiometricService {
         availableType != .none
     }
 
-    /// Apple Watch database unlock belongs to the native Mac app only.
-    /// iPhone and iPad keep biometric-only database unlock, and the iOS app
-    /// running on a Mac is not a supported platform.
-    static var supportsCompanionUnlock: Bool {
+    /// The policy the app's explicit quick-unlock action evaluates. It matches
+    /// `KeychainService.quickUnlockAccessControlFlags`: on the native Mac app,
+    /// Touch ID or an authorized Apple Watch; on iPhone and iPad, biometrics
+    /// only. Neither accepts the device passcode or the Mac login password,
+    /// which is why this is narrower than `.deviceOwnerAuthentication`.
+    static var quickUnlockPolicy: LAPolicy {
         #if os(macOS)
-        true
+        .deviceOwnerAuthenticationWithBiometricsOrCompanion
+        #else
+        .deviceOwnerAuthenticationWithBiometrics
+        #endif
+    }
+
+    /// Whether `quickUnlockPolicy` can be evaluated right now.
+    static var isQuickUnlockAvailable: Bool {
+        #if os(macOS)
+        var error: NSError?
+        return LAContext().canEvaluatePolicy(quickUnlockPolicy, error: &error)
+        #else
+        isAvailable
+        #endif
+    }
+
+    /// Whether an authorized Apple Watch can approve the Mac app's quick
+    /// unlock right now. Always false on iPhone and iPad.
+    static var isCompanionAvailable: Bool {
+        #if os(macOS)
+        var error: NSError?
+        return LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithCompanion, error: &error)
         #else
         false
         #endif
     }
 
-    /// Whether this Mac has a paired companion that may approve unlocks.
-    /// Gates storing the companion-protected key copy, so a Mac without an
-    /// Apple Watch never holds one.
-    static var isCompanionAvailable: Bool {
-        guard supportsCompanionUnlock else { return false }
-        var error: NSError?
-        return LAContext().canEvaluatePolicy(
-            .deviceOwnerAuthenticationWithCompanion,
-            error: &error
-        )
-    }
-
-    static func authenticate(reason: String) async throws -> LAContext {
+    /// AutoFill keeps the biometric-only default on every platform, so its
+    /// own prompt never offers Apple Watch.
+    static func authenticate(
+        reason: String,
+        policy: LAPolicy = .deviceOwnerAuthenticationWithBiometrics
+    ) async throws -> LAContext {
         let context = LAContext()
         context.localizedFallbackTitle = String(localized: "Use Password")
         await MainActor.run { isBiometricAuthInProgress = true }
         do {
-            try await context.evaluatePolicy(
-                .deviceOwnerAuthenticationWithBiometrics,
-                localizedReason: reason
-            )
-            await MainActor.run { isBiometricAuthInProgress = false }
-            return context
-        } catch {
-            await MainActor.run { isBiometricAuthInProgress = false }
-            throw error
-        }
-    }
-
-    /// Authenticates with a paired companion only. Unlike
-    /// `.deviceOwnerAuthentication`, this policy cannot fall back to the Mac
-    /// login password.
-    static func authenticateWithCompanion(reason: String) async throws -> LAContext {
-        let context = LAContext()
-        await MainActor.run { isBiometricAuthInProgress = true }
-        do {
-            try await context.evaluatePolicy(
-                .deviceOwnerAuthenticationWithCompanion,
-                localizedReason: reason
-            )
+            try await context.evaluatePolicy(policy, localizedReason: reason)
             await MainActor.run { isBiometricAuthInProgress = false }
             return context
         } catch {

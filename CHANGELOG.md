@@ -5,6 +5,7 @@
 ### Fixes
 
 - Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
+- When the saved Face ID, Touch ID or Apple Watch key can no longer be used, for example after enrolled fingerprints change, the unlock screen now says so and asks for your master password, which saves a new key.
 
 ### New Features
 
@@ -14,7 +15,7 @@
 
 ### New Features
 
-- Mac: unlock a database with your Apple Watch (#66). After you unlock with your master password once, the unlock screen offers Unlock with Apple Watch. KeeForge never starts the Watch prompt on its own, and the Mac login password is not accepted instead.
+- Mac: unlock a database with Touch ID or your Apple Watch (#66). After you unlock with your master password once, the unlock button accepts either one. KeeForge never starts the prompt on its own, the Mac login password is not accepted instead, and AutoFill still asks for Touch ID only.
 - Standard KeePass icons now use distinct semantic colors throughout entry and group lists, icon pickers, entry details, and AutoFill. Settings → Display also offers an app-wide accent color picker. Custom icons and website icons continue to display in their original colors (#110).
 - KeeForge now speaks Japanese: a full Japanese (日本語) localization across the app and the AutoFill extension, plus translated README and contributor docs.
 - Open, save, and create databases directly on an FTP server (#115). Add Database → FTP asks for the server address, username, and password. FTP is unencrypted, so connecting requires turning on "Allow Unencrypted FTP"; use it only on a network you trust. Avoid editing the same FTP database from multiple apps or devices at once: simultaneous saves can overwrite each other. Encrypted FTPS and SFTP are not supported yet.

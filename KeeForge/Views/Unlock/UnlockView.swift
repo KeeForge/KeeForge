@@ -116,7 +116,7 @@ struct UnlockView: View {
                 Spacer(minLength: 0)
             }
 
-            if keyFileName != nil || viewModel.canUseBiometrics || viewModel.canUseCompanionUnlock {
+            if keyFileName != nil || viewModel.canUseBiometrics {
                 VStack(alignment: .leading, spacing: 8) {
                     if let keyFileName {
                         Label(keyFileName, systemImage: "key.fill")
@@ -124,11 +124,7 @@ struct UnlockView: View {
                     }
 
                     if viewModel.canUseBiometrics {
-                        Label("Biometric unlock", systemImage: viewModel.biometricIcon)
-                    }
-
-                    if viewModel.canUseCompanionUnlock {
-                        Label("Apple Watch unlock", systemImage: "applewatch")
+                        Label(viewModel.biometricCaption, systemImage: viewModel.biometricIcon)
                     }
                 }
                 .font(.caption)
@@ -242,17 +238,6 @@ struct UnlockView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(isUnlocking)
-            }
-
-            if viewModel.canUseCompanionUnlock {
-                Button(action: unlockWithCompanion) {
-                    Label("Unlock with Apple Watch", systemImage: "applewatch")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
-                }
-                .buttonStyle(.bordered)
-                .disabled(isUnlocking)
-                .accessibilityIdentifier("unlock.apple-watch.button")
             }
 
             if showsChooseDifferentFileAction {
@@ -575,18 +560,7 @@ struct UnlockView: View {
                 // hand focus to the password field so the tap visibly did
                 // something.
                 passwordFocused = true
-            case .unlocked, .failed, .cancelled:
-                break
-            }
-        }
-    }
-
-    private func unlockWithCompanion() {
-        Task {
-            switch await viewModel.unlockWithCompanion() {
-            case .promptUnavailable:
-                passwordFocused = true
-            case .unlocked, .failed, .cancelled, .passwordFallback:
+            case .unlocked, .failed:
                 break
             }
         }

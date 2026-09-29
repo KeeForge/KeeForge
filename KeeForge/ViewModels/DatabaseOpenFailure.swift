@@ -8,7 +8,6 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
     enum UnlockMethod: String, Sendable {
         case password
         case biometrics
-        case appleWatch = "apple_watch"
     }
 
     let lines: [String]
@@ -367,6 +366,10 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             return biometricFailure.attaching(diagnostics)
         }
 
+        if error is KeychainService.KeychainError {
+            return storedKeyUnavailable(error).attaching(diagnostics)
+        }
+
         if let cocoaFailure = fromCocoaError(error) {
             return cocoaFailure.attaching(diagnostics)
         }
@@ -379,32 +382,6 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             category: isCloudBacked ? .cloud : .unexpected,
             countsTowardFailedAttempts: false,
             canChooseDifferentFile: !isCloudBacked,
-            diagnostics: diagnostics
-        )
-    }
-
-    static func appleWatchUnlockFailure(
-        _ error: Error,
-        diagnostics: DatabaseOpenDiagnostics?
-    ) -> DatabaseOpenFailure {
-        let nsError = error as NSError
-        let code = nsError.domain == LAError.errorDomain
-            ? LAError.Code(rawValue: nsError.code)
-            : nil
-        let isUnavailable = code == .companionNotAvailable
-
-        return DatabaseOpenFailure(
-            title: isUnavailable
-                ? String(localized: "Apple Watch Unlock Unavailable")
-                : String(localized: "Apple Watch Unlock Failed"),
-            summary: isUnavailable
-                ? String(localized: "Apple Watch isn't available right now. Bring your unlocked watch nearby and try again, or use your master password and key file.")
-                : String(localized: "Apple Watch couldn't unlock this database. You can still use your master password and key file."),
-            technicalDetails: technicalDetails(for: error),
-            errorCode: isUnavailable ? "apple_watch.unavailable" : "apple_watch.failed",
-            category: .biometric,
-            countsTowardFailedAttempts: false,
-            canChooseDifferentFile: false,
             diagnostics: diagnostics
         )
     }
@@ -705,10 +682,18 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             summary = String(localized: "Biometric unlock was cancelled before KeeForge could open the database.")
             errorCode = "biometric.cancelled"
         case .authenticationFailed:
+            #if os(macOS)
+            summary = String(localized: "Touch ID or Apple Watch didn't verify, so KeeForge could not continue unlocking.")
+            #else
             summary = String(localized: "Face ID or Touch ID didn't verify, so KeeForge could not continue unlocking.")
+            #endif
             errorCode = "biometric.authentication_failed"
-        case .biometryNotAvailable, .biometryNotEnrolled, .biometryLockout:
+        case .biometryNotAvailable, .biometryNotEnrolled, .biometryLockout, .companionNotAvailable:
+            #if os(macOS)
+            summary = String(localized: "Touch ID and Apple Watch aren't available right now. You can still use your password and key file.")
+            #else
             summary = String(localized: "Biometric unlock isn't available right now. You can still use your password and key file.")
+            #endif
             errorCode = "biometric.unavailable"
         default:
             summary = String(localized: "KeeForge couldn't finish the biometric unlock flow.")
@@ -720,6 +705,27 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             summary: summary,
             technicalDetails: technicalDetails(for: error),
             errorCode: errorCode,
+            category: .biometric,
+            countsTowardFailedAttempts: false,
+            canChooseDifferentFile: false
+        )
+    }
+
+    /// The stored quick-unlock key could not be read after authentication
+    /// succeeded, e.g. because enrolled fingerprints or Face ID changed and
+    /// `.biometryCurrentSet` no longer matches. The next password unlock
+    /// writes a fresh item, so the master password is the recovery path.
+    private static func storedKeyUnavailable(_ error: Error) -> DatabaseOpenFailure {
+        #if os(macOS)
+        let summary = String(localized: "KeeForge couldn't use the key saved for Touch ID or Apple Watch unlock, for example because the enrolled fingerprints changed. Unlock with your master password and key file, and KeeForge will save a new one.")
+        #else
+        let summary = String(localized: "KeeForge couldn't use the key saved for Face ID or Touch ID unlock, for example because the enrolled face or fingerprints changed. Unlock with your master password and key file, and KeeForge will save a new one.")
+        #endif
+        return DatabaseOpenFailure(
+            title: String(localized: "Saved Unlock Key Unavailable"),
+            summary: summary,
+            technicalDetails: technicalDetails(for: error),
+            errorCode: "biometric.stored_key_unavailable",
             category: .biometric,
             countsTowardFailedAttempts: false,
             canChooseDifferentFile: false

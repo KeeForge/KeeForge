@@ -1266,12 +1266,14 @@ final class CredentialProviderCoordinator {
     }
 
     private func persistCompositeKeyIfPossible(_ compositeKey: SymmetricKey, for databaseReference: DatabaseReference) {
+        guard KeychainService.shouldStoreQuickUnlockKey(
+            for: databaseReference.id,
+            legacyFilename: databaseReference.legacyKeychainFilename
+        ) else { return }
+
         do {
-            let didStoreBiometricKey = try KeychainService.storeAvailableQuickUnlockKeys(
-                compositeKey,
-                for: databaseReference.id
-            )
-            if didStoreBiometricKey, let legacyFilename = databaseReference.legacyKeychainFilename {
+            try KeychainService.storeCompositeKey(compositeKey, for: databaseReference.id)
+            if let legacyFilename = databaseReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
                 DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
                 // Re-read the pinned reference by id so the in-session copy

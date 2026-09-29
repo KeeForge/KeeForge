@@ -271,7 +271,6 @@ final class DatabaseViewModel {
     enum BiometricUnlockOutcome: Sendable, Equatable {
         case unlocked
         case failed
-        case cancelled
         /// LocalAuthentication refused to present its prompt because the app
         /// was not foreground-active (`LAError.notInteractive`). Nothing was
         /// shown to the user, so the database stays locked and the caller may
@@ -577,7 +576,6 @@ final class DatabaseViewModel {
     private let cloudConflictCopyOperation: CloudConflictCopyOperation
     private let reloadOperation: ReloadOperation
     private let biometricCompositeKeyOperation: BiometricCompositeKeyOperation
-    private let companionCompositeKeyOperation: BiometricCompositeKeyOperation
     private let pendingUploadMarkerCheck: PendingUploadMarkerCheck
     private let pendingUploadRecovery: PendingUploadRecovery.Environment
     private let storedKeyPresenceCheck: StoredKeyPresenceCheck
@@ -654,29 +652,24 @@ final class DatabaseViewModel {
             )
         },
         biometricCompositeKeyOperation: @escaping BiometricCompositeKeyOperation = { reference, reason in
-            let context = try await BiometricService.authenticate(reason: reason)
+            let context = try await BiometricService.authenticate(
+                reason: reason,
+                policy: BiometricService.quickUnlockPolicy
+            )
             return try DatabaseViewModel.retrieveStoredCompositeKey(for: reference, context: context)
-        },
-        companionCompositeKeyOperation: @escaping BiometricCompositeKeyOperation = { reference, reason in
-            let context = try await BiometricService.authenticateWithCompanion(reason: reason)
-            return try KeychainService.retrieveCompanionCompositeKey(for: reference.id, context: context)
         },
         pendingUploadMarkerCheck: @escaping PendingUploadMarkerCheck = { reference in
             PendingUploadQueue.listMarkers(for: reference.id).isEmpty == false
         },
         pendingUploadRecovery: PendingUploadRecovery.Environment = .live,
         storedKeyPresenceCheck: @escaping StoredKeyPresenceCheck = { reference in
-            KeychainService.hasAnyStoredKey(for: reference.id, legacyFilename: reference.legacyKeychainFilename)
+            KeychainService.hasStoredKey(for: reference.id, legacyFilename: reference.legacyKeychainFilename)
         },
         storedKeyStoreOperation: @escaping StoredKeyStoreOperation = { compositeKey, reference in
-            try KeychainService.replaceStoredQuickUnlockKeys(
-                compositeKey,
-                for: reference.id,
-                legacyFilename: reference.legacyKeychainFilename
-            )
+            try KeychainService.storeCompositeKey(compositeKey, for: reference.id)
         },
         storedKeyDeleteOperation: @escaping StoredKeyDeleteOperation = { reference in
-            KeychainService.deleteQuickUnlockKeys(for: reference.id)
+            KeychainService.deleteCompositeKey(for: reference.id)
         },
         deviceOwnerAuthAvailabilityCheck: @escaping DeviceOwnerAuthAvailabilityCheck = {
             BiometricService.canAuthenticateDeviceOwner
@@ -705,7 +698,6 @@ final class DatabaseViewModel {
         self.cloudConflictCopyOperation = cloudConflictCopyOperation
         self.reloadOperation = reloadOperation
         self.biometricCompositeKeyOperation = biometricCompositeKeyOperation
-        self.companionCompositeKeyOperation = companionCompositeKeyOperation
         self.pendingUploadMarkerCheck = pendingUploadMarkerCheck
         self.pendingUploadRecovery = pendingUploadRecovery
         self.storedKeyPresenceCheck = storedKeyPresenceCheck
@@ -895,17 +887,14 @@ final class DatabaseViewModel {
         return DatabaseListStore.isDocumentsFileMissing(for: databaseReference)
     }
 
+    /// Named for its iOS meaning; on the native Mac app the stored key also
+    /// opens with an authorized Apple Watch (`BiometricService.quickUnlockPolicy`).
     var canUseBiometrics: Bool {
-        guard BiometricService.isAvailable else { return false }
+        guard BiometricService.isQuickUnlockAvailable else { return false }
         return KeychainService.hasStoredKey(
             for: databaseReference.id,
             legacyFilename: databaseReference.legacyKeychainFilename
         )
-    }
-
-    var canUseCompanionUnlock: Bool {
-        guard BiometricService.supportsCompanionUnlock else { return false }
-        return KeychainService.hasStoredCompanionKey(for: databaseReference.id)
     }
 
     /// Whether this session should open itself with biometrics instead of
@@ -923,18 +912,41 @@ final class DatabaseViewModel {
     }
 
     var biometricLabel: String {
+        #if os(macOS)
+        switch (BiometricService.availableType, BiometricService.isCompanionAvailable) {
+        case (.touchID, true): return String(localized: "Unlock with Touch ID or Apple Watch")
+        case (.none, true): return String(localized: "Unlock with Apple Watch")
+        default: break
+        }
+        #endif
         switch BiometricService.availableType {
-        case .faceID: "Unlock with Face ID"
-        case .touchID: "Unlock with Touch ID"
-        case .none: "Biometrics unavailable"
+        case .faceID: return "Unlock with Face ID"
+        case .touchID: return "Unlock with Touch ID"
+        case .none: return "Biometrics unavailable"
         }
     }
 
+    var biometricCaption: String {
+        #if os(macOS)
+        switch (BiometricService.availableType, BiometricService.isCompanionAvailable) {
+        case (.touchID, true): return String(localized: "Touch ID or Apple Watch unlock")
+        case (.none, true): return String(localized: "Apple Watch unlock")
+        default: break
+        }
+        #endif
+        return String(localized: "Biometric unlock")
+    }
+
     var biometricIcon: String {
+        #if os(macOS)
+        if BiometricService.availableType == .none, BiometricService.isCompanionAvailable {
+            return "applewatch"
+        }
+        #endif
         switch BiometricService.availableType {
-        case .faceID: "faceid"
-        case .touchID: "touchid"
-        case .none: "lock.fill"
+        case .faceID: return "faceid"
+        case .touchID: return "touchid"
+        case .none: return "lock.fill"
         }
     }
 
@@ -1037,44 +1049,18 @@ final class DatabaseViewModel {
 
     @discardableResult
     func unlockWithBiometrics() async -> BiometricUnlockOutcome {
-        await unlockWithStoredKey(
-            operation: biometricCompositeKeyOperation,
-            reason: String(localized: "Unlock your password database"),
-            unlockMethod: .biometrics,
-            nonFailureOutcome: Self.biometricOutcomeLeavingDatabaseLocked
-        )
-    }
-
-    @discardableResult
-    func unlockWithCompanion() async -> BiometricUnlockOutcome {
-        await unlockWithStoredKey(
-            operation: companionCompositeKeyOperation,
-            reason: String(localized: "Unlock your password database with Apple Watch"),
-            unlockMethod: .appleWatch,
-            nonFailureOutcome: Self.companionOutcomeLeavingDatabaseLocked
-        )
-    }
-
-    private func unlockWithStoredKey(
-        operation: BiometricCompositeKeyOperation,
-        reason: String,
-        unlockMethod: DatabaseOpenDiagnostics.UnlockMethod,
-        nonFailureOutcome: (Error) -> BiometricUnlockOutcome?
-    ) async -> BiometricUnlockOutcome {
         let failedAttemptsBeforeAttempt = failedAttempts
         let attempt = prepareForUnlock()
 
         var encryptedData: Data?
         var cloudSyncStatus: CloudSyncResolution.Status?
-        var didRetrieveStoredKey = false
 
         do {
             let hardwareKey = databaseReference.hardwareKey
-            let storedKey = try await operation(
+            let storedKey = try await biometricCompositeKeyOperation(
                 databaseReference,
-                reason
+                String(localized: "Unlock your password database")
             )
-            didRetrieveStoredKey = true
             let readResult = try await readDatabaseData()
             let data = readResult.data
             encryptedData = data
@@ -1121,27 +1107,21 @@ final class DatabaseViewModel {
             return .unlocked
         } catch {
             guard finishUnlockAttempt(attempt) else { return .failed }
-            if let outcome = nonFailureOutcome(error) {
+            if let outcome = Self.biometricOutcomeLeavingDatabaseLocked(for: error) {
                 canRemoveMissingDocumentsFile = false
                 state = .locked
                 return outcome
             }
 
             let diagnostics = makeUnlockDiagnostics(
-                unlockMethod: unlockMethod,
+                unlockMethod: .biometrics,
                 passwordSupplied: false,
                 keyFileSupplied: false,
                 failedAttemptsBeforeAttempt: failedAttemptsBeforeAttempt,
                 encryptedData: encryptedData,
                 cloudSyncStatus: cloudSyncStatus
             )
-            if unlockMethod == .appleWatch, didRetrieveStoredKey == false {
-                handleUnlockFailure(
-                    DatabaseOpenFailure.appleWatchUnlockFailure(error, diagnostics: diagnostics)
-                )
-            } else {
-                handleUnlockFailure(error, diagnostics: diagnostics)
-            }
+            handleUnlockFailure(error, diagnostics: diagnostics)
             return .failed
         }
     }
@@ -1159,19 +1139,6 @@ final class DatabaseViewModel {
         switch LAError.Code(rawValue: nsError.code) {
         case .notInteractive: return .promptUnavailable
         case .userFallback: return .passwordFallback
-        default: return nil
-        }
-    }
-
-    private static func companionOutcomeLeavingDatabaseLocked(
-        for error: Error
-    ) -> BiometricUnlockOutcome? {
-        let nsError = error as NSError
-        guard nsError.domain == LAError.errorDomain else { return nil }
-
-        switch LAError.Code(rawValue: nsError.code) {
-        case .notInteractive: return .promptUnavailable
-        case .userCancel, .appCancel, .systemCancel: return .cancelled
         default: return nil
         }
     }
@@ -3478,7 +3445,7 @@ final class DatabaseViewModel {
             cancelInactivityTimer(clearDeadline: false)
         }
 
-        persistCompositeKeyForQuickUnlock(quickLaunchKey)
+        persistCompositeKeyForBiometricUnlock(quickLaunchKey)
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
         refreshDatabaseReference()
         populateCredentialStoreIfNeeded(root: payload.rootGroup)
@@ -3530,17 +3497,12 @@ final class DatabaseViewModel {
     }
 
     private func handleUnlockFailure(_ error: Error, diagnostics: DatabaseOpenDiagnostics?) {
-        handleUnlockFailure(
-            DatabaseOpenFailure.classify(
-                error,
-                isCloudBacked: databaseReference.isCloudBacked,
-                hardwareKeyContext: hardwareKeyFailureContext,
-                diagnostics: diagnostics
-            )
+        let failure = DatabaseOpenFailure.classify(
+            error,
+            isCloudBacked: databaseReference.isCloudBacked,
+            hardwareKeyContext: hardwareKeyFailureContext,
+            diagnostics: diagnostics
         )
-    }
-
-    private func handleUnlockFailure(_ failure: DatabaseOpenFailure) {
 
         if failure.countsTowardFailedAttempts {
             failedAttempts += 1
@@ -3549,7 +3511,7 @@ final class DatabaseViewModel {
                 lockoutUntil = Date.now.addingTimeInterval(delay)
                 let seconds = Int(ceil(delay))
                 canRemoveMissingDocumentsFile = false
-                state = .error(lockoutFailure(seconds: seconds, diagnostics: failure.diagnostics))
+                state = .error(lockoutFailure(seconds: seconds, diagnostics: diagnostics))
                 return
             }
         }
@@ -3571,16 +3533,22 @@ final class DatabaseViewModel {
         )
     }
 
-    private func persistCompositeKeyForQuickUnlock(_ compositeKey: SymmetricKey) {
-        // A Mac without enrolled Touch ID or a paired Apple Watch stores
-        // nothing and surfaces no error; password unlock stays primary.
-        do {
-            let didStoreBiometricKey = try KeychainService.storeAvailableQuickUnlockKeys(
-                compositeKey,
-                for: databaseReference.id
-            )
+    private func persistCompositeKeyForBiometricUnlock(_ compositeKey: SymmetricKey) {
+        // Silently skip when nothing could satisfy the item's access control:
+        // no enrolled biometrics (and, on the Mac, no authorized Apple Watch)
+        // is the common Mac desktop case. Password unlock stays primary,
+        // nothing is stored, no error is surfaced, and there are no retry
+        // loops. An existing Mac item is still refreshed; see
+        // `KeychainService.shouldStoreQuickUnlockKey`.
+        guard KeychainService.shouldStoreQuickUnlockKey(
+            for: databaseReference.id,
+            legacyFilename: databaseReference.legacyKeychainFilename
+        ) else { return }
 
-            if didStoreBiometricKey, let legacyFilename = databaseReference.legacyKeychainFilename {
+        do {
+            try KeychainService.storeCompositeKey(compositeKey, for: databaseReference.id)
+
+            if let legacyFilename = databaseReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
                 DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
             }

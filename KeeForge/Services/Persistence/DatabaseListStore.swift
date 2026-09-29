@@ -325,7 +325,7 @@ enum DatabaseListStore {
             // `setAutoFillEnabled`).
             let wasActiveAutoFillDatabase = activeAutoFillDatabase?.id == id
 
-            KeychainService.deleteQuickUnlockKeys(for: removedReference.id)
+            KeychainService.deleteCompositeKey(for: removedReference.id)
             if let legacyFilename = removedReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
             }
@@ -422,16 +422,15 @@ enum DatabaseListStore {
     }
 
     /// Adding or removing the hardware key changes what the stored Quick
-    /// Launch keys mean (composite key vs. pre-key), so the Touch ID / Face ID
-    /// and Apple Watch copies are both dropped and the next successful unlock
-    /// stores the right one.
+    /// Launch key means (composite key vs. pre-key), so that key is dropped
+    /// and the next successful unlock stores the right one.
     static func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?, for reference: DatabaseReference) {
         withStateLock {
             guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
             guard updatedReference.hardwareKey != hardwareKey else { return }
 
             if (updatedReference.hardwareKey == nil) != (hardwareKey == nil) {
-                KeychainService.deleteQuickUnlockKeys(for: updatedReference.id)
+                KeychainService.deleteCompositeKey(for: updatedReference.id)
                 if let legacyFilename = updatedReference.legacyKeychainFilename {
                     KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
                     updatedReference.legacyKeychainFilename = nil

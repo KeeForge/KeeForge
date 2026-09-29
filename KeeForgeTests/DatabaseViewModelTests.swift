@@ -1,6 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import LocalAuthentication
+import Security
 import SwiftUI
 import XCTest
 @testable import KeeForge
@@ -128,62 +129,41 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
     }
 
-    func testCompanionUnlockOpensDatabaseWithTheStoredCompositeKey() async throws {
+    /// On the Mac the combined prompt can fail with the watch unavailable;
+    /// like a biometric one, it must not count toward the lockout.
+    func testQuickUnlockWithNoMechanismAvailableIsNotAFailedAttempt() async throws {
         let vm = try makeViewModel(
-            companionCompositeKeyOperation: { [fixturePassword] _, _ in
-                try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
-            }
+            biometricCompositeKeyOperation: { _, _ in throw LAError(.companionNotAvailable) }
         )
 
-        let outcome = await vm.unlockWithCompanion()
-
-        XCTAssertEqual(outcome, .unlocked)
-        XCTAssertState(vm.state, is: .unlocked)
-    }
-
-    func testAppleWatchUnlockIsOfferedOnlyByTheNativeMacApp() throws {
-        let vm = try makeViewModel()
-        let databaseID = vm.databaseReference.id
-        defer { KeychainService.deleteQuickUnlockKeys(for: databaseID) }
-        do {
-            try KeychainService.storeCompanionCompositeKey(SymmetricKey(size: .bits256), for: databaseID)
-        } catch {
-            throw XCTSkip("Companion-protected keychain writes are unavailable in the current test host: \(error)")
-        }
-
-        #if os(macOS)
-        XCTAssertTrue(vm.canUseCompanionUnlock)
-        #else
-        XCTAssertFalse(vm.canUseCompanionUnlock, "iPhone, iPad and the iOS app on a Mac never offer Apple Watch unlock")
-        #endif
-    }
-
-    func testCompanionUnlockCancellationLeavesDatabaseLockedWithoutAnError() async throws {
-        let vm = try makeViewModel(
-            companionCompositeKeyOperation: { _, _ in throw LAError(.userCancel) }
-        )
-
-        let outcome = await vm.unlockWithCompanion()
-
-        XCTAssertEqual(outcome, .cancelled)
-        XCTAssertState(vm.state, is: .locked)
-        XCTAssertNil(vm.openFailure)
-    }
-
-    func testCompanionUnlockUnavailableShowsActionableFallbackWithoutCountingAFailure() async throws {
-        let vm = try makeViewModel(
-            companionCompositeKeyOperation: { _, _ in throw LAError(.companionNotAvailable) }
-        )
-
-        let outcome = await vm.unlockWithCompanion()
+        let outcome = await vm.unlockWithBiometrics()
 
         XCTAssertEqual(outcome, .failed)
         let failure = try XCTUnwrap(vm.openFailure)
-        XCTAssertEqual(failure.errorCode, "apple_watch.unavailable")
+        XCTAssertEqual(failure.errorCode, "biometric.unavailable")
+        XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
+        XCTAssertEqual(vm.failedAttempts, 0)
+    }
+
+    /// Authentication succeeded but the item could not be read, e.g. after
+    /// the enrolled fingerprints changed: point at the master password, which
+    /// writes a fresh item, instead of the generic "couldn't open" screen.
+    func testUnreadableStoredKeyAsksForTheMasterPassword() async throws {
+        let vm = try makeViewModel(
+            biometricCompositeKeyOperation: { _, _ in
+                throw KeychainService.KeychainError.retrieveFailed(errSecInteractionNotAllowed)
+            }
+        )
+
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .failed)
+        let failure = try XCTUnwrap(vm.openFailure)
+        XCTAssertEqual(failure.errorCode, "biometric.stored_key_unavailable")
         XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
         XCTAssertTrue(failure.summary.contains("master password"))
+        XCTAssertFalse(failure.canChooseDifferentFile)
         XCTAssertEqual(vm.failedAttempts, 0)
-        XCTAssertTrue(failure.diagnostics?.details.contains("Unlock Method: apple_watch") == true)
     }
 
     func testUnlockCloudDatabaseDoesNotRewriteSharedCache() async throws {
@@ -5822,26 +5802,18 @@ final class DatabaseViewModelTests: XCTestCase {
             let context = try await BiometricService.authenticate(reason: reason)
             return try DatabaseViewModel.retrieveStoredCompositeKey(for: reference, context: context)
         },
-        companionCompositeKeyOperation: @escaping DatabaseViewModel.BiometricCompositeKeyOperation = { reference, reason in
-            let context = try await BiometricService.authenticateWithCompanion(reason: reason)
-            return try KeychainService.retrieveCompanionCompositeKey(for: reference.id, context: context)
-        },
         pendingUploadRecovery: PendingUploadRecovery.Environment = .live,
         pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { reference in
             PendingUploadQueue.listMarkers(for: reference.id).isEmpty == false
         },
         storedKeyPresenceCheck: @escaping DatabaseViewModel.StoredKeyPresenceCheck = { reference in
-            KeychainService.hasAnyStoredKey(for: reference.id, legacyFilename: reference.legacyKeychainFilename)
+            KeychainService.hasStoredKey(for: reference.id, legacyFilename: reference.legacyKeychainFilename)
         },
         storedKeyStoreOperation: @escaping DatabaseViewModel.StoredKeyStoreOperation = { compositeKey, reference in
-            try KeychainService.replaceStoredQuickUnlockKeys(
-                compositeKey,
-                for: reference.id,
-                legacyFilename: reference.legacyKeychainFilename
-            )
+            try KeychainService.storeCompositeKey(compositeKey, for: reference.id)
         },
         storedKeyDeleteOperation: @escaping DatabaseViewModel.StoredKeyDeleteOperation = { reference in
-            KeychainService.deleteQuickUnlockKeys(for: reference.id)
+            KeychainService.deleteCompositeKey(for: reference.id)
         },
         deviceOwnerAuthAvailabilityCheck: @escaping DatabaseViewModel.DeviceOwnerAuthAvailabilityCheck = {
             BiometricService.canAuthenticateDeviceOwner
@@ -5865,7 +5837,6 @@ final class DatabaseViewModelTests: XCTestCase {
             cloudConflictCopyOperation: cloudConflictCopyOperation,
             reloadOperation: reloadOperation,
             biometricCompositeKeyOperation: biometricCompositeKeyOperation,
-            companionCompositeKeyOperation: companionCompositeKeyOperation,
             pendingUploadMarkerCheck: pendingUploadMarkerCheck,
             pendingUploadRecovery: pendingUploadRecovery,
             storedKeyPresenceCheck: storedKeyPresenceCheck,

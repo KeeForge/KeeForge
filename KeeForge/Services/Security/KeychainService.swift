@@ -6,10 +6,18 @@ import Security
 enum KeychainService {
     private static let service = "com.keevault.app"
     private static let compositeKeyAccount = "compositeKey"
-    private static let companionCompositeKeyAccount = "companionCompositeKey"
 
-    static let biometricAccessControlFlags: SecAccessControlCreateFlags = .biometryCurrentSet
-    static let companionAccessControlFlags: SecAccessControlCreateFlags = .companion
+    /// One quick-unlock item per database. On the native Mac app Touch ID or
+    /// an authorized Apple Watch can release it; iPhone and iPad stay
+    /// biometric-only. No flag admits the device passcode or the Mac login
+    /// password. Must stay in step with `BiometricService.quickUnlockPolicy`.
+    static var quickUnlockAccessControlFlags: SecAccessControlCreateFlags {
+        #if os(macOS)
+        [.biometryCurrentSet, .or, .companion]
+        #else
+        .biometryCurrentSet
+        #endif
+    }
 
     private static func accountKey(for databaseID: UUID) -> String {
         "\(compositeKeyAccount):\(databaseID.uuidString)"
@@ -19,21 +27,9 @@ enum KeychainService {
         "\(compositeKeyAccount):\(filename)"
     }
 
-    private static func companionAccountKey(for databaseID: UUID) -> String {
-        "\(companionCompositeKeyAccount):\(databaseID.uuidString)"
-    }
-
     static func storeCompositeKey(_ key: SymmetricKey, for databaseID: UUID) throws {
         let account = accountKey(for: databaseID)
-        try storeCompositeKey(key, account: account, accessControlFlags: biometricAccessControlFlags)
-    }
-
-    static func storeCompanionCompositeKey(_ key: SymmetricKey, for databaseID: UUID) throws {
-        try storeCompositeKey(
-            key,
-            account: companionAccountKey(for: databaseID),
-            accessControlFlags: companionAccessControlFlags
-        )
+        try storeCompositeKey(key, account: account)
     }
 
     static func retrieveCompositeKey(for databaseID: UUID, context: LAContext) throws -> SymmetricKey {
@@ -41,17 +37,9 @@ enum KeychainService {
         return try retrieveCompositeKey(account: account, context: context)
     }
 
-    static func retrieveCompanionCompositeKey(for databaseID: UUID, context: LAContext) throws -> SymmetricKey {
-        try retrieveCompositeKey(account: companionAccountKey(for: databaseID), context: context)
-    }
-
     static func deleteCompositeKey(for databaseID: UUID) {
         let account = accountKey(for: databaseID)
         deleteCompositeKey(account: account)
-    }
-
-    static func deleteCompanionCompositeKey(for databaseID: UUID) {
-        deleteCompositeKey(account: companionAccountKey(for: databaseID))
     }
 
     static func hasStoredKey(for databaseID: UUID, legacyFilename: String? = nil) -> Bool {
@@ -63,89 +51,20 @@ enum KeychainService {
         return hasStoredKey(account: legacyAccountKey(forFilename: legacyFilename))
     }
 
-    static func hasStoredCompanionKey(for databaseID: UUID) -> Bool {
-        hasStoredKey(account: companionAccountKey(for: databaseID))
-    }
-
-    static func hasAnyStoredKey(for databaseID: UUID, legacyFilename: String? = nil) -> Bool {
-        hasStoredCompanionKey(for: databaseID)
-            || hasStoredKey(for: databaseID, legacyFilename: legacyFilename)
-    }
-
-    /// Stores each quick-unlock item independently so one unavailable system
-    /// mechanism cannot remove or invalidate the other. An existing Apple Watch
-    /// item is rewritten even while no watch is available — its usual state —
-    /// because the master key may have changed on another device since.
-    /// Returns whether the Touch ID / Face ID item was written: only that
-    /// item replaces a legacy filename-keyed one.
-    @discardableResult
-    static func storeAvailableQuickUnlockKeys(_ key: SymmetricKey, for databaseID: UUID) throws -> Bool {
-        var firstError: Error?
-        var didStoreBiometricKey = false
-        var didStoreCompanionKey = false
-
-        if BiometricService.isAvailable {
-            do {
-                try storeCompositeKey(key, for: databaseID)
-                didStoreBiometricKey = true
-            } catch {
-                firstError = error
-            }
+    /// Whether a successful unlock should (re)write the quick-unlock item.
+    /// On the Mac an existing item is rewritten even while neither Touch ID
+    /// nor the watch can authenticate (lid closed, watch away): adding needs
+    /// no authentication, and the master key may have changed on another
+    /// device since the item was written.
+    static func shouldStoreQuickUnlockKey(for databaseID: UUID, legacyFilename: String?) -> Bool {
+        if BiometricService.isQuickUnlockAvailable {
+            return true
         }
-
-        if BiometricService.isCompanionAvailable || hasStoredCompanionKey(for: databaseID) {
-            do {
-                try storeCompanionCompositeKey(key, for: databaseID)
-                didStoreCompanionKey = true
-            } catch {
-                if firstError == nil {
-                    firstError = error
-                }
-            }
-        }
-
-        if !didStoreBiometricKey, !didStoreCompanionKey, let firstError {
-            throw firstError
-        }
-        return didStoreBiometricKey
-    }
-
-    /// Rekey path: rewrites every item that already exists, even while its
-    /// mechanism cannot authenticate (Touch ID lockout, watch away) — a
-    /// skipped item would keep a key the database no longer accepts.
-    static func replaceStoredQuickUnlockKeys(
-        _ key: SymmetricKey,
-        for databaseID: UUID,
-        legacyFilename: String? = nil
-    ) throws {
-        var firstError: Error?
-
-        if hasStoredKey(for: databaseID, legacyFilename: legacyFilename) {
-            do {
-                try storeCompositeKey(key, for: databaseID)
-            } catch {
-                firstError = error
-            }
-        }
-
-        if hasStoredCompanionKey(for: databaseID) {
-            do {
-                try storeCompanionCompositeKey(key, for: databaseID)
-            } catch {
-                if firstError == nil {
-                    firstError = error
-                }
-            }
-        }
-
-        if let firstError {
-            throw firstError
-        }
-    }
-
-    static func deleteQuickUnlockKeys(for databaseID: UUID) {
-        deleteCompositeKey(for: databaseID)
-        deleteCompanionCompositeKey(for: databaseID)
+        #if os(macOS)
+        return hasStoredKey(for: databaseID, legacyFilename: legacyFilename)
+        #else
+        return false
+        #endif
     }
 
     static func retrieveLegacyCompositeKey(forFilename filename: String, context: LAContext) throws -> SymmetricKey {
@@ -168,18 +87,14 @@ enum KeychainService {
         return true
     }
 
-    private static func storeCompositeKey(
-        _ key: SymmetricKey,
-        account: String,
-        accessControlFlags: SecAccessControlCreateFlags
-    ) throws {
+    private static func storeCompositeKey(_ key: SymmetricKey, account: String) throws {
         deleteCompositeKey(account: account)
 
         var error: Unmanaged<CFError>?
         guard let accessControl = SecAccessControlCreateWithFlags(
             nil,
             kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-            accessControlFlags,
+            quickUnlockAccessControlFlags,
             &error
         ) else {
             throw KeychainError.accessControlFailed
@@ -206,6 +121,13 @@ enum KeychainService {
 
     // The bytes CFData hands back are Security-framework owned and cannot be reliably wiped.
     private static func retrieveCompositeKey(account: String, context: LAContext) throws -> SymmetricKey {
+        #if os(macOS)
+        // The caller's evaluated policy is the only prompt. The Mac item also
+        // admits Apple Watch, so a Keychain-raised prompt could offer the
+        // watch inside biometric-only AutoFill; fail instead and let the user
+        // fall back to the master password.
+        context.interactionNotAllowed = true
+        #endif
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

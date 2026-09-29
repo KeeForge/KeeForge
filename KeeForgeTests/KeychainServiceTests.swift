@@ -5,10 +5,10 @@ import Security
 import XCTest
 @testable import KeeForge
 
-/// `KeychainService` stores biometric composite keys behind a
-/// `.biometryCurrentSet` access control, so `SecItemAdd`
-/// never needs authentication, but `SecItemCopyMatching` for the actual bytes
-/// does. A headless XCTest run has no way to satisfy a Face ID/Touch ID
+/// `KeychainService` stores composite keys behind
+/// `quickUnlockAccessControlFlags` (see `storeCompositeKey(_:account:)`), so
+/// `SecItemAdd` never needs authentication, but `SecItemCopyMatching` for the
+/// actual bytes does. A headless XCTest run has no way to satisfy a Face ID/Touch ID
 /// prompt, so tests that retrieve a *stored* key pass an `LAContext` with
 /// `interactionNotAllowed = true` and accept either a successful decrypt
 /// (round trip) or an auth-required failure that is provably not
@@ -21,7 +21,7 @@ final class KeychainServiceTests: XCTestCase {
 
     override func tearDown() {
         for databaseID in databaseIDsToClean {
-            KeychainService.deleteQuickUnlockKeys(for: databaseID)
+            KeychainService.deleteCompositeKey(for: databaseID)
         }
         for filename in legacyFilenamesToClean {
             KeychainService.deleteLegacyCompositeKey(forFilename: filename)
@@ -31,24 +31,67 @@ final class KeychainServiceTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - Apple Watch access control
+    // MARK: - Quick-unlock policy
 
-    func testCompanionAccessControlCannotFallBackToPasscodeOrLoginPassword() {
-        let flags = KeychainService.companionAccessControlFlags
+    func testQuickUnlockItemNeverAdmitsThePasscodeOrLoginPassword() {
+        let flags = KeychainService.quickUnlockAccessControlFlags
 
-        XCTAssertTrue(flags.contains(.companion))
+        XCTAssertTrue(flags.contains(.biometryCurrentSet))
         XCTAssertFalse(flags.contains(.userPresence))
         XCTAssertFalse(flags.contains(.devicePasscode))
-        XCTAssertFalse(flags.contains(.biometryCurrentSet))
+        XCTAssertFalse(flags.contains(.applicationPassword))
+        #if os(macOS)
+        XCTAssertEqual(flags, [.biometryCurrentSet, .or, .companion])
+        #else
+        XCTAssertEqual(flags, .biometryCurrentSet, "iPhone and iPad stay biometric-only")
+        #endif
     }
 
-    func testCompanionUnlockIsOfferedOnlyByTheNativeMacApp() {
+    func testQuickUnlockPromptMatchesTheItemAccessControl() {
         #if os(macOS)
-        XCTAssertTrue(BiometricService.supportsCompanionUnlock)
+        XCTAssertEqual(BiometricService.quickUnlockPolicy, .deviceOwnerAuthenticationWithBiometricsOrCompanion)
         #else
-        XCTAssertFalse(BiometricService.supportsCompanionUnlock)
+        XCTAssertEqual(BiometricService.quickUnlockPolicy, .deviceOwnerAuthenticationWithBiometrics)
         XCTAssertFalse(BiometricService.isCompanionAvailable)
         #endif
+    }
+
+    /// The Mac item also admits Apple Watch, so a read must never let the
+    /// Keychain raise its own prompt: biometric-only AutoFill would otherwise
+    /// see a Watch sheet. An absent item keeps this free of any real prompt.
+    func testRetrievalLetsOnlyTheCallersEvaluatedPolicyPrompt() {
+        let context = LAContext()
+
+        XCTAssertThrowsError(try KeychainService.retrieveCompositeKey(for: trackedDatabaseID(), context: context))
+
+        #if os(macOS)
+        XCTAssertTrue(context.interactionNotAllowed)
+        #else
+        XCTAssertFalse(context.interactionNotAllowed)
+        #endif
+    }
+
+    /// The master key can change on another device, so on the Mac the next
+    /// unlock refreshes an existing item even with Touch ID and the watch
+    /// both out of reach. iPhone and iPad keep skipping, as before.
+    func testUnlockRefreshesAnExistingItemOnlyOnTheMacWhileNoMechanismIsAvailable() throws {
+        try XCTSkipIf(BiometricService.isQuickUnlockAvailable, "Needs a host where quick unlock cannot authenticate.")
+        let databaseID = trackedDatabaseID()
+        try requireStore(Data("old-key".utf8), for: databaseID)
+
+        let shouldStore = KeychainService.shouldStoreQuickUnlockKey(for: databaseID, legacyFilename: nil)
+
+        #if os(macOS)
+        XCTAssertTrue(shouldStore)
+        #else
+        XCTAssertFalse(shouldStore)
+        #endif
+    }
+
+    func testUnlockCreatesNoItemWhileNoMechanismIsAvailable() throws {
+        try XCTSkipIf(BiometricService.isQuickUnlockAvailable, "Needs a host where quick unlock cannot authenticate.")
+
+        XCTAssertFalse(KeychainService.shouldStoreQuickUnlockKey(for: trackedDatabaseID(), legacyFilename: nil))
     }
 
     // MARK: - isItemNotFound
@@ -148,115 +191,6 @@ final class KeychainServiceTests: XCTestCase {
                 "A key that was just stored must never appear as item-not-found, even when auth cannot complete"
             )
         }
-    }
-
-    // MARK: - Rekey: replaceStoredQuickUnlockKeys
-
-    func testReplaceRewritesAnExistingBiometricItemWhileBiometricsAreUnavailable() throws {
-        try XCTSkipIf(BiometricService.isAvailable, "Needs a host without usable Touch ID / Face ID.")
-        let databaseID = trackedDatabaseID()
-        try requireStore(Data("old-key".utf8), for: databaseID)
-        let before = try XCTUnwrap(persistentReference(account: "compositeKey:\(databaseID.uuidString)"))
-
-        try KeychainService.replaceStoredQuickUnlockKeys(SymmetricKey(data: Data("new-key".utf8)), for: databaseID)
-
-        let after = try XCTUnwrap(persistentReference(account: "compositeKey:\(databaseID.uuidString)"))
-        XCTAssertNotEqual(before, after, "The old key must not survive a rekey just because biometrics are unavailable")
-        XCTAssertFalse(KeychainService.hasStoredCompanionKey(for: databaseID), "A rekey must not create items that did not exist")
-    }
-
-    func testReplaceRewritesAnExistingCompanionItemWhileNoCompanionIsAvailable() throws {
-        try XCTSkipIf(BiometricService.isCompanionAvailable, "Needs a host without a paired Apple Watch.")
-        let databaseID = trackedDatabaseID()
-        do {
-            try KeychainService.storeCompanionCompositeKey(SymmetricKey(data: Data("old-key".utf8)), for: databaseID)
-        } catch {
-            throw XCTSkip("Companion-protected keychain writes are unavailable in the current test host: \(error)")
-        }
-        let before = try XCTUnwrap(persistentReference(account: "companionCompositeKey:\(databaseID.uuidString)"))
-
-        try KeychainService.replaceStoredQuickUnlockKeys(SymmetricKey(data: Data("new-key".utf8)), for: databaseID)
-
-        let after = try XCTUnwrap(persistentReference(account: "companionCompositeKey:\(databaseID.uuidString)"))
-        XCTAssertNotEqual(before, after)
-        XCTAssertFalse(KeychainService.hasStoredKey(for: databaseID), "A rekey must not create items that did not exist")
-    }
-
-    func testReplaceMovesALegacyOnlyItemToTheDatabaseIDAccount() throws {
-        let databaseID = trackedDatabaseID()
-        let filename = trackedLegacyFilename()
-        try seedLegacyItem(Data("old-key".utf8), forFilename: filename)
-
-        do {
-            try KeychainService.replaceStoredQuickUnlockKeys(
-                SymmetricKey(data: Data("new-key".utf8)),
-                for: databaseID,
-                legacyFilename: filename
-            )
-        } catch {
-            throw XCTSkip("Keychain writes are unavailable in the current test host: \(error)")
-        }
-
-        XCTAssertTrue(KeychainService.hasStoredKey(for: databaseID))
-    }
-
-    func testReplaceStoresNothingWhenNoItemExists() throws {
-        let databaseID = trackedDatabaseID()
-
-        try KeychainService.replaceStoredQuickUnlockKeys(SymmetricKey(data: Data("new-key".utf8)), for: databaseID)
-
-        XCTAssertFalse(KeychainService.hasStoredKey(for: databaseID))
-        XCTAssertFalse(KeychainService.hasStoredCompanionKey(for: databaseID))
-    }
-
-    // MARK: - Unlock: storeAvailableQuickUnlockKeys
-
-    /// The master key can change on another device; the next password unlock
-    /// here must refresh the watch copy even with the watch off the wrist, or
-    /// the next watch unlock fails as a wrong password.
-    func testUnlockRewritesAnExistingCompanionItemWhileNoCompanionIsAvailable() throws {
-        try XCTSkipIf(BiometricService.isCompanionAvailable, "Needs a host without a paired Apple Watch.")
-        let databaseID = trackedDatabaseID()
-        do {
-            try KeychainService.storeCompanionCompositeKey(SymmetricKey(data: Data("old-key".utf8)), for: databaseID)
-        } catch {
-            throw XCTSkip("Companion-protected keychain writes are unavailable in the current test host: \(error)")
-        }
-        let before = try XCTUnwrap(persistentReference(account: "companionCompositeKey:\(databaseID.uuidString)"))
-
-        try KeychainService.storeAvailableQuickUnlockKeys(SymmetricKey(data: Data("new-key".utf8)), for: databaseID)
-
-        let after = try XCTUnwrap(persistentReference(account: "companionCompositeKey:\(databaseID.uuidString)"))
-        XCTAssertNotEqual(before, after, "A watch copy from before a master-key change must not survive an unlock")
-    }
-
-    func testUnlockCreatesNoCompanionItemWhileNoCompanionIsAvailable() throws {
-        try XCTSkipIf(BiometricService.isCompanionAvailable, "Needs a host without a paired Apple Watch.")
-        let databaseID = trackedDatabaseID()
-
-        try KeychainService.storeAvailableQuickUnlockKeys(SymmetricKey(data: Data("new-key".utf8)), for: databaseID)
-
-        XCTAssertFalse(KeychainService.hasStoredCompanionKey(for: databaseID))
-    }
-
-    /// Callers retire the legacy filename-keyed item only when this reports
-    /// true, so a watch-only write must not report it.
-    func testUnlockReportsNoBiometricItemWhileBiometricsAreUnavailable() throws {
-        try XCTSkipIf(BiometricService.isAvailable, "Needs a host without usable Touch ID / Face ID.")
-        let databaseID = trackedDatabaseID()
-        do {
-            try KeychainService.storeCompanionCompositeKey(SymmetricKey(data: Data("old-key".utf8)), for: databaseID)
-        } catch {
-            throw XCTSkip("Companion-protected keychain writes are unavailable in the current test host: \(error)")
-        }
-
-        let didStoreBiometricKey = try KeychainService.storeAvailableQuickUnlockKeys(
-            SymmetricKey(data: Data("new-key".utf8)),
-            for: databaseID
-        )
-
-        XCTAssertFalse(didStoreBiometricKey)
-        XCTAssertFalse(KeychainService.hasStoredKey(for: databaseID))
     }
 
     // MARK: - Legacy filename-keyed accounts (pre-migration compatibility)
@@ -372,24 +306,6 @@ final class KeychainServiceTests: XCTestCase {
         let filename = "legacy-\(UUID().uuidString).kdbx"
         legacyFilenamesToClean.append(filename)
         return filename
-    }
-
-    /// A new row every time the item is re-added, so it tells a rewrite from a
-    /// skip without the authentication that reading the key bytes needs.
-    private func persistentReference(account: String) -> Data? {
-        let context = LAContext()
-        context.interactionNotAllowed = true
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.legacyKeychainService,
-            kSecAttrAccount as String: account,
-            kSecReturnPersistentRef as String: true,
-            kSecUseAuthenticationContext as String: context,
-            kSecUseDataProtectionKeychain as String: true,
-        ]
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess else { return nil }
-        return result as? Data
     }
 
     private func requireStore(_ key: Data, for databaseID: UUID) throws {
