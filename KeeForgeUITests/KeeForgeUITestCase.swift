@@ -890,7 +890,12 @@ class KeeForgeUITestCase: XCTestCase {
         if searchField.isHittable == false {
             _ = revealElement(searchField, in: scrollableContainer(), direction: .down, maxSwipes: 2)
         }
-        tapElement(searchField)
+        XCTAssertTrue(
+            focusFieldForTyping(searchField),
+            "Search field did not receive keyboard focus",
+            file: file,
+            line: line
+        )
         return searchField
     }
 
@@ -898,7 +903,11 @@ class KeeForgeUITestCase: XCTestCase {
     /// as existing while parked off screen, and its tap can be swallowed while
     /// the list settles — so the value is re-read and deleted key by key when
     /// anything is left behind.
-    func clearSearchField(_ searchField: XCUIElement) {
+    func clearSearchField(
+        _ searchField: XCUIElement,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let clearButton = searchField.buttons["Clear text"]
         if clearButton.exists, hasOnScreenFrame(clearButton), clearButton.isHittable {
             clearButton.tap()
@@ -909,7 +918,12 @@ class KeeForgeUITestCase: XCTestCase {
             return
         }
 
-        tapElement(searchField)
+        XCTAssertTrue(
+            focusFieldForTyping(searchField),
+            "Search field did not receive keyboard focus before clearing",
+            file: file,
+            line: line
+        )
         searchField.typeText(
             String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
         )

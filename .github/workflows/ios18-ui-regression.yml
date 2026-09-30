@@ -44,7 +44,8 @@ jobs:
           git fetch --depth=1 origin "$TEST_HELPERS_REF"
           mkdir -p build
           git rev-parse FETCH_HEAD | tee build/test-helpers-revision.log
-          git checkout FETCH_HEAD -- KeeForgeUITests/EntryEditUITests.swift
+          git checkout FETCH_HEAD -- KeeForgeUITests/EntryEditUITests.swift \
+            KeeForgeUITests/KeeForgeUITestCase.swift
 
       - name: Record environment
         run: |
@@ -104,14 +105,17 @@ jobs:
                 selection+=("-only-testing:KeeForgeUITests/$class/$method")
               done
             fi
+            if [ "$REPETITIONS" -gt 1 ]; then
+              selection+=(-test-iterations "$REPETITIONS" -test-repetition-relaunch-enabled YES)
+            fi
             local result="build/$class.xcresult" log="build/$class.log"
             xcodebuild test-without-building -project KeeForge.xcodeproj -scheme KeeForge \
               -destination "platform=iOS Simulator,id=$UDID" \
-              "${selection[@]}" -test-iterations "$REPETITIONS" \
-              -test-repetition-relaunch-enabled YES \
+              "${selection[@]}" \
               -test-timeouts-enabled YES -maximum-test-execution-time-allowance 300 \
               -resultBundlePath "$result" > "$log" 2>&1
             local status=$?
+            grep -E "^Test Case .* (passed|failed)|error:" "$log" || true
             python3 ci_scripts/validate_xcresult_summary.py \
               --result-bundle "$result" --suite "$class" --xcodebuild-exit "$status" || return 1
             # This diagnostic workflow requires every attempt to pass.
