@@ -124,7 +124,7 @@ struct UnlockView: View {
                     }
 
                     if viewModel.canUseBiometrics {
-                        Label("Biometric unlock", systemImage: viewModel.biometricIcon)
+                        Label(viewModel.biometricCaption, systemImage: viewModel.biometricIcon)
                     }
                 }
                 .font(.caption)
@@ -528,7 +528,7 @@ struct UnlockView: View {
             return
         }
 
-        if viewModel.canUseBiometrics {
+        if viewModel.canUseBiometrics, viewModel.openFailure?.canRetryQuickUnlock ?? true {
             unlockWithBiometrics()
             return
         }

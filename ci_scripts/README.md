@@ -22,6 +22,15 @@ fixtures and the new-class coverage check. UI tests inheriting `KeeForgeUITestCa
 The live account configuration and destination details are documented in
 `../.agents/skills/release/xcode-cloud-setup.md`.
 
+## Signed contributor testing
+
+The separate **Contributor Testing** Xcode Cloud workflow archives iOS and native
+macOS builds for the private **KeeForge Contributors** internal TestFlight group.
+It supports manual branch selection and pushes to `contributor/miquno/*`, without
+running the RC process or sharing signing keys. See
+[`contributor-testing.md`](contributor-testing.md) for build requests, installation,
+hardware checks, and the access boundary.
+
 ## Scripts
 
 - `prepare_build_config.sh` validates `BuildConfig.local.xcconfig`, stamps `BuildMetadata.xcconfig` with the current git hash, and can bootstrap the local config from environment variables in CI.

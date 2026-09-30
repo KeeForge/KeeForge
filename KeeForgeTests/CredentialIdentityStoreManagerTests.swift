@@ -1488,7 +1488,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
     // MARK: - System store enumeration sanitizing
 
-    func testDroppingNonConformingIdentitiesKeepsOnlyConformingElements() {
+    func testMalformedEnumerationFailsRatherThanReturningPartialStore() {
         let conforming = ASPasswordCredentialIdentity(
             serviceIdentifier: ASCredentialServiceIdentifier(identifier: "example.com", type: .domain),
             user: "user",
@@ -1498,26 +1498,73 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         // the NSObject — the iOS 27.0 beta enumeration shape.
         let poisoned = NSArray(objects: conforming, NSObject()) as! [any ASCredentialIdentity]
 
-        let sanitized = SystemCredentialIdentityStore.droppingNonConformingIdentities(poisoned)
-
-        XCTAssertEqual(sanitized.count, 1)
-        XCTAssertTrue(sanitized[0] as AnyObject === conforming)
+        XCTAssertThrowsError(try SystemCredentialIdentityStore.validatedIdentities(poisoned)) { error in
+            XCTAssertEqual(error as? CredentialIdentityStoreReadError, .nonConformingIdentities(count: 1))
+        }
     }
 
-    func testDroppingNonConformingIdentitiesPreservesFullyConformingArray() {
+    func testValidatedEnumerationPreservesFullyConformingArray() throws {
         let identities = CredentialIdentityStoreManager.passwordIdentities(
             for: makeEntry(title: "Site", url: "https://example.com", username: "user", hasPassword: true),
             in: someDatabaseID
         )
         XCTAssertFalse(identities.isEmpty)
 
-        let sanitized = SystemCredentialIdentityStore.droppingNonConformingIdentities(identities)
+        let sanitized = try SystemCredentialIdentityStore.validatedIdentities(identities)
 
         XCTAssertEqual(sanitized.count, identities.count)
         XCTAssertEqual(
             sanitized.compactMap(CredentialIdentityStoreManager.recordIdentifier(of:)),
             identities.compactMap(CredentialIdentityStoreManager.recordIdentifier(of:))
         )
+    }
+
+    func testMalformedEnumerationDoesNotBecomeAnEmptyStore() {
+        let poisoned = NSArray(object: NSObject()) as! [any ASCredentialIdentity]
+        XCTAssertThrowsError(try SystemCredentialIdentityStore.validatedIdentities(poisoned)) { error in
+            XCTAssertEqual(error as? CredentialIdentityStoreReadError, .nonConformingIdentities(count: 1))
+        }
+    }
+
+    func testValidatedEnumerationAcceptsAnEmptyStore() throws {
+        XCTAssertTrue(try SystemCredentialIdentityStore.validatedIdentities([]).isEmpty)
+    }
+
+    func testUnreadableEnumerationStopsAllEnumerationDependentMutations() async {
+        let fake = installFake()
+        let existingDatabase = UUID()
+        let existing = makeEntry(title: "Existing", url: "https://existing-site.com", username: "existing", hasPassword: true)
+        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: existing, in: existingDatabase)
+        let before = storedRecordIdentifiers(fake)
+        fake.enumerationError = .nonConformingIdentities(count: 1)
+
+        let incoming = makeEntry(title: "New", url: "https://new-site.com", username: "new", hasPassword: true)
+        CredentialIdentityStoreManager.populate(with: [incoming], for: UUID())
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        XCTAssertTrue(fake.calls.isEmpty, "Failed enumeration must not trigger a whole-store replacement")
+        XCTAssertEqual(storedRecordIdentifiers(fake), before)
+
+        CredentialIdentityStoreManager.removeIdentities(forDatabase: existingDatabase)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        XCTAssertTrue(fake.calls.isEmpty)
+        XCTAssertEqual(storedRecordIdentifiers(fake), before)
+
+        let identifier = CredentialRecordIdentifier(databaseID: existingDatabase, entryID: existing.id).encoded
+        CredentialIdentityStoreManager.removeIdentity(withRecordIdentifier: identifier)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        XCTAssertTrue(fake.calls.isEmpty)
+        XCTAssertEqual(storedRecordIdentifiers(fake), before)
+    }
+
+    func testNonIncrementalRefreshDoesNotRequireEnumeration() async {
+        let fake = installFake()
+        fake.supportsIncrementalUpdatesValue = false
+        fake.enumerationError = .nonConformingIdentities(count: 1)
+        let entry = makeEntry(title: "Site", url: "https://site.example.com", username: "user", hasPassword: true)
+        CredentialIdentityStoreManager.populate(with: [entry], for: UUID())
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        XCTAssertEqual(fake.calls, ["replaceCredentialIdentities"])
+        XCTAssertEqual(fake.stored.count, 1)
     }
 
     // MARK: - Helpers

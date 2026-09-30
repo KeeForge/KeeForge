@@ -405,6 +405,10 @@ targets:
         buildPhase: resources
       - path: TestFixtures/autofill-union.kdbx
         buildPhase: resources
+      - path: TestFixtures/autofill-store-alpha.kdbx
+        buildPhase: resources
+      - path: TestFixtures/autofill-store-bravo.kdbx
+        buildPhase: resources
       - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
         buildPhase: resources
 

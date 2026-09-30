@@ -1,6 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import LocalAuthentication
+import Security
 import SwiftUI
 import XCTest
 @testable import KeeForge
@@ -126,6 +127,75 @@ final class DatabaseViewModelTests: XCTestCase {
         let failure = try XCTUnwrap(vm.openFailure)
         XCTAssertEqual(failure.errorCode, "biometric.unavailable")
         XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
+    }
+
+    /// On the Mac the combined prompt can fail with the watch unavailable;
+    /// like a biometric one, it must not count toward the lockout.
+    func testQuickUnlockWithNoMechanismAvailableIsNotAFailedAttempt() async throws {
+        let vm = try makeViewModel(
+            biometricCompositeKeyOperation: { _, _ in throw LAError(.companionNotAvailable) }
+        )
+
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .failed)
+        let failure = try XCTUnwrap(vm.openFailure)
+        XCTAssertEqual(failure.errorCode, "biometric.unavailable")
+        XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
+        XCTAssertEqual(vm.failedAttempts, 0)
+    }
+
+    /// Authentication succeeded but the item could not be read, e.g. after
+    /// the enrolled fingerprints changed: point at the master password, which
+    /// writes a fresh item, instead of the generic "couldn't open" screen.
+    func testUnreadableStoredKeyAsksForTheMasterPassword() async throws {
+        let vm = try makeViewModel(
+            biometricCompositeKeyOperation: { _, _ in
+                throw KeychainService.KeychainError.retrieveFailed(errSecInteractionNotAllowed)
+            }
+        )
+
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .failed)
+        let failure = try XCTUnwrap(vm.openFailure)
+        XCTAssertEqual(failure.errorCode, "biometric.stored_key_unavailable")
+        XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
+        XCTAssertTrue(failure.summary.contains("master password"))
+        XCTAssertTrue(failure.canRetryUnlock)
+        XCTAssertFalse(failure.canRetryQuickUnlock)
+        XCTAssertFalse(failure.canChooseDifferentFile)
+        XCTAssertEqual(vm.failedAttempts, 0)
+    }
+
+    /// Every biometric failure leaves password unlock available, so the
+    /// failure screen must keep the password form up.
+    func testBiometricFailuresKeepThePasswordFormAvailable() {
+        let errors: [Error] = [
+            LAError(.userCancel),
+            LAError(.authenticationFailed),
+            LAError(.biometryLockout),
+            LAError(.companionNotAvailable),
+            LAError(.invalidContext),
+            KeychainService.KeychainError.retrieveFailed(errSecAuthFailed),
+        ]
+
+        for error in errors {
+            let failure = DatabaseOpenFailure.classify(error, isCloudBacked: false)
+            XCTAssertEqual(failure.category, .biometric, "\(error)")
+            XCTAssertTrue(failure.canRetryUnlock, failure.errorCode)
+        }
+    }
+
+    func testOnlyAnUnreadableStoredKeyStopsRetryingQuickUnlock() {
+        let transient = DatabaseOpenFailure.classify(LAError(.authenticationFailed), isCloudBacked: false)
+        let unreadable = DatabaseOpenFailure.classify(
+            KeychainService.KeychainError.retrieveFailed(errSecAuthFailed),
+            isCloudBacked: false
+        )
+
+        XCTAssertTrue(transient.canRetryQuickUnlock)
+        XCTAssertFalse(unreadable.canRetryQuickUnlock)
     }
 
     func testUnlockCloudDatabaseDoesNotRewriteSharedCache() async throws {

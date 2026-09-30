@@ -17,7 +17,8 @@ key, parsed tree, draft, attachment pool, and retained key-file data from the
 Biometric unlock stores composite keys in the Keychain, not raw master passwords.
 [KeychainService](../KeeForge/Services/Security/KeychainService.swift) uses the
 Data Protection Keychain with `WhenUnlockedThisDeviceOnly` and
-`biometryCurrentSet` access control. The app and extension share the
+`biometryCurrentSet` access control, which on the Mac also admits an authorized
+Apple Watch (see "Lock and unlock lifecycle"). The app and extension share the
 team-prefixed `com.keevault.sharedkeychain` group. It must remain the first
 keychain access group: items written without an explicit `kSecAttrAccessGroup`
 land there.
@@ -93,6 +94,35 @@ The main app does not automatically raise Touch ID on activation.
 scene does not prove the user has returned to a foreground window. The AutoFill
 extension has its own foreground authentication flow and still honors
 `SettingsService.autoUnlockWithFaceID`.
+
+Quick unlock (#66) keeps one Keychain item per database. On the Mac its access
+control is `[.biometryCurrentSet, .or, .companion]`: Touch ID with the currently
+enrolled fingerprints, or an authorized Apple Watch. It carries no
+`.userPresence` or `.devicePasscode` flag, so the Mac login password cannot
+release it. It stays `WhenUnlockedThisDeviceOnly` in the data-protection
+keychain and the shared access group; iPhone and iPad keep `.biometryCurrentSet`
+alone. The unlock screen's button evaluates
+`.deviceOwnerAuthenticationWithBiometricsOrCompanion` and is only ever an
+explicit action, never raised by a lock cycle.
+
+The item permits either mechanism, but AutoFill asks only for biometrics. It
+offers quick unlock only while Touch ID is available, evaluates
+`.deviceOwnerAuthenticationWithBiometrics`, and reads the item with a
+non-interactive context. So the Keychain cannot raise a Watch prompt of its
+own. When the Touch ID context cannot release the item, AutoFill falls back to
+the master password. The main app reads it the same way, so its single prompt is
+the one it evaluated.
+
+A successful unlock writes the item while Touch ID or the watch can evaluate
+the policy. It rewrites an existing item even while neither can, because the
+master key may have changed on another device. A master-key change rewrites an
+existing item without checking either mechanism, and deletes it if that fails.
+If the item can no longer be read after authentication succeeds, for example
+because the enrolled fingerprints changed, the unlock screen reports
+"Saved Unlock Key Unavailable" with the password form below it, and Try Again
+does not repeat the quick unlock. The next password unlock writes a fresh item. Items written by earlier versions carry
+`.biometryCurrentSet` alone. Touch ID still opens them, and the next unlock
+rewrites them with the combined policy.
 
 ## Screen and clipboard privacy
 
