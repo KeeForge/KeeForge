@@ -312,16 +312,18 @@ class KeeForgeUITestCase: XCTestCase {
     }
 
     private func enteredTextMatches(_ element: XCUIElement, expected: String) -> Bool {
-        let deadline = Date().addingTimeInterval(1)
+        // Secure-field accessibility values can lag behind typing on CI.
+        let deadline = Date().addingTimeInterval(Self.ciElementTimeout)
 
         repeat {
-            guard let value = element.value as? String else { return false }
-            if element.elementType == .secureTextField {
-                if value == expected || (isMaskedSecureValue(value) && value.count == expected.count) {
+            if let value = element.value as? String {
+                if element.elementType == .secureTextField {
+                    if value == expected || (isMaskedSecureValue(value) && value.count == expected.count) {
+                        return true
+                    }
+                } else if value == expected {
                     return true
                 }
-            } else if value == expected {
-                return true
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         } while Date() < deadline
