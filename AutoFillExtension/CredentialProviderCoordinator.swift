@@ -75,11 +75,15 @@ protocol CredentialProviderPresenting: AnyObject {
     /// new credential (iOS password requests against a writable database).
     /// Presenting the creator replaces the picker, so shells wrap it in the
     /// same dismissal handling as `onSelect`/`onCancel`.
+    ///
+    /// `sharedCopyDate` is non-nil when the entries come from KeeForge's shared
+    /// copy of the database; the picker names it when a search finds nothing.
     func presentSearchView(
         entries: [KPEntry],
         searchEntries: [KPEntry],
         possibleEntries: [KPEntry],
         initialSearchText: String,
+        sharedCopyDate: Date?,
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
@@ -195,6 +199,11 @@ final class CredentialProviderCoordinator {
     var sessionKey: SymmetricKey?
     var compositeKey: SymmetricKey?
     var openTimeSHA512: Data?
+    /// Non-nil when the open vault was read from KeeForge's shared copy rather
+    /// than the database file itself: when that copy was last brought up to
+    /// date. The picker names it so a credential added since is not silently
+    /// missing.
+    var sharedCopyDate: Date?
     var activeDatabaseReference: DatabaseReference?
     var targetRecordIdentifier: String?
     var pendingPasskeyRequest: ASPasskeyCredentialRequest?
@@ -1327,7 +1336,8 @@ final class CredentialProviderCoordinator {
         databaseReference: DatabaseReference,
         generation: Int
     ) async throws {
-        let data = try loadDatabaseData(for: databaseReference)
+        let loaded = try await loadDatabaseData(for: databaseReference)
+        let data = loaded.data
         try AutoFillMemoryLimit.check(
             summary: KDBXFileSummary.inspect(data: data),
             remainingBytes: remainingMemoryBytes
@@ -1350,6 +1360,7 @@ final class CredentialProviderCoordinator {
         self.sessionKey = key
         self.compositeKey = compositeKey
         self.openTimeSHA512 = KDBXCrypto.sha512(data)
+        self.sharedCopyDate = loaded.sharedCopyDate
         self.parsedRootGroup = parsed.rootGroup
         self.parsedMeta = parsed.meta
         self.parsedFormatVersion = parsed.header.formatVersion
@@ -1369,16 +1380,88 @@ final class CredentialProviderCoordinator {
         return AutoFillMemoryLimit.remainingBytes()
     }
 
-    private func loadDatabaseData(for databaseReference: DatabaseReference) throws -> Data {
+    private struct LoadedDatabaseData {
+        let data: Data
+        let sharedCopyDate: Date?
+    }
+
+    /// A bookmarked local database is read from its file, as the app and this
+    /// extension's own save path do; the shared copy only stands in when that
+    /// file cannot be reached, and cloud databases, which only the app syncs,
+    /// always open from it.
+    private func loadDatabaseData(for databaseReference: DatabaseReference) async throws -> LoadedDatabaseData {
+        #if os(iOS)
+        var bookmarkedReadTimeout: CoordinatedFileReader.TimeoutError?
+        // The Mac extension has no entitlement for the app's bookmarks, and a
+        // Documents-resident file sits in the app's own container.
+        if databaseReference.isCloudBacked == false,
+           databaseReference.isDocumentsResident == false,
+           databaseReference.bookmarkData != nil {
+            do {
+                let data = try await Self.readBookmarkedDatabase(databaseReference)
+                return LoadedDatabaseData(data: data, sharedCopyDate: nil)
+            } catch let timeout as CoordinatedFileReader.TimeoutError {
+                bookmarkedReadTimeout = timeout
+            } catch {
+                // The shared copy, or the read below, answers instead.
+            }
+        }
+        #else
+        let bookmarkedReadTimeout: CoordinatedFileReader.TimeoutError? = nil
+        #endif
+
         if let cachedURL = DatabaseListStore.cachedDatabaseURL(for: databaseReference) {
-            return try CoordinatedFileReader.readData(from: cachedURL)
+            return LoadedDatabaseData(
+                data: try CoordinatedFileReader.readData(from: cachedURL),
+                sharedCopyDate: Self.sharedCopyDate(for: databaseReference, cachedURL: cachedURL)
+            )
+        }
+
+        // Waiting on an unresponsive file provider a second time, unbounded,
+        // would stall the request.
+        if let bookmarkedReadTimeout {
+            throw bookmarkedReadTimeout
         }
 
         guard let bookmarkedURL = DatabaseListStore.resolveDatabaseURL(for: databaseReference) else {
             throw NSError(domain: ASExtensionErrorDomain, code: ASExtensionError.failed.rawValue)
         }
 
-        return try readSecurityScoped(url: bookmarkedURL)
+        return LoadedDatabaseData(data: try readSecurityScoped(url: bookmarkedURL), sharedCopyDate: nil)
+    }
+
+    #if os(iOS)
+    /// Bounded like the app's own open, so a file provider that never answers
+    /// falls back to the shared copy instead of stalling the request. A stale
+    /// or trashed bookmark falls back too: re-minting it is the app's job, not
+    /// a read path's.
+    nonisolated private static func readBookmarkedDatabase(_ reference: DatabaseReference) async throws -> Data {
+        try await CoordinatedFileReader.performBlocking(timeout: .seconds(10)) {
+            guard let bookmarkData = reference.bookmarkData,
+                  let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData),
+                  resolved.isStale == false,
+                  SecurityScopedBookmarkManager.isInTrashDirectory(resolved.url) == false else {
+                throw CocoaError(.fileReadNoSuchFile)
+            }
+            let url = resolved.url
+            let hasSecurityScope = url.startAccessingSecurityScopedResource()
+            defer {
+                if hasSecurityScope {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            return try CoordinatedFileReader.readData(from: url)
+        }
+    }
+    #endif
+
+    /// A cloud copy is as current as the app's last sync; any other copy as
+    /// its last write.
+    private static func sharedCopyDate(for reference: DatabaseReference, cachedURL: URL) -> Date? {
+        if let lastSyncedAt = reference.cloudSyncMetadata?.lastSyncedAt {
+            return lastSyncedAt
+        }
+        return (try? cachedURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
     }
 
     private func readSecurityScoped(url: URL) throws -> Data {
@@ -1702,6 +1785,7 @@ final class CredentialProviderCoordinator {
                 searchEntries: searchEntries ?? entries,
                 possibleEntries: possibleEntries,
                 initialSearchText: restoredSearchText ?? initialSearchText,
+                sharedCopyDate: sharedCopyDate,
                 databaseSwitcher: includesDatabaseSwitcher ? makeDatabaseSwitcherContext() : nil,
                 onCreateEntry: includesEntryCreation ? makeEntryCreationAction() : nil,
                 onSelect: onSelect,
@@ -2277,6 +2361,7 @@ final class CredentialProviderCoordinator {
         sessionKey = nil
         compositeKey = nil
         openTimeSHA512 = nil
+        sharedCopyDate = nil
         activeDatabaseReference = nil
         targetRecordIdentifier = nil
         pendingReadOnlyCancellationMessage = nil

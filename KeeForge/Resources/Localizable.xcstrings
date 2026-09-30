@@ -27500,6 +27500,46 @@
         }
       }
     },
+    "Searched KeeForge’s copy of this database from %@. To find credentials added since then, open KeeForge to refresh it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Durchsucht wurde die Kopie dieser Datenbank in KeeForge vom %@. Öffnen Sie KeeForge, um sie zu aktualisieren und seitdem hinzugefügte Zugangsdaten zu finden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se buscó en la copia de esta base de datos de KeeForge del %@. Para encontrar credenciales añadidas desde entonces, abra KeeForge para actualizarla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recherche effectuée dans la copie de cette base de données enregistrée par KeeForge le %@. Pour trouver les identifiants ajoutés depuis, ouvrez KeeForge afin de l’actualiser."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 時点の KeeForge のデータベースのコピーを検索しました。それ以降に追加された認証情報を見つけるには、KeeForge を開いて更新してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已搜索 KeeForge 保存的此数据库副本（%@）。要查找此后添加的凭据，请打开 KeeForge 进行刷新。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已搜尋 KeeForge 儲存的此資料庫副本（%@）。若要尋找此後新增的憑證，請開啟 KeeForge 進行重新整理。"
+          }
+        }
+      }
+    },
     "Secret Key" : {
       "localizations" : {
         "de" : {
