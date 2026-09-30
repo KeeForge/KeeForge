@@ -493,6 +493,7 @@ enum KDBXCompatibilitySupport {
         "rekey-remove-keyfile",
         "encryption-settings-chacha20-argon2id",
         "encryption-settings-aes256-keep-kdf",
+        "encryption-settings-aes-kdf",
     ]
 
     /// An entry that already exists in each fixture, with the password that
@@ -582,6 +583,7 @@ enum KDBXCompatibilitySupport {
         // value read back externally proves the payload survived intact.
         table["encryption-settings-chacha20-argon2id"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["encryption-settings-aes256-keep-kdf"] = [fixtureEntryPasswords[Fixture.foreignTwofish.id]!]
+        table["encryption-settings-aes-kdf"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         return table
     }()
 
@@ -687,6 +689,7 @@ enum KDBXCompatibilitySupport {
             "rekey-remove-keyfile",
             "encryption-settings-chacha20-argon2id",
             "encryption-settings-aes256-keep-kdf",
+            "encryption-settings-aes-kdf",
         ]
         for fixture in smokeFixtures {
             ids.insert("fixture-smoke-\(fixture.id)")
@@ -1645,6 +1648,28 @@ enum KDBXCompatibilitySupport {
         )
     }
 
+    /// `.aesBaseline` moved from Argon2id to AES-KDF at the default rounds,
+    /// with the AES-256 cipher and compression kept.
+    static func encryptionSettingsAESKDFScenario() -> Scenario {
+        Scenario(
+            id: "encryption-settings-aes-kdf",
+            title: "Change key derivation to AES-KDF",
+            artifactFileName: "aes-baseline-encryption-settings-aes-kdf.kdbx",
+            expectedSearchTerms: ["Twitter"],
+            expectedGroupPaths: ["Social"],
+            encryptionSettings: { _ in
+                EncryptionSettingsChange(
+                    kdfParameters: try EncryptionSettingsKeyDerivation
+                        .aesKDF(rounds: DatabaseCreationDefaults.aesKDFRounds)
+                        .kdfParameters()
+                )
+            },
+            assertChange: { before, after, _ in
+                try assertWholeTreeUnchanged(before: before, after: after)
+            }
+        )
+    }
+
     // MARK: - Artifact set
 
     /// One `(fixture, scenario)` pair, i.e. exactly one `.kdbx` artifact for
@@ -1707,6 +1732,9 @@ enum KDBXCompatibilitySupport {
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .foreignTwofish, scenario: encryptionSettingsAES256Scenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .aesBaseline, scenario: encryptionSettingsAESKDFScenario())
         )
         return descriptors
     }

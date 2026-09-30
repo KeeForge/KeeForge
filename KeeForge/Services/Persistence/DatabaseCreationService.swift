@@ -150,6 +150,18 @@ enum DatabaseCreationDefaults {
             "S": resolvedSalt,
         ]
     }
+
+    /// KeePassXC's default for a newly chosen AES-KDF.
+    static let aesKDFRounds: UInt64 = 1_000_000
+
+    static func aesKDFParameters(rounds: UInt64, salt: Data? = nil) throws -> [String: Any] {
+        let resolvedSalt = try salt ?? SecureRandom.data(count: kdfSaltByteCount)
+        return [
+            "$UUID": KDBXParser.aesKDFUUID,
+            "R": rounds,
+            "S": resolvedSalt,
+        ]
+    }
 }
 
 enum DatabaseCreationService {
