@@ -383,6 +383,7 @@ Loading mechanism: fixtures are injected through the launch environment by `KeeF
 
 Key helpers:
 
+- `EntryEditUITestCase.waitForAutosaveAttempt()` — waits for `database.saving-overlay` to disappear before interacting with the vault again. Allows a fast save or cancelled edit to finish without observing the overlay; a save still in progress after 30 seconds fails explicitly. A fixed sleep can leave the vault disabled on slower CI runners.
 - `app` — preconfigured `XCUIApplication` with fixture data injected through launch environment
 - `unlock(password:)` — type password and tap unlock
 - `unlockSuccessfully()` — unlock with the default fixture password and assert success; retries the whole unlock up to three times when the vault reports a wrong-password error (a race under CI's parallel simulators where the password is typed before the field/keyboard is ready), and only surfaces the real error on the final attempt
