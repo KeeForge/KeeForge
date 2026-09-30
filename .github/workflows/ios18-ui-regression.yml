@@ -44,8 +44,7 @@ jobs:
           git fetch --depth=1 origin "$TEST_HELPERS_REF"
           mkdir -p build
           git rev-parse FETCH_HEAD | tee build/test-helpers-revision.log
-          git checkout FETCH_HEAD -- KeeForgeUITests/KeeForgeUITestCase.swift \
-            KeeForgeUITests/EntryEditUITests.swift KeeForgeUITests/GroupEditUITests.swift
+          git checkout FETCH_HEAD -- KeeForgeUITests/EntryEditUITests.swift
 
       - name: Record environment
         run: |
