@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- AutoFill stops updates when iOS returns unreadable credential identities, preventing an unreadable store from being treated as empty.
 - Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
 - When the saved Face ID, Touch ID or Apple Watch key can no longer be used, for example after enrolled fingerprints change, the unlock screen now says so and asks for your master password, which saves a new key.
 - After a cancelled or failed Face ID or Touch ID unlock, the error screen now also shows the password field, so you can unlock with your master password right away.

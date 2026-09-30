@@ -166,6 +166,28 @@ final class AutoFillStoreInspectorGroupingTests: XCTestCase {
         XCTAssertTrue(snapshot.unrecognizedRows.isEmpty)
     }
 
+    func testInspectorReadFailsForUnreadableStore() async {
+        let fake = FakeCredentialIdentityStore()
+        fake.enumerationError = .nonConformingIdentities(count: 2)
+        do {
+            _ = try await AutoFillStoreInspectorViewModel.buildSnapshot(store: fake) { _ in nil }
+            XCTFail("An unreadable store must not produce an empty snapshot")
+        } catch {
+            XCTAssertEqual(error as? CredentialIdentityStoreReadError, .nonConformingIdentities(count: 2))
+        }
+    }
+
+    func testInspectorReadAcceptsGenuinelyEmptyStore() async throws {
+        let snapshot = try await AutoFillStoreInspectorViewModel.buildSnapshot(store: FakeCredentialIdentityStore()) { _ in nil }
+        XCTAssertEqual(snapshot.totalCount, 0)
+    }
+
+    func testIdentityMetadataIncludesKindServiceLabelAndRecordIdentifier() {
+        let record = current(UUID(), UUID())
+        let row = AutoFillStoreInspectorGrouping.row(for: passwordIdentity(domain: "example.com", user: "user", recordIdentifier: record))
+        XCTAssertEqual(row.metadata, "password|example.com|user|\(record)")
+    }
+
     // MARK: - Builders
 
     private func current(_ databaseID: UUID, _ entryID: UUID) -> String {

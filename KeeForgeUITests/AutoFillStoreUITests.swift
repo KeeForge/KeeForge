@@ -1,113 +1,41 @@
 import XCTest
 
-/// Store-lifecycle assertions against the **real** `ASCredentialIdentityStore`
-/// (epic: 2026-07-20-autofill-store-validation-harness, slice 03). Each test
-/// drives real app flows (unlock, per-database AutoFill toggles, Clear AutoFill
-/// Entries) and then reads the resulting store state through the slice 01
-/// DEBUG inspector (`-autofill-store-inspector`).
-///
-/// ## Precondition
-///
-/// The system store only accepts writes once KeeForge is enabled as the
-/// device's credential provider, and simulator runtimes cannot enumerate the
-/// store at all (the API reads empty despite persisted writes), so this class
-/// runs on a **physical iPhone** connected to the Mac — never a simulator.
-/// One-time device setup: install the Debug app, then turn KeeForge on in
-/// Settings > General > AutoFill & Passwords (optionally turn Apple's
-/// "Passwords" provider off for a cleaner signal). The enablement persists on
-/// the device. Then:
-///
-///     xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-///       -destination 'platform=iOS,name=<device name>' \
-///       -only-testing:KeeForgeUITests/AutoFillStoreUITests
-///
-/// ## Skip guard
-///
-/// Every test begins with a store-state probe through the inspector and calls
-/// `XCTSkip` when the store is disabled or enumeration is unavailable, so a run
-/// in the default suites, on any simulator, or on a device where KeeForge is
-/// not the enabled provider all-skips quickly instead of failing or hanging.
-/// The probe result is cached per test-runner process: only the first test
-/// pays the probe launch.
-///
-/// ## `-ui-testing` reseed vs. store persistence (the interplay this class is
-/// built around)
-///
-/// `DatabaseListStore.bootstrapForUITestingIfNeeded()` rebuilds
-/// `database-list.json` on **every** launch that passes `-ui-testing`: the
-/// fixture databases get fresh random `DatabaseReference` UUIDs, persisted
-/// `autoFillEnabled` flags reset to their default (`true`), the active AutoFill
-/// pointer is cleared, and the shared cache directories are wiped. The system
-/// credential identity store, by contrast, is OS-owned: identities persist
-/// across app launches, reinstalls, and registry reseeds, tagged with whatever
-/// database UUID published them — a reseed therefore orphans everything the
-/// previous seed published. This class resolves that as follows:
-///
-/// 1. **Seed exactly once per test.** Only the `setUp` launch passes
-///    `-ui-testing`. The test then captures the seeded database UUIDs from the
-///    `settings.autofill.database-toggle.<uuid>` accessibility identifiers.
-///    Every later launch inside the same test omits `-ui-testing`
-///    (`-autofill-store-inspector` only, or no arguments), so
-///    `database-list.json` — UUIDs *and* persisted `autoFillEnabled` flips —
-///    survives unchanged and inspector sections can be correlated with the
-///    captured UUIDs. (`testReEnableStaysEmptyUntilNextUnlock` relies on this
-///    directly: the same reference must be re-unlockable after a relaunch.)
-/// 2. **Every test establishes its own store baseline.** The store may hold
-///    residue from earlier runs, earlier tests in this class (tagged with
-///    now-orphaned UUIDs), or manual use of the test device. Each test
-///    therefore runs the confirmed Clear AutoFill Entries action right after
-///    capturing UUIDs and never assumes the store starts empty. Combined with
-///    per-test seeding this makes every test independent of run order.
-/// 3. **Store writes are fire-and-forget.** The app performs store mutations
-///    in detached tasks; terminating the process too early can drop a write.
-///    Tests interleave real UI steps after each mutating action and run a
-///    short settle window (`allowStoreWritesToSettle`) before relaunching.
-///    That settle is *not* an assertion wait — all assertions are
-///    inspector-value polls (`waitForExistence` + value polling with refresh
-///    taps), never fixed sleeps.
-///
-/// Absence assertions ("this database's section vanished") are anchored on
-/// totals first: the inspector renders a database section only when it has
-/// identities, and each fixture database publishes a known identity count, so
-/// asserting `total-count` plus the surviving sections' counts accounts for
-/// every identity before the swipe-through absence check runs.
+// Requires a disposable physical iPhone with KeeForge enabled as its AutoFill
+// provider. Seed once per test; subsequent launches preserve database UUIDs.
+// Each scenario clears the real store before publishing its dedicated fixtures.
 @MainActor
 final class AutoFillStoreUITests: AppSettingsUITestCase {
 
     // MARK: - Fixtures
 
-    /// Two databases with fully disjoint service domains: the system store
-    /// can dedup identities sharing (service, user) across databases, so the
-    /// union scenario needs fixtures whose identities cannot collapse into
-    /// each other. "alpha" is the default `test.kdbx`; "bravo" is
-    /// `autofill-union.kdbx`, purpose-built with union-only domains (see
-    /// `TestFixtures/README.md`). Both use the same password.
     override var databaseFixtures: [KeeForgeUITestCase.DatabaseFixture] {
         [
-            .init(resourceName: "test", injectedFilename: "alpha.kdbx"),
-            .init(resourceName: "autofill-union", injectedFilename: "bravo.kdbx"),
+            .init(resourceName: "autofill-store-alpha", injectedFilename: "alpha.kdbx"),
+            .init(resourceName: "autofill-store-bravo", injectedFilename: "bravo.kdbx"),
         ]
     }
 
-    /// Identities `test.kdbx` ("alpha") publishes on an iOS 18+
-    /// runtime: 5 password identities — Twitter → twitter.com, Discord →
-    /// discord.com, Email → example.com (mail. subdomain collapses), GitHub →
-    /// github.com (URL + two KP2A_URL_* fields all collapse to one registered
-    /// domain), and 日本語テスト 🔑 → example.jp; "Offline Key" has no URL and
-    /// "Public Profile" has no password, so neither is eligible — plus
-    /// 2 one-time-code identities (Discord and GitHub carry TOTP configs).
-    /// Derived from `CredentialIdentityStoreManager`'s eligibility rules;
-    /// recompute if the fixture or those rules change.
-    private static let alphaIdentityCount = 7
-
-    /// Identities `autofill-union.kdbx` ("bravo") publishes: 3 password
-    /// identities (unionbank-fixture.net, union-news-fixture.org,
-    /// union-shop-fixture.io) plus 1 one-time-code identity (Union News
-    /// carries a TOTP config). All domains and usernames are disjoint from
-    /// alpha's, so no cross-database (service, user) dedup can occur.
-    private static let bravoIdentityCount = 4
-
+    private static let alphaIdentityCount = 2
+    private static let bravoIdentityCount = 3
     private static let fixturePassword = "testpassword123"
+
+    private func alphaMetadata(databaseID: String) -> [String] {
+        let record = "v2:\(databaseID):11111111-1111-4111-8111-111111111111"
+        return [
+            "password|alpha-store-fixture.net|alpha-user|\(record)",
+            "oneTimeCode|alpha-store-fixture.net|alpha-user|\(record)",
+        ]
+    }
+
+    private func bravoMetadata(databaseID: String) -> [String] {
+        let login = "v2:\(databaseID):22222222-2222-4222-8222-222222222222"
+        let password = "v2:\(databaseID):33333333-3333-4333-8333-333333333333"
+        return [
+            "password|bravo-store-fixture.org|bravo-user|\(login)",
+            "oneTimeCode|bravo-store-fixture.org|bravo-user|\(login)",
+            "password|bravo-password-fixture.com|bravo-password-user|\(password)",
+        ]
+    }
 
     // MARK: - Identifiers
 
@@ -139,6 +67,7 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
     private static var cachedStoreProbe: StoreProbe?
 
     override func setUp() async throws {
+        continueAfterFailure = false
         executionTimeAllowance = 300
         try skipUnlessProvisionedStoreIsAvailable()
         try await super.setUp()
@@ -150,9 +79,6 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
 
     /// Launches the inspector (registry untouched — no `-ui-testing`), reads
     /// the store state, and skips the test unless the store is enabled.
-    /// Conservative on indeterminate state: an
-    /// unreadable inspector skips rather than fails, so this class can never
-    /// break a run on a simulator or an unprepared device.
     private func skipUnlessProvisionedStoreIsAvailable() throws {
         let probe: StoreProbe
         if let cachedProbe = Self.cachedStoreProbe {
@@ -164,12 +90,14 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
             _ = inspector.wait(for: .runningForeground, timeout: 30)
 
             let enabledState = inspector.staticTexts[Self.enabledStateID]
-            var result = StoreProbe(isEnabled: false)
-            if enabledState.waitForExistence(timeout: 30) {
-                result = StoreProbe(
-                    isEnabled: (enabledState.value as? String) == "enabled"
-                )
+            guard enabledState.waitForExistence(timeout: 30),
+                  let value = enabledState.value as? String,
+                  ["enabled", "disabled"].contains(value) else {
+                inspector.terminate()
+                throw NSError(domain: "AutoFillStoreUITests", code: 1,
+                              userInfo: [NSLocalizedDescriptionKey: "Store inspector did not report provider readiness"])
             }
+            let result = StoreProbe(isEnabled: value == "enabled")
             inspector.terminate()
             Self.cachedStoreProbe = result
             probe = result
@@ -184,65 +112,7 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         }
     }
 
-    // MARK: - Scenario 1: publication on unlock
-
-    func testUnlockPublishesIdentitiesForUnlockedDatabaseOnly() throws {
-        let ids = try seedStoreBaselineAndCaptureDatabaseIDs()
-
-        unlockDatabase(named: "alpha")
-        lockVault()
-        allowStoreWritesToSettle()
-
-        launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount)")
-        waitForInspectorValue(
-            databaseCountID(ids.alpha),
-            toEqual: "\(Self.alphaIdentityCount)"
-        )
-        // bravo was never unlocked: with all identities accounted to alpha's
-        // section, bravo must have no section at all.
-        assertInspectorDatabaseSectionAbsent(ids.bravo)
-        assertInspectorValue(Self.enabledStateID, equals: "enabled")
-    }
-
-    // MARK: - Scenario 2: targeted removal on per-database disable
-
-    func testDisableViaDetailsSheetEmptiesOnlyThatDatabase() throws {
-        let ids = try seedStoreBaselineAndCaptureDatabaseIDs()
-
-        unlockDatabase(named: "alpha")
-        lockVault()
-        allowStoreWritesToSettle()
-
-        // "With A published": verified through the inspector, not assumed.
-        launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount)")
-        waitForInspectorValue(
-            databaseCountID(ids.alpha),
-            toEqual: "\(Self.alphaIdentityCount)"
-        )
-
-        // Disable while the database is locked (registry-only flip) via the
-        // database-details sheet toggle.
-        launchNormalRoot()
-        openDatabaseDetails(rowContaining: "alpha")
-        let detailsToggle = app.switches["database-details.autofill-toggle"]
-        XCTAssertTrue(
-            revealElement(detailsToggle, in: scrollableContainer()),
-            "AutoFill toggle was not visible in the database details sheet"
-        )
-        setSwitch(detailsToggle, isOn: false)
-        closeDatabaseDetails()
-        allowStoreWritesToSettle()
-
-        launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "0")
-        assertInspectorDatabaseSectionAbsent(ids.alpha)
-        // "Nothing else changes": targeted removal must not disable the provider.
-        assertInspectorValue(Self.enabledStateID, equals: "enabled")
-    }
-
-    // MARK: - Scenario 3: lazy republish on re-enable
+    // MARK: - Re-enable across relaunches
 
     func testReEnableStaysEmptyUntilNextUnlock() throws {
         let ids = try seedStoreBaselineAndCaptureDatabaseIDs()
@@ -253,17 +123,8 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
 
         launchInspector()
         waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount)")
+        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha))
 
-        // Disable alpha, empty the store, then re-enable — all while alpha is
-        // locked (no unlocked session means the enable side has nothing to
-        // republish immediately). The zero state is established with the
-        // confirmed Clear AutoFill Entries action rather than the disable's
-        // own store-side targeted removal, keeping this test independent of
-        // scenario 2's removal mechanics (which
-        // testDisableViaDetailsSheetEmptiesOnlyThatDatabase pins): whatever
-        // removal does, the contract under test here — re-enable publishes
-        // nothing until the database's next unlock — is asserted against
-        // real toggle state end to end.
         launchNormalRoot()
         openAutoFillSettings()
         let alphaToggle = app.switches[Self.databaseTogglePrefix + ids.alpha]
@@ -281,13 +142,10 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         leaveAutoFillSettings()
         allowStoreWritesToSettle()
 
-        // Re-enable is lazy: still zero until the next unlock.
         launchInspector()
         waitForInspectorValue(Self.totalCountID, toEqual: "0")
         assertInspectorDatabaseSectionAbsent(ids.alpha)
 
-        // Next unlock of the same reference (same UUID — the relaunches above
-        // never reseeded) republishes.
         launchNormalRoot()
         unlockDatabase(named: "alpha")
         lockVault()
@@ -295,13 +153,10 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
 
         launchInspector()
         waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount)")
-        waitForInspectorValue(
-            databaseCountID(ids.alpha),
-            toEqual: "\(Self.alphaIdentityCount)"
-        )
+        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha))
     }
 
-    // MARK: - Scenario 4: Clear AutoFill Entries reaches zero
+    // MARK: - Confirmed clear
 
     func testClearAutoFillEntriesReachesZero() throws {
         let ids = try seedStoreBaselineAndCaptureDatabaseIDs()
@@ -310,9 +165,9 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         lockVault()
         allowStoreWritesToSettle()
 
-        // "With identities present": verified before clearing.
         launchInspector()
         waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount)")
+        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha))
 
         launchNormalRoot()
         openAutoFillSettings()
@@ -326,45 +181,53 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         assertInspectorValue(Self.enabledStateID, equals: "enabled")
     }
 
-    // MARK: - Scenario 5: multi-database union and single-section removal
-
-    func testMultiDatabaseUnionAndSingleSectionRemoval() throws {
+    func testPublicationUnionAndTargetedRemovalPreserveOtherDatabase() throws {
         let ids = try seedStoreBaselineAndCaptureDatabaseIDs()
-        let alphaCount = Self.alphaIdentityCount
-        let bravoCount = Self.bravoIdentityCount
-
         unlockDatabase(named: "alpha")
         lockVault()
+        allowStoreWritesToSettle()
+
+        launchInspector()
+        waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount)")
+        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha))
+        assertInspectorDatabaseSectionAbsent(ids.bravo)
+
+        launchNormalRoot()
         unlockDatabase(named: "bravo")
         lockVault()
         allowStoreWritesToSettle()
 
-        // Union: both sections present simultaneously, each with its own full
-        // identity set (the second unlock must aggregate, not replace). The
-        // asymmetric counts (7 vs 4) also pin that neither refresh disturbed
-        // the other database's set.
         launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "\(alphaCount + bravoCount)")
-        waitForInspectorValue(databaseCountID(ids.alpha), toEqual: "\(alphaCount)")
-        waitForInspectorValue(databaseCountID(ids.bravo), toEqual: "\(bravoCount)")
+        waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount + Self.bravoIdentityCount)")
+        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha))
+        assertDatabaseMetadata(ids.bravo, equals: bravoMetadata(databaseID: ids.bravo))
 
-        // Disable bravo (locked) via the Settings per-database toggle: only
-        // its section may vanish.
+        launchNormalRoot()
+        openDatabaseDetails(rowContaining: "bravo")
+        let detailsToggle = app.switches["database-details.autofill-toggle"]
+        XCTAssertTrue(revealElement(detailsToggle, in: scrollableContainer()))
+        setSwitch(detailsToggle, isOn: false)
+        closeDatabaseDetails()
+        allowStoreWritesToSettle()
+
+        launchInspector()
+        waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount)")
+        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha))
+        assertInspectorDatabaseSectionAbsent(ids.bravo)
+
         launchNormalRoot()
         openAutoFillSettings()
-        let bravoToggle = app.switches[Self.databaseTogglePrefix + ids.bravo]
-        XCTAssertTrue(
-            bravoToggle.waitForExistence(timeout: Self.ciElementTimeout),
-            "Per-database toggle for the seeded bravo UUID did not survive the relaunch"
-        )
-        setSwitch(bravoToggle, isOn: false)
+        let alphaToggle = app.switches[Self.databaseTogglePrefix + ids.alpha]
+        XCTAssertTrue(revealElement(alphaToggle, in: scrollableContainer()))
+        setSwitch(alphaToggle, isOn: false)
         leaveAutoFillSettings()
         allowStoreWritesToSettle()
 
         launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "\(alphaCount)")
-        waitForInspectorValue(databaseCountID(ids.alpha), toEqual: "\(alphaCount)")
+        waitForInspectorValue(Self.totalCountID, toEqual: "0")
+        assertInspectorDatabaseSectionAbsent(ids.alpha)
         assertInspectorDatabaseSectionAbsent(ids.bravo)
+        assertInspectorValue(Self.enabledStateID, equals: "enabled")
     }
 
     // MARK: - Seeding, capture, and baseline
@@ -428,13 +291,17 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         clearStoreFromAutoFillSettings(file: file, line: line)
         leaveAutoFillSettings(file: file, line: line)
 
+        allowStoreWritesToSettle()
+        launchInspector()
+        waitForInspectorValue(Self.totalCountID, toEqual: "0")
+        launchNormalRoot()
         return SeededDatabaseIDs(alpha: alphaID, bravo: bravoID)
     }
 
     // MARK: - Launch phases
 
     /// Relaunches the app without `-ui-testing` so the seeded registry (UUIDs
-    /// and persisted `autoFillEnabled` flags) survives. See the class doc.
+    /// and persisted `autoFillEnabled` flags) survives.
     private func relaunch(arguments: [String]) {
         app.launchArguments = arguments + Self.launchDefaultsOverrides
         app.launchEnvironment = [:]
@@ -510,6 +377,11 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         var lastObserved: String?
 
         repeat {
+            let enumerationError = app.staticTexts["autofill-inspector.enumeration-error"]
+            if enumerationError.exists {
+                XCTFail(enumerationError.value as? String ?? enumerationError.label, file: file, line: line)
+                return
+            }
             let row = scanInspectorRow(element)
             if let value = row.value {
                 lastObserved = value
@@ -529,6 +401,17 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
             file: file,
             line: line
         )
+    }
+
+    private func assertDatabaseMetadata(
+        _ databaseID: String,
+        equals expected: [String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        waitForInspectorValue(databaseCountID(databaseID), toEqual: "\(expected.count)", file: file, line: line)
+        waitForInspectorValue("autofill-inspector.database.\(databaseID).identities",
+                              toEqual: expected.sorted().joined(separator: "\n"), file: file, line: line)
     }
 
     /// Non-polling equality check for a value that a preceding
