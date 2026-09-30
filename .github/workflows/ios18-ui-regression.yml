@@ -29,6 +29,10 @@ jobs:
   ios18-ui:
     runs-on: macos-15
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        test-class: [EntryDeleteSmokeUITests, GroupEditUITests, SearchResultsDeleteUITests, SearchResultsMoveUITests]
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
@@ -92,6 +96,7 @@ jobs:
           UDID: ${{ steps.sim.outputs.udid }}
           SCOPE: ${{ inputs.scope }}
           REPETITIONS: ${{ inputs.repetitions }}
+          TEST_CLASS: ${{ matrix.test-class }}
         run: |
           set -uo pipefail
           run_class() {
@@ -113,9 +118,8 @@ jobs:
               -destination "platform=iOS Simulator,id=$UDID" \
               "${selection[@]}" \
               -test-timeouts-enabled YES -maximum-test-execution-time-allowance 300 \
-              -resultBundlePath "$result" > "$log" 2>&1
-            local status=$?
-            grep -E "^Test Case .* (passed|failed)|error:" "$log" || true
+              -resultBundlePath "$result" 2>&1 | tee "$log"
+            local status=${PIPESTATUS[0]}
             python3 ci_scripts/validate_xcresult_summary.py \
               --result-bundle "$result" --suite "$class" --xcodebuild-exit "$status" || return 1
             # This diagnostic workflow requires every attempt to pass.
@@ -124,23 +128,24 @@ jobs:
               return 1
             fi
           }
-          rc=0
-          run_class EntryDeleteSmokeUITests \
-            testRecycleBinGroupHasNoDeleteSwipeAction || rc=1
-          run_class GroupEditUITests \
-            testRecycleBinOffersNoEditGroupContextAction || rc=1
-          run_class SearchResultsDeleteUITests \
-            testContextMenuDeleteFromSearchResultsMovesEntryToRecycleBin \
-            testSwipeDeleteFromSearchResultsConfirmsBeforeDeleting || rc=1
-          run_class SearchResultsMoveUITests \
-            testContextMenuMoveFromSearchResultsMovesEntryToChosenGroup || rc=1
-          exit "$rc"
+          case "$TEST_CLASS" in
+            EntryDeleteSmokeUITests)
+              run_class "$TEST_CLASS" testRecycleBinGroupHasNoDeleteSwipeAction || exit 1 ;;
+            GroupEditUITests)
+              run_class "$TEST_CLASS" testRecycleBinOffersNoEditGroupContextAction || exit 1 ;;
+            SearchResultsDeleteUITests)
+              run_class "$TEST_CLASS" \
+                testContextMenuDeleteFromSearchResultsMovesEntryToRecycleBin \
+                testSwipeDeleteFromSearchResultsConfirmsBeforeDeleting || exit 1 ;;
+            SearchResultsMoveUITests)
+              run_class "$TEST_CLASS" testContextMenuMoveFromSearchResultsMovesEntryToChosenGroup || exit 1 ;;
+          esac
 
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ios18-ui-regression
+          name: ios18-ui-regression-${{ matrix.test-class }}
           path: |
             build/*.log
             build/*.xcresult
