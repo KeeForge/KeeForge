@@ -2513,10 +2513,8 @@ final class DatabaseViewModel {
         // The draft's tree is the local side, so unsaved edits take part in the
         // merge rather than being written over it.
         let localDraft = try makeWorkingDraft()
-        // The draft only ever appends to the pool the session opened, so a
-        // remote whose pool matches that one resolves every ref it brings to
-        // the same bytes in the draft's pool, which is the one written.
-        let sessionBinaryPoolFields = binaryPool?.rawFields ?? []
+        // The pool the merged draft writes, files the unsaved edits added
+        // included; the merger checks the remote's refs against it.
         let localBinaryPoolFields = localDraft.binaryPoolFields
         let expectedLockCycleID = lockCycleID
 
@@ -2536,7 +2534,7 @@ final class DatabaseViewModel {
                 sessionKey: sessionKey,
                 localRootGroup: localDraft.rootGroup,
                 localMeta: localDraft.meta,
-                localBinaryPoolFields: sessionBinaryPoolFields
+                localBinaryPoolFields: localBinaryPoolFields ?? []
             )
         } catch let failure as DatabaseMergeFailure {
             mergeFailure = failure
@@ -2662,7 +2660,6 @@ final class DatabaseViewModel {
         // Unsaved edits take part, as in `mergeAndSave`: the upload below
         // writes the whole tree, so leaving them out would drop them.
         let localDraft = try makeWorkingDraft()
-        let sessionBinaryPoolFields = binaryPool?.rawFields ?? []
         let localBinaryPoolFields = localDraft.binaryPoolFields
         var mergedRootGroup = localDraft.rootGroup
         var mergedMeta = localDraft.meta
@@ -2676,7 +2673,7 @@ final class DatabaseViewModel {
                     sessionKey: sessionKey,
                     localRootGroup: mergedRootGroup,
                     localMeta: mergedMeta,
-                    localBinaryPoolFields: sessionBinaryPoolFields
+                    localBinaryPoolFields: localBinaryPoolFields ?? []
                 )
                 mergedRootGroup = merged.rootGroup
                 mergedMeta = merged.meta

@@ -22,9 +22,10 @@ enum KDBXMerger {
         var rootGroup: KPGroup
         var meta: KPMeta
         /// The side's KDBX4 inner-header binary pool, verbatim
-        /// (`KDBXParser.Header.innerHeaderBinaryFields`). Used only for the
-        /// divergence check: the merged tree is written with the local side's
-        /// pool and refs are never renumbered.
+        /// (`KDBXParser.Header.innerHeaderBinaryFields`); on the local side,
+        /// the pool the merged tree will be written with, including files an
+        /// unsaved edit appended. Used only for the divergence check: refs are
+        /// never renumbered.
         var binaryPoolFields: [Data]
 
         init(rootGroup: KPGroup, meta: KPMeta, binaryPoolFields: [Data] = []) {
@@ -79,8 +80,9 @@ enum KDBXMerger {
     /// are detected before the engine runs and are not modelled here.
     enum Blocker: Sendable, Hashable {
         /// The two inner-header binary pools differ and something references an
-        /// attachment. KeeForge writes the local side's pool and cannot
-        /// renumber refs, so a grafted ref could point at other data.
+        /// attachment, or local extends remote and a remote ref points into the
+        /// extension. KeeForge writes the local side's pool and cannot renumber
+        /// refs, so a grafted ref could point at other data.
         case attachmentPoolDivergence
     }
 
@@ -113,11 +115,32 @@ enum KDBXMerger {
 
     private static func blockers(local: Side, remote: Side) -> [Blocker] {
         guard local.binaryPoolFields != remote.binaryPoolFields else { return [] }
+        if local.binaryPoolFields.starts(with: remote.binaryPoolFields) {
+            // Local only appended (files added in unsaved edits): remote refs
+            // below its own count mean the same bytes in the local pool, and
+            // ones past the local count stay dangling. A remote ref into the
+            // appended range would be handed a local file it never held.
+            let appended = remote.binaryPoolFields.count..<local.binaryPoolFields.count
+            return attachmentRefs(in: remote.rootGroup).contains(where: appended.contains)
+                ? [.attachmentPoolDivergence]
+                : []
+        }
         guard referencesAttachments(local.rootGroup) || referencesAttachments(remote.rootGroup) else {
             // Divergent pools nothing points into cannot dangle.
             return []
         }
         return [.attachmentPoolDivergence]
+    }
+
+    private static func attachmentRefs(in group: KPGroup) -> Set<Int> {
+        var refs = Set<Int>()
+        for entry in group.allEntries {
+            refs.formUnion(entry.attachments.map(\.ref))
+            for version in entry.history {
+                refs.formUnion(version.attachments.map(\.ref))
+            }
+        }
+        return refs
     }
 
     private static func referencesAttachments(_ group: KPGroup) -> Bool {

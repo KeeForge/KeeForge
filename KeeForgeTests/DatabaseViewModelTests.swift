@@ -4033,6 +4033,28 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
     }
 
+    func testMergePendingUploadsRefusesARemoteRefIntoAFileTheUnsavedEditAdded() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            var entry = KPEntry(title: "AutoFill Entry With Missing Attachment")
+            entry.attachments = [KPAttachment(name: "missing.txt", ref: 0)]
+            visibleRoot.entries.append(entry)
+        }
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.binaryPool?.count, 0, "Fixture precondition: the opened database has no attachments")
+        try addUnsavedAttachment(in: vm, name: "local.txt", bytes: Data("local-bytes".utf8))
+
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .attachmentsDiverged(.backup(PendingUploadFake.payloadURL)))
+        XCTAssertTrue(recorder.recordedCalls.isEmpty)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+    }
+
     func testARefusedPendingMergeNamesTheBackupInsteadOfExportCopy() throws {
         let backupURL = URL(fileURLWithPath: "/backups/20260924-080000-000000.kdbx")
         let backupDate = try XCTUnwrap(DatabaseExportService.backupDate(fromFilename: backupURL.lastPathComponent))
@@ -4561,6 +4583,51 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(call.bytes, conflictBytes)
         XCTAssertNil(vm.draft)
         XCTAssertNil(vm.saveConflict)
+    }
+
+    func testMergeAndSaveRefusesARemoteRefIntoAFileTheUnsavedEditAdded() async throws {
+        // The remote keeps the opened (empty) pool but carries a dangling ref
+        // 0, the index the unsaved edit's file took in the draft's pool.
+        let remoteData = try makeRemoteVariantData { visibleRoot in
+            var entry = KPEntry(title: "Remote Entry With Missing Attachment")
+            entry.attachments = [KPAttachment(name: "missing.txt", ref: 0)]
+            visibleRoot.entries.append(entry)
+        }
+        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let recorder = MergeSaveRecorder(results: [
+            .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
+            .saved(newSHA512: KDBXCrypto.sha512(Data("merged".utf8))),
+        ])
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _, _ in
+                recorder.record(
+                    openTimeSHA512: openTimeSHA512,
+                    reconciledRemoteSHA512: reconciledRemoteSHA512,
+                    expectedRev: nil,
+                    rootGroup: draft.rootGroup
+                )
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.binaryPool?.count, 0, "Fixture precondition: the opened database has no attachments")
+        try addUnsavedAttachment(in: vm, name: "local.txt", bytes: Data("local-bytes".utf8))
+        try await vm.save()
+        XCTAssertNotNil(vm.saveConflict)
+
+        try await vm.mergeAndSave()
+
+        XCTAssertEqual(vm.mergeFailure, .attachmentsDiverged)
+        XCTAssertEqual(recorder.recordedCalls.count, 1, "A declined merge must not write.")
+        XCTAssertNotNil(vm.saveConflict)
+        XCTAssertNotNil(vm.draft)
+    }
+
+    private func addUnsavedAttachment(in vm: DatabaseViewModel, name: String, bytes: Data) throws {
+        let entry = try XCTUnwrap(vm.currentRootGroup?.allEntries.first)
+        try vm.applyEntryEdit(.updateEntry(
+            entryID: entry.id,
+            draft: EntryDraftPayload(title: entry.title, password: "pw", attachments: [.new(name: name, data: bytes)])
+        ))
     }
 
     func testSaveAsConflictCopyWritesThePoolTheDraftsAttachmentsPointInto() async throws {
