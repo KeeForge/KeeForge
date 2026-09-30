@@ -11,6 +11,7 @@ from pathlib import Path
 
 from . import (
     argon2_high_iterations,
+    autofill_store,
     challenge_response,
     foreign_ciphers,
     kitchen_sink,
@@ -19,6 +20,7 @@ from . import (
 from ._common import Generator, banner, build_parser
 
 MODULES = (
+    autofill_store,
     kitchen_sink,
     argon2_high_iterations,
     challenge_response,

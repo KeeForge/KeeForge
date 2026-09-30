@@ -119,20 +119,32 @@ protocol CredentialIdentityStoreProviding: Sendable {
     /// Simulator runtimes (verified iOS 18.5 and 26.5) return an empty array
     /// despite persisted writes, so enumeration-dependent flows can only be
     /// exercised on a physical device.
-    func credentialIdentities() async -> [any ASCredentialIdentity]
+    func credentialIdentities() async throws -> [any ASCredentialIdentity]
+}
+
+enum CredentialIdentityStoreReadError: Error, Equatable, CustomStringConvertible {
+    case nonConformingIdentities(count: Int)
+
+    var description: String {
+        switch self {
+        case .nonConformingIdentities(let count):
+            "System credential store returned \(count) identities without ASCredentialIdentity conformance; their database ownership cannot be read."
+        }
+    }
 }
 
 /// Production conformance wrapping `ASCredentialIdentityStore.shared`.
 struct SystemCredentialIdentityStore: CredentialIdentityStoreProviding {
-    /// iOS 27.0 beta enumeration can return objects whose class does not
-    /// conform to `ASCredentialIdentity`; Swift's deferred NSArray bridge
-    /// check then traps on first element access. The `NSArray` round-trip is
-    /// a verbatim unwrap that skips the deferred check, letting the
-    /// conditional cast drop non-conforming elements instead of trapping.
-    static func droppingNonConformingIdentities(
+    /// NSArray avoids Swift's deferred bridge trap on malformed OS results.
+    static func validatedIdentities(
         _ identities: [any ASCredentialIdentity]
-    ) -> [any ASCredentialIdentity] {
-        (identities as NSArray).compactMap { $0 as? any ASCredentialIdentity }
+    ) throws -> [any ASCredentialIdentity] {
+        let objects = identities as NSArray
+        let validated = objects.compactMap { $0 as? any ASCredentialIdentity }
+        guard validated.count == objects.count else {
+            throw CredentialIdentityStoreReadError.nonConformingIdentities(count: objects.count - validated.count)
+        }
+        return validated
     }
 
     func capabilities() async -> CredentialIdentityStoreCapabilities {
@@ -159,8 +171,8 @@ struct SystemCredentialIdentityStore: CredentialIdentityStoreProviding {
         try await ASCredentialIdentityStore.shared.removeAllCredentialIdentities()
     }
 
-    func credentialIdentities() async -> [any ASCredentialIdentity] {
-        Self.droppingNonConformingIdentities(
+    func credentialIdentities() async throws -> [any ASCredentialIdentity] {
+        try Self.validatedIdentities(
             await ASCredentialIdentityStore.shared.credentialIdentities(forService: nil))
     }
 }
@@ -340,11 +352,15 @@ enum CredentialIdentityStoreManager: Sendable {
         return SystemCredentialIdentityStore()
     }
     private static func enqueueMutation(
-        _ operation: @escaping @Sendable (any CredentialIdentityStoreProviding) async -> Void
+        _ operation: @escaping @Sendable (any CredentialIdentityStoreProviding) async throws -> Void
     ) {
         let store = currentStore()
         mutationQueue.enqueue {
-            await operation(store)
+            do {
+                try await operation(store)
+            } catch {
+                logger.error("Credential identity store operation stopped: \(String(describing: error))")
+            }
         }
     }
 
@@ -449,7 +465,7 @@ enum CredentialIdentityStoreManager: Sendable {
                 return
             }
 
-            let storedIdentities = await store.credentialIdentities()
+            let storedIdentities = try await store.credentialIdentities()
             let otherDatabaseIdentitiesPresent = storedIdentities.contains { identity in
                 guard let recordIdentifier = recordIdentifier(of: identity),
                       case .current(let parsed) = CredentialRecordIdentifier.parse(recordIdentifier)
@@ -607,7 +623,7 @@ enum CredentialIdentityStoreManager: Sendable {
                 return
             }
 
-            let storedIdentities = await store.credentialIdentities()
+            let storedIdentities = try await store.credentialIdentities()
 
             let identitiesToRemove = storedIdentities.filter { identity in
                 guard let recordIdentifier = recordIdentifier(of: identity) else { return false }
@@ -669,7 +685,7 @@ enum CredentialIdentityStoreManager: Sendable {
                 return
             }
 
-            let storedIdentities = await store.credentialIdentities()
+            let storedIdentities = try await store.credentialIdentities()
 
             let identitiesToRemove = storedIdentities.filter {
                 Self.recordIdentifier(of: $0) == recordIdentifier
