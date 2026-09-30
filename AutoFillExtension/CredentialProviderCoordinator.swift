@@ -1439,8 +1439,7 @@ final class CredentialProviderCoordinator {
         try await CoordinatedFileReader.performBlocking(timeout: .seconds(10)) {
             guard let bookmarkData = reference.bookmarkData,
                   let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData),
-                  resolved.isStale == false,
-                  SecurityScopedBookmarkManager.isInTrashDirectory(resolved.url) == false else {
+                  resolved.isStale == false else {
                 throw CocoaError(.fileReadNoSuchFile)
             }
             let url = resolved.url
@@ -1449,6 +1448,9 @@ final class CredentialProviderCoordinator {
                 if hasSecurityScope {
                     url.stopAccessingSecurityScopedResource()
                 }
+            }
+            guard SecurityScopedBookmarkManager.isInTrashDirectory(url) == false else {
+                throw CocoaError(.fileReadNoSuchFile)
             }
             return try CoordinatedFileReader.readData(from: url)
         }

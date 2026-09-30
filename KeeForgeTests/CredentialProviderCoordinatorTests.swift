@@ -2274,6 +2274,34 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertEqual(searchView.sharedCopyDate, copyDate)
     }
 
+    /// A Files-app Delete leaves the bookmark resolving to the file in the
+    /// Trash; that is not the database, so the shared copy opens and is dated.
+    func test_unlockBookmarkedDatabase_withItsFileInTheTrash_opensTheSharedCopyAndDatesIt() async throws {
+        let bundle = Bundle(for: Self.self)
+        let (coordinator, presenter) = makeCoordinator()
+        let trashedURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent(".Trash")
+            .appendingPathComponent("default.kdbx")
+        try FileManager.default.createDirectory(
+            at: trashedURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        try KDBXTestFixture.kitchenSink.data(in: bundle).write(to: trashedURL)
+        let database = try TestDatabaseSupport.makeReference(for: trashedURL)
+        DatabaseListStore.update(database)
+        DatabaseListStore.activeAutoFillDatabaseID = database.id
+        try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: bundle), for: database)
+
+        let searchView = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
+
+        let titles = searchView.searchEntries.map(\.title)
+        XCTAssertFalse(titles.isEmpty)
+        XCTAssertFalse(titles.contains("Router Admin"), "The trashed file must not be searched")
+        XCTAssertNotNil(searchView.sharedCopyDate)
+    }
+
     /// The extension cannot sync a cloud database, so its copy is only as
     /// current as the app's last sync, and the picker is told when that was.
     func test_unlockCloudDatabase_datesTheSharedCopyByTheLastSync() async throws {
