@@ -1,0 +1,128 @@
+name: iOS 18 UI Regression
+run-name: iOS 18 UI regression — ${{ inputs.source_ref }} — ${{ inputs.scope }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Commit, tag, or branch to test
+        required: true
+        default: main
+      scope:
+        description: Five b60 failures or their complete test classes
+        type: choice
+        options: [failed-tests, affected-classes]
+        default: failed-tests
+      repetitions:
+        description: Independent repetitions (failures are never retried away)
+        type: choice
+        options: ['1', '3', '5']
+        default: '3'
+
+permissions:
+  contents: read
+
+jobs:
+  ios18-ui:
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: Record environment
+        run: |
+          mkdir -p build
+          {
+            git rev-parse HEAD
+            sw_vers
+            xcodebuild -version
+            xcrun simctl list runtimes
+          } | tee build/environment.log
+
+      - name: Prepare project
+        env:
+          DROPBOX_APP_KEY: ciplaceholderdropboxappkey
+        run: |
+          brew install xcodegen
+          BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh .
+          xcodegen generate
+
+      - name: Create iPhone SE on iOS 18.6
+        id: sim
+        run: |
+          set -euo pipefail
+          udid=$(xcrun simctl create KeeForge-iOS18-Repro \
+            com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation \
+            com.apple.CoreSimulator.SimRuntime.iOS-18-6)
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+
+      - name: Build for testing
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing -project KeeForge.xcodeproj -scheme KeeForge \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            -skipPackagePluginValidation > build/build.log 2>&1
+
+      - name: Run regression tests
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+          SCOPE: ${{ inputs.scope }}
+          REPETITIONS: ${{ inputs.repetitions }}
+        run: |
+          set -uo pipefail
+          run_class() {
+            local class="$1"
+            shift
+            local selection=()
+            if [ "$SCOPE" = affected-classes ]; then
+              selection+=("-only-testing:KeeForgeUITests/$class")
+            else
+              for method in "$@"; do
+                selection+=("-only-testing:KeeForgeUITests/$class/$method")
+              done
+            fi
+            local result="build/$class.xcresult" log="build/$class.log"
+            xcodebuild test-without-building -project KeeForge.xcodeproj -scheme KeeForge \
+              -destination "platform=iOS Simulator,id=$UDID" \
+              "${selection[@]}" -test-iterations "$REPETITIONS" \
+              -test-repetition-relaunch-enabled YES \
+              -test-timeouts-enabled YES -maximum-test-execution-time-allowance 300 \
+              -resultBundlePath "$result" > "$log" 2>&1
+            local status=$?
+            python3 ci_scripts/validate_xcresult_summary.py \
+              --result-bundle "$result" --suite "$class" --xcodebuild-exit "$status" || return 1
+            # This diagnostic workflow requires every attempt to pass.
+            if grep -qE "Test Case '.*' failed" "$log"; then
+              echo "::error::$class had a failed attempt"
+              return 1
+            fi
+          }
+          rc=0
+          run_class EntryDeleteSmokeUITests \
+            testRecycleBinGroupHasNoDeleteSwipeAction || rc=1
+          run_class GroupEditUITests \
+            testRecycleBinOffersNoEditGroupContextAction || rc=1
+          run_class SearchResultsDeleteUITests \
+            testContextMenuDeleteFromSearchResultsMovesEntryToRecycleBin \
+            testSwipeDeleteFromSearchResultsConfirmsBeforeDeleting || rc=1
+          run_class SearchResultsMoveUITests \
+            testContextMenuMoveFromSearchResultsMovesEntryToChosenGroup || rc=1
+          exit "$rc"
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios18-ui-regression
+          path: |
+            build/*.log
+            build/*.xcresult
+          retention-days: 14
