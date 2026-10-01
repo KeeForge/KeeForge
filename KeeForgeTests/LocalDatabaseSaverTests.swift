@@ -734,6 +734,51 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: backupURL), originalData)
     }
 
+    func testEncryptionSettingsSaveMovesToAESKDFAndReopensUnderTheSameKey() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let original = try KDBXFileSummary.inspect(data: Data(contentsOf: databaseURL))
+        guard case .argon2d = original.keyDerivation else {
+            XCTFail("Fixture precondition: Argon2d, got \(original.keyDerivation)")
+            return
+        }
+        let context = try makeCleanSaveContext(databaseURL: databaseURL)
+
+        let result = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            kdfPolicy: .mainApp,
+            encryptionSettings: EncryptionSettingsChange(
+                kdfParameters: try EncryptionSettingsKeyDerivation.aesKDF(rounds: 10_000).kdfParameters()
+            )
+        )
+
+        guard case .saved = result else {
+            XCTFail("Expected the AES-KDF save to succeed.")
+            return
+        }
+        let savedData = try Data(contentsOf: databaseURL)
+        let saved = try KDBXFileSummary.inspect(data: savedData)
+        XCTAssertEqual(saved.keyDerivation, .aesKDF(rounds: 10_000))
+        XCTAssertEqual(saved.cipher, original.cipher, "AES-KDF must not change the outer cipher")
+        XCTAssertEqual(saved.isCompressed, original.isCompressed)
+        XCTAssertEqual(saved.formatVersion, original.formatVersion)
+
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: savedData,
+            compositeKey: context.compositeKey,
+            sessionKey: SymmetricKey(size: .bits256),
+            kdfPolicy: .autoFillExtension
+        )
+        XCTAssertEqual(
+            reparsed.rootGroup.allEntries.map(\.title).sorted(),
+            context.originalRootGroup.allEntries.map(\.title).sorted()
+        )
+        XCTAssertEqual((reparsed.header.kdfParameters["S"] as? Data)?.count, 32)
+    }
+
     func testEncryptionSettingsSaveKeepsUnchangedFields() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)

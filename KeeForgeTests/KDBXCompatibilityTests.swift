@@ -249,10 +249,11 @@ final class KDBXCompatibilityTests: XCTestCase {
         try collector.emit()
     }
 
-    /// The two encryption-settings scenarios: every field changed on a
-    /// KeeForge-authored AES database, and a cipher change that keeps a
-    /// foreign-authored KDF. Changed header fields carry the new values,
-    /// untouched ones carry over, and the credentials stay the same.
+    /// The encryption-settings scenarios: every field changed on a
+    /// KeeForge-authored AES database, a cipher change that keeps a
+    /// foreign-authored KDF, and a move to AES-KDF. Changed header fields carry
+    /// the new values, untouched ones carry over, and the credentials stay the
+    /// same.
     func test_encryptionSettingsScenarios_rewriteHeaderUnderTheSameKey() throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
 
@@ -297,6 +298,19 @@ final class KDBXCompatibilityTests: XCTestCase {
             twofish.header.kdfParameters["S"] as? Data,
             "The KDF salt still rotates"
         )
+
+        XCTAssertNotEqual(aesBaseline.header.kdfParameters["$UUID"] as? Data, KDBXParser.aesKDFUUID, "Fixture precondition")
+        let aesKDF = try collector.run(
+            KDBXCompatibilitySupport.encryptionSettingsAESKDFScenario(),
+            on: aesBaseline
+        )
+        XCTAssertNil(aesKDF.rekey)
+        XCTAssertEqual(aesKDF.afterHeader.kdfParameters["$UUID"] as? Data, KDBXParser.aesKDFUUID)
+        XCTAssertEqual(aesKDF.afterHeader.kdfParameters["R"] as? UInt64, DatabaseCreationDefaults.aesKDFRounds)
+        XCTAssertEqual((aesKDF.afterHeader.kdfParameters["S"] as? Data)?.count, 32)
+        XCTAssertEqual(aesKDF.afterHeader.cipherID, aesBaseline.header.cipherID, "AES-KDF leaves the cipher alone")
+        XCTAssertEqual(aesKDF.afterHeader.compressionFlags, aesBaseline.header.compressionFlags)
+        XCTAssertEqual(aesKDF.afterHeader.formatVersion, aesBaseline.header.formatVersion)
 
         try collector.emit()
     }
@@ -682,6 +696,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             "\(richID)-custom-field-edits",
             "aes-baseline-encryption-settings-chacha20-argon2id",
             "foreign-twofish-encryption-settings-aes256-keep-kdf",
+            "aes-baseline-encryption-settings-aes-kdf",
         ] {
             XCTAssertTrue(ids.contains(required), "missing artifact \(required)")
         }
@@ -694,7 +709,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 36)
+        XCTAssertEqual(descriptors.count, 37)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {
