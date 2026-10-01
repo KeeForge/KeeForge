@@ -4,6 +4,9 @@ import SwiftUI
 /// them: the database list (long-press → Database Details) and the unlocked
 /// database's toolbar gear button.
 ///
+/// The root is a hub: a header with the file facts, then one row per area
+/// that says what is currently set and pushes that area's page.
+///
 /// The two contexts differ only in what they can reach. The list owns the
 /// app's `DatabaseListViewModel` and its own key-file importer; the unlocked
 /// database owns a `DatabaseViewModel` session and has no App Settings entry
@@ -60,41 +63,14 @@ struct DatabaseDetailsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                identitySection
-                editingSection
-                autoFillSection
-                keyFileSection
-                masterKeySection
-                encryptionSection
-                metadataSection
-                databaseFileSection
+                headerSection
+                areasSection
                 importSection
-                exportSection
-                backupsSection
-                cloudSyncSection
                 appSettingsSection
             }
             .macGroupedForm()
-            .navigationTitle(currentReference.displayName)
+            .navigationTitle("Database Details")
             .navigationBarTitleDisplayMode(.inline)
-            .task(id: fileInfoLoadID) {
-                backups = DatabaseExportService.backups(for: currentReference)
-                fileInfo = await DatabaseFileInfoLoader.load(for: currentReference)
-                isLoadingFileInfo = false
-            }
-            .onAppear {
-                installAutoFillBridgeIfNeeded()
-                syncFormStateFromCurrentReference()
-            }
-            .onChange(of: currentReference.nickname) { _, _ in
-                syncFormStateFromCurrentReference()
-            }
-            .onChange(of: nickname) { _, _ in
-                saveNickname()
-            }
-            .onChange(of: currentReference.isQuickLaunch) { _, newValue in
-                isQuickLaunch = newValue
-            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") {
@@ -104,33 +80,199 @@ struct DatabaseDetailsView: View {
                     .accessibilityIdentifier("database-details.close")
                 }
             }
-            .fileImporter(
-                isPresented: $showKeyFilePicker,
-                allowedContentTypes: [.data],
-                allowsMultipleSelection: false
-            ) { result in
-                if case .success(let urls) = result, let url = urls.first {
-                    try? listViewModel.setKeyFile(url: url, for: reference)
+        }
+        // Everything below sits on the stack, not the hub. The hub leaves the
+        // screen while a page is pushed over it, which would cancel its tasks
+        // and leave it unable to present.
+        .task(id: fileInfoLoadID) {
+            backups = DatabaseExportService.backups(for: currentReference)
+            fileInfo = await DatabaseFileInfoLoader.load(for: currentReference)
+            isLoadingFileInfo = false
+        }
+        .onAppear {
+            installAutoFillBridgeIfNeeded()
+            syncFormStateFromCurrentReference()
+        }
+        .onChange(of: currentReference.nickname) { _, _ in
+            syncFormStateFromCurrentReference()
+        }
+        .onChange(of: nickname) { _, _ in
+            saveNickname()
+        }
+        .onChange(of: currentReference.isQuickLaunch) { _, newValue in
+            isQuickLaunch = newValue
+        }
+        .fileImporter(
+            isPresented: $showKeyFilePicker,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                try? listViewModel.setKeyFile(url: url, for: reference)
+            }
+        }
+        .sheet(isPresented: $showAppSettings) {
+            SettingsView(viewModel: sessionViewModel, listViewModel: listViewModel)
+        }
+        .sheet(isPresented: $showAutoFillDestinationPicker) {
+            if let sessionViewModel {
+                MoveToGroupPickerView(
+                    options: sessionViewModel.groupDestinationOptions(
+                        currentGroupID: sessionViewModel.databaseReference.autoFillDestinationGroupID
+                    ),
+                    navigationTitle: "Select Group"
+                ) { groupID in
+                    sessionViewModel.setAutoFillDestinationGroupID(groupID)
+                    listViewModel.reload()
                 }
             }
-            .sheet(isPresented: $showAppSettings) {
-                SettingsView(viewModel: sessionViewModel, listViewModel: listViewModel)
+        }
+        .databaseExporter(request: $exportRequest)
+    }
+
+    // MARK: - Hub
+
+    private var headerSection: some View {
+        Section {
+            HStack(spacing: 14) {
+                Image(systemName: "cylinder.split.1x2")
+                    .font(.title2)
+                    .foregroundStyle(.white)
+                    .frame(width: 48, height: 48)
+                    .background(.tint, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(currentDisplayName)
+                        .font(.title3.weight(.semibold))
+
+                    Text(DatabaseSettingsSummary.header(filename: currentReference.filename, fileInfo: fileInfo))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
-            .sheet(isPresented: $showAutoFillDestinationPicker) {
-                if let sessionViewModel {
-                    MoveToGroupPickerView(
-                        options: sessionViewModel.groupDestinationOptions(
-                            currentGroupID: sessionViewModel.databaseReference.autoFillDestinationGroupID
-                        ),
-                        navigationTitle: "Select Group"
-                    ) { groupID in
-                        sessionViewModel.setAutoFillDestinationGroupID(groupID)
-                        listViewModel.reload()
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("database-details.header")
+        }
+    }
+
+    private var areasSection: some View {
+        Section {
+            NavigationLink {
+                page("General") {
+                    identitySection
+                    editingSection
+                    databaseFileSection
+                    metadataSection
+                }
+            } label: {
+                SettingsSummaryRow(
+                    title: "General",
+                    systemImage: "slider.horizontal.3",
+                    summary: DatabaseSettingsSummary.general(
+                        isQuickLaunch: currentReference.isQuickLaunch,
+                        isReadOnly: isReadOnly
+                    )
+                )
+            }
+            .accessibilityIdentifier("database-details.general.link")
+
+            NavigationLink {
+                page("AutoFill") {
+                    autoFillSection
+                }
+            } label: {
+                SettingsSummaryRow(
+                    title: "AutoFill",
+                    systemImage: "text.cursor",
+                    summary: DatabaseSettingsSummary.autoFill(
+                        isEnabled: currentReference.autoFillEnabled,
+                        destinationGroupName: sessionViewModel?.autoFillDestinationGroup?.name
+                    )
+                )
+            }
+            .accessibilityIdentifier("database-details.autofill.link")
+
+            NavigationLink {
+                page("Master Key") {
+                    keyFileSection
+                    masterKeySection
+                }
+            } label: {
+                SettingsSummaryRow(
+                    title: "Master Key",
+                    systemImage: "key",
+                    summary: DatabaseSettingsSummary.masterKey(
+                        keyFileFilename: currentReference.keyFileFilename,
+                        usesHardwareKey: isHardwareKeyReadOnly
+                    )
+                )
+            }
+            .accessibilityIdentifier("database-details.master-key.link")
+
+            NavigationLink {
+                page("Encryption") {
+                    encryptionFactsSection
+                    encryptionSection
+                }
+            } label: {
+                SettingsSummaryRow(
+                    title: "Encryption",
+                    systemImage: "lock",
+                    summary: DatabaseSettingsSummary.encryption(fileInfo?.summary)
+                )
+            }
+            .accessibilityIdentifier("database-details.encryption.link")
+
+            if let cloudState = listViewModel.cloudState(for: reference),
+               let metadata = currentReference.cloudSyncMetadata {
+                NavigationLink {
+                    page("Cloud Sync") {
+                        cloudSyncSection(cloudState, metadata: metadata)
+                    }
+                } label: {
+                    HStack {
+                        SettingsSummaryRow(
+                            title: "Cloud Sync",
+                            systemImage: "arrow.triangle.2.circlepath",
+                            summary: DatabaseSettingsSummary.cloudSync(cloudState, lastSyncedAt: metadata.lastSyncedAt)
+                        )
+
+                        Spacer()
+
+                        // The summary already says it in words.
+                        Circle()
+                            .fill(cloudState.warningText == nil ? Color.green : Color.orange)
+                            .frame(width: 8, height: 8)
+                            .accessibilityHidden(true)
                     }
                 }
+                .accessibilityIdentifier("database-details.cloud-sync.link")
             }
-            .databaseExporter(request: $exportRequest)
+
+            NavigationLink {
+                page("Backups & Export") {
+                    exportSection
+                    backupsSection
+                }
+            } label: {
+                SettingsSummaryRow(
+                    title: "Backups & Export",
+                    systemImage: "clock.arrow.circlepath",
+                    summary: DatabaseSettingsSummary.backups(backups)
+                )
+            }
+            .accessibilityIdentifier("database-details.backups.link")
         }
+    }
+
+    private func page(_ title: LocalizedStringKey, @ViewBuilder content: () -> some View) -> some View {
+        Form {
+            content()
+        }
+        .macGroupedForm()
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - Sections
@@ -199,8 +341,6 @@ struct DatabaseDetailsView: View {
             if let destinationGroup = sessionViewModel?.autoFillDestinationGroup {
                 autoFillDestinationRow(destinationGroup)
             }
-        } header: {
-            Text("AutoFill")
         } footer: {
             VStack(alignment: .leading, spacing: 6) {
                 Text("When off, passwords, passkeys, and verification codes from this database are neither suggested nor available in AutoFill. After you turn it back on, suggestions return the next time you unlock this database.")
@@ -274,8 +414,6 @@ struct DatabaseDetailsView: View {
                 }
                 .disabled(isReadOnly)
                 .accessibilityIdentifier("database-details.change-master-key")
-            } header: {
-                Text("Master Key")
             } footer: {
                 Text("Changing the master key re-encrypts this database file with a new master password and/or key file.")
             }
@@ -297,8 +435,6 @@ struct DatabaseDetailsView: View {
                 }
                 .disabled(isReadOnly || fileInfo?.summary == nil)
                 .accessibilityIdentifier("database-details.change-encryption-settings")
-            } header: {
-                Text("Encryption")
             } footer: {
                 Text("Choose the cipher, key derivation, and compression this database file is saved with.")
             }
@@ -317,13 +453,62 @@ struct DatabaseDetailsView: View {
 
     private var databaseFileSection: some View {
         Section {
-            databaseFileRows
+            fileFactRows { fileInfo in
+                if let summary = fileInfo.summary {
+                    LabeledContent("Format", value: summary.formatDisplayName)
+                        .accessibilityIdentifier("database-details.file-format")
+                }
+
+                if let sizeBytes = fileInfo.fileSizeBytes {
+                    LabeledContent("Size", value: sizeBytes.formatted(.byteCount(style: .file)))
+                        .accessibilityIdentifier("database-details.file-size")
+                }
+
+                if let modifiedAt = fileInfo.modifiedAt {
+                    LabeledContent("Modified", value: dateText(modifiedAt))
+                }
+            }
         } header: {
             Text("Database File")
         } footer: {
-            if currentReference.isCloudBacked {
-                Text("Values reflect the locally cached copy of this database.")
+            cachedCopyFooter
+        }
+    }
+
+    private var encryptionFactsSection: some View {
+        Section {
+            fileFactRows { fileInfo in
+                if let summary = fileInfo.summary {
+                    LabeledContent("Encryption", value: summary.cipherDisplayName)
+                        .accessibilityIdentifier("database-details.encryption")
+
+                    LabeledContent("Key Derivation") {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(summary.keyDerivationDisplayName)
+                            if let detail = summary.keyDerivationDetailText {
+                                Text(detail)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .accessibilityIdentifier("database-details.key-derivation")
+
+                    LabeledContent("Compression", value: summary.compressionDisplayName)
+                        .accessibilityIdentifier("database-details.compression")
+                } else {
+                    fileDetailsUnavailableRow
+                }
             }
+        } footer: {
+            cachedCopyFooter
+        }
+    }
+
+    @ViewBuilder
+    private var cachedCopyFooter: some View {
+        if currentReference.isCloudBacked {
+            Text("Values reflect the locally cached copy of this database.")
         }
     }
 
@@ -334,12 +519,10 @@ struct DatabaseDetailsView: View {
                 NavigationLink {
                     PasswordImportView(sessionViewModel: sessionViewModel)
                 } label: {
-                    Text("Import Passwords…")
+                    Label("Import Passwords…", systemImage: "square.and.arrow.down")
                 }
                 .disabled(isReadOnly)
                 .accessibilityIdentifier("database-details.import-passwords")
-            } header: {
-                Text("Import")
             } footer: {
                 Text("Add logins from a password export file, such as the one the Passwords app creates.")
             }
@@ -390,66 +573,60 @@ struct DatabaseDetailsView: View {
         }
     }
 
-    @ViewBuilder
-    private var cloudSyncSection: some View {
-        if let cloudState = listViewModel.cloudState(for: reference),
-           let metadata = currentReference.cloudSyncMetadata {
-            Section {
-                LabeledContent("Provider") {
-                    HStack(spacing: 6) {
-                        CloudProviderIcon(provider: metadata.providerKind)
-                        Text(cloudState.providerName)
-                    }
+    private func cloudSyncSection(_ cloudState: CloudRowState, metadata: CloudSyncMetadata) -> some View {
+        Section {
+            LabeledContent("Provider") {
+                HStack(spacing: 6) {
+                    CloudProviderIcon(provider: metadata.providerKind)
+                    Text(cloudState.providerName)
+                }
+                .lineLimit(1)
+            }
+
+            LabeledContent("Account") {
+                Text(cloudState.accountLabel)
                     .lineLimit(1)
-                }
+                    .truncationMode(.middle)
+                    .multilineTextAlignment(.trailing)
+            }
 
-                LabeledContent("Account") {
-                    Text(cloudState.accountLabel)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .multilineTextAlignment(.trailing)
-                }
+            LabeledContent("Path") {
+                Text(metadata.displayPath)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .multilineTextAlignment(.trailing)
+            }
 
-                LabeledContent("Path") {
-                    Text(metadata.displayPath)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .multilineTextAlignment(.trailing)
-                }
+            if let remoteModifiedAt = metadata.remoteModifiedAt {
+                LabeledContent("Remote Modified", value: dateText(remoteModifiedAt))
+            }
 
-                if let remoteModifiedAt = metadata.remoteModifiedAt {
-                    LabeledContent("Remote Modified", value: dateText(remoteModifiedAt))
-                }
+            if let lastSyncedAt = metadata.lastSyncedAt {
+                LabeledContent("Last Sync", value: dateText(lastSyncedAt))
+            }
 
-                if let lastSyncedAt = metadata.lastSyncedAt {
-                    LabeledContent("Last Sync", value: dateText(lastSyncedAt))
-                }
+            LabeledContent("Status", value: cloudState.warningText ?? String(localized: "Healthy"))
 
-                LabeledContent("Status", value: cloudState.warningText ?? String(localized: "Healthy"))
-
-                Toggle(
-                    "Sync When Opening",
-                    isOn: Binding(
-                        get: { currentReference.cloudSyncPolicy == .onOpen },
-                        set: { setCloudSyncPolicy($0 ? .onOpen : .manual) }
-                    )
+            Toggle(
+                "Sync When Opening",
+                isOn: Binding(
+                    get: { currentReference.cloudSyncPolicy == .onOpen },
+                    set: { setCloudSyncPolicy($0 ? .onOpen : .manual) }
                 )
-                .accessibilityIdentifier("database-details.sync-on-open-toggle")
+            )
+            .accessibilityIdentifier("database-details.sync-on-open-toggle")
 
-                // Replacing the open database needs the unlocked session.
-                if let sessionViewModel {
-                    syncNowRow(sessionViewModel)
-                }
-            } header: {
-                Text("Cloud Sync")
-            } footer: {
-                if cloudState.isConnected == false {
-                    Text("This account is disconnected. KeeForge keeps the cached copy until you remove the database.")
-                } else if currentReference.cloudSyncPolicy == .manual {
-                    Text("KeeForge opens the copy saved on this device without checking the cloud. Use Sync Now in the unlocked database to get newer changes. Saving still checks the cloud copy first and stops if it changed. AutoFill uses the cached copy only.")
-                } else {
-                    Text("Cloud databases are cached locally and refreshed whenever you open them in the main app. AutoFill uses the cached copy only.")
-                }
+            // Replacing the open database needs the unlocked session.
+            if let sessionViewModel {
+                syncNowRow(sessionViewModel)
+            }
+        } footer: {
+            if cloudState.isConnected == false {
+                Text("This account is disconnected. KeeForge keeps the cached copy until you remove the database.")
+            } else if currentReference.cloudSyncPolicy == .manual {
+                Text("KeeForge opens the copy saved on this device without checking the cloud. Use Sync Now in the unlocked database to get newer changes. Saving still checks the cloud copy first and stops if it changed. AutoFill uses the cached copy only.")
+            } else {
+                Text("Cloud databases are cached locally and refreshed whenever you open them in the main app. AutoFill uses the cached copy only.")
             }
         }
     }
@@ -502,55 +679,30 @@ struct DatabaseDetailsView: View {
     private var appSettingsSection: some View {
         if sessionViewModel != nil {
             Section {
-                #if os(macOS)
-                SettingsLink {
-                    Text("App Settings")
+                Group {
+                    #if os(macOS)
+                    SettingsLink {
+                        Label("App Settings", systemImage: "gearshape")
+                    }
+                    #else
+                    Button {
+                        showAppSettings = true
+                    } label: {
+                        Label("App Settings", systemImage: "gearshape")
+                    }
+                    #endif
                 }
-                #else
-                Button("App Settings") {
-                    showAppSettings = true
-                }
-                #endif
+                .accessibilityIdentifier("database-details.app-settings")
             }
         }
     }
 
+    /// The rows that depend on reading the file, or what stands in for them
+    /// while it loads and when it cannot be read.
     @ViewBuilder
-    private var databaseFileRows: some View {
+    private func fileFactRows(@ViewBuilder rows: (DatabaseFileInfo) -> some View) -> some View {
         if let fileInfo {
-            if let summary = fileInfo.summary {
-                LabeledContent("Format", value: summary.formatDisplayName)
-                    .accessibilityIdentifier("database-details.file-format")
-            }
-
-            if let sizeBytes = fileInfo.fileSizeBytes {
-                LabeledContent("Size", value: sizeBytes.formatted(.byteCount(style: .file)))
-                    .accessibilityIdentifier("database-details.file-size")
-            }
-
-            if let modifiedAt = fileInfo.modifiedAt {
-                LabeledContent("Modified", value: dateText(modifiedAt))
-            }
-
-            if let summary = fileInfo.summary {
-                LabeledContent("Encryption", value: summary.cipherDisplayName)
-                    .accessibilityIdentifier("database-details.encryption")
-
-                LabeledContent("Key Derivation") {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(summary.keyDerivationDisplayName)
-                        if let detail = summary.keyDerivationDetailText {
-                            Text(detail)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .accessibilityIdentifier("database-details.key-derivation")
-
-                LabeledContent("Compression", value: summary.compressionDisplayName)
-                    .accessibilityIdentifier("database-details.compression")
-            }
+            rows(fileInfo)
         } else if isLoadingFileInfo {
             HStack(spacing: 12) {
                 ProgressView()
@@ -558,9 +710,13 @@ struct DatabaseDetailsView: View {
                     .foregroundStyle(.secondary)
             }
         } else {
-            Text("File details are unavailable.")
-                .foregroundStyle(.secondary)
+            fileDetailsUnavailableRow
         }
+    }
+
+    private var fileDetailsUnavailableRow: some View {
+        Text("File details are unavailable.")
+            .foregroundStyle(.secondary)
     }
 
     // MARK: - Read-only

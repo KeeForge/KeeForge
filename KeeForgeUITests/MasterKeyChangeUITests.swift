@@ -18,6 +18,12 @@ final class MasterKeyChangeUITests: DatabaseCreationUITestCase {
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 10), "Unlocked database settings button was not visible")
         tapElement(settingsButton)
 
+        XCTAssertTrue(
+            app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
+            "The gear button did not open Database Details"
+        )
+        openDatabaseDetailsPage(.masterKey)
+
         let changeRow = app.buttons["database-details.change-master-key"]
         XCTAssertTrue(revealElement(changeRow), "Change Master Key row was not visible in Database Details")
         tapElement(changeRow)
