@@ -313,16 +313,18 @@ class KeeForgeUITestCase: XCTestCase {
     }
 
     private func enteredTextMatches(_ element: XCUIElement, expected: String) -> Bool {
-        let deadline = Date().addingTimeInterval(1)
+        // Secure-field accessibility values can lag behind typing on CI.
+        let deadline = Date().addingTimeInterval(Self.ciElementTimeout)
 
         repeat {
-            guard let value = element.value as? String else { return false }
-            if element.elementType == .secureTextField {
-                if value == expected || (isMaskedSecureValue(value) && value.count == expected.count) {
+            if let value = element.value as? String {
+                if element.elementType == .secureTextField {
+                    if value == expected || (isMaskedSecureValue(value) && value.count == expected.count) {
+                        return true
+                    }
+                } else if value == expected {
                     return true
                 }
-            } else if value == expected {
-                return true
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         } while Date() < deadline
@@ -890,7 +892,12 @@ class KeeForgeUITestCase: XCTestCase {
         if searchField.isHittable == false {
             _ = revealElement(searchField, in: scrollableContainer(), direction: .down, maxSwipes: 2)
         }
-        tapElement(searchField)
+        XCTAssertTrue(
+            focusFieldForTyping(searchField),
+            "Search field did not receive keyboard focus",
+            file: file,
+            line: line
+        )
         return searchField
     }
 
@@ -898,7 +905,11 @@ class KeeForgeUITestCase: XCTestCase {
     /// as existing while parked off screen, and its tap can be swallowed while
     /// the list settles — so the value is re-read and deleted key by key when
     /// anything is left behind.
-    func clearSearchField(_ searchField: XCUIElement) {
+    func clearSearchField(
+        _ searchField: XCUIElement,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let clearButton = searchField.buttons["Clear text"]
         if clearButton.exists, hasOnScreenFrame(clearButton), clearButton.isHittable {
             clearButton.tap()
@@ -909,7 +920,12 @@ class KeeForgeUITestCase: XCTestCase {
             return
         }
 
-        tapElement(searchField)
+        XCTAssertTrue(
+            focusFieldForTyping(searchField),
+            "Search field did not receive keyboard focus before clearing",
+            file: file,
+            line: line
+        )
         searchField.typeText(
             String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
         )

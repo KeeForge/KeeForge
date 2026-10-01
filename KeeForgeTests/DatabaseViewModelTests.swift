@@ -1711,6 +1711,71 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.isEntryInRecycleBin(entryID: target.id))
     }
 
+    // MARK: - Query search and reveal (macOS menu bar quick search, #156)
+
+    /// The quick search uses the main search's matching rules on a query of
+    /// its own, so typing in the menu bar panel never moves the window's
+    /// search field or its results.
+    func testEntriesMatchingAQueryFollowTheSearchRulesWithoutTouchingTheSearchField() async throws {
+        let visible = KPEntry(title: "Searchable Alpha")
+        let hidden = KPEntry(title: "Searchable Beta")
+        let other = KPEntry(title: "Something Else")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [visible, other]),
+            KPGroup(name: "Secret", entries: [hidden], searchingEnabled: .disabled),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(vm.entries(matching: "  searchable ").map(\.id), [visible.id])
+        XCTAssertTrue(vm.entries(matching: "   ").isEmpty)
+        XCTAssertEqual(vm.searchText, "")
+        XCTAssertTrue(vm.searchResults.isEmpty)
+    }
+
+    func testEntriesMatchingAQueryAreEmptyOnceLocked() async throws {
+        let target = KPEntry(title: "Searchable Alpha")
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [target]),
+        ]))
+        XCTAssertFalse(vm.entries(matching: "Searchable").isEmpty)
+
+        vm.lockRequest(force: true)
+
+        XCTAssertTrue(vm.entries(matching: "Searchable").isEmpty)
+    }
+
+    func testRevealEntrySelectsItInsideItsOwnGroup() async throws {
+        let target = KPEntry(title: "Nested Target")
+        let nested = KPGroup(name: "Nested", entries: [target])
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", groups: [
+            KPGroup(name: "Parent", groups: [nested]),
+        ]))
+        vm.searchText = "Nested"
+
+        vm.revealEntry(target.id)
+
+        XCTAssertEqual(vm.selectedGroupID, nested.id)
+        XCTAssertEqual(vm.selectedEntryID, target.id)
+        XCTAssertNil(vm.selectedTag)
+        XCTAssertEqual(vm.searchText, "Nested", "Clearing the query would make the workspace drop the selection")
+    }
+
+    func testRevealEntryIgnoresUnknownEntriesAndLockedSessions() async throws {
+        let target = KPEntry(title: "Target")
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [target]),
+        ]))
+        let groupBefore = vm.selectedGroupID
+
+        vm.revealEntry(UUID())
+        XCTAssertEqual(vm.selectedGroupID, groupBefore)
+        XCTAssertNil(vm.selectedEntryID)
+
+        vm.lockRequest(force: true)
+        vm.revealEntry(target.id)
+        XCTAssertNil(vm.selectedEntryID)
+    }
+
     // MARK: - Entry row Move to Group gate (#134)
 
     /// `EntryRowMoveAction.isAvailable` is the one gate every entry row's Move
@@ -5753,6 +5818,241 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.draft)
     }
 
+    // MARK: - Password import (#157)
+
+    private func importDrafts() throws -> [EntryDraftPayload] {
+        let csv = """
+        Title,URL,Username,Password,Notes,OTPAuth
+        Imported One,https://one.example,one-user,"one,secret",note one,otpauth://totp/One?secret=JBSWY3DPEHPK3PXP
+        Imported Two,https://two.example,two-user,two-secret,,
+
+        """
+        return try ApplePasswordsCSVImporter.preview(from: Data(csv.utf8)).items.map(\.draft)
+    }
+
+    func testImportEntriesAddsEveryEntryToTheGroupInOneSave() async throws {
+        let saved = SavedDraftCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                saved.record(draft)
+                return .saved(newSHA512: Data("imported-hash".utf8))
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let sessionKey = try XCTUnwrap(vm.sessionKey)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+        let entriesBefore = try XCTUnwrap(vm.visibleRootGroup?.allEntries)
+
+        let outcome = try await vm.importEntries(try importDrafts(), into: groupID)
+
+        XCTAssertEqual(outcome, .saved)
+        XCTAssertEqual(saved.drafts.count, 1, "one save for the whole import")
+        let draft = try XCTUnwrap(saved.drafts.first)
+        XCTAssertEqual(draft.pendingEdits.count, 2)
+        XCTAssertNil(vm.draft)
+        XCTAssertEqual(vm.openTimeSHA512, Data("imported-hash".utf8))
+
+        let group = try XCTUnwrap(vm.group(withID: groupID))
+        let one = try XCTUnwrap(group.entries.first { $0.title == "Imported One" })
+        XCTAssertEqual(one.username, "one-user")
+        XCTAssertEqual(one.url, "https://one.example")
+        XCTAssertEqual(one.notes, "note one")
+        XCTAssertEqual(try one.password.decrypt(using: sessionKey), "one,secret")
+        XCTAssertEqual(one.otpURL, "otpauth://totp/One?secret=JBSWY3DPEHPK3PXP")
+        XCTAssertNotNil(one.totpConfig)
+        XCTAssertNotNil(group.entries.first { $0.title == "Imported Two" })
+
+        let entriesAfter = try XCTUnwrap(vm.visibleRootGroup?.allEntries)
+        XCTAssertEqual(entriesAfter.count, entriesBefore.count + 2)
+        for entry in entriesBefore {
+            XCTAssertEqual(vm.entry(withID: entry.id)?.title, entry.title, "existing entries are left alone")
+        }
+    }
+
+    func testImportEntriesReportsAConflictAndKeepsTheEntriesInTheDraft() async throws {
+        let remoteData = Data("remote".utf8)
+        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                .conflict(remoteSHA512: remoteHash, remoteData: remoteData)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        let outcome = try await vm.importEntries(try importDrafts(), into: groupID)
+
+        XCTAssertEqual(outcome, .awaitingConflictResolution)
+        XCTAssertNotNil(vm.saveConflict)
+        XCTAssertEqual(vm.draft?.pendingEdits.count, 2, "the conflict alert still has the entries to merge or save as a copy")
+    }
+
+    func testImportEntriesReportsAFailedSaveWithoutThrowingAndKeepsTheEntriesStaged() async throws {
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                throw CocoaError(.fileWriteOutOfSpace)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        let outcome = try await vm.importEntries(try importDrafts(), into: groupID)
+
+        guard case .saveFailed = outcome else {
+            return XCTFail("expected a save failure outcome, got \(outcome)")
+        }
+        XCTAssertEqual(vm.draft?.pendingEdits.count, 2, "Retry Save still has the entries to write")
+        XCTAssertTrue(vm.isDirty)
+    }
+
+    func testImportEntriesRefusesAReadOnlyDatabaseWithoutTouchingTheDraft() async throws {
+        var reference = try makeReference()
+        reference.isReadOnly = true
+        let saved = SavedDraftCapture()
+        let vm = try makeViewModel(
+            reference: reference,
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                saved.record(draft)
+                return .saved(newSHA512: Data())
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        do {
+            _ = try await vm.importEntries(try importDrafts(), into: groupID)
+            XCTFail("a read-only database must refuse the import")
+        } catch {
+            XCTAssertEqual(error as? SaveError, .databaseIsReadOnly)
+        }
+        XCTAssertNil(vm.draft)
+        XCTAssertTrue(saved.drafts.isEmpty)
+    }
+
+    func testImportEntriesRefusesTheRecycleBinItsSubgroupsAndMissingGroups() async throws {
+        let saved = SavedDraftCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                saved.record(draft)
+                return .saved(newSHA512: Data())
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let rootID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.createGroup(named: "Import Bin Child", in: rootID)
+        let child = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Import Bin Child" })
+        try vm.deleteGroup(child.id, sendToRecycleBin: true)
+        let recycleBinID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
+        let pendingBefore = vm.draft?.pendingEdits
+
+        for groupID in [recycleBinID, child.id, UUID()] {
+            do {
+                _ = try await vm.importEntries(try importDrafts(), into: groupID)
+                XCTFail("import into \(groupID) must be refused")
+            } catch {
+                XCTAssertEqual(error as? DatabaseViewModel.PasswordImportFailure, .destinationUnavailable)
+            }
+        }
+        XCTAssertEqual(vm.draft?.pendingEdits, pendingBefore)
+        XCTAssertTrue(saved.drafts.isEmpty)
+    }
+
+    func testImportEntriesDropsEntriesBuiltOnATreeThatChangedMeanwhile() async throws {
+        let gate = InFlightSaveGate()
+        let saved = SavedDraftCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                saved.record(draft)
+                return .saved(newSHA512: Data())
+            },
+            importStagingOperation: { base, drafts, groupID in
+                await gate.parkFirstCall()
+                return try await DatabaseViewModel.stageImportedEntries(base, drafts, groupID)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+        let drafts = try importDrafts()
+        let importTask = Task { try await vm.importEntries(drafts, into: groupID) }
+        await gate.firstCallStarted()
+
+        try vm.createGroup(named: "Edited Meanwhile", in: groupID)
+        await gate.releaseFirstCall()
+
+        do {
+            _ = try await importTask.value
+            XCTFail("entries built on the replaced tree must not be saved")
+        } catch {
+            XCTAssertEqual(error as? DatabaseViewModel.PasswordImportFailure, .databaseChanged)
+        }
+        XCTAssertEqual(
+            vm.draft?.pendingEdits,
+            [.createGroup(parentGroupID: groupID, name: "Edited Meanwhile")],
+            "the edit made meanwhile survives and nothing is imported"
+        )
+        XCTAssertTrue(saved.drafts.isEmpty)
+    }
+
+    func testImportEntriesDropsEntriesWhenTheSessionLocksMeanwhile() async throws {
+        let gate = InFlightSaveGate()
+        let saved = SavedDraftCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                saved.record(draft)
+                return .saved(newSHA512: Data())
+            },
+            importStagingOperation: { base, drafts, groupID in
+                await gate.parkFirstCall()
+                return try await DatabaseViewModel.stageImportedEntries(base, drafts, groupID)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+        let drafts = try importDrafts()
+        let importTask = Task { try await vm.importEntries(drafts, into: groupID) }
+        await gate.firstCallStarted()
+
+        vm.lock()
+        await gate.releaseFirstCall()
+
+        do {
+            _ = try await importTask.value
+            XCTFail("a locked session must not receive the entries")
+        } catch {
+            XCTAssertEqual(error as? DatabaseViewModel.PasswordImportFailure, .sessionUnavailable)
+        }
+        XCTAssertNil(vm.draft)
+        XCTAssertTrue(saved.drafts.isEmpty)
+    }
+
+    func testImportEntriesNeedsAnUnlockedSession() async throws {
+        let vm = try makeViewModel()
+
+        do {
+            _ = try await vm.importEntries(try importDrafts(), into: UUID())
+            XCTFail("a locked session must refuse the import")
+        } catch {
+            XCTAssertEqual(error as? DatabaseViewModel.PasswordImportFailure, .sessionUnavailable)
+        }
+    }
+
+    func testImportDuplicateCandidatesLeaveOutTheRecycleBin() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let entries = try XCTUnwrap(vm.visibleRootGroup?.allEntries)
+        let recycled = try XCTUnwrap(entries.first)
+        let kept = try XCTUnwrap(entries.dropFirst().first)
+
+        try vm.deleteEntry(recycled.id, sendToRecycleBin: true)
+        let candidates = vm.importDuplicateCandidates
+
+        XCTAssertTrue(candidates.contains(.init(title: kept.title, username: kept.username, url: kept.url)))
+        XCTAssertFalse(candidates.contains(.init(title: recycled.title, username: recycled.username, url: recycled.url)))
+        let liveEntries = try XCTUnwrap(vm.currentRootGroup?.allEntries)
+            .filter { vm.isEntryInRecycleBin(entryID: $0.id) == false }
+        XCTAssertEqual(candidates.count, liveEntries.count)
+    }
+
     // MARK: - Change encryption settings (#98)
 
     func testChangeEncryptionSettingsRoutesChangeThroughLocalSaveUnderTheSameKey() async throws {
@@ -5768,7 +6068,7 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
         let compositeKey = try XCTUnwrap(vm.compositeKey)
 
-        try await vm.changeEncryptionSettings(cipher: .chacha20, kdfPreset: .maximum, isCompressed: false)
+        try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: .argon2id(.maximum), isCompressed: false)
 
         let change = try XCTUnwrap(capture.change)
         XCTAssertEqual(change.cipherID, KDBXParser.chachaCipherUUID)
@@ -5784,6 +6084,27 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertState(vm.state, is: .unlocked)
     }
 
+    func testChangeEncryptionSettingsWritesAESKDFParameters() async throws {
+        let capture = EncryptionSettingsCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, compositeKey, _, _, newCompositeKey, encryptionSettings in
+                capture.record(compositeKey: compositeKey, newCompositeKey: newCompositeKey, change: encryptionSettings)
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.changeEncryptionSettings(cipher: nil, keyDerivation: .aesKDF(rounds: 250_000), isCompressed: nil)
+
+        let change = try XCTUnwrap(capture.change)
+        XCTAssertNil(change.cipherID, "AES-KDF is a key derivation; the cipher stays as it was")
+        XCTAssertNil(change.compressionFlags)
+        XCTAssertEqual(change.kdfParameters?["$UUID"] as? Data, KDBXParser.aesKDFUUID)
+        XCTAssertEqual(change.kdfParameters?["R"] as? UInt64, 250_000)
+        XCTAssertEqual((change.kdfParameters?["S"] as? Data)?.count, 32)
+        XCTAssertNil(capture.newCompositeKey, "A settings change must not rekey.")
+    }
+
     func testChangeEncryptionSettingsLeavesUnchosenFieldsNil() async throws {
         let capture = EncryptionSettingsCapture()
         let vm = try makeViewModel(
@@ -5794,7 +6115,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        try await vm.changeEncryptionSettings(cipher: nil, kdfPreset: nil, isCompressed: true)
+        try await vm.changeEncryptionSettings(cipher: nil, keyDerivation: nil, isCompressed: true)
 
         let change = try XCTUnwrap(capture.change)
         XCTAssertNil(change.cipherID)
@@ -5812,7 +6133,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        try await vm.changeEncryptionSettings(cipher: nil, kdfPreset: nil, isCompressed: nil)
+        try await vm.changeEncryptionSettings(cipher: nil, keyDerivation: nil, isCompressed: nil)
 
         XCTAssertFalse(localSaverCalls.didCall)
     }
@@ -5848,7 +6169,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        try await vm.changeEncryptionSettings(cipher: .chacha20, kdfPreset: nil, isCompressed: nil)
+        try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
 
         XCTAssertEqual(capture.expectedRev, "rev-A")
         XCTAssertEqual(capture.change?.cipherID, KDBXParser.chachaCipherUUID)
@@ -5989,7 +6310,7 @@ final class DatabaseViewModelTests: XCTestCase {
         }
 
         await vm.unlock(password: fixturePassword)
-        try await vm.changeEncryptionSettings(cipher: .chacha20, kdfPreset: nil, isCompressed: nil)
+        try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
 
         for _ in 0..<200 where box.followUpDidRun == false {
             try await Task.sleep(nanoseconds: 10_000_000)
@@ -6005,7 +6326,7 @@ final class DatabaseViewModelTests: XCTestCase {
         line: UInt = #line
     ) async {
         do {
-            try await viewModel.changeEncryptionSettings(cipher: .chacha20, kdfPreset: nil, isCompressed: nil)
+            try await viewModel.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
             XCTFail("Expected \(expected)", file: file, line: line)
         } catch let error as DatabaseViewModel.EncryptionSettingsError {
             XCTAssertEqual(error, expected, file: file, line: line)
@@ -6163,6 +6484,7 @@ final class DatabaseViewModelTests: XCTestCase {
         deviceOwnerAuthAvailabilityCheck: @escaping DatabaseViewModel.DeviceOwnerAuthAvailabilityCheck = {
             BiometricService.canAuthenticateDeviceOwner
         },
+        importStagingOperation: @escaping DatabaseViewModel.ImportStagingOperation = DatabaseViewModel.stageImportedEntries,
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) throws -> DatabaseViewModel {
@@ -6189,6 +6511,7 @@ final class DatabaseViewModelTests: XCTestCase {
             storedKeyStoreOperation: storedKeyStoreOperation,
             storedKeyDeleteOperation: storedKeyDeleteOperation,
             deviceOwnerAuthAvailabilityCheck: deviceOwnerAuthAvailabilityCheck,
+            importStagingOperation: importStagingOperation,
             conflictCopyDateProvider: conflictCopyDateProvider,
             nowProvider: nowProvider
         )
@@ -6455,7 +6778,7 @@ private actor AsyncGate {
 
 /// Parks the first save-operation call until the test releases it, so an edit
 /// can land while that save is provably in flight. Later calls pass through.
-private actor InFlightSaveGate {
+actor InFlightSaveGate {
     private var startWaiter: CheckedContinuation<Void, Never>?
     private var hasStarted = false
     private var releaseWaiter: CheckedContinuation<Void, Never>?
@@ -6479,6 +6802,23 @@ private actor InFlightSaveGate {
         isReleased = true
         releaseWaiter?.resume()
         releaseWaiter = nil
+    }
+}
+
+private final class SavedDraftCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedDrafts: [DatabaseDraft] = []
+
+    func record(_ draft: DatabaseDraft) {
+        lock.lock()
+        storedDrafts.append(draft)
+        lock.unlock()
+    }
+
+    var drafts: [DatabaseDraft] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedDrafts
     }
 }
 

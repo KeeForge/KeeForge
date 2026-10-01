@@ -417,6 +417,13 @@ final class DatabaseViewModel {
         _ configuration: HardwareKeyConfiguration
     ) async throws -> Data
     typealias HardwareKeyTransportsProvider = @MainActor () -> [HardwareKeyConfiguration.Transport]
+    /// Builds the draft an import saves. Injected so tests can hold it open
+    /// and change the session underneath it.
+    typealias ImportStagingOperation = @Sendable (
+        _ base: DatabaseDraft,
+        _ drafts: [EntryDraftPayload],
+        _ groupID: UUID
+    ) async throws -> DatabaseDraft
 
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
@@ -641,6 +648,7 @@ final class DatabaseViewModel {
     private let deviceOwnerAuthAvailabilityCheck: DeviceOwnerAuthAvailabilityCheck
     private let hardwareKeyResponseOperation: HardwareKeyResponseOperation
     private let hardwareKeyTransportsProvider: HardwareKeyTransportsProvider
+    private let importStagingOperation: ImportStagingOperation
     private let conflictCopyDateProvider: @Sendable () -> Date
     private let nowProvider: @Sendable () -> Date
     private var backgroundEnteredAt: Date?
@@ -744,6 +752,7 @@ final class DatabaseViewModel {
         hardwareKeyTransportsProvider: @escaping HardwareKeyTransportsProvider = {
             HardwareKeyService.availableTransports
         },
+        importStagingOperation: @escaping ImportStagingOperation = DatabaseViewModel.stageImportedEntries,
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) {
@@ -771,6 +780,7 @@ final class DatabaseViewModel {
         self.deviceOwnerAuthAvailabilityCheck = deviceOwnerAuthAvailabilityCheck
         self.hardwareKeyResponseOperation = hardwareKeyResponseOperation
         self.hardwareKeyTransportsProvider = hardwareKeyTransportsProvider
+        self.importStagingOperation = importStagingOperation
         self.conflictCopyDateProvider = conflictCopyDateProvider
         self.nowProvider = nowProvider
     }
@@ -1456,6 +1466,100 @@ final class DatabaseViewModel {
         saveConflict = nil
         refreshCredentialStoreForCurrentTreeIfNeeded()
         resetInactivityTimer()
+    }
+
+    enum PasswordImportFailure: Error, Equatable {
+        case sessionUnavailable
+        case destinationUnavailable
+        case saveInProgress
+        /// The tree changed while the entries were being built on it.
+        case databaseChanged
+    }
+
+    enum PasswordImportOutcome: Equatable {
+        case saved
+        /// The entries are in the draft, but the file changed elsewhere; the
+        /// save-conflict alert decides what happens to them.
+        case awaitingConflictResolution
+        /// The entries are in the draft but the write failed; the workspace's
+        /// unsaved-changes banner offers the retry.
+        case saveFailed(message: String)
+    }
+
+    /// Title, user name, and website of every entry outside the recycle bin,
+    /// for the import screen's duplicate check. Recycled entries do not count,
+    /// so importing again brings back what was thrown away.
+    var importDuplicateCandidates: [PasswordImport.LoginIdentity] {
+        _ = contentRevision
+        return entryIndex.values
+            .filter { recycleBinEntryIDs.contains($0.id) == false }
+            .map { PasswordImport.LoginIdentity(title: $0.title, username: $0.username, url: $0.url) }
+    }
+
+    nonisolated static func stageImportedEntries(
+        _ base: DatabaseDraft,
+        _ drafts: [EntryDraftPayload],
+        _ groupID: UUID
+    ) async throws -> DatabaseDraft {
+        try await Task.detached(priority: .userInitiated) {
+            try base.creatingEntries(drafts, inGroup: groupID)
+        }.value
+    }
+
+    /// Adds imported entries to `groupID` and saves them through the normal
+    /// save path. The entries are built off the main actor in one pass and go
+    /// into the draft as one change, so the tree and search index are rebuilt
+    /// once rather than once per entry.
+    func importEntries(_ drafts: [EntryDraftPayload], into groupID: UUID) async throws -> PasswordImportOutcome {
+        guard case .unlocked = state, sessionKey != nil else {
+            throw PasswordImportFailure.sessionUnavailable
+        }
+        if isReadOnly {
+            throw SaveError.databaseIsReadOnly
+        }
+        // `save()` no-ops behind an in-flight save, which would report an
+        // import as saved before it was written.
+        guard isSaving == false else {
+            throw PasswordImportFailure.saveInProgress
+        }
+        // `recycleBinGroupIDs` holds the groups inside the bin, not the bin itself.
+        guard groupIndex[groupID] != nil,
+              groupID != currentRootGroup?.recycleBinUUID,
+              recycleBinGroupIDs.contains(groupID) == false else {
+            throw PasswordImportFailure.destinationUnavailable
+        }
+
+        let base = try makeWorkingDraft()
+        let expectedLockCycleID = lockCycleID
+        let expectedContentRevision = contentRevision
+        let staged = try await importStagingOperation(base, drafts, groupID)
+
+        // Every change to the tree bumps `contentRevision`, so an unchanged
+        // revision means `base` is still the working draft. A session that
+        // is `.unlocking` without a lock in between is replacing its tree
+        // (Sync Now or a conflict reload), which is a change, not a lock.
+        guard expectedLockCycleID == lockCycleID else {
+            throw PasswordImportFailure.sessionUnavailable
+        }
+        guard case .unlocked = state, expectedContentRevision == contentRevision else {
+            throw PasswordImportFailure.databaseChanged
+        }
+        guard isSaving == false else {
+            throw PasswordImportFailure.saveInProgress
+        }
+        draft = staged
+        saveConflict = nil
+        refreshCredentialStoreForCurrentTreeIfNeeded()
+        resetInactivityTimer()
+
+        // Once the entries are staged, a failed write must not read as a
+        // failed import: retrying would stage them a second time.
+        do {
+            try await save()
+        } catch {
+            return .saveFailed(message: DatabaseSaveError(error).localizedDescription)
+        }
+        return saveConflict == nil ? .saved : .awaitingConflictResolution
     }
 
     func deleteEntry(_ entryID: UUID, sendToRecycleBin: Bool) throws {
@@ -2367,8 +2471,8 @@ final class DatabaseViewModel {
         refreshDatabaseReference()
     }
 
-    /// Re-encrypts the unlocked database with a different cipher, Argon2id
-    /// preset, or compression setting under the same master key. A nil
+    /// Re-encrypts the unlocked database with a different cipher, key
+    /// derivation, or compression setting under the same master key. A nil
     /// argument keeps the file's current value.
     ///
     /// A conflict with concurrent changes aborts cleanly
@@ -2376,7 +2480,7 @@ final class DatabaseViewModel {
     /// untouched.
     func changeEncryptionSettings(
         cipher: DatabaseCreationCipher?,
-        kdfPreset: DatabaseCreationKDFPreset?,
+        keyDerivation: EncryptionSettingsKeyDerivation?,
         isCompressed: Bool?
     ) async throws {
         guard case .unlocked = state, let compositeKey, let openTimeSHA512 else {
@@ -2396,11 +2500,11 @@ final class DatabaseViewModel {
         if databaseReference.isCloudBacked, pendingUploadMarkerCheck(databaseReference) {
             throw EncryptionSettingsError.pendingUploadsExist
         }
-        guard cipher != nil || kdfPreset != nil || isCompressed != nil else { return }
+        guard cipher != nil || keyDerivation != nil || isCompressed != nil else { return }
 
         let change = EncryptionSettingsChange(
             cipherID: cipher?.cipherID,
-            kdfParameters: try kdfPreset.map { try DatabaseCreationDefaults.argon2idKDFParameters(preset: $0) },
+            kdfParameters: try keyDerivation?.kdfParameters(),
             compressionFlags: isCompressed.map { $0 ? 1 : 0 }
         )
         let workingDraft = try makeWorkingDraft()
@@ -3066,6 +3170,15 @@ final class DatabaseViewModel {
         selectedEntryID = entryID
     }
 
+    /// Selects an entry in its own group, as the macOS menu bar quick search's
+    /// Open in KeeForge does. The window's search query is left alone: clearing
+    /// it would make the workspace drop the selection again.
+    func revealEntry(_ entryID: UUID) {
+        guard case .unlocked = state, let groupID = parentGroupID(forEntryID: entryID) else { return }
+        selectedGroupID = groupID
+        selectedEntryID = entryID
+    }
+
     func setReadOnly(_ isReadOnly: Bool) {
         DatabaseListStore.setReadOnly(isReadOnly, for: databaseReference)
         refreshDatabaseReference()
@@ -3576,16 +3689,21 @@ final class DatabaseViewModel {
     }
 
     private func updateSearchResults() {
-        let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedQuery.isEmpty == false else {
-            searchResults = []
-            return
-        }
+        searchResults = entries(matching: searchText)
+    }
+
+    /// The main search's matching rules for a query of the caller's own, so the
+    /// macOS menu bar quick search can search without moving the window's
+    /// search field. Empty while locked, because the index is.
+    func entries(matching rawQuery: String) -> [KPEntry] {
+        _ = contentRevision
+        let trimmedQuery = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedQuery.isEmpty == false else { return [] }
 
         let query = trimmedQuery
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             .lowercased()
-        searchResults = searchableEntries.filter { entry in
+        return searchableEntries.filter { entry in
             searchableEntryText[entry.id]?.contains(query) == true
         }
     }

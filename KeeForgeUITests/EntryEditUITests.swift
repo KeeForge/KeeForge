@@ -355,8 +355,21 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         return element.exists == false
     }
 
-    func waitForAutosaveAttempt(timeout: TimeInterval = 2) {
-        RunLoop.current.run(until: Date().addingTimeInterval(timeout))
+    func waitForAutosaveAttempt(
+        timeout: TimeInterval = 30,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let savingOverlay = app.descendants(matching: .any)
+            .matching(identifier: "database.saving-overlay").firstMatch
+        // Fast saves and cancelled edits may never expose the overlay to XCTest.
+        _ = savingOverlay.waitForExistence(timeout: 1)
+        XCTAssertTrue(
+            savingOverlay.waitForNonExistence(timeout: timeout),
+            "Database save did not finish before the next interaction",
+            file: file,
+            line: line
+        )
     }
 
     func tapBackButton(file: StaticString = #filePath, line: UInt = #line) {

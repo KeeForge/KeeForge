@@ -26,6 +26,7 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     private var _calls: [String] = []
     private var _onMutation: (@Sendable () -> Void)?
     private var _onEnumerate: (@Sendable () -> Void)?
+    private var _enumerationError: CredentialIdentityStoreReadError?
     private var _activeMutations = 0
     private var _maxConcurrentMutations = 0
     private var _mutationDelayNanoseconds: UInt64 = 0
@@ -78,6 +79,11 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     var onEnumerate: (@Sendable () -> Void)? {
         get { lock.withLock { _onEnumerate } }
         set { lock.withLock { _onEnumerate = newValue } }
+    }
+
+    var enumerationError: CredentialIdentityStoreReadError? {
+        get { lock.withLock { _enumerationError } }
+        set { lock.withLock { _enumerationError = newValue } }
     }
 
     var mutationDelayNanoseconds: UInt64 {
@@ -155,11 +161,12 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
         hook?()
     }
 
-    func credentialIdentities() async -> [any ASCredentialIdentity] {
-        let (snapshot, hook) = lock.withLock {
-            (_stored, _onEnumerate)
+    func credentialIdentities() async throws -> [any ASCredentialIdentity] {
+        let (snapshot, hook, error) = lock.withLock {
+            (_stored, _onEnumerate, _enumerationError)
         }
         hook?()
+        if let error { throw error }
         return snapshot
     }
 

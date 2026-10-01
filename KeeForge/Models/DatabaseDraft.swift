@@ -202,6 +202,34 @@ struct DatabaseDraft: Sendable {
         )
     }
 
+    /// Adds `drafts` to one group as if each were applied as `.createEntry`
+    /// in order, pending edits included. The group's entry list and the edit
+    /// log are copied once rather than once per entry, so a large import
+    /// stays linear.
+    func creatingEntries(_ drafts: [EntryDraftPayload], inGroup parentGroupID: UUID) throws -> DatabaseDraft {
+        guard let parentGroupPath = pathToGroup(withID: parentGroupID, in: currentRootGroupStorage) else {
+            throw DraftError.groupNotFound(parentGroupID)
+        }
+
+        let timestamp = Date.now
+        let newEntries = try drafts.map { try makeCreatedEntry(from: $0, timestamp: timestamp) }
+        let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: parentGroupPath[...]) { group in
+            copyGroup(group, entries: group.entries + newEntries)
+        }
+        updatedRootGroup.recycleBinUUID = currentMetaStorage.recycleBinUUID
+
+        return DatabaseDraft(
+            originalRootGroupStorage: originalRootGroupStorage,
+            currentRootGroupStorage: updatedRootGroup,
+            originalMetaStorage: originalMetaStorage,
+            currentMetaStorage: currentMetaStorage,
+            originalBinaryPoolFields: originalBinaryPoolFields,
+            currentBinaryPoolFields: currentBinaryPoolFields,
+            sessionKey: sessionKey,
+            pendingEdits: pendingEdits + drafts.map { .createEntry(parentGroupID: parentGroupID, draft: $0) }
+        )
+    }
+
     func discardingEdits() -> DatabaseDraft {
         DatabaseDraft(
             originalRootGroupStorage: originalRootGroupStorage,

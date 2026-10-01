@@ -159,6 +159,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         searchEntries: [KPEntry],
         possibleEntries: [KPEntry],
         initialSearchText: String,
+        sharedCopyDate: Date?,
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
@@ -183,6 +184,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
             searchEntries: searchEntries,
             possibleEntries: possibleEntries,
             initialSearchText: initialSearchText,
+            sharedCopyDate: sharedCopyDate,
             databaseSwitcher: wrappedSwitcher,
             // Always nil here: entry creation writes to the database, which the
             // coordinator only offers on iOS.

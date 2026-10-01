@@ -31,6 +31,11 @@ struct InspectorIdentityRow: Sendable, Hashable {
     let serviceIdentifier: String
     let label: String
     let kind: InspectorIdentityKind
+    let recordIdentifier: String?
+
+    var metadata: String {
+        "\(kind.rawValue)|\(serviceIdentifier)|\(label)|\(recordIdentifier ?? "")"
+    }
 }
 
 /// The `.current`-format identities owned by one database UUID.
@@ -69,14 +74,16 @@ enum AutoFillStoreInspectorGrouping {
             return InspectorIdentityRow(
                 serviceIdentifier: password.serviceIdentifier.identifier,
                 label: password.user,
-                kind: .password
+                kind: .password,
+                recordIdentifier: password.recordIdentifier
             )
         }
         if let passkey = identity as? ASPasskeyCredentialIdentity {
             return InspectorIdentityRow(
                 serviceIdentifier: passkey.relyingPartyIdentifier,
                 label: passkey.userName,
-                kind: .passkey
+                kind: .passkey,
+                recordIdentifier: passkey.recordIdentifier
             )
         }
         if #available(iOS 18.0, macOS 15.0, *),
@@ -84,10 +91,12 @@ enum AutoFillStoreInspectorGrouping {
             return InspectorIdentityRow(
                 serviceIdentifier: oneTimeCode.serviceIdentifier.identifier,
                 label: oneTimeCode.label,
-                kind: .oneTimeCode
+                kind: .oneTimeCode,
+                recordIdentifier: oneTimeCode.recordIdentifier
             )
         }
-        return InspectorIdentityRow(serviceIdentifier: "—", label: "", kind: .other)
+        return InspectorIdentityRow(serviceIdentifier: "—", label: "", kind: .other,
+                                    recordIdentifier: CredentialIdentityStoreManager.recordIdentifier(of: identity))
     }
 
     /// Buckets `identities` by parsed record identifier:

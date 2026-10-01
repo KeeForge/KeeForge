@@ -4,6 +4,7 @@ This folder contains the sample databases and key files used by unit tests, UI t
 
 ## Main Databases
 
+- `autofill-store-alpha.kdbx` and `autofill-store-bravo.kdbx` — dedicated physical-device AutoFill store fixtures; password `testpassword123`. Alpha has `Alpha Login` (`alpha-user`, `alpha-store-fixture.net`) with a password and TOTP. Bravo has `Bravo Login` (`bravo-user`, `bravo-store-fixture.org`) with password/TOTP and `Bravo Password` (`bravo-password-user`, `bravo-password-fixture.com`) with a password only. The 2/3 identity counts, disjoint service domains, fixed entry UUIDs, and no expiration keep the lifecycle smoke independent of changes to the general fixtures. Only bundled into `KeeForgeUITests`; generated and independently reopened by `generators/autofill_store.py`.
 - `test.kdbx` — default fixture for most tests. Password: `testpassword123`. Also backs the `aes-baseline` compatibility ID.
 - `demo.kdbx` — richer demo fixture used by `KeeForgeUITests/AppStoreScreenshots.swift`. Password: `demo`.
 - `demo-keyfile.kdbx` — key-file-protected fixture. Credentials: password `demo` plus `demo-keyfile.key`, hardcoded by the UI tests and by `KeeForgeTests/KDBXWriterTests.swift` and `KeeForgeTests/KDBXRoundTripTests.swift`. Also backs the `password-keyfile` compatibility ID.
@@ -86,7 +87,7 @@ python3 TestFixtures/generate_fixtures.py --all --check   # verify every generat
 python3 TestFixtures/generate_fixtures.py kitchen-sink    # rebuild one, then verify it
 ```
 
-Registered names: `kitchen-sink`, `argon2-high-iterations`, `foreign-chacha20`, `foreign-twofish`, `unknown-inner-header`.
+Registered names: `autofill-store-alpha`, `autofill-store-bravo`, `kitchen-sink`, `argon2-high-iterations`, `foreign-chacha20`, `foreign-twofish`, `unknown-inner-header`.
 
 - `--check` verifies only and never writes. Without it, each selected fixture is rebuilt and then verified with the same assertions.
 - `--keepassxc-cli /Applications/KeePassXC.app/Contents/MacOS/keepassxc-cli` adds an external-reader check (KeePassXC opens the file and lists its group; `kitchen-sink` and `unknown-inner-header` also read back entry passwords and export every attachment for a SHA-256 comparison). Optional.

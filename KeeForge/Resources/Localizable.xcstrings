@@ -2488,6 +2488,46 @@
         }
       }
     },
+    "Add logins from a password export file, such as the one the Passwords app creates." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füge Anmeldedaten aus einer Passwort-Exportdatei hinzu, etwa aus der Datei, die die App „Passwörter“ erstellt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade inicios de sesión desde un archivo de exportación de contraseñas, como el que crea la app Contraseñas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez des identifiants à partir d’un fichier d’exportation de mots de passe, comme celui créé par l’app Mots de passe."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードの書き出しファイル（「パスワード」App が作成するファイルなど）からログイン情報を追加します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从密码导出文件（例如“密码” App 创建的文件）添加登录信息。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從密碼匯出檔案（例如「密碼」App 建立的檔案）新增登入資訊。"
+          }
+        }
+      }
+    },
     "Add original URL to this entry" : {
       "localizations" : {
         "de" : {
@@ -2804,6 +2844,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "進階"
+          }
+        }
+      }
+    },
+    "AES-KDF only strengthens the master key. The Encryption setting above still chooses the cipher that encrypts the database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF verstärkt nur den Master-Schlüssel. Die Einstellung „Verschlüsselung“ oben legt weiterhin fest, mit welchem Verfahren die Datenbank verschlüsselt wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF solo refuerza la clave maestra. El ajuste Cifrado de arriba sigue eligiendo el algoritmo que cifra la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF renforce uniquement la clé principale. Le réglage Chiffrement ci-dessus choisit toujours l'algorithme qui chiffre la base de données."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF はマスターキーを強化するだけです。データベースを暗号化する方式は、引き続き上の「暗号化」設定で選択します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF 仅用于增强主密钥。加密数据库所用的算法仍由上方的“加密”设置决定。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF 僅用於強化主金鑰。加密資料庫所用的演算法仍由上方的「加密」設定決定。"
           }
         }
       }
@@ -3168,6 +3248,46 @@
         }
       }
     },
+    "Another app is already using this shortcut. Choose a different one." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine andere App verwendet dieses Tastenkürzel bereits. Wähle ein anderes aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otra app ya usa este atajo. Elige otro."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une autre app utilise déjà ce raccourci. Choisissez-en un autre."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このショートカットはすでに別のアプリで使用されています。別のショートカットを選択してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一个 App 已在使用此快捷键。请选择其他快捷键。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一個 App 已在使用此快速鍵。請選擇其他快速鍵。"
+          }
+        }
+      }
+    },
     "Another Dropbox sign-in is already in progress." : {
       "localizations" : {
         "de" : {
@@ -3444,6 +3564,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "App 設定"
+          }
+        }
+      }
+    },
+    "Apple Passwords Export" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export aus Apple Passwörter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportación de Contraseñas de Apple"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportation d’Apple Mots de passe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appleの「パスワード」の書き出し"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple“密码”导出"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple「密碼」匯出"
           }
         }
       }
@@ -5930,6 +6090,46 @@
         }
       }
     },
+    "Check the imported entries, then delete the export file. It contains your passwords unencrypted." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prüfe die importierten Einträge und lösche dann die Exportdatei. Sie enthält deine Passwörter unverschlüsselt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprueba las entradas importadas y luego elimina el archivo de exportación. Contiene tus contraseñas sin cifrar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifiez les entrées importées, puis supprimez le fichier d’exportation. Il contient vos mots de passe en clair."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込んだエントリを確認してから、書き出しファイルを削除してください。このファイルにはパスワードが暗号化されずに含まれています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检查导入的条目，然后删除导出文件。该文件包含未加密的密码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢查匯入的項目，然後刪除匯出檔案。該檔案包含未加密的密碼。"
+          }
+        }
+      }
+    },
     "Checking %@ for changes…" : {
       "localizations" : {
         "de" : {
@@ -6006,6 +6206,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從側邊欄選擇資料庫以解鎖並瀏覽。"
+          }
+        }
+      }
+    },
+    "Choose a database in KeeForge to search it from here." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle in KeeForge eine Datenbank aus, um sie hier zu durchsuchen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige una base de datos en KeeForge para buscar en ella desde aquí."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez une base de données dans KeeForge pour la rechercher d'ici."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここから検索するには、KeeForge でデータベースを選択してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中选择一个数据库，即可在这里搜索。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中選擇一個資料庫，即可在這裡搜尋。"
           }
         }
       }
@@ -6250,6 +6490,46 @@
         }
       }
     },
+    "Choose Another File…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andere Datei auswählen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir otro archivo…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir un autre fichier…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別のファイルを選択…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择其他文件…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇其他檔案…"
+          }
+        }
+      }
+    },
     "Choose Credential" : {
       "localizations" : {
         "de" : {
@@ -6290,6 +6570,46 @@
         }
       }
     },
+    "Choose Database…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbank auswählen…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir base de datos…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir une base de données…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースを選択…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择数据库…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇資料庫…"
+          }
+        }
+      }
+    },
     "Choose Different File" : {
       "localizations" : {
         "de" : {
@@ -6326,6 +6646,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇其他檔案"
+          }
+        }
+      }
+    },
+    "Choose Export File…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportdatei auswählen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir archivo de exportación…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir le fichier d’exportation…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き出しファイルを選択…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择导出文件…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇匯出檔案…"
           }
         }
       }
@@ -6566,6 +6926,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇儲存此資料庫檔案時使用的加密、金鑰衍生和壓縮方式。"
+          }
+        }
+      }
+    },
+    "Choose the CSV file exported from the Passwords app. Files from other password managers are not supported yet. The export file is not encrypted: delete it once you have checked the imported entries." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle die CSV-Datei, die aus der App „Passwörter“ exportiert wurde. Dateien anderer Passwortmanager werden noch nicht unterstützt. Die Exportdatei ist nicht verschlüsselt: Lösche sie, sobald du die importierten Einträge geprüft hast."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige el archivo CSV exportado desde la app Contraseñas. Los archivos de otros gestores de contraseñas aún no son compatibles. El archivo de exportación no está cifrado: elimínalo cuando hayas comprobado las entradas importadas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez le fichier CSV exporté depuis l’app Mots de passe. Les fichiers d’autres gestionnaires de mots de passe ne sont pas encore pris en charge. Le fichier d’exportation n’est pas chiffré : supprimez-le une fois les entrées importées vérifiées."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「パスワード」App から書き出したCSVファイルを選択してください。ほかのパスワードマネージャのファイルにはまだ対応していません。書き出しファイルは暗号化されていないため、読み込んだエントリを確認したら削除してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择从“密码” App 导出的 CSV 文件。暂不支持其他密码管理器的文件。导出文件未加密：确认导入的条目后请将其删除。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇從「密碼」App 匯出的 CSV 檔案。暫不支援其他密碼管理工具的檔案。匯出檔案未加密：確認匯入的項目後請將其刪除。"
           }
         }
       }
@@ -6966,6 +7366,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "清除金鑰檔案"
+          }
+        }
+      }
+    },
+    "Clear Shortcut" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tastenkürzel entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Borrar atajo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effacer le raccourci"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ショートカットを消去"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除快捷键"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除快速鍵"
           }
         }
       }
@@ -10496,6 +10936,46 @@
         }
       }
     },
+    "Damaged quotation marks" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschädigte Anführungszeichen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comillas dañadas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guillemets endommagés"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "引用符が破損しています"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "引号已损坏"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "引號已損毀"
+          }
+        }
+      }
+    },
     "Dark" : {
       "localizations" : {
         "de" : {
@@ -13456,6 +13936,46 @@
         }
       }
     },
+    "Enter a number of rounds from 1 to %@." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geben Sie eine Rundenzahl von 1 bis %@ ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduzca un número de rondas entre 1 y %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez un nombre de tours compris entre 1 et %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1〜%@ のラウンド数を入力してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入 1 到 %@ 之间的轮数。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入 1 到 %@ 之間的回合數。"
+          }
+        }
+      }
+    },
     "Enter a password for this credential." : {
       "localizations" : {
         "de" : {
@@ -14092,6 +14612,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "項目和群組現在提供「移動到群組」操作，可將其歸入別處。移動會隨資料庫一併儲存，你的其他裝置和其他 KeePass App 同樣能看到。"
+          }
+        }
+      }
+    },
+    "Entries to Import" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu importierende Einträge"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entradas para importar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrées à importer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込むエントリ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要导入的条目"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要匯入的項目"
           }
         }
       }
@@ -15012,6 +15572,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "欄位值"
+          }
+        }
+      }
+    },
+    "File" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datei"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archivo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fichier"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案"
           }
         }
       }
@@ -16896,6 +17496,46 @@
         }
       }
     },
+    "Import" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込む"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入"
+          }
+        }
+      }
+    },
     "Import Existing Database" : {
       "localizations" : {
         "de" : {
@@ -16932,6 +17572,286 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "匯入現有資料庫"
+          }
+        }
+      }
+    },
+    "Import Finished" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import abgeschlossen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importación finalizada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importation terminée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込みが完了しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入完成"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入完成"
+          }
+        }
+      }
+    },
+    "Import Into" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importieren in"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar en"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importer dans"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込み先"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入到"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入到"
+          }
+        }
+      }
+    },
+    "Import Passwords" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwörter importieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar contraseñas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importer des mots de passe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードを読み込む"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入密码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入密碼"
+          }
+        }
+      }
+    },
+    "Import Passwords…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwörter importieren …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar contraseñas…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importer des mots de passe…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードを読み込む…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入密码…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入密碼…"
+          }
+        }
+      }
+    },
+    "Imported" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importiert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importadas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importées"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込み済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已导入"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已匯入"
+          }
+        }
+      }
+    },
+    "Imported passwords are added as new entries. Existing entries are not changed." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importierte Passwörter werden als neue Einträge hinzugefügt. Bestehende Einträge werden nicht geändert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las contraseñas importadas se añaden como entradas nuevas. Las entradas existentes no se modifican."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les mots de passe importés sont ajoutés comme nouvelles entrées. Les entrées existantes ne sont pas modifiées."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込んだパスワードは新しいエントリとして追加されます。既存のエントリは変更されません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入的密码会添加为新条目。现有条目不会被更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入的密碼會新增為新項目。現有項目不會被更改。"
+          }
+        }
+      }
+    },
+    "Importing Passwords" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwörter werden importiert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importando contraseñas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importation des mots de passe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードを読み込み中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在导入密码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在匯入密碼"
           }
         }
       }
@@ -17976,6 +18896,46 @@
         }
       }
     },
+    "KeeForge generates only time-based verification codes. Other code setups are kept in a protected field named OTPAuth." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge erzeugt nur zeitbasierte Bestätigungscodes. Andere Code-Einrichtungen werden in einem geschützten Feld namens OTPAuth aufbewahrt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge solo genera códigos de verificación basados en el tiempo. Las demás configuraciones de códigos se guardan en un campo protegido llamado OTPAuth."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ne génère que des codes de vérification temporels. Les autres configurations de code sont conservées dans un champ protégé nommé OTPAuth."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForgeが生成できるのは時間ベースの確認コードだけです。それ以外のコード設定は、OTPAuthという名前の保護されたフィールドに保持されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 只能生成基于时间的验证码。其他验证码设置会保存在名为 OTPAuth 的受保护栏位中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 只能產生以時間為基礎的驗證碼。其他驗證碼設定會保存在名為 OTPAuth 的受保護欄位中。"
+          }
+        }
+      }
+    },
     "KeeForge has no local copy of this database yet. Open it once while online, then try exporting again." : {
       "localizations" : {
         "de" : {
@@ -18456,6 +19416,46 @@
         }
       }
     },
+    "KeeForge is still saving this database. Try again in a moment." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge sichert diese Datenbank noch. Versuche es gleich noch einmal."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge todavía está guardando esta base de datos. Inténtalo de nuevo en un momento."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge est encore en train d’enregistrer cette base de données. Réessayez dans un instant."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForgeはまだこのデータベースを保存しています。しばらくしてからもう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 仍在保存此数据库。请稍后再试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 仍在儲存此資料庫。請稍後再試。"
+          }
+        }
+      }
+    },
     "KeeForge is temporarily slowing down unlock attempts. Try again in %lld seconds." : {
       "localizations" : {
         "de" : {
@@ -18852,6 +19852,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 會開啟儲存在此裝置上的副本，而不檢查雲端。若要取得較新的變更，請在已解鎖的資料庫中使用「立即同步」。儲存時仍會先檢查雲端副本，如有變更則停止。自動填寫僅使用快取副本。"
+          }
+        }
+      }
+    },
+    "KeeForge Quick Search" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge-Schnellsuche"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Búsqueda rápida de KeeForge"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recherche rapide KeeForge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge クイック検索"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 快速搜索"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 快速搜尋"
           }
         }
       }
@@ -19897,6 +20937,46 @@
         }
       }
     },
+    "Likely Duplicates" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wahrscheinliche Duplikate"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Posibles duplicados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doublons probables"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重複の可能性"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可能重复"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可能重複"
+          }
+        }
+      }
+    },
     "Loading…" : {
       "localizations" : {
         "de" : {
@@ -20573,6 +21653,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最高"
+          }
+        }
+      }
+    },
+    "Menu Bar" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menüleiste"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Barra de menús"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Barre des menus"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニューバー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "菜单栏"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選單列"
           }
         }
       }
@@ -21657,6 +22777,46 @@
         }
       }
     },
+    "No Database Open" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Datenbank geöffnet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay ninguna base de datos abierta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune base de données ouverte"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースが開かれていません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未打开数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未開啟資料庫"
+          }
+        }
+      }
+    },
     "No Databases" : {
       "localizations" : {
         "de" : {
@@ -22173,6 +23333,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更改後將不需要金鑰檔案。僅使用主密碼即可解鎖資料庫。"
+          }
+        }
+      }
+    },
+    "No login data" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Anmeldedaten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin datos de inicio de sesión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune donnée de connexion"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ログインデータがありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有登录数据"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有登入資料"
+          }
+        }
+      }
+    },
+    "No Matching Entries" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine passenden Einträge"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay entradas coincidentes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune entrée correspondante"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致するエントリはありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配的条目"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有相符的項目"
           }
         }
       }
@@ -23294,6 +24534,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟資料庫…"
+          }
+        }
+      }
+    },
+    "Open in KeeForge" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In KeeForge öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir en KeeForge"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir dans KeeForge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge で開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中打开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中開啟"
           }
         }
       }
@@ -24498,6 +25778,46 @@
         }
       }
     },
+    "Preview" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorschau"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vista previa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aperçu"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレビュー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预览"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預覽"
+          }
+        }
+      }
+    },
     "Privacy" : {
       "localizations" : {
         "de" : {
@@ -24858,6 +26178,46 @@
         }
       }
     },
+    "Quick Search Shortcut" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tastenkürzel für die Schnellsuche"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atajo de búsqueda rápida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raccourci de recherche rapide"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイック検索のショートカット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速搜索快捷键"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速搜尋快速鍵"
+          }
+        }
+      }
+    },
     "Re-encrypting Database" : {
       "localizations" : {
         "de" : {
@@ -25178,6 +26538,46 @@
         }
       }
     },
+    "Reading File" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datei wird gelesen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leyendo archivo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lecture du fichier"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルを読み取り中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在读取文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在讀取檔案"
+          }
+        }
+      }
+    },
     "Reconnect %@" : {
       "localizations" : {
         "de" : {
@@ -25374,6 +26774,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新連接此雲端帳號以儲存變更。"
+          }
+        }
+      }
+    },
+    "Record Shortcut" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tastenkürzel aufnehmen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grabar atajo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer un raccourci"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ショートカットを記録"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录制快捷键"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "錄製快速鍵"
           }
         }
       }
@@ -26498,6 +27938,166 @@
         }
       }
     },
+    "Rounds" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rondas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tours"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ラウンド数"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轮数"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回合數"
+          }
+        }
+      }
+    },
+    "Row %lld" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeile %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fila %lld"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ligne %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld行目"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 列"
+          }
+        }
+      }
+    },
+    "Row numbers count the header as row 1, as a spreadsheet app shows them." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Zeilennummern zählen die Kopfzeile als Zeile 1, so wie eine Tabellenkalkulation sie anzeigt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los números de fila cuentan el encabezado como fila 1, igual que una app de hojas de cálculo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les numéros de ligne comptent l’en-tête comme ligne 1, comme dans un tableur."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "行番号は、表計算Appと同じように見出し行を1行目として数えます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "行号将标题行计为第 1 行，与电子表格 App 中显示的一致。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列號將標題列計為第 1 列，與試算表 App 中顯示的一致。"
+          }
+        }
+      }
+    },
+    "Rows That Can't Be Imported" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht importierbare Zeilen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filas que no se pueden importar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lignes impossibles à importer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込めない行"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法导入的行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法匯入的列"
+          }
+        }
+      }
+    },
     "Save" : {
       "localizations" : {
         "de" : {
@@ -27580,6 +29180,46 @@
         }
       }
     },
+    "Search %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ durchsuchen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar en %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher dans %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ を検索"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索“%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋「%@」"
+          }
+        }
+      }
+    },
     "Search entries" : {
       "localizations" : {
         "de" : {
@@ -27736,6 +29376,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜尋結果和標籤瀏覽器現在會顯示每個項目所在的資料夾，名稱相近的項目更容易區分。"
+          }
+        }
+      }
+    },
+    "Search the open database from the menu bar, or press the shortcut in any app. Entries appear only while the database is unlocked, and copying a password asks for Touch ID or your login password, as it does in the main window." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Durchsuche die geöffnete Datenbank über die Menüleiste oder drücke das Tastenkürzel in einer beliebigen App. Einträge erscheinen nur, solange die Datenbank entsperrt ist, und zum Kopieren eines Passworts werden wie im Hauptfenster Touch ID oder dein Anmeldepasswort abgefragt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Busca en la base de datos abierta desde la barra de menús o pulsa el atajo en cualquier app. Las entradas solo aparecen mientras la base de datos está desbloqueada y, para copiar una contraseña, se pide Touch ID o tu contraseña de inicio de sesión, igual que en la ventana principal."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recherchez dans la base de données ouverte depuis la barre des menus, ou appuyez sur le raccourci dans n'importe quelle app. Les entrées n'apparaissent que lorsque la base de données est déverrouillée, et la copie d'un mot de passe demande Touch ID ou votre mot de passe de session, comme dans la fenêtre principale."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニューバーから、またはどのアプリでもショートカットを押して、開いているデータベースを検索できます。エントリはデータベースのロックが解除されている間だけ表示され、パスワードをコピーするときはメインウインドウと同様に Touch ID またはログインパスワードが求められます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从菜单栏搜索已打开的数据库，或在任意 App 中按下快捷键。条目仅在数据库解锁时显示；与主窗口一样，拷贝密码时需要触控 ID 或登录密码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從選單列搜尋已開啟的資料庫，或在任何 App 中按下快速鍵。項目僅在資料庫解鎖時顯示；與主視窗相同，拷貝密碼時需要觸控 ID 或登入密碼。"
+          }
+        }
+      }
+    },
+    "Searched KeeForge’s copy of this database from %@. To find credentials added since then, open KeeForge to refresh it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Durchsucht wurde die Kopie dieser Datenbank in KeeForge vom %@. Öffnen Sie KeeForge, um sie zu aktualisieren und seitdem hinzugefügte Zugangsdaten zu finden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se buscó en la copia de esta base de datos de KeeForge del %@. Para encontrar credenciales añadidas desde entonces, abra KeeForge para actualizarla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recherche effectuée dans la copie de cette base de données enregistrée par KeeForge le %@. Pour trouver les identifiants ajoutés depuis, ouvrez KeeForge afin de l’actualiser."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 時点の KeeForge のデータベースのコピーを検索しました。それ以降に追加された認証情報を見つけるには、KeeForge を開いて更新してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已搜索 KeeForge 保存的此数据库副本（%@）。要查找此后添加的凭据，请打开 KeeForge 进行刷新。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已搜尋 KeeForge 儲存的此資料庫副本（%@）。若要尋找此後新增的憑證，請開啟 KeeForge 進行重新整理。"
           }
         }
       }
@@ -28940,6 +30660,46 @@
         }
       }
     },
+    "Show KeeForge in the Menu Bar" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge in der Menüleiste anzeigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar KeeForge en la barra de menús"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher KeeForge dans la barre des menus"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニューバーに KeeForge を表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在菜单栏中显示 KeeForge"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在選單列中顯示 KeeForge"
+          }
+        }
+      }
+    },
     "Show master password" : {
       "localizations" : {
         "de" : {
@@ -29296,6 +31056,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "大小"
+          }
+        }
+      }
+    },
+    "Skip Likely Duplicates" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wahrscheinliche Duplikate überspringen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Omitir posibles duplicados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ignorer les doublons probables"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重複の可能性があるエントリをスキップ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳过可能重复的条目"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "略過可能重複的項目"
+          }
+        }
+      }
+    },
+    "Skipped" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Übersprungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Omitidas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ignorées"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキップ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已跳过"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已略過"
           }
         }
       }
@@ -31941,6 +33781,46 @@
         }
       }
     },
+    "The file is damaged: a quoted value that starts in row %lld never ends. Export your passwords again and retry." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datei ist beschädigt: Ein Wert in Anführungszeichen, der in Zeile %lld beginnt, endet nie. Exportiere deine Passwörter erneut und versuche es noch einmal."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo está dañado: un valor entre comillas que empieza en la fila %lld nunca termina. Vuelve a exportar tus contraseñas e inténtalo de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier est endommagé : une valeur entre guillemets qui commence à la ligne %lld ne se termine jamais. Exportez à nouveau vos mots de passe, puis réessayez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルが破損しています：%lld行目で始まる引用符付きの値が終わっていません。パスワードをもう一度書き出してからやり直してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件已损坏：从第 %lld 行开始的带引号的值没有结束。请重新导出密码后再试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案已損毀：從第 %lld 列開始的帶引號值沒有結束。請重新匯出密碼後再試一次。"
+          }
+        }
+      }
+    },
     "The FTP server has no folder at this path." : {
       "localizations" : {
         "de" : {
@@ -32017,6 +33897,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "FTP 使用者名稱或密碼遭拒。"
+          }
+        }
+      }
+    },
+    "The imported entries were added but not saved: %@ Use Retry Save on the database to save them." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die importierten Einträge wurden hinzugefügt, aber nicht gesichert: %@ Tippe in der Datenbank auf „Sichern erneut versuchen“, um sie zu sichern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las entradas importadas se añadieron, pero no se guardaron: %@ Usa «Reintentar guardar» en la base de datos para guardarlas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les entrées importées ont été ajoutées mais pas enregistrées : %@ Utilisez « Réessayer l'enregistrement » dans la base de données pour les enregistrer."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込んだエントリは追加されましたが、保存されていません：%@ データベースで「保存を再試行」を使って保存してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入的条目已添加但未保存：%@ 请在数据库中使用“重试保存”来保存它们。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入的項目已新增但未儲存：%@ 請在資料庫中使用「重試儲存」來儲存它們。"
           }
         }
       }
@@ -32578,6 +34498,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此要求已無法使用。"
+          }
+        }
+      }
+    },
+    "The selected group no longer exists. Choose another group." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die ausgewählte Gruppe existiert nicht mehr. Wähle eine andere Gruppe."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El grupo seleccionado ya no existe. Elige otro grupo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le groupe sélectionné n’existe plus. Choisissez un autre groupe."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択したグループはもう存在しません。別のグループを選択してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所选群组已不存在。请选择其他群组。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所選群組已不存在。請選擇其他群組。"
           }
         }
       }
@@ -33422,6 +35382,46 @@
         }
       }
     },
+    "These rows have the same website and user name as an entry already in this database, or as an earlier row of the file." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Zeilen haben dieselbe Website und denselben Benutzernamen wie ein Eintrag, der bereits in dieser Datenbank ist, oder wie eine frühere Zeile der Datei."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estas filas tienen el mismo sitio web y nombre de usuario que una entrada que ya está en esta base de datos, o que una fila anterior del archivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ces lignes ont le même site web et le même nom d’utilisateur qu’une entrée déjà présente dans cette base de données, ou qu’une ligne précédente du fichier."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これらの行は、このデータベースにすでにあるエントリ、またはファイル内の前の行と同じWebサイトとユーザ名を持っています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些行的网站和用户名与此数据库中已有的条目或文件中较早的行相同。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這些列的網站和使用者名稱，與此資料庫中已有的項目或檔案中較早的列相同。"
+          }
+        }
+      }
+    },
     "These selections only take effect once KeeForge is enabled as an AutoFill provider above." : {
       "localizations" : {
         "de" : {
@@ -33698,6 +35698,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此資料庫已在雲端變更。請重新載入後再儲存。"
+          }
+        }
+      }
+    },
+    "This database changed outside KeeForge, so the imported entries are not saved yet. Choose how to resolve the save conflict to finish saving them." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank wurde außerhalb von KeeForge geändert, deshalb sind die importierten Einträge noch nicht gesichert. Wähle, wie der Sicherungskonflikt gelöst werden soll, um sie fertig zu sichern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos cambió fuera de KeeForge, así que las entradas importadas aún no se han guardado. Elige cómo resolver el conflicto de guardado para terminar de guardarlas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données a été modifiée en dehors de KeeForge : les entrées importées ne sont donc pas encore enregistrées. Choisissez comment résoudre le conflit d’enregistrement pour terminer leur enregistrement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースはKeeForgeの外部で変更されたため、読み込んだエントリはまだ保存されていません。保存の競合の解決方法を選択して、保存を完了してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库已在 KeeForge 之外被更改，因此导入的条目尚未保存。请选择如何解决保存冲突以完成保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫已在 KeeForge 之外被更改，因此匯入的項目尚未儲存。請選擇如何解決儲存衝突以完成儲存。"
+          }
+        }
+      }
+    },
+    "This database changed while the entries were being prepared. Import again to add them." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank wurde geändert, während die Einträge vorbereitet wurden. Importiere erneut, um sie hinzuzufügen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos cambió mientras se preparaban las entradas. Vuelve a importar para añadirlas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données a changé pendant la préparation des entrées. Importez à nouveau pour les ajouter."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリの準備中にこのデータベースが変更されました。もう一度読み込んで追加してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "准备条目时此数据库已更改。请重新导入以添加它们。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "準備項目時此資料庫已變更。請重新匯入以新增它們。"
           }
         }
       }
@@ -34864,6 +36944,166 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此項目將被立即移除，且無法從 KeeForge 回復。"
+          }
+        }
+      }
+    },
+    "This export file contains no passwords." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Exportdatei enthält keine Passwörter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo de exportación no contiene contraseñas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier d’exportation ne contient aucun mot de passe."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この書き出しファイルにはパスワードが含まれていません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此导出文件不包含任何密码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此匯出檔案不包含任何密碼。"
+          }
+        }
+      }
+    },
+    "This file is not a text file KeeForge can read." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datei ist keine Textdatei, die KeeForge lesen kann."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo no es un archivo de texto que KeeForge pueda leer."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier n’est pas un fichier texte lisible par KeeForge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルはKeeForgeが読み取れるテキストファイルではありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此文件不是 KeeForge 可读取的文本文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此檔案不是 KeeForge 可讀取的文字檔案。"
+          }
+        }
+      }
+    },
+    "This file is not an Apple Passwords export. KeeForge can currently import only the CSV file that the Passwords app exports." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datei ist kein Export aus Apple Passwörter. KeeForge kann derzeit nur die CSV-Datei importieren, die die App „Passwörter“ exportiert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo no es una exportación de Contraseñas de Apple. Por ahora, KeeForge solo puede importar el archivo CSV que exporta la app Contraseñas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier n’est pas une exportation d’Apple Mots de passe. KeeForge ne peut actuellement importer que le fichier CSV exporté par l’app Mots de passe."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルはAppleの「パスワード」の書き出しファイルではありません。KeeForgeが現在読み込めるのは、「パスワード」App が書き出すCSVファイルだけです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此文件不是 Apple“密码”的导出文件。KeeForge 目前只能导入“密码” App 导出的 CSV 文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此檔案不是 Apple「密碼」的匯出檔案。KeeForge 目前只能匯入「密碼」App 匯出的 CSV 檔案。"
+          }
+        }
+      }
+    },
+    "This file is too large to be a password export." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datei ist zu groß für einen Passwortexport."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo es demasiado grande para ser una exportación de contraseñas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier est trop volumineux pour être une exportation de mots de passe."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルはパスワードの書き出しファイルとしては大きすぎます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此文件过大，不是密码导出文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此檔案過大，不是密碼匯出檔案。"
           }
         }
       }
@@ -36428,6 +38668,46 @@
         }
       }
     },
+    "Type Shortcut…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tastenkürzel eingeben…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulsa el atajo…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez le raccourci…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ショートカットを入力…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "键入快捷键…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵入快速鍵…"
+          }
+        }
+      }
+    },
     "Type to search by title, username, URL, notes, or tags." : {
       "localizations" : {
         "de" : {
@@ -36464,6 +38744,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "輸入以依標題、使用者名稱、URL、備註或標籤搜尋。"
+          }
+        }
+      }
+    },
+    "Type to search this database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippe, um diese Datenbank zu durchsuchen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe para buscar en esta base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapez pour rechercher dans cette base de données."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力してこのデータベースを検索します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入内容以搜索此数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入內容以搜尋此資料庫。"
           }
         }
       }
@@ -36988,6 +39308,86 @@
         }
       }
     },
+    "Unlock the database to import passwords." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entsperre die Datenbank, um Passwörter zu importieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquea la base de datos para importar contraseñas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillez la base de données pour importer des mots de passe."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードを読み込むにはデータベースのロックを解除してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请解锁数据库以导入密码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請解鎖資料庫以匯入密碼。"
+          }
+        }
+      }
+    },
+    "Unlock this database in KeeForge to search it from here." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entsperre diese Datenbank in KeeForge, um sie hier zu durchsuchen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquea esta base de datos en KeeForge para buscar en ella desde aquí."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillez cette base de données dans KeeForge pour la rechercher d'ici."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここから検索するには、KeeForge でこのデータベースのロックを解除してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中解锁此数据库，即可在这里搜索。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中解鎖此資料庫，即可在這裡搜尋。"
+          }
+        }
+      }
+    },
     "Unlock with a YubiKey — experimental" : {
       "localizations" : {
         "de" : {
@@ -37144,6 +39544,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解鎖你的密碼資料庫"
+          }
+        }
+      }
+    },
+    "Unlock…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entsperren…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquear…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouiller…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ロック解除…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖…"
           }
         }
       }
@@ -37384,6 +39824,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不支援的變體對應值，鍵：%@"
+          }
+        }
+      }
+    },
+    "Unsupported Verification Codes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht unterstützte Bestätigungscodes"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Códigos de verificación no compatibles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codes de vérification non pris en charge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未対応の確認コード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支持的验证码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援的驗證碼"
           }
         }
       }
@@ -39264,6 +41744,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "當螢幕鎖定或進入睡眠時"
+          }
+        }
+      }
+    },
+    "With Verification Codes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Bestätigungscodes"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con códigos de verificación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec codes de vérification"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認コードあり"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "含验证码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "含驗證碼"
+          }
+        }
+      }
+    },
+    "Wrong number of values" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falsche Anzahl von Werten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Número de valores incorrecto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nombre de valeurs incorrect"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "値の数が正しくありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "值的数量不正确"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "值的數量不正確"
           }
         }
       }
