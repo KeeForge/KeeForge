@@ -9,6 +9,9 @@ struct AutoFillSearchView: View {
     let onAddURLToPossible: (KPEntry) -> Void
     let onCancel: () -> Void
     let initialSearchText: String
+    /// When the entries come from KeeForge's shared copy of the database
+    /// rather than the file itself, when that copy was last brought up to date.
+    let sharedCopyDate: Date?
     /// Non-nil only when the coordinator offers in-extension entry creation
     /// (iOS password requests against a writable database). Nil hides both
     /// entry points, so passkey/one-time-code pickers stay selection-only.
@@ -30,6 +33,7 @@ struct AutoFillSearchView: View {
         searchEntries: [KPEntry]? = nil,
         possibleEntries: [KPEntry] = [],
         initialSearchText: String = "",
+        sharedCopyDate: Date? = nil,
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext? = nil,
         onCreateEntry: (() -> Void)? = nil,
         onSelect: @escaping (KPEntry) -> Void,
@@ -41,6 +45,7 @@ struct AutoFillSearchView: View {
         self.searchEntries = searchEntries ?? entries
         self.possibleEntries = possibleEntries
         self.initialSearchText = initialSearchText
+        self.sharedCopyDate = sharedCopyDate
         self.databaseSwitcher = databaseSwitcher
         self.onCreateEntry = onCreateEntry
         self.onSelect = onSelect
@@ -209,7 +214,13 @@ struct AutoFillSearchView: View {
             Label("No Credentials Found", systemImage: "magnifyingglass")
                 .accessibilityIdentifier("autofill.no-credentials-found")
         } description: {
-            Text("No credentials match this search.")
+            VStack(spacing: 8) {
+                Text("No credentials match this search.")
+                if let sharedCopyDate {
+                    Text("Searched KeeForge’s copy of this database from \(sharedCopyDate.formatted(date: .abbreviated, time: .shortened)). To find credentials added since then, open KeeForge to refresh it.")
+                        .accessibilityIdentifier("autofill.shared-copy-notice")
+                }
+            }
         } actions: {
             if canShowAllEntries {
                 Button("Show All Credentials", action: showAllEntries)
