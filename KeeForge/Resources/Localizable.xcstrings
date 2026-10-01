@@ -14742,6 +14742,46 @@
         }
       }
     },
+    "Every entry with a verification code, across all groups. Tap an entry to open it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Einträge mit Bestätigungscode, aus allen Gruppen. Tippen Sie auf einen Eintrag, um ihn zu öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Todas las entradas con código de verificación, de todos los grupos. Toque una entrada para abrirla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toutes les entrées avec un code de vérification, dans tous les groupes. Touchez une entrée pour l’ouvrir."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認コードのあるすべてのエントリを、グループをまたいで表示します。エントリをタップすると開きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有群组中含验证码的条目。轻点条目即可打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有群組中含驗證碼的項目。點一下項目即可打開。"
+          }
+        }
+      }
+    },
     "Exact matches for a site are listed apart from possible matches on related subdomains. A possible match is never filled unless you pick it. Thanks to @ftorga." : {
       "localizations" : {
         "de" : {

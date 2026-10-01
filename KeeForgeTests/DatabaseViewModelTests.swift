@@ -1955,21 +1955,39 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.verificationCodeEntries.map(\.title), ["Code"])
     }
 
-    func testViewModeDefaultsToGroupsAndIsRememberedLikeTheSortOrder() throws {
-        let key = "KeeForge.viewMode"
-        // The app's UI tests share these defaults when hosted on the same simulator.
-        let savedValue = UserDefaults.standard.object(forKey: key)
-        addTeardownBlock { UserDefaults.standard.set(savedValue, forKey: key) }
-
-        UserDefaults.standard.removeObject(forKey: key)
+    func testDatabaseOpensOnAllEntriesAndLockingReturnsThere() async throws {
         let vm = try makeViewModel()
-        XCTAssertEqual(vm.viewMode, .groups)
+        XCTAssertEqual(vm.viewMode, .allEntries)
 
-        vm.viewMode = .allEntries
-        XCTAssertEqual(try makeViewModel().viewMode, .allEntries)
+        await vm.unlock(password: fixturePassword)
+        vm.viewMode = .verificationCodes
 
-        UserDefaults.standard.set("no-such-view", forKey: key)
-        XCTAssertEqual(try makeViewModel().viewMode, .groups, "An unknown stored view falls back to Groups")
+        vm.lock()
+
+        XCTAssertEqual(vm.viewMode, .allEntries, "The next unlock starts on All Entries, not on the view last picked")
+    }
+
+    func testInitialViewModeHonorsTheOverrideOnlyUnderUITesting() {
+        XCTAssertEqual(DatabaseViewModel.initialViewMode(arguments: [], environment: [:]), .allEntries)
+        XCTAssertEqual(
+            DatabaseViewModel.initialViewMode(
+                arguments: ["-ui-testing"],
+                environment: ["UI_TEST_VIEW_MODE": "groups"]
+            ),
+            .groups
+        )
+        XCTAssertEqual(
+            DatabaseViewModel.initialViewMode(arguments: [], environment: ["UI_TEST_VIEW_MODE": "groups"]),
+            .allEntries,
+            "Outside UI testing the environment cannot change where a database opens"
+        )
+        XCTAssertEqual(
+            DatabaseViewModel.initialViewMode(
+                arguments: ["-ui-testing"],
+                environment: ["UI_TEST_VIEW_MODE": "no-such-view"]
+            ),
+            .allEntries
+        )
     }
 
     func testHidingGroupFromAutoFillRemovesItsEntriesFromCredentialStore() async throws {

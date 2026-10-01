@@ -50,12 +50,10 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
     /// test device: the StoreKit review prompt (`hasPrompted` counts
     /// unlocks in standard defaults, which persist across runs) and the
     /// AutoFill tip banner (irrelevant while the provider is enabled, but the
-    /// dismissal flag keeps argument-free launches deterministic). The root
-    /// list's remembered view is pinned to Groups for the same reason.
+    /// dismissal flag keeps argument-free launches deterministic).
     private static let launchDefaultsOverrides = [
         "-KeeForge.reviewPrompt.hasPrompted", "YES",
         "-KeeForge.autoFillTip.dismissed", "YES",
-        "-KeeForge.viewMode", "groups",
     ]
 
     // MARK: - Skip guard

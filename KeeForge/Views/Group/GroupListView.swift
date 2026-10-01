@@ -437,10 +437,12 @@ struct GroupListView: View {
                 emptyDescription: "This database has no entries."
             )
         case .verificationCodes:
-            let entries = viewModel.verificationCodeEntries
             flatEntriesSection(
-                entries,
-                summary: String(localized: "\(entries.count) entries"),
+                viewModel.verificationCodeEntries,
+                showsVerificationCodes: true,
+                summary: String(
+                    localized: "Every entry with a verification code, across all groups. Tap an entry to open it."
+                ),
                 emptyTitle: "No Verification Codes",
                 emptyDescription: "Entries with a verification code appear here."
             )
@@ -494,6 +496,7 @@ struct GroupListView: View {
     @ViewBuilder
     private func flatEntriesSection(
         _ entries: [KPEntry],
+        showsVerificationCodes: Bool = false,
         summary: String,
         emptyTitle: LocalizedStringKey,
         emptyDescription: LocalizedStringKey
@@ -507,7 +510,7 @@ struct GroupListView: View {
         } else {
             Section {
                 ForEach(viewModel.sortedEntries(entries)) { entry in
-                    entryRow(for: entry, showsFolderPath: true)
+                    entryRow(for: entry, showsFolderPath: true, showsVerificationCode: showsVerificationCodes)
                 }
             } footer: {
                 Text(summary)
@@ -595,7 +598,11 @@ struct GroupListView: View {
     }
 
     @ViewBuilder
-    private func entryRow(for entry: KPEntry, showsFolderPath: Bool = false) -> some View {
+    private func entryRow(
+        for entry: KPEntry,
+        showsFolderPath: Bool = false,
+        showsVerificationCode: Bool = false
+    ) -> some View {
         let row = EntryRow(
             entry: entry,
             username: viewModel.resolvingFieldReferences(entry.username),
@@ -603,7 +610,16 @@ struct GroupListView: View {
             folderPath: showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil
         )
         Group {
-            if let onSelectEntry {
+            if showsVerificationCode, let config = entry.totpConfig, let sessionKey = viewModel.sessionKey {
+                VerificationCodeRow(
+                    title: entry.title.isEmpty ? String(localized: "(untitled)") : entry.title,
+                    detail: verificationCodeDetail(for: entry),
+                    config: config,
+                    sessionKey: sessionKey
+                ) {
+                    open(entry)
+                }
+            } else if let onSelectEntry {
                 Button {
                     onSelectEntry(entry)
                 } label: {
@@ -661,6 +677,22 @@ struct GroupListView: View {
                 .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }
+    }
+
+    /// What tapping a `NavigationLink(value: entry)` row does in each shell:
+    /// the regular-width workspace selects, the compact stack pushes.
+    private func open(_ entry: KPEntry) {
+        if let onSelectEntry {
+            onSelectEntry(entry)
+        } else {
+            viewModel.navigationPath.append(entry)
+        }
+    }
+
+    private func verificationCodeDetail(for entry: KPEntry) -> String {
+        [viewModel.resolvingFieldReferences(entry.username), viewModel.folderPath(forEntryID: entry.id) ?? ""]
+            .filter { $0.isEmpty == false }
+            .joined(separator: " · ")
     }
 
     private func canDeleteGroup(_ groupID: UUID) -> Bool {

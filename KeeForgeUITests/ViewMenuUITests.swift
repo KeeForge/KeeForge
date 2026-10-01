@@ -1,7 +1,8 @@
 import XCTest
 
 // Coverage for the view menu in the database root's title: Groups, All
-// Entries, Verification Codes, and the Recycle Bin. The Tags view is driven by
+// Entries, Verification Codes, and the Recycle Bin, plus the view a database
+// opens on (`DefaultViewUITests`). The Tags view is driven by
 // `TagBrowserUITests`.
 //
 // Uses `kitchen-sink.kdbx` because it ships a nested group, an entry with a
@@ -59,23 +60,40 @@ final class ViewMenuUITests: UnlockedDatabaseUITestCase {
         )
     }
 
-    func testVerificationCodesListsOnlyEntriesWithACode() {
+    /// The code itself is time-dependent, so this proves the wiring only: the
+    /// row shows six digits, offers to copy them, and opens its entry.
+    func testVerificationCodesShowsTheCodeOfEachEntryThatHasOne() {
         unlockSuccessfully()
 
         selectDatabaseView(.verificationCodes)
 
         let codeEntry = entryRow(named: codeEntryName)
         XCTAssertTrue(revealElement(codeEntry), "Verification Codes did not list the entry with a code")
-        XCTAssertTrue(
-            codeEntry.label.contains("Secrets"),
-            "Expected the row to name the entry's folder, got: \(codeEntry.label)"
-        )
         XCTAssertEqual(
             app.descendants(matching: .any).matching(identifier: "entry.navlink").count,
             1,
             "Verification Codes listed entries without a code"
         )
-        XCTAssertEqual(app.staticTexts["group-list.summary"].label, "1 entry")
+        // The row reads its code digit by digit, between the title and the
+        // username and group.
+        XCTAssertNotNil(
+            codeEntry.label.range(of: #"\d \d \d \d \d \d"#, options: .regularExpression),
+            "Expected a six-digit code on the row, got: \(codeEntry.label)"
+        )
+        XCTAssertTrue(
+            codeEntry.label.contains("totp-user · Secrets"),
+            "Expected the row to name the entry's username and group, got: \(codeEntry.label)"
+        )
+        XCTAssertTrue(
+            app.buttons["verification-code-row.copy"].isHittable,
+            "The row did not offer to copy its code"
+        )
+
+        tapElement(codeEntry)
+        XCTAssertTrue(
+            app.staticTexts["entry.totp.code"].waitForExistence(timeout: Self.ciElementTimeout),
+            "Tapping a code row did not open its entry"
+        )
     }
 
     func testRecycleBinOpensFromTheViewMenuAndNotFromTheGroupList() {
@@ -97,5 +115,34 @@ final class ViewMenuUITests: UnlockedDatabaseUITestCase {
 
         XCTAssertTrue(revealElement(groupRow(named: "Archive")), "Groups view did not return")
         XCTAssertTrue(app.buttons["entry-list.add-entry"].exists, "Add menu did not return with the Groups view")
+    }
+}
+
+/// Every other UI class starts in Groups through `UI_TEST_VIEW_MODE`; this one
+/// clears it to see where a database really opens.
+@MainActor
+final class DefaultViewUITests: UnlockedDatabaseUITestCase {
+    override var databaseFixtureName: String { "kitchen-sink" }
+
+    override func configureLaunch(app: XCUIApplication) throws {
+        app.launchEnvironment.removeValue(forKey: Self.uiTestViewModeEnv)
+    }
+
+    func testDatabaseOpensOnAllEntriesAgainAfterLocking() {
+        unlockSuccessfully()
+        XCTAssertTrue(
+            app.navigationBars["All Entries"].waitForExistence(timeout: Self.ciElementTimeout),
+            "An unlocked database did not open on All Entries"
+        )
+
+        selectDatabaseView(.tags)
+        tapElement(currentLockButton())
+        XCTAssertTrue(waitForLockedState(), "Database did not lock")
+
+        unlockSuccessfully()
+        XCTAssertTrue(
+            app.navigationBars["All Entries"].waitForExistence(timeout: Self.ciElementTimeout),
+            "Unlocking again returned to the view picked before locking"
+        )
     }
 }

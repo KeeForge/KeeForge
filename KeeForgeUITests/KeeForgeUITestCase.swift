@@ -4,6 +4,7 @@ import XCTest
 class KeeForgeUITestCase: XCTestCase {
     private static let uiTestDBBase64Env = "UI_TEST_DB_BASE64"
     private static let uiTestDBFilenameEnv = "UI_TEST_DB_FILENAME"
+    static let uiTestViewModeEnv = "UI_TEST_VIEW_MODE"
     private static let uiTestDatabasesJSONEnv = "UI_TEST_DATABASES_JSON"
     private static let uiTestKeyFileBase64Env = "UI_TEST_KEYFILE_BASE64"
     private static let uiTestKeyFileFilenameEnv = "UI_TEST_KEYFILE_FILENAME"
@@ -95,10 +96,10 @@ class KeeForgeUITestCase: XCTestCase {
             return payload
         }
 
-        // The root list's view is remembered across launches; the argument
-        // domain pins every test to Groups whatever an earlier one picked.
-        app.launchArguments += ["-KeeForge.viewMode", "groups"]
         app.launchArguments += ["-ui-testing"]
+        // A database opens on All Entries; the helpers here browse from the
+        // group list, so tests start there unless a class clears this.
+        app.launchEnvironment[Self.uiTestViewModeEnv] = "groups"
         let payloadData = try JSONSerialization.data(withJSONObject: payloads, options: [])
         app.launchEnvironment[Self.uiTestDatabasesJSONEnv] = String(decoding: payloadData, as: UTF8.self)
 

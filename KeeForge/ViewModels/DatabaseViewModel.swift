@@ -369,8 +369,6 @@ final class DatabaseViewModel {
         /// listed apart from them.
         static let browsingModes: [ViewMode] = [.groups, .allEntries, .verificationCodes, .tags]
 
-        /// Localized display text. `rawValue` is persisted in `UserDefaults`
-        /// and must stay stable across locales.
         var title: String {
             switch self {
             case .groups:
@@ -472,7 +470,6 @@ final class DatabaseViewModel {
 
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
-    private static let viewModeKey = "KeeForge.viewMode"
     /// Shared with tests so status-message assertions stay locale-agnostic.
     static let decryptingStatusMessage = String(localized: "Decrypting your database securely...")
     private static let sharedCloudRefreshMinimumInterval: TimeInterval = 30
@@ -563,12 +560,10 @@ final class DatabaseViewModel {
     var sortOrder: SortOrder {
         didSet { Self.persistSortOrder(sortOrder) }
     }
-    /// Remembered across locks and launches, the way the sort order is.
-    var viewMode: ViewMode {
-        didSet {
-            Self.persistViewMode(viewMode)
-            resetInactivityTimer()
-        }
+    /// Session state like the navigation path: every unlock starts on
+    /// `initialViewMode` again.
+    var viewMode = DatabaseViewModel.initialViewMode() {
+        didSet { resetInactivityTimer() }
     }
 
     private(set) var failedAttempts = 0
@@ -817,7 +812,6 @@ final class DatabaseViewModel {
         self.databaseReference = databaseReference
         sortOrder = Self.savedSortOrder()
         sortAscending = Self.savedSortAscending()
-        viewMode = Self.savedViewMode()
         unlockStatusMessage = databaseReference.isCloudBacked
             ? DatabaseViewModel.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
@@ -2105,6 +2099,7 @@ final class DatabaseViewModel {
             : Self.decryptingStatusMessage
         searchText = ""
         navigationPath = NavigationPath()
+        viewMode = Self.initialViewMode()
         selectedGroupID = nil
         selectedTag = nil
         selectedEntryID = nil
@@ -3587,13 +3582,18 @@ final class DatabaseViewModel {
         UserDefaults.standard.set(ascending, forKey: sortAscendingKey)
     }
 
-    static func savedViewMode() -> ViewMode {
-        guard let raw = UserDefaults.standard.string(forKey: viewModeKey) else { return .groups }
-        return ViewMode(rawValue: raw) ?? .groups
-    }
-
-    static func persistViewMode(_ mode: ViewMode) {
-        UserDefaults.standard.set(mode.rawValue, forKey: viewModeKey)
+    /// A database opens on All Entries. UI tests can start on another view
+    /// through `UI_TEST_VIEW_MODE`: their helpers browse from the group list.
+    static func initialViewMode(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> ViewMode {
+        guard arguments.contains("-ui-testing"),
+              let rawValue = environment["UI_TEST_VIEW_MODE"],
+              let mode = ViewMode(rawValue: rawValue) else {
+            return .allEntries
+        }
+        return mode
     }
 
     // MARK: - Private
