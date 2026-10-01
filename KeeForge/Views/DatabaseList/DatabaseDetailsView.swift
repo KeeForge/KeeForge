@@ -68,6 +68,7 @@ struct DatabaseDetailsView: View {
                 encryptionSection
                 metadataSection
                 databaseFileSection
+                importSection
                 exportSection
                 backupsSection
                 cloudSyncSection
@@ -322,6 +323,25 @@ struct DatabaseDetailsView: View {
         } footer: {
             if currentReference.isCloudBacked {
                 Text("Values reflect the locally cached copy of this database.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var importSection: some View {
+        if let sessionViewModel {
+            Section {
+                NavigationLink {
+                    PasswordImportView(sessionViewModel: sessionViewModel)
+                } label: {
+                    Text("Import Passwords…")
+                }
+                .disabled(isReadOnly)
+                .accessibilityIdentifier("database-details.import-passwords")
+            } header: {
+                Text("Import")
+            } footer: {
+                Text("Add logins from a password export file, such as the one the Passwords app creates.")
             }
         }
     }
