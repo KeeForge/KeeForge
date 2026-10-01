@@ -766,15 +766,15 @@ private struct AboutSectionContent: View {
             LabeledContent("Version", value: AppVersion.withCommit)
 
             Link(destination: URL(string: "mailto:support@keeforge.com")!) {
-                Label("Contact Support", systemImage: "envelope")
+                AboutLinkLabel(title: "Contact Support", systemImage: "envelope")
             }
 
             Link(destination: URL(string: "https://github.com/KeeForge/KeeForge/issues")!) {
-                Label("Report a Bug", systemImage: "ladybug")
+                AboutLinkLabel(title: "Report a Bug", systemImage: "ladybug")
             }
 
             Link(destination: URL(string: "https://github.com/KeeForge/KeeForge")!) {
-                Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                AboutLinkLabel(title: "Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
             }
 
             NavigationLink {
@@ -782,6 +782,23 @@ private struct AboutSectionContent: View {
             } label: {
                 Label("Acknowledgments", systemImage: "doc.text")
             }
+        }
+    }
+}
+
+/// A link row that reads like the navigation rows beside it: the icon keeps
+/// the tint, the title takes the text color. `Color.primary`, not `.primary`,
+/// because inside a link label the hierarchical styles follow the tint.
+private struct AboutLinkLabel: View {
+    let title: LocalizedStringKey
+    let systemImage: String
+
+    var body: some View {
+        Label {
+            Text(title)
+                .foregroundStyle(Color.primary)
+        } icon: {
+            Image(systemName: systemImage)
         }
     }
 }

@@ -119,14 +119,16 @@ struct TipJarView: View {
                     VStack(alignment: .leading) {
                         Text(product.displayName)
                             .foregroundStyle(.primary)
+                        // `Color.primary`, not `.primary`: inside a button
+                        // label the hierarchical styles follow the tint.
                         Text(product.description)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.primary)
                     }
                     Spacer()
                     Text(product.displayPrice)
                         .font(.callout.bold())
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.primary)
                 }
                 .contentShape(Rectangle())
             }
