@@ -4862,6 +4862,46 @@
         }
       }
     },
+    "The database would be too large for KeeForge to open again, so it was not saved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbank wäre so groß geworden, dass KeeForge sie nicht mehr öffnen könnte. Sie wurde deshalb nicht gesichert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos sería demasiado grande para que KeeForge pudiera volver a abrirla, así que no se ha guardado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données deviendrait trop volumineuse pour que KeeForge puisse la rouvrir ; elle n'a donc pas été enregistrée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースが大きくなりすぎて KeeForge で開けなくなるため、保存されませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库会过大，KeeForge 将无法再次打开，因此未保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫會過大，KeeForge 將無法再次開啟，因此未儲存。"
+          }
+        }
+      }
+    },
     "The new database could not be verified after encryption." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5506,6 +5546,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此資料庫的金鑰衍生設定（%@ 記憶體 × %@ 次迭代、%@ 個執行緒）超出了此 App 可安全執行的範圍。請在桌面版 KeePass App 中調低資料庫的 Argon2 設定並儲存，然後再試一次。"
+          }
+        }
+      }
+    },
+    "This file would make the attachments too large for KeeForge to open the database again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit dieser Datei würden die Anhänge so groß, dass KeeForge die Datenbank nicht mehr öffnen könnte."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con este archivo, los archivos adjuntos serían demasiado grandes para que KeeForge pudiera volver a abrir la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec ce fichier, les pièces jointes deviendraient trop volumineuses pour que KeeForge puisse rouvrir la base de données."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルを追加すると添付ファイルが大きくなりすぎ、KeeForge でデータベースを開けなくなります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加此文件后，附件会过大，KeeForge 将无法再次打开此数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增此檔案後，附件會過大，KeeForge 將無法再次開啟此資料庫。"
           }
         }
       }

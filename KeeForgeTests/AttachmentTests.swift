@@ -411,6 +411,73 @@ final class AttachmentTests: XCTestCase {
         XCTAssertEqual(edited.discardingEdits().binaryPoolFields, fixture.header.innerHeaderBinaryFields)
     }
 
+    // MARK: - Size limit
+
+    func test_addingAFile_fillsThePoolToTheReadLimitAndRefusesOneByteMore() throws {
+        let fixture = try makeEditableFixture()
+        let entry = try fixture.entry()
+        let room = Self.roomForOneMoreFile(in: fixture.header.innerHeaderBinaryFields)
+        func adding(byteCount: Int) throws -> DatabaseDraft {
+            try fixture.draft().apply(.updateEntry(
+                entryID: entry.id,
+                draft: payload(for: entry, attachments: [
+                    .existing(name: "alpha.txt", ref: 0),
+                    .new(name: "large.bin", data: Data(count: byteCount)),
+                ])
+            ))
+        }
+
+        XCTAssertThrowsError(try adding(byteCount: room + 1)) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .attachmentsTooLarge)
+        }
+        let filled = try XCTUnwrap(adding(byteCount: room).binaryPoolFields)
+        XCTAssertEqual(Self.innerHeaderByteCount(of: filled), KDBXCrypto.maxDecompressedSize)
+    }
+
+    func test_addingFiles_countsThePoolEntriesOfAttachmentsAlreadyRemoved() throws {
+        let fixture = try makeEditableFixture()
+        let entry = try fixture.entry()
+        let half = Self.roomForOneMoreFile(in: fixture.header.innerHeaderBinaryFields) / 2
+        let withFirst = try fixture.draft().apply(.updateEntry(
+            entryID: entry.id,
+            draft: payload(for: entry, attachments: [.new(name: "first.bin", data: Data(count: half))])
+        ))
+        // The history version still points at the file, so its bytes stay.
+        let withoutFirst = try withFirst.apply(.updateEntry(
+            entryID: entry.id,
+            draft: payload(for: entry, attachments: [])
+        ))
+        let room = Self.roomForOneMoreFile(in: try XCTUnwrap(withoutFirst.binaryPoolFields))
+        func addingSecond(byteCount: Int) throws -> DatabaseDraft {
+            // Not the first file's bytes, or the pool entry would be reused.
+            var bytes = Data(count: byteCount)
+            bytes[0] = 0xFF
+            return try withoutFirst.apply(.updateEntry(
+                entryID: entry.id,
+                draft: payload(for: entry, attachments: [.new(name: "second.bin", data: bytes)])
+            ))
+        }
+
+        XCTAssertThrowsError(try addingSecond(byteCount: room + 1)) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .attachmentsTooLarge)
+        }
+        let filled = try XCTUnwrap(addingSecond(byteCount: room).binaryPoolFields)
+        XCTAssertEqual(filled.count, 3)
+        XCTAssertEqual(Self.innerHeaderByteCount(of: filled), KDBXCrypto.maxDecompressedSize)
+    }
+
+    /// The bytes `pool` occupies in the inner header: each field's one-byte
+    /// type and four-byte length, then its value.
+    private static func innerHeaderByteCount(of pool: [Data]) -> Int {
+        pool.reduce(0) { $0 + 5 + $1.count }
+    }
+
+    /// The largest file `pool` can still take; a pool entry is the file's
+    /// bytes behind one flag byte.
+    private static func roomForOneMoreFile(in pool: [Data]) -> Int {
+        KDBXCrypto.maxDecompressedSize - innerHeaderByteCount(of: pool) - 5 - 1
+    }
+
     private struct EditableFixture {
         let rootGroup: KPGroup
         let meta: KPMeta

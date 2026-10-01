@@ -14,6 +14,7 @@ struct DatabaseDraft: Sendable {
         case attachmentNotFound(name: String)
         case attachmentPoolUnavailable
         case attachmentWouldClaimMissingReference
+        case attachmentsTooLarge
 
         var errorDescription: String? {
             switch self {
@@ -39,6 +40,8 @@ struct DatabaseDraft: Sendable {
                 String(localized: "Attachments can't be added here.")
             case .attachmentWouldClaimMissingReference:
                 String(localized: "This database has attachments whose data is missing. A new file would take their place, so it can't be added.")
+            case .attachmentsTooLarge:
+                String(localized: "This file would make the attachments too large for KeeForge to open the database again.")
             }
         }
     }
@@ -656,6 +659,13 @@ struct DatabaseDraft: Sendable {
                     guard referencedRefs.contains(pool.count) == false else {
                         throw DraftError.attachmentWouldClaimMissingReference
                     }
+                    // The pool alone must fit what the reader inflates,
+                    // whatever the file's compression is now; the writer
+                    // makes the exact check once the XML is known.
+                    let appendedByteCount = innerHeaderFieldFraming + 1 + data.count
+                    guard innerHeaderByteCount(of: pool) + appendedByteCount <= KDBXCrypto.maxDecompressedSize else {
+                        throw DraftError.attachmentsTooLarge
+                    }
                     // KeePassXC flags every pool entry it writes as protected.
                     pool.append(Data([0x01]) + data)
                     ref = pool.count - 1
@@ -669,6 +679,14 @@ struct DatabaseDraft: Sendable {
             }
         }
         return resolved
+    }
+
+    /// An inner-header field's one-byte type and four-byte length.
+    private static let innerHeaderFieldFraming = 5
+
+    /// The bytes `pool` occupies in the inner header.
+    private static func innerHeaderByteCount(of pool: [Data]) -> Int {
+        pool.reduce(0) { $0 + innerHeaderFieldFraming + $1.count }
     }
 
     /// Every pool ref an attachment in `group`'s subtree names, history
