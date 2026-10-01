@@ -42,6 +42,9 @@ struct GroupListView: View {
     /// The horizontal center of the list, where the database list's own
     /// centered title sat before this screen replaced it.
     @State private var listCenterX: CGFloat?
+    /// Kept here rather than in the bar item, which leaves the bar while the
+    /// title is scrolled away and must not slide in again when it returns.
+    @State private var hasAppNameSlidIn = false
     #if os(macOS)
     @FocusState private var isSearchFieldFocused: Bool
     #endif
@@ -123,10 +126,12 @@ struct GroupListView: View {
                     }
                     .toolbar {
                         #if os(iOS)
-                        if #available(iOS 26.0, *), rootViewMode != nil {
+                        // Out of the bar while the inline title is in it:
+                        // hidden in place it would still push that title
+                        // away from the leading edge.
+                        if #available(iOS 26.0, *), rootViewMode != nil, isTitleHeaderVisible {
                             ToolbarItem(placement: .topBarLeading) {
-                                RootBarAppName(startCenterX: listCenterX)
-                                    .opacity(isTitleHeaderVisible ? 1 : 0)
+                                RootBarAppName(startCenterX: listCenterX, hasSlidIn: $hasAppNameSlidIn)
                             }
                             .sharedBackgroundVisibility(.hidden)
                         }
@@ -905,12 +910,12 @@ struct GroupListView: View {
 private struct RootBarAppName: View {
     /// Where the slide starts; `nil` until the list has been laid out.
     let startCenterX: CGFloat?
+    @Binding var hasSlidIn: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var restingCenterX: CGFloat?
     @State private var offset: CGFloat = 0
     /// Shown, at the slide's starting point.
     @State private var hasStarted = false
-    @State private var hasSlidIn = false
 
     var body: some View {
         Text("KeeForge")
@@ -926,7 +931,7 @@ private struct RootBarAppName: View {
                 slideInIfReady()
             }
             .offset(x: offset)
-            .opacity(hasStarted ? 1 : 0)
+            .opacity(hasStarted || hasSlidIn ? 1 : 0)
             .accessibilityHidden(true)
     }
 
