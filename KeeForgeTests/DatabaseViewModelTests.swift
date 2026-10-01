@@ -5623,7 +5623,7 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
         let compositeKey = try XCTUnwrap(vm.compositeKey)
 
-        try await vm.changeEncryptionSettings(cipher: .chacha20, kdfPreset: .maximum, isCompressed: false)
+        try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: .argon2id(.maximum), isCompressed: false)
 
         let change = try XCTUnwrap(capture.change)
         XCTAssertEqual(change.cipherID, KDBXParser.chachaCipherUUID)
@@ -5639,6 +5639,27 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertState(vm.state, is: .unlocked)
     }
 
+    func testChangeEncryptionSettingsWritesAESKDFParameters() async throws {
+        let capture = EncryptionSettingsCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, compositeKey, _, _, newCompositeKey, encryptionSettings in
+                capture.record(compositeKey: compositeKey, newCompositeKey: newCompositeKey, change: encryptionSettings)
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.changeEncryptionSettings(cipher: nil, keyDerivation: .aesKDF(rounds: 250_000), isCompressed: nil)
+
+        let change = try XCTUnwrap(capture.change)
+        XCTAssertNil(change.cipherID, "AES-KDF is a key derivation; the cipher stays as it was")
+        XCTAssertNil(change.compressionFlags)
+        XCTAssertEqual(change.kdfParameters?["$UUID"] as? Data, KDBXParser.aesKDFUUID)
+        XCTAssertEqual(change.kdfParameters?["R"] as? UInt64, 250_000)
+        XCTAssertEqual((change.kdfParameters?["S"] as? Data)?.count, 32)
+        XCTAssertNil(capture.newCompositeKey, "A settings change must not rekey.")
+    }
+
     func testChangeEncryptionSettingsLeavesUnchosenFieldsNil() async throws {
         let capture = EncryptionSettingsCapture()
         let vm = try makeViewModel(
@@ -5649,7 +5670,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        try await vm.changeEncryptionSettings(cipher: nil, kdfPreset: nil, isCompressed: true)
+        try await vm.changeEncryptionSettings(cipher: nil, keyDerivation: nil, isCompressed: true)
 
         let change = try XCTUnwrap(capture.change)
         XCTAssertNil(change.cipherID)
@@ -5667,7 +5688,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        try await vm.changeEncryptionSettings(cipher: nil, kdfPreset: nil, isCompressed: nil)
+        try await vm.changeEncryptionSettings(cipher: nil, keyDerivation: nil, isCompressed: nil)
 
         XCTAssertFalse(localSaverCalls.didCall)
     }
@@ -5703,7 +5724,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        try await vm.changeEncryptionSettings(cipher: .chacha20, kdfPreset: nil, isCompressed: nil)
+        try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
 
         XCTAssertEqual(capture.expectedRev, "rev-A")
         XCTAssertEqual(capture.change?.cipherID, KDBXParser.chachaCipherUUID)
@@ -5844,7 +5865,7 @@ final class DatabaseViewModelTests: XCTestCase {
         }
 
         await vm.unlock(password: fixturePassword)
-        try await vm.changeEncryptionSettings(cipher: .chacha20, kdfPreset: nil, isCompressed: nil)
+        try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
 
         for _ in 0..<200 where box.followUpDidRun == false {
             try await Task.sleep(nanoseconds: 10_000_000)
@@ -5860,7 +5881,7 @@ final class DatabaseViewModelTests: XCTestCase {
         line: UInt = #line
     ) async {
         do {
-            try await viewModel.changeEncryptionSettings(cipher: .chacha20, kdfPreset: nil, isCompressed: nil)
+            try await viewModel.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
             XCTFail("Expected \(expected)", file: file, line: line)
         } catch let error as DatabaseViewModel.EncryptionSettingsError {
             XCTAssertEqual(error, expected, file: file, line: line)

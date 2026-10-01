@@ -2768,6 +2768,46 @@
         }
       }
     },
+    "AES-KDF only strengthens the master key. The Encryption setting above still chooses the cipher that encrypts the database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF verstärkt nur den Master-Schlüssel. Die Einstellung „Verschlüsselung“ oben legt weiterhin fest, mit welchem Verfahren die Datenbank verschlüsselt wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF solo refuerza la clave maestra. El ajuste Cifrado de arriba sigue eligiendo el algoritmo que cifra la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF renforce uniquement la clé principale. Le réglage Chiffrement ci-dessus choisit toujours l'algorithme qui chiffre la base de données."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF はマスターキーを強化するだけです。データベースを暗号化する方式は、引き続き上の「暗号化」設定で選択します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF 仅用于增强主密钥。加密数据库所用的算法仍由上方的“加密”设置决定。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF 僅用於強化主金鑰。加密資料庫所用的演算法仍由上方的「加密」設定決定。"
+          }
+        }
+      }
+    },
     "After you click Create, choose the %@ folder for the encrypted .kdbx database." : {
       "localizations" : {
         "de" : {
@@ -13452,6 +13492,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請輸入此欄位的名稱。"
+          }
+        }
+      }
+    },
+    "Enter a number of rounds from 1 to %@." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geben Sie eine Rundenzahl von 1 bis %@ ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduzca un número de rondas entre 1 y %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez un nombre de tours compris entre 1 et %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1〜%@ のラウンド数を入力してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入 1 到 %@ 之间的轮数。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入 1 到 %@ 之間的回合數。"
           }
         }
       }
@@ -26698,6 +26778,46 @@
         }
       }
     },
+    "Rounds" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rondas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tours"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ラウンド数"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轮数"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回合數"
+          }
+        }
+      }
+    },
     "Save" : {
       "localizations" : {
         "de" : {
@@ -28016,6 +28136,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從選單列搜尋已開啟的資料庫，或在任何 App 中按下快速鍵。項目僅在資料庫解鎖時顯示；與主視窗相同，拷貝密碼時需要觸控 ID 或登入密碼。"
+          }
+        }
+      }
+    },
+    "Searched KeeForge’s copy of this database from %@. To find credentials added since then, open KeeForge to refresh it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Durchsucht wurde die Kopie dieser Datenbank in KeeForge vom %@. Öffnen Sie KeeForge, um sie zu aktualisieren und seitdem hinzugefügte Zugangsdaten zu finden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se buscó en la copia de esta base de datos de KeeForge del %@. Para encontrar credenciales añadidas desde entonces, abra KeeForge para actualizarla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recherche effectuée dans la copie de cette base de données enregistrée par KeeForge le %@. Pour trouver les identifiants ajoutés depuis, ouvrez KeeForge afin de l’actualiser."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 時点の KeeForge のデータベースのコピーを検索しました。それ以降に追加された認証情報を見つけるには、KeeForge を開いて更新してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已搜索 KeeForge 保存的此数据库副本（%@）。要查找此后添加的凭据，请打开 KeeForge 进行刷新。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已搜尋 KeeForge 儲存的此資料庫副本（%@）。若要尋找此後新增的憑證，請開啟 KeeForge 進行重新整理。"
           }
         }
       }

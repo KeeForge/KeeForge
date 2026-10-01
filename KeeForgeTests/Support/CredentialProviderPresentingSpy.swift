@@ -37,6 +37,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         let searchEntries: [KPEntry]
         let possibleEntries: [KPEntry]
         let initialSearchText: String
+        let sharedCopyDate: Date?
         let databaseSwitcher: CredentialProviderDatabaseSwitcherContext?
         let onCreateEntry: (() -> Void)?
         let onSelect: (KPEntry) -> Void
@@ -112,6 +113,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         searchEntries: [KPEntry],
         possibleEntries: [KPEntry],
         initialSearchText: String,
+        sharedCopyDate: Date?,
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
@@ -124,6 +126,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
             searchEntries: searchEntries,
             possibleEntries: possibleEntries,
             initialSearchText: initialSearchText,
+            sharedCopyDate: sharedCopyDate,
             databaseSwitcher: databaseSwitcher,
             onCreateEntry: onCreateEntry,
             onSelect: onSelect,
