@@ -292,8 +292,6 @@ struct RegularDatabaseWorkspaceView: View {
                 }
                 .navigationDestination(for: TagDestination.self) { destination in
                     switch destination {
-                    case .allTags:
-                        TagListView(viewModel: viewModel)
                     case .entries(let tag):
                         // Entries are selected, not pushed, in this shell.
                         TagEntriesView(

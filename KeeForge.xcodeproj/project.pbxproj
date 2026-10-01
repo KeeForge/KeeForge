@@ -79,6 +79,7 @@
 		12E7199018B10B3CDDCCE388 /* EntryHistoryTrimmer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B23EE0FFF365E0E5F1E571E /* EntryHistoryTrimmer.swift */; };
 		1344E56D5FE0305764940D0B /* FaviconServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3217CA8D7D14799D216386B /* FaviconServiceTests.swift */; };
 		13C3F39941088CAE7454884D /* SecurityScopedBookmarkManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB2A4FFD19CB42ECEDDAA7B9 /* SecurityScopedBookmarkManagerTests.swift */; };
+		13DC1E8DDA3103BD86AA55A3 /* ViewMenuUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8969A6B75C1386BF8799A3A /* ViewMenuUITests.swift */; };
 		151A067AB3D982AD9FEAF14A /* FieldReferenceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5262DAD579E97D03F4BBD00C /* FieldReferenceResolver.swift */; };
 		151FA82F58FBFB9A44D30936 /* test-arbitrary.key in Resources */ = {isa = PBXBuildFile; fileRef = 8F5D08487A8DF3C72204ADEB /* test-arbitrary.key */; };
 		15B3381D0284F9A9CD052094 /* WebDAVConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C45BE2A6CCF55DA054986A15 /* WebDAVConnectView.swift */; };
@@ -1151,6 +1152,7 @@
 		C45BE2A6CCF55DA054986A15 /* WebDAVConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVConnectView.swift; sourceTree = "<group>"; };
 		C4F5FB08EE2BFA9321FF6C45 /* DocumentsVaultScannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentsVaultScannerTests.swift; sourceTree = "<group>"; };
 		C758C904DCAA6C878595ABE5 /* TagListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagListView.swift; sourceTree = "<group>"; };
+		C8969A6B75C1386BF8799A3A /* ViewMenuUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewMenuUITests.swift; sourceTree = "<group>"; };
 		C8F125AC304D7385EF54E7A8 /* EntryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryListView.swift; sourceTree = "<group>"; };
 		C94BFF49F79AF65E70046790 /* PasswordImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordImport.swift; sourceTree = "<group>"; };
 		CA46D95A76DACF922DE02732 /* AutoFillMemoryLimitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillMemoryLimitTests.swift; sourceTree = "<group>"; };
@@ -1333,6 +1335,7 @@
 				61951932997F9667EC4417A3 /* TOTPSmokeUITests.swift */,
 				052B9C02DD70272885C3A280 /* UnlockedDatabaseUITests.swift */,
 				C2C726CD862BFFCE77228AAD /* UnlockFlowUITests.swift */,
+				C8969A6B75C1386BF8799A3A /* ViewMenuUITests.swift */,
 				707D0691762DF0F7082224A2 /* WebDAVSyncUITests.swift */,
 				7551C0188199B9860061E734 /* WhatsNewUITests.swift */,
 			);
@@ -2934,6 +2937,7 @@
 				197043DE03317AB46D816885 /* TagBrowserUITests.swift in Sources */,
 				EE51139DDDFD5C48CEF2E51F /* UnlockFlowUITests.swift in Sources */,
 				6BBAF1981D321C2A67191572 /* UnlockedDatabaseUITests.swift in Sources */,
+				13DC1E8DDA3103BD86AA55A3 /* ViewMenuUITests.swift in Sources */,
 				9C79590F954BF1DEAD2EDBA0 /* WebDAVSyncUITests.swift in Sources */,
 				558EA4C87B09976264E8A3AC /* WhatsNewUITests.swift in Sources */,
 			);

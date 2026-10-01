@@ -942,8 +942,6 @@ struct DatabaseNavigationView: View {
             }
             .navigationDestination(for: TagDestination.self) { destination in
                 switch destination {
-                case .allTags:
-                    TagListView(viewModel: viewModel)
                 case .entries(let tag):
                     TagEntriesView(tag: tag, viewModel: viewModel)
                 }

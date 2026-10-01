@@ -5,11 +5,9 @@ import SwiftUI
 /// Tags need their own destination type: `UUID` already means "group" and
 /// `KPEntry` already means "entry" in both stack shells, and a bare `String`
 /// would collide with any future string-valued destination. Both shells
-/// register this one type, so a tag pushed from the root Tags row, from the tag
-/// list, or from an entry-detail chip all land on the same screens.
+/// register this one type, so a tag pushed from the Tags view or from an
+/// entry-detail chip lands on the same screen.
 enum TagDestination: Hashable {
-    /// Every distinct tag in the database, with entry counts.
-    case allTags
     /// The entries carrying `tag`, matched exact-string.
     case entries(tag: String)
 }
@@ -35,14 +33,14 @@ enum TagAccessibility {
     }
 }
 
-/// Every distinct tag in the open database with the number of live entries
-/// carrying it, pushed from the root group list's Tags row.
+/// The rows of the root list's Tags view: every distinct tag in the open
+/// database with the number of live entries carrying it.
 ///
-/// Rows are plain `NavigationLink`s: both shells that reach this screen are
+/// Rows are plain `NavigationLink`s: both shells that show this view are
 /// `NavigationStack`s (the compact push and the iPad sidebar). macOS browses
 /// tags from its own sidebar section in `RegularDatabaseWorkspaceView` instead,
-/// so it never renders this view.
-struct TagListView: View {
+/// so it never renders them.
+struct TagListRows: View {
     @Bindable var viewModel: DatabaseViewModel
 
     private var tags: [String] {
@@ -50,24 +48,17 @@ struct TagListView: View {
     }
 
     var body: some View {
-        Group {
-            if tags.isEmpty {
-                ContentUnavailableView(
-                    "No Tags",
-                    systemImage: "tag",
-                    description: Text("Open an entry, tap Edit, and fill in its Tags field to gather related entries from any group.")
-                )
-            } else {
-                List {
-                    ForEach(Array(tags.enumerated()), id: \.element) { index, tag in
-                        tagRow(for: tag, fallbackIndex: index)
-                    }
-                }
-                .accessibilityIdentifier("tag-list")
+        if tags.isEmpty {
+            ContentUnavailableView(
+                "No Tags",
+                systemImage: "tag",
+                description: Text("Open an entry, tap Edit, and fill in its Tags field to gather related entries from any group.")
+            )
+        } else {
+            ForEach(Array(tags.enumerated()), id: \.element) { index, tag in
+                tagRow(for: tag, fallbackIndex: index)
             }
         }
-        .navigationTitle("Tags")
-        .navigationBarTitleDisplayMode(.large)
     }
 
     @ViewBuilder

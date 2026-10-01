@@ -95,6 +95,9 @@ class KeeForgeUITestCase: XCTestCase {
             return payload
         }
 
+        // The root list's view is remembered across launches; the argument
+        // domain pins every test to Groups whatever an earlier one picked.
+        app.launchArguments += ["-KeeForge.viewMode", "groups"]
         app.launchArguments += ["-ui-testing"]
         let payloadData = try JSONSerialization.data(withJSONObject: payloads, options: [])
         app.launchEnvironment[Self.uiTestDatabasesJSONEnv] = String(decoding: payloadData, as: UTF8.self)
@@ -1007,6 +1010,78 @@ class KeeForgeUITestCase: XCTestCase {
         app.buttons.matching(
             NSPredicate(format: "identifier == %@ OR label == %@", identifier, label)
         ).firstMatch
+    }
+
+    /// A view the database root can show; `rawValue` is the menu item's
+    /// identifier suffix and `label` its visible title.
+    enum DatabaseView: String {
+        case groups
+        case allEntries
+        case verificationCodes
+        case tags
+        case recycleBin
+
+        var label: String {
+            switch self {
+            case .groups: "Groups"
+            case .allEntries: "All Entries"
+            case .verificationCodes: "Verification Codes"
+            case .tags: "Tags"
+            case .recycleBin: "Recycle Bin"
+            }
+        }
+    }
+
+    /// Picks a view from the menu in the database root's title. The root must
+    /// be on screen.
+    func selectDatabaseView(_ view: DatabaseView, file: StaticString = #filePath, line: UInt = #line) {
+        let navigationBar = app.navigationBars.firstMatch
+        XCTAssertTrue(
+            navigationBar.waitForExistence(timeout: Self.ciElementTimeout),
+            "Database navigation bar was not visible",
+            file: file,
+            line: line
+        )
+        // The title button has no identifier of its own; its label is the
+        // title the bar is identified by.
+        let titleButton = navigationBar.buttons[navigationBar.identifier]
+        // A focused search field takes the title's place, even with its query
+        // cleared; iOS 26 ends the search with Close, earlier releases Cancel.
+        if titleButton.exists == false {
+            let endSearchButton = navigationBar.buttons.matching(
+                NSPredicate(format: "label IN %@", ["Close", "Cancel"])
+            ).firstMatch
+            if endSearchButton.exists {
+                endSearchButton.tap()
+            }
+        }
+        XCTAssertTrue(
+            titleButton.waitForExistence(timeout: Self.ciElementTimeout),
+            "Database title did not offer the view menu",
+            file: file,
+            line: line
+        )
+        tapElement(titleButton)
+
+        let item = menuButton(identifier: "view-menu.\(view.rawValue)", label: view.label)
+        XCTAssertTrue(
+            item.waitForExistence(timeout: Self.ciElementTimeout),
+            "View menu did not offer '\(view.label)'",
+            file: file,
+            line: line
+        )
+        item.tap()
+
+        // The Groups view is titled after the database, the others after
+        // themselves.
+        if view != .groups {
+            XCTAssertTrue(
+                app.navigationBars[view.label].waitForExistence(timeout: Self.ciElementTimeout),
+                "Root list did not switch to '\(view.label)'",
+                file: file,
+                line: line
+            )
+        }
     }
 
     @discardableResult

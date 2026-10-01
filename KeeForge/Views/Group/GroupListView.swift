@@ -44,22 +44,31 @@ struct GroupListView: View {
         viewModel.group(withID: groupID)
     }
 
+    /// The view the database root shows; `nil` on pushed levels, which always
+    /// browse their own group.
+    private var rootViewMode: DatabaseViewModel.ViewMode? {
+        groupID == viewModel.visibleRootGroupID ? viewModel.viewMode : nil
+    }
+
+    /// The group whose contents are listed: the recycle bin while the root
+    /// shows that view, this level's group otherwise.
+    private var listedGroup: KPGroup? {
+        rootViewMode == .recycleBin ? viewModel.recycleBinGroup : resolvedGroup
+    }
+
+    /// The recycle bin is opened from the view menu, never as a group row.
     private var visibleGroups: [KPGroup] {
-        resolvedGroup?.groups ?? []
+        let recycleBinID = viewModel.currentRootGroup?.recycleBinUUID
+        return listedGroup?.groups.filter { $0.id != recycleBinID } ?? []
     }
 
     private var visibleEntries: [KPEntry] {
-        resolvedGroup?.entries ?? []
+        listedGroup?.entries ?? []
     }
 
     private var isRecycleBin: Bool {
-        viewModel.currentRootGroup?.recycleBinUUID == groupID
-    }
-
-    /// Whether this level is the database root, where the Tags row belongs.
-    /// Same predicate `GroupListSearchModifier` uses to pick the root.
-    private var isVisibleRoot: Bool {
-        groupID == viewModel.visibleRootGroupID
+        guard let listedGroup else { return false }
+        return viewModel.currentRootGroup?.recycleBinUUID == listedGroup.id
     }
 
     private var showsCompactLockButton: Bool {
@@ -72,51 +81,34 @@ struct GroupListView: View {
         #endif
     }
 
+    /// An app built with the iOS 27 SDK folds trailing bar items into an
+    /// overflow menu when an inline title needs their room, which would put
+    /// Lock behind it under a long title. The pinned placement keeps the items
+    /// and truncates the title instead.
+    private var databaseActionsPlacement: ToolbarItemPlacement {
+        #if compiler(>=6.4)
+        #if os(iOS)
+        if #available(iOS 27.0, *) {
+            return .topBarPinnedTrailing
+        }
+        #endif
+        #endif
+        return .topBarTrailing
+    }
+
     var body: some View {
         Group {
             if viewModel.searchText.isEmpty {
                 if let resolvedGroup {
                     List {
-                        // Stays visible at zero tags: its empty state is what
-                        // teaches the user how to add one.
-                        if isVisibleRoot {
-                            Section {
-                                tagsRow()
-                            }
-                        }
-
-                        if !visibleGroups.isEmpty {
-                            Section("Groups") {
-                                ForEach(viewModel.sortedGroups(visibleGroups).map(\.id), id: \.self) { subgroupID in
-                                    groupRow(for: subgroupID)
-                                }
-                            }
-                        }
-
-                        if !visibleEntries.isEmpty {
-                            Section("Entries") {
-                                ForEach(viewModel.sortedEntries(visibleEntries)) { entry in
-                                    entryRow(for: entry)
-                                }
-                            }
-                        }
-
-                        // Describes the group's own contents only; at the root
-                        // the Tags section above stays put so the browser is
-                        // reachable from an otherwise empty vault.
-                        if visibleGroups.isEmpty && visibleEntries.isEmpty {
-                            ContentUnavailableView(
-                                "Empty Group",
-                                systemImage: "folder",
-                                description: Text("This group has no entries.")
-                            )
-                        }
+                        browsingRows
                     }
                     .id(viewModel.contentRevision)
-                    .navigationTitle(resolvedGroup.name)
-                    .navigationBarTitleDisplayMode(.large)
+                    .navigationTitle(navigationTitle(for: resolvedGroup))
+                    .navigationBarTitleDisplayMode(rootViewMode == nil ? .large : .inline)
+                    .modifier(GroupListViewMenu(view: self))
                     .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
+                        ToolbarItem(placement: databaseActionsPlacement) {
                             HStack(spacing: 12) {
                                 // Leads the trailing group rather than sitting
                                 // beside the system back button, which made an
@@ -143,7 +135,7 @@ struct GroupListView: View {
                                     ReadOnlyIndicator(explanation: viewModel.readOnlyExplanation)
                                 }
 
-                                if viewModel.isReadOnly == false {
+                                if viewModel.isReadOnly == false, rootViewMode != .recycleBin {
                                     Menu {
                                         Button("New Entry", systemImage: "doc.badge.plus") {
                                             let editor = EntryEditViewModel(
@@ -338,6 +330,49 @@ struct GroupListView: View {
         }
     }
 
+    /// Turns the database root's title into the view menu. Pushed levels keep
+    /// a plain title.
+    private struct GroupListViewMenu: ViewModifier {
+        let view: GroupListView
+
+        func body(content: Content) -> some View {
+            if view.rootViewMode == nil {
+                content
+            } else {
+                content
+                    .toolbarTitleMenu {
+                        Section {
+                            ForEach(DatabaseViewModel.ViewMode.browsingModes, id: \.self) { mode in
+                                viewToggle(for: mode)
+                            }
+                        }
+
+                        Section {
+                            viewToggle(for: .recycleBin)
+                        }
+                    }
+            }
+        }
+
+        /// Toggles rather than one `Picker`, whose options cannot be split
+        /// into sections inside a menu.
+        private func viewToggle(for mode: DatabaseViewModel.ViewMode) -> some View {
+            Toggle(
+                isOn: Binding(
+                    get: { view.viewModel.viewMode == mode },
+                    set: { isOn in
+                        if isOn {
+                            view.viewModel.viewMode = mode
+                        }
+                    }
+                )
+            ) {
+                Label(mode.title, systemImage: mode.systemImage)
+            }
+            .accessibilityIdentifier("view-menu.\(mode.rawValue)")
+        }
+    }
+
     /// Attaches the search field.
     ///
     /// iOS: every pushed level attaches `.searchable` (navigation-bar drawer),
@@ -380,17 +415,113 @@ struct GroupListView: View {
         }
     }
 
-    /// The root-level entry point into the tag browser. A plain
-    /// `NavigationLink`: every shell that renders this view browses through a
-    /// `NavigationStack` (the macOS split view builds its own sidebar Tags
-    /// section instead and never shows this row).
-    @ViewBuilder
-    private func tagsRow() -> some View {
-        NavigationLink(value: TagDestination.allTags) {
-            TagBrowserRow(viewModel: viewModel)
+    /// The Groups view keeps the database's own name as the root title; the
+    /// other views are titled after themselves.
+    private func navigationTitle(for group: KPGroup) -> String {
+        switch rootViewMode {
+        case .groups, nil:
+            group.name
+        case let mode?:
+            mode.title
         }
-        .accessibilityIdentifier("group-list.tags-row")
-        .macHoverHighlight()
+    }
+
+    @ViewBuilder
+    private var browsingRows: some View {
+        switch rootViewMode {
+        case .allEntries:
+            flatEntriesSection(
+                viewModel.allEntries,
+                summary: allEntriesSummary,
+                emptyTitle: "No Entries",
+                emptyDescription: "This database has no entries."
+            )
+        case .verificationCodes:
+            let entries = viewModel.verificationCodeEntries
+            flatEntriesSection(
+                entries,
+                summary: String(localized: "\(entries.count) entries"),
+                emptyTitle: "No Verification Codes",
+                emptyDescription: "Entries with a verification code appear here."
+            )
+        case .tags:
+            TagListRows(viewModel: viewModel)
+        case .recycleBin:
+            groupContents(
+                emptyTitle: "Recycle Bin Is Empty",
+                emptyDescription: "Deleted entries and groups appear here."
+            )
+        case .groups, nil:
+            groupContents(
+                emptyTitle: "Empty Group",
+                emptyDescription: "This group has no entries."
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func groupContents(
+        emptyTitle: LocalizedStringKey,
+        emptyDescription: LocalizedStringKey
+    ) -> some View {
+        if !visibleGroups.isEmpty {
+            Section("Groups") {
+                ForEach(viewModel.sortedGroups(visibleGroups).map(\.id), id: \.self) { subgroupID in
+                    groupRow(for: subgroupID)
+                }
+            }
+        }
+
+        if !visibleEntries.isEmpty {
+            Section("Entries") {
+                ForEach(viewModel.sortedEntries(visibleEntries)) { entry in
+                    entryRow(for: entry)
+                }
+            }
+        }
+
+        if visibleGroups.isEmpty && visibleEntries.isEmpty {
+            ContentUnavailableView(
+                emptyTitle,
+                systemImage: rootViewMode?.systemImage ?? "folder",
+                description: Text(emptyDescription)
+            )
+        }
+    }
+
+    /// Entries drawn from the whole database, so each row says where its entry
+    /// lives.
+    @ViewBuilder
+    private func flatEntriesSection(
+        _ entries: [KPEntry],
+        summary: String,
+        emptyTitle: LocalizedStringKey,
+        emptyDescription: LocalizedStringKey
+    ) -> some View {
+        if entries.isEmpty {
+            ContentUnavailableView(
+                emptyTitle,
+                systemImage: rootViewMode?.systemImage ?? "folder",
+                description: Text(emptyDescription)
+            )
+        } else {
+            Section {
+                ForEach(viewModel.sortedEntries(entries)) { entry in
+                    entryRow(for: entry, showsFolderPath: true)
+                }
+            } footer: {
+                Text(summary)
+                    .accessibilityIdentifier("group-list.summary")
+            }
+        }
+    }
+
+    private var allEntriesSummary: String {
+        let entries = String(localized: "\(viewModel.allEntries.count) entries")
+        let groupCount = viewModel.allEntriesGroupCount
+        guard groupCount > 0 else { return entries }
+        let groups = String(localized: "\(groupCount) groups")
+        return String(localized: "\(entries) in \(groups)")
     }
 
     @ViewBuilder
@@ -464,27 +595,25 @@ struct GroupListView: View {
     }
 
     @ViewBuilder
-    private func entryRow(for entry: KPEntry) -> some View {
+    private func entryRow(for entry: KPEntry, showsFolderPath: Bool = false) -> some View {
+        let row = EntryRow(
+            entry: entry,
+            username: viewModel.resolvingFieldReferences(entry.username),
+            customIconData: viewModel.customIconData(for: entry),
+            folderPath: showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil
+        )
         Group {
             if let onSelectEntry {
                 Button {
                     onSelectEntry(entry)
                 } label: {
-                    EntryRow(
-                        entry: entry,
-                        username: viewModel.resolvingFieldReferences(entry.username),
-                        customIconData: viewModel.customIconData(for: entry)
-                    )
+                    row
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("entry.navlink")
             } else {
                 NavigationLink(value: entry) {
-                    EntryRow(
-                        entry: entry,
-                        username: viewModel.resolvingFieldReferences(entry.username),
-                        customIconData: viewModel.customIconData(for: entry)
-                    )
+                    row
                 }
                 .accessibilityIdentifier("entry.navlink")
             }
@@ -693,18 +822,13 @@ struct GroupRow: View {
         viewModel.group(withID: groupID)
     }
 
-    private var isRecycleBin: Bool {
-        viewModel.currentRootGroup?.recycleBinUUID == groupID
-    }
-
     /// Matches `canChangeAutoFillExclusion`: the badge is only shown where the
     /// context menu can actually act on it. KeePass and KeePassXC set
     /// `<EnableSearching>False</EnableSearching>` on the recycle bins they
-    /// create, so without the second check every trashed subgroup in a
+    /// create, so without the first check every trashed subgroup in a
     /// KeePass-made database would inherit an unactionable badge.
     private var isExcludedFromAutoFill: Bool {
-        isRecycleBin == false
-            && viewModel.isGroupInRecycleBin(groupID: groupID) == false
+        viewModel.isGroupInRecycleBin(groupID: groupID) == false
             && viewModel.isGroupExcludedFromAutoFill(groupID: groupID)
     }
 
@@ -712,8 +836,7 @@ struct GroupRow: View {
         Group {
             if let group {
                 HStack {
-                    if !isRecycleBin,
-                       let iconData = viewModel.customIconData(for: group),
+                    if let iconData = viewModel.customIconData(for: group),
                        let icon = PlatformImage(data: iconData) {
                         Image(platformImage: icon)
                             .resizable()
@@ -723,9 +846,9 @@ struct GroupRow: View {
                             .frame(width: 28)
                     } else {
                         StandardIconView(
-                            iconID: isRecycleBin ? 43 : group.iconID,
-                            fallbackSystemName: isRecycleBin ? "trash" : "folder.fill",
-                            fallbackPalette: isRecycleBin ? .green : .blue
+                            iconID: group.iconID,
+                            fallbackSystemName: "folder.fill",
+                            fallbackPalette: .blue
                         )
                             .frame(width: 28)
                     }
@@ -751,31 +874,6 @@ struct GroupRow: View {
                 .contentShape(Rectangle())
             }
         }
-    }
-}
-
-/// The root list's "Tags" row: the database's distinct-tag count over the whole
-/// tree. Shown at zero too, so the tag browser is discoverable in a vault that
-/// has no tags yet.
-struct TagBrowserRow: View {
-    @Bindable var viewModel: DatabaseViewModel
-
-    var body: some View {
-        HStack {
-            Image(systemName: "tag")
-                .foregroundStyle(.tint)
-                .frame(width: 28)
-
-            VStack(alignment: .leading) {
-                Text("Tags")
-                    .font(.body)
-                Text("\(viewModel.allTags.count) tags")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 }
 
