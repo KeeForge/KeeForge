@@ -3150,6 +3150,15 @@ final class DatabaseViewModel {
         selectedEntryID = entryID
     }
 
+    /// Selects an entry in its own group, as the macOS menu bar quick search's
+    /// Open in KeeForge does. The window's search query is left alone: clearing
+    /// it would make the workspace drop the selection again.
+    func revealEntry(_ entryID: UUID) {
+        guard case .unlocked = state, let groupID = parentGroupID(forEntryID: entryID) else { return }
+        selectedGroupID = groupID
+        selectedEntryID = entryID
+    }
+
     func setReadOnly(_ isReadOnly: Bool) {
         DatabaseListStore.setReadOnly(isReadOnly, for: databaseReference)
         refreshDatabaseReference()
@@ -3660,16 +3669,21 @@ final class DatabaseViewModel {
     }
 
     private func updateSearchResults() {
-        let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedQuery.isEmpty == false else {
-            searchResults = []
-            return
-        }
+        searchResults = entries(matching: searchText)
+    }
+
+    /// The main search's matching rules for a query of the caller's own, so the
+    /// macOS menu bar quick search can search without moving the window's
+    /// search field. Empty while locked, because the index is.
+    func entries(matching rawQuery: String) -> [KPEntry] {
+        _ = contentRevision
+        let trimmedQuery = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedQuery.isEmpty == false else { return [] }
 
         let query = trimmedQuery
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             .lowercased()
-        searchResults = searchableEntries.filter { entry in
+        return searchableEntries.filter { entry in
             searchableEntryText[entry.id]?.contains(query) == true
         }
     }

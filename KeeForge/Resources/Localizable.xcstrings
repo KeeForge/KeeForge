@@ -3208,6 +3208,46 @@
         }
       }
     },
+    "Another app is already using this shortcut. Choose a different one." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine andere App verwendet dieses Tastenkürzel bereits. Wähle ein anderes aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otra app ya usa este atajo. Elige otro."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une autre app utilise déjà ce raccourci. Choisissez-en un autre."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このショートカットはすでに別のアプリで使用されています。別のショートカットを選択してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一个 App 已在使用此快捷键。请选择其他快捷键。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一個 App 已在使用此快速鍵。請選擇其他快速鍵。"
+          }
+        }
+      }
+    },
     "Another Dropbox sign-in is already in progress." : {
       "localizations" : {
         "de" : {
@@ -6050,6 +6090,46 @@
         }
       }
     },
+    "Choose a database in KeeForge to search it from here." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle in KeeForge eine Datenbank aus, um sie hier zu durchsuchen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige una base de datos en KeeForge para buscar en ella desde aquí."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez une base de données dans KeeForge pour la rechercher d'ici."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここから検索するには、KeeForge でデータベースを選択してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中选择一个数据库，即可在这里搜索。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中選擇一個資料庫，即可在這裡搜尋。"
+          }
+        }
+      }
+    },
     "Choose a group to view its entries." : {
       "localizations" : {
         "de" : {
@@ -6366,6 +6446,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇憑證"
+          }
+        }
+      }
+    },
+    "Choose Database…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbank auswählen…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir base de datos…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir une base de données…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースを選択…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择数据库…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇資料庫…"
           }
         }
       }
@@ -7126,6 +7246,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "清除金鑰檔案"
+          }
+        }
+      }
+    },
+    "Clear Shortcut" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tastenkürzel entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Borrar atajo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effacer le raccourci"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ショートカットを消去"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除快捷键"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除快速鍵"
           }
         }
       }
@@ -19536,6 +19696,46 @@
         }
       }
     },
+    "KeeForge Quick Search" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge-Schnellsuche"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Búsqueda rápida de KeeForge"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recherche rapide KeeForge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge クイック検索"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 快速搜索"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 快速搜尋"
+          }
+        }
+      }
+    },
     "KeeForge remembers this key file and prefills it when unlocking. To change the key file the database requires, change the master key." : {
       "localizations" : {
         "de" : {
@@ -21297,6 +21497,46 @@
         }
       }
     },
+    "Menu Bar" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menüleiste"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Barra de menús"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Barre des menus"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニューバー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "菜单栏"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選單列"
+          }
+        }
+      }
+    },
     "Merge Changes" : {
       "localizations" : {
         "de" : {
@@ -22377,6 +22617,46 @@
         }
       }
     },
+    "No Database Open" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Datenbank geöffnet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay ninguna base de datos abierta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune base de données ouverte"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースが開かれていません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未打开数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未開啟資料庫"
+          }
+        }
+      }
+    },
     "No Databases" : {
       "localizations" : {
         "de" : {
@@ -22933,6 +23213,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有登入資料"
+          }
+        }
+      }
+    },
+    "No Matching Entries" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine passenden Einträge"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay entradas coincidentes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune entrée correspondante"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致するエントリはありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配的条目"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有相符的項目"
           }
         }
       }
@@ -24054,6 +24374,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟資料庫…"
+          }
+        }
+      }
+    },
+    "Open in KeeForge" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In KeeForge öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir en KeeForge"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir dans KeeForge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge で開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中打开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中開啟"
           }
         }
       }
@@ -25658,6 +26018,46 @@
         }
       }
     },
+    "Quick Search Shortcut" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tastenkürzel für die Schnellsuche"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atajo de búsqueda rápida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raccourci de recherche rapide"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイック検索のショートカット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速搜索快捷键"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速搜尋快速鍵"
+          }
+        }
+      }
+    },
     "Re-encrypting Database" : {
       "localizations" : {
         "de" : {
@@ -26214,6 +26614,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新連接此雲端帳號以儲存變更。"
+          }
+        }
+      }
+    },
+    "Record Shortcut" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tastenkürzel aufnehmen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grabar atajo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer un raccourci"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ショートカットを記録"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录制快捷键"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "錄製快速鍵"
           }
         }
       }
@@ -28500,6 +28940,46 @@
         }
       }
     },
+    "Search %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ durchsuchen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar en %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher dans %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ を検索"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索“%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋「%@」"
+          }
+        }
+      }
+    },
     "Search entries" : {
       "localizations" : {
         "de" : {
@@ -28656,6 +29136,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜尋結果和標籤瀏覽器現在會顯示每個項目所在的資料夾，名稱相近的項目更容易區分。"
+          }
+        }
+      }
+    },
+    "Search the open database from the menu bar, or press the shortcut in any app. Entries appear only while the database is unlocked, and copying a password asks for Touch ID or your login password, as it does in the main window." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Durchsuche die geöffnete Datenbank über die Menüleiste oder drücke das Tastenkürzel in einer beliebigen App. Einträge erscheinen nur, solange die Datenbank entsperrt ist, und zum Kopieren eines Passworts werden wie im Hauptfenster Touch ID oder dein Anmeldepasswort abgefragt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Busca en la base de datos abierta desde la barra de menús o pulsa el atajo en cualquier app. Las entradas solo aparecen mientras la base de datos está desbloqueada y, para copiar una contraseña, se pide Touch ID o tu contraseña de inicio de sesión, igual que en la ventana principal."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recherchez dans la base de données ouverte depuis la barre des menus, ou appuyez sur le raccourci dans n'importe quelle app. Les entrées n'apparaissent que lorsque la base de données est déverrouillée, et la copie d'un mot de passe demande Touch ID ou votre mot de passe de session, comme dans la fenêtre principale."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニューバーから、またはどのアプリでもショートカットを押して、開いているデータベースを検索できます。エントリはデータベースのロックが解除されている間だけ表示され、パスワードをコピーするときはメインウインドウと同様に Touch ID またはログインパスワードが求められます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从菜单栏搜索已打开的数据库，或在任意 App 中按下快捷键。条目仅在数据库解锁时显示；与主窗口一样，拷贝密码时需要触控 ID 或登录密码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從選單列搜尋已開啟的資料庫，或在任何 App 中按下快速鍵。項目僅在資料庫解鎖時顯示；與主視窗相同，拷貝密碼時需要觸控 ID 或登入密碼。"
           }
         }
       }
@@ -29896,6 +30416,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在搜尋與自動填寫中顯示（覆寫上層設定）"
+          }
+        }
+      }
+    },
+    "Show KeeForge in the Menu Bar" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge in der Menüleiste anzeigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar KeeForge en la barra de menús"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher KeeForge dans la barre des menus"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニューバーに KeeForge を表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在菜单栏中显示 KeeForge"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在選單列中顯示 KeeForge"
           }
         }
       }
@@ -37788,6 +38348,46 @@
         }
       }
     },
+    "Type Shortcut…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tastenkürzel eingeben…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulsa el atajo…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez le raccourci…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ショートカットを入力…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "键入快捷键…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵入快速鍵…"
+          }
+        }
+      }
+    },
     "Type to search by title, username, URL, notes, or tags." : {
       "localizations" : {
         "de" : {
@@ -37824,6 +38424,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "輸入以依標題、使用者名稱、URL、備註或標籤搜尋。"
+          }
+        }
+      }
+    },
+    "Type to search this database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippe, um diese Datenbank zu durchsuchen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe para buscar en esta base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapez pour rechercher dans cette base de données."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力してこのデータベースを検索します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入内容以搜索此数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入內容以搜尋此資料庫。"
           }
         }
       }
@@ -38388,6 +39028,46 @@
         }
       }
     },
+    "Unlock this database in KeeForge to search it from here." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entsperre diese Datenbank in KeeForge, um sie hier zu durchsuchen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquea esta base de datos en KeeForge para buscar en ella desde aquí."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillez cette base de données dans KeeForge pour la rechercher d'ici."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここから検索するには、KeeForge でこのデータベースのロックを解除してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中解锁此数据库，即可在这里搜索。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中解鎖此資料庫，即可在這裡搜尋。"
+          }
+        }
+      }
+    },
     "Unlock with a YubiKey — experimental" : {
       "localizations" : {
         "de" : {
@@ -38544,6 +39224,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解鎖你的密碼資料庫"
+          }
+        }
+      }
+    },
+    "Unlock…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entsperren…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquear…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouiller…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ロック解除…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖…"
           }
         }
       }

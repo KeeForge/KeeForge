@@ -1711,6 +1711,71 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.isEntryInRecycleBin(entryID: target.id))
     }
 
+    // MARK: - Query search and reveal (macOS menu bar quick search, #156)
+
+    /// The quick search uses the main search's matching rules on a query of
+    /// its own, so typing in the menu bar panel never moves the window's
+    /// search field or its results.
+    func testEntriesMatchingAQueryFollowTheSearchRulesWithoutTouchingTheSearchField() async throws {
+        let visible = KPEntry(title: "Searchable Alpha")
+        let hidden = KPEntry(title: "Searchable Beta")
+        let other = KPEntry(title: "Something Else")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [visible, other]),
+            KPGroup(name: "Secret", entries: [hidden], searchingEnabled: .disabled),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(vm.entries(matching: "  searchable ").map(\.id), [visible.id])
+        XCTAssertTrue(vm.entries(matching: "   ").isEmpty)
+        XCTAssertEqual(vm.searchText, "")
+        XCTAssertTrue(vm.searchResults.isEmpty)
+    }
+
+    func testEntriesMatchingAQueryAreEmptyOnceLocked() async throws {
+        let target = KPEntry(title: "Searchable Alpha")
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [target]),
+        ]))
+        XCTAssertFalse(vm.entries(matching: "Searchable").isEmpty)
+
+        vm.lockRequest(force: true)
+
+        XCTAssertTrue(vm.entries(matching: "Searchable").isEmpty)
+    }
+
+    func testRevealEntrySelectsItInsideItsOwnGroup() async throws {
+        let target = KPEntry(title: "Nested Target")
+        let nested = KPGroup(name: "Nested", entries: [target])
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", groups: [
+            KPGroup(name: "Parent", groups: [nested]),
+        ]))
+        vm.searchText = "Nested"
+
+        vm.revealEntry(target.id)
+
+        XCTAssertEqual(vm.selectedGroupID, nested.id)
+        XCTAssertEqual(vm.selectedEntryID, target.id)
+        XCTAssertNil(vm.selectedTag)
+        XCTAssertEqual(vm.searchText, "Nested", "Clearing the query would make the workspace drop the selection")
+    }
+
+    func testRevealEntryIgnoresUnknownEntriesAndLockedSessions() async throws {
+        let target = KPEntry(title: "Target")
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [target]),
+        ]))
+        let groupBefore = vm.selectedGroupID
+
+        vm.revealEntry(UUID())
+        XCTAssertEqual(vm.selectedGroupID, groupBefore)
+        XCTAssertNil(vm.selectedEntryID)
+
+        vm.lockRequest(force: true)
+        vm.revealEntry(target.id)
+        XCTAssertNil(vm.selectedEntryID)
+    }
+
     // MARK: - Entry row Move to Group gate (#134)
 
     /// `EntryRowMoveAction.isAvailable` is the one gate every entry row's Move
