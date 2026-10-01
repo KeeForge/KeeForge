@@ -2458,8 +2458,8 @@ final class DatabaseViewModel {
         refreshDatabaseReference()
     }
 
-    /// Re-encrypts the unlocked database with a different cipher, Argon2id
-    /// preset, or compression setting under the same master key. A nil
+    /// Re-encrypts the unlocked database with a different cipher, key
+    /// derivation, or compression setting under the same master key. A nil
     /// argument keeps the file's current value.
     ///
     /// A conflict with concurrent changes aborts cleanly
@@ -2467,7 +2467,7 @@ final class DatabaseViewModel {
     /// untouched.
     func changeEncryptionSettings(
         cipher: DatabaseCreationCipher?,
-        kdfPreset: DatabaseCreationKDFPreset?,
+        keyDerivation: EncryptionSettingsKeyDerivation?,
         isCompressed: Bool?
     ) async throws {
         guard case .unlocked = state, let compositeKey, let openTimeSHA512 else {
@@ -2487,11 +2487,11 @@ final class DatabaseViewModel {
         if databaseReference.isCloudBacked, pendingUploadMarkerCheck(databaseReference) {
             throw EncryptionSettingsError.pendingUploadsExist
         }
-        guard cipher != nil || kdfPreset != nil || isCompressed != nil else { return }
+        guard cipher != nil || keyDerivation != nil || isCompressed != nil else { return }
 
         let change = EncryptionSettingsChange(
             cipherID: cipher?.cipherID,
-            kdfParameters: try kdfPreset.map { try DatabaseCreationDefaults.argon2idKDFParameters(preset: $0) },
+            kdfParameters: try keyDerivation?.kdfParameters(),
             compressionFlags: isCompressed.map { $0 ? 1 : 0 }
         )
         let workingDraft = try makeWorkingDraft()
