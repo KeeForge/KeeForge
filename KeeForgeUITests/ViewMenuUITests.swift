@@ -1,6 +1,6 @@
 import XCTest
 
-// Coverage for the view menu in the database root's title: Groups, All
+// Coverage for the view menu on the database root's title: Groups, All
 // Entries, Verification Codes, and the Recycle Bin, plus the view a database
 // opens on (`DefaultViewUITests`). The Tags view is driven by
 // `TagBrowserUITests`.
@@ -130,19 +130,13 @@ final class DefaultViewUITests: UnlockedDatabaseUITestCase {
 
     func testDatabaseOpensOnAllEntriesAgainAfterLocking() {
         unlockSuccessfully()
-        XCTAssertTrue(
-            app.navigationBars["All Entries"].waitForExistence(timeout: Self.ciElementTimeout),
-            "An unlocked database did not open on All Entries"
-        )
+        XCTAssertTrue(waitForDatabaseView(.allEntries), "An unlocked database did not open on All Entries")
 
         selectDatabaseView(.tags)
         tapElement(currentLockButton())
         XCTAssertTrue(waitForLockedState(), "Database did not lock")
 
         unlockSuccessfully()
-        XCTAssertTrue(
-            app.navigationBars["All Entries"].waitForExistence(timeout: Self.ciElementTimeout),
-            "Unlocking again returned to the view picked before locking"
-        )
+        XCTAssertTrue(waitForDatabaseView(.allEntries), "Unlocking again returned to the view picked before locking")
     }
 }

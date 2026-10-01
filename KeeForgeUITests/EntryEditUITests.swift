@@ -829,7 +829,7 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
             "Entry editor did not dismiss after permanently deleting a recycled entry"
         )
         XCTAssertTrue(
-            app.navigationBars[recycleBinGroupName].waitForExistence(timeout: 10),
+            waitForDatabaseView(.recycleBin, timeout: 10),
             "Did not return to the Recycle Bin list after the permanent delete"
         )
         XCTAssertFalse(

@@ -1033,36 +1033,18 @@ class KeeForgeUITestCase: XCTestCase {
         }
     }
 
-    /// Picks a view from the menu in the database root's title. The root must
-    /// be on screen.
+    /// Picks a view from the database root's view menu: the title with the
+    /// chevron (`view.menu`), or the same menu on the bar's title once the list
+    /// has scrolled the big one away.
     func selectDatabaseView(_ view: DatabaseView, file: StaticString = #filePath, line: UInt = #line) {
-        let navigationBar = app.navigationBars.firstMatch
+        let opener = viewMenuOpener()
         XCTAssertTrue(
-            navigationBar.waitForExistence(timeout: Self.ciElementTimeout),
-            "Database navigation bar was not visible",
+            opener.waitForExistence(timeout: Self.ciElementTimeout),
+            "Database root did not offer the view menu",
             file: file,
             line: line
         )
-        // The title button has no identifier of its own; its label is the
-        // title the bar is identified by.
-        let titleButton = navigationBar.buttons[navigationBar.identifier]
-        // A focused search field takes the title's place, even with its query
-        // cleared; iOS 26 ends the search with Close, earlier releases Cancel.
-        if titleButton.exists == false {
-            let endSearchButton = navigationBar.buttons.matching(
-                NSPredicate(format: "label IN %@", ["Close", "Cancel"])
-            ).firstMatch
-            if endSearchButton.exists {
-                endSearchButton.tap()
-            }
-        }
-        XCTAssertTrue(
-            titleButton.waitForExistence(timeout: Self.ciElementTimeout),
-            "Database title did not offer the view menu",
-            file: file,
-            line: line
-        )
-        tapElement(titleButton)
+        tapElement(opener)
 
         let item = menuButton(identifier: "view-menu.\(view.rawValue)", label: view.label)
         XCTAssertTrue(
@@ -1073,16 +1055,53 @@ class KeeForgeUITestCase: XCTestCase {
         )
         item.tap()
 
-        // The Groups view is titled after the database, the others after
-        // themselves.
-        if view != .groups {
-            XCTAssertTrue(
-                app.navigationBars[view.label].waitForExistence(timeout: Self.ciElementTimeout),
-                "Root list did not switch to '\(view.label)'",
-                file: file,
-                line: line
-            )
+        XCTAssertTrue(
+            waitForDatabaseView(view),
+            "Root list did not switch to '\(view.label)'",
+            file: file,
+            line: line
+        )
+    }
+
+    /// Whether the database root shows `view`, read from the title in the
+    /// list or, where the bar carries it, from the navigation bar.
+    func waitForDatabaseView(_ view: DatabaseView, timeout: TimeInterval = KeeForgeUITestCase.ciElementTimeout) -> Bool {
+        let title = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == 'view.menu' AND label CONTAINS %@", view.label)
+        ).firstMatch
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if title.exists || app.navigationBars[view.label].exists {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+        return title.exists || app.navigationBars[view.label].exists
+    }
+
+    private func viewMenuOpener() -> XCUIElement {
+        let menu = app.buttons["view.menu"].firstMatch
+        if menu.waitForExistence(timeout: 2), menu.isHittable {
+            return menu
         }
+
+        // A focused search field covers the root, even with its query cleared;
+        // iOS 26 ends the search with Close, earlier releases with Cancel.
+        let endSearchButton = app.buttons.matching(
+            NSPredicate(format: "label IN %@", ["Close", "Cancel"])
+        ).firstMatch
+        if endSearchButton.exists, endSearchButton.isHittable {
+            endSearchButton.tap()
+            if menu.waitForExistence(timeout: 2), menu.isHittable {
+                return menu
+            }
+        }
+
+        // Scrolled away: the bar's own title carries the menu. It has no
+        // identifier; its label is the title the bar is identified by.
+        let navigationBar = app.navigationBars.firstMatch
+        let barTitle = navigationBar.buttons[navigationBar.identifier]
+        return barTitle.exists ? barTitle : menu
     }
 
     @discardableResult

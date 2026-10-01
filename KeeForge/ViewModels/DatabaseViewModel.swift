@@ -357,7 +357,7 @@ final class DatabaseViewModel {
         }
     }
 
-    /// What the database's root list shows, chosen from the menu in its title.
+    /// What the database's root list shows, chosen from its view menu.
     enum ViewMode: String, Sendable {
         case groups
         case allEntries
@@ -367,7 +367,7 @@ final class DatabaseViewModel {
 
         /// The views of the live database, in menu order. The recycle bin is
         /// listed apart from them.
-        static let browsingModes: [ViewMode] = [.groups, .allEntries, .verificationCodes, .tags]
+        static let browsingModes: [ViewMode] = [.allEntries, .groups, .verificationCodes, .tags]
 
         var title: String {
             switch self {
@@ -391,7 +391,7 @@ final class DatabaseViewModel {
             case .allEntries:
                 "list.bullet.rectangle"
             case .verificationCodes:
-                "clock.badge.checkmark"
+                "clock"
             case .tags:
                 "tag"
             case .recycleBin:

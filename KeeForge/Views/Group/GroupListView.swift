@@ -36,6 +36,12 @@ struct GroupListView: View {
     @State private var pendingIconChange: PendingIconChange?
     /// The entry or group whose Move-to-Group picker is presented, or `nil`.
     @State private var pendingMove: PendingMove?
+    /// Whether the root's title header is on screen. Once it has scrolled
+    /// away the navigation bar shows the title instead.
+    @State private var isTitleHeaderVisible = true
+    /// The horizontal center of the list, where the database list's own
+    /// centered title sat before this screen replaced it.
+    @State private var listCenterX: CGFloat?
     #if os(macOS)
     @FocusState private var isSearchFieldFocused: Bool
     #endif
@@ -82,9 +88,9 @@ struct GroupListView: View {
     }
 
     /// An app built with the iOS 27 SDK folds trailing bar items into an
-    /// overflow menu when an inline title needs their room, which would put
-    /// Lock behind it under a long title. The pinned placement keeps the items
-    /// and truncates the title instead.
+    /// overflow menu when the title needs their room — a long title that has
+    /// scrolled inline is enough — which would put Lock behind it. The pinned
+    /// placement keeps the items and truncates the title instead.
     private var databaseActionsPlacement: ToolbarItemPlacement {
         #if compiler(>=6.4)
         #if os(iOS)
@@ -101,13 +107,31 @@ struct GroupListView: View {
             if viewModel.searchText.isEmpty {
                 if let resolvedGroup {
                     List {
+                        if hasTitleViewMenu, let rootViewMode {
+                            titleViewMenu(for: rootViewMode)
+                        }
                         browsingRows
                     }
                     .id(viewModel.contentRevision)
                     .navigationTitle(navigationTitle(for: resolvedGroup))
-                    .navigationBarTitleDisplayMode(rootViewMode == nil ? .large : .inline)
-                    .modifier(GroupListViewMenu(view: self))
+                    .modifier(GroupListTitleStyle(view: self))
+                    .onGeometryChange(for: CGFloat?.self) { proxy in
+                        // Empty until the first layout pass has run.
+                        proxy.size.width > 0 ? proxy.frame(in: .global).midX : nil
+                    } action: { centerX in
+                        listCenterX = centerX
+                    }
                     .toolbar {
+                        #if os(iOS)
+                        if #available(iOS 26.0, *), rootViewMode != nil {
+                            ToolbarItem(placement: .topBarLeading) {
+                                RootBarAppName(startCenterX: listCenterX)
+                                    .opacity(isTitleHeaderVisible ? 1 : 0)
+                            }
+                            .sharedBackgroundVisibility(.hidden)
+                        }
+                        #endif
+
                         ToolbarItem(placement: databaseActionsPlacement) {
                             HStack(spacing: 12) {
                                 // Leads the trailing group rather than sitting
@@ -158,6 +182,14 @@ struct GroupListView: View {
                                         Image(systemName: "plus")
                                     }
                                     .accessibilityIdentifier("entry-list.add-entry")
+                                }
+
+                                if rootViewMode != nil, hasTitleViewMenu == false {
+                                    viewMenu {
+                                        Image(systemName: "line.3.horizontal.decrease")
+                                    }
+                                    .accessibilityLabel("View")
+                                    .macHelp(String(localized: "View"))
                                 }
 
                                 Menu {
@@ -330,49 +362,6 @@ struct GroupListView: View {
         }
     }
 
-    /// Turns the database root's title into the view menu. Pushed levels keep
-    /// a plain title.
-    private struct GroupListViewMenu: ViewModifier {
-        let view: GroupListView
-
-        func body(content: Content) -> some View {
-            if view.rootViewMode == nil {
-                content
-            } else {
-                content
-                    .toolbarTitleMenu {
-                        Section {
-                            ForEach(DatabaseViewModel.ViewMode.browsingModes, id: \.self) { mode in
-                                viewToggle(for: mode)
-                            }
-                        }
-
-                        Section {
-                            viewToggle(for: .recycleBin)
-                        }
-                    }
-            }
-        }
-
-        /// Toggles rather than one `Picker`, whose options cannot be split
-        /// into sections inside a menu.
-        private func viewToggle(for mode: DatabaseViewModel.ViewMode) -> some View {
-            Toggle(
-                isOn: Binding(
-                    get: { view.viewModel.viewMode == mode },
-                    set: { isOn in
-                        if isOn {
-                            view.viewModel.viewMode = mode
-                        }
-                    }
-                )
-            ) {
-                Label(mode.title, systemImage: mode.systemImage)
-            }
-            .accessibilityIdentifier("view-menu.\(mode.rawValue)")
-        }
-    }
-
     /// Attaches the search field.
     ///
     /// iOS: every pushed level attaches `.searchable` (navigation-bar drawer),
@@ -405,25 +394,140 @@ struct GroupListView: View {
                 content
             }
             #else
-            content
-                .searchable(
-                    text: view.$viewModel.searchText,
-                    placement: .navigationBarDrawer(displayMode: .always),
-                    prompt: "Search entries"
-                )
+            // The system's default place from iOS 26 on: the bottom of the
+            // screen on iPhone.
+            if #available(iOS 26.0, *) {
+                content
+                    .searchable(text: view.$viewModel.searchText, prompt: "Search entries")
+            } else {
+                content
+                    .searchable(
+                        text: view.$viewModel.searchText,
+                        placement: .navigationBarDrawer(displayMode: .always),
+                        prompt: "Search entries"
+                    )
+            }
             #endif
         }
     }
 
-    /// The Groups view keeps the database's own name as the root title; the
-    /// other views are titled after themselves.
+    /// The root is titled after the view it shows, pushed levels after their
+    /// group.
     private func navigationTitle(for group: KPGroup) -> String {
-        switch rootViewMode {
-        case .groups, nil:
-            group.name
-        case let mode?:
-            mode.title
+        rootViewMode?.title ?? group.name
+    }
+
+    /// Switches what the database root lists. The Recycle Bin sits in a
+    /// section of its own, apart from the views of the live database.
+    private func viewMenu<MenuLabel: View>(@ViewBuilder label: () -> MenuLabel) -> some View {
+        Menu {
+            viewMenuItems
+        } label: {
+            label()
         }
+        .accessibilityIdentifier("view.menu")
+    }
+
+    @ViewBuilder
+    private var viewMenuItems: some View {
+        Section {
+            ForEach(DatabaseViewModel.ViewMode.browsingModes, id: \.self) { mode in
+                viewToggle(for: mode)
+            }
+        }
+
+        Section {
+            viewToggle(for: .recycleBin)
+        }
+    }
+
+    /// The root's title, drawn as the list's first header so that it can be a
+    /// menu: the navigation bar's own large title takes no taps, not even as
+    /// a custom `.largeTitle` toolbar item.
+    @ViewBuilder
+    private func titleViewMenu(for mode: DatabaseViewModel.ViewMode) -> some View {
+        let header = Section {
+        } header: {
+            viewMenu {
+                HStack(spacing: 8) {
+                    Text(mode.title)
+                        .font(.largeTitle.bold())
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.title3.weight(.semibold))
+                        .accessibilityHidden(true)
+                }
+                .foregroundStyle(Color.primary)
+            }
+            .textCase(nil)
+            .onScrollVisibilityChange(threshold: 0.4) { isVisible in
+                isTitleHeaderVisible = isVisible
+            }
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0))
+        }
+        // iOS only, like the header itself, which `hasTitleViewMenu` never
+        // shows on macOS.
+        #if os(iOS)
+        header.listSectionSpacing(0)
+        #else
+        header
+        #endif
+    }
+
+    /// Where the list draws the root's title, the bar stays empty until that
+    /// header has scrolled away, then shows the title inline with the same
+    /// menu, the way a large title collapses.
+    private struct GroupListTitleStyle: ViewModifier {
+        let view: GroupListView
+
+        func body(content: Content) -> some View {
+            #if os(iOS)
+            if view.hasTitleViewMenu, view.rootViewMode != nil {
+                content
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar(removing: view.isTitleHeaderVisible ? .title : nil)
+                    .toolbarTitleMenu {
+                        view.viewMenuItems
+                    }
+            } else {
+                content
+                    .navigationBarTitleDisplayMode(.large)
+            }
+            #else
+            content
+            #endif
+        }
+    }
+
+    /// From iOS 26 the search field sits at the bottom of the screen, which
+    /// leaves the top of the list free for a title that is the view menu.
+    /// Earlier systems keep the bar's large title over the search drawer and
+    /// get the menu as a toolbar button.
+    private var hasTitleViewMenu: Bool {
+        #if os(iOS)
+        if #available(iOS 26.0, *) {
+            return true
+        }
+        #endif
+        return false
+    }
+
+    /// Toggles rather than one `Picker`, whose options cannot be split into
+    /// sections inside a menu.
+    private func viewToggle(for mode: DatabaseViewModel.ViewMode) -> some View {
+        Toggle(
+            isOn: Binding(
+                get: { viewModel.viewMode == mode },
+                set: { isOn in
+                    if isOn {
+                        viewModel.viewMode = mode
+                    }
+                }
+            )
+        ) {
+            Label(mode.title, systemImage: mode.systemImage)
+        }
+        .accessibilityIdentifier("view-menu.\(mode.rawValue)")
     }
 
     @ViewBuilder
@@ -795,6 +899,62 @@ struct GroupListView: View {
     }
 }
 
+/// The app's name in the leading corner of the database root's bar. The
+/// database list shows the same name centered, so on unlock it starts there
+/// and slides into the corner instead of leaving that side of the bar empty.
+private struct RootBarAppName: View {
+    /// Where the slide starts; `nil` until the list has been laid out.
+    let startCenterX: CGFloat?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var restingCenterX: CGFloat?
+    @State private var offset: CGFloat = 0
+    /// Shown, at the slide's starting point.
+    @State private var hasStarted = false
+    @State private var hasSlidIn = false
+
+    var body: some View {
+        Text("KeeForge")
+            .font(.headline)
+            .fixedSize()
+            .onGeometryChange(for: CGFloat?.self) { proxy in
+                proxy.size.width > 0 ? proxy.frame(in: .global).midX : nil
+            } action: { centerX in
+                restingCenterX = centerX
+                slideInIfReady()
+            }
+            .onChange(of: startCenterX) { _, _ in
+                slideInIfReady()
+            }
+            .offset(x: offset)
+            .opacity(hasStarted ? 1 : 0)
+            .accessibilityHidden(true)
+    }
+
+    private func slideInIfReady() {
+        guard hasSlidIn == false, let startCenterX, let restingCenterX else { return }
+        guard reduceMotion == false else {
+            hasStarted = true
+            hasSlidIn = true
+            return
+        }
+        // Tracks the measurements until the slide begins: the first ones can
+        // arrive before the bar has placed the text.
+        offset = startCenterX - restingCenterX
+        guard hasStarted == false else { return }
+        hasStarted = true
+        // A later update: animating in the one that places the text at its
+        // start would collapse into no movement at all. The pause lets the
+        // unlock sheet clear the bar first.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(250))
+            hasSlidIn = true
+            withAnimation(.smooth(duration: 0.5)) {
+                offset = 0
+            }
+        }
+    }
+}
+
 struct NewGroupSheet: View {
     @Binding var name: String
     @Binding var errorMessage: String?
@@ -963,7 +1123,7 @@ struct EntryRow: View {
             }
 
             if entry.totpConfig != nil {
-                Image(systemName: "clock.badge.checkmark")
+                Image(systemName: "clock")
                     .font(.caption)
                     .foregroundStyle(.green)
                     .accessibilityLabel("Has a verification code")
