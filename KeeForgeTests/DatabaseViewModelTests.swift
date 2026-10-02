@@ -1923,6 +1923,138 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.folderPath(forEntryID: topLevel.id))
     }
 
+    /// All Entries is a browsing surface like the tag browser: it keeps the
+    /// entries of groups hidden from search, and drops only what is recycled.
+    func testAllEntriesListsEveryEntryOutsideTheRecycleBin() async throws {
+        let recycleBin = KPGroup(
+            name: "Recycle Bin",
+            entries: [KPEntry(title: "Recycled")],
+            groups: [KPGroup(name: "Old Projects", entries: [KPEntry(title: "Recycled Nested")])]
+        )
+        let root = KPGroup(
+            name: "Root",
+            entries: [KPEntry(title: "Top Level")],
+            groups: [
+                KPGroup(
+                    name: "Work",
+                    entries: [KPEntry(title: "VPN")],
+                    groups: [KPGroup(name: "Tools", entries: [KPEntry(title: "Team Chat")])]
+                ),
+                KPGroup(name: "Secret", entries: [KPEntry(title: "Hidden")], searchingEnabled: .disabled),
+                recycleBin,
+            ],
+            recycleBinUUID: recycleBin.id
+        )
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(vm.allEntries.map(\.title), ["Top Level", "VPN", "Team Chat", "Hidden"])
+        XCTAssertEqual(
+            vm.allEntriesGroupCount,
+            3,
+            "Work, Tools and Secret; neither the root nor the recycle bin's groups count"
+        )
+        XCTAssertEqual(vm.recycleBinGroup?.id, recycleBin.id)
+    }
+
+    /// The visible root is where browsing starts, so like the parser's
+    /// wrapper above it, it is not one of the groups the entries are spread
+    /// over.
+    func testAllEntriesGroupCountExcludesSyntheticWrapperAndVisibleRoot() async throws {
+        let wrapper = KPGroup(name: "Wrapper", groups: [
+            KPGroup(
+                name: "Passwords",
+                entries: [KPEntry(title: "Top Level")],
+                groups: [KPGroup(name: "Work", entries: [KPEntry(title: "Nested")])]
+            ),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: wrapper)
+
+        XCTAssertEqual(vm.allEntries.map(\.title), ["Top Level", "Nested"])
+        XCTAssertEqual(vm.allEntriesGroupCount, 1)
+        XCTAssertNil(vm.recycleBinGroup, "Nothing has been recycled, so there is no bin to open")
+    }
+
+    func testAllEntriesFollowsARecycledEntryOutOfTheList() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "All Entries Recycle")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.applyEntryEdit(
+            .createEntry(parentGroupID: parentGroupID, draft: EntryDraftPayload(title: "Doomed"))
+        )
+        try vm.applyEntryEdit(
+            .createEntry(parentGroupID: parentGroupID, draft: EntryDraftPayload(title: "Survivor"))
+        )
+        let doomed = try XCTUnwrap(vm.allEntries.first(where: { $0.title == "Doomed" }))
+        let groupCountBeforeDelete = vm.allEntriesGroupCount
+
+        try vm.deleteEntry(doomed.id, sendToRecycleBin: true)
+
+        XCTAssertEqual(vm.allEntries.map(\.title), ["Survivor"])
+        XCTAssertEqual(vm.recycleBinGroup?.entries.map(\.id), [doomed.id])
+        XCTAssertEqual(
+            vm.allEntriesGroupCount,
+            groupCountBeforeDelete,
+            "The bin the delete created is not a browsing group"
+        )
+    }
+
+    func testVerificationCodeEntriesKeepsOnlyLiveEntriesWithACode() async throws {
+        let totpConfig = TOTPConfig(secret: EncryptedValue(sealedData: Data([0]), hasValue: true))
+        let recycleBin = KPGroup(
+            name: "Recycle Bin",
+            entries: [KPEntry(title: "Recycled Code", totpConfig: totpConfig)]
+        )
+        let root = KPGroup(
+            name: "Root",
+            entries: [KPEntry(title: "No Code")],
+            groups: [
+                KPGroup(name: "Work", entries: [
+                    KPEntry(title: "Code", totpConfig: totpConfig),
+                    KPEntry(title: "Also No Code"),
+                ]),
+                recycleBin,
+            ],
+            recycleBinUUID: recycleBin.id
+        )
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(vm.verificationCodeEntries.map(\.title), ["Code"])
+    }
+
+    func testDatabaseOpensOnAllEntriesAndLockingReturnsThere() async throws {
+        let vm = try makeViewModel()
+        XCTAssertEqual(vm.viewMode, .allEntries)
+
+        await vm.unlock(password: fixturePassword)
+        vm.viewMode = .verificationCodes
+
+        vm.lock()
+
+        XCTAssertEqual(vm.viewMode, .allEntries, "The next unlock starts on All Entries, not on the view last picked")
+    }
+
+    func testInitialViewModeHonorsTheOverrideOnlyUnderUITesting() {
+        XCTAssertEqual(DatabaseViewModel.initialViewMode(arguments: [], environment: [:]), .allEntries)
+        XCTAssertEqual(
+            DatabaseViewModel.initialViewMode(
+                arguments: ["-ui-testing"],
+                environment: ["UI_TEST_VIEW_MODE": "groups"]
+            ),
+            .groups
+        )
+        XCTAssertEqual(
+            DatabaseViewModel.initialViewMode(arguments: [], environment: ["UI_TEST_VIEW_MODE": "groups"]),
+            .allEntries,
+            "Outside UI testing the environment cannot change where a database opens"
+        )
+        XCTAssertEqual(
+            DatabaseViewModel.initialViewMode(
+                arguments: ["-ui-testing"],
+                environment: ["UI_TEST_VIEW_MODE": "no-such-view"]
+            ),
+            .allEntries
+        )
+    }
+
     func testHidingGroupFromAutoFillRemovesItsEntriesFromCredentialStore() async throws {
         let vm = try makeViewModel()
         var observedEntries: [[KPEntry]] = []
@@ -3303,7 +3435,7 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
 
         vm.selectedTag = "anything"
-        vm.navigationPath.append(TagDestination.allTags)
+        vm.navigationPath.append(TagDestination.entries(tag: "anything"))
 
         vm.lock()
 

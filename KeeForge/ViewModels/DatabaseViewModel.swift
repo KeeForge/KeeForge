@@ -357,6 +357,49 @@ final class DatabaseViewModel {
         }
     }
 
+    /// What the database's root list shows, chosen from its view menu.
+    enum ViewMode: String, Sendable {
+        case groups
+        case allEntries
+        case verificationCodes
+        case tags
+        case recycleBin
+
+        /// The views of the live database, in menu order. The recycle bin is
+        /// listed apart from them.
+        static let browsingModes: [ViewMode] = [.allEntries, .groups, .verificationCodes, .tags]
+
+        var title: String {
+            switch self {
+            case .groups:
+                String(localized: "Groups")
+            case .allEntries:
+                String(localized: "All Entries")
+            case .verificationCodes:
+                String(localized: "Verification Codes")
+            case .tags:
+                String(localized: "Tags")
+            case .recycleBin:
+                String(localized: "Recycle Bin")
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .groups:
+                "folder"
+            case .allEntries:
+                "list.bullet.rectangle"
+            case .verificationCodes:
+                "clock"
+            case .tags:
+                "tag"
+            case .recycleBin:
+                "trash"
+            }
+        }
+    }
+
     typealias CloudSyncOperation = @Sendable (
         _ reference: DatabaseReference,
         _ progress: @escaping @Sendable (Double) -> Void
@@ -517,6 +560,11 @@ final class DatabaseViewModel {
     var sortOrder: SortOrder {
         didSet { Self.persistSortOrder(sortOrder) }
     }
+    /// Session state like the navigation path: every unlock starts on
+    /// `initialViewMode` again.
+    var viewMode = DatabaseViewModel.initialViewMode() {
+        didSet { resetInactivityTimer() }
+    }
 
     private(set) var failedAttempts = 0
     private(set) var lockoutUntil: Date?
@@ -603,6 +651,11 @@ final class DatabaseViewModel {
     private var groupEntryCounts: [UUID: Int] = [:]
     private var searchableEntries: [KPEntry] = []
     private var searchableEntryText: [UUID: String] = [:]
+    /// Every entry outside the recycle bin, in tree order. Unlike
+    /// `searchableEntries` it keeps entries in groups hidden from search.
+    private var liveEntries: [KPEntry] = []
+    /// Groups below the visible root, outside the recycle bin.
+    private var liveGroupCount = 0
     /// Live (non-recycled) entries carrying each distinct tag, in tree order.
     /// Tag identity is exact-string, so `Work` and `work` are separate keys.
     private var tagEntryIDs: [String: [UUID]] = [:]
@@ -1297,6 +1350,31 @@ final class DatabaseViewModel {
             case .orderedSame: return lhs < rhs
             }
         }
+    }
+
+    /// Every entry outside the recycle bin, in tree order — callers sort for
+    /// display.
+    var allEntries: [KPEntry] {
+        _ = contentRevision
+        return liveEntries
+    }
+
+    /// `allEntries` narrowed to the ones that generate a verification code.
+    var verificationCodeEntries: [KPEntry] {
+        allEntries.filter { $0.totpConfig != nil }
+    }
+
+    /// How many groups `allEntries` is spread over at most: every group below
+    /// the visible root that is not in the recycle bin.
+    var allEntriesGroupCount: Int {
+        _ = contentRevision
+        return liveGroupCount
+    }
+
+    /// The recycle bin group; `nil` while the database has none.
+    var recycleBinGroup: KPGroup? {
+        guard let recycleBinID = currentRootGroup?.recycleBinUUID else { return nil }
+        return group(withID: recycleBinID)
     }
 
     /// How many live entries carry `tag`, matched exact-string.
@@ -2033,6 +2111,7 @@ final class DatabaseViewModel {
             : Self.decryptingStatusMessage
         searchText = ""
         navigationPath = NavigationPath()
+        viewMode = Self.initialViewMode()
         selectedGroupID = nil
         selectedTag = nil
         selectedEntryID = nil
@@ -3532,6 +3611,20 @@ final class DatabaseViewModel {
         UserDefaults.standard.set(ascending, forKey: sortAscendingKey)
     }
 
+    /// A database opens on All Entries. UI tests can start on another view
+    /// through `UI_TEST_VIEW_MODE`: their helpers browse from the group list.
+    static func initialViewMode(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> ViewMode {
+        guard arguments.contains("-ui-testing"),
+              let rawValue = environment["UI_TEST_VIEW_MODE"],
+              let mode = ViewMode(rawValue: rawValue) else {
+            return .allEntries
+        }
+        return mode
+    }
+
     // MARK: - Private
 
     /// Shared with tests so status-message assertions stay locale-agnostic.
@@ -3560,6 +3653,8 @@ final class DatabaseViewModel {
             groupEntryCounts = [:]
             searchableEntries = []
             searchableEntryText = [:]
+            liveEntries = []
+            liveGroupCount = 0
             tagEntryIDs = [:]
             groupInheritedTags = [:]
             entryParentGroupIDs = [:]
@@ -3579,6 +3674,8 @@ final class DatabaseViewModel {
         var nextGroupEntryCounts: [UUID: Int] = [:]
         var nextSearchableEntries: [KPEntry] = []
         var nextSearchableEntryText: [UUID: String] = [:]
+        var nextLiveEntries: [KPEntry] = []
+        var nextLiveGroupCount = 0
         var nextTagEntryIDs: [String: [UUID]] = [:]
         var nextGroupInheritedTags: [UUID: [String]] = [:]
         var nextEntryParentGroupIDs: [UUID: UUID] = [:]
@@ -3600,6 +3697,9 @@ final class DatabaseViewModel {
             nextGroupIndex[group.id] = group
             if includeInSearch == false, group.id != recycleBinID {
                 nextRecycleBinGroupIDs.insert(group.id)
+            }
+            if includeInSearch, group.id != root.id, group.id != visibleRootID {
+                nextLiveGroupCount += 1
             }
 
             // Mirrors `KPGroup.autoFillEntries`: an absent element or `.inherit`
@@ -3634,6 +3734,7 @@ final class DatabaseViewModel {
                 }
                 totalEntryCount += 1
                 if includeInSearch {
+                    nextLiveEntries.append(entry)
                     let tags = Self.effectiveTags(for: entry, inheritedGroupTags: accumulatedTags)
                     // A disabled `<EnableSearching>` hides the entry from the
                     // search corpus (KeePass's reading of the flag) as well as
@@ -3676,6 +3777,8 @@ final class DatabaseViewModel {
         groupEntryCounts = nextGroupEntryCounts
         searchableEntries = nextSearchableEntries
         searchableEntryText = nextSearchableEntryText
+        liveEntries = nextLiveEntries
+        liveGroupCount = nextLiveGroupCount
         tagEntryIDs = nextTagEntryIDs
         groupInheritedTags = nextGroupInheritedTags
         entryParentGroupIDs = nextEntryParentGroupIDs

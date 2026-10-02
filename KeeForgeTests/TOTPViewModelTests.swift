@@ -32,4 +32,11 @@ final class TOTPViewModelTests: XCTestCase {
 
         vm.stop()
     }
+
+    func testGroupedCodeSplitsAnEvenLengthCodeInTheMiddle() {
+        XCTAssertEqual(TOTPViewModel.grouped("284019"), "284 019")
+        XCTAssertEqual(TOTPViewModel.grouped("12345678"), "1234 5678")
+        XCTAssertEqual(TOTPViewModel.grouped("1234567"), "1234567", "Seven digits have no middle to split at")
+        XCTAssertEqual(TOTPViewModel.grouped("------"), "--- ---")
+    }
 }

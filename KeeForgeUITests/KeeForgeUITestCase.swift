@@ -4,6 +4,7 @@ import XCTest
 class KeeForgeUITestCase: XCTestCase {
     private static let uiTestDBBase64Env = "UI_TEST_DB_BASE64"
     private static let uiTestDBFilenameEnv = "UI_TEST_DB_FILENAME"
+    static let uiTestViewModeEnv = "UI_TEST_VIEW_MODE"
     private static let uiTestDatabasesJSONEnv = "UI_TEST_DATABASES_JSON"
     private static let uiTestKeyFileBase64Env = "UI_TEST_KEYFILE_BASE64"
     private static let uiTestKeyFileFilenameEnv = "UI_TEST_KEYFILE_FILENAME"
@@ -96,6 +97,9 @@ class KeeForgeUITestCase: XCTestCase {
         }
 
         app.launchArguments += ["-ui-testing"]
+        // A database opens on All Entries; the helpers here browse from the
+        // group list, so tests start there unless a class clears this.
+        app.launchEnvironment[Self.uiTestViewModeEnv] = "groups"
         let payloadData = try JSONSerialization.data(withJSONObject: payloads, options: [])
         app.launchEnvironment[Self.uiTestDatabasesJSONEnv] = String(decoding: payloadData, as: UTF8.self)
 
@@ -1007,6 +1011,97 @@ class KeeForgeUITestCase: XCTestCase {
         app.buttons.matching(
             NSPredicate(format: "identifier == %@ OR label == %@", identifier, label)
         ).firstMatch
+    }
+
+    /// A view the database root can show; `rawValue` is the menu item's
+    /// identifier suffix and `label` its visible title.
+    enum DatabaseView: String {
+        case groups
+        case allEntries
+        case verificationCodes
+        case tags
+        case recycleBin
+
+        var label: String {
+            switch self {
+            case .groups: "Groups"
+            case .allEntries: "All Entries"
+            case .verificationCodes: "Verification Codes"
+            case .tags: "Tags"
+            case .recycleBin: "Recycle Bin"
+            }
+        }
+    }
+
+    /// Picks a view from the database root's view menu: the title with the
+    /// chevron (`view.menu`), or the same menu on the bar's title once the list
+    /// has scrolled the big one away.
+    func selectDatabaseView(_ view: DatabaseView, file: StaticString = #filePath, line: UInt = #line) {
+        let opener = viewMenuOpener()
+        XCTAssertTrue(
+            opener.waitForExistence(timeout: Self.ciElementTimeout),
+            "Database root did not offer the view menu",
+            file: file,
+            line: line
+        )
+        tapElement(opener)
+
+        let item = menuButton(identifier: "view-menu.\(view.rawValue)", label: view.label)
+        XCTAssertTrue(
+            item.waitForExistence(timeout: Self.ciElementTimeout),
+            "View menu did not offer '\(view.label)'",
+            file: file,
+            line: line
+        )
+        item.tap()
+
+        XCTAssertTrue(
+            waitForDatabaseView(view),
+            "Root list did not switch to '\(view.label)'",
+            file: file,
+            line: line
+        )
+    }
+
+    /// Whether the database root shows `view`, read from the title in the
+    /// list or, where the bar carries it, from the navigation bar.
+    func waitForDatabaseView(_ view: DatabaseView, timeout: TimeInterval = KeeForgeUITestCase.ciElementTimeout) -> Bool {
+        let title = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == 'view.menu' AND label CONTAINS %@", view.label)
+        ).firstMatch
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if title.exists || app.navigationBars[view.label].exists {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+        return title.exists || app.navigationBars[view.label].exists
+    }
+
+    private func viewMenuOpener() -> XCUIElement {
+        let menu = app.buttons["view.menu"].firstMatch
+        if menu.waitForExistence(timeout: 2), menu.isHittable {
+            return menu
+        }
+
+        // A focused search field covers the root, even with its query cleared;
+        // iOS 26 ends the search with Close, earlier releases with Cancel.
+        let endSearchButton = app.buttons.matching(
+            NSPredicate(format: "label IN %@", ["Close", "Cancel"])
+        ).firstMatch
+        if endSearchButton.exists, endSearchButton.isHittable {
+            endSearchButton.tap()
+            if menu.waitForExistence(timeout: 2), menu.isHittable {
+                return menu
+            }
+        }
+
+        // Scrolled away: the bar's own title carries the menu. It has no
+        // identifier; its label is the title the bar is identified by.
+        let navigationBar = app.navigationBars.firstMatch
+        let barTitle = navigationBar.buttons[navigationBar.identifier]
+        return barTitle.exists ? barTitle : menu
     }
 
     @discardableResult

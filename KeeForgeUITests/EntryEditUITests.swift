@@ -606,7 +606,7 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
         XCTAssertFalse(entry(named: twitterEntryTitle).exists)
 
         tapBackButton()
-        openGroup(named: recycleBinGroupName)
+        selectDatabaseView(.recycleBin)
         XCTAssertTrue(
             revealElement(entry(named: twitterEntryTitle)),
             "Twitter entry was not moved into the recycle bin"
@@ -632,7 +632,7 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
         XCTAssertFalse(entry(named: discordEntryTitle).exists)
 
         tapBackButton()
-        openGroup(named: recycleBinGroupName)
+        selectDatabaseView(.recycleBin)
         XCTAssertTrue(
             revealElement(entry(named: discordEntryTitle)),
             "Discord entry was not moved into the recycle bin"
@@ -669,7 +669,7 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
 
         XCTAssertFalse(group(named: workGroupName).exists)
 
-        openGroup(named: recycleBinGroupName)
+        selectDatabaseView(.recycleBin)
         XCTAssertTrue(
             revealElement(group(named: workGroupName)),
             "Work group was not moved into the recycle bin"
@@ -693,7 +693,7 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
 
         XCTAssertFalse(group(named: "Empty").exists)
 
-        openGroup(named: recycleBinGroupName)
+        selectDatabaseView(.recycleBin)
         XCTAssertTrue(
             revealElement(group(named: "Empty")),
             "Empty group was not moved into the recycle bin"
@@ -705,7 +705,7 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
 
         createRecycleBinByDeletingEmptyGroup()
 
-        openGroup(named: recycleBinGroupName)
+        selectDatabaseView(.recycleBin)
         let recycledEmptyGroup = group(named: "Empty")
         XCTAssertTrue(revealElement(recycledEmptyGroup), "Recycled Empty group was not visible")
 
@@ -720,27 +720,15 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
         XCTAssertFalse(group(named: "Empty").exists)
     }
 
-    func testRecycleBinGroupHasNoDeleteSwipeAction() {
+    /// The bin is a view of its own, so the group list has no bin row that
+    /// could offer to delete, edit, or move it.
+    func testRecycleBinIsNotListedAsAGroup() {
         unlockSuccessfully()
 
         createRecycleBinByDeletingEmptyGroup()
 
-        let recycleBinGroup = group(named: recycleBinGroupName)
-        XCTAssertTrue(revealElement(recycleBinGroup), "Recycle Bin group was not visible")
-        recycleBinGroup.swipeLeft()
-        XCTAssertFalse(app.buttons["group-row.delete-swipe"].waitForExistence(timeout: 2))
-    }
-
-    func testRecycleBinGroupHasNoDeleteContextAction() {
-        unlockSuccessfully()
-
-        createRecycleBinByDeletingEmptyGroup()
-
-        let recycleBinGroup = group(named: recycleBinGroupName)
-        XCTAssertTrue(revealElement(recycleBinGroup), "Recycle Bin group was not visible")
-        recycleBinGroup.press(forDuration: 1.2)
-        XCTAssertFalse(app.buttons["group-row.delete-context"].waitForExistence(timeout: 2))
-        XCTAssertFalse(app.buttons["group-row.delete-permanent"].exists)
+        XCTAssertTrue(revealElement(group(named: workGroupName)), "Root group list was not visible")
+        XCTAssertFalse(group(named: recycleBinGroupName).exists, "The recycle bin was listed as a group")
     }
 
     func testEditorDeletePermanentlyDismissesEditorAndReturnsToGroupList() {
@@ -766,13 +754,17 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
         XCTAssertFalse(entry(named: twitterEntryTitle).exists, "Permanently deleted entry was still listed in Social")
 
         // The screen must stay fully usable: navigate back out and confirm the
-        // delete bypassed the recycle bin (no bin group was created for it).
+        // delete bypassed the recycle bin (nothing was moved into it).
         tapBackButton()
         XCTAssertTrue(
             revealElement(group(named: socialGroupName)),
             "Root group list was not usable after the permanent delete"
         )
-        XCTAssertFalse(group(named: recycleBinGroupName).exists, "Permanent delete unexpectedly created a recycle bin")
+        selectDatabaseView(.recycleBin)
+        XCTAssertTrue(
+            app.staticTexts["Recycle Bin Is Empty"].waitForExistence(timeout: 5),
+            "Permanent delete unexpectedly moved the entry into the recycle bin"
+        )
     }
 
     func testEditorDeleteMoveToRecycleBinDismissesEditorAndMovesEntry() {
@@ -796,7 +788,7 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
         XCTAssertFalse(entry(named: discordEntryTitle).exists, "Recycled entry was still listed in Social")
 
         tapBackButton()
-        openGroup(named: recycleBinGroupName)
+        selectDatabaseView(.recycleBin)
         XCTAssertTrue(
             revealElement(entry(named: discordEntryTitle)),
             "Discord entry was not moved into the recycle bin"
@@ -820,7 +812,8 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
         waitForAutosaveAttempt()
 
         tapBackButton()
-        openEntry(named: twitterEntryTitle, inGroup: recycleBinGroupName)
+        selectDatabaseView(.recycleBin)
+        openEntry(named: twitterEntryTitle)
         openEditorDeleteDialog()
 
         let deletePermanentlyButton = app.buttons["Delete Permanently"]
@@ -836,7 +829,7 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
             "Entry editor did not dismiss after permanently deleting a recycled entry"
         )
         XCTAssertTrue(
-            app.navigationBars[recycleBinGroupName].waitForExistence(timeout: 10),
+            waitForDatabaseView(.recycleBin, timeout: 10),
             "Did not return to the Recycle Bin list after the permanent delete"
         )
         XCTAssertFalse(
@@ -891,7 +884,7 @@ final class SearchResultsDeleteUITests: EntryEditUITestCase {
         waitForAutosaveAttempt()
 
         dismissSearch()
-        openGroup(named: recycleBinGroupName)
+        selectDatabaseView(.recycleBin)
         XCTAssertTrue(
             revealElement(entry(named: twitterEntryTitle)),
             "Entry deleted from the search results was not moved into the recycle bin"
@@ -918,7 +911,7 @@ final class SearchResultsDeleteUITests: EntryEditUITestCase {
         waitForAutosaveAttempt()
 
         dismissSearch()
-        openGroup(named: recycleBinGroupName)
+        selectDatabaseView(.recycleBin)
         XCTAssertTrue(
             revealElement(entry(named: discordEntryTitle)),
             "Entry swipe-deleted from the search results was not moved into the recycle bin"
