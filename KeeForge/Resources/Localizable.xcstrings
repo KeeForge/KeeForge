@@ -7850,46 +7850,6 @@
         }
       }
     },
-    "Connect your YubiKey, then touch it when it flashes." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Schließe deinen YubiKey an und berühre ihn, wenn er blinkt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Conecta tu YubiKey y tócala cuando parpadee."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Branchez votre YubiKey, puis touchez-la lorsqu’elle clignote."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "YubiKey を接続し、点滅したらタッチしてください。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "连接 YubiKey，并在其闪烁时轻触。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "連接 YubiKey，並在其閃爍時輕觸。"
-          }
-        }
-      }
-    },
     "Contact Support" : {
       "localizations" : {
         "de" : {
@@ -35988,6 +35948,46 @@
         }
       }
     },
+    "Use a YubiKey over NFC on a supported iPhone to open protected KDBX 4 databases read-only." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffne geschützte KDBX-4-Datenbanken mit einem YubiKey über NFC auf einem unterstützten iPhone schreibgeschützt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa una YubiKey por NFC en un iPhone compatible para abrir bases de datos KDBX 4 protegidas en modo de solo lectura."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez une YubiKey via NFC sur un iPhone compatible pour ouvrir des bases de données KDBX 4 protégées en lecture seule."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対応する iPhone で NFC 経由の YubiKey を使い、保護された KDBX 4 データベースを読み取り専用で開けます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在支持的 iPhone 上通过 NFC 使用 YubiKey，以只读方式打开受保护的 KDBX 4 数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在支援的 iPhone 上透過 NFC 使用 YubiKey，以唯讀方式開啟受保護的 KDBX 4 資料庫。"
+          }
+        }
+      }
+    },
     "Use Biometrics" : {
       "localizations" : {
         "de" : {
@@ -36384,46 +36384,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 KeeOTP 驗證碼"
-          }
-        }
-      }
-    },
-    "Use NFC on any iPhone, or a Lightning YubiKey on iPhones and iPads with a Lightning port, to open protected KDBX 4 databases." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Öffne geschützte KDBX-4-Datenbanken per NFC auf jedem iPhone oder mit einem Lightning-YubiKey auf iPhones und iPads mit Lightning-Anschluss."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usa NFC en cualquier iPhone, o una YubiKey Lightning en iPhone y iPad con puerto Lightning, para abrir bases de datos KDBX 4 protegidas."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utilisez le NFC sur n’importe quel iPhone, ou une YubiKey Lightning sur les iPhone et iPad dotés d’un port Lightning, pour ouvrir des bases de données KDBX 4 protégées."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "どの iPhone でも NFC を、Lightning ポートを搭載した iPhone と iPad では Lightning 対応 YubiKey を使って、保護された KDBX 4 データベースを開けます。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在任何 iPhone 上使用 NFC，或在配备 Lightning 端口的 iPhone 和 iPad 上使用 Lightning YubiKey，打开受保护的 KDBX 4 数据库。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在任何 iPhone 上使用 NFC，或在配備 Lightning 連接埠的 iPhone 和 iPad 上使用 Lightning YubiKey，開啟受保護的 KDBX 4 資料庫。"
           }
         }
       }
@@ -38424,86 +38384,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "YubiKey 無法使用"
-          }
-        }
-      }
-    },
-    "YubiKey via Lightning, Slot 1" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "YubiKey per Lightning, Slot 1"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "YubiKey por Lightning, ranura 1"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "YubiKey via Lightning, emplacement 1"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lightning 経由の YubiKey、スロット 1"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通过 Lightning 的 YubiKey，插槽 1"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "透過 Lightning 的 YubiKey，插槽 1"
-          }
-        }
-      }
-    },
-    "YubiKey via Lightning, Slot 2" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "YubiKey per Lightning, Slot 2"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "YubiKey por Lightning, ranura 2"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "YubiKey via Lightning, emplacement 2"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lightning 経由の YubiKey、スロット 2"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通过 Lightning 的 YubiKey，插槽 2"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "透過 Lightning 的 YubiKey，插槽 2"
           }
         }
       }

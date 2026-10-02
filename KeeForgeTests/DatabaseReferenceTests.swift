@@ -58,13 +58,32 @@ final class DatabaseReferenceTests: XCTestCase {
                     lastSyncIssue: nil
                 )
             ),
-            hardwareKey: HardwareKeyConfiguration(transport: .lightning, slot: .two)
+            hardwareKey: HardwareKeyConfiguration(transport: .nfc, slot: .two)
         )
 
         let data = try JSONEncoder().encode(reference)
         let decoded = try JSONDecoder().decode(DatabaseReference.self, from: data)
 
         XCTAssertEqual(decoded, reference)
+    }
+
+    func testBetaHardwareKeyReferenceKeepsDatabaseListAndSlotUsingNFC() throws {
+        var reference = DatabaseReference(
+            id: UUID(), nickname: "Synthetic", filename: "synthetic.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false,
+            lastOpenedAt: nil, addedAt: Date(timeIntervalSince1970: 10), colorTag: nil,
+            legacyKeychainFilename: nil
+        )
+        reference.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
+        let encoded = try JSONEncoder().encode([reference, reference])
+        let betaJSON = String(decoding: encoded, as: UTF8.self)
+            .replacingOccurrences(of: "\"nfc\"", with: "\"lightning\"")
+
+        let decoded = try JSONDecoder().decode([DatabaseReference].self, from: Data(betaJSON.utf8))
+
+        XCTAssertEqual(decoded, [reference, reference])
+        let reencoded = String(decoding: try JSONEncoder().encode(decoded), as: UTF8.self)
+        XCTAssertFalse(reencoded.contains("lightning"))
     }
 
     func testEncodeAlwaysEmitsAutoFillEnabledKey() throws {

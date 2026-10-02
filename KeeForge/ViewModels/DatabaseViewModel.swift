@@ -1716,8 +1716,6 @@ final class DatabaseViewModel {
 
     func lock(manuallyTriggered: Bool = false, preservingClipboard: Bool = false) {
         cancelInactivityTimer()
-        // A Lightning key never times out on its own; don't let a pending one
-        // finish unlocking behind this lock.
         hardwareKeyTask?.cancel()
         hardwareKeyTask = nil
         isAwaitingHardwareKey = false
@@ -3238,10 +3236,7 @@ final class DatabaseViewModel {
         }.value
         guard activeUnlockAttempt == attempt else { throw HardwareKeyError.cancelled }
 
-        unlockStatusMessage = switch configuration.transport {
-        case .nfc: String(localized: "Hold your YubiKey near the top of your device.")
-        case .lightning: String(localized: "Connect your YubiKey, then touch it when it flashes.")
-        }
+        unlockStatusMessage = String(localized: "Hold your YubiKey near the top of your device.")
         isAwaitingHardwareKey = true
         let operation = hardwareKeyResponseOperation
         let task = Task { @MainActor in try await operation(challenge, configuration) }

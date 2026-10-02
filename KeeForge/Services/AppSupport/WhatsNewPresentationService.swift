@@ -69,7 +69,7 @@ enum WhatsNewCatalog {
                 WhatsNewFeature(
                     id: "yubikey-unlock",
                     title: "Unlock with a YubiKey — experimental",
-                    detail: "Use NFC on any iPhone, or a Lightning YubiKey on iPhones and iPads with a Lightning port, to open protected KDBX 4 databases.",
+                    detail: "Use a YubiKey over NFC on a supported iPhone to open protected KDBX 4 databases read-only.",
                     systemImage: "key.horizontal",
                     platforms: [.iOS]
                 ),
