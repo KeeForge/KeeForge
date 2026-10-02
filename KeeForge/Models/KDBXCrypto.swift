@@ -534,6 +534,11 @@ enum KDBXCrypto {
         throw CryptoError.decompressionFailed
     }
 
+    /// The largest decompressed payload `gunzip` accepts. The writer refuses
+    /// to compress anything larger, or it would produce a file this reader
+    /// cannot open again.
+    static let maxDecompressedSize = 256 * 1024 * 1024
+
     private static func inflateStream(data: Data, windowBits: Int32) throws -> Data {
         var stream = z_stream()
         let initResult = inflateInit2_(
@@ -548,8 +553,6 @@ enum KDBXCrypto {
         defer {
             inflateEnd(&stream)
         }
-
-        let maxDecompressedSize = 256 * 1024 * 1024 // 256 MB
 
         return try data.withUnsafeBytes { rawInput in
             guard let inputBase = rawInput.bindMemory(to: Bytef.self).baseAddress else {

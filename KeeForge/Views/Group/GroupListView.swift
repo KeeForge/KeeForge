@@ -36,6 +36,15 @@ struct GroupListView: View {
     @State private var pendingIconChange: PendingIconChange?
     /// The entry or group whose Move-to-Group picker is presented, or `nil`.
     @State private var pendingMove: PendingMove?
+    /// Whether the root's title header is on screen. Once it has scrolled
+    /// away the navigation bar shows the title instead.
+    @State private var isTitleHeaderVisible = true
+    /// The horizontal center of the list, where the database list's own
+    /// centered title sat before this screen replaced it.
+    @State private var listCenterX: CGFloat?
+    /// Kept here rather than in the bar item, which leaves the bar while the
+    /// title is scrolled away and must not slide in again when it returns.
+    @State private var hasAppNameSlidIn = false
     #if os(macOS)
     @FocusState private var isSearchFieldFocused: Bool
     #endif
@@ -44,22 +53,31 @@ struct GroupListView: View {
         viewModel.group(withID: groupID)
     }
 
+    /// The view the database root shows; `nil` on pushed levels, which always
+    /// browse their own group.
+    private var rootViewMode: DatabaseViewModel.ViewMode? {
+        groupID == viewModel.visibleRootGroupID ? viewModel.viewMode : nil
+    }
+
+    /// The group whose contents are listed: the recycle bin while the root
+    /// shows that view, this level's group otherwise.
+    private var listedGroup: KPGroup? {
+        rootViewMode == .recycleBin ? viewModel.recycleBinGroup : resolvedGroup
+    }
+
+    /// The recycle bin is opened from the view menu, never as a group row.
     private var visibleGroups: [KPGroup] {
-        resolvedGroup?.groups ?? []
+        let recycleBinID = viewModel.currentRootGroup?.recycleBinUUID
+        return listedGroup?.groups.filter { $0.id != recycleBinID } ?? []
     }
 
     private var visibleEntries: [KPEntry] {
-        resolvedGroup?.entries ?? []
+        listedGroup?.entries ?? []
     }
 
     private var isRecycleBin: Bool {
-        viewModel.currentRootGroup?.recycleBinUUID == groupID
-    }
-
-    /// Whether this level is the database root, where the Tags row belongs.
-    /// Same predicate `GroupListSearchModifier` uses to pick the root.
-    private var isVisibleRoot: Bool {
-        groupID == viewModel.visibleRootGroupID
+        guard let listedGroup else { return false }
+        return viewModel.currentRootGroup?.recycleBinUUID == listedGroup.id
     }
 
     private var showsCompactLockButton: Bool {
@@ -72,51 +90,54 @@ struct GroupListView: View {
         #endif
     }
 
+    /// An app built with the iOS 27 SDK folds trailing bar items into an
+    /// overflow menu when the title needs their room — a long title that has
+    /// scrolled inline is enough — which would put Lock behind it. The pinned
+    /// placement keeps the items and truncates the title instead.
+    private var databaseActionsPlacement: ToolbarItemPlacement {
+        #if compiler(>=6.4)
+        #if os(iOS)
+        if #available(iOS 27.0, *) {
+            return .topBarPinnedTrailing
+        }
+        #endif
+        #endif
+        return .topBarTrailing
+    }
+
     var body: some View {
         Group {
             if viewModel.searchText.isEmpty {
                 if let resolvedGroup {
                     List {
-                        // Stays visible at zero tags: its empty state is what
-                        // teaches the user how to add one.
-                        if isVisibleRoot {
-                            Section {
-                                tagsRow()
-                            }
+                        if hasTitleViewMenu, let rootViewMode {
+                            titleViewMenu(for: rootViewMode)
                         }
-
-                        if !visibleGroups.isEmpty {
-                            Section("Groups") {
-                                ForEach(viewModel.sortedGroups(visibleGroups).map(\.id), id: \.self) { subgroupID in
-                                    groupRow(for: subgroupID)
-                                }
-                            }
-                        }
-
-                        if !visibleEntries.isEmpty {
-                            Section("Entries") {
-                                ForEach(viewModel.sortedEntries(visibleEntries)) { entry in
-                                    entryRow(for: entry)
-                                }
-                            }
-                        }
-
-                        // Describes the group's own contents only; at the root
-                        // the Tags section above stays put so the browser is
-                        // reachable from an otherwise empty vault.
-                        if visibleGroups.isEmpty && visibleEntries.isEmpty {
-                            ContentUnavailableView(
-                                "Empty Group",
-                                systemImage: "folder",
-                                description: Text("This group has no entries.")
-                            )
-                        }
+                        browsingRows
                     }
                     .id(viewModel.contentRevision)
-                    .navigationTitle(resolvedGroup.name)
-                    .navigationBarTitleDisplayMode(.large)
+                    .navigationTitle(navigationTitle(for: resolvedGroup))
+                    .modifier(GroupListTitleStyle(view: self))
+                    .onGeometryChange(for: CGFloat?.self) { proxy in
+                        // Empty until the first layout pass has run.
+                        proxy.size.width > 0 ? proxy.frame(in: .global).midX : nil
+                    } action: { centerX in
+                        listCenterX = centerX
+                    }
                     .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
+                        #if os(iOS)
+                        // Out of the bar while the inline title is in it:
+                        // hidden in place it would still push that title
+                        // away from the leading edge.
+                        if #available(iOS 26.0, *), rootViewMode != nil, isTitleHeaderVisible {
+                            ToolbarItem(placement: .topBarLeading) {
+                                RootBarAppName(startCenterX: listCenterX, hasSlidIn: $hasAppNameSlidIn)
+                            }
+                            .sharedBackgroundVisibility(.hidden)
+                        }
+                        #endif
+
+                        ToolbarItem(placement: databaseActionsPlacement) {
                             HStack(spacing: 12) {
                                 // Leads the trailing group rather than sitting
                                 // beside the system back button, which made an
@@ -143,7 +164,7 @@ struct GroupListView: View {
                                     ReadOnlyIndicator(explanation: viewModel.readOnlyExplanation)
                                 }
 
-                                if viewModel.isReadOnly == false {
+                                if viewModel.isReadOnly == false, rootViewMode != .recycleBin {
                                     Menu {
                                         Button("New Entry", systemImage: "doc.badge.plus") {
                                             let editor = EntryEditViewModel(
@@ -166,6 +187,14 @@ struct GroupListView: View {
                                         Image(systemName: "plus")
                                     }
                                     .accessibilityIdentifier("entry-list.add-entry")
+                                }
+
+                                if rootViewMode != nil, hasTitleViewMenu == false {
+                                    viewMenu {
+                                        Image(systemName: "line.3.horizontal.decrease")
+                                    }
+                                    .accessibilityLabel("View")
+                                    .macHelp(String(localized: "View"))
                                 }
 
                                 Menu {
@@ -370,27 +399,241 @@ struct GroupListView: View {
                 content
             }
             #else
-            content
-                .searchable(
-                    text: view.$viewModel.searchText,
-                    placement: .navigationBarDrawer(displayMode: .always),
-                    prompt: "Search entries"
-                )
+            // The system's default place from iOS 26 on: the bottom of the
+            // screen on iPhone.
+            if #available(iOS 26.0, *) {
+                content
+                    .searchable(text: view.$viewModel.searchText, prompt: "Search entries")
+            } else {
+                content
+                    .searchable(
+                        text: view.$viewModel.searchText,
+                        placement: .navigationBarDrawer(displayMode: .always),
+                        prompt: "Search entries"
+                    )
+            }
             #endif
         }
     }
 
-    /// The root-level entry point into the tag browser. A plain
-    /// `NavigationLink`: every shell that renders this view browses through a
-    /// `NavigationStack` (the macOS split view builds its own sidebar Tags
-    /// section instead and never shows this row).
-    @ViewBuilder
-    private func tagsRow() -> some View {
-        NavigationLink(value: TagDestination.allTags) {
-            TagBrowserRow(viewModel: viewModel)
+    /// The root is titled after the view it shows, pushed levels after their
+    /// group.
+    private func navigationTitle(for group: KPGroup) -> String {
+        rootViewMode?.title ?? group.name
+    }
+
+    /// Switches what the database root lists. The Recycle Bin sits in a
+    /// section of its own, apart from the views of the live database.
+    private func viewMenu<MenuLabel: View>(@ViewBuilder label: () -> MenuLabel) -> some View {
+        Menu {
+            viewMenuItems
+        } label: {
+            label()
         }
-        .accessibilityIdentifier("group-list.tags-row")
-        .macHoverHighlight()
+        .accessibilityIdentifier("view.menu")
+    }
+
+    @ViewBuilder
+    private var viewMenuItems: some View {
+        Section {
+            ForEach(DatabaseViewModel.ViewMode.browsingModes, id: \.self) { mode in
+                viewToggle(for: mode)
+            }
+        }
+
+        Section {
+            viewToggle(for: .recycleBin)
+        }
+    }
+
+    /// The root's title, drawn as the list's first header so that it can be a
+    /// menu: the navigation bar's own large title takes no taps, not even as
+    /// a custom `.largeTitle` toolbar item.
+    @ViewBuilder
+    private func titleViewMenu(for mode: DatabaseViewModel.ViewMode) -> some View {
+        let header = Section {
+        } header: {
+            viewMenu {
+                HStack(spacing: 8) {
+                    Text(mode.title)
+                        .font(.largeTitle.bold())
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.title3.weight(.semibold))
+                        .accessibilityHidden(true)
+                }
+                .foregroundStyle(Color.primary)
+            }
+            .textCase(nil)
+            .onScrollVisibilityChange(threshold: 0.4) { isVisible in
+                isTitleHeaderVisible = isVisible
+            }
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0))
+        }
+        // iOS only, like the header itself, which `hasTitleViewMenu` never
+        // shows on macOS.
+        #if os(iOS)
+        header.listSectionSpacing(0)
+        #else
+        header
+        #endif
+    }
+
+    /// Where the list draws the root's title, the bar stays empty until that
+    /// header has scrolled away, then shows the title inline with the same
+    /// menu, the way a large title collapses.
+    private struct GroupListTitleStyle: ViewModifier {
+        let view: GroupListView
+
+        func body(content: Content) -> some View {
+            #if os(iOS)
+            if view.hasTitleViewMenu, view.rootViewMode != nil {
+                content
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar(removing: view.isTitleHeaderVisible ? .title : nil)
+                    .toolbarTitleMenu {
+                        view.viewMenuItems
+                    }
+            } else {
+                content
+                    .navigationBarTitleDisplayMode(.large)
+            }
+            #else
+            content
+            #endif
+        }
+    }
+
+    /// From iOS 26 the search field sits at the bottom of the screen, which
+    /// leaves the top of the list free for a title that is the view menu.
+    /// Earlier systems keep the bar's large title over the search drawer and
+    /// get the menu as a toolbar button.
+    private var hasTitleViewMenu: Bool {
+        #if os(iOS)
+        if #available(iOS 26.0, *) {
+            return true
+        }
+        #endif
+        return false
+    }
+
+    /// Toggles rather than one `Picker`, whose options cannot be split into
+    /// sections inside a menu.
+    private func viewToggle(for mode: DatabaseViewModel.ViewMode) -> some View {
+        Toggle(
+            isOn: Binding(
+                get: { viewModel.viewMode == mode },
+                set: { isOn in
+                    if isOn {
+                        viewModel.viewMode = mode
+                    }
+                }
+            )
+        ) {
+            Label(mode.title, systemImage: mode.systemImage)
+        }
+        .accessibilityIdentifier("view-menu.\(mode.rawValue)")
+    }
+
+    @ViewBuilder
+    private var browsingRows: some View {
+        switch rootViewMode {
+        case .allEntries:
+            flatEntriesSection(
+                viewModel.allEntries,
+                summary: allEntriesSummary,
+                emptyTitle: "No Entries",
+                emptyDescription: "This database has no entries."
+            )
+        case .verificationCodes:
+            flatEntriesSection(
+                viewModel.verificationCodeEntries,
+                showsVerificationCodes: true,
+                summary: String(
+                    localized: "Every entry with a verification code, across all groups. Tap an entry to open it."
+                ),
+                emptyTitle: "No Verification Codes",
+                emptyDescription: "Entries with a verification code appear here."
+            )
+        case .tags:
+            TagListRows(viewModel: viewModel)
+        case .recycleBin:
+            groupContents(
+                emptyTitle: "Recycle Bin Is Empty",
+                emptyDescription: "Deleted entries and groups appear here."
+            )
+        case .groups, nil:
+            groupContents(
+                emptyTitle: "Empty Group",
+                emptyDescription: "This group has no entries."
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func groupContents(
+        emptyTitle: LocalizedStringKey,
+        emptyDescription: LocalizedStringKey
+    ) -> some View {
+        if !visibleGroups.isEmpty {
+            Section("Groups") {
+                ForEach(viewModel.sortedGroups(visibleGroups).map(\.id), id: \.self) { subgroupID in
+                    groupRow(for: subgroupID)
+                }
+            }
+        }
+
+        if !visibleEntries.isEmpty {
+            Section("Entries") {
+                ForEach(viewModel.sortedEntries(visibleEntries)) { entry in
+                    entryRow(for: entry)
+                }
+            }
+        }
+
+        if visibleGroups.isEmpty && visibleEntries.isEmpty {
+            ContentUnavailableView(
+                emptyTitle,
+                systemImage: rootViewMode?.systemImage ?? "folder",
+                description: Text(emptyDescription)
+            )
+        }
+    }
+
+    /// Entries drawn from the whole database, so each row says where its entry
+    /// lives.
+    @ViewBuilder
+    private func flatEntriesSection(
+        _ entries: [KPEntry],
+        showsVerificationCodes: Bool = false,
+        summary: String,
+        emptyTitle: LocalizedStringKey,
+        emptyDescription: LocalizedStringKey
+    ) -> some View {
+        if entries.isEmpty {
+            ContentUnavailableView(
+                emptyTitle,
+                systemImage: rootViewMode?.systemImage ?? "folder",
+                description: Text(emptyDescription)
+            )
+        } else {
+            Section {
+                ForEach(viewModel.sortedEntries(entries)) { entry in
+                    entryRow(for: entry, showsFolderPath: true, showsVerificationCode: showsVerificationCodes)
+                }
+            } footer: {
+                Text(summary)
+                    .accessibilityIdentifier("group-list.summary")
+            }
+        }
+    }
+
+    private var allEntriesSummary: String {
+        let entries = String(localized: "\(viewModel.allEntries.count) entries")
+        let groupCount = viewModel.allEntriesGroupCount
+        guard groupCount > 0 else { return entries }
+        let groups = String(localized: "\(groupCount) groups")
+        return String(localized: "\(entries) in \(groups)")
     }
 
     @ViewBuilder
@@ -464,27 +707,38 @@ struct GroupListView: View {
     }
 
     @ViewBuilder
-    private func entryRow(for entry: KPEntry) -> some View {
+    private func entryRow(
+        for entry: KPEntry,
+        showsFolderPath: Bool = false,
+        showsVerificationCode: Bool = false
+    ) -> some View {
+        let row = EntryRow(
+            entry: entry,
+            username: viewModel.resolvingFieldReferences(entry.username),
+            customIconData: viewModel.customIconData(for: entry),
+            folderPath: showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil
+        )
         Group {
-            if let onSelectEntry {
+            if showsVerificationCode, let config = entry.totpConfig, let sessionKey = viewModel.sessionKey {
+                VerificationCodeRow(
+                    title: entry.title.isEmpty ? String(localized: "(untitled)") : entry.title,
+                    detail: verificationCodeDetail(for: entry),
+                    config: config,
+                    sessionKey: sessionKey
+                ) {
+                    open(entry)
+                }
+            } else if let onSelectEntry {
                 Button {
                     onSelectEntry(entry)
                 } label: {
-                    EntryRow(
-                        entry: entry,
-                        username: viewModel.resolvingFieldReferences(entry.username),
-                        customIconData: viewModel.customIconData(for: entry)
-                    )
+                    row
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("entry.navlink")
             } else {
                 NavigationLink(value: entry) {
-                    EntryRow(
-                        entry: entry,
-                        username: viewModel.resolvingFieldReferences(entry.username),
-                        customIconData: viewModel.customIconData(for: entry)
-                    )
+                    row
                 }
                 .accessibilityIdentifier("entry.navlink")
             }
@@ -532,6 +786,22 @@ struct GroupListView: View {
                 .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }
+    }
+
+    /// What tapping a `NavigationLink(value: entry)` row does in each shell:
+    /// the regular-width workspace selects, the compact stack pushes.
+    private func open(_ entry: KPEntry) {
+        if let onSelectEntry {
+            onSelectEntry(entry)
+        } else {
+            viewModel.navigationPath.append(entry)
+        }
+    }
+
+    private func verificationCodeDetail(for entry: KPEntry) -> String {
+        [viewModel.resolvingFieldReferences(entry.username), viewModel.folderPath(forEntryID: entry.id) ?? ""]
+            .filter { $0.isEmpty == false }
+            .joined(separator: " · ")
     }
 
     private func canDeleteGroup(_ groupID: UUID) -> Bool {
@@ -634,6 +904,62 @@ struct GroupListView: View {
     }
 }
 
+/// The app's name in the leading corner of the database root's bar. The
+/// database list shows the same name centered, so on unlock it starts there
+/// and slides into the corner instead of leaving that side of the bar empty.
+private struct RootBarAppName: View {
+    /// Where the slide starts; `nil` until the list has been laid out.
+    let startCenterX: CGFloat?
+    @Binding var hasSlidIn: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var restingCenterX: CGFloat?
+    @State private var offset: CGFloat = 0
+    /// Shown, at the slide's starting point.
+    @State private var hasStarted = false
+
+    var body: some View {
+        Text("KeeForge")
+            .font(.headline)
+            .fixedSize()
+            .onGeometryChange(for: CGFloat?.self) { proxy in
+                proxy.size.width > 0 ? proxy.frame(in: .global).midX : nil
+            } action: { centerX in
+                restingCenterX = centerX
+                slideInIfReady()
+            }
+            .onChange(of: startCenterX) { _, _ in
+                slideInIfReady()
+            }
+            .offset(x: offset)
+            .opacity(hasStarted || hasSlidIn ? 1 : 0)
+            .accessibilityHidden(true)
+    }
+
+    private func slideInIfReady() {
+        guard hasSlidIn == false, let startCenterX, let restingCenterX else { return }
+        guard reduceMotion == false else {
+            hasStarted = true
+            hasSlidIn = true
+            return
+        }
+        // Tracks the measurements until the slide begins: the first ones can
+        // arrive before the bar has placed the text.
+        offset = startCenterX - restingCenterX
+        guard hasStarted == false else { return }
+        hasStarted = true
+        // A later update: animating in the one that places the text at its
+        // start would collapse into no movement at all. The pause lets the
+        // unlock sheet clear the bar first.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(250))
+            hasSlidIn = true
+            withAnimation(.smooth(duration: 0.5)) {
+                offset = 0
+            }
+        }
+    }
+}
+
 struct NewGroupSheet: View {
     @Binding var name: String
     @Binding var errorMessage: String?
@@ -693,18 +1019,13 @@ struct GroupRow: View {
         viewModel.group(withID: groupID)
     }
 
-    private var isRecycleBin: Bool {
-        viewModel.currentRootGroup?.recycleBinUUID == groupID
-    }
-
     /// Matches `canChangeAutoFillExclusion`: the badge is only shown where the
     /// context menu can actually act on it. KeePass and KeePassXC set
     /// `<EnableSearching>False</EnableSearching>` on the recycle bins they
-    /// create, so without the second check every trashed subgroup in a
+    /// create, so without the first check every trashed subgroup in a
     /// KeePass-made database would inherit an unactionable badge.
     private var isExcludedFromAutoFill: Bool {
-        isRecycleBin == false
-            && viewModel.isGroupInRecycleBin(groupID: groupID) == false
+        viewModel.isGroupInRecycleBin(groupID: groupID) == false
             && viewModel.isGroupExcludedFromAutoFill(groupID: groupID)
     }
 
@@ -712,8 +1033,7 @@ struct GroupRow: View {
         Group {
             if let group {
                 HStack {
-                    if !isRecycleBin,
-                       let iconData = viewModel.customIconData(for: group),
+                    if let iconData = viewModel.customIconData(for: group),
                        let icon = PlatformImage(data: iconData) {
                         Image(platformImage: icon)
                             .resizable()
@@ -723,9 +1043,9 @@ struct GroupRow: View {
                             .frame(width: 28)
                     } else {
                         StandardIconView(
-                            iconID: isRecycleBin ? 43 : group.iconID,
-                            fallbackSystemName: isRecycleBin ? "trash" : "folder.fill",
-                            fallbackPalette: isRecycleBin ? .green : .blue
+                            iconID: group.iconID,
+                            fallbackSystemName: "folder.fill",
+                            fallbackPalette: .blue
                         )
                             .frame(width: 28)
                     }
@@ -751,31 +1071,6 @@ struct GroupRow: View {
                 .contentShape(Rectangle())
             }
         }
-    }
-}
-
-/// The root list's "Tags" row: the database's distinct-tag count over the whole
-/// tree. Shown at zero too, so the tag browser is discoverable in a vault that
-/// has no tags yet.
-struct TagBrowserRow: View {
-    @Bindable var viewModel: DatabaseViewModel
-
-    var body: some View {
-        HStack {
-            Image(systemName: "tag")
-                .foregroundStyle(.tint)
-                .frame(width: 28)
-
-            VStack(alignment: .leading) {
-                Text("Tags")
-                    .font(.body)
-                Text("\(viewModel.allTags.count) tags")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 }
 
@@ -833,7 +1128,7 @@ struct EntryRow: View {
             }
 
             if entry.totpConfig != nil {
-                Image(systemName: "clock.badge.checkmark")
+                Image(systemName: "clock")
                     .font(.caption)
                     .foregroundStyle(.green)
                     .accessibilityLabel("Has a verification code")

@@ -14,6 +14,16 @@ final class TOTPViewModel {
 
     var period: Int { config.period }
 
+    /// `code` split in the middle the way authenticator apps print it
+    /// ("284 019"); a code with an odd number of digits stays whole.
+    var groupedCode: String { Self.grouped(code) }
+
+    static func grouped(_ code: String) -> String {
+        guard code.count >= 6, code.count.isMultiple(of: 2) else { return code }
+        let middle = code.index(code.startIndex, offsetBy: code.count / 2)
+        return "\(code[..<middle]) \(code[middle...])"
+    }
+
     init(config: TOTPConfig, sessionKey: SymmetricKey) {
         self.config = config
         self.resolvedSecret = TOTPGenerator.resolveSecret(config: config, sessionKey: sessionKey)

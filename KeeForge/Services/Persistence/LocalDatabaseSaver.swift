@@ -129,14 +129,7 @@ enum LocalDatabaseSaver {
                 ).header
             },
             encryptDraft: { draft, compositeKey, header, kdfPolicy in
-                try KDBXWriter.write(
-                    rootGroup: draft.rootGroup,
-                    meta: draft.meta,
-                    compositeKey: compositeKey,
-                    header: header,
-                    sessionKey: draft.writerSessionKey,
-                    kdfPolicy: kdfPolicy
-                )
+                try draft.write(compositeKey: compositeKey, header: header, kdfPolicy: kdfPolicy)
             },
             backupDirectoryURL: { reference in
                 DatabaseListStore.databaseBackupDirectoryURL(for: reference)

@@ -357,6 +357,49 @@ final class DatabaseViewModel {
         }
     }
 
+    /// What the database's root list shows, chosen from its view menu.
+    enum ViewMode: String, Sendable {
+        case groups
+        case allEntries
+        case verificationCodes
+        case tags
+        case recycleBin
+
+        /// The views of the live database, in menu order. The recycle bin is
+        /// listed apart from them.
+        static let browsingModes: [ViewMode] = [.allEntries, .groups, .verificationCodes, .tags]
+
+        var title: String {
+            switch self {
+            case .groups:
+                String(localized: "Groups")
+            case .allEntries:
+                String(localized: "All Entries")
+            case .verificationCodes:
+                String(localized: "Verification Codes")
+            case .tags:
+                String(localized: "Tags")
+            case .recycleBin:
+                String(localized: "Recycle Bin")
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .groups:
+                "folder"
+            case .allEntries:
+                "list.bullet.rectangle"
+            case .verificationCodes:
+                "clock"
+            case .tags:
+                "tag"
+            case .recycleBin:
+                "trash"
+            }
+        }
+    }
+
     typealias CloudSyncOperation = @Sendable (
         _ reference: DatabaseReference,
         _ progress: @escaping @Sendable (Double) -> Void
@@ -517,6 +560,11 @@ final class DatabaseViewModel {
     var sortOrder: SortOrder {
         didSet { Self.persistSortOrder(sortOrder) }
     }
+    /// Session state like the navigation path: every unlock starts on
+    /// `initialViewMode` again.
+    var viewMode = DatabaseViewModel.initialViewMode() {
+        didSet { resetInactivityTimer() }
+    }
 
     private(set) var failedAttempts = 0
     private(set) var lockoutUntil: Date?
@@ -603,6 +651,11 @@ final class DatabaseViewModel {
     private var groupEntryCounts: [UUID: Int] = [:]
     private var searchableEntries: [KPEntry] = []
     private var searchableEntryText: [UUID: String] = [:]
+    /// Every entry outside the recycle bin, in tree order. Unlike
+    /// `searchableEntries` it keeps entries in groups hidden from search.
+    private var liveEntries: [KPEntry] = []
+    /// Groups below the visible root, outside the recycle bin.
+    private var liveGroupCount = 0
     /// Live (non-recycled) entries carrying each distinct tag, in tree order.
     /// Tag identity is exact-string, so `Work` and `work` are separate keys.
     private var tagEntryIDs: [String: [UUID]] = [:]
@@ -1299,6 +1352,31 @@ final class DatabaseViewModel {
         }
     }
 
+    /// Every entry outside the recycle bin, in tree order — callers sort for
+    /// display.
+    var allEntries: [KPEntry] {
+        _ = contentRevision
+        return liveEntries
+    }
+
+    /// `allEntries` narrowed to the ones that generate a verification code.
+    var verificationCodeEntries: [KPEntry] {
+        allEntries.filter { $0.totpConfig != nil }
+    }
+
+    /// How many groups `allEntries` is spread over at most: every group below
+    /// the visible root that is not in the recycle bin.
+    var allEntriesGroupCount: Int {
+        _ = contentRevision
+        return liveGroupCount
+    }
+
+    /// The recycle bin group; `nil` while the database has none.
+    var recycleBinGroup: KPGroup? {
+        guard let recycleBinID = currentRootGroup?.recycleBinUUID else { return nil }
+        return group(withID: recycleBinID)
+    }
+
     /// How many live entries carry `tag`, matched exact-string.
     func entryCount(forTag tag: String) -> Int {
         _ = contentRevision
@@ -1394,10 +1472,22 @@ final class DatabaseViewModel {
     /// off the main thread; returns `nil` for dangling refs or when no
     /// database is unlocked.
     func attachmentData(for attachment: KPAttachment) async -> Data? {
-        guard let binaryPool else { return nil }
+        guard let binaryPool = currentBinaryPool else { return nil }
         return await Task.detached(priority: .userInitiated) {
             binaryPool[attachment.ref]?.data
         }.value
+    }
+
+    /// The attachment's size in bytes, or `nil` for a dangling ref.
+    func attachmentByteCount(for attachment: KPAttachment) -> Int? {
+        currentBinaryPool?[attachment.ref]?.data.count
+    }
+
+    /// The pool the UI resolves attachments against, the draft's taking
+    /// precedence for the same reason as `currentMeta`: an attachment added in
+    /// an edit that has not saved yet must still open.
+    private var currentBinaryPool: BinaryPool? {
+        draft?.binaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
     }
 
     /// The entry's folder location below the visible root as a display string
@@ -2021,6 +2111,7 @@ final class DatabaseViewModel {
             : Self.decryptingStatusMessage
         searchText = ""
         navigationPath = NavigationPath()
+        viewMode = Self.initialViewMode()
         selectedGroupID = nil
         selectedTag = nil
         selectedEntryID = nil
@@ -2285,6 +2376,7 @@ final class DatabaseViewModel {
             case .saved(let newSHA512):
                 rootGroup = snapshot.rootGroup
                 unlockedMeta = snapshot.meta
+                binaryPool = snapshot.binaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
                 self.openTimeSHA512 = newSHA512
                 saveConflict = nil
                 saveError = nil
@@ -2604,10 +2696,9 @@ final class DatabaseViewModel {
         // The draft's tree is the local side, so unsaved edits take part in the
         // merge rather than being written over it.
         let localDraft = try makeWorkingDraft()
-        // The pool the session opened. KeeForge never adds pool entries, so it
-        // is still the pool of the local side's attachments; the merger only
-        // compares it against the remote's.
-        let localBinaryPoolFields = binaryPool?.rawFields ?? []
+        // The pool the merged draft writes, files the unsaved edits added
+        // included; the merger checks the remote's refs against it.
+        let localBinaryPoolFields = localDraft.binaryPoolFields
         let expectedLockCycleID = lockCycleID
 
         isSaving = true
@@ -2626,7 +2717,7 @@ final class DatabaseViewModel {
                 sessionKey: sessionKey,
                 localRootGroup: localDraft.rootGroup,
                 localMeta: localDraft.meta,
-                localBinaryPoolFields: localBinaryPoolFields
+                localBinaryPoolFields: localBinaryPoolFields ?? []
             )
         } catch let failure as DatabaseMergeFailure {
             mergeFailure = failure
@@ -2640,7 +2731,8 @@ final class DatabaseViewModel {
         let mergedDraft = DatabaseDraft(
             rootGroup: merged.rootGroup,
             meta: merged.meta,
-            sessionKey: sessionKey
+            sessionKey: sessionKey,
+            binaryPoolFields: localBinaryPoolFields
         )
 
         // A merge that adds nothing still has to write: the remote holding no
@@ -2678,6 +2770,7 @@ final class DatabaseViewModel {
         case .saved(let newSHA512):
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
+            binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
             self.openTimeSHA512 = newSHA512
             saveConflict = nil
             saveError = nil
@@ -2750,7 +2843,7 @@ final class DatabaseViewModel {
         // Unsaved edits take part, as in `mergeAndSave`: the upload below
         // writes the whole tree, so leaving them out would drop them.
         let localDraft = try makeWorkingDraft()
-        let localBinaryPoolFields = binaryPool?.rawFields ?? []
+        let localBinaryPoolFields = localDraft.binaryPoolFields
         var mergedRootGroup = localDraft.rootGroup
         var mergedMeta = localDraft.meta
         var failedLocation = PendingUploadRecovery.Location.cache
@@ -2763,7 +2856,7 @@ final class DatabaseViewModel {
                     sessionKey: sessionKey,
                     localRootGroup: mergedRootGroup,
                     localMeta: mergedMeta,
-                    localBinaryPoolFields: localBinaryPoolFields
+                    localBinaryPoolFields: localBinaryPoolFields ?? []
                 )
                 mergedRootGroup = merged.rootGroup
                 mergedMeta = merged.meta
@@ -2782,7 +2875,12 @@ final class DatabaseViewModel {
 
         guard expectedLockCycleID == lockCycleID else { return }
 
-        let mergedDraft = DatabaseDraft(rootGroup: mergedRootGroup, meta: mergedMeta, sessionKey: sessionKey)
+        let mergedDraft = DatabaseDraft(
+            rootGroup: mergedRootGroup,
+            meta: mergedMeta,
+            sessionKey: sessionKey,
+            binaryPoolFields: localBinaryPoolFields
+        )
         // Written even when the merge added nothing: only a completed upload
         // proves the cloud copy holds the change, and that proof is what
         // allows dropping the pending uploads.
@@ -2809,6 +2907,7 @@ final class DatabaseViewModel {
 
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
+            binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
             self.openTimeSHA512 = newSHA512
             draft = draftReplayingEditsArriving(after: localDraft, onto: mergedDraft)
             refreshDatabaseReference()
@@ -3512,6 +3611,20 @@ final class DatabaseViewModel {
         UserDefaults.standard.set(ascending, forKey: sortAscendingKey)
     }
 
+    /// A database opens on All Entries. UI tests can start on another view
+    /// through `UI_TEST_VIEW_MODE`: their helpers browse from the group list.
+    static func initialViewMode(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> ViewMode {
+        guard arguments.contains("-ui-testing"),
+              let rawValue = environment["UI_TEST_VIEW_MODE"],
+              let mode = ViewMode(rawValue: rawValue) else {
+            return .allEntries
+        }
+        return mode
+    }
+
     // MARK: - Private
 
     /// Shared with tests so status-message assertions stay locale-agnostic.
@@ -3540,6 +3653,8 @@ final class DatabaseViewModel {
             groupEntryCounts = [:]
             searchableEntries = []
             searchableEntryText = [:]
+            liveEntries = []
+            liveGroupCount = 0
             tagEntryIDs = [:]
             groupInheritedTags = [:]
             entryParentGroupIDs = [:]
@@ -3559,6 +3674,8 @@ final class DatabaseViewModel {
         var nextGroupEntryCounts: [UUID: Int] = [:]
         var nextSearchableEntries: [KPEntry] = []
         var nextSearchableEntryText: [UUID: String] = [:]
+        var nextLiveEntries: [KPEntry] = []
+        var nextLiveGroupCount = 0
         var nextTagEntryIDs: [String: [UUID]] = [:]
         var nextGroupInheritedTags: [UUID: [String]] = [:]
         var nextEntryParentGroupIDs: [UUID: UUID] = [:]
@@ -3580,6 +3697,9 @@ final class DatabaseViewModel {
             nextGroupIndex[group.id] = group
             if includeInSearch == false, group.id != recycleBinID {
                 nextRecycleBinGroupIDs.insert(group.id)
+            }
+            if includeInSearch, group.id != root.id, group.id != visibleRootID {
+                nextLiveGroupCount += 1
             }
 
             // Mirrors `KPGroup.autoFillEntries`: an absent element or `.inherit`
@@ -3614,6 +3734,7 @@ final class DatabaseViewModel {
                 }
                 totalEntryCount += 1
                 if includeInSearch {
+                    nextLiveEntries.append(entry)
                     let tags = Self.effectiveTags(for: entry, inheritedGroupTags: accumulatedTags)
                     // A disabled `<EnableSearching>` hides the entry from the
                     // search corpus (KeePass's reading of the flag) as well as
@@ -3656,6 +3777,8 @@ final class DatabaseViewModel {
         groupEntryCounts = nextGroupEntryCounts
         searchableEntries = nextSearchableEntries
         searchableEntryText = nextSearchableEntryText
+        liveEntries = nextLiveEntries
+        liveGroupCount = nextLiveGroupCount
         tagEntryIDs = nextTagEntryIDs
         groupInheritedTags = nextGroupInheritedTags
         entryParentGroupIDs = nextEntryParentGroupIDs
@@ -4001,7 +4124,8 @@ final class DatabaseViewModel {
         return DatabaseDraft(
             rootGroup: rootGroup,
             meta: unlockedMeta,
-            sessionKey: sessionKey
+            sessionKey: sessionKey,
+            binaryPoolFields: binaryPool?.rawFields
         )
     }
 
@@ -4148,7 +4272,7 @@ final class DatabaseViewModel {
         return nil
     }
 
-    private static func encryptConflictCopy(
+    static func encryptConflictCopy(
         draft: DatabaseDraft,
         compositeKey: SymmetricKey,
         sourceData: Data
@@ -4160,14 +4284,7 @@ final class DatabaseViewModel {
                 sessionKey: SymmetricKey(size: .bits256),
                 kdfPolicy: .mainApp
             )
-            return try KDBXWriter.write(
-                rootGroup: draft.rootGroup,
-                meta: draft.meta,
-                compositeKey: compositeKey,
-                header: parsed.header,
-                sessionKey: draft.writerSessionKey,
-                kdfPolicy: .mainApp
-            )
+            return try draft.write(compositeKey: compositeKey, header: parsed.header, kdfPolicy: .mainApp)
         }.value
     }
 

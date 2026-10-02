@@ -196,20 +196,6 @@ final class GroupEditUITests: EntryEditUITestCase {
         )
     }
 
-    func testRecycleBinOffersNoEditGroupContextAction() {
-        unlockSuccessfully()
-        createRecycleBinByDeletingEmptyGroup()
-
-        let row = groupNavRow(named: recycleBinGroupName)
-        XCTAssertTrue(revealElement(row), "Recycle Bin group was not visible")
-        row.press(forDuration: 1.2)
-
-        XCTAssertFalse(
-            app.buttons["group-row.edit-context"].waitForExistence(timeout: 3),
-            "Recycle Bin must not offer Edit Group"
-        )
-    }
-
     // MARK: - Helpers
 
     /// Long-presses the group row and taps "Edit Group", retrying the press
@@ -284,26 +270,5 @@ final class GroupEditUITests: EntryEditUITestCase {
         } while Date() < deadline
 
         return groupNavRow(named: name).exists
-    }
-
-    private func createRecycleBinByDeletingEmptyGroup(
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        let emptyGroup = group(named: "Empty")
-        XCTAssertTrue(revealElement(emptyGroup), "Empty group was not visible", file: file, line: line)
-
-        let deleteButton = revealSwipeDeleteButton(
-            on: emptyGroup,
-            identifier: "group-row.delete-swipe",
-            file: file,
-            line: line
-        )
-        deleteButton.tap()
-
-        let alert = app.alerts["Delete Group?"]
-        XCTAssertTrue(alert.waitForExistence(timeout: 5), "Delete group alert was not visible", file: file, line: line)
-        alert.buttons["Delete"].tap()
-        waitForAutosaveAttempt()
     }
 }

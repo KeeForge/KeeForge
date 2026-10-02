@@ -1,7 +1,7 @@
 import XCTest
 
-// Happy-path smoke coverage for the tag browser: root Tags row → tag list →
-// that tag's entries → entry detail → the tag chip that got you there.
+// Happy-path smoke coverage for the tag browser: view menu → Tags → that
+// tag's entries → entry detail → the tag chip that got you there.
 //
 // Uses `kitchen-sink.kdbx` (password `testpassword123`, the default
 // `unlockSuccessfully()` uses) because neither `test.kdbx` nor `demo.kdbx`
@@ -20,24 +20,20 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
     /// carry only `Router Admin` itself.
     private let otherSharedCarrierName = "Mail Account"
 
-    func testBrowsingFromTheRootTagsRowReachesATaggedEntry() {
+    func testBrowsingFromTheTagsViewReachesATaggedEntry() {
         unlockSuccessfully()
 
-        // 1. The root list offers the tag browser, with the fixture's eight
-        //    distinct tags counted on the row.
-        let tagsRow = app.descendants(matching: .any).matching(identifier: "group-list.tags-row").firstMatch
-        XCTAssertTrue(
-            tagsRow.waitForExistence(timeout: KeeForgeUITestCase.ciElementTimeout),
-            "Root group list did not show the Tags row"
+        // 1. The view menu offers the tag browser, which lists the fixture's
+        //    eight distinct tags.
+        selectDatabaseView(.tags)
+        let tagRows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'tag-list.row.'")
         )
-        XCTAssertTrue(revealElement(tagsRow, in: scrollableContainer()), "Tags row was not reachable")
-        // SwiftUI folds a row's title and caption into one accessibility label,
-        // the same way the group rows expose their "N entries" caption.
         XCTAssertTrue(
-            tagsRow.label.contains("8 tags"),
-            "Expected the Tags row to count the fixture's eight distinct tags, got: \(tagsRow.label)"
+            tagRows.firstMatch.waitForExistence(timeout: KeeForgeUITestCase.ciElementTimeout),
+            "Tags view did not list any tag"
         )
-        tapElement(tagsRow)
+        XCTAssertEqual(tagRows.count, 8, "Expected a row for each of the fixture's eight distinct tags")
 
         // 2. The tag list shows the known tag with its entry count.
         let sharedRow = app.descendants(matching: .any)
@@ -159,10 +155,8 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
         XCTAssertTrue(app.staticTexts["search.no-results"].waitForExistence(timeout: 5))
         XCTAssertFalse(searchResult(named: taggedEntryName).exists, "Hidden group entry remained in search")
 
-        clearSearchField(searchField)
-        let tagsRow = app.descendants(matching: .any).matching(identifier: "group-list.tags-row").firstMatch
-        XCTAssertTrue(tagsRow.waitForExistence(timeout: 5), "Tags row did not return after clearing search")
-        tapElement(tagsRow)
+        dismissSearch()
+        selectDatabaseView(.tags)
 
         let sharedRow = app.descendants(matching: .any).matching(identifier: "tag-list.row.\(sharedTag)").firstMatch
         XCTAssertTrue(sharedRow.waitForExistence(timeout: 5), "Shared tag disappeared with the hidden group")
@@ -173,16 +167,10 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
         )
     }
 
-    /// Root Tags row → `shared` → `Router Admin`, the shared prefix of the
+    /// Tags view → `shared` → `Router Admin`, the shared prefix of the
     /// browsing tests.
     private func openTaggedEntryFromTheTagBrowser() {
-        let tagsRow = app.descendants(matching: .any).matching(identifier: "group-list.tags-row").firstMatch
-        XCTAssertTrue(
-            tagsRow.waitForExistence(timeout: KeeForgeUITestCase.ciElementTimeout),
-            "Root group list did not show the Tags row"
-        )
-        XCTAssertTrue(revealElement(tagsRow, in: scrollableContainer()), "Tags row was not reachable")
-        tapElement(tagsRow)
+        selectDatabaseView(.tags)
 
         let sharedRow = app.descendants(matching: .any)
             .matching(identifier: "tag-list.row.\(sharedTag)")
