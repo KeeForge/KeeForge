@@ -26,6 +26,7 @@ struct SettingsView: View {
     @State private var blockScreenCapture = SettingsService.blockScreenCapture
     #if os(macOS)
     @State private var selectedMacTab: MacSettingsTab = .security
+    @Environment(MacQuickAccessController.self) private var quickAccess: MacQuickAccessController?
     #endif
     @State private var biometricType = BiometricService.availableType
 
@@ -81,6 +82,16 @@ struct SettingsView: View {
             }
             .accessibilityIdentifier("settings.tab.autofill")
             .tag(MacSettingsTab.autofill)
+
+            if let quickAccess {
+                MacMenuBarSettingsTab(controller: quickAccess)
+                    .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
+                    .tabItem {
+                        Label("Menu Bar", systemImage: "menubar.rectangle")
+                    }
+                    .accessibilityIdentifier("settings.tab.menu-bar")
+                    .tag(MacSettingsTab.menuBar)
+            }
 
             MacDisplaySettingsTab(
                 showWebsiteIcons: $showWebsiteIcons,
@@ -827,7 +838,7 @@ private enum AppVersion {
 /// Identifies each settings tab so the window can default to Security instead
 /// of restoring whichever tab was open last.
 private enum MacSettingsTab: Hashable {
-    case security, autofill, display, cloud, about
+    case security, autofill, menuBar, display, cloud, about
 }
 
 /// The size every settings tab is pinned to.
