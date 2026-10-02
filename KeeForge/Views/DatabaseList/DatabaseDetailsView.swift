@@ -36,7 +36,6 @@ struct DatabaseDetailsView: View {
     @State private var showAutoFillDestinationPicker = false
     @State private var backups: [DatabaseExportService.Backup] = []
     @State private var exportRequest: DatabaseExportRequest?
-    @State private var fileInfoLoadID = 0
 
     /// True when this view created its own `DatabaseListViewModel` because the
     /// caller could not reach the app's, and therefore has to install the
@@ -84,9 +83,13 @@ struct DatabaseDetailsView: View {
         // Everything below sits on the stack, not the hub. The hub leaves the
         // screen while a page is pushed over it, which would cancel its tasks
         // and leave it unable to present.
-        .task(id: fileInfoLoadID) {
+        // Every write through the open session replaces its open-time hash,
+        // and each one changes the file and its backups.
+        .task(id: sessionViewModel?.openTimeSHA512) {
             backups = DatabaseExportService.backups(for: currentReference)
-            fileInfo = await DatabaseFileInfoLoader.load(for: currentReference)
+            let loadedFileInfo = await DatabaseFileInfoLoader.load(for: currentReference)
+            guard Task.isCancelled == false else { return }
+            fileInfo = loadedFileInfo
             isLoadingFileInfo = false
         }
         .onAppear {
@@ -427,8 +430,6 @@ struct DatabaseDetailsView: View {
                 NavigationLink {
                     if let summary = fileInfo?.summary {
                         EncryptionSettingsView(sessionViewModel: sessionViewModel, current: summary)
-                            // The save rewrote the header and added a backup.
-                            .onDisappear { fileInfoLoadID += 1 }
                     }
                 } label: {
                     Text("Change Encryption Settings…")

@@ -22,6 +22,13 @@ final class MasterKeyChangeUITests: DatabaseCreationUITestCase {
             app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
             "The gear button did not open Database Details"
         )
+        openDatabaseDetailsPage(.backups)
+        XCTAssertTrue(
+            app.staticTexts["database-details.backups-empty"].waitForExistence(timeout: 5),
+            "A newly created database already listed a backup"
+        )
+        returnToDatabaseDetailsHub()
+
         openDatabaseDetailsPage(.masterKey)
 
         let changeRow = app.buttons["database-details.change-master-key"]
@@ -63,6 +70,15 @@ final class MasterKeyChangeUITests: DatabaseCreationUITestCase {
         XCTAssertFalse(
             app.otherElements["master-key.error"].exists || app.staticTexts["master-key.error"].exists,
             "Master key change surfaced an error banner"
+        )
+
+        // The change backed up the old file; the list must show it while
+        // Database Details stays open.
+        returnToDatabaseDetailsHub()
+        openDatabaseDetailsPage(.backups)
+        XCTAssertTrue(
+            app.buttons["database-details.backup-row"].firstMatch.waitForExistence(timeout: 5),
+            "The backup made by the master key change was not listed"
         )
         closeDatabaseDetails()
 
