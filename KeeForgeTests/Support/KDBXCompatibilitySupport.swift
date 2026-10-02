@@ -56,6 +56,14 @@ enum KDBXCompatibilitySupport {
         static let roundTripTxt = "22e06efe984efab5605bccf1c0c1e208db740e16cac328dcbfa27cecee8458db"
     }
 
+    /// The file `attachmentsFixtureAddRemoveScenario` attaches. Non-ASCII in
+    /// both name and bytes, like the fixture's own `note-ü.txt`.
+    enum AddedAttachment {
+        static let name = "added-ä.txt"
+        static let bytes = Data("Attachment added by KeeForge: äöü\n".utf8)
+        static let sha256 = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+    }
+
     /// SHA-256 hashes of the two attachments in
     /// `TestFixtures/compatibility/unknown-inner-header.kdbx`. Its binary pool
     /// is what the spliced unknown inner-header fields sit among, so the gate
@@ -178,7 +186,7 @@ enum KDBXCompatibilitySupport {
     /// `artifactDescriptors` derives the matching artifact set from it, so the
     /// matrix and the external-opener gate can no longer drift apart. The
     /// `kitchenSink` fixture is deliberately not here — it has a dedicated
-    /// test that runs its smoke scenario plus four more.
+    /// test that runs its smoke scenario plus five more.
     static let smokeFixtures: [Fixture] = [
         .aesBaseline,
         .passwordKeyfile,
@@ -254,6 +262,9 @@ enum KDBXCompatibilitySupport {
         /// the same `EncryptionSettingsChange` the savers apply.
         var encryptionSettings: ((LoadedFixture) throws -> EncryptionSettingsChange)?
         var expectedCustomFields: [ArtifactManifest.ExpectedCustomFields] = []
+        /// Set by scenarios that attach a file: the pool may then only grow,
+        /// keeping every entry it had byte for byte at the same index.
+        var appendsToBinaryPool = false
         let assertChange: (CompatibilitySnapshot, CompatibilitySnapshot, LoadedFixture) throws -> Void
 
         func apply(to loaded: LoadedFixture) throws -> ScenarioResult {
@@ -270,10 +281,18 @@ enum KDBXCompatibilitySupport {
                 updatedDraft = DatabaseDraft(
                     rootGroup: merged.rootGroup,
                     meta: merged.meta,
-                    sessionKey: loaded.sessionKey
+                    sessionKey: loaded.sessionKey,
+                    binaryPoolFields: loaded.header.innerHeaderBinaryFields
                 )
             } else {
-                let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey)
+                // The pool goes in with the tree, as `DatabaseViewModel` does,
+                // so the write below is the one the app's savers perform.
+                let draft = DatabaseDraft(
+                    rootGroup: loaded.rootGroup,
+                    meta: loaded.meta,
+                    sessionKey: loaded.sessionKey,
+                    binaryPoolFields: loaded.header.innerHeaderBinaryFields
+                )
                 if let imported = try makeImportedEntries?(loaded) {
                     updatedDraft = try draft.creatingEntries(imported.drafts, inGroup: imported.groupID)
                 } else {
@@ -283,13 +302,7 @@ enum KDBXCompatibilitySupport {
             let rekeyTarget = try rekey?(loaded)
             let writeKey = rekeyTarget?.compositeKey ?? loaded.compositeKey
             let writeHeader = try encryptionSettings?(loaded).applied(to: loaded.header) ?? loaded.header
-            let written = try KDBXWriter.write(
-                rootGroup: updatedDraft.rootGroup,
-                meta: updatedDraft.meta,
-                compositeKey: writeKey,
-                header: writeHeader,
-                sessionKey: updatedDraft.writerSessionKey
-            )
+            let written = try updatedDraft.write(compositeKey: writeKey, header: writeHeader, kdfPolicy: .mainApp)
             if rekeyTarget != nil {
                 XCTAssertThrowsError(
                     try KDBXParser.parseWithMetaAndHeader(
@@ -318,12 +331,23 @@ enum KDBXCompatibilitySupport {
                 binaryPool: afterPool
             )
 
-            // No supported edit adds, removes, renumbers, or reorders inner-header
-            // binary pool entries (the writer re-emits the pool verbatim), so the
-            // whole-pool digest must survive every scenario. Checked here rather
+            // No edit removes, renumbers, or reorders inner-header binary pool
+            // entries, and only attaching a file appends one, so every other
+            // scenario must keep the whole-pool digest. Checked here rather
             // than inside individual `assertChange` closures so a scenario cannot
             // forget it.
-            assertBinaryPoolUnchanged(before: before, after: after, scenarioID: id)
+            if appendsToBinaryPool {
+                let beforeFields = loaded.header.innerHeaderBinaryFields
+                let afterFields = reparsed.header.innerHeaderBinaryFields
+                XCTAssertGreaterThan(afterFields.count, beforeFields.count, "\(id): nothing was appended to the pool")
+                XCTAssertEqual(
+                    Array(afterFields.prefix(beforeFields.count)),
+                    beforeFields,
+                    "\(id): existing pool entries changed across save"
+                )
+            } else {
+                assertBinaryPoolUnchanged(before: before, after: after, scenarioID: id)
+            }
 
             try assertChange(before, after, loaded)
             return ScenarioResult(
@@ -451,6 +475,14 @@ enum KDBXCompatibilitySupport {
         "attachments-soft-delete-entry": [
             .init(entryTitle: "Dedup Entry B", attachmentName: "shared.bin", sha256: AttachmentFixtureHashes.sharedBin),
         ],
+        "attachments-add-remove": [
+            .init(entryTitle: "Multi Attachment Entry Files Edited", attachmentName: "note-ü.txt", sha256: AttachmentFixtureHashes.noteUnicodeTxt),
+            .init(
+                entryTitle: "Multi Attachment Entry Files Edited",
+                attachmentName: AddedAttachment.name,
+                sha256: AddedAttachment.sha256
+            ),
+        ],
         "fixture-smoke-unknown-inner-header": [
             .init(
                 entryTitle: "Inner Header Entry",
@@ -560,6 +592,9 @@ enum KDBXCompatibilitySupport {
         ]
         table["attachments-update-entry"] = [
             .init(entryTitle: "Multi Attachment Entry Updated", password: "updated-multi-password"),
+        ]
+        table["attachments-add-remove"] = [
+            .init(entryTitle: "Multi Attachment Entry Files Edited", password: "files-edited-password"),
         ]
         table["group-tags-update-entry"] = [
             .init(entryTitle: "Beta Login Updated", password: "GroupTagBetaUpdated2"),
@@ -703,6 +738,7 @@ enum KDBXCompatibilitySupport {
             "recycle-bin-creation",
             "attachments-update-entry",
             "attachments-soft-delete-entry",
+            "attachments-add-remove",
             "group-tags-update-entry",
             "group-tags-update-group",
             "keeotp-source-matrix",
@@ -1145,6 +1181,65 @@ enum KDBXCompatibilitySupport {
                     AttachmentFixtureHashes.noteUnicodeTxt,
                     AttachmentFixtureHashes.pixelPNG,
                 ])
+            }
+        )
+    }
+
+    /// Attachment-editing scenario for the `kitchen-sink` fixture: on `Multi
+    /// Attachment Entry` keeps `note-ü.txt`, removes `pixel.png`, and attaches
+    /// a new file, the payload the entry editor sends. The external gate
+    /// exports both current attachments; the removed one must still resolve
+    /// from the history version the edit pushed.
+    static func attachmentsFixtureAddRemoveScenario() -> Scenario {
+        Scenario(
+            id: "attachments-add-remove",
+            title: "Add and remove entry attachments",
+            artifactFileName: "attachments-add-remove.kdbx",
+            expectedSearchTerms: ["Multi Attachment Entry Files Edited"],
+            expectedGroupPaths: [],
+            makeEdit: { loaded in
+                let entry = try XCTUnwrap(findEntry(titled: "Multi Attachment Entry", in: loaded.rootGroup))
+                let kept = try XCTUnwrap(entry.attachments.first { $0.name == "note-ü.txt" })
+                return .updateEntry(
+                    entryID: entry.id,
+                    draft: EntryDraftPayload(
+                        title: "Multi Attachment Entry Files Edited",
+                        username: entry.username,
+                        password: "files-edited-password",
+                        url: entry.url,
+                        notes: entry.notes,
+                        customFields: entry.customFields,
+                        tags: entry.tags,
+                        attachments: [
+                            .existing(name: kept.name, ref: kept.ref),
+                            .new(
+                                name: AddedAttachment.name,
+                                data: AddedAttachment.bytes
+                            ),
+                        ]
+                    )
+                )
+            },
+            appendsToBinaryPool: true,
+            assertChange: { before, after, _ in
+                let entryID = try XCTUnwrap(before.entryID(titled: "Multi Attachment Entry"))
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+
+                let original = try XCTUnwrap(before.entries[entryID])
+                let updated = try XCTUnwrap(after.entries[entryID])
+                XCTAssertEqual(updated.title, "Multi Attachment Entry Files Edited")
+                XCTAssertEqual(updated.attachments.map(\.name), ["note-ü.txt", AddedAttachment.name])
+                XCTAssertEqual(updated.attachmentHashes, [
+                    AttachmentFixtureHashes.noteUnicodeTxt,
+                    AddedAttachment.sha256,
+                ])
+
+                // This app prepends the version an edit pushes.
+                let pushed = try XCTUnwrap(updated.history.first)
+                XCTAssertEqual(pushed.attachments, original.attachments)
+                XCTAssertEqual(pushed.attachmentHashes, original.attachmentHashes)
+                XCTAssertTrue(pushed.attachmentHashes.contains(AttachmentFixtureHashes.pixelPNG))
             }
         )
     }
@@ -1729,6 +1824,9 @@ enum KDBXCompatibilitySupport {
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .kitchenSink, scenario: attachmentsFixtureSoftDeleteScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .kitchenSink, scenario: attachmentsFixtureAddRemoveScenario())
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .kitchenSink, scenario: groupTagsFixtureUpdateEntryScenario())

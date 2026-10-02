@@ -1,7 +1,7 @@
 import XCTest
 
-// Happy-path smoke coverage for the read-only entry-attachments list and its
-// QuickLook preview sheet. Uses `kitchen-sink.kdbx` (password
+// Happy-path smoke coverage for the entry-attachments list, its QuickLook
+// preview sheet, and removing an attachment in the editor. Uses `kitchen-sink.kdbx` (password
 // `testpassword123`), which has a real KDBX4 binary pool with a non-ASCII
 // attachment name and a small PNG, unlike `test.kdbx` which has no attachments
 // at all.
@@ -70,6 +70,33 @@ final class EntryAttachmentsSmokeUITests: UnlockedDatabaseUITestCase {
             firstRow.waitForExistence(timeout: 10),
             "Entry detail should still be visible after dismissing the QuickLook preview"
         )
+    }
+
+    func testRemovingAnAttachmentInTheEditorSavesTheEntryWithoutIt() {
+        unlockSuccessfully()
+        openFixtureEntry(groupName: "Attachments", entryName: "Multi Attachment Entry")
+
+        let editButton = app.buttons["entry-detail.edit"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: Self.ciElementTimeout), "Edit button was not visible")
+        tapElement(editButton)
+
+        let removeSecond = app.buttons["entry-edit.attachment.remove.1"]
+        XCTAssertTrue(revealElement(removeSecond), "The second attachment's Remove button was not reachable")
+        XCTAssertTrue(removeSecond.label.contains("pixel.png"), "Remove should name its attachment, got: \(removeSecond.label)")
+        tapElement(removeSecond)
+        XCTAssertTrue(
+            app.buttons["entry-edit.attachment.remove.1"].waitForNonExistence(timeout: 5),
+            "The removed attachment's row is still in the editor"
+        )
+
+        let saveButton = app.buttons["entry-edit.save"]
+        tapElement(saveButton)
+        XCTAssertTrue(saveButton.waitForNonExistence(timeout: 15), "The editor did not close after saving")
+
+        let remainingRow = app.buttons["entry.attachment.0"]
+        XCTAssertTrue(revealElement(remainingRow), "The kept attachment is no longer listed")
+        XCTAssertTrue(remainingRow.label.contains("note-ü.txt"), "Expected the kept row to be 'note-ü.txt', got: \(remainingRow.label)")
+        XCTAssertFalse(app.buttons["entry.attachment.1"].exists, "The removed attachment is still listed on the entry")
     }
 
     /// The `QLPreviewController` embedded in the SwiftUI sheet renders as an

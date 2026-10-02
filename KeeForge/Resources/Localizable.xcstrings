@@ -2288,6 +2288,46 @@
         }
       }
     },
+    "Add Attachment" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anhang hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir archivo adjunto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter une pièce jointe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイルを追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加附件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增附件"
+          }
+        }
+      }
+    },
     "Add Database" : {
       "localizations" : {
         "de" : {
@@ -4008,6 +4048,46 @@
         }
       }
     },
+    "Attachment" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anhang"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archivo adjunto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pièce jointe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附件"
+          }
+        }
+      }
+    },
     "Attachments" : {
       "localizations" : {
         "de" : {
@@ -4044,6 +4124,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "附件"
+          }
+        }
+      }
+    },
+    "Attachments can't be added here." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hier können keine Anhänge hinzugefügt werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aquí no se pueden añadir archivos adjuntos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d'ajouter des pièces jointes ici."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここでは添付ファイルを追加できません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法在此处添加附件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法在此處新增附件。"
           }
         }
       }
@@ -9406,6 +9526,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法存取資料庫檔案"
+          }
+        }
+      }
+    },
+    "Couldn’t Add Attachment" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anhang konnte nicht hinzugefügt werden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo añadir el archivo adjunto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d'ajouter la pièce jointe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイルを追加できませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法添加附件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法新增附件"
           }
         }
       }
@@ -26898,6 +27058,86 @@
         }
       }
     },
+    "Remove Attachment" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anhang entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar archivo adjunto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer la pièce jointe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイルを削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除附件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除附件"
+          }
+        }
+      }
+    },
+    "Remove attachment %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anhang %@ entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar el archivo adjunto %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer la pièce jointe %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイル%@を削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除附件 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除附件 %@"
+          }
+        }
+      }
+    },
     "Remove Database?" : {
       "localizations" : {
         "de" : {
@@ -32100,6 +32340,46 @@
         }
       }
     },
+    "The attachment \"%@\" is no longer part of this entry." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Anhang „%@“ gehört nicht mehr zu diesem Eintrag."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo adjunto «%@» ya no forma parte de esta entrada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La pièce jointe « %@ » ne fait plus partie de cette entrée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイル「%@」はこのエントリにもうありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附件“%@”已不再属于此条目。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附件「%@」已不再屬於此項目。"
+          }
+        }
+      }
+    },
     "The change can't be merged right now. Make sure the database is editable and has no unresolved save conflict, then try again." : {
       "localizations" : {
         "de" : {
@@ -33417,6 +33697,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資料庫將僅需金鑰檔案即可解鎖。任何擁有該金鑰檔案的人都能開啟它。"
+          }
+        }
+      }
+    },
+    "The database would be too large for KeeForge to open again, so it was not saved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbank wäre so groß geworden, dass KeeForge sie nicht mehr öffnen könnte. Sie wurde deshalb nicht gesichert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos sería demasiado grande para que KeeForge pudiera volver a abrirla, así que no se ha guardado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données deviendrait trop volumineuse pour que KeeForge puisse la rouvrir ; elle n'a donc pas été enregistrée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースが大きくなりすぎて KeeForge で開けなくなるため、保存されませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库会过大，KeeForge 将无法再次打开，因此未保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫會過大，KeeForge 將無法再次開啟，因此未儲存。"
           }
         }
       }
@@ -35502,6 +35822,46 @@
         }
       }
     },
+    "This database has attachments whose data is missing. A new file would take their place, so it can't be added." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank enthält Anhänge, deren Daten fehlen. Eine neue Datei würde ihren Platz einnehmen und kann deshalb nicht hinzugefügt werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos tiene archivos adjuntos cuyos datos faltan. Un archivo nuevo ocuparía su lugar, así que no se puede añadir."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données contient des pièces jointes dont les données sont manquantes. Un nouveau fichier prendrait leur place ; il ne peut donc pas être ajouté."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースには、データが見つからない添付ファイルがあります。新しいファイルがその代わりになってしまうため、追加できません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库中有数据缺失的附件。新文件会占用它们的位置，因此无法添加。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫中有資料遺失的附件。新檔案會佔用它們的位置，因此無法新增。"
+          }
+        }
+      }
+    },
     "This database has pending AutoFill changes. Let them finish syncing, then try again." : {
       "localizations" : {
         "de" : {
@@ -36784,6 +37144,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此檔案過大，不是密碼匯出檔案。"
+          }
+        }
+      }
+    },
+    "This file would make the attachments too large for KeeForge to open the database again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit dieser Datei würden die Anhänge so groß, dass KeeForge die Datenbank nicht mehr öffnen könnte."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con este archivo, los archivos adjuntos serían demasiado grandes para que KeeForge pudiera volver a abrir la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec ce fichier, les pièces jointes deviendraient trop volumineuses pour que KeeForge puisse rouvrir la base de données."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルを追加すると添付ファイルが大きくなりすぎ、KeeForge でデータベースを開けなくなります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加此文件后，附件会过大，KeeForge 将无法再次打开此数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增此檔案後，附件會過大，KeeForge 將無法再次開啟此資料庫。"
           }
         }
       }

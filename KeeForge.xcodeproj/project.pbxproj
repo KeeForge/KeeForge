@@ -148,6 +148,7 @@
 		29DDAA2E34F0D576EE67B15A /* EntryIconPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5188612D8251D8EEAA729F2 /* EntryIconPickerView.swift */; };
 		2A1865953BAAE0787AC61DB2 /* DatabaseFileInfoLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ACF04A69BD290E352459B8D /* DatabaseFileInfoLoader.swift */; };
 		2B04C7FCDC7BBFE843369BF2 /* AcknowledgmentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 105B7B9B10B9F3B9B8971EBC /* AcknowledgmentsView.swift */; };
+		2BC662E14A1F7F3F156F0D0E /* EntryEditAttachmentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C9BD50A1E32076A6D355C52 /* EntryEditAttachmentsSection.swift */; };
 		2BF90491F526F3F67EBEE7D9 /* CloudAccountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFB9EC163DF66E977BC27389 /* CloudAccountStore.swift */; };
 		2C55CC7581FAACDDD10EE294 /* FTPConnectViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54287F21355680F91063AD3F /* FTPConnectViewModel.swift */; };
 		2C76ED5D3BA609A2639A1AF9 /* PendingUploadDrainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B85CAF10E8CFC72802590A3 /* PendingUploadDrainer.swift */; };
@@ -429,6 +430,7 @@
 		8BB568B0FC7686569B85396B /* CloudSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC241709FEF1D5139F38372 /* CloudSyncCoordinator.swift */; };
 		8BB6422DAD2503E2052570CC /* FeedbackSubmissionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF77C387846CFF3B94A08369 /* FeedbackSubmissionServiceTests.swift */; };
 		8BE8008593A85770F51E10D1 /* CloudFileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D58D7BAED64CD891E644E14 /* CloudFileBrowserView.swift */; };
+		8C3717BA192EEF8CC2BBD21A /* EntryEditAttachmentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C9BD50A1E32076A6D355C52 /* EntryEditAttachmentsSection.swift */; };
 		8C73A708D9508C4931C50779 /* KDBXWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C243B2746CDA396F76E052B6 /* KDBXWriter.swift */; };
 		8CBE8DF70368FAE59565D6D2 /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F265178D41B43F55813C70AD /* WebDAVClient.swift */; };
 		8D451C0FF02C60504FE778CC /* foreign-chacha20.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = EF6FBD0976DB77F511EDBFFA /* foreign-chacha20.kdbx */; };
@@ -956,6 +958,7 @@
 		2AA6343D62E6D446EC5AD832 /* MacSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSmokeUITests.swift; sourceTree = "<group>"; };
 		2BB544840B1E5A0F71FCB6E6 /* HardwareKeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareKeyService.swift; sourceTree = "<group>"; };
 		2BFDB1A93AED371325A651F2 /* AutoFillStatusServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillStatusServiceTests.swift; sourceTree = "<group>"; };
+		2C9BD50A1E32076A6D355C52 /* EntryEditAttachmentsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEditAttachmentsSection.swift; sourceTree = "<group>"; };
 		2CC241709FEF1D5139F38372 /* CloudSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncCoordinator.swift; sourceTree = "<group>"; };
 		2F67A19B307012E6FFA9545C /* KeyFileProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyFileProcessor.swift; sourceTree = "<group>"; };
 		2FFC8C91D571F07AF7531393 /* DatabaseCreationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseCreationService.swift; sourceTree = "<group>"; };
@@ -1465,6 +1468,7 @@
 				30D3E9B8959F15FD248A61FE /* AttachmentQuickLookPreview.swift */,
 				CCF584DE7CA99C49E8FD44CF /* AttachmentsSection.swift */,
 				08894081A7C651DBFB58FDD9 /* EntryDetailView.swift */,
+				2C9BD50A1E32076A6D355C52 /* EntryEditAttachmentsSection.swift */,
 				CAB9CB7D5F3120A16D3D7D7E /* EntryEditView.swift */,
 				4EF6EDA485C64C556F3AFC50 /* EntryHistoryView.swift */,
 				E5188612D8251D8EEAA729F2 /* EntryIconPickerView.swift */,
@@ -2646,6 +2650,7 @@
 				AA14F338CB19654F4C13192F /* Entry.swift in Sources */,
 				3A93555A074F00A45784F741 /* EntryDetailView.swift in Sources */,
 				9E25781B8EB1F28A7C505E75 /* EntryEdit.swift in Sources */,
+				2BC662E14A1F7F3F156F0D0E /* EntryEditAttachmentsSection.swift in Sources */,
 				92531C2C544493BE51FAD745 /* EntryEditCompletionGate.swift in Sources */,
 				AEC558647DD653AAFA36D69D /* EntryEditView.swift in Sources */,
 				FA5E45C131BCC71E739B55AB /* EntryEditViewModel.swift in Sources */,
@@ -2826,6 +2831,7 @@
 				4559540601B649A98E79C197 /* Entry.swift in Sources */,
 				B1742B3DFEFE6815E8210C2B /* EntryDetailView.swift in Sources */,
 				8EAB80EF201B8AE0EA7F865F /* EntryEdit.swift in Sources */,
+				8C3717BA192EEF8CC2BBD21A /* EntryEditAttachmentsSection.swift in Sources */,
 				234C354389EA19BED45BEA53 /* EntryEditCompletionGate.swift in Sources */,
 				25BFA955FFF79E54F6F98E89 /* EntryEditView.swift in Sources */,
 				731B8E5859B763F5E251E680 /* EntryEditViewModel.swift in Sources */,
