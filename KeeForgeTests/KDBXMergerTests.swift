@@ -707,6 +707,53 @@ final class KDBXMergerTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(findEntry(alphaID, in: merged.rootGroup)).title, "Remote Alpha")
     }
 
+    func test_merge_declinesWhenARemoteRefPointsIntoThePoolLocalAppended() throws {
+        // Local appended a file at index 0 in an unsaved edit; the remote,
+        // with the pool the session opened, carries a dangling ref 0.
+        var localAlpha = try makeEntry(id: alphaID, title: "Alpha", modified: time(10))
+        localAlpha.attachments = [KPAttachment(name: "local.txt", ref: 0)]
+        var remoteBeta = try makeEntry(id: betaID, title: "Beta", modified: time(10))
+        remoteBeta.attachments = [KPAttachment(name: "missing.txt", ref: 0)]
+
+        let outcome = try KDBXMerger.merge(
+            local: KDBXMerger.Side(rootGroup: try makeTree(work: [localAlpha]), meta: KPMeta(), binaryPoolFields: [Data([0x01, 0x41])]),
+            remote: KDBXMerger.Side(rootGroup: try makeTree(work: [remoteBeta]), meta: KPMeta(), binaryPoolFields: []),
+            sessionKey: sessionKey
+        )
+
+        guard case .declined(let blockers) = outcome else {
+            return XCTFail("Expected a decline, got \(outcome)")
+        }
+        XCTAssertEqual(blockers, [.attachmentPoolDivergence])
+    }
+
+    func test_merge_acceptsARemotePoolTheLocalPoolOnlyExtends() throws {
+        var localAlpha = try makeEntry(id: alphaID, title: "Alpha", modified: time(10))
+        localAlpha.attachments = [KPAttachment(name: "added.txt", ref: 1)]
+        var remoteBeta = try makeEntry(id: betaID, title: "Beta", modified: time(10))
+        remoteBeta.attachments = [
+            KPAttachment(name: "shared.txt", ref: 0),
+            // Past the local pool too, so it stays dangling after the merge.
+            KPAttachment(name: "missing.txt", ref: 5),
+        ]
+
+        let merged = try mergedResult(
+            local: KDBXMerger.Side(
+                rootGroup: try makeTree(work: [localAlpha]),
+                meta: KPMeta(),
+                binaryPoolFields: [Data([0x00, 0x41]), Data([0x01, 0x42])]
+            ),
+            remote: KDBXMerger.Side(
+                rootGroup: try makeTree(work: [remoteBeta]),
+                meta: KPMeta(),
+                binaryPoolFields: [Data([0x00, 0x41])]
+            )
+        )
+
+        XCTAssertEqual(try XCTUnwrap(findEntry(alphaID, in: merged.rootGroup)).attachments, localAlpha.attachments)
+        XCTAssertEqual(try XCTUnwrap(findEntry(betaID, in: merged.rootGroup)).attachments, remoteBeta.attachments)
+    }
+
     func test_merge_identicalPoolsWithAttachmentsAreNotABlocker() throws {
         var localAlpha = try makeEntry(id: alphaID, title: "Alpha", modified: time(10))
         localAlpha.attachments = [KPAttachment(name: "note.txt", ref: 0)]

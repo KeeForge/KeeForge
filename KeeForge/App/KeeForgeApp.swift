@@ -15,12 +15,17 @@ struct KeeForgeApp: App {
     #if os(macOS)
     @State private var macLockMonitor = MacLockMonitor()
     @State private var macWindowCloseGuard = MacWindowCloseGuard()
+    @State private var macQuickAccess = MacQuickAccessController()
     #else
     @State private var appSettingsPresentation = AppSettingsPresentation()
     #endif
     @AppStorage(SettingsService.appearanceModeDefaultsKey) private var appearanceModeRaw = SettingsService.AppearanceMode.system.rawValue
     @AppStorage(SettingsService.appAccentColorDefaultsKey) private var appAccentColorRaw = ""
     @Environment(\.scenePhase) private var scenePhase
+
+    #if os(macOS)
+    static let mainWindowID = "main"
+    #endif
 
     init() {
         AutoFillDiagnostics.migrateLegacyLogLocation()
@@ -32,6 +37,7 @@ struct KeeForgeApp: App {
         #if os(macOS)
         Settings {
             SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
+                .environment(macQuickAccess)
                 .tint(appAccentColor)
                 .preferredColorScheme(appearanceMode.preferredColorScheme)
         }
@@ -39,69 +45,16 @@ struct KeeForgeApp: App {
     }
 
     private var mainWindow: some Scene {
-        let windowGroup = WindowGroup {
-            rootView
-            #if os(macOS)
-            // The height floor is the content area, so it must stay clear of
-            // `MacSheetMetrics.maxHeight` — a sheet is anchored under the
-            // toolbar and would otherwise sit flush with the window's bottom.
-            .frame(minWidth: 900, minHeight: 620)
-            .focusedSceneValue(\.databaseViewModel, activeDatabaseViewModel)
-            #else
-            // App-owned Settings sheet (⌘, / the Mac-compat toolbar gear),
-            // above the root so it survives the lock/unlock root swap.
-            .environment(appSettingsPresentation)
-            .sheet(isPresented: $appSettingsPresentation.isPresented) {
-                SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
-            }
-            #endif
-            .tint(appAccentColor)
-            .preferredColorScheme(appearanceMode.preferredColorScheme)
-            .onChange(of: scenePhase) { _, newPhase in
-                switch newPhase {
-                case .active:
-                    screenProtectionService.hideShield()
-                    activeDatabaseViewModel?.didManuallyLock = false
-                    activeDatabaseViewModel?.handleSceneDidBecomeActive()
-                    activeDatabaseViewModel?.refreshSharedDatabaseCacheIfPossible()
-                    scanDocumentsForSharedDatabases()
-                    Task {
-                        await listViewModel.drainPendingUploadsOnAppActive()
-                    }
-                case .inactive:
-                    break
-                case .background:
-                    screenProtectionService.showShield()
-                    // macOS: the scene phase moves to .background on window
-                    // minimize / app hide, which must not lock under the
-                    // default policy. MacLockMonitor is the sole lock driver
-                    // on the Mac; see startMacLockMonitoringIfNeeded().
-                    #if os(iOS)
-                    activeDatabaseViewModel?.handleSceneDidEnterBackground()
-                    #endif
-                @unknown default:
-                    screenProtectionService.showShield()
-                }
-            }
-            .task {
-                // Plaintext preview files orphaned by a process that died
-                // without locking; must run before this session writes any.
-                AttachmentPreviewFileStore.purgeOrphanedFiles()
-                // At launch, not on Tip Jar open, so out-of-app completions
-                // (Ask to Buy, deferred SCA) are still delivered and finished.
-                // The direct target compiles this path out because it has no
-                // App Store receipt and must not link StoreKit.
-                #if !KEEFORGE_DIRECT_DOWNLOAD
-                    StoreKitManager.shared.start()
-                #endif
-                pendingUploadDrainer.startObserving {
-                    Task {
-                        await listViewModel.drainPendingUploadsOnAppActive()
-                    }
-                }
-                startMacLockMonitoringIfNeeded()
-            }
+        #if os(macOS)
+        // An id so the menu bar quick search can reopen the window after ⌘W.
+        let windowGroup = WindowGroup(id: Self.mainWindowID) {
+            mainWindowContent
         }
+        #else
+        let windowGroup = WindowGroup {
+            mainWindowContent
+        }
+        #endif
 
         #if os(macOS)
         return windowGroup
@@ -123,6 +76,72 @@ struct KeeForgeApp: App {
                 AppSettingsCommands(presentation: appSettingsPresentation)
             }
         #endif
+    }
+
+    private var mainWindowContent: some View {
+        rootView
+        #if os(macOS)
+        // The height floor is the content area, so it must stay clear of
+        // `MacSheetMetrics.maxHeight` — a sheet is anchored under the
+        // toolbar and would otherwise sit flush with the window's bottom.
+        .frame(minWidth: 900, minHeight: 620)
+        .focusedSceneValue(\.databaseViewModel, activeDatabaseViewModel)
+        .environment(macQuickAccess)
+        .modifier(MacQuickAccessMainWindowHookup(controller: macQuickAccess))
+        #else
+        // App-owned Settings sheet (⌘, / the Mac-compat toolbar gear),
+        // above the root so it survives the lock/unlock root swap.
+        .environment(appSettingsPresentation)
+        .sheet(isPresented: $appSettingsPresentation.isPresented) {
+            SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
+        }
+        #endif
+        .tint(appAccentColor)
+        .preferredColorScheme(appearanceMode.preferredColorScheme)
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .active:
+                screenProtectionService.hideShield()
+                activeDatabaseViewModel?.didManuallyLock = false
+                activeDatabaseViewModel?.handleSceneDidBecomeActive()
+                activeDatabaseViewModel?.refreshSharedDatabaseCacheIfPossible()
+                scanDocumentsForSharedDatabases()
+                Task {
+                    await listViewModel.drainPendingUploadsOnAppActive()
+                }
+            case .inactive:
+                break
+            case .background:
+                screenProtectionService.showShield()
+                // macOS: the scene phase moves to .background on window
+                // minimize / app hide, which must not lock under the
+                // default policy. MacLockMonitor is the sole lock driver
+                // on the Mac; see startMacLockMonitoringIfNeeded().
+                #if os(iOS)
+                activeDatabaseViewModel?.handleSceneDidEnterBackground()
+                #endif
+            @unknown default:
+                screenProtectionService.showShield()
+            }
+        }
+        .task {
+            // Plaintext preview files orphaned by a process that died
+            // without locking; must run before this session writes any.
+            AttachmentPreviewFileStore.purgeOrphanedFiles()
+            // At launch, not on Tip Jar open, so out-of-app completions
+            // (Ask to Buy, deferred SCA) are still delivered and finished.
+            // The direct target compiles this path out because it has no
+            // App Store receipt and must not link StoreKit.
+            #if !KEEFORGE_DIRECT_DOWNLOAD
+                StoreKitManager.shared.start()
+            #endif
+            pendingUploadDrainer.startObserving {
+                Task {
+                    await listViewModel.drainPendingUploadsOnAppActive()
+                }
+            }
+            startMacLockMonitoringIfNeeded()
+        }
     }
 
     /// Root content for the main window. In DEBUG builds the
@@ -194,6 +213,9 @@ struct KeeForgeApp: App {
         // runs before it.
         macWindowCloseGuard.vaultProvider = { activeViewModel.wrappedValue }
         macWindowCloseGuard.start()
+
+        macQuickAccess.searchModel.sessionProvider = { activeViewModel.wrappedValue }
+        macQuickAccess.start()
         #endif
     }
 
@@ -205,6 +227,25 @@ struct KeeForgeApp: App {
         SettingsService.AppAccentColor(rawValue: appAccentColorRaw)?.color ?? Color("AccentColor")
     }
 }
+
+#if os(macOS)
+/// Lets the menu bar quick search front this window, or open a new one once
+/// it has been closed: `openWindow` only exists inside a scene.
+private struct MacQuickAccessMainWindowHookup: ViewModifier {
+    let controller: MacQuickAccessController
+    @Environment(\.openWindow) private var openWindow
+
+    func body(content: Content) -> some View {
+        content
+            .background(MacWindowReader { window in
+                if let window { controller.mainWindow = window }
+            })
+            .onAppear {
+                controller.openMainWindow = { openWindow(id: KeeForgeApp.mainWindowID) }
+            }
+    }
+}
+#endif
 
 private extension SettingsService.AppearanceMode {
     var preferredColorScheme: ColorScheme? {

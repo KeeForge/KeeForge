@@ -1218,4 +1218,91 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.createDestinationGroupID)
         XCTAssertEqual(viewModel.mode, .edit(entryID: entry.id))
     }
+
+    // MARK: - Attachments
+
+    func testEditingSeedsAttachmentsAndLeavesThemOutOfAnUntouchedPayload() {
+        let entry = KPEntry(title: "Files", attachments: [KPAttachment(name: "scan.pdf", ref: 0)])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        XCTAssertEqual(viewModel.attachments.map(\.name), ["scan.pdf"])
+        XCTAssertFalse(viewModel.isDirty)
+        viewModel.title = "Renamed"
+        XCTAssertNil(viewModel.entryDraftPayload.attachments)
+    }
+
+    func testAddingAttachmentDirtiesTheFormAndAppendsItToThePayload() {
+        let entry = KPEntry(title: "Files", attachments: [KPAttachment(name: "scan.pdf", ref: 3)])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        viewModel.addAttachment(named: "photo.jpg", data: Data("jpg".utf8))
+
+        XCTAssertTrue(viewModel.isDirty)
+        XCTAssertTrue(viewModel.canSave)
+        XCTAssertEqual(viewModel.entryDraftPayload.attachments, [
+            .existing(name: "scan.pdf", ref: 3),
+            .new(name: "photo.jpg", data: Data("jpg".utf8)),
+        ])
+    }
+
+    func testRemovingAttachmentLeavesItOutOfThePayload() throws {
+        let entry = KPEntry(title: "Files", attachments: [
+            KPAttachment(name: "scan.pdf", ref: 0),
+            KPAttachment(name: "notes.txt", ref: 1),
+        ])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        viewModel.removeAttachment(id: try XCTUnwrap(viewModel.attachments.first).id)
+
+        XCTAssertTrue(viewModel.isDirty)
+        XCTAssertEqual(viewModel.entryDraftPayload.attachments, [.existing(name: "notes.txt", ref: 1)])
+    }
+
+    func testRemovingTheOnlyAddedAttachmentMakesTheFormCleanAgain() throws {
+        let entry = KPEntry(title: "Files", attachments: [KPAttachment(name: "scan.pdf", ref: 0)])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        viewModel.addAttachment(named: "extra.bin", data: Data([0x01]))
+        viewModel.removeAttachment(id: try XCTUnwrap(viewModel.attachments.last).id)
+
+        XCTAssertFalse(viewModel.isDirty)
+        XCTAssertNil(viewModel.entryDraftPayload.attachments)
+    }
+
+    func testAddingAttachmentUnderATakenNameNumbersIt() {
+        let entry = KPEntry(title: "Files", attachments: [
+            KPAttachment(name: "scan.pdf", ref: 0),
+            KPAttachment(name: "scan (2).pdf", ref: 1),
+            KPAttachment(name: "README", ref: 2),
+        ])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        viewModel.addAttachment(named: "scan.pdf", data: Data("a".utf8))
+        viewModel.addAttachment(named: "README", data: Data("b".utf8))
+        viewModel.addAttachment(named: "scan.pdf", data: Data("c".utf8))
+
+        XCTAssertEqual(
+            viewModel.attachments.map(\.name),
+            ["scan.pdf", "scan (2).pdf", "README", "scan (3).pdf", "README (2)", "scan (4).pdf"]
+        )
+    }
+
+    func testNewEntryCarriesAddedAttachmentsAndDuplicatesStartWithout() throws {
+        let form = EntryEditViewModel(createIn: UUID())
+        XCTAssertNil(form.entryDraftPayload.attachments)
+
+        form.addAttachment(named: "key.asc", data: Data("key".utf8))
+
+        XCTAssertTrue(form.isDirty)
+        XCTAssertEqual(form.entryDraftPayload.attachments, [.new(name: "key.asc", data: Data("key".utf8))])
+
+        let source = KPEntry(
+            title: "Source",
+            password: try EncryptedValue.encrypt("pw", using: sessionKey),
+            attachments: [KPAttachment(name: "scan.pdf", ref: 0)]
+        )
+        let duplicate = EntryEditViewModel(duplicating: source, sessionKey: sessionKey, into: UUID())
+        XCTAssertTrue(duplicate.attachments.isEmpty)
+        XCTAssertNil(duplicate.entryDraftPayload.attachments)
+    }
 }

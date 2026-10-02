@@ -26,6 +26,7 @@ enum KDBXWriter {
         case unsupportedInnerRandomStream(UInt32)
         case unsupportedCompression(UInt32)
         case unsupportedVariantMapValue(String)
+        case payloadTooLarge
 
         var errorDescription: String? {
             switch self {
@@ -37,6 +38,8 @@ enum KDBXWriter {
                 String(localized: "Unsupported compression mode: \(compressionFlags)")
             case .unsupportedVariantMapValue(let key):
                 String(localized: "Unsupported variant map value for key: \(key)")
+            case .payloadTooLarge:
+                String(localized: "The database would be too large for KeeForge to open again, so it was not saved.")
             }
         }
     }
@@ -125,6 +128,9 @@ enum KDBXWriter {
         case 0:
             payloadToEncrypt = payload
         case 1:
+            guard payload.count <= KDBXCrypto.maxDecompressedSize else {
+                throw WriteError.payloadTooLarge
+            }
             payloadToEncrypt = try KDBXCrypto.gzip(payload)
         default:
             throw WriteError.unsupportedCompression(header.compressionFlags)

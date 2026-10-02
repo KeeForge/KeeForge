@@ -836,6 +836,160 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     /// A real KDBX under the same key whose bytes differ from `databaseURL`'s
     /// — what another client would have left behind.
+    // MARK: - Payload size limit
+
+    func testSaveWithALargeAttachmentThatFitsReopensWithItsBytes() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        // A megabyte under the limit leaves room for the fixture's XML.
+        let added = try makeAttachmentSaveContext(
+            databaseURL: databaseURL,
+            name: "large.bin",
+            growingPoolTo: KDBXCrypto.maxDecompressedSize - 1024 * 1024
+        )
+
+        _ = try await LocalDatabaseSaver.save(
+            draft: added.context.draft,
+            reference: reference,
+            compositeKey: added.context.compositeKey,
+            openTimeSHA512: added.context.openTimeSHA512
+        )
+
+        XCTAssertEqual(try attachmentBytes(in: databaseURL)["large.bin"], added.bytes)
+    }
+
+    func testSaveRefusesAnAttachmentThatLeavesNoRoomForTheXMLAndLeavesTheFileUntouched() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let originalData = try Data(contentsOf: databaseURL)
+        // The draft accepts a pool that reaches the limit by itself; the XML
+        // then takes the payload past what the reader inflates.
+        let added = try makeAttachmentSaveContext(
+            databaseURL: databaseURL,
+            name: "large.bin",
+            growingPoolTo: KDBXCrypto.maxDecompressedSize
+        )
+
+        await assertSaveRefusesPayloadTooLarge(added.context, reference: reference)
+
+        XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
+    }
+
+    func testSaveRefusesAttachmentsThatOnlyTogetherExceedTheReadLimit() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let first = try makeAttachmentSaveContext(
+            databaseURL: databaseURL,
+            name: "first.bin",
+            growingPoolTo: KDBXCrypto.maxDecompressedSize / 2
+        )
+        _ = try await LocalDatabaseSaver.save(
+            draft: first.context.draft,
+            reference: reference,
+            compositeKey: first.context.compositeKey,
+            openTimeSHA512: first.context.openTimeSHA512
+        )
+        let savedData = try Data(contentsOf: databaseURL)
+
+        let second = try makeAttachmentSaveContext(
+            databaseURL: databaseURL,
+            name: "second.bin",
+            growingPoolTo: KDBXCrypto.maxDecompressedSize
+        )
+        await assertSaveRefusesPayloadTooLarge(second.context, reference: reference)
+
+        XCTAssertEqual(try Data(contentsOf: databaseURL), savedData)
+        let reopened = try attachmentBytes(in: databaseURL)
+        XCTAssertEqual(reopened["first.bin"], first.bytes)
+        XCTAssertNil(reopened["second.bin"])
+    }
+
+    private func assertSaveRefusesPayloadTooLarge(
+        _ context: SaveContext,
+        reference: DatabaseReference,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        do {
+            _ = try await LocalDatabaseSaver.save(
+                draft: context.draft,
+                reference: reference,
+                compositeKey: context.compositeKey,
+                openTimeSHA512: context.openTimeSHA512
+            )
+            XCTFail("Expected the save to refuse a payload the reader cannot inflate.", file: file, line: line)
+        } catch KDBXWriter.WriteError.payloadTooLarge {
+        } catch {
+            XCTFail("Expected payloadTooLarge, got \(error)", file: file, line: line)
+        }
+    }
+
+    /// A draft over the file at `databaseURL`, built with the file's pool as
+    /// `DatabaseViewModel` builds it, that adds one entry carrying a new
+    /// file. The file is sized so the pool then takes `poolByteCount` bytes
+    /// of the inner header.
+    private func makeAttachmentSaveContext(
+        databaseURL: URL,
+        name: String,
+        growingPoolTo poolByteCount: Int
+    ) throws -> (context: SaveContext, bytes: Data) {
+        let originalData = try Data(contentsOf: databaseURL)
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: originalData,
+            password: fixturePassword,
+            sessionKey: sessionKey
+        )
+        XCTAssertEqual(parsed.header.compressionFlags, 1, "The limit applies to compressed payloads.")
+        let pool = parsed.header.innerHeaderBinaryFields
+        // Each field is a one-byte type, a four-byte length, and its value; a
+        // pool entry's value is the file's bytes behind one flag byte.
+        let fieldFraming = 5
+        let openedPoolByteCount = pool.reduce(0) { $0 + fieldFraming + $1.count }
+        var bytes = Data(count: poolByteCount - openedPoolByteCount - fieldFraming - 1)
+        // Unlike any file already there, or the pool entry would be reused.
+        bytes[0] = UInt8(pool.count + 1)
+
+        let draft = try DatabaseDraft(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            sessionKey: sessionKey,
+            binaryPoolFields: pool
+        ).apply(
+            .createEntry(
+                parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: parsed.rootGroup),
+                draft: EntryDraftPayload(
+                    title: name,
+                    password: "secret",
+                    attachments: [.new(name: name, data: bytes)]
+                )
+            )
+        )
+
+        let context = SaveContext(
+            draft: draft,
+            compositeKey: KDBXCrypto.compositeKey(password: fixturePassword),
+            openTimeSHA512: KDBXCrypto.sha512(originalData),
+            originalRootGroup: parsed.rootGroup
+        )
+        return (context, bytes)
+    }
+
+    /// Every attachment in the file at `databaseURL`, by name.
+    private func attachmentBytes(in databaseURL: URL) throws -> [String: Data] {
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: try Data(contentsOf: databaseURL),
+            password: fixturePassword,
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+        let pool = BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
+        var bytes: [String: Data] = [:]
+        for attachment in parsed.rootGroup.allEntries.flatMap(\.attachments) {
+            bytes[attachment.name] = pool[attachment.ref]?.data
+        }
+        return bytes
+    }
+
     private func makeDivergedDatabaseData(from databaseURL: URL) throws -> Data {
         let compositeKey = try KDBXCrypto.compositeKey(password: fixturePassword)
         let sessionKey = SymmetricKey(size: .bits256)

@@ -22,6 +22,29 @@ final class EntryEditViewModel {
         }
     }
 
+    struct Attachment: Identifiable, Equatable, Sendable {
+        enum Source: Equatable, Sendable {
+            case existing(KPAttachment)
+            case new(Data)
+        }
+
+        let id: UUID
+        let name: String
+        let source: Source
+
+        init(id: UUID = UUID(), name: String, source: Source) {
+            self.id = id
+            self.name = name
+            self.source = source
+        }
+
+        /// By identity: every field is immutable, and `isDirty` runs on each
+        /// render, where comparing file bytes would be wasted work.
+        static func == (lhs: Attachment, rhs: Attachment) -> Bool {
+            lhs.id == rhs.id
+        }
+    }
+
     /// Keys a custom field must not take: the standard fields, and the ones
     /// KeeForge writes itself for TOTP and passkeys. Reusing one would write a
     /// second `<String>` under the same key, or be dropped on save.
@@ -49,6 +72,7 @@ final class EntryEditViewModel {
         var totpDigits: Int
         var totpAlgorithm: TOTPAlgorithm
         var enrolledOTPAuthURI: String?
+        var attachments: [Attachment]
     }
 
     /// Mutable only in its `.create` payload: the destination group is a
@@ -79,6 +103,8 @@ final class EntryEditViewModel {
     var totpPeriod: Int
     var totpDigits: Int
     var totpAlgorithm: TOTPAlgorithm
+    /// The entry's attachments in file order, new files appended.
+    private(set) var attachments: [Attachment]
     /// The verbatim `otpauth://` URI this editing session enrolled from, nil
     /// otherwise. Whether it reaches the payload is decided at payload time,
     /// so later field edits need no invalidation bookkeeping.
@@ -124,6 +150,7 @@ final class EntryEditViewModel {
         totpPeriod: Int = 30,
         totpDigits: Int = 6,
         totpAlgorithm: TOTPAlgorithm = .sha1,
+        attachments: [KPAttachment] = [],
         passkeyCredential: PasskeyCredential? = nil,
         unknownXMLNodeCount: Int = 0,
         isSeededFromExistingEntry: Bool = false
@@ -147,6 +174,8 @@ final class EntryEditViewModel {
         self.totpPeriod = totpPeriod
         self.totpDigits = totpDigits
         self.totpAlgorithm = totpAlgorithm
+        let seededAttachments = attachments.map { Attachment(name: $0.name, source: .existing($0)) }
+        self.attachments = seededAttachments
         self.passkeyCredential = passkeyCredential
         self.unknownXMLNodeCount = unknownXMLNodeCount
         self.isSeededFromExistingEntry = isSeededFromExistingEntry
@@ -168,7 +197,8 @@ final class EntryEditViewModel {
                 totpPeriod: 30,
                 totpDigits: 6,
                 totpAlgorithm: .sha1,
-                enrolledOTPAuthURI: nil
+                enrolledOTPAuthURI: nil,
+                attachments: []
             )
         case .edit:
             originalSnapshot = Snapshot(
@@ -183,7 +213,8 @@ final class EntryEditViewModel {
                 totpPeriod: totpPeriod,
                 totpDigits: totpDigits,
                 totpAlgorithm: totpAlgorithm,
-                enrolledOTPAuthURI: nil
+                enrolledOTPAuthURI: nil,
+                attachments: seededAttachments
             )
         }
     }
@@ -238,6 +269,7 @@ final class EntryEditViewModel {
             totpPeriod: entry.totpConfig?.period ?? 30,
             totpDigits: entry.totpConfig?.digits ?? 6,
             totpAlgorithm: entry.totpConfig?.algorithm ?? .sha1,
+            attachments: entry.attachments,
             passkeyCredential: entry.passkeyCredential,
             unknownXMLNodeCount: entry.unknownXML.nodes.count
         )
@@ -401,7 +433,8 @@ final class EntryEditViewModel {
             customFields: mergedCustomFields(),
             protectedCustomFieldKeys: protectedCustomFieldKeys(),
             tags: normalizedTags(),
-            totpConfig: normalizedTOTPConfiguration()
+            totpConfig: normalizedTOTPConfiguration(),
+            attachments: attachmentPayloads()
         )
     }
 
@@ -501,6 +534,51 @@ final class EntryEditViewModel {
         totpAlgorithm = .sha1
     }
 
+    /// Appends a file as a new attachment. KeePassXC keys an entry's
+    /// attachments by name and would keep only one of two that share it, so a
+    /// taken name gets a numbered suffix, as Finder does for copies.
+    func addAttachment(named name: String, data: Data) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseName = trimmed.isEmpty ? String(localized: "Attachment") : trimmed
+        let takenNames = Set(attachments.map(\.name))
+        attachments.append(Attachment(
+            name: Self.uniqueAttachmentName(baseName, avoiding: takenNames),
+            source: .new(data)
+        ))
+    }
+
+    func removeAttachment(id: UUID) {
+        attachments.removeAll { $0.id == id }
+    }
+
+    private static func uniqueAttachmentName(_ name: String, avoiding takenNames: Set<String>) -> String {
+        guard takenNames.contains(name) else { return name }
+        let pathExtension = (name as NSString).pathExtension
+        let stem = pathExtension.isEmpty ? name : (name as NSString).deletingPathExtension
+        var counter = 2
+        while true {
+            let candidate = pathExtension.isEmpty ? "\(stem) (\(counter))" : "\(stem) (\(counter)).\(pathExtension)"
+            if takenNames.contains(candidate) == false {
+                return candidate
+            }
+            counter += 1
+        }
+    }
+
+    /// `nil` while the list is as it opened, so a save that leaves the
+    /// attachments alone never depends on them still matching the entry.
+    private func attachmentPayloads() -> [EntryAttachmentPayload]? {
+        guard attachments != originalSnapshot.attachments else { return nil }
+        return attachments.map { attachment in
+            switch attachment.source {
+            case .existing(let stored):
+                .existing(name: stored.name, ref: stored.ref)
+            case .new(let data):
+                .new(name: attachment.name, data: data)
+            }
+        }
+    }
+
     func addCustomField() {
         customFields.append(CustomField())
     }
@@ -577,7 +655,8 @@ final class EntryEditViewModel {
             totpPeriod: totpPeriod,
             totpDigits: totpDigits,
             totpAlgorithm: totpAlgorithm,
-            enrolledOTPAuthURI: enrolledOTPAuthURI
+            enrolledOTPAuthURI: enrolledOTPAuthURI,
+            attachments: attachments
         )
     }
 

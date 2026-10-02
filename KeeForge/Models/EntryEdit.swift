@@ -46,6 +46,10 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
     var tags: [String]
     var totpConfig: TOTPConfiguration?
     var lastModificationTime: Date?
+    /// The entry's attachments as the editor leaves them, in order. `nil`
+    /// keeps an updated entry's attachments as they are and gives a new entry
+    /// none, so callers that never show attachments cannot drop them.
+    var attachments: [EntryAttachmentPayload]?
 
     init(
         title: String = "",
@@ -57,7 +61,8 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
         protectedCustomFieldKeys: Set<String> = [],
         tags: [String] = [],
         totpConfig: TOTPConfiguration? = nil,
-        lastModificationTime: Date? = nil
+        lastModificationTime: Date? = nil,
+        attachments: [EntryAttachmentPayload]? = nil
     ) {
         self.title = title
         self.username = username
@@ -69,7 +74,16 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
         self.tags = tags
         self.totpConfig = totpConfig
         self.lastModificationTime = lastModificationTime
+        self.attachments = attachments
     }
+}
+
+/// One attachment in `EntryDraftPayload.attachments`.
+enum EntryAttachmentPayload: Codable, Sendable, Equatable {
+    /// An attachment the entry already has, matched by name and pool ref.
+    case existing(name: String, ref: Int)
+    /// A file to store. Bytes the database already holds are reused.
+    case new(name: String, data: Data)
 }
 
 /// Codable mirror of `KPInheritableBool`, kept separate so the KDBX model type

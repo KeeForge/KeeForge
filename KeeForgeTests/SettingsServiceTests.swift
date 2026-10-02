@@ -17,6 +17,8 @@ final class SettingsServiceTests: XCTestCase {
     private let hasTippedKey = "KeeForge.hasTipped"
     private let macLockPolicyKey = "KeeForge.macLockPolicy"
     private let blockScreenCaptureKey = "KeeForge.blockScreenCapture"
+    private let macMenuBarQuickAccessKey = "KeeForge.macMenuBarQuickAccess"
+    private let macQuickSearchShortcutKey = "KeeForge.macQuickSearchShortcut"
     private let passwordGeneratorOptionsKey = "KeeForge.passwordGeneratorOptions"
 
     private var sharedDefaults: UserDefaults {
@@ -46,6 +48,8 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: hasTippedKey)
         UserDefaults.standard.removeObject(forKey: macLockPolicyKey)
         UserDefaults.standard.removeObject(forKey: blockScreenCaptureKey)
+        UserDefaults.standard.removeObject(forKey: macMenuBarQuickAccessKey)
+        UserDefaults.standard.removeObject(forKey: macQuickSearchShortcutKey)
         sharedDefaults.removeObject(forKey: autoUnlockWithFaceIDKey)
         sharedDefaults.removeObject(forKey: quickAutoFillEnabledKey)
         sharedDefaults.removeObject(forKey: clipboardKey)
@@ -225,6 +229,32 @@ final class SettingsServiceTests: XCTestCase {
     func testMacLockPolicyFallsBackOnInvalidValue() {
         UserDefaults.standard.set("bogus", forKey: macLockPolicyKey)
         XCTAssertEqual(SettingsService.macLockPolicy, .screenLockOrSleep)
+    }
+
+    // MARK: - macOS Menu Bar Quick Access
+
+    func testMenuBarQuickAccessIsOffAndUnboundByDefault() {
+        UserDefaults.standard.removeObject(forKey: macMenuBarQuickAccessKey)
+        UserDefaults.standard.removeObject(forKey: macQuickSearchShortcutKey)
+        XCTAssertFalse(SettingsService.macMenuBarQuickAccessEnabled)
+        XCTAssertNil(SettingsService.macQuickSearchShortcut)
+    }
+
+    func testMenuBarQuickAccessSettingsPersist() {
+        let shortcut = SettingsService.MacHotKey(keyCode: 40, carbonModifiers: 0x0900, keyLabel: "K")
+
+        SettingsService.macMenuBarQuickAccessEnabled = true
+        SettingsService.macQuickSearchShortcut = shortcut
+        XCTAssertTrue(SettingsService.macMenuBarQuickAccessEnabled)
+        XCTAssertEqual(SettingsService.macQuickSearchShortcut, shortcut)
+
+        SettingsService.macQuickSearchShortcut = nil
+        XCTAssertNil(UserDefaults.standard.object(forKey: macQuickSearchShortcutKey))
+    }
+
+    func testAnUnreadableShortcutReadsAsUnset() {
+        UserDefaults.standard.set(Data("not json".utf8), forKey: macQuickSearchShortcutKey)
+        XCTAssertNil(SettingsService.macQuickSearchShortcut)
     }
 
     // MARK: - Quick AutoFill

@@ -18,6 +18,8 @@ enum SettingsService {
         static let macLockPolicy = "KeeForge.macLockPolicy"
         static let blockScreenCapture = "KeeForge.blockScreenCapture"
         static let passwordGeneratorOptions = "KeeForge.passwordGeneratorOptions"
+        static let macMenuBarQuickAccess = "KeeForge.macMenuBarQuickAccess"
+        static let macQuickSearchShortcut = "KeeForge.macQuickSearchShortcut"
     }
 
     static let appearanceModeDefaultsKey = Key.appearanceMode
@@ -343,6 +345,46 @@ enum SettingsService {
         }
         set {
             UserDefaults.standard.set(newValue, forKey: Key.blockScreenCapture)
+        }
+    }
+
+    // MARK: - macOS Menu Bar Quick Access
+    //
+    // App-local: the AutoFill extension has no menu bar item, and a shortcut
+    // registered by the app means nothing to it.
+
+    /// A global shortcut as the Carbon hot-key API takes it. AppKit-free so this
+    /// file stays extension-safe; `MacGlobalHotKey.swift` owns the mapping from
+    /// `NSEvent` and the display string.
+    struct MacHotKey: Codable, Equatable, Sendable {
+        /// Virtual key code (`kVK_*`), layout-independent.
+        let keyCode: UInt32
+        /// Carbon modifier mask (`cmdKey`, `optionKey`, `controlKey`, `shiftKey`).
+        let carbonModifiers: UInt32
+        /// What the key printed when it was recorded, for display only.
+        let keyLabel: String
+    }
+
+    /// Off by default: a new menu bar item, and a surface that lists entry
+    /// titles outside the main window, is the user's choice to add.
+    static var macMenuBarQuickAccessEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.macMenuBarQuickAccess) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.macMenuBarQuickAccess) }
+    }
+
+    /// Unset by default, so KeeForge never claims a system-wide shortcut the
+    /// user did not pick.
+    static var macQuickSearchShortcut: MacHotKey? {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: Key.macQuickSearchShortcut) else { return nil }
+            return try? JSONDecoder().decode(MacHotKey.self, from: data)
+        }
+        set {
+            if let newValue, let data = try? JSONEncoder().encode(newValue) {
+                UserDefaults.standard.set(data, forKey: Key.macQuickSearchShortcut)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Key.macQuickSearchShortcut)
+            }
         }
     }
 }

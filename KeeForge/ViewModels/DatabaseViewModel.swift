@@ -1472,10 +1472,22 @@ final class DatabaseViewModel {
     /// off the main thread; returns `nil` for dangling refs or when no
     /// database is unlocked.
     func attachmentData(for attachment: KPAttachment) async -> Data? {
-        guard let binaryPool else { return nil }
+        guard let binaryPool = currentBinaryPool else { return nil }
         return await Task.detached(priority: .userInitiated) {
             binaryPool[attachment.ref]?.data
         }.value
+    }
+
+    /// The attachment's size in bytes, or `nil` for a dangling ref.
+    func attachmentByteCount(for attachment: KPAttachment) -> Int? {
+        currentBinaryPool?[attachment.ref]?.data.count
+    }
+
+    /// The pool the UI resolves attachments against, the draft's taking
+    /// precedence for the same reason as `currentMeta`: an attachment added in
+    /// an edit that has not saved yet must still open.
+    private var currentBinaryPool: BinaryPool? {
+        draft?.binaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
     }
 
     /// The entry's folder location below the visible root as a display string
@@ -2364,6 +2376,7 @@ final class DatabaseViewModel {
             case .saved(let newSHA512):
                 rootGroup = snapshot.rootGroup
                 unlockedMeta = snapshot.meta
+                binaryPool = snapshot.binaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
                 self.openTimeSHA512 = newSHA512
                 saveConflict = nil
                 saveError = nil
@@ -2683,10 +2696,9 @@ final class DatabaseViewModel {
         // The draft's tree is the local side, so unsaved edits take part in the
         // merge rather than being written over it.
         let localDraft = try makeWorkingDraft()
-        // The pool the session opened. KeeForge never adds pool entries, so it
-        // is still the pool of the local side's attachments; the merger only
-        // compares it against the remote's.
-        let localBinaryPoolFields = binaryPool?.rawFields ?? []
+        // The pool the merged draft writes, files the unsaved edits added
+        // included; the merger checks the remote's refs against it.
+        let localBinaryPoolFields = localDraft.binaryPoolFields
         let expectedLockCycleID = lockCycleID
 
         isSaving = true
@@ -2705,7 +2717,7 @@ final class DatabaseViewModel {
                 sessionKey: sessionKey,
                 localRootGroup: localDraft.rootGroup,
                 localMeta: localDraft.meta,
-                localBinaryPoolFields: localBinaryPoolFields
+                localBinaryPoolFields: localBinaryPoolFields ?? []
             )
         } catch let failure as DatabaseMergeFailure {
             mergeFailure = failure
@@ -2719,7 +2731,8 @@ final class DatabaseViewModel {
         let mergedDraft = DatabaseDraft(
             rootGroup: merged.rootGroup,
             meta: merged.meta,
-            sessionKey: sessionKey
+            sessionKey: sessionKey,
+            binaryPoolFields: localBinaryPoolFields
         )
 
         // A merge that adds nothing still has to write: the remote holding no
@@ -2757,6 +2770,7 @@ final class DatabaseViewModel {
         case .saved(let newSHA512):
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
+            binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
             self.openTimeSHA512 = newSHA512
             saveConflict = nil
             saveError = nil
@@ -2829,7 +2843,7 @@ final class DatabaseViewModel {
         // Unsaved edits take part, as in `mergeAndSave`: the upload below
         // writes the whole tree, so leaving them out would drop them.
         let localDraft = try makeWorkingDraft()
-        let localBinaryPoolFields = binaryPool?.rawFields ?? []
+        let localBinaryPoolFields = localDraft.binaryPoolFields
         var mergedRootGroup = localDraft.rootGroup
         var mergedMeta = localDraft.meta
         var failedLocation = PendingUploadRecovery.Location.cache
@@ -2842,7 +2856,7 @@ final class DatabaseViewModel {
                     sessionKey: sessionKey,
                     localRootGroup: mergedRootGroup,
                     localMeta: mergedMeta,
-                    localBinaryPoolFields: localBinaryPoolFields
+                    localBinaryPoolFields: localBinaryPoolFields ?? []
                 )
                 mergedRootGroup = merged.rootGroup
                 mergedMeta = merged.meta
@@ -2861,7 +2875,12 @@ final class DatabaseViewModel {
 
         guard expectedLockCycleID == lockCycleID else { return }
 
-        let mergedDraft = DatabaseDraft(rootGroup: mergedRootGroup, meta: mergedMeta, sessionKey: sessionKey)
+        let mergedDraft = DatabaseDraft(
+            rootGroup: mergedRootGroup,
+            meta: mergedMeta,
+            sessionKey: sessionKey,
+            binaryPoolFields: localBinaryPoolFields
+        )
         // Written even when the merge added nothing: only a completed upload
         // proves the cloud copy holds the change, and that proof is what
         // allows dropping the pending uploads.
@@ -2888,6 +2907,7 @@ final class DatabaseViewModel {
 
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
+            binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
             self.openTimeSHA512 = newSHA512
             draft = draftReplayingEditsArriving(after: localDraft, onto: mergedDraft)
             refreshDatabaseReference()
@@ -3226,6 +3246,15 @@ final class DatabaseViewModel {
     }
 
     func selectEntry(_ entryID: UUID?) {
+        selectedEntryID = entryID
+    }
+
+    /// Selects an entry in its own group, as the macOS menu bar quick search's
+    /// Open in KeeForge does. The window's search query is left alone: clearing
+    /// it would make the workspace drop the selection again.
+    func revealEntry(_ entryID: UUID) {
+        guard case .unlocked = state, let groupID = parentGroupID(forEntryID: entryID) else { return }
+        selectedGroupID = groupID
         selectedEntryID = entryID
     }
 
@@ -3763,16 +3792,21 @@ final class DatabaseViewModel {
     }
 
     private func updateSearchResults() {
-        let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedQuery.isEmpty == false else {
-            searchResults = []
-            return
-        }
+        searchResults = entries(matching: searchText)
+    }
+
+    /// The main search's matching rules for a query of the caller's own, so the
+    /// macOS menu bar quick search can search without moving the window's
+    /// search field. Empty while locked, because the index is.
+    func entries(matching rawQuery: String) -> [KPEntry] {
+        _ = contentRevision
+        let trimmedQuery = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedQuery.isEmpty == false else { return [] }
 
         let query = trimmedQuery
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             .lowercased()
-        searchResults = searchableEntries.filter { entry in
+        return searchableEntries.filter { entry in
             searchableEntryText[entry.id]?.contains(query) == true
         }
     }
@@ -4090,7 +4124,8 @@ final class DatabaseViewModel {
         return DatabaseDraft(
             rootGroup: rootGroup,
             meta: unlockedMeta,
-            sessionKey: sessionKey
+            sessionKey: sessionKey,
+            binaryPoolFields: binaryPool?.rawFields
         )
     }
 
@@ -4237,7 +4272,7 @@ final class DatabaseViewModel {
         return nil
     }
 
-    private static func encryptConflictCopy(
+    static func encryptConflictCopy(
         draft: DatabaseDraft,
         compositeKey: SymmetricKey,
         sourceData: Data
@@ -4249,14 +4284,7 @@ final class DatabaseViewModel {
                 sessionKey: SymmetricKey(size: .bits256),
                 kdfPolicy: .mainApp
             )
-            return try KDBXWriter.write(
-                rootGroup: draft.rootGroup,
-                meta: draft.meta,
-                compositeKey: compositeKey,
-                header: parsed.header,
-                sessionKey: draft.writerSessionKey,
-                kdfPolicy: .mainApp
-            )
+            return try draft.write(compositeKey: compositeKey, header: parsed.header, kdfPolicy: .mainApp)
         }.value
     }
 

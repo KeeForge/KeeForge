@@ -25,6 +25,9 @@ struct EntryEditView: View {
     @State private var showTOTPSetupLink = false
     @State private var showGroupPicker = false
     @State private var showRemoveTOTPConfirmation = false
+    @State private var showAttachmentImporter = false
+    @State private var isImportingAttachments = false
+    @State private var attachmentErrorMessage: String?
     /// String mirror for the numeric period field; committed to the view
     /// model only when it parses to a positive integer. Focus loss and submit
     /// snap unparsable text back to the view model's value, so the field
@@ -152,6 +155,13 @@ struct EntryEditView: View {
                 .accessibilityIdentifier("entry-edit.custom-field.add")
             }
 
+            EntryEditAttachmentsSection(
+                formViewModel: formViewModel,
+                databaseViewModel: databaseViewModel,
+                isImporterPresented: $showAttachmentImporter,
+                isImporting: isImportingAttachments
+            )
+
             if formViewModel.passkeyCredential != nil || formViewModel.unknownXMLNodeCount > 0 {
                 Section("Preserved Read-Only Data") {
                     if let passkey = formViewModel.passkeyCredential {
@@ -217,7 +227,7 @@ struct EntryEditView: View {
                 Button(confirmButtonTitle) {
                     saveTapped()
                 }
-                .disabled(formViewModel.canSave == false || isSavingInProgress)
+                .disabled(isSaveDisabled)
                 .accessibilityIdentifier("entry-edit.save")
             }
         }
@@ -261,6 +271,12 @@ struct EntryEditView: View {
             }
         }
         #endif
+        .modifier(EntryAttachmentImporter(
+            isPresented: $showAttachmentImporter,
+            isImporting: $isImportingAttachments,
+            errorMessage: $attachmentErrorMessage,
+            onLoad: { formViewModel.addAttachment(named: $0.name, data: $0.data) }
+        ))
         .sheet(isPresented: $showTOTPSetupLink) {
             TOTPSetupLinkSheet { link in
                 formViewModel.applySetupLink(link)
@@ -314,6 +330,8 @@ struct EntryEditView: View {
             showDeleteConfirmation = false
             showRemoveTOTPConfirmation = false
             showDiscardConfirmation = false
+            showAttachmentImporter = false
+            attachmentErrorMessage = nil
         }
         .onDisappear {
             databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
@@ -329,7 +347,7 @@ struct EntryEditView: View {
                 guard let request = pendingEditorLockRequest else { return }
                 saveTapped(resuming: request)
             }
-            .disabled(formViewModel.canSave == false)
+            .disabled(formViewModel.canSave == false || isImportingAttachments)
             Button("Discard and Lock", role: .destructive) {
                 guard let request = pendingEditorLockRequest else { return }
                 databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
@@ -365,6 +383,10 @@ struct EntryEditView: View {
         } message: {
             Text(editingErrorMessage ?? "")
         }
+    }
+
+    private var isSaveDisabled: Bool {
+        formViewModel.canSave == false || isSavingInProgress || isImportingAttachments
     }
 
     private func togglePasswordVisibility() {
