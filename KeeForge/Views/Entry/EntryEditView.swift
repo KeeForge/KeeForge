@@ -162,6 +162,10 @@ struct EntryEditView: View {
                 isImporting: isImportingAttachments
             )
 
+            Section("Expiration") {
+                expirationRows
+            }
+
             if formViewModel.passkeyCredential != nil || formViewModel.unknownXMLNodeCount > 0 {
                 Section("Preserved Read-Only Data") {
                     if let passkey = formViewModel.passkeyCredential {
@@ -627,6 +631,46 @@ struct EntryEditView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("The verification code will no longer be generated for this entry.")
+        }
+    }
+
+    @ViewBuilder
+    private var expirationRows: some View {
+        Toggle("Expires", isOn: $formViewModel.expires)
+            .accessibilityIdentifier("entry-edit.expiry.toggle")
+
+        if formViewModel.expires {
+            DatePicker(
+                "Expiry Date",
+                selection: $formViewModel.expiryDate,
+                displayedComponents: [.date, .hourAndMinute]
+            )
+            .accessibilityIdentifier("entry-edit.expiry.date-picker")
+
+            Menu {
+                Button("In 1 Month") { formViewModel.applyExpiryPreset(months: 1) }
+                    .accessibilityIdentifier("entry-edit.expiry.preset.1")
+                Button("In 3 Months") { formViewModel.applyExpiryPreset(months: 3) }
+                    .accessibilityIdentifier("entry-edit.expiry.preset.3")
+                Button("In 6 Months") { formViewModel.applyExpiryPreset(months: 6) }
+                    .accessibilityIdentifier("entry-edit.expiry.preset.6")
+                Button("In 1 Year") { formViewModel.applyExpiryPreset(months: 12) }
+                    .accessibilityIdentifier("entry-edit.expiry.preset.12")
+            } label: {
+                // Without the full-width shape only the label itself opens
+                // the menu, though the row looks like one button.
+                Label("Presets", systemImage: "calendar.badge.clock")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityIdentifier("entry-edit.expiry.presets")
+
+            if formViewModel.isExpiryDateInPast {
+                Label("This date has passed, so the entry will show as expired.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("entry-edit.expiry.past-warning")
+            }
         }
     }
 

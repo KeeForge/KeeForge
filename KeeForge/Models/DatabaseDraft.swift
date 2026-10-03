@@ -746,7 +746,9 @@ struct DatabaseDraft: Sendable {
     /// `<History>` sits and any `<CustomIconUUID>` (the serializer writes that element
     /// only from the preserved XML), so the display copy has to match those bytes or
     /// the shown icon would differ from every other client's after a save.
-    /// Everything else the user can see or edit comes from the snapshot.
+    /// Everything else the user can see or edit comes from the snapshot — including
+    /// the expiration, whose `<ExpiryTime>`/`<Expires>` fragments are the one part of
+    /// the preserved XML taken from it (`EntryExpiryXML`).
     private func applyRestoreEntryVersion(
         entryID: UUID,
         historyIndex: Int
@@ -778,8 +780,6 @@ struct DatabaseDraft: Sendable {
             otpURL: version.otpURL,
             creationTime: current.creationTime,
             lastModificationTime: Date.now,
-            expires: version.expires,
-            expiryTime: version.expiryTime,
             // Restoring a version does not move the entry, so where it lives
             // stays with the live entry, like `id` and `creationTime`.
             locationChanged: current.locationChanged,
@@ -793,7 +793,10 @@ struct DatabaseDraft: Sendable {
             attachments: version.attachments
         )
 
-        let updatedRootGroup = try replacingEntry(at: entryLocation, with: restored)
+        let updatedRootGroup = try replacingEntry(
+            at: entryLocation,
+            with: EntryExpiryXML.entry(restored, withExpirationOf: version)
+        )
 
         return (updatedRootGroup, currentMetaStorage)
     }
@@ -1026,7 +1029,7 @@ struct DatabaseDraft: Sendable {
     ) throws -> KPEntry {
         let customFields = activeCustomFields(from: draft)
         let passkeyPrivateKey = try draftPasskeyPrivateKey(from: draft, fallback: nil)
-        return KPEntry(
+        let entry = KPEntry(
             title: draft.title,
             username: draft.username,
             password: try EncryptedValue.encrypt(draft.password, using: sessionKey),
@@ -1051,6 +1054,7 @@ struct DatabaseDraft: Sendable {
                 passkeyPrivateKey: passkeyPrivateKey
             )
         )
+        return draft.expiry.map { EntryExpiryXML.entry(entry, expiring: $0) } ?? entry
     }
 
     private func makeUpdatedEntry(
@@ -1069,7 +1073,7 @@ struct DatabaseDraft: Sendable {
             from: draft,
             fallback: originalEntry.passkeyPrivateKey
         )
-        return KPEntry(
+        let entry = KPEntry(
             id: originalEntry.id,
             title: draft.title,
             username: draft.username,
@@ -1100,6 +1104,7 @@ struct DatabaseDraft: Sendable {
             )),
             attachments: originalEntry.attachments
         )
+        return draft.expiry.map { EntryExpiryXML.entry(entry, expiring: $0) } ?? entry
     }
 
     private func updatedOtpURL(
