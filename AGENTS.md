@@ -67,9 +67,9 @@ never replace the symlink with a second copy. The docs below are read on demand:
 
 ### Localization
 
-- UI text is localized with Xcode String Catalogs (`.xcstrings`), source language `en`. Currently shipped locales: `en`, `de`, `fr`, `es`, `zh-Hans`, `zh-Hant`, `ja`.
+- UI text is localized with Xcode String Catalogs (`.xcstrings`), source language `en`. Currently shipped locales: `en`, `de`, `fr`, `es`, `zh-Hans`, `zh-Hant`, `ja`, `it`.
 - Reach user-facing strings via `String(localized:)` (or SwiftUI's automatic catalog lookup) — never hardcode display text.
-- Every English key needs a translation in each shipped locale; `KeeForgeTests/LocalizationTests.swift` fails on missing or drifted translations (currently checks `de`, `fr`, `es`, `zh-Hans`, `zh-Hant`, and `ja`) and also runs in `KeeForgeMacTests`. Run it after touching any catalog.
+- Every English key needs a translation in each shipped locale; `KeeForgeTests/LocalizationTests.swift` fails on missing or drifted translations (currently checks `de`, `fr`, `es`, `zh-Hans`, `zh-Hant`, `ja`, and `it`) and also runs in `KeeForgeMacTests`. Run it after touching any catalog.
 - Xcode reserializes `.xcstrings` into its own canonical style on open/build, so editing a catalog as plain JSON causes a large reordering diff next time. After any programmatic catalog edit, run `swift scripts/normalize-xcstrings.swift` (no args = all catalogs; `--check` verifies) so committed bytes match Xcode's.
 - The four-catalog file map and the add-a-locale checklist live in `KeeForge/Resources/README.md`.
 
