@@ -51,6 +51,7 @@ final class DatabaseListViewModel {
     private(set) var pendingUploadAlert: PendingUploadAlert?
     private(set) var isAutoFillProviderEnabled: Bool?
     private(set) var isAutoFillTipDismissed = AutoFillStatusService.tipDismissed
+    private(set) var isMacAppSuggestionDismissed = MacAppSuggestionService.isDismissed
     /// Set when an enable request came back with the provider still off. It has
     /// to be state rather than a one-shot alert: iOS tears the presenting sheet
     /// down together with its own prompt, so anything modal raised at that
@@ -276,6 +277,19 @@ final class DatabaseListViewModel {
     func dismissAutoFillTip() {
         AutoFillStatusService.tipDismissed = true
         isAutoFillTipDismissed = true
+    }
+
+    // MARK: - Native Mac app suggestion
+
+    /// Unlike the AutoFill tip this does not wait for a database: someone
+    /// starting out on a Mac is better off starting in the native app.
+    var shouldShowMacAppSuggestion: Bool {
+        MacAppSuggestionService.isSuggestionAvailable && !isMacAppSuggestionDismissed
+    }
+
+    func dismissMacAppSuggestion() {
+        MacAppSuggestionService.isDismissed = true
+        isMacAppSuggestionDismissed = true
     }
 
     // MARK: - Private
