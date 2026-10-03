@@ -177,27 +177,73 @@ final class UnlockedDatabaseBrowseAndDetailUITests: UnlockedDatabaseUITestCase {
             app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
             "The gear button did not open Database Details"
         )
-        XCTAssertTrue(app.switches["database-details.quick-launch-toggle"].exists)
 
-        let readOnlyToggle = app.switches["database-row.read-only-toggle"]
-        XCTAssertTrue(revealElement(readOnlyToggle, in: scrollableContainer()), "Read-only toggle was not reachable")
+        // The controls each page has to hold. One dropped from its page
+        // fails here.
+        let pages: [(page: DatabaseDetailsPage, identifiers: [String])] = [
+            (.general, [
+                "database-details.nickname-field",
+                "database-details.quick-launch-toggle",
+                "database-row.read-only-toggle",
+                "database-details.file-format",
+                "database-details.file-size",
+            ]),
+            (.autoFill, [
+                "database-details.autofill-toggle",
+                "database-details.autofill-destination",
+            ]),
+            (.masterKey, [
+                "database-details.key-file-select",
+                "database-details.change-master-key",
+            ]),
+            (.encryption, [
+                "database-details.encryption",
+                "database-details.key-derivation",
+                "database-details.compression",
+                "database-details.change-encryption-settings",
+            ]),
+            (.backups, [
+                "database-details.export-copy",
+            ]),
+        ]
 
-        let autoFillToggle = app.switches["database-details.autofill-toggle"]
-        XCTAssertTrue(revealElement(autoFillToggle, in: scrollableContainer()), "AutoFill toggle was not reachable")
+        for (page, identifiers) in pages {
+            openDatabaseDetailsPage(page)
+            for identifier in identifiers {
+                assertDatabaseDetailsShows(identifier, on: "the \(page.rawValue) page")
+            }
+            if page == .backups {
+                // The list or its empty state, whichever this device has.
+                let backups = app.descendants(matching: .any).matching(
+                    NSPredicate(format: "identifier IN %@", ["database-details.backups-empty", "database-details.backup-row"])
+                ).firstMatch
+                XCTAssertTrue(revealElement(backups, in: scrollableContainer()), "The backups page had no Backups section")
+            }
+            returnToDatabaseDetailsHub()
+        }
 
         for identifier in [
-            "database-details.file-format",
-            "database-details.file-size",
-            "database-details.encryption",
-            "database-details.key-derivation",
-            "database-details.compression",
+            "database-details.header",
+            "database-details.import-passwords",
+            "database-details.app-settings",
         ] {
-            let row = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
-            XCTAssertTrue(
-                revealElement(row, in: scrollableContainer()),
-                "Database Details was missing '\(identifier)' when opened from the gear"
-            )
+            assertDatabaseDetailsShows(identifier, on: "the hub")
         }
+    }
+
+    private func assertDatabaseDetailsShows(
+        _ identifier: String,
+        on place: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let element = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        XCTAssertTrue(
+            revealElement(element, in: scrollableContainer()),
+            "Database Details was missing '\(identifier)' on \(place) when opened from the gear",
+            file: file,
+            line: line
+        )
     }
 
     func testLegacyKDBX31DatabaseDetailsKeepsReadOnlyToggleDisabled() {
@@ -206,6 +252,12 @@ final class UnlockedDatabaseBrowseAndDetailUITests: UnlockedDatabaseUITestCase {
         let settingsButton = app.buttons["settings.button"]
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "Open database gear button was not visible")
         tapElement(settingsButton)
+
+        XCTAssertTrue(
+            app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
+            "The gear button did not open Database Details"
+        )
+        openDatabaseDetailsPage(.general)
 
         let readOnlyToggle = app.switches["database-row.read-only-toggle"]
         XCTAssertTrue(

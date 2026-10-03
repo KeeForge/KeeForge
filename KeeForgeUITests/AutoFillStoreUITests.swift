@@ -204,6 +204,7 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
 
         launchNormalRoot()
         openDatabaseDetails(rowContaining: "bravo")
+        openDatabaseDetailsPage(.autoFill)
         let detailsToggle = app.switches["database-details.autofill-toggle"]
         XCTAssertTrue(revealElement(detailsToggle, in: scrollableContainer()))
         setSwitch(detailsToggle, isOn: false)

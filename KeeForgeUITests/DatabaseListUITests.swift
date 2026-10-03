@@ -42,6 +42,7 @@ final class DatabaseListUITests: KeeForgeUITestCase {
         XCTAssertTrue(waitForDatabaseList(), "Database list did not appear")
 
         openDatabaseDetails(rowContaining: "alpha")
+        openDatabaseDetailsPage(.autoFill)
 
         let toggle = app.switches["database-details.autofill-toggle"]
         XCTAssertTrue(
@@ -57,6 +58,7 @@ final class DatabaseListUITests: KeeForgeUITestCase {
         // Reopen the same row's details: the flag round-trips through
         // database-list.json, so the toggle must come back disabled.
         openDatabaseDetails(rowContaining: "alpha")
+        openDatabaseDetailsPage(.autoFill)
         XCTAssertTrue(
             revealElement(toggle, in: scrollableContainer()),
             "AutoFill toggle was not visible after reopening the details sheet"

@@ -609,7 +609,58 @@ class KeeForgeUITestCase: XCTestCase {
         )
     }
 
+    /// The pages behind the Database Details hub. Every per-database control
+    /// sits one push below the hub, so a test opens its page first.
+    enum DatabaseDetailsPage: String {
+        case general
+        case autoFill = "autofill"
+        case masterKey = "master-key"
+        case encryption
+        case cloudSync = "cloud-sync"
+        case backups
+    }
+
+    func openDatabaseDetailsPage(
+        _ page: DatabaseDetailsPage,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let link = app.descendants(matching: .any)
+            .matching(identifier: "database-details.\(page.rawValue).link").firstMatch
+        XCTAssertTrue(
+            revealElement(link, in: scrollableContainer()),
+            "Database Details had no '\(page.rawValue)' row",
+            file: file,
+            line: line
+        )
+        tapElement(link)
+
+        let closeButton = app.buttons["database-details.close"]
+        let deadline = Date().addingTimeInterval(5)
+        while closeButton.exists, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        XCTAssertFalse(closeButton.exists, "The '\(page.rawValue)' page did not open", file: file, line: line)
+    }
+
+    /// Pops any pushed page. The hub is the only screen with the Close button,
+    /// and a pushed page's navigation bar holds nothing but its back button.
+    func returnToDatabaseDetailsHub(file: StaticString = #filePath, line: UInt = #line) {
+        let closeButton = app.buttons["database-details.close"]
+        let deadline = Date().addingTimeInterval(10)
+        while closeButton.exists == false, Date() < deadline {
+            let backButton = app.navigationBars.allElementsBoundByIndex
+                .filter { $0.exists && $0.isHittable }
+                .flatMap { $0.buttons.allElementsBoundByIndex }
+                .first { $0.exists && $0.isHittable }
+            backButton?.tap()
+            _ = closeButton.waitForExistence(timeout: 2)
+        }
+        XCTAssertTrue(closeButton.exists, "Did not return to the Database Details hub", file: file, line: line)
+    }
+
     func closeDatabaseDetails(file: StaticString = #filePath, line: UInt = #line) {
+        returnToDatabaseDetailsHub(file: file, line: line)
         let closeButton = app.buttons["database-details.close"]
         XCTAssertTrue(closeButton.waitForExistence(timeout: 5), "Close button was not visible", file: file, line: line)
         tapElement(closeButton)

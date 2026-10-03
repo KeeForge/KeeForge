@@ -74,6 +74,14 @@ final class EncryptionSettingsUITests: DatabaseCreationUITestCase {
         )
         tapElement(settingsButton)
 
+        XCTAssertTrue(
+            app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
+            "The gear button did not open Database Details",
+            file: file,
+            line: line
+        )
+        openDatabaseDetailsPage(.encryption, file: file, line: line)
+
         let changeRow = app.buttons["database-details.change-encryption-settings"]
         XCTAssertTrue(
             revealElement(changeRow),
