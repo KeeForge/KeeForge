@@ -4,6 +4,7 @@ import XCTest
 class KeeForgeUITestCase: XCTestCase {
     private static let uiTestDBBase64Env = "UI_TEST_DB_BASE64"
     private static let uiTestDBFilenameEnv = "UI_TEST_DB_FILENAME"
+    static let uiTestViewModeEnv = "UI_TEST_VIEW_MODE"
     private static let uiTestDatabasesJSONEnv = "UI_TEST_DATABASES_JSON"
     private static let uiTestKeyFileBase64Env = "UI_TEST_KEYFILE_BASE64"
     private static let uiTestKeyFileFilenameEnv = "UI_TEST_KEYFILE_FILENAME"
@@ -68,6 +69,7 @@ class KeeForgeUITestCase: XCTestCase {
 
     override func setUp() async throws {
         continueAfterFailure = false
+        executionTimeAllowance = 300
 
         app = XCUIApplication()
 
@@ -95,6 +97,9 @@ class KeeForgeUITestCase: XCTestCase {
         }
 
         app.launchArguments += ["-ui-testing"]
+        // A database opens on All Entries; the helpers here browse from the
+        // group list, so tests start there unless a class clears this.
+        app.launchEnvironment[Self.uiTestViewModeEnv] = "groups"
         let payloadData = try JSONSerialization.data(withJSONObject: payloads, options: [])
         app.launchEnvironment[Self.uiTestDatabasesJSONEnv] = String(decoding: payloadData, as: UTF8.self)
 
@@ -312,16 +317,18 @@ class KeeForgeUITestCase: XCTestCase {
     }
 
     private func enteredTextMatches(_ element: XCUIElement, expected: String) -> Bool {
-        let deadline = Date().addingTimeInterval(1)
+        // Secure-field accessibility values can lag behind typing on CI.
+        let deadline = Date().addingTimeInterval(Self.ciElementTimeout)
 
         repeat {
-            guard let value = element.value as? String else { return false }
-            if element.elementType == .secureTextField {
-                if value == expected || (isMaskedSecureValue(value) && value.count == expected.count) {
+            if let value = element.value as? String {
+                if element.elementType == .secureTextField {
+                    if value == expected || (isMaskedSecureValue(value) && value.count == expected.count) {
+                        return true
+                    }
+                } else if value == expected {
                     return true
                 }
-            } else if value == expected {
-                return true
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         } while Date() < deadline
@@ -602,7 +609,58 @@ class KeeForgeUITestCase: XCTestCase {
         )
     }
 
+    /// The pages behind the Database Details hub. Every per-database control
+    /// sits one push below the hub, so a test opens its page first.
+    enum DatabaseDetailsPage: String {
+        case general
+        case autoFill = "autofill"
+        case masterKey = "master-key"
+        case encryption
+        case cloudSync = "cloud-sync"
+        case backups
+    }
+
+    func openDatabaseDetailsPage(
+        _ page: DatabaseDetailsPage,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let link = app.descendants(matching: .any)
+            .matching(identifier: "database-details.\(page.rawValue).link").firstMatch
+        XCTAssertTrue(
+            revealElement(link, in: scrollableContainer()),
+            "Database Details had no '\(page.rawValue)' row",
+            file: file,
+            line: line
+        )
+        tapElement(link)
+
+        let closeButton = app.buttons["database-details.close"]
+        let deadline = Date().addingTimeInterval(5)
+        while closeButton.exists, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        XCTAssertFalse(closeButton.exists, "The '\(page.rawValue)' page did not open", file: file, line: line)
+    }
+
+    /// Pops any pushed page. The hub is the only screen with the Close button,
+    /// and a pushed page's navigation bar holds nothing but its back button.
+    func returnToDatabaseDetailsHub(file: StaticString = #filePath, line: UInt = #line) {
+        let closeButton = app.buttons["database-details.close"]
+        let deadline = Date().addingTimeInterval(10)
+        while closeButton.exists == false, Date() < deadline {
+            let backButton = app.navigationBars.allElementsBoundByIndex
+                .filter { $0.exists && $0.isHittable }
+                .flatMap { $0.buttons.allElementsBoundByIndex }
+                .first { $0.exists && $0.isHittable }
+            backButton?.tap()
+            _ = closeButton.waitForExistence(timeout: 2)
+        }
+        XCTAssertTrue(closeButton.exists, "Did not return to the Database Details hub", file: file, line: line)
+    }
+
     func closeDatabaseDetails(file: StaticString = #filePath, line: UInt = #line) {
+        returnToDatabaseDetailsHub(file: file, line: line)
         let closeButton = app.buttons["database-details.close"]
         XCTAssertTrue(closeButton.waitForExistence(timeout: 5), "Close button was not visible", file: file, line: line)
         tapElement(closeButton)
@@ -635,7 +693,10 @@ class KeeForgeUITestCase: XCTestCase {
         let deadline = Date().addingTimeInterval(5)
 
         while (toggle.value as? String) != desiredRawValue, Date() < deadline {
-            toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).tap()
+            // A SwiftUI switch can expose the entire row as its accessibility frame.
+            toggle.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5))
+                .withOffset(CGVector(dx: -20, dy: 0))
+                .tap()
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         }
 
@@ -886,7 +947,12 @@ class KeeForgeUITestCase: XCTestCase {
         if searchField.isHittable == false {
             _ = revealElement(searchField, in: scrollableContainer(), direction: .down, maxSwipes: 2)
         }
-        tapElement(searchField)
+        XCTAssertTrue(
+            focusFieldForTyping(searchField),
+            "Search field did not receive keyboard focus",
+            file: file,
+            line: line
+        )
         return searchField
     }
 
@@ -894,7 +960,11 @@ class KeeForgeUITestCase: XCTestCase {
     /// as existing while parked off screen, and its tap can be swallowed while
     /// the list settles — so the value is re-read and deleted key by key when
     /// anything is left behind.
-    func clearSearchField(_ searchField: XCUIElement) {
+    func clearSearchField(
+        _ searchField: XCUIElement,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let clearButton = searchField.buttons["Clear text"]
         if clearButton.exists, hasOnScreenFrame(clearButton), clearButton.isHittable {
             clearButton.tap()
@@ -905,7 +975,12 @@ class KeeForgeUITestCase: XCTestCase {
             return
         }
 
-        tapElement(searchField)
+        XCTAssertTrue(
+            focusFieldForTyping(searchField),
+            "Search field did not receive keyboard focus before clearing",
+            file: file,
+            line: line
+        )
         searchField.typeText(
             String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
         )
@@ -987,6 +1062,97 @@ class KeeForgeUITestCase: XCTestCase {
         app.buttons.matching(
             NSPredicate(format: "identifier == %@ OR label == %@", identifier, label)
         ).firstMatch
+    }
+
+    /// A view the database root can show; `rawValue` is the menu item's
+    /// identifier suffix and `label` its visible title.
+    enum DatabaseView: String {
+        case groups
+        case allEntries
+        case verificationCodes
+        case tags
+        case recycleBin
+
+        var label: String {
+            switch self {
+            case .groups: "Groups"
+            case .allEntries: "All Entries"
+            case .verificationCodes: "Verification Codes"
+            case .tags: "Tags"
+            case .recycleBin: "Recycle Bin"
+            }
+        }
+    }
+
+    /// Picks a view from the database root's view menu: the title with the
+    /// chevron (`view.menu`), or the same menu on the bar's title once the list
+    /// has scrolled the big one away.
+    func selectDatabaseView(_ view: DatabaseView, file: StaticString = #filePath, line: UInt = #line) {
+        let opener = viewMenuOpener()
+        XCTAssertTrue(
+            opener.waitForExistence(timeout: Self.ciElementTimeout),
+            "Database root did not offer the view menu",
+            file: file,
+            line: line
+        )
+        tapElement(opener)
+
+        let item = menuButton(identifier: "view-menu.\(view.rawValue)", label: view.label)
+        XCTAssertTrue(
+            item.waitForExistence(timeout: Self.ciElementTimeout),
+            "View menu did not offer '\(view.label)'",
+            file: file,
+            line: line
+        )
+        item.tap()
+
+        XCTAssertTrue(
+            waitForDatabaseView(view),
+            "Root list did not switch to '\(view.label)'",
+            file: file,
+            line: line
+        )
+    }
+
+    /// Whether the database root shows `view`, read from the title in the
+    /// list or, where the bar carries it, from the navigation bar.
+    func waitForDatabaseView(_ view: DatabaseView, timeout: TimeInterval = KeeForgeUITestCase.ciElementTimeout) -> Bool {
+        let title = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == 'view.menu' AND label CONTAINS %@", view.label)
+        ).firstMatch
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if title.exists || app.navigationBars[view.label].exists {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+        return title.exists || app.navigationBars[view.label].exists
+    }
+
+    private func viewMenuOpener() -> XCUIElement {
+        let menu = app.buttons["view.menu"].firstMatch
+        if menu.waitForExistence(timeout: 2), menu.isHittable {
+            return menu
+        }
+
+        // A focused search field covers the root, even with its query cleared;
+        // iOS 26 ends the search with Close, earlier releases with Cancel.
+        let endSearchButton = app.buttons.matching(
+            NSPredicate(format: "label IN %@", ["Close", "Cancel"])
+        ).firstMatch
+        if endSearchButton.exists, endSearchButton.isHittable {
+            endSearchButton.tap()
+            if menu.waitForExistence(timeout: 2), menu.isHittable {
+                return menu
+            }
+        }
+
+        // Scrolled away: the bar's own title carries the menu. It has no
+        // identifier; its label is the title the bar is identified by.
+        let navigationBar = app.navigationBars.firstMatch
+        let barTitle = navigationBar.buttons[navigationBar.identifier]
+        return barTitle.exists ? barTitle : menu
     }
 
     @discardableResult

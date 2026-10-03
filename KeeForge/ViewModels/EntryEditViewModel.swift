@@ -22,6 +22,29 @@ final class EntryEditViewModel {
         }
     }
 
+    struct Attachment: Identifiable, Equatable, Sendable {
+        enum Source: Equatable, Sendable {
+            case existing(KPAttachment)
+            case new(Data)
+        }
+
+        let id: UUID
+        let name: String
+        let source: Source
+
+        init(id: UUID = UUID(), name: String, source: Source) {
+            self.id = id
+            self.name = name
+            self.source = source
+        }
+
+        /// By identity: every field is immutable, and `isDirty` runs on each
+        /// render, where comparing file bytes would be wasted work.
+        static func == (lhs: Attachment, rhs: Attachment) -> Bool {
+            lhs.id == rhs.id
+        }
+    }
+
     /// Keys a custom field must not take: the standard fields, and the ones
     /// KeeForge writes itself for TOTP and passkeys. Reusing one would write a
     /// second `<String>` under the same key, or be dropped on save.
@@ -50,6 +73,7 @@ final class EntryEditViewModel {
         var totpAlgorithm: TOTPAlgorithm
         var enrolledOTPAuthURI: String?
         var expiry: Date?
+        var attachments: [Attachment]
     }
 
     /// Mutable only in its `.create` payload: the destination group is a
@@ -80,6 +104,8 @@ final class EntryEditViewModel {
     var totpPeriod: Int
     var totpDigits: Int
     var totpAlgorithm: TOTPAlgorithm
+    /// The entry's attachments in file order, new files appended.
+    private(set) var attachments: [Attachment]
     /// The verbatim `otpauth://` URI this editing session enrolled from, nil
     /// otherwise. Whether it reaches the payload is decided at payload time,
     /// so later field edits need no invalidation bookkeeping.
@@ -130,6 +156,7 @@ final class EntryEditViewModel {
         totpDigits: Int = 6,
         totpAlgorithm: TOTPAlgorithm = .sha1,
         expiryTime: Date? = nil,
+        attachments: [KPAttachment] = [],
         passkeyCredential: PasskeyCredential? = nil,
         unknownXMLNodeCount: Int = 0,
         isSeededFromExistingEntry: Bool = false
@@ -155,6 +182,8 @@ final class EntryEditViewModel {
         self.totpAlgorithm = totpAlgorithm
         self.expires = expiryTime != nil
         self.expiryDate = expiryTime ?? Self.date(months: Self.defaultExpiryMonths, after: .now)
+        let seededAttachments = attachments.map { Attachment(name: $0.name, source: .existing($0)) }
+        self.attachments = seededAttachments
         self.passkeyCredential = passkeyCredential
         self.unknownXMLNodeCount = unknownXMLNodeCount
         self.isSeededFromExistingEntry = isSeededFromExistingEntry
@@ -177,7 +206,8 @@ final class EntryEditViewModel {
                 totpDigits: 6,
                 totpAlgorithm: .sha1,
                 enrolledOTPAuthURI: nil,
-                expiry: nil
+                expiry: nil,
+                attachments: []
             )
         case .edit:
             originalSnapshot = Snapshot(
@@ -193,7 +223,8 @@ final class EntryEditViewModel {
                 totpDigits: totpDigits,
                 totpAlgorithm: totpAlgorithm,
                 enrolledOTPAuthURI: nil,
-                expiry: expiryTime
+                expiry: expiryTime,
+                attachments: seededAttachments
             )
         }
     }
@@ -249,6 +280,7 @@ final class EntryEditViewModel {
             totpDigits: entry.totpConfig?.digits ?? 6,
             totpAlgorithm: entry.totpConfig?.algorithm ?? .sha1,
             expiryTime: entry.enabledExpiryTime,
+            attachments: entry.attachments,
             passkeyCredential: entry.passkeyCredential,
             unknownXMLNodeCount: entry.unknownXML.nodes.count
         )
@@ -352,6 +384,44 @@ final class EntryEditViewModel {
         return String(localized: "This entry stores its code in the legacy KeeOTP format, which only supports 6- or 8-digit codes.")
     }
 
+    struct TOTPPreview {
+        let config: TOTPConfig
+        let resolvedSecret: TOTPGenerator.ResolvedSecret
+
+        var period: Int { max(1, config.period) }
+
+        func code(at date: Date) -> String {
+            TOTPGenerator.generateCode(config: config, resolvedSecret: resolvedSecret, date: date)
+        }
+
+        func secondsRemaining(at date: Date) -> Int {
+            TOTPGenerator.secondsRemaining(period: config.period, date: date)
+        }
+    }
+
+    /// The code the entry will generate once saved, so a new setup can be
+    /// confirmed with the service first. Built from the configuration Save
+    /// writes rather than the raw fields, because a KeeOTP entry can revert
+    /// an edit on save. Nil when the secret does not decode, or while the
+    /// digit count blocks the save.
+    var totpPreview: TOTPPreview? {
+        guard unsupportedTOTPDigitsMessage == nil,
+              let configuration = normalizedTOTPConfiguration() else { return nil }
+        // `TOTPGenerator` resolves secrets only out of `EncryptedValue`s; a
+        // throwaway key keeps the preview on the exact path a saved entry takes.
+        let key = SymmetricKey(size: .bits256)
+        guard let config = try? TOTPConfig(
+                  secret: EncryptedValue.encrypt(configuration.secret, using: key),
+                  decodedSecret: configuration.decodedSecret.map { try EncryptedValue.encrypt($0, using: key) },
+                  keeOTPSource: configuration.keeOTPSource,
+                  period: configuration.period,
+                  digits: configuration.digits,
+                  algorithm: configuration.algorithm
+              ),
+              let resolvedSecret = TOTPGenerator.resolveSecret(config: config, sessionKey: key) else { return nil }
+        return TOTPPreview(config: config, resolvedSecret: resolvedSecret)
+    }
+
     /// A password the user is about to type is shown; one that came out of
     /// the database — an edit, or a duplicate — starts hidden.
     var isPasswordInitiallyVisible: Bool {
@@ -375,7 +445,8 @@ final class EntryEditViewModel {
             protectedCustomFieldKeys: protectedCustomFieldKeys(),
             tags: normalizedTags(),
             totpConfig: normalizedTOTPConfiguration(),
-            expiry: expires ? .at(expiryDate) : .never
+            expiry: expires ? .at(expiryDate) : .never,
+            attachments: attachmentPayloads()
         )
     }
 
@@ -487,6 +558,51 @@ final class EntryEditViewModel {
         totpAlgorithm = .sha1
     }
 
+    /// Appends a file as a new attachment. KeePassXC keys an entry's
+    /// attachments by name and would keep only one of two that share it, so a
+    /// taken name gets a numbered suffix, as Finder does for copies.
+    func addAttachment(named name: String, data: Data) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseName = trimmed.isEmpty ? String(localized: "Attachment") : trimmed
+        let takenNames = Set(attachments.map(\.name))
+        attachments.append(Attachment(
+            name: Self.uniqueAttachmentName(baseName, avoiding: takenNames),
+            source: .new(data)
+        ))
+    }
+
+    func removeAttachment(id: UUID) {
+        attachments.removeAll { $0.id == id }
+    }
+
+    private static func uniqueAttachmentName(_ name: String, avoiding takenNames: Set<String>) -> String {
+        guard takenNames.contains(name) else { return name }
+        let pathExtension = (name as NSString).pathExtension
+        let stem = pathExtension.isEmpty ? name : (name as NSString).deletingPathExtension
+        var counter = 2
+        while true {
+            let candidate = pathExtension.isEmpty ? "\(stem) (\(counter))" : "\(stem) (\(counter)).\(pathExtension)"
+            if takenNames.contains(candidate) == false {
+                return candidate
+            }
+            counter += 1
+        }
+    }
+
+    /// `nil` while the list is as it opened, so a save that leaves the
+    /// attachments alone never depends on them still matching the entry.
+    private func attachmentPayloads() -> [EntryAttachmentPayload]? {
+        guard attachments != originalSnapshot.attachments else { return nil }
+        return attachments.map { attachment in
+            switch attachment.source {
+            case .existing(let stored):
+                .existing(name: stored.name, ref: stored.ref)
+            case .new(let data):
+                .new(name: attachment.name, data: data)
+            }
+        }
+    }
+
     func addCustomField() {
         customFields.append(CustomField())
     }
@@ -564,7 +680,8 @@ final class EntryEditViewModel {
             totpDigits: totpDigits,
             totpAlgorithm: totpAlgorithm,
             enrolledOTPAuthURI: enrolledOTPAuthURI,
-            expiry: expires ? expiryDate : nil
+            expiry: expires ? expiryDate : nil,
+            attachments: attachments
         )
     }
 

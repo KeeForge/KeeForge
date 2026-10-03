@@ -115,6 +115,28 @@ final class CloudUnlockSmokeUITests: CloudSyncBaseUITests {
         XCTAssertTrue(app.buttons["lock.button"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["settings.button"].exists)
     }
+
+    func testCloudDatabaseDetailsOffersTheCloudSyncPage() {
+        unlockSuccessfully()
+
+        let settingsButton = app.buttons["settings.button"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 10), "Open database gear button was not visible")
+        tapElement(settingsButton)
+        XCTAssertTrue(
+            app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
+            "The gear button did not open Database Details"
+        )
+
+        openDatabaseDetailsPage(.cloudSync)
+        for identifier in ["database-details.sync-on-open-toggle", "database-details.sync-now"] {
+            let element = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+            XCTAssertTrue(
+                revealElement(element, in: scrollableContainer()),
+                "The Cloud Sync page was missing '\(identifier)'"
+            )
+        }
+        closeDatabaseDetails()
+    }
 }
 
 final class CloudAccountEdgeUITests: CloudSyncBaseUITests {
@@ -131,6 +153,11 @@ final class CloudAccountEdgeUITests: CloudSyncBaseUITests {
         XCTAssertTrue(listSettingsButton.waitForExistence(timeout: 10))
         listSettingsButton.tap()
 
+        let cloudAccountsLink = app.descendants(matching: .any).matching(identifier: "settings.cloud.link").firstMatch
+        XCTAssertTrue(cloudAccountsLink.waitForExistence(timeout: 10))
+        XCTAssertTrue(cloudAccountsLink.label.contains("Dropbox"), "The row should name the connected provider")
+        cloudAccountsLink.tap()
+
         let signOutButton = app.buttons["settings.cloud.signout.button"].firstMatch
         XCTAssertTrue(signOutButton.waitForExistence(timeout: 10))
         signOutButton.tap()
@@ -138,6 +165,9 @@ final class CloudAccountEdgeUITests: CloudSyncBaseUITests {
         let disconnectButton = app.buttons["Disconnect"].firstMatch
         XCTAssertTrue(disconnectButton.waitForExistence(timeout: 10))
         disconnectButton.tap()
+
+        XCTAssertTrue(app.staticTexts["No cloud accounts connected"].waitForExistence(timeout: 10))
+        app.navigationBars["Cloud Accounts"].buttons.element(boundBy: 0).tap()
 
         let doneButton = app.buttons["Done"]
         XCTAssertTrue(doneButton.waitForExistence(timeout: 10))

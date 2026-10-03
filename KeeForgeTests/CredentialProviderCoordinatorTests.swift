@@ -1805,11 +1805,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let switcher = try XCTUnwrap(scenario.presenter.searchView?.databaseSwitcher)
         let target = try XCTUnwrap(switcher.databases.first { $0.id == scenario.databaseB.id })
 
-        // Give the switched-to database real KDBX bytes in the shared cache.
-        let fixtureData = try Data(
-            contentsOf: TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
-        )
-        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: scenario.databaseB)
+        // Give the switched-to database real KDBX bytes.
+        try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: scenario.databaseB)
 
         switcher.onSwitch(target, "git")
         let prompt = try XCTUnwrap(scenario.presenter.unlockPrompt)
@@ -2173,10 +2170,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     func test_unlockOverBudgetDatabase_surfacesTheLimitInsteadOfDerivingTheKey() async throws {
         let (coordinator, presenter) = makeCoordinator()
         let database = try seedResolvableDefaultDatabase()
-        let fixtureData = try Data(
-            contentsOf: TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
-        )
-        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: database)
+        try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
 
         // The fixture's header declares 64 MiB of Argon2 memory, which Argon2
         // takes as one allocation, so a budget below that cannot cover it.
@@ -2207,10 +2201,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     func test_unlockWithinBudget_proceedsNormally() async throws {
         let (coordinator, presenter) = makeCoordinator()
         let database = try seedResolvableDefaultDatabase()
-        let fixtureData = try Data(
-            contentsOf: TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
-        )
-        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: database)
+        try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
 
         coordinator.memoryBudgetOverride = 512 * 1024 * 1024
 
@@ -2231,6 +2222,134 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         await fulfillment(of: [searchPresented], timeout: 60)
 
         XCTAssertFalse(try XCTUnwrap(presenter.searchView).searchEntries.isEmpty)
+    }
+
+    // MARK: - Shared copy freshness (issue #167)
+
+    /// The app opens a bookmarked database from its file, so the picker must
+    /// too: a shared copy made before another app changed the file would hide
+    /// a credential the app already shows. The Mac extension cannot reach the
+    /// app's bookmarks, so there the copy is searched and dated instead.
+    func test_unlockBookmarkedDatabase_searchesTheFileRatherThanAnOlderSharedCopy() async throws {
+        let bundle = Bundle(for: Self.self)
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedResolvableDefaultDatabase()
+        let fileData = try KDBXTestFixture.kitchenSink.data(in: bundle)
+        try fileData.write(to: XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: database)))
+        try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: bundle), for: database)
+
+        let searchView = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
+
+        let titles = searchView.searchEntries.map(\.title)
+        #if os(iOS)
+        XCTAssertTrue(titles.contains("Router Admin"), "The file's credential must be searchable")
+        XCTAssertNil(searchView.sharedCopyDate, "Nothing to date when the file itself was read")
+        XCTAssertEqual(
+            coordinator.openTimeSHA512,
+            KDBXCrypto.sha512(fileData),
+            "An AutoFill save must be checked against the file it will overwrite"
+        )
+        #else
+        XCTAssertFalse(titles.contains("Router Admin"))
+        XCTAssertNotNil(searchView.sharedCopyDate)
+        #endif
+    }
+
+    /// When the file cannot be read the shared copy still opens, dated by its
+    /// last write so an empty search can say how old it is.
+    func test_unlockBookmarkedDatabase_withItsFileGone_opensTheSharedCopyAndDatesIt() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedResolvableDefaultDatabase()
+        try FileManager.default.removeItem(at: XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: database)))
+        try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
+        let copyDate = try XCTUnwrap(
+            DatabaseListStore.cacheLocation(for: database)
+                .resourceValues(forKeys: [.contentModificationDateKey])
+                .contentModificationDate
+        )
+
+        let searchView = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
+
+        XCTAssertFalse(searchView.searchEntries.isEmpty)
+        XCTAssertEqual(searchView.sharedCopyDate, copyDate)
+    }
+
+    /// A Files-app Delete leaves the bookmark resolving to the file in the
+    /// Trash; that is not the database, so the shared copy opens and is dated.
+    func test_unlockBookmarkedDatabase_withItsFileInTheTrash_opensTheSharedCopyAndDatesIt() async throws {
+        let bundle = Bundle(for: Self.self)
+        let (coordinator, presenter) = makeCoordinator()
+        let trashedURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent(".Trash")
+            .appendingPathComponent("default.kdbx")
+        try FileManager.default.createDirectory(
+            at: trashedURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        try KDBXTestFixture.kitchenSink.data(in: bundle).write(to: trashedURL)
+        let database = try TestDatabaseSupport.makeReference(for: trashedURL)
+        DatabaseListStore.update(database)
+        DatabaseListStore.activeAutoFillDatabaseID = database.id
+        try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: bundle), for: database)
+
+        let searchView = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
+
+        let titles = searchView.searchEntries.map(\.title)
+        XCTAssertFalse(titles.isEmpty)
+        XCTAssertFalse(titles.contains("Router Admin"), "The trashed file must not be searched")
+        XCTAssertNotNil(searchView.sharedCopyDate)
+    }
+
+    /// The extension cannot sync a cloud database, so its copy is only as
+    /// current as the app's last sync, and the picker is told when that was.
+    func test_unlockCloudDatabase_datesTheSharedCopyByTheLastSync() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let lastSyncedAt = Date(timeIntervalSince1970: 1_790_000_000)
+        let database = DatabaseReference(
+            id: UUID(),
+            nickname: nil,
+            filename: "cloud.kdbx",
+            bookmarkData: nil,
+            keyFileBookmarkData: nil,
+            keyFileFilename: nil,
+            isQuickLaunch: false,
+            lastOpenedAt: nil,
+            addedAt: Date(timeIntervalSince1970: 0),
+            colorTag: nil,
+            legacyKeychainFilename: nil,
+            source: .cloud(
+                CloudSyncMetadata(
+                    provider: CloudProviderKind.dropbox.rawValue,
+                    accountId: "acct-1",
+                    fileId: "/Vaults/cloud.kdbx",
+                    displayPath: "/Vaults/cloud.kdbx",
+                    remoteContentHash: nil,
+                    remoteModifiedAt: nil,
+                    remoteRev: "rev-1",
+                    lastSyncedAt: lastSyncedAt,
+                    lastSyncIssue: nil
+                )
+            )
+        )
+        DatabaseListStore.update(database)
+        DatabaseListStore.activeAutoFillDatabaseID = database.id
+        try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
+
+        let searchView = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
+
+        XCTAssertFalse(searchView.searchEntries.isEmpty)
+        XCTAssertEqual(searchView.sharedCopyDate, lastSyncedAt)
+    }
+
+    func test_cleanup_forgetsTheSharedCopyDate() {
+        let (coordinator, _) = makeCoordinator()
+        coordinator.sharedCopyDate = .now
+
+        coordinator.cleanup()
+
+        XCTAssertNil(coordinator.sharedCopyDate)
     }
 
     // MARK: - Copy verification code on AutoFill (issue #23)
@@ -2470,10 +2589,43 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         return url
     }
 
+    /// Gives a registered database real KDBX bytes in both places the
+    /// extension opens one from: its bookmarked file on iOS, the shared copy
+    /// on macOS.
+    private func seedDatabaseBytes(_ data: Data, for reference: DatabaseReference) throws {
+        try data.write(to: XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: reference)))
+        try DatabaseListStore.cacheDatabaseCopy(data, for: reference)
+    }
+
+    /// Unlocks the default AutoFill database with the fixtures' password for a
+    /// request matching nothing, so the picker lists the whole vault.
+    private func unlockDefaultDatabaseAndPresentSearch(
+        _ coordinator: CredentialProviderCoordinator,
+        _ presenter: CredentialProviderPresentingSpy
+    ) async throws -> CredentialProviderPresentingSpy.SearchView {
+        coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+        coordinator.prepareCredentialList(
+            for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)]
+        )
+        presenter.isPresentationActive = true
+        coordinator.presentationDidBecomeActive()
+        let prompt = try XCTUnwrap(presenter.unlockPrompt)
+
+        let searchPresented = expectation(description: "search view presented")
+        presenter.onSearchViewPresented = { searchPresented.fulfill() }
+        presenter.onUnlockErrorPresented = {
+            XCTFail("Unlock must succeed: \(presenter.unlockError?.message ?? "unknown error")")
+        }
+
+        prompt.onSubmitPassword("testpassword123")
+        await fulfillment(of: [searchPresented], timeout: 60)
+        return try XCTUnwrap(presenter.searchView)
+    }
+
     /// Registers an AutoFill-participating database in the shared registry.
     /// The bookmarked file holds placeholder bytes, so unlocking it fails —
-    /// resolution/switcher tests that need a real unlock write fixture bytes
-    /// to `DatabaseListStore.cacheLocation(for:)` separately.
+    /// resolution/switcher tests that need a real unlock seed fixture bytes
+    /// through `seedDatabaseBytes(_:for:)`.
     @discardableResult
     private func makeRegisteredDatabase(
         named name: String,
@@ -2507,8 +2659,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     /// pinned to the first, and presents the password search view — the
     /// starting position of every switcher-driven test. Database A's vault
     /// holds the two GitHub entries; database B's bookmarked file holds
-    /// placeholder bytes, so its unlock fails unless the test writes fixture
-    /// bytes to its shared cache first.
+    /// placeholder bytes, so its unlock fails unless the test seeds fixture
+    /// bytes through `seedDatabaseBytes(_:for:)` first.
     private func makePresentedTwoDatabaseSearch(
         serviceIdentifier: ASCredentialServiceIdentifier? = nil
     ) throws -> SwitcherScenario {

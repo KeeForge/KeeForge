@@ -7,6 +7,18 @@ enum KeychainService {
     private static let service = "com.keevault.app"
     private static let compositeKeyAccount = "compositeKey"
 
+    /// One quick-unlock item per database. On the native Mac app Touch ID or
+    /// an authorized Apple Watch can release it; iPhone and iPad stay
+    /// biometric-only. No flag admits the device passcode or the Mac login
+    /// password. Must stay in step with `BiometricService.quickUnlockPolicy`.
+    static var quickUnlockAccessControlFlags: SecAccessControlCreateFlags {
+        #if os(macOS)
+        [.biometryCurrentSet, .or, .companion]
+        #else
+        .biometryCurrentSet
+        #endif
+    }
+
     private static func accountKey(for databaseID: UUID) -> String {
         "\(compositeKeyAccount):\(databaseID.uuidString)"
     }
@@ -39,6 +51,22 @@ enum KeychainService {
         return hasStoredKey(account: legacyAccountKey(forFilename: legacyFilename))
     }
 
+    /// Whether a successful unlock should (re)write the quick-unlock item.
+    /// On the Mac an existing item is rewritten even while neither Touch ID
+    /// nor the watch can authenticate (lid closed, watch away): adding needs
+    /// no authentication, and the master key may have changed on another
+    /// device since the item was written.
+    static func shouldStoreQuickUnlockKey(for databaseID: UUID, legacyFilename: String?) -> Bool {
+        if BiometricService.isQuickUnlockAvailable {
+            return true
+        }
+        #if os(macOS)
+        return hasStoredKey(for: databaseID, legacyFilename: legacyFilename)
+        #else
+        return false
+        #endif
+    }
+
     static func retrieveLegacyCompositeKey(forFilename filename: String, context: LAContext) throws -> SymmetricKey {
         try retrieveCompositeKey(account: legacyAccountKey(forFilename: filename), context: context)
     }
@@ -66,7 +94,7 @@ enum KeychainService {
         guard let accessControl = SecAccessControlCreateWithFlags(
             nil,
             kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-            .biometryCurrentSet,
+            quickUnlockAccessControlFlags,
             &error
         ) else {
             throw KeychainError.accessControlFailed
@@ -93,6 +121,13 @@ enum KeychainService {
 
     // The bytes CFData hands back are Security-framework owned and cannot be reliably wiped.
     private static func retrieveCompositeKey(account: String, context: LAContext) throws -> SymmetricKey {
+        #if os(macOS)
+        // The caller's evaluated policy is the only prompt. The Mac item also
+        // admits Apple Watch, so a Keychain-raised prompt could offer the
+        // watch inside biometric-only AutoFill; fail instead and let the user
+        // fall back to the master password.
+        context.interactionNotAllowed = true
+        #endif
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

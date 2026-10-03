@@ -121,6 +121,59 @@ enum DatabaseMergeFailure: String, Error, Identifiable, Equatable, Sendable {
     }
 }
 
+/// Why merging a conflicted AutoFill upload wrote nothing. Every case leaves
+/// the pending upload and its bytes in place.
+enum PendingUploadMergeFailure: Error, Equatable, Sendable {
+    /// The change's bytes are gone from this device, or were saved under a
+    /// master key the database no longer uses.
+    case changeUnavailable
+    /// The change is on this device, but no file is proven to hold it
+    /// (`PendingUploadRecovery.Lookup.unidentified`).
+    case changeUnidentified
+    /// The change would not open with this database's master key.
+    case changeUnreadable(PendingUploadRecovery.Location)
+    /// See `DatabaseMergeFailure.attachmentsDiverged`.
+    case attachmentsDiverged(PendingUploadRecovery.Location)
+    /// The cloud copy moved on since the session's copy was synced: between
+    /// opening and uploading the merge, or before a manual-policy open that
+    /// did not check. Reopening is no way out under the manual policy, so the
+    /// message points at Sync Now, which works under either policy.
+    case cloudChanged
+    /// No unlocked, writable session, a save conflict still standing, or a
+    /// save already in flight.
+    case sessionUnavailable
+
+    /// Only names Export Copy while the cache still is the change: once the
+    /// database has been opened, the cache is the cloud copy and exporting it
+    /// would hand the user the version without their change.
+    var message: String {
+        switch self {
+        case .changeUnavailable:
+            String(localized: "The change saved through AutoFill is no longer stored on this device, or it was saved before the master key changed. Use Discard Pending Upload in the database list to clear the conflict.")
+        case .changeUnidentified:
+            String(localized: "KeeForge can't tell which copy on this device holds the change saved through AutoFill, so nothing was merged. The change may already be in this database; otherwise look for it in the backups in Database Details and export that backup to merge it in another KeePass app. Once the change is merged, use Discard Pending Upload in the database list to clear the conflict.")
+        case .changeUnreadable(.cache):
+            String(localized: "The change saved through AutoFill could not be opened with this database's master key. To merge it in another KeePass app, use Export Copy in the database list.")
+        case .changeUnreadable(.backup(let url)):
+            String(localized: "The change saved through AutoFill could not be opened with this database's master key. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
+        case .attachmentsDiverged(.cache):
+            String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. To merge it in another KeePass app, use Export Copy in the database list.")
+        case .attachmentsDiverged(.backup(let url)):
+            String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
+        case .cloudChanged:
+            String(localized: "The cloud copy has changed since this database was last synced. Nothing was lost. Use Sync Now in Database Details to get the latest copy, then choose Merge Changes again.")
+        case .sessionUnavailable:
+            String(localized: "The change can't be merged right now. Make sure the database is editable and has no unresolved save conflict, then try again.")
+        }
+    }
+
+    /// The label Database Details shows for the same backup row.
+    private static func backupLabel(for url: URL) -> String {
+        DatabaseExportService.backupDate(fromFilename: url.lastPathComponent)?.formatted(.dateTime)
+            ?? url.lastPathComponent
+    }
+}
+
 /// Whether lifecycle-triggered biometric auto-unlock is allowed on this
 /// platform. Only iOS on its own hardware qualifies: everywhere else
 /// `scenePhase == .active` fails to prove the window is frontmost when a lock
@@ -172,6 +225,38 @@ final class DatabaseViewModel {
         let sessionKey: SymmetricKey
         let openTimeSHA512: Data
         let binaryPool: BinaryPool
+        /// Nil for local databases and for reloads that did not go through
+        /// the cloud coordinator.
+        var cloudSyncStatus: CloudSyncResolution.Status? = nil
+    }
+
+    /// What the last Sync Now found, shown until dismissed or superseded.
+    enum CloudSyncOutcome: Equatable, Sendable {
+        case upToDate
+        case updated
+        /// A newer copy reached the cache, but editing started before it
+        /// could replace the open database; the next save meets it as a
+        /// conflict and offers to merge.
+        case updateWaitsForSave
+        /// A newer copy reached the cache, but the YubiKey answered the old
+        /// copy's challenge; only a fresh unlock can open the new one.
+        case updateWaitsForUnlock
+        case failed(String)
+
+        var message: String {
+            switch self {
+            case .upToDate:
+                String(localized: "This database is up to date.")
+            case .updated:
+                String(localized: "Updated with the latest changes from the cloud.")
+            case .updateWaitsForSave:
+                String(localized: "A newer copy was downloaded. When you save, KeeForge will ask how to combine it with your changes.")
+            case .updateWaitsForUnlock:
+                String(localized: "A newer copy was downloaded. Lock the database and unlock it again with your YubiKey to open it.")
+            case .failed(let message):
+                message
+            }
+        }
     }
 
     struct PendingLockRequest: Identifiable, Equatable, Sendable {
@@ -272,6 +357,49 @@ final class DatabaseViewModel {
         }
     }
 
+    /// What the database's root list shows, chosen from its view menu.
+    enum ViewMode: String, Sendable {
+        case groups
+        case allEntries
+        case verificationCodes
+        case tags
+        case recycleBin
+
+        /// The views of the live database, in menu order. The recycle bin is
+        /// listed apart from them.
+        static let browsingModes: [ViewMode] = [.allEntries, .groups, .verificationCodes, .tags]
+
+        var title: String {
+            switch self {
+            case .groups:
+                String(localized: "Groups")
+            case .allEntries:
+                String(localized: "All Entries")
+            case .verificationCodes:
+                String(localized: "Verification Codes")
+            case .tags:
+                String(localized: "Tags")
+            case .recycleBin:
+                String(localized: "Recycle Bin")
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .groups:
+                "folder"
+            case .allEntries:
+                "list.bullet.rectangle"
+            case .verificationCodes:
+                "clock"
+            case .tags:
+                "tag"
+            case .recycleBin:
+                "trash"
+            }
+        }
+    }
+
     typealias CloudSyncOperation = @Sendable (
         _ reference: DatabaseReference,
         _ progress: @escaping @Sendable (Double) -> Void
@@ -332,6 +460,13 @@ final class DatabaseViewModel {
         _ configuration: HardwareKeyConfiguration
     ) async throws -> Data
     typealias HardwareKeyTransportsProvider = @MainActor () -> [HardwareKeyConfiguration.Transport]
+    /// Builds the draft an import saves. Injected so tests can hold it open
+    /// and change the session underneath it.
+    typealias ImportStagingOperation = @Sendable (
+        _ base: DatabaseDraft,
+        _ drafts: [EntryDraftPayload],
+        _ groupID: UUID
+    ) async throws -> DatabaseDraft
 
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
@@ -425,6 +560,11 @@ final class DatabaseViewModel {
     var sortOrder: SortOrder {
         didSet { Self.persistSortOrder(sortOrder) }
     }
+    /// Session state like the navigation path: every unlock starts on
+    /// `initialViewMode` again.
+    var viewMode = DatabaseViewModel.initialViewMode() {
+        didSet { resetInactivityTimer() }
+    }
 
     private(set) var failedAttempts = 0
     private(set) var lockoutUntil: Date?
@@ -470,13 +610,38 @@ final class DatabaseViewModel {
     private(set) var mergeFailure: DatabaseMergeFailure?
     /// Confirmation text for a merge that did write, awaiting acknowledgement.
     private(set) var mergeSummaryMessage: String?
-    private(set) var isSaving = false
+    /// An AutoFill save for this database could not be uploaded because the
+    /// cloud copy moved on. Checked at unlock and after a pending merge.
+    private(set) var hasPendingUploadConflict = false
+    private(set) var pendingUploadMergeFailure: PendingUploadMergeFailure?
+    private(set) var isSaving = false {
+        didSet {
+            guard isSaving == false else { return }
+            let waiters = saveCompletionWaiters
+            saveCompletionWaiters.removeAll()
+            waiters.forEach { $0.resume() }
+        }
+    }
+    /// Sync Now waiting out a save that is still in flight (`waitForInFlightSave`).
+    @ObservationIgnored private var saveCompletionWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var pendingLockRequest: PendingLockRequest?
     /// Open editors holding fields the draft has not seen. Without this a lock
     /// trigger tears the editor down and drops the typing with no prompt.
     private var unsavedEditorIDs: Set<UUID> = []
     private(set) var cloudSyncProgress: Double?
     private(set) var cloudSyncBannerText: String?
+    /// The open used the cached copy without checking the cloud (manual sync
+    /// policy), and no Sync Now has reached the provider since.
+    private(set) var isCloudRefreshPending = false
+    private(set) var isSyncingCloud = false
+    /// Sync Now is parsing the copy it fetched. `state` reads `.unlocking` so
+    /// the workspace is torn down, but the session is still open and lock
+    /// triggers must still reach it.
+    private var isReplacingWithSyncedCopy = false
+    private(set) var cloudSyncOutcome: CloudSyncOutcome?
+    /// Changes saved through AutoFill that have not reached the cloud yet, as
+    /// of the last open or Sync Now.
+    private(set) var hasPendingCloudUploads = false
     private(set) var unlockStatusMessage: String
     private var entryIndex: [UUID: KPEntry] = [:]
     /// Built on first use over `currentRootGroup` + `sessionKey`; dropped with
@@ -486,6 +651,11 @@ final class DatabaseViewModel {
     private var groupEntryCounts: [UUID: Int] = [:]
     private var searchableEntries: [KPEntry] = []
     private var searchableEntryText: [UUID: String] = [:]
+    /// Every entry outside the recycle bin, in tree order. Unlike
+    /// `searchableEntries` it keeps entries in groups hidden from search.
+    private var liveEntries: [KPEntry] = []
+    /// Groups below the visible root, outside the recycle bin.
+    private var liveGroupCount = 0
     /// Live (non-recycled) entries carrying each distinct tag, in tree order.
     /// Tag identity is exact-string, so `Work` and `work` are separate keys.
     private var tagEntryIDs: [String: [UUID]] = [:]
@@ -514,6 +684,7 @@ final class DatabaseViewModel {
     /// Cleared on lock; attachments are resolved against it lazily.
     private(set) var binaryPool: BinaryPool?
     private let cloudSyncOperation: CloudSyncOperation
+    private let cloudRefreshOperation: CloudSyncOperation
     private let localDatabaseReadOperation: LocalDatabaseReadOperation
     private let localSaveOperation: LocalSaveOperation
     private let cloudSaveOperation: CloudSaveOperation
@@ -523,12 +694,14 @@ final class DatabaseViewModel {
     private let reloadOperation: ReloadOperation
     private let biometricCompositeKeyOperation: BiometricCompositeKeyOperation
     private let pendingUploadMarkerCheck: PendingUploadMarkerCheck
+    private let pendingUploadRecovery: PendingUploadRecovery.Environment
     private let storedKeyPresenceCheck: StoredKeyPresenceCheck
     private let storedKeyStoreOperation: StoredKeyStoreOperation
     private let storedKeyDeleteOperation: StoredKeyDeleteOperation
     private let deviceOwnerAuthAvailabilityCheck: DeviceOwnerAuthAvailabilityCheck
     private let hardwareKeyResponseOperation: HardwareKeyResponseOperation
     private let hardwareKeyTransportsProvider: HardwareKeyTransportsProvider
+    private let importStagingOperation: ImportStagingOperation
     private let conflictCopyDateProvider: @Sendable () -> Date
     private let nowProvider: @Sendable () -> Date
     private var backgroundEnteredAt: Date?
@@ -538,6 +711,13 @@ final class DatabaseViewModel {
         cloudSyncOperation: @escaping CloudSyncOperation = { reference, progress in
             try await CloudSyncCoordinator.syncIfNeededForOpen(
                 reference: reference,
+                progress: progress
+            )
+        },
+        cloudRefreshOperation: @escaping CloudSyncOperation = { reference, progress in
+            try await CloudSyncCoordinator.syncIfNeededForOpen(
+                reference: reference,
+                honorsManualSyncPolicy: false,
                 progress: progress
             )
         },
@@ -597,12 +777,16 @@ final class DatabaseViewModel {
             )
         },
         biometricCompositeKeyOperation: @escaping BiometricCompositeKeyOperation = { reference, reason in
-            let context = try await BiometricService.authenticate(reason: reason)
+            let context = try await BiometricService.authenticate(
+                reason: reason,
+                policy: BiometricService.quickUnlockPolicy
+            )
             return try DatabaseViewModel.retrieveStoredCompositeKey(for: reference, context: context)
         },
         pendingUploadMarkerCheck: @escaping PendingUploadMarkerCheck = { reference in
             PendingUploadQueue.listMarkers(for: reference.id).isEmpty == false
         },
+        pendingUploadRecovery: PendingUploadRecovery.Environment = .live,
         storedKeyPresenceCheck: @escaping StoredKeyPresenceCheck = { reference in
             KeychainService.hasStoredKey(for: reference.id, legacyFilename: reference.legacyKeychainFilename)
         },
@@ -621,6 +805,7 @@ final class DatabaseViewModel {
         hardwareKeyTransportsProvider: @escaping HardwareKeyTransportsProvider = {
             HardwareKeyService.availableTransports
         },
+        importStagingOperation: @escaping ImportStagingOperation = DatabaseViewModel.stageImportedEntries,
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) {
@@ -631,6 +816,7 @@ final class DatabaseViewModel {
             ? DatabaseViewModel.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
         self.cloudSyncOperation = cloudSyncOperation
+        self.cloudRefreshOperation = cloudRefreshOperation
         self.localDatabaseReadOperation = localDatabaseReadOperation
         self.localSaveOperation = localSaveOperation
         self.cloudSaveOperation = cloudSaveOperation
@@ -640,12 +826,14 @@ final class DatabaseViewModel {
         self.reloadOperation = reloadOperation
         self.biometricCompositeKeyOperation = biometricCompositeKeyOperation
         self.pendingUploadMarkerCheck = pendingUploadMarkerCheck
+        self.pendingUploadRecovery = pendingUploadRecovery
         self.storedKeyPresenceCheck = storedKeyPresenceCheck
         self.storedKeyStoreOperation = storedKeyStoreOperation
         self.storedKeyDeleteOperation = storedKeyDeleteOperation
         self.deviceOwnerAuthAvailabilityCheck = deviceOwnerAuthAvailabilityCheck
         self.hardwareKeyResponseOperation = hardwareKeyResponseOperation
         self.hardwareKeyTransportsProvider = hardwareKeyTransportsProvider
+        self.importStagingOperation = importStagingOperation
         self.conflictCopyDateProvider = conflictCopyDateProvider
         self.nowProvider = nowProvider
     }
@@ -827,8 +1015,10 @@ final class DatabaseViewModel {
         return DatabaseListStore.isDocumentsFileMissing(for: databaseReference)
     }
 
+    /// Named for its iOS meaning; on the native Mac app the stored key also
+    /// opens with an authorized Apple Watch (`BiometricService.quickUnlockPolicy`).
     var canUseBiometrics: Bool {
-        guard BiometricService.isAvailable else { return false }
+        guard BiometricService.isQuickUnlockAvailable else { return false }
         return KeychainService.hasStoredKey(
             for: databaseReference.id,
             legacyFilename: databaseReference.legacyKeychainFilename
@@ -850,18 +1040,41 @@ final class DatabaseViewModel {
     }
 
     var biometricLabel: String {
+        #if os(macOS)
+        switch (BiometricService.availableType, BiometricService.isCompanionAvailable) {
+        case (.touchID, true): return String(localized: "Unlock with Touch ID or Apple Watch")
+        case (.none, true): return String(localized: "Unlock with Apple Watch")
+        default: break
+        }
+        #endif
         switch BiometricService.availableType {
-        case .faceID: "Unlock with Face ID"
-        case .touchID: "Unlock with Touch ID"
-        case .none: "Biometrics unavailable"
+        case .faceID: return "Unlock with Face ID"
+        case .touchID: return "Unlock with Touch ID"
+        case .none: return "Biometrics unavailable"
         }
     }
 
+    var biometricCaption: String {
+        #if os(macOS)
+        switch (BiometricService.availableType, BiometricService.isCompanionAvailable) {
+        case (.touchID, true): return String(localized: "Touch ID or Apple Watch unlock")
+        case (.none, true): return String(localized: "Apple Watch unlock")
+        default: break
+        }
+        #endif
+        return String(localized: "Biometric unlock")
+    }
+
     var biometricIcon: String {
+        #if os(macOS)
+        if BiometricService.availableType == .none, BiometricService.isCompanionAvailable {
+            return "applewatch"
+        }
+        #endif
         switch BiometricService.availableType {
-        case .faceID: "faceid"
-        case .touchID: "touchid"
-        case .none: "lock.fill"
+        case .faceID: return "faceid"
+        case .touchID: return "touchid"
+        case .none: return "lock.fill"
         }
     }
 
@@ -1139,6 +1352,31 @@ final class DatabaseViewModel {
         }
     }
 
+    /// Every entry outside the recycle bin, in tree order — callers sort for
+    /// display.
+    var allEntries: [KPEntry] {
+        _ = contentRevision
+        return liveEntries
+    }
+
+    /// `allEntries` narrowed to the ones that generate a verification code.
+    var verificationCodeEntries: [KPEntry] {
+        allEntries.filter { $0.totpConfig != nil }
+    }
+
+    /// How many groups `allEntries` is spread over at most: every group below
+    /// the visible root that is not in the recycle bin.
+    var allEntriesGroupCount: Int {
+        _ = contentRevision
+        return liveGroupCount
+    }
+
+    /// The recycle bin group; `nil` while the database has none.
+    var recycleBinGroup: KPGroup? {
+        guard let recycleBinID = currentRootGroup?.recycleBinUUID else { return nil }
+        return group(withID: recycleBinID)
+    }
+
     /// How many live entries carry `tag`, matched exact-string.
     func entryCount(forTag tag: String) -> Int {
         _ = contentRevision
@@ -1234,10 +1472,22 @@ final class DatabaseViewModel {
     /// off the main thread; returns `nil` for dangling refs or when no
     /// database is unlocked.
     func attachmentData(for attachment: KPAttachment) async -> Data? {
-        guard let binaryPool else { return nil }
+        guard let binaryPool = currentBinaryPool else { return nil }
         return await Task.detached(priority: .userInitiated) {
             binaryPool[attachment.ref]?.data
         }.value
+    }
+
+    /// The attachment's size in bytes, or `nil` for a dangling ref.
+    func attachmentByteCount(for attachment: KPAttachment) -> Int? {
+        currentBinaryPool?[attachment.ref]?.data.count
+    }
+
+    /// The pool the UI resolves attachments against, the draft's taking
+    /// precedence for the same reason as `currentMeta`: an attachment added in
+    /// an edit that has not saved yet must still open.
+    private var currentBinaryPool: BinaryPool? {
+        draft?.binaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
     }
 
     /// The entry's folder location below the visible root as a display string
@@ -1294,6 +1544,100 @@ final class DatabaseViewModel {
         saveConflict = nil
         refreshCredentialStoreForCurrentTreeIfNeeded()
         resetInactivityTimer()
+    }
+
+    enum PasswordImportFailure: Error, Equatable {
+        case sessionUnavailable
+        case destinationUnavailable
+        case saveInProgress
+        /// The tree changed while the entries were being built on it.
+        case databaseChanged
+    }
+
+    enum PasswordImportOutcome: Equatable {
+        case saved
+        /// The entries are in the draft, but the file changed elsewhere; the
+        /// save-conflict alert decides what happens to them.
+        case awaitingConflictResolution
+        /// The entries are in the draft but the write failed; the workspace's
+        /// unsaved-changes banner offers the retry.
+        case saveFailed(message: String)
+    }
+
+    /// Title, user name, and website of every entry outside the recycle bin,
+    /// for the import screen's duplicate check. Recycled entries do not count,
+    /// so importing again brings back what was thrown away.
+    var importDuplicateCandidates: [PasswordImport.LoginIdentity] {
+        _ = contentRevision
+        return entryIndex.values
+            .filter { recycleBinEntryIDs.contains($0.id) == false }
+            .map { PasswordImport.LoginIdentity(title: $0.title, username: $0.username, url: $0.url) }
+    }
+
+    nonisolated static func stageImportedEntries(
+        _ base: DatabaseDraft,
+        _ drafts: [EntryDraftPayload],
+        _ groupID: UUID
+    ) async throws -> DatabaseDraft {
+        try await Task.detached(priority: .userInitiated) {
+            try base.creatingEntries(drafts, inGroup: groupID)
+        }.value
+    }
+
+    /// Adds imported entries to `groupID` and saves them through the normal
+    /// save path. The entries are built off the main actor in one pass and go
+    /// into the draft as one change, so the tree and search index are rebuilt
+    /// once rather than once per entry.
+    func importEntries(_ drafts: [EntryDraftPayload], into groupID: UUID) async throws -> PasswordImportOutcome {
+        guard case .unlocked = state, sessionKey != nil else {
+            throw PasswordImportFailure.sessionUnavailable
+        }
+        if isReadOnly {
+            throw SaveError.databaseIsReadOnly
+        }
+        // `save()` no-ops behind an in-flight save, which would report an
+        // import as saved before it was written.
+        guard isSaving == false else {
+            throw PasswordImportFailure.saveInProgress
+        }
+        // `recycleBinGroupIDs` holds the groups inside the bin, not the bin itself.
+        guard groupIndex[groupID] != nil,
+              groupID != currentRootGroup?.recycleBinUUID,
+              recycleBinGroupIDs.contains(groupID) == false else {
+            throw PasswordImportFailure.destinationUnavailable
+        }
+
+        let base = try makeWorkingDraft()
+        let expectedLockCycleID = lockCycleID
+        let expectedContentRevision = contentRevision
+        let staged = try await importStagingOperation(base, drafts, groupID)
+
+        // Every change to the tree bumps `contentRevision`, so an unchanged
+        // revision means `base` is still the working draft. A session that
+        // is `.unlocking` without a lock in between is replacing its tree
+        // (Sync Now or a conflict reload), which is a change, not a lock.
+        guard expectedLockCycleID == lockCycleID else {
+            throw PasswordImportFailure.sessionUnavailable
+        }
+        guard case .unlocked = state, expectedContentRevision == contentRevision else {
+            throw PasswordImportFailure.databaseChanged
+        }
+        guard isSaving == false else {
+            throw PasswordImportFailure.saveInProgress
+        }
+        draft = staged
+        saveConflict = nil
+        refreshCredentialStoreForCurrentTreeIfNeeded()
+        resetInactivityTimer()
+
+        // Once the entries are staged, a failed write must not read as a
+        // failed import: retrying would stage them a second time.
+        do {
+            try await save()
+        } catch {
+            return .saveFailed(message: DatabaseSaveError(error).localizedDescription)
+        }
+        return saveConflict == nil ? .saved : .awaitingConflictResolution
     }
 
     func deleteEntry(_ entryID: UUID, sendToRecycleBin: Bool) throws {
@@ -1716,8 +2060,6 @@ final class DatabaseViewModel {
 
     func lock(manuallyTriggered: Bool = false, preservingClipboard: Bool = false) {
         cancelInactivityTimer()
-        // A Lightning key never times out on its own; don't let a pending one
-        // finish unlocking behind this lock.
         hardwareKeyTask?.cancel()
         hardwareKeyTask = nil
         isAwaitingHardwareKey = false
@@ -1737,6 +2079,7 @@ final class DatabaseViewModel {
             ClipboardService.clearOwnedContents()
         }
         beginNewLockCycle()
+        isReplacingWithSyncedCopy = false
         canRemoveMissingDocumentsFile = false
         state = .locked
         rootGroup = nil
@@ -1754,15 +2097,19 @@ final class DatabaseViewModel {
         saveConflict = nil
         mergeFailure = nil
         mergeSummaryMessage = nil
+        hasPendingUploadConflict = false
+        pendingUploadMergeFailure = nil
         pendingLockRequest = nil
         unsavedEditorIDs.removeAll()
         cloudSyncProgress = nil
         cloudSyncBannerText = nil
+        resetCloudSyncStatus()
         unlockStatusMessage = databaseReference.isCloudBacked
             ? Self.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
         searchText = ""
         navigationPath = NavigationPath()
+        viewMode = Self.initialViewMode()
         selectedGroupID = nil
         selectedTag = nil
         selectedEntryID = nil
@@ -1776,7 +2123,7 @@ final class DatabaseViewModel {
         manuallyTriggered: Bool = false,
         preservingClipboard: Bool = false
     ) {
-        guard case .unlocked = state else {
+        guard isSessionOpen else {
             if force {
                 lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard)
             }
@@ -1809,6 +2156,11 @@ final class DatabaseViewModel {
 
     var hasUnsavedEditor: Bool {
         unsavedEditorIDs.isEmpty == false
+    }
+
+    private var isSessionOpen: Bool {
+        if case .unlocked = state { return true }
+        return isReplacingWithSyncedCopy
     }
 
     /// Called by editors as their form dirties and again as they go away.
@@ -2022,11 +2374,14 @@ final class DatabaseViewModel {
             case .saved(let newSHA512):
                 rootGroup = snapshot.rootGroup
                 unlockedMeta = snapshot.meta
+                binaryPool = snapshot.binaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
                 self.openTimeSHA512 = newSHA512
                 saveConflict = nil
                 saveError = nil
                 refreshDatabaseReference()
                 populateCredentialStoreIfNeeded(root: snapshot.rootGroup)
+                // The saver drops pending uploads this save already contains.
+                refreshPendingUploadConflict()
 
                 guard let grown = self.draft, grown.pendingEdits != snapshot.pendingEdits else {
                     self.draft = nil
@@ -2193,8 +2548,8 @@ final class DatabaseViewModel {
         refreshDatabaseReference()
     }
 
-    /// Re-encrypts the unlocked database with a different cipher, Argon2id
-    /// preset, or compression setting under the same master key. A nil
+    /// Re-encrypts the unlocked database with a different cipher, key
+    /// derivation, or compression setting under the same master key. A nil
     /// argument keeps the file's current value.
     ///
     /// A conflict with concurrent changes aborts cleanly
@@ -2202,7 +2557,7 @@ final class DatabaseViewModel {
     /// untouched.
     func changeEncryptionSettings(
         cipher: DatabaseCreationCipher?,
-        kdfPreset: DatabaseCreationKDFPreset?,
+        keyDerivation: EncryptionSettingsKeyDerivation?,
         isCompressed: Bool?
     ) async throws {
         guard case .unlocked = state, let compositeKey, let openTimeSHA512 else {
@@ -2222,11 +2577,11 @@ final class DatabaseViewModel {
         if databaseReference.isCloudBacked, pendingUploadMarkerCheck(databaseReference) {
             throw EncryptionSettingsError.pendingUploadsExist
         }
-        guard cipher != nil || kdfPreset != nil || isCompressed != nil else { return }
+        guard cipher != nil || keyDerivation != nil || isCompressed != nil else { return }
 
         let change = EncryptionSettingsChange(
             cipherID: cipher?.cipherID,
-            kdfParameters: try kdfPreset.map { try DatabaseCreationDefaults.argon2idKDFParameters(preset: $0) },
+            kdfParameters: try keyDerivation?.kdfParameters(),
             compressionFlags: isCompressed.map { $0 ? 1 : 0 }
         )
         let workingDraft = try makeWorkingDraft()
@@ -2339,10 +2694,9 @@ final class DatabaseViewModel {
         // The draft's tree is the local side, so unsaved edits take part in the
         // merge rather than being written over it.
         let localDraft = try makeWorkingDraft()
-        // The pool the session opened. KeeForge never adds pool entries, so it
-        // is still the pool of the local side's attachments; the merger only
-        // compares it against the remote's.
-        let localBinaryPoolFields = binaryPool?.rawFields ?? []
+        // The pool the merged draft writes, files the unsaved edits added
+        // included; the merger checks the remote's refs against it.
+        let localBinaryPoolFields = localDraft.binaryPoolFields
         let expectedLockCycleID = lockCycleID
 
         isSaving = true
@@ -2361,7 +2715,7 @@ final class DatabaseViewModel {
                 sessionKey: sessionKey,
                 localRootGroup: localDraft.rootGroup,
                 localMeta: localDraft.meta,
-                localBinaryPoolFields: localBinaryPoolFields
+                localBinaryPoolFields: localBinaryPoolFields ?? []
             )
         } catch let failure as DatabaseMergeFailure {
             mergeFailure = failure
@@ -2375,7 +2729,8 @@ final class DatabaseViewModel {
         let mergedDraft = DatabaseDraft(
             rootGroup: merged.rootGroup,
             meta: merged.meta,
-            sessionKey: sessionKey
+            sessionKey: sessionKey,
+            binaryPoolFields: localBinaryPoolFields
         )
 
         // A merge that adds nothing still has to write: the remote holding no
@@ -2413,12 +2768,14 @@ final class DatabaseViewModel {
         case .saved(let newSHA512):
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
+            binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
             self.openTimeSHA512 = newSHA512
             saveConflict = nil
             saveError = nil
             draft = draftReplayingEditsArriving(after: localDraft, onto: mergedDraft)
             refreshDatabaseReference()
             populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
+            refreshPendingUploadConflict()
             mergeSummaryMessage = Self.mergeSummaryMessage(for: merged.summary)
         case .conflict(let remoteSHA512, let remoteData):
             // Strictly different bytes from the conflict just merged — the gate
@@ -2429,6 +2786,146 @@ final class DatabaseViewModel {
 
     func dismissMergeFailure() {
         mergeFailure = nil
+    }
+
+    /// Merges every conflicted AutoFill save for this database into the
+    /// session's tree and uploads the result. The pending uploads are dropped
+    /// only once that upload has succeeded; any other outcome leaves them, and
+    /// their bytes, exactly where they were.
+    func mergePendingUploads() async throws {
+        guard case .unlocked = state,
+              databaseReference.isCloudBacked,
+              isReadOnly == false,
+              isSaving == false,
+              saveConflict == nil,
+              let compositeKey,
+              let sessionKey,
+              let openTimeSHA512
+        else {
+            pendingUploadMergeFailure = .sessionUnavailable
+            return
+        }
+
+        let reference = databaseReference
+        let recovery = pendingUploadRecovery
+        let expectedLockCycleID = lockCycleID
+
+        isSaving = true
+        saveError = nil
+        pendingUploadMergeFailure = nil
+        mergeSummaryMessage = nil
+        defer {
+            isSaving = false
+        }
+
+        let lookup = await Task.detached(priority: .userInitiated) {
+            PendingUploadRecovery.lookUpPayloads(for: reference, environment: recovery)
+        }.value
+        guard expectedLockCycleID == lockCycleID else { return }
+
+        let payloads: [PendingUploadRecovery.Payload]
+        switch lookup {
+        case .noConflicts:
+            hasPendingUploadConflict = false
+            return
+        case .unavailable:
+            pendingUploadMergeFailure = .changeUnavailable
+            return
+        case .unidentified:
+            pendingUploadMergeFailure = .changeUnidentified
+            return
+        case .recovered(let recovered):
+            payloads = recovered
+        }
+
+        // Unsaved edits take part, as in `mergeAndSave`: the upload below
+        // writes the whole tree, so leaving them out would drop them.
+        let localDraft = try makeWorkingDraft()
+        let localBinaryPoolFields = localDraft.binaryPoolFields
+        var mergedRootGroup = localDraft.rootGroup
+        var mergedMeta = localDraft.meta
+        var failedLocation = PendingUploadRecovery.Location.cache
+        do {
+            for payload in payloads {
+                failedLocation = payload.location
+                let merged = try await Self.mergeRemoteOffMain(
+                    remoteData: payload.data,
+                    compositeKey: compositeKey,
+                    sessionKey: sessionKey,
+                    localRootGroup: mergedRootGroup,
+                    localMeta: mergedMeta,
+                    localBinaryPoolFields: localBinaryPoolFields ?? []
+                )
+                mergedRootGroup = merged.rootGroup
+                mergedMeta = merged.meta
+            }
+        } catch let failure as DatabaseMergeFailure {
+            switch failure {
+            case .remoteUnreadable:
+                pendingUploadMergeFailure = .changeUnreadable(failedLocation)
+            case .attachmentsDiverged:
+                pendingUploadMergeFailure = .attachmentsDiverged(failedLocation)
+            case .sessionUnavailable:
+                pendingUploadMergeFailure = .sessionUnavailable
+            }
+            return
+        }
+
+        guard expectedLockCycleID == lockCycleID else { return }
+
+        let mergedDraft = DatabaseDraft(
+            rootGroup: mergedRootGroup,
+            meta: mergedMeta,
+            sessionKey: sessionKey,
+            binaryPoolFields: localBinaryPoolFields
+        )
+        // Written even when the merge added nothing: only a completed upload
+        // proves the cloud copy holds the change, and that proof is what
+        // allows dropping the pending uploads.
+        let saveResult = try await cloudSaveOperation(
+            mergedDraft,
+            reference,
+            compositeKey,
+            openTimeSHA512,
+            nil,
+            reference.expectedCloudRevision,
+            nil,
+            nil
+        )
+
+        switch saveResult {
+        case .saved(let newSHA512):
+            let resolvedMarkers = payloads.map(\.storedMarker)
+            // Not gated on the lock cycle: the upload already happened, and
+            // leaving the markers would only offer the same merge again.
+            await Task.detached(priority: .userInitiated) {
+                PendingUploadRecovery.dropMarkers(resolvedMarkers, environment: recovery)
+            }.value
+            guard expectedLockCycleID == lockCycleID else { return }
+
+            rootGroup = mergedDraft.rootGroup
+            unlockedMeta = mergedDraft.meta
+            binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
+            self.openTimeSHA512 = newSHA512
+            draft = draftReplayingEditsArriving(after: localDraft, onto: mergedDraft)
+            refreshDatabaseReference()
+            populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
+            refreshPendingUploadConflict()
+            mergeSummaryMessage = String(localized: "The change saved through AutoFill was merged with the cloud copy and uploaded.")
+        case .conflict:
+            guard expectedLockCycleID == lockCycleID else { return }
+            pendingUploadMergeFailure = .cloudChanged
+        }
+    }
+
+    func dismissPendingUploadMergeFailure() {
+        pendingUploadMergeFailure = nil
+    }
+
+    private func refreshPendingUploadConflict() {
+        hasPendingUploadConflict = databaseReference.isCloudBacked
+            && isReadOnly == false
+            && PendingUploadRecovery.hasConflicts(for: databaseReference, environment: pendingUploadRecovery)
     }
 
     func acknowledgeMergeSummary() {
@@ -2559,6 +3056,27 @@ final class DatabaseViewModel {
             : Self.decryptingStatusMessage
 
         let reloaded = try await reloadOperation(databaseReference, compositeKey)
+        applyReloadedDatabase(reloaded)
+        saveConflict = nil
+        cloudSyncBannerText = nil
+        if reloaded.cloudSyncStatus.map(Self.reachedCloud) == true {
+            isCloudRefreshPending = false
+        }
+        failedAttempts = 0
+        lockoutUntil = nil
+        state = .unlocked
+        synchronizeSelections()
+        startInactivityTimer()
+    }
+
+    /// Swaps the open database for a freshly parsed copy. Navigation and
+    /// selection go back to the root: the new tree may no longer hold what
+    /// they pointed at.
+    private func applyReloadedDatabase(_ reloaded: ReloadedDatabase) {
+        navigationPath = NavigationPath()
+        selectedGroupID = nil
+        selectedTag = nil
+        selectedEntryID = nil
         rootGroup = reloaded.rootGroup
         databaseReference = reloaded.reference
         openedFormatVersion = reloaded.formatVersion
@@ -2568,13 +3086,157 @@ final class DatabaseViewModel {
         binaryPool = reloaded.binaryPool
         AttachmentPreviewFileStore.clearAll()
         draft = nil
-        saveConflict = nil
-        cloudSyncBannerText = nil
-        failedAttempts = 0
-        lockoutUntil = nil
+    }
+
+    private static func reachedCloud(_ status: CloudSyncResolution.Status) -> Bool {
+        switch status {
+        case .current, .downloaded:
+            true
+        case .refreshSkipped, .offlineCached, .disconnectedCached, .cachedWithError:
+            false
+        }
+    }
+
+    private func resetCloudSyncStatus() {
+        isCloudRefreshPending = false
+        isSyncingCloud = false
+        cloudSyncOutcome = nil
+        hasPendingCloudUploads = false
+    }
+
+    var canSyncCloudNow: Bool {
+        guard case .unlocked = state else { return false }
+        return databaseReference.isCloudBacked
+            && isSyncingCloud == false
+            && isSaving == false
+            && isDirty == false
+            && hasUnsavedEditor == false
+    }
+
+    /// Checks the cloud for a newer copy whatever the sync policy says, and
+    /// replaces the open database with it when it differs from what was
+    /// opened. Refuses while edits are unsaved, so a sync never discards
+    /// them. Uploads are left to the pending-upload drainer; this only
+    /// reports whether any are still waiting.
+    func syncCloudNow() async {
+        guard canSyncCloudNow, compositeKey != nil else { return }
+
+        let expectedLockCycleID = lockCycleID
+        isSyncingCloud = true
+        cloudSyncOutcome = nil
+        defer {
+            if lockCycleID == expectedLockCycleID {
+                isSyncingCloud = false
+            }
+        }
+
+        // A save that finishes during the round trip is newer than what was
+        // fetched, and applying the fetch would roll it back, so ask again.
+        // A save still in flight when the response arrives is waited out
+        // first: until it lands, neither `openTimeSHA512` nor the stored
+        // revision shows it, and merging the response's metadata ahead of
+        // the save's own would keep the save's revision from being recorded.
+        var observedOpenTimeSHA512: Data?
+        var observedCloudMetadata: CloudSyncMetadata?
+        var resolution: CloudSyncResolution
+        repeat {
+            observedOpenTimeSHA512 = openTimeSHA512
+            observedCloudMetadata = databaseReference.cloudSyncMetadata
+            do {
+                resolution = try await cloudRefreshOperation(databaseReference) { _ in }
+            } catch {
+                guard lockCycleID == expectedLockCycleID else { return }
+                cloudSyncOutcome = .failed(CloudProviderError.message(for: error))
+                return
+            }
+            guard lockCycleID == expectedLockCycleID else { return }
+            await waitForInFlightSave()
+            guard lockCycleID == expectedLockCycleID else { return }
+        } while openTimeSHA512 != observedOpenTimeSHA512
+
+        // Same metadata-only merge as the foreground refresh: a save that
+        // landed during the round-trip must not be rolled back.
+        if let observedCloudMetadata,
+           let learned = resolution.reference.cloudSyncMetadata,
+           let mergedReference = DatabaseListStore.updateCloudSyncMetadata(
+               for: resolution.reference.id,
+               ifUnchangedFrom: observedCloudMetadata,
+               mutate: { storedMetadata in
+                   storedMetadata.remoteContentHash = learned.remoteContentHash
+                   storedMetadata.remoteModifiedAt = learned.remoteModifiedAt
+                   storedMetadata.remoteRev = learned.remoteRev
+                   storedMetadata.lastSyncedAt = learned.lastSyncedAt
+                   storedMetadata.lastSyncIssue = learned.lastSyncIssue
+               }
+           ) {
+            databaseReference = mergedReference
+        }
+        cloudSyncBannerText = resolution.bannerMessage
+        hasPendingCloudUploads = pendingUploadMarkerCheck(databaseReference)
+
+        guard Self.reachedCloud(resolution.status) else {
+            cloudSyncOutcome = .failed(resolution.bannerMessage ?? CloudSyncIssue.networkUnavailable.localizedDescription)
+            return
+        }
+        isCloudRefreshPending = false
+
+        guard KDBXCrypto.sha512(resolution.data) != openTimeSHA512 else {
+            cloudSyncOutcome = .upToDate
+            return
+        }
+
+        guard isDirty == false, hasUnsavedEditor == false, isSaving == false else {
+            cloudSyncOutcome = .updateWaitsForSave
+            return
+        }
+
+        guard sessionUsesHardwareKey == false else {
+            cloudSyncOutcome = .updateWaitsForUnlock
+            return
+        }
+        // Read now, not before the round trip: a master-key change can have
+        // finished during it.
+        guard let compositeKey else { return }
+
+        // Replaced the way the conflict reload does it: `.unlocking` tears
+        // the workspace down, so no open editor outlives the tree and session
+        // key it took its snapshot from.
+        state = .unlocking
+        isReplacingWithSyncedCopy = true
+        unlockStatusMessage = Self.decryptingStatusMessage
+        let reloaded: ReloadedDatabase
+        do {
+            reloaded = try await Self.parseReloadedDatabase(
+                data: resolution.data,
+                reference: databaseReference,
+                compositeKey: compositeKey,
+                cloudSyncStatus: resolution.status
+            )
+        } catch {
+            guard lockCycleID == expectedLockCycleID else { return }
+            isReplacingWithSyncedCopy = false
+            state = .unlocked
+            cloudSyncOutcome = .failed(error.localizedDescription)
+            return
+        }
+        guard lockCycleID == expectedLockCycleID else { return }
+
+        isReplacingWithSyncedCopy = false
+        applyReloadedDatabase(reloaded)
         state = .unlocked
         synchronizeSelections()
-        startInactivityTimer()
+        refreshCredentialStoreForCurrentTreeIfNeeded()
+        cloudSyncOutcome = .updated
+    }
+
+    private func waitForInFlightSave() async {
+        while isSaving {
+            await withCheckedContinuation { saveCompletionWaiters.append($0) }
+        }
+    }
+
+    func dismissCloudSyncOutcome() {
+        cloudSyncOutcome = nil
     }
 
     func selectGroup(_ groupID: UUID?) {
@@ -2585,8 +3247,23 @@ final class DatabaseViewModel {
         selectedEntryID = entryID
     }
 
+    /// Selects an entry in its own group, as the macOS menu bar quick search's
+    /// Open in KeeForge does. The window's search query is left alone: clearing
+    /// it would make the workspace drop the selection again.
+    func revealEntry(_ entryID: UUID) {
+        guard case .unlocked = state, let groupID = parentGroupID(forEntryID: entryID) else { return }
+        selectedGroupID = groupID
+        selectedEntryID = entryID
+    }
+
     func setReadOnly(_ isReadOnly: Bool) {
         DatabaseListStore.setReadOnly(isReadOnly, for: databaseReference)
+        refreshDatabaseReference()
+        refreshPendingUploadConflict()
+    }
+
+    func setCloudSyncPolicy(_ policy: CloudSyncPolicy) {
+        DatabaseListStore.setCloudSyncPolicy(policy, for: databaseReference)
         refreshDatabaseReference()
     }
 
@@ -2660,7 +3337,7 @@ final class DatabaseViewModel {
             #endif
             return
         }
-        guard case .unlocked = state else { return }
+        guard isSessionOpen else { return }
 
         #if os(iOS)
         if SettingsService.lockOnBackground {
@@ -2686,7 +3363,7 @@ final class DatabaseViewModel {
     }
 
     func handleSceneDidBecomeActive() {
-        guard case .unlocked = state else {
+        guard isSessionOpen else {
             // An attempt still running now finishes in the foreground.
             unlockAttemptBackgroundedAt = nil
             return
@@ -2736,6 +3413,9 @@ final class DatabaseViewModel {
     func refreshSharedDatabaseCacheIfPossible() {
         let expectedLockCycleID = lockCycleID
         let databaseReference = self.databaseReference
+        if databaseReference.isCloudBacked, databaseReference.cloudSyncPolicy == .manual {
+            return
+        }
         let compositeKeyForStoreRefresh: SymmetricKey?
 
         if case .unlocked = state,
@@ -2929,6 +3609,20 @@ final class DatabaseViewModel {
         UserDefaults.standard.set(ascending, forKey: sortAscendingKey)
     }
 
+    /// A database opens on All Entries. UI tests can start on another view
+    /// through `UI_TEST_VIEW_MODE`: their helpers browse from the group list.
+    static func initialViewMode(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> ViewMode {
+        guard arguments.contains("-ui-testing"),
+              let rawValue = environment["UI_TEST_VIEW_MODE"],
+              let mode = ViewMode(rawValue: rawValue) else {
+            return .allEntries
+        }
+        return mode
+    }
+
     // MARK: - Private
 
     /// Shared with tests so status-message assertions stay locale-agnostic.
@@ -2957,6 +3651,8 @@ final class DatabaseViewModel {
             groupEntryCounts = [:]
             searchableEntries = []
             searchableEntryText = [:]
+            liveEntries = []
+            liveGroupCount = 0
             tagEntryIDs = [:]
             groupInheritedTags = [:]
             entryParentGroupIDs = [:]
@@ -2976,6 +3672,8 @@ final class DatabaseViewModel {
         var nextGroupEntryCounts: [UUID: Int] = [:]
         var nextSearchableEntries: [KPEntry] = []
         var nextSearchableEntryText: [UUID: String] = [:]
+        var nextLiveEntries: [KPEntry] = []
+        var nextLiveGroupCount = 0
         var nextTagEntryIDs: [String: [UUID]] = [:]
         var nextGroupInheritedTags: [UUID: [String]] = [:]
         var nextEntryParentGroupIDs: [UUID: UUID] = [:]
@@ -2997,6 +3695,9 @@ final class DatabaseViewModel {
             nextGroupIndex[group.id] = group
             if includeInSearch == false, group.id != recycleBinID {
                 nextRecycleBinGroupIDs.insert(group.id)
+            }
+            if includeInSearch, group.id != root.id, group.id != visibleRootID {
+                nextLiveGroupCount += 1
             }
 
             // Mirrors `KPGroup.autoFillEntries`: an absent element or `.inherit`
@@ -3031,6 +3732,7 @@ final class DatabaseViewModel {
                 }
                 totalEntryCount += 1
                 if includeInSearch {
+                    nextLiveEntries.append(entry)
                     let tags = Self.effectiveTags(for: entry, inheritedGroupTags: accumulatedTags)
                     // A disabled `<EnableSearching>` hides the entry from the
                     // search corpus (KeePass's reading of the flag) as well as
@@ -3073,6 +3775,8 @@ final class DatabaseViewModel {
         groupEntryCounts = nextGroupEntryCounts
         searchableEntries = nextSearchableEntries
         searchableEntryText = nextSearchableEntryText
+        liveEntries = nextLiveEntries
+        liveGroupCount = nextLiveGroupCount
         tagEntryIDs = nextTagEntryIDs
         groupInheritedTags = nextGroupInheritedTags
         entryParentGroupIDs = nextEntryParentGroupIDs
@@ -3086,16 +3790,21 @@ final class DatabaseViewModel {
     }
 
     private func updateSearchResults() {
-        let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedQuery.isEmpty == false else {
-            searchResults = []
-            return
-        }
+        searchResults = entries(matching: searchText)
+    }
+
+    /// The main search's matching rules for a query of the caller's own, so the
+    /// macOS menu bar quick search can search without moving the window's
+    /// search field. Empty while locked, because the index is.
+    func entries(matching rawQuery: String) -> [KPEntry] {
+        _ = contentRevision
+        let trimmedQuery = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedQuery.isEmpty == false else { return [] }
 
         let query = trimmedQuery
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             .lowercased()
-        searchResults = searchableEntries.filter { entry in
+        return searchableEntries.filter { entry in
             searchableEntryText[entry.id]?.contains(query) == true
         }
     }
@@ -3224,6 +3933,7 @@ final class DatabaseViewModel {
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
         refreshDatabaseReference()
         populateCredentialStoreIfNeeded(root: payload.rootGroup)
+        refreshPendingUploadConflict()
         ReviewPromptService.requestReviewIfAppropriate()
     }
 
@@ -3238,10 +3948,7 @@ final class DatabaseViewModel {
         }.value
         guard activeUnlockAttempt == attempt else { throw HardwareKeyError.cancelled }
 
-        unlockStatusMessage = switch configuration.transport {
-        case .nfc: String(localized: "Hold your YubiKey near the top of your device.")
-        case .lightning: String(localized: "Connect your YubiKey, then touch it when it flashes.")
-        }
+        unlockStatusMessage = String(localized: "Hold your YubiKey near the top of your device.")
         isAwaitingHardwareKey = true
         let operation = hardwareKeyResponseOperation
         let task = Task { @MainActor in try await operation(challenge, configuration) }
@@ -3308,12 +4015,16 @@ final class DatabaseViewModel {
     }
 
     private func persistCompositeKeyForBiometricUnlock(_ compositeKey: SymmetricKey) {
-        // Silently skip when `.biometryCurrentSet` cannot be satisfied — no
-        // enrolled biometrics is the common Mac desktop case (no Touch ID, or
-        // Touch ID never enrolled). `BiometricService.isAvailable` is false in
-        // exactly those situations, so password unlock stays primary, nothing
-        // is stored, no error is surfaced, and there are no retry loops.
-        guard BiometricService.isAvailable else { return }
+        // Silently skip when nothing could satisfy the item's access control:
+        // no enrolled biometrics (and, on the Mac, no authorized Apple Watch)
+        // is the common Mac desktop case. Password unlock stays primary,
+        // nothing is stored, no error is surfaced, and there are no retry
+        // loops. An existing Mac item is still refreshed; see
+        // `KeychainService.shouldStoreQuickUnlockKey`.
+        guard KeychainService.shouldStoreQuickUnlockKey(
+            for: databaseReference.id,
+            legacyFilename: databaseReference.legacyKeychainFilename
+        ) else { return }
 
         do {
             try KeychainService.storeCompositeKey(compositeKey, for: databaseReference.id)
@@ -3408,7 +4119,8 @@ final class DatabaseViewModel {
         return DatabaseDraft(
             rootGroup: rootGroup,
             meta: unlockedMeta,
-            sessionKey: sessionKey
+            sessionKey: sessionKey,
+            binaryPoolFields: binaryPool?.rawFields
         )
     }
 
@@ -3440,6 +4152,9 @@ final class DatabaseViewModel {
             }
             cloudSyncProgress = nil
             cloudSyncBannerText = resolution.bannerMessage
+            resetCloudSyncStatus()
+            isCloudRefreshPending = resolution.status == .refreshSkipped
+            hasPendingCloudUploads = pendingUploadMarkerCheck(resolution.reference)
             unlockStatusMessage = Self.decryptingStatusMessage
             DatabaseListStore.update(resolution.reference)
             databaseReference = resolution.reference
@@ -3552,7 +4267,7 @@ final class DatabaseViewModel {
         return nil
     }
 
-    private static func encryptConflictCopy(
+    static func encryptConflictCopy(
         draft: DatabaseDraft,
         compositeKey: SymmetricKey,
         sourceData: Data
@@ -3564,14 +4279,7 @@ final class DatabaseViewModel {
                 sessionKey: SymmetricKey(size: .bits256),
                 kdfPolicy: .mainApp
             )
-            return try KDBXWriter.write(
-                rootGroup: draft.rootGroup,
-                meta: draft.meta,
-                compositeKey: compositeKey,
-                header: parsed.header,
-                sessionKey: draft.writerSessionKey,
-                kdfPolicy: .mainApp
-            )
+            return try draft.write(compositeKey: compositeKey, header: parsed.header, kdfPolicy: .mainApp)
         }.value
     }
 
@@ -3713,11 +4421,19 @@ final class DatabaseViewModel {
     ) async throws -> ReloadedDatabase {
         let data: Data
         let updatedReference: DatabaseReference
+        var cloudSyncStatus: CloudSyncResolution.Status?
 
         if reference.isCloudBacked {
-            let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: reference)
+            // An explicit reload (after a save conflict) has to see the
+            // remote copy, or a manual-policy database reloads its stale
+            // cache and conflicts again.
+            let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+                reference: reference,
+                honorsManualSyncPolicy: false
+            )
             data = resolution.data
             updatedReference = resolution.reference
+            cloudSyncStatus = resolution.status
         } else {
             guard let location = DatabaseListStore.locateDatabaseFile(for: reference) else {
                 throw SaveError.databaseLocationUnavailable
@@ -3729,6 +4445,20 @@ final class DatabaseViewModel {
             updatedReference = reference
         }
 
+        return try await parseReloadedDatabase(
+            data: data,
+            reference: updatedReference,
+            compositeKey: compositeKey,
+            cloudSyncStatus: cloudSyncStatus
+        )
+    }
+
+    nonisolated private static func parseReloadedDatabase(
+        data: Data,
+        reference: DatabaseReference,
+        compositeKey: SymmetricKey,
+        cloudSyncStatus: CloudSyncResolution.Status?
+    ) async throws -> ReloadedDatabase {
         let sessionKey = SymmetricKey(size: .bits256)
         let parsed = try await Task.detached(priority: .utility) {
             try KDBXParser.parseWithMetaAndHeader(
@@ -3740,13 +4470,14 @@ final class DatabaseViewModel {
         }.value
 
         return ReloadedDatabase(
-            reference: updatedReference,
+            reference: reference,
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             formatVersion: parsed.header.formatVersion,
             sessionKey: sessionKey,
             openTimeSHA512: KDBXCrypto.sha512(data),
-            binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
+            binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields),
+            cloudSyncStatus: cloudSyncStatus
         )
     }
 

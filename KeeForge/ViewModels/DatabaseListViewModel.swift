@@ -136,6 +136,11 @@ final class DatabaseListViewModel {
         }
     }
 
+    func setCloudSyncPolicy(_ policy: CloudSyncPolicy, for reference: DatabaseReference) {
+        DatabaseListStore.setCloudSyncPolicy(policy, for: reference)
+        reload()
+    }
+
     /// Installed by the app root (`AppRootView` in `KeeForgeApp.swift`, which
     /// is the one place that knows the active `DatabaseViewModel`): called
     /// with the id of a database whose AutoFill participation was just turned
@@ -371,7 +376,7 @@ final class DatabaseListViewModel {
                 databaseId: conflictedId,
                 kind: .conflict,
                 title: String(localized: "Pending Upload Conflict"),
-                message: String(localized: "A change saved through AutoFill couldn’t be uploaded because the copy of this database in the cloud changed since. Export a copy of this database to merge it with the cloud version in another KeePass app, or discard the pending upload. KeeForge keeps a backup of the discarded change on this device.")
+                message: String(localized: "A change saved through AutoFill couldn’t be uploaded because the copy of this database in the cloud changed since. Open the database to merge the change into it. You can also export a copy to merge it in another KeePass app, or discard the pending upload. KeeForge keeps a backup of the discarded change on this device.")
             )
             return
         }

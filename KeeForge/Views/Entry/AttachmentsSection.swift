@@ -15,6 +15,10 @@ struct AttachmentsSection: View {
         Section("Attachments") {
             ForEach(Array(attachments.enumerated()), id: \.offset) { index, attachment in
                 AttachmentRow(entryID: entryID, attachment: attachment, index: index, viewModel: viewModel)
+                    // Rows are positional, so removing an attachment would
+                    // otherwise hand this row's cached size and preview to
+                    // the attachment that moved into its place.
+                    .id(attachment)
             }
         }
     }

@@ -124,7 +124,7 @@ struct UnlockView: View {
                     }
 
                     if viewModel.canUseBiometrics {
-                        Label("Biometric unlock", systemImage: viewModel.biometricIcon)
+                        Label(viewModel.biometricCaption, systemImage: viewModel.biometricIcon)
                     }
                 }
                 .font(.caption)
@@ -486,8 +486,6 @@ struct UnlockView: View {
         switch (configuration.transport, configuration.slot) {
         case (.nfc, .one): String(localized: "YubiKey via NFC, Slot 1")
         case (.nfc, .two): String(localized: "YubiKey via NFC, Slot 2")
-        case (.lightning, .one): String(localized: "YubiKey via Lightning, Slot 1")
-        case (.lightning, .two): String(localized: "YubiKey via Lightning, Slot 2")
         }
     }
 
@@ -528,7 +526,7 @@ struct UnlockView: View {
             return
         }
 
-        if viewModel.canUseBiometrics {
+        if viewModel.canUseBiometrics, viewModel.openFailure?.canRetryQuickUnlock ?? true {
             unlockWithBiometrics()
             return
         }

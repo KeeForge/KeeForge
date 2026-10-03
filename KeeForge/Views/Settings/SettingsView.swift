@@ -21,13 +21,14 @@ struct SettingsView: View {
     @State private var sortOrder = DatabaseViewModel.savedSortOrder()
     @State private var sortAscending = DatabaseViewModel.savedSortAscending()
     @State private var cloudAccounts = CloudAccountStore.accounts
-    @State private var pendingCloudAccountSignOut: CloudAccount?
     @State private var feedbackContext: FeedbackComposerContext?
     @State private var macLockPolicy = SettingsService.macLockPolicy
     @State private var blockScreenCapture = SettingsService.blockScreenCapture
     #if os(macOS)
     @State private var selectedMacTab: MacSettingsTab = .security
+    @Environment(MacQuickAccessController.self) private var quickAccess: MacQuickAccessController?
     #endif
+    @State private var biometricType = BiometricService.availableType
 
     var body: some View {
         Group {
@@ -82,6 +83,16 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings.tab.autofill")
             .tag(MacSettingsTab.autofill)
 
+            if let quickAccess {
+                MacMenuBarSettingsTab(controller: quickAccess)
+                    .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
+                    .tabItem {
+                        Label("Menu Bar", systemImage: "menubar.rectangle")
+                    }
+                    .accessibilityIdentifier("settings.tab.menu-bar")
+                    .tag(MacSettingsTab.menuBar)
+            }
+
             MacDisplaySettingsTab(
                 showWebsiteIcons: $showWebsiteIcons,
                 showDatabaseUsageStats: $showDatabaseUsageStats,
@@ -97,16 +108,14 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings.tab.display")
             .tag(MacSettingsTab.display)
 
-            Form {
-                cloudAccountsSection
-            }
-            .formStyle(.grouped)
-            .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
-            .tabItem {
-                Label("Cloud", systemImage: "icloud")
-            }
-            .accessibilityIdentifier("settings.tab.cloud")
-            .tag(MacSettingsTab.cloud)
+            CloudAccountsSettingsView(cloudAccounts: $cloudAccounts)
+                .formStyle(.grouped)
+                .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
+                .tabItem {
+                    Label("Cloud", systemImage: "icloud")
+                }
+                .accessibilityIdentifier("settings.tab.cloud")
+                .tag(MacSettingsTab.cloud)
 
             NavigationStack {
                 Form {
@@ -130,7 +139,6 @@ struct SettingsView: View {
             applyingChangeHandlers(
                 Form {
                     settingsNavigationSection
-                    cloudAccountsSection
                     feedbackSection
                     SupportKeeForgeSection()
                     aboutNavigationSection
@@ -142,6 +150,9 @@ struct SettingsView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .task {
+                await listViewModel.refreshAutoFillStatus()
             }
         }
     }
@@ -242,7 +253,15 @@ struct SettingsView: View {
                     autoUnlockWithFaceID: $autoUnlockWithFaceID
                 )
             } label: {
-                Label("Security", systemImage: "lock.shield")
+                SettingsSummaryRow(
+                    title: "Security",
+                    systemImage: "lock.shield",
+                    summary: AppSettingsSummary.security(
+                        autoUnlockBiometric: autoUnlockBiometric,
+                        autoLockTimeout: autoLockTimeout,
+                        lockOnBackground: lockOnBackground
+                    )
+                )
             }
             .accessibilityIdentifier("settings.security.link")
 
@@ -253,7 +272,14 @@ struct SettingsView: View {
                     listViewModel: listViewModel
                 )
             } label: {
-                Label("AutoFill", systemImage: "text.cursor")
+                SettingsSummaryRow(
+                    title: "AutoFill",
+                    systemImage: "text.cursor",
+                    summary: AppSettingsSummary.autoFill(
+                        isProviderEnabled: listViewModel.isAutoFillProviderEnabled,
+                        databases: listViewModel.databases
+                    )
+                )
             }
             .accessibilityIdentifier("settings.autofill.link")
 
@@ -267,10 +293,37 @@ struct SettingsView: View {
                     sortAscending: $sortAscending
                 )
             } label: {
-                Label("Display", systemImage: "eye")
+                SettingsSummaryRow(
+                    title: "Display",
+                    systemImage: "eye",
+                    summary: AppSettingsSummary.display(
+                        appearanceMode: appearanceMode,
+                        showWebsiteIcons: showWebsiteIcons
+                    )
+                )
             }
             .accessibilityIdentifier("settings.display.link")
+
+            NavigationLink {
+                CloudAccountsSettingsView(cloudAccounts: $cloudAccounts)
+                    .navigationTitle("Cloud Accounts")
+                    .navigationBarTitleDisplayMode(.inline)
+            } label: {
+                SettingsSummaryRow(
+                    title: "Cloud Accounts",
+                    systemImage: "cloud",
+                    summary: AppSettingsSummary.cloudAccounts(cloudAccounts)
+                )
+            }
+            .accessibilityIdentifier("settings.cloud.link")
         }
+    }
+
+    /// The biometric the Security row names: only the one that actually
+    /// unlocks on its own, so the row never claims a switch that is off.
+    private var autoUnlockBiometric: BiometricService.BiometricType {
+        guard BiometricAutoUnlockPolicy.allowsAutomaticUnlock, autoUnlockWithFaceID else { return .none }
+        return biometricType
     }
 
     private var aboutNavigationSection: some View {
@@ -278,68 +331,13 @@ struct SettingsView: View {
             NavigationLink {
                 AboutSettingsView()
             } label: {
-                Label("About", systemImage: "info.circle")
-            }
-            .accessibilityIdentifier("settings.about.link")
-        }
-    }
-
-    @ViewBuilder
-    private var cloudAccountsSection: some View {
-        Section {
-            if cloudAccounts.isEmpty {
-                Text("No cloud accounts connected")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(cloudAccounts) { account in
-                    HStack {
-                        Label {
-                            Text(account.displayName)
-                        } icon: {
-                            CloudProviderIcon(provider: account.providerKind)
-                        }
-                        .accessibilityIdentifier("settings.cloud.account.label")
-
-                        Spacer()
-
-                        Button("Sign Out", role: .destructive) {
-                            pendingCloudAccountSignOut = account
-                        }
-                        .confirmationDialog(
-                            "Disconnect Cloud Account?",
-                            isPresented: Binding(
-                                get: { pendingCloudAccountSignOut?.id == account.id },
-                                set: { isPresented in
-                                    if !isPresented {
-                                        pendingCloudAccountSignOut = nil
-                                    }
-                                }
-                            )
-                        ) {
-                            Button("Disconnect", role: .destructive) {
-                                CloudProviderRegistry.provider(for: account.provider)?.signOut(accountId: account.id)
-                                cloudAccounts = CloudAccountStore.accounts
-                                pendingCloudAccountSignOut = nil
-                            }
-
-                            Button("Cancel", role: .cancel) {
-                                pendingCloudAccountSignOut = nil
-                            }
-                        } message: {
-                            Text("Disconnect \(account.displayName)? KeeForge will keep any cached cloud databases until you remove them.")
-                        }
-                        .accessibilityIdentifier("settings.cloud.signout.button")
-                    }
+                LabeledContent {
+                    Text(AppVersion.short)
+                } label: {
+                    Label("About", systemImage: "info.circle")
                 }
             }
-        } header: {
-            Text("Cloud Accounts")
-        } footer: {
-            if cloudAccounts.isEmpty {
-                Text("Add a cloud database from the database list to connect an account.")
-            } else {
-                Text("Signing out disconnects future syncs but keeps cached cloud databases available until you remove them.")
-            }
+            .accessibilityIdentifier("settings.about.link")
         }
     }
 
@@ -692,6 +690,71 @@ private struct DisplaySettingsView: View {
     }
 }
 
+private struct CloudAccountsSettingsView: View {
+    @Binding var cloudAccounts: [CloudAccount]
+    @State private var pendingCloudAccountSignOut: CloudAccount?
+
+    var body: some View {
+        Form {
+            Section {
+                if cloudAccounts.isEmpty {
+                    Text("No cloud accounts connected")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(cloudAccounts) { account in
+                        HStack {
+                            Label {
+                                Text(account.displayName)
+                            } icon: {
+                                CloudProviderIcon(provider: account.providerKind)
+                            }
+                            .accessibilityIdentifier("settings.cloud.account.label")
+
+                            Spacer()
+
+                            Button("Sign Out", role: .destructive) {
+                                pendingCloudAccountSignOut = account
+                            }
+                            .confirmationDialog(
+                                "Disconnect Cloud Account?",
+                                isPresented: Binding(
+                                    get: { pendingCloudAccountSignOut?.id == account.id },
+                                    set: { isPresented in
+                                        if !isPresented {
+                                            pendingCloudAccountSignOut = nil
+                                        }
+                                    }
+                                )
+                            ) {
+                                Button("Disconnect", role: .destructive) {
+                                    CloudProviderRegistry.provider(for: account.provider)?.signOut(accountId: account.id)
+                                    cloudAccounts = CloudAccountStore.accounts
+                                    pendingCloudAccountSignOut = nil
+                                }
+
+                                Button("Cancel", role: .cancel) {
+                                    pendingCloudAccountSignOut = nil
+                                }
+                            } message: {
+                                Text("Disconnect \(account.displayName)? KeeForge will keep any cached cloud databases until you remove them.")
+                            }
+                            .accessibilityIdentifier("settings.cloud.signout.button")
+                        }
+                    }
+                }
+            } header: {
+                Text("Cloud Accounts")
+            } footer: {
+                if cloudAccounts.isEmpty {
+                    Text("Add a cloud database from the database list to connect an account.")
+                } else {
+                    Text("Signing out disconnects future syncs but keeps cached cloud databases available until you remove them.")
+                }
+            }
+        }
+    }
+}
+
 private struct AboutSettingsView: View {
     var body: some View {
         Form {
@@ -711,18 +774,18 @@ private struct AboutSectionContent: View {
         Section("About") {
             LabeledContent("App", value: "KeeForge")
 
-            LabeledContent("Version", value: appVersion)
+            LabeledContent("Version", value: AppVersion.withCommit)
 
             Link(destination: URL(string: "mailto:support@keeforge.com")!) {
-                Label("Contact Support", systemImage: "envelope")
+                AboutLinkLabel(title: "Contact Support", systemImage: "envelope")
             }
 
             Link(destination: URL(string: "https://github.com/KeeForge/KeeForge/issues")!) {
-                Label("Report a Bug", systemImage: "ladybug")
+                AboutLinkLabel(title: "Report a Bug", systemImage: "ladybug")
             }
 
             Link(destination: URL(string: "https://github.com/KeeForge/KeeForge")!) {
-                Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                AboutLinkLabel(title: "Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
             }
 
             NavigationLink {
@@ -732,18 +795,39 @@ private struct AboutSectionContent: View {
             }
         }
     }
+}
 
-    private var appVersion: String {
-        let bundle = Bundle.main
-        let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
-        let commit = bundle.object(forInfoDictionaryKey: "GITCommitHash") as? String
+/// A link row that reads like the navigation rows beside it: the icon keeps
+/// the tint, the title takes the text color. `Color.primary`, not `.primary`,
+/// because inside a link label the hierarchical styles follow the tint.
+private struct AboutLinkLabel: View {
+    let title: LocalizedStringKey
+    let systemImage: String
+
+    var body: some View {
+        Label {
+            Text(title)
+                .foregroundStyle(Color.primary)
+        } icon: {
+            Image(systemName: systemImage)
+        }
+    }
+}
+
+private enum AppVersion {
+    static var short: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
+    }
+
+    static var withCommit: String {
+        let commit = Bundle.main.object(forInfoDictionaryKey: "GITCommitHash") as? String
         let trimmedCommit = commit?.trimmingCharacters(in: .whitespacesAndNewlines)
         let displayCommit = if let trimmedCommit, trimmedCommit.isEmpty == false {
             trimmedCommit
         } else {
             "dev"
         }
-        return "\(version) (\(displayCommit))"
+        return "\(short) (\(displayCommit))"
     }
 }
 
@@ -754,7 +838,7 @@ private struct AboutSectionContent: View {
 /// Identifies each settings tab so the window can default to Security instead
 /// of restoring whichever tab was open last.
 private enum MacSettingsTab: Hashable {
-    case security, autofill, display, cloud, about
+    case security, autofill, menuBar, display, cloud, about
 }
 
 /// The size every settings tab is pinned to.

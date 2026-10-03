@@ -2,6 +2,35 @@
 
 This folder holds small scripts used by Xcode Cloud and local build setup.
 
+## Xcode Cloud test partition
+
+The RC workflow uses three Required-to-Pass iOS test actions: `KeeForgeCloudUnitTests`,
+`KeeForgeCloudUIA`, and `KeeForgeCloudUIB`. Each runs on both configured iPhone destinations.
+Unit tests have their own action per destination, so a UI task retry does not repeat them. UI A selects whole classes through
+`EntryHistoryUITests`; UI B excludes exactly that list using the same YAML anchor in
+`project.yml`, so new classes automatically run in B. Both UI groups remain serial.
+Historical cloud timings put each UI group around 35–40 minutes; rebalance the class list
+when measured durations drift. The ordinary `KeeForge` scheme still contains both full suites.
+
+`validate_cloud_test_schemes.py` runs after every XcodeGen generation, including Cloud's
+post-clone phase. It rejects gaps, overlap, stale class names, filtered unit coverage, or
+parallel targets in the generated Cloud schemes. Run it with `--self-test` for negative
+fixtures and the new-class coverage check. UI tests inheriting `KeeForgeUITestCase` have a
+300-second execution allowance; Cloud enables test timeouts, and local runs should pass
+`-test-timeouts-enabled YES` to enforce it. Opt-in App Store screenshot capture is separate.
+
+The live account configuration and destination details are documented in
+`../.agents/skills/release/xcode-cloud-setup.md`.
+
+## Signed contributor testing
+
+The separate **Contributor Testing** Xcode Cloud workflow archives iOS and native
+macOS builds for the private **KeeForge Contributors** internal TestFlight group.
+It supports manual branch selection and pushes to `contributor/miquno/*`, without
+running the RC process or sharing signing keys. See
+[`contributor-testing.md`](contributor-testing.md) for build requests, installation,
+hardware checks, and the access boundary.
+
 ## Scripts
 
 - `prepare_build_config.sh` validates `BuildConfig.local.xcconfig`, stamps `BuildMetadata.xcconfig` with the current git hash, and can bootstrap the local config from environment variables in CI.
@@ -150,7 +179,7 @@ The artifact set itself is declared in `KeeForgeTests/KDBXCompatibilitySupport.s
 - If CI needs new generated files or dependencies, add them here instead of assuming the checked-in `.xcodeproj` is current.
 - `Configs/BuildConfig.xcconfig` is a checked-in include file, not a generated source of truth. It lives in `Configs/` (not the repo root) so XcodeGen wraps it in a stable `Configs` group instead of one named after the checkout directory.
 - Local developers should copy `BuildConfig.local.example.xcconfig` to `BuildConfig.local.xcconfig` (both at the repo root), fill in `DROPBOX_APP_KEY`, and optionally add `ONEDRIVE_CLIENT_ID` to test OneDrive OAuth.
-- Xcode Cloud **must** provide `DROPBOX_APP_KEY` and `ONEDRIVE_CLIENT_ID` as environment variables on any workflow with an archive action. That is the **Tests (RC)** workflow on `rc/*` tags, whose archive action runs alongside its test action — no workflow triggers on `v*` (see `.agents/skills/release/xcode-cloud-setup.md`). For non-archive actions `ci_post_clone.sh` falls back to CI-only placeholders so project generation still succeeds. An archive (or a run with `REQUIRE_REAL_CLOUD_KEYS=1`) whose `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID` is missing or still a placeholder fails the build instead of shipping non-working cloud sign-in. Outside archives, `ONEDRIVE_CLIENT_ID` stays optional — the app just disables OneDrive sign-in.
+- Xcode Cloud **must** provide `DROPBOX_APP_KEY` and `ONEDRIVE_CLIENT_ID` as environment variables on any workflow with an archive action. That is the **Tests (RC)** workflow on `rc/*` tags, whose archive action runs alongside its three test actions — no workflow triggers on `v*` (see `.agents/skills/release/xcode-cloud-setup.md`). For non-archive actions `ci_post_clone.sh` falls back to CI-only placeholders so project generation still succeeds. An archive (or a run with `REQUIRE_REAL_CLOUD_KEYS=1`) whose `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID` is missing or still a placeholder fails the build instead of shipping non-working cloud sign-in. Outside archives, `ONEDRIVE_CLIENT_ID` stays optional — the app just disables OneDrive sign-in.
 - GitHub Actions can keep using simulator-safe placeholder values to materialize `BuildConfig.local.xcconfig`; the app treats the CI placeholders as cloud providers disabled for real sign-in.
 - The Dropbox key is interpolated into the `db-$(DROPBOX_APP_KEY)` `CFBundleURLScheme`, so the CI placeholder is `ciplaceholderdropboxappkey`. Placeholders must be RFC1738-legal (alphanumerics only) — App Store Connect rejects underscores in URL schemes (ITMS-90158). `prepare_build_config.sh` also recognizes the legacy literal `CI_PLACEHOLDER_DROPBOX_APP_KEY` as a placeholder (`LEGACY_CI_PLACEHOLDER_DROPBOX_APP_KEY`). `KeeForgeTests/URLSchemeFormatTests.swift` enforces this on the built app bundle.
 

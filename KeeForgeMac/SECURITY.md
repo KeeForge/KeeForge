@@ -17,7 +17,8 @@ key, parsed tree, draft, attachment pool, and retained key-file data from the
 Biometric unlock stores composite keys in the Keychain, not raw master passwords.
 [KeychainService](../KeeForge/Services/Security/KeychainService.swift) uses the
 Data Protection Keychain with `WhenUnlockedThisDeviceOnly` and
-`biometryCurrentSet` access control. The app and extension share the
+`biometryCurrentSet` access control, which on the Mac also admits an authorized
+Apple Watch (see "Lock and unlock lifecycle"). The app and extension share the
 team-prefixed `com.keevault.sharedkeychain` group. It must remain the first
 keychain access group: items written without an explicit `kSecAttrAccessGroup`
 land there.
@@ -94,6 +95,35 @@ scene does not prove the user has returned to a foreground window. The AutoFill
 extension has its own foreground authentication flow and still honors
 `SettingsService.autoUnlockWithFaceID`.
 
+Quick unlock (#66) keeps one Keychain item per database. On the Mac its access
+control is `[.biometryCurrentSet, .or, .companion]`: Touch ID with the currently
+enrolled fingerprints, or an authorized Apple Watch. It carries no
+`.userPresence` or `.devicePasscode` flag, so the Mac login password cannot
+release it. It stays `WhenUnlockedThisDeviceOnly` in the data-protection
+keychain and the shared access group; iPhone and iPad keep `.biometryCurrentSet`
+alone. The unlock screen's button evaluates
+`.deviceOwnerAuthenticationWithBiometricsOrCompanion` and is only ever an
+explicit action, never raised by a lock cycle.
+
+The item permits either mechanism, but AutoFill asks only for biometrics. It
+offers quick unlock only while Touch ID is available, evaluates
+`.deviceOwnerAuthenticationWithBiometrics`, and reads the item with a
+non-interactive context. So the Keychain cannot raise a Watch prompt of its
+own. When the Touch ID context cannot release the item, AutoFill falls back to
+the master password. The main app reads it the same way, so its single prompt is
+the one it evaluated.
+
+A successful unlock writes the item while Touch ID or the watch can evaluate
+the policy. It rewrites an existing item even while neither can, because the
+master key may have changed on another device. A master-key change rewrites an
+existing item without checking either mechanism, and deletes it if that fails.
+If the item can no longer be read after authentication succeeds, for example
+because the enrolled fingerprints changed, the unlock screen reports
+"Saved Unlock Key Unavailable" with the password form below it, and Try Again
+does not repeat the quick unlock. The next password unlock writes a fresh item. Items written by earlier versions carry
+`.biometryCurrentSet` alone. Touch ID still opens them, and the next unlock
+rewrites them with the combined policy.
+
 ## Screen and clipboard privacy
 
 [ScreenProtectionService](../KeeForge/Services/Security/ScreenProtectionService.swift)
@@ -119,6 +149,34 @@ Copied secrets can follow the user's Universal Clipboard setting, and KeeForge's
 in-process clear timer cannot survive termination. Mac locks do not use the iOS
 backgrounding exemption that keeps a copy available for pasting. A deferred lock
 has not yet performed that clear.
+
+## Menu bar quick search
+
+The optional menu bar item and its global shortcut
+([MacQuickAccessController](../KeeForge/Services/AppSupport/MacQuickAccessController.swift))
+are off by default and add no lock rule, network access, or storage. Both
+settings live in the app's own defaults. The shortcut is registered through
+Carbon's `RegisterEventHotKey`, which needs no Accessibility permission and fails
+rather than taking over a combination another app holds.
+
+The panel reads the one active session on every render and holds no entry data
+itself. It shows entry titles, user names, and folder paths only while that
+session is unlocked; a locked or missing session sends the user to the main
+window. Every existing lock trigger therefore empties it. Closing the last main
+window still locks, so quick search needs that window open or minimized.
+
+Copying follows the main window's rules: the password waits on the same
+device-owner prompt as ⇧⌘C and is re-checked against the session after it,
+while the user name and verification code copy without a prompt. Copies go
+through `ClipboardService`, with its concealed marker, clear timer, and
+clear-on-lock.
+
+The panel is a non-activating, borderless `NSPanel`. It cannot become a main
+window, so it never counts as a UI-hosting window for the lock monitor. It is
+not titled, so the resign-active blur cover skips it. Because a search usually
+starts while another app is active, the panel closes when it loses key status
+and does not rely on that cover. It applies the Block Screen Capture setting to
+itself when shown, with the same best-effort limits as the other windows.
 
 ## Plaintext attachment files and disk encryption
 

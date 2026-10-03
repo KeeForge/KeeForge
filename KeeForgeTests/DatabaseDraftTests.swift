@@ -925,6 +925,68 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(deletedDraft.pendingEdits, [createEdit, updateEdit, deleteEdit])
     }
 
+    func test_creatingEntries_matchesOneCreateEntryPerDraftInOrder() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: true)
+        let base = try DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+            .apply(.createGroup(parentGroupID: tree.rootGroup.id, name: "Earlier Edit"))
+        var withTOTP = EntryDraftPayload(title: "Two", username: "two-user", password: "two-secret", url: "https://two.example")
+        withTOTP.totpConfig = EntryDraftPayload.TOTPConfiguration(
+            secret: "JBSWY3DPEHPK3PXP",
+            period: 30,
+            digits: 6,
+            algorithm: .sha1,
+            otpauthURI: "otpauth://totp/Two?secret=JBSWY3DPEHPK3PXP"
+        )
+        var withProtectedField = EntryDraftPayload(title: "Three", password: "three-secret", notes: "line one\nline two")
+        withProtectedField.customFields["OTPAuth"] = "otpauth://hotp/Three?secret=JBSWY3DPEHPK3PXP&counter=1"
+        withProtectedField.protectedCustomFieldKeys = ["OTPAuth"]
+        let drafts = [EntryDraftPayload(title: "One", username: "one-user", password: "one,secret"), withTOTP, withProtectedField]
+
+        let bulk = try base.creatingEntries(drafts, inGroup: tree.parentGroupID)
+        let sequential = try drafts.reduce(base) { try $0.apply(.createEntry(parentGroupID: tree.parentGroupID, draft: $1)) }
+
+        XCTAssertEqual(bulk.pendingEdits, sequential.pendingEdits)
+        XCTAssertEqual(bulk.meta, sequential.meta)
+        XCTAssertEqual(bulk.rootGroup.recycleBinUUID, tree.meta.recycleBinUUID)
+        let bulkGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: bulk.rootGroup))
+        let sequentialGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: sequential.rootGroup))
+        XCTAssertEqual(bulkGroup.entries.count, sequentialGroup.entries.count)
+        XCTAssertEqual(bulkGroup.entries.first?.id, tree.parentEntry.id, "existing entries keep their place")
+        for (created, expected) in zip(bulkGroup.entries, sequentialGroup.entries).dropFirst() {
+            // New entries get fresh UUIDs and timestamps; everything else must agree.
+            XCTAssertEqual(created.title, expected.title)
+            XCTAssertEqual(created.username, expected.username)
+            XCTAssertEqual(try created.password.decrypt(using: sessionKey), try expected.password.decrypt(using: sessionKey))
+            XCTAssertEqual(created.url, expected.url)
+            XCTAssertEqual(created.notes, expected.notes)
+            XCTAssertEqual(created.customFields, expected.customFields)
+            XCTAssertEqual(created.protectedStringKeys, expected.protectedStringKeys)
+            XCTAssertEqual(created.otpURL, expected.otpURL)
+            try assertTOTPConfigsEqual(created.totpConfig, expected.totpConfig)
+            XCTAssertEqual(created.locationChanged, created.creationTime)
+            XCTAssertTrue(created.history.isEmpty)
+        }
+        try assertGroupsEqual(
+            try XCTUnwrap(bulk.rootGroup.groups.first { $0.name == "Earlier Edit" }),
+            try XCTUnwrap(sequential.rootGroup.groups.first { $0.name == "Earlier Edit" })
+        )
+        XCTAssertEqual(base.pendingEdits.count, 1, "the draft it was called on is left alone")
+    }
+
+    func test_creatingEntries_missingGroupThrowsAndLeavesTheDraftUnchanged() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let missingGroupID = UUID()
+
+        XCTAssertThrowsError(
+            try draft.creatingEntries([EntryDraftPayload(title: "Lost", password: "secret")], inGroup: missingGroupID)
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .groupNotFound(missingGroupID))
+        }
+        XCTAssertFalse(draft.isDirty)
+        try assertGroupsEqual(draft.rootGroup, tree.rootGroup)
+    }
+
     func test_isDirty_falseInitially_trueAfterFirstApply() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: false)
         let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)

@@ -6,7 +6,18 @@ import Foundation
 struct HardwareKeyConfiguration: Codable, Hashable, Sendable {
     enum Transport: String, Codable, Sendable, CaseIterable {
         case nfc
-        case lightning
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+            switch value {
+            case "nfc", "lightning":
+                // Preserve database references saved by the 1.17 beta's removed transport.
+                self = .nfc
+            default:
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown hardware key transport")
+            }
+        }
     }
 
     enum Slot: Int, Codable, Sendable, CaseIterable {

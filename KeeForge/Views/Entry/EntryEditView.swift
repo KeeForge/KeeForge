@@ -25,6 +25,9 @@ struct EntryEditView: View {
     @State private var showTOTPSetupLink = false
     @State private var showGroupPicker = false
     @State private var showRemoveTOTPConfirmation = false
+    @State private var showAttachmentImporter = false
+    @State private var isImportingAttachments = false
+    @State private var attachmentErrorMessage: String?
     /// String mirror for the numeric period field; committed to the view
     /// model only when it parses to a positive integer. Focus loss and submit
     /// snap unparsable text back to the view model's value, so the field
@@ -152,6 +155,13 @@ struct EntryEditView: View {
                 .accessibilityIdentifier("entry-edit.custom-field.add")
             }
 
+            EntryEditAttachmentsSection(
+                formViewModel: formViewModel,
+                databaseViewModel: databaseViewModel,
+                isImporterPresented: $showAttachmentImporter,
+                isImporting: isImportingAttachments
+            )
+
             Section("Expiration") {
                 expirationRows
             }
@@ -221,7 +231,7 @@ struct EntryEditView: View {
                 Button(confirmButtonTitle) {
                     saveTapped()
                 }
-                .disabled(formViewModel.canSave == false || isSavingInProgress)
+                .disabled(isSaveDisabled)
                 .accessibilityIdentifier("entry-edit.save")
             }
         }
@@ -265,6 +275,12 @@ struct EntryEditView: View {
             }
         }
         #endif
+        .modifier(EntryAttachmentImporter(
+            isPresented: $showAttachmentImporter,
+            isImporting: $isImportingAttachments,
+            errorMessage: $attachmentErrorMessage,
+            onLoad: { formViewModel.addAttachment(named: $0.name, data: $0.data) }
+        ))
         .sheet(isPresented: $showTOTPSetupLink) {
             TOTPSetupLinkSheet { link in
                 formViewModel.applySetupLink(link)
@@ -318,6 +334,8 @@ struct EntryEditView: View {
             showDeleteConfirmation = false
             showRemoveTOTPConfirmation = false
             showDiscardConfirmation = false
+            showAttachmentImporter = false
+            attachmentErrorMessage = nil
         }
         .onDisappear {
             databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
@@ -333,7 +351,7 @@ struct EntryEditView: View {
                 guard let request = pendingEditorLockRequest else { return }
                 saveTapped(resuming: request)
             }
-            .disabled(formViewModel.canSave == false)
+            .disabled(formViewModel.canSave == false || isImportingAttachments)
             Button("Discard and Lock", role: .destructive) {
                 guard let request = pendingEditorLockRequest else { return }
                 databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
@@ -369,6 +387,10 @@ struct EntryEditView: View {
         } message: {
             Text(editingErrorMessage ?? "")
         }
+    }
+
+    private var isSaveDisabled: Bool {
+        formViewModel.canSave == false || isSavingInProgress || isImportingAttachments
     }
 
     private func togglePasswordVisibility() {
@@ -532,6 +554,17 @@ struct EntryEditView: View {
 
     @ViewBuilder
     private var totpConfigurationRows: some View {
+        if let preview = formViewModel.totpPreview {
+            basicFieldRow(String(localized: "Current Code")) {
+                TOTPPreviewRow(preview: preview)
+            }
+        } else if hasTOTPConfiguration, formViewModel.unsupportedTOTPDigitsMessage == nil {
+            Text("Enter a valid secret key to see the current code.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("entry-edit.totp.preview-unavailable")
+        }
+
         basicFieldRow(String(localized: "Secret Key")) {
             PasswordInputRow(
                 title: String(localized: "Secret Key"),
@@ -876,6 +909,39 @@ struct EntryEditView: View {
             }
         } catch {
             editingErrorMessage = error.localizedDescription
+        }
+    }
+}
+
+/// The live code for the form's TOTP settings, laid out like the entry
+/// detail's `TOTPSection`.
+private struct TOTPPreviewRow: View {
+    let preview: EntryEditViewModel.TOTPPreview
+    /// Ticks start on a whole second so the code changes on its period
+    /// boundary instead of up to a second late.
+    private let tickStart = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
+
+    var body: some View {
+        TimelineView(.periodic(from: tickStart, by: 1)) { context in
+            let code = preview.code(at: context.date)
+            let secondsRemaining = preview.secondsRemaining(at: context.date)
+            HStack {
+                CountdownRing(
+                    progress: Double(secondsRemaining) / Double(preview.period),
+                    seconds: secondsRemaining
+                )
+                .frame(width: 40, height: 40)
+
+                Text(code)
+                    .font(.title.monospaced().bold())
+                    .contentTransition(.numericText())
+                    .accessibilityIdentifier("entry-edit.totp.preview-code")
+
+                Spacer()
+
+                CopyButton(text: code, accessibilityID: "entry-edit.totp.preview-copy")
+                    .accessibilityLabel("Copy Verification Code")
+            }
         }
     }
 }

@@ -120,9 +120,7 @@ class DatabaseCreationUITestCase: EntryEditUITestCase {
             line: line
         )
         XCTAssertTrue(
-            app.navigationBars[databaseName].waitForExistence(timeout: 5)
-                || app.staticTexts[databaseName].waitForExistence(timeout: 5)
-                || firstRowMatching(name: "Recycle Bin", preferredIdentifier: "group.navlink").waitForExistence(timeout: 5),
+            waitForDatabaseView(.groups, timeout: 5),
             "Created database vault screen was not visible",
             file: file,
             line: line

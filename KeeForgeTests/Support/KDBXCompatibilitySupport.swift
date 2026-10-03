@@ -56,6 +56,14 @@ enum KDBXCompatibilitySupport {
         static let roundTripTxt = "22e06efe984efab5605bccf1c0c1e208db740e16cac328dcbfa27cecee8458db"
     }
 
+    /// The file `attachmentsFixtureAddRemoveScenario` attaches. Non-ASCII in
+    /// both name and bytes, like the fixture's own `note-ü.txt`.
+    enum AddedAttachment {
+        static let name = "added-ä.txt"
+        static let bytes = Data("Attachment added by KeeForge: äöü\n".utf8)
+        static let sha256 = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+    }
+
     /// SHA-256 hashes of the two attachments in
     /// `TestFixtures/compatibility/unknown-inner-header.kdbx`. Its binary pool
     /// is what the spliced unknown inner-header fields sit among, so the gate
@@ -178,7 +186,7 @@ enum KDBXCompatibilitySupport {
     /// `artifactDescriptors` derives the matching artifact set from it, so the
     /// matrix and the external-opener gate can no longer drift apart. The
     /// `kitchenSink` fixture is deliberately not here — it has a dedicated
-    /// test that runs its smoke scenario plus four more.
+    /// test that runs its smoke scenario plus five more.
     static let smokeFixtures: [Fixture] = [
         .aesBaseline,
         .passwordKeyfile,
@@ -236,6 +244,10 @@ enum KDBXCompatibilitySupport {
         /// not modeled as a content edit, so the whole tree must survive the
         /// save byte-semantically unchanged.
         var makeEdit: ((LoadedFixture) throws -> EntryEdit)?
+        /// New entries added to one group through
+        /// `DatabaseDraft.creatingEntries`, the path a password import takes.
+        /// Mutually exclusive with `makeEdit`.
+        var makeImportedEntries: ((LoadedFixture) throws -> (groupID: UUID, drafts: [EntryDraftPayload]))?
         /// When set, the whole tree is replaced instead of an `EntryEdit`
         /// being applied. A merge result is not a sequence of edits, so it
         /// reaches the writer through a pristine draft — the same path
@@ -251,6 +263,9 @@ enum KDBXCompatibilitySupport {
         var encryptionSettings: ((LoadedFixture) throws -> EncryptionSettingsChange)?
         var expectedCustomFields: [ArtifactManifest.ExpectedCustomFields] = []
         var expectedExpiries: [ArtifactManifest.ExpectedExpiry] = []
+        /// Set by scenarios that attach a file: the pool may then only grow,
+        /// keeping every entry it had byte for byte at the same index.
+        var appendsToBinaryPool = false
         let assertChange: (CompatibilitySnapshot, CompatibilitySnapshot, LoadedFixture) throws -> Void
 
         func apply(to loaded: LoadedFixture) throws -> ScenarioResult {
@@ -267,22 +282,28 @@ enum KDBXCompatibilitySupport {
                 updatedDraft = DatabaseDraft(
                     rootGroup: merged.rootGroup,
                     meta: merged.meta,
-                    sessionKey: loaded.sessionKey
+                    sessionKey: loaded.sessionKey,
+                    binaryPoolFields: loaded.header.innerHeaderBinaryFields
                 )
             } else {
-                let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey)
-                updatedDraft = try makeEdit.map { try draft.apply($0(loaded)) } ?? draft
+                // The pool goes in with the tree, as `DatabaseViewModel` does,
+                // so the write below is the one the app's savers perform.
+                let draft = DatabaseDraft(
+                    rootGroup: loaded.rootGroup,
+                    meta: loaded.meta,
+                    sessionKey: loaded.sessionKey,
+                    binaryPoolFields: loaded.header.innerHeaderBinaryFields
+                )
+                if let imported = try makeImportedEntries?(loaded) {
+                    updatedDraft = try draft.creatingEntries(imported.drafts, inGroup: imported.groupID)
+                } else {
+                    updatedDraft = try makeEdit.map { try draft.apply($0(loaded)) } ?? draft
+                }
             }
             let rekeyTarget = try rekey?(loaded)
             let writeKey = rekeyTarget?.compositeKey ?? loaded.compositeKey
             let writeHeader = try encryptionSettings?(loaded).applied(to: loaded.header) ?? loaded.header
-            let written = try KDBXWriter.write(
-                rootGroup: updatedDraft.rootGroup,
-                meta: updatedDraft.meta,
-                compositeKey: writeKey,
-                header: writeHeader,
-                sessionKey: updatedDraft.writerSessionKey
-            )
+            let written = try updatedDraft.write(compositeKey: writeKey, header: writeHeader, kdfPolicy: .mainApp)
             if rekeyTarget != nil {
                 XCTAssertThrowsError(
                     try KDBXParser.parseWithMetaAndHeader(
@@ -311,12 +332,23 @@ enum KDBXCompatibilitySupport {
                 binaryPool: afterPool
             )
 
-            // No supported edit adds, removes, renumbers, or reorders inner-header
-            // binary pool entries (the writer re-emits the pool verbatim), so the
-            // whole-pool digest must survive every scenario. Checked here rather
+            // No edit removes, renumbers, or reorders inner-header binary pool
+            // entries, and only attaching a file appends one, so every other
+            // scenario must keep the whole-pool digest. Checked here rather
             // than inside individual `assertChange` closures so a scenario cannot
             // forget it.
-            assertBinaryPoolUnchanged(before: before, after: after, scenarioID: id)
+            if appendsToBinaryPool {
+                let beforeFields = loaded.header.innerHeaderBinaryFields
+                let afterFields = reparsed.header.innerHeaderBinaryFields
+                XCTAssertGreaterThan(afterFields.count, beforeFields.count, "\(id): nothing was appended to the pool")
+                XCTAssertEqual(
+                    Array(afterFields.prefix(beforeFields.count)),
+                    beforeFields,
+                    "\(id): existing pool entries changed across save"
+                )
+            } else {
+                assertBinaryPoolUnchanged(before: before, after: after, scenarioID: id)
+            }
 
             try assertChange(before, after, loaded)
             return ScenarioResult(
@@ -454,6 +486,14 @@ enum KDBXCompatibilitySupport {
         "attachments-soft-delete-entry": [
             .init(entryTitle: "Dedup Entry B", attachmentName: "shared.bin", sha256: AttachmentFixtureHashes.sharedBin),
         ],
+        "attachments-add-remove": [
+            .init(entryTitle: "Multi Attachment Entry Files Edited", attachmentName: "note-ü.txt", sha256: AttachmentFixtureHashes.noteUnicodeTxt),
+            .init(
+                entryTitle: "Multi Attachment Entry Files Edited",
+                attachmentName: AddedAttachment.name,
+                sha256: AddedAttachment.sha256
+            ),
+        ],
         "fixture-smoke-unknown-inner-header": [
             .init(
                 entryTitle: "Inner Header Entry",
@@ -473,6 +513,7 @@ enum KDBXCompatibilitySupport {
     /// nothing the attachment-fixture artifacts don't already prove).
     static let scenarioIDsWithoutAttachmentExpectations: Set<String> = [
         "create-entry",
+        "import-apple-passwords",
         "update-entry",
         "custom-field-edits",
         "set-entry-expiry",
@@ -506,6 +547,7 @@ enum KDBXCompatibilitySupport {
         "rekey-remove-keyfile",
         "encryption-settings-chacha20-argon2id",
         "encryption-settings-aes256-keep-kdf",
+        "encryption-settings-aes-kdf",
     ]
 
     /// An entry that already exists in each fixture, with the password that
@@ -556,8 +598,16 @@ enum KDBXCompatibilitySupport {
         table["update-entry"] = [
             .init(entryTitle: "Compat Update Target Updated", password: "updated-password"),
         ]
+        table["import-apple-passwords"] = [
+            .init(entryTitle: "Import Alpha", password: importedAlphaPassword),
+            .init(entryTitle: "Import Beta", password: importedBetaPassword),
+            .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
+        ]
         table["attachments-update-entry"] = [
             .init(entryTitle: "Multi Attachment Entry Updated", password: "updated-multi-password"),
+        ]
+        table["attachments-add-remove"] = [
+            .init(entryTitle: "Multi Attachment Entry Files Edited", password: "files-edited-password"),
         ]
         table["group-tags-update-entry"] = [
             .init(entryTitle: "Beta Login Updated", password: "GroupTagBetaUpdated2"),
@@ -595,6 +645,7 @@ enum KDBXCompatibilitySupport {
         // value read back externally proves the payload survived intact.
         table["encryption-settings-chacha20-argon2id"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["encryption-settings-aes256-keep-kdf"] = [fixtureEntryPasswords[Fixture.foreignTwofish.id]!]
+        table["encryption-settings-aes-kdf"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         return table
     }()
 
@@ -661,6 +712,15 @@ enum KDBXCompatibilitySupport {
                 algorithm: TOTPAlgorithm.sha256.rawValue
             ),
         ],
+        "import-apple-passwords": [
+            .init(
+                entryTitle: "Import Alpha",
+                secret: "JBSWY3DPEHPK3PXP",
+                period: 30,
+                digits: 6,
+                algorithm: TOTPAlgorithm.sha1.rawValue
+            ),
+        ],
         "update-entry": [
             .init(
                 entryTitle: "Compat Update Target Updated",
@@ -695,6 +755,7 @@ enum KDBXCompatibilitySupport {
             "recycle-bin-creation",
             "attachments-update-entry",
             "attachments-soft-delete-entry",
+            "attachments-add-remove",
             "group-tags-update-entry",
             "group-tags-update-group",
             "keeotp-source-matrix",
@@ -704,6 +765,7 @@ enum KDBXCompatibilitySupport {
             "rekey-remove-keyfile",
             "encryption-settings-chacha20-argon2id",
             "encryption-settings-aes256-keep-kdf",
+            "encryption-settings-aes-kdf",
         ]
         for fixture in smokeFixtures {
             ids.insert("fixture-smoke-\(fixture.id)")
@@ -781,6 +843,7 @@ enum KDBXCompatibilitySupport {
             hardDeleteRecycledGroupScenario(),
             moveEntryScenario(),
             moveGroupScenario(),
+            importApplePasswordsScenario(),
         ]
     }
 
@@ -1136,6 +1199,65 @@ enum KDBXCompatibilitySupport {
                     AttachmentFixtureHashes.noteUnicodeTxt,
                     AttachmentFixtureHashes.pixelPNG,
                 ])
+            }
+        )
+    }
+
+    /// Attachment-editing scenario for the `kitchen-sink` fixture: on `Multi
+    /// Attachment Entry` keeps `note-ü.txt`, removes `pixel.png`, and attaches
+    /// a new file, the payload the entry editor sends. The external gate
+    /// exports both current attachments; the removed one must still resolve
+    /// from the history version the edit pushed.
+    static func attachmentsFixtureAddRemoveScenario() -> Scenario {
+        Scenario(
+            id: "attachments-add-remove",
+            title: "Add and remove entry attachments",
+            artifactFileName: "attachments-add-remove.kdbx",
+            expectedSearchTerms: ["Multi Attachment Entry Files Edited"],
+            expectedGroupPaths: [],
+            makeEdit: { loaded in
+                let entry = try XCTUnwrap(findEntry(titled: "Multi Attachment Entry", in: loaded.rootGroup))
+                let kept = try XCTUnwrap(entry.attachments.first { $0.name == "note-ü.txt" })
+                return .updateEntry(
+                    entryID: entry.id,
+                    draft: EntryDraftPayload(
+                        title: "Multi Attachment Entry Files Edited",
+                        username: entry.username,
+                        password: "files-edited-password",
+                        url: entry.url,
+                        notes: entry.notes,
+                        customFields: entry.customFields,
+                        tags: entry.tags,
+                        attachments: [
+                            .existing(name: kept.name, ref: kept.ref),
+                            .new(
+                                name: AddedAttachment.name,
+                                data: AddedAttachment.bytes
+                            ),
+                        ]
+                    )
+                )
+            },
+            appendsToBinaryPool: true,
+            assertChange: { before, after, _ in
+                let entryID = try XCTUnwrap(before.entryID(titled: "Multi Attachment Entry"))
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+
+                let original = try XCTUnwrap(before.entries[entryID])
+                let updated = try XCTUnwrap(after.entries[entryID])
+                XCTAssertEqual(updated.title, "Multi Attachment Entry Files Edited")
+                XCTAssertEqual(updated.attachments.map(\.name), ["note-ü.txt", AddedAttachment.name])
+                XCTAssertEqual(updated.attachmentHashes, [
+                    AttachmentFixtureHashes.noteUnicodeTxt,
+                    AddedAttachment.sha256,
+                ])
+
+                // This app prepends the version an edit pushes.
+                let pushed = try XCTUnwrap(updated.history.first)
+                XCTAssertEqual(pushed.attachments, original.attachments)
+                XCTAssertEqual(pushed.attachmentHashes, original.attachmentHashes)
+                XCTAssertTrue(pushed.attachmentHashes.contains(AttachmentFixtureHashes.pixelPNG))
             }
         )
     }
@@ -1720,6 +1842,28 @@ enum KDBXCompatibilitySupport {
         )
     }
 
+    /// `.aesBaseline` moved from Argon2id to AES-KDF at the default rounds,
+    /// with the AES-256 cipher and compression kept.
+    static func encryptionSettingsAESKDFScenario() -> Scenario {
+        Scenario(
+            id: "encryption-settings-aes-kdf",
+            title: "Change key derivation to AES-KDF",
+            artifactFileName: "aes-baseline-encryption-settings-aes-kdf.kdbx",
+            expectedSearchTerms: ["Twitter"],
+            expectedGroupPaths: ["Social"],
+            encryptionSettings: { _ in
+                EncryptionSettingsChange(
+                    kdfParameters: try EncryptionSettingsKeyDerivation
+                        .aesKDF(rounds: DatabaseCreationDefaults.aesKDFRounds)
+                        .kdfParameters()
+                )
+            },
+            assertChange: { before, after, _ in
+                try assertWholeTreeUnchanged(before: before, after: after)
+            }
+        )
+    }
+
     // MARK: - Artifact set
 
     /// One `(fixture, scenario)` pair, i.e. exactly one `.kdbx` artifact for
@@ -1757,6 +1901,9 @@ enum KDBXCompatibilitySupport {
             ArtifactDescriptor(fixture: .kitchenSink, scenario: attachmentsFixtureSoftDeleteScenario())
         )
         descriptors.append(
+            ArtifactDescriptor(fixture: .kitchenSink, scenario: attachmentsFixtureAddRemoveScenario())
+        )
+        descriptors.append(
             ArtifactDescriptor(fixture: .kitchenSink, scenario: groupTagsFixtureUpdateEntryScenario())
         )
         descriptors.append(
@@ -1785,6 +1932,9 @@ enum KDBXCompatibilitySupport {
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .foreignTwofish, scenario: encryptionSettingsAES256Scenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .aesBaseline, scenario: encryptionSettingsAESKDFScenario())
         )
         return descriptors
     }
@@ -2878,6 +3028,79 @@ private extension KDBXCompatibilitySupport {
                 XCTAssertFalse(try XCTUnwrap(after.groups[sourceID]).groupIDs.contains(groupID))
                 XCTAssertEqual(after.entries.count, before.entries.count)
                 XCTAssertEqual(after.groups.count, before.groups.count)
+            }
+        )
+    }
+
+    static let importedAlphaPassword = "Alpha,Secret \"1\""
+    static let importedBetaPassword = "Bëta-Sëcret-✓"
+    static let importedBetaNotes = "Line one\nLine two, with comma"
+    static let importedBetaOTPAuth = "otpauth://hotp/Beta:beta-user?secret=JBSWY3DPEHPK3PXP&counter=3"
+
+    /// An Apple Passwords export read by `ApplePasswordsCSVImporter` and added
+    /// the way `DatabaseViewModel.importEntries` adds it: every row in one
+    /// `DatabaseDraft.creatingEntries` call into the visible root. The file exercises quoted commas and
+    /// quotes, a multi-line note, non-ASCII text, a TOTP link KeePassXC must
+    /// generate codes from, and an HOTP link kept as a protected field.
+    static func importApplePasswordsScenario() -> Scenario {
+        // CRLF between rows; the quoted note keeps a bare LF.
+        let csv = [
+            "Title,URL,Username,Password,Notes,OTPAuth",
+            "Import Alpha,https://alpha.example.com/login,alpha@example.com,\"Alpha,Secret \"\"1\"\"\",,"
+                + "otpauth://totp/Alpha:alpha@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Alpha",
+            "Import Beta,https://beta.example.com,beta-user,\(importedBetaPassword),\"Line one\nLine two, with comma\","
+                + importedBetaOTPAuth,
+            ",,,,,",
+            "",
+        ].joined(separator: "\r\n")
+        let betaFields = ArtifactManifest.ExpectedFieldSet(
+            fields: [
+                .init(name: "UserName", value: "beta-user", isProtected: false),
+                .init(name: "URL", value: "https://beta.example.com", isProtected: false),
+                .init(name: "Notes", value: importedBetaNotes, isProtected: false),
+                .init(name: PasswordImport.unsupportedOTPFieldName, value: importedBetaOTPAuth, isProtected: true),
+            ],
+            absentFields: ["otp"]
+        )
+        return Scenario(
+            id: "import-apple-passwords",
+            title: "Import an Apple Passwords CSV export as new entries",
+            artifactFileName: "synthetic-rich-import-apple-passwords.kdbx",
+            expectedSearchTerms: ["Import Alpha", "Import Beta"],
+            expectedGroupPaths: [],
+            makeImportedEntries: { loaded in
+                let preview = try ApplePasswordsCSVImporter.preview(from: Data(csv.utf8))
+                XCTAssertEqual(preview.skippedRows, [.init(row: 4, reason: .noLoginData)])
+                let groupID = TestDatabaseSupport.visibleRootGroupID(in: loaded.rootGroup)
+                return (groupID, preview.items.map(\.draft))
+            },
+            expectedCustomFields: [.init(entryTitle: "Import Beta", current: betaFields, history: [])],
+            assertChange: { before, after, _ in
+                try assertUnchangedEntries(before: before, after: after)
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+                assertMetaUnchanged(before: before, after: after)
+                XCTAssertEqual(after.entries.count, before.entries.count + 2)
+
+                let alpha = try XCTUnwrap(after.entryID(titled: "Import Alpha").flatMap { after.entries[$0] })
+                XCTAssertEqual(alpha.username, "alpha@example.com")
+                XCTAssertEqual(alpha.url, "https://alpha.example.com/login")
+                XCTAssertEqual(alpha.password, importedAlphaPassword)
+                XCTAssertEqual(alpha.notes, "")
+                XCTAssertEqual(alpha.totp, CompatibilitySnapshot.TOTP(secret: "JBSWY3DPEHPK3PXP", period: 30, digits: 6, algorithm: .sha1))
+                XCTAssertEqual(
+                    alpha.otpURL,
+                    "otpauth://totp/Alpha:alpha@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Alpha"
+                )
+                XCTAssertTrue(alpha.customFields.isEmpty)
+
+                let beta = try XCTUnwrap(after.entryID(titled: "Import Beta").flatMap { after.entries[$0] })
+                XCTAssertEqual(beta.password, importedBetaPassword)
+                XCTAssertEqual(beta.notes, importedBetaNotes)
+                XCTAssertNil(beta.totp)
+                XCTAssertNil(beta.otpURL)
+                XCTAssertEqual(beta.customFields, [PasswordImport.unsupportedOTPFieldName: importedBetaOTPAuth])
+                XCTAssertTrue(beta.protectedStringKeys.contains(PasswordImport.unsupportedOTPFieldName))
+                XCTAssertTrue(beta.history.isEmpty)
             }
         )
     }

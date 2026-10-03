@@ -15,12 +15,17 @@ struct KeeForgeApp: App {
     #if os(macOS)
     @State private var macLockMonitor = MacLockMonitor()
     @State private var macWindowCloseGuard = MacWindowCloseGuard()
+    @State private var macQuickAccess = MacQuickAccessController()
     #else
     @State private var appSettingsPresentation = AppSettingsPresentation()
     #endif
     @AppStorage(SettingsService.appearanceModeDefaultsKey) private var appearanceModeRaw = SettingsService.AppearanceMode.system.rawValue
     @AppStorage(SettingsService.appAccentColorDefaultsKey) private var appAccentColorRaw = ""
     @Environment(\.scenePhase) private var scenePhase
+
+    #if os(macOS)
+    static let mainWindowID = "main"
+    #endif
 
     init() {
         AutoFillDiagnostics.migrateLegacyLogLocation()
@@ -32,6 +37,7 @@ struct KeeForgeApp: App {
         #if os(macOS)
         Settings {
             SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
+                .environment(macQuickAccess)
                 .tint(appAccentColor)
                 .preferredColorScheme(appearanceMode.preferredColorScheme)
         }
@@ -39,69 +45,16 @@ struct KeeForgeApp: App {
     }
 
     private var mainWindow: some Scene {
-        let windowGroup = WindowGroup {
-            rootView
-            #if os(macOS)
-            // The height floor is the content area, so it must stay clear of
-            // `MacSheetMetrics.maxHeight` — a sheet is anchored under the
-            // toolbar and would otherwise sit flush with the window's bottom.
-            .frame(minWidth: 900, minHeight: 620)
-            .focusedSceneValue(\.databaseViewModel, activeDatabaseViewModel)
-            #else
-            // App-owned Settings sheet (⌘, / the Mac-compat toolbar gear),
-            // above the root so it survives the lock/unlock root swap.
-            .environment(appSettingsPresentation)
-            .sheet(isPresented: $appSettingsPresentation.isPresented) {
-                SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
-            }
-            #endif
-            .tint(appAccentColor)
-            .preferredColorScheme(appearanceMode.preferredColorScheme)
-            .onChange(of: scenePhase) { _, newPhase in
-                switch newPhase {
-                case .active:
-                    screenProtectionService.hideShield()
-                    activeDatabaseViewModel?.didManuallyLock = false
-                    activeDatabaseViewModel?.handleSceneDidBecomeActive()
-                    activeDatabaseViewModel?.refreshSharedDatabaseCacheIfPossible()
-                    scanDocumentsForSharedDatabases()
-                    Task {
-                        await listViewModel.drainPendingUploadsOnAppActive()
-                    }
-                case .inactive:
-                    break
-                case .background:
-                    screenProtectionService.showShield()
-                    // macOS: the scene phase moves to .background on window
-                    // minimize / app hide, which must not lock under the
-                    // default policy. MacLockMonitor is the sole lock driver
-                    // on the Mac; see startMacLockMonitoringIfNeeded().
-                    #if os(iOS)
-                    activeDatabaseViewModel?.handleSceneDidEnterBackground()
-                    #endif
-                @unknown default:
-                    screenProtectionService.showShield()
-                }
-            }
-            .task {
-                // Plaintext preview files orphaned by a process that died
-                // without locking; must run before this session writes any.
-                AttachmentPreviewFileStore.purgeOrphanedFiles()
-                // At launch, not on Tip Jar open, so out-of-app completions
-                // (Ask to Buy, deferred SCA) are still delivered and finished.
-                // The direct target compiles this path out because it has no
-                // App Store receipt and must not link StoreKit.
-                #if !KEEFORGE_DIRECT_DOWNLOAD
-                    StoreKitManager.shared.start()
-                #endif
-                pendingUploadDrainer.startObserving {
-                    Task {
-                        await listViewModel.drainPendingUploadsOnAppActive()
-                    }
-                }
-                startMacLockMonitoringIfNeeded()
-            }
+        #if os(macOS)
+        // An id so the menu bar quick search can reopen the window after ⌘W.
+        let windowGroup = WindowGroup(id: Self.mainWindowID) {
+            mainWindowContent
         }
+        #else
+        let windowGroup = WindowGroup {
+            mainWindowContent
+        }
+        #endif
 
         #if os(macOS)
         return windowGroup
@@ -123,6 +76,72 @@ struct KeeForgeApp: App {
                 AppSettingsCommands(presentation: appSettingsPresentation)
             }
         #endif
+    }
+
+    private var mainWindowContent: some View {
+        rootView
+        #if os(macOS)
+        // The height floor is the content area, so it must stay clear of
+        // `MacSheetMetrics.maxHeight` — a sheet is anchored under the
+        // toolbar and would otherwise sit flush with the window's bottom.
+        .frame(minWidth: 900, minHeight: 620)
+        .focusedSceneValue(\.databaseViewModel, activeDatabaseViewModel)
+        .environment(macQuickAccess)
+        .modifier(MacQuickAccessMainWindowHookup(controller: macQuickAccess))
+        #else
+        // App-owned Settings sheet (⌘, / the Mac-compat toolbar gear),
+        // above the root so it survives the lock/unlock root swap.
+        .environment(appSettingsPresentation)
+        .sheet(isPresented: $appSettingsPresentation.isPresented) {
+            SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
+        }
+        #endif
+        .tint(appAccentColor)
+        .preferredColorScheme(appearanceMode.preferredColorScheme)
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .active:
+                screenProtectionService.hideShield()
+                activeDatabaseViewModel?.didManuallyLock = false
+                activeDatabaseViewModel?.handleSceneDidBecomeActive()
+                activeDatabaseViewModel?.refreshSharedDatabaseCacheIfPossible()
+                scanDocumentsForSharedDatabases()
+                Task {
+                    await listViewModel.drainPendingUploadsOnAppActive()
+                }
+            case .inactive:
+                break
+            case .background:
+                screenProtectionService.showShield()
+                // macOS: the scene phase moves to .background on window
+                // minimize / app hide, which must not lock under the
+                // default policy. MacLockMonitor is the sole lock driver
+                // on the Mac; see startMacLockMonitoringIfNeeded().
+                #if os(iOS)
+                activeDatabaseViewModel?.handleSceneDidEnterBackground()
+                #endif
+            @unknown default:
+                screenProtectionService.showShield()
+            }
+        }
+        .task {
+            // Plaintext preview files orphaned by a process that died
+            // without locking; must run before this session writes any.
+            AttachmentPreviewFileStore.purgeOrphanedFiles()
+            // At launch, not on Tip Jar open, so out-of-app completions
+            // (Ask to Buy, deferred SCA) are still delivered and finished.
+            // The direct target compiles this path out because it has no
+            // App Store receipt and must not link StoreKit.
+            #if !KEEFORGE_DIRECT_DOWNLOAD
+                StoreKitManager.shared.start()
+            #endif
+            pendingUploadDrainer.startObserving {
+                Task {
+                    await listViewModel.drainPendingUploadsOnAppActive()
+                }
+            }
+            startMacLockMonitoringIfNeeded()
+        }
     }
 
     /// Root content for the main window. In DEBUG builds the
@@ -194,6 +213,9 @@ struct KeeForgeApp: App {
         // runs before it.
         macWindowCloseGuard.vaultProvider = { activeViewModel.wrappedValue }
         macWindowCloseGuard.start()
+
+        macQuickAccess.searchModel.sessionProvider = { activeViewModel.wrappedValue }
+        macQuickAccess.start()
         #endif
     }
 
@@ -205,6 +227,25 @@ struct KeeForgeApp: App {
         SettingsService.AppAccentColor(rawValue: appAccentColorRaw)?.color ?? Color("AccentColor")
     }
 }
+
+#if os(macOS)
+/// Lets the menu bar quick search front this window, or open a new one once
+/// it has been closed: `openWindow` only exists inside a scene.
+private struct MacQuickAccessMainWindowHookup: ViewModifier {
+    let controller: MacQuickAccessController
+    @Environment(\.openWindow) private var openWindow
+
+    func body(content: Content) -> some View {
+        content
+            .background(MacWindowReader { window in
+                if let window { controller.mainWindow = window }
+            })
+            .onAppear {
+                controller.openMainWindow = { openWindow(id: KeeForgeApp.mainWindowID) }
+            }
+    }
+}
+#endif
 
 private extension SettingsService.AppearanceMode {
     var preferredColorScheme: ColorScheme? {
@@ -942,8 +983,6 @@ struct DatabaseNavigationView: View {
             }
             .navigationDestination(for: TagDestination.self) { destination in
                 switch destination {
-                case .allTags:
-                    TagListView(viewModel: viewModel)
                 case .entries(let tag):
                     TagEntriesView(tag: tag, viewModel: viewModel)
                 }
@@ -960,6 +999,14 @@ struct DatabaseNavigationView: View {
 
                     if viewModel.isDirty && viewModel.isSaving == false {
                         UnsavedChangesBanner(viewModel: viewModel)
+                    }
+
+                    if CloudSyncStatusBanner.isVisible(for: viewModel) {
+                        CloudSyncStatusBanner(viewModel: viewModel)
+                    }
+
+                    if viewModel.hasPendingUploadConflict && viewModel.isSaving == false {
+                        PendingUploadConflictBanner(viewModel: viewModel)
                     }
                 }
             }
@@ -1110,6 +1157,162 @@ struct UnsavedChangesBanner: View {
         .background(Color.orange.opacity(0.12))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("database.unsaved-indicator")
+    }
+}
+
+/// The cloud copy's state when it is not simply "just synced": opened without
+/// a check (manual sync policy), a Sync Now in progress, or what the last one
+/// found. Deliberately not the yellow `CloudSyncWarningButton`: a skipped
+/// refresh is the user's choice, not a failure.
+struct CloudSyncStatusBanner: View {
+    @Bindable var viewModel: DatabaseViewModel
+
+    static func isVisible(for viewModel: DatabaseViewModel) -> Bool {
+        viewModel.isCloudRefreshPending || viewModel.isSyncingCloud || viewModel.cloudSyncOutcome != nil
+    }
+
+    /// A conflicted AutoFill upload is not waiting: `PendingUploadConflictBanner`
+    /// right below says it failed and offers Merge Changes, so this line would
+    /// contradict it.
+    static func showsPendingUploadNote(for viewModel: DatabaseViewModel) -> Bool {
+        viewModel.hasPendingCloudUploads && viewModel.hasPendingUploadConflict == false
+    }
+
+    private var providerName: String {
+        viewModel.databaseReference.cloudProviderKind?.displayName ?? String(localized: "cloud")
+    }
+
+    private var title: String {
+        if viewModel.isSyncingCloud {
+            return String(localized: "Checking \(providerName) for changes…")
+        }
+        if let outcome = viewModel.cloudSyncOutcome {
+            return outcome.message
+        }
+        return String(localized: "Opened without checking \(providerName) for changes.")
+    }
+
+    private var lastSyncedAt: Date? {
+        guard viewModel.isCloudRefreshPending, viewModel.isSyncingCloud == false else { return nil }
+        return viewModel.databaseReference.cloudSyncMetadata?.lastSyncedAt
+    }
+
+    private var isFailure: Bool {
+        if case .failed = viewModel.cloudSyncOutcome { return true }
+        return false
+    }
+
+    private var showsSyncButton: Bool {
+        viewModel.isSyncingCloud == false && (viewModel.isCloudRefreshPending || isFailure)
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if viewModel.isSyncingCloud {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: isFailure ? "exclamationmark.icloud" : "arrow.triangle.2.circlepath.icloud")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .accessibilityIdentifier("database.cloud-sync-status.title")
+
+                if let lastSyncedAt {
+                    Text("Last synced \(lastSyncedAt, format: .relative(presentation: .named))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                if Self.showsPendingUploadNote(for: viewModel) {
+                    Text("Changes saved through AutoFill are still waiting to upload.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 12)
+
+            if showsSyncButton {
+                Button("Sync Now") {
+                    Task {
+                        await viewModel.syncCloudNow()
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .disabled(viewModel.canSyncCloudNow == false)
+                .accessibilityIdentifier("database.cloud-sync-now")
+            }
+
+            if viewModel.cloudSyncOutcome != nil {
+                Button {
+                    viewModel.dismissCloudSyncOutcome()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Dismiss")
+                .macHelp(String(localized: "Dismiss"))
+                .accessibilityIdentifier("database.cloud-sync-status.dismiss")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.tint.opacity(0.12))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("database.cloud-sync-status")
+    }
+}
+
+/// Stays up while an AutoFill save for this database is stuck behind a newer
+/// cloud copy. A banner rather than an alert: the notice is due right at
+/// unlock, while the compact unlock sheet is still dismissing, and a
+/// presentation started then can be dropped.
+///
+/// `.contain` keeps the button's own identifier; a bare container identifier
+/// would be copied onto it (see `AutoFillTipBanner`).
+struct PendingUploadConflictBanner: View {
+    @Bindable var viewModel: DatabaseViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("A change saved through AutoFill couldn’t be uploaded because the cloud copy changed. Merge it into this database to upload it.")
+                .font(.subheadline.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Merge Changes") {
+                Task {
+                    do {
+                        try await viewModel.mergePendingUploads()
+                    } catch {
+                        viewModel.presentSaveError(error)
+                    }
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("pending-upload-banner.merge")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color(.separator), lineWidth: 0.5)
+        )
+        .padding(.horizontal, 12)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("pending-upload-banner")
     }
 }
 

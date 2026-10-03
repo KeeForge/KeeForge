@@ -120,6 +120,14 @@ struct RegularDatabaseWorkspaceView: View {
                     if viewModel.isDirty && viewModel.isSaving == false {
                         UnsavedChangesBanner(viewModel: viewModel)
                     }
+
+                    if CloudSyncStatusBanner.isVisible(for: viewModel) {
+                        CloudSyncStatusBanner(viewModel: viewModel)
+                    }
+
+                    if viewModel.hasPendingUploadConflict && viewModel.isSaving == false {
+                        PendingUploadConflictBanner(viewModel: viewModel)
+                    }
                 }
             }
             .disabled(viewModel.isSaving)
@@ -284,8 +292,6 @@ struct RegularDatabaseWorkspaceView: View {
                 }
                 .navigationDestination(for: TagDestination.self) { destination in
                     switch destination {
-                    case .allTags:
-                        TagListView(viewModel: viewModel)
                     case .entries(let tag):
                         // Entries are selected, not pushed, in this shell.
                         TagEntriesView(

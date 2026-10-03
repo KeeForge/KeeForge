@@ -249,10 +249,11 @@ final class KDBXCompatibilityTests: XCTestCase {
         try collector.emit()
     }
 
-    /// The two encryption-settings scenarios: every field changed on a
-    /// KeeForge-authored AES database, and a cipher change that keeps a
-    /// foreign-authored KDF. Changed header fields carry the new values,
-    /// untouched ones carry over, and the credentials stay the same.
+    /// The encryption-settings scenarios: every field changed on a
+    /// KeeForge-authored AES database, a cipher change that keeps a
+    /// foreign-authored KDF, and a move to AES-KDF. Changed header fields carry
+    /// the new values, untouched ones carry over, and the credentials stay the
+    /// same.
     func test_encryptionSettingsScenarios_rewriteHeaderUnderTheSameKey() throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
 
@@ -297,6 +298,19 @@ final class KDBXCompatibilityTests: XCTestCase {
             twofish.header.kdfParameters["S"] as? Data,
             "The KDF salt still rotates"
         )
+
+        XCTAssertNotEqual(aesBaseline.header.kdfParameters["$UUID"] as? Data, KDBXParser.aesKDFUUID, "Fixture precondition")
+        let aesKDF = try collector.run(
+            KDBXCompatibilitySupport.encryptionSettingsAESKDFScenario(),
+            on: aesBaseline
+        )
+        XCTAssertNil(aesKDF.rekey)
+        XCTAssertEqual(aesKDF.afterHeader.kdfParameters["$UUID"] as? Data, KDBXParser.aesKDFUUID)
+        XCTAssertEqual(aesKDF.afterHeader.kdfParameters["R"] as? UInt64, DatabaseCreationDefaults.aesKDFRounds)
+        XCTAssertEqual((aesKDF.afterHeader.kdfParameters["S"] as? Data)?.count, 32)
+        XCTAssertEqual(aesKDF.afterHeader.cipherID, aesBaseline.header.cipherID, "AES-KDF leaves the cipher alone")
+        XCTAssertEqual(aesKDF.afterHeader.compressionFlags, aesBaseline.header.compressionFlags)
+        XCTAssertEqual(aesKDF.afterHeader.formatVersion, aesBaseline.header.formatVersion)
 
         try collector.emit()
     }
@@ -360,7 +374,7 @@ final class KDBXCompatibilityTests: XCTestCase {
     /// The kitchen-sink fixture's dedicated pass. It is deliberately absent
     /// from `smokeFixtures` so its smoke scenario runs exactly once — here,
     /// where the attachment, group-tag, opaque-XML and outer-header invariants
-    /// can be asserted on the same reparsed snapshots — followed by the four
+    /// can be asserted on the same reparsed snapshots — followed by the five
     /// edit scenarios that belong to it.
     ///
     /// `keepassxc-cli` has no verb that prints group tags, an unknown
@@ -438,6 +452,11 @@ final class KDBXCompatibilityTests: XCTestCase {
         // softDelete: recycling one dedup entry doesn't disturb its sibling.
         let softDeleteLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
         try collector.run(KDBXCompatibilitySupport.attachmentsFixtureSoftDeleteScenario(), on: softDeleteLoaded)
+
+        // addRemove: the entry editor's attachment payload, one kept, one
+        // removed, one new file, written through the app's own save path.
+        let addRemoveLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
+        try collector.run(KDBXCompatibilitySupport.attachmentsFixtureAddRemoveScenario(), on: addRemoveLoaded)
 
         // group-tags updateEntry: editing an entry nested under both tagged
         // groups runs the copyGroup/replacingChildGroup funnel over exactly
@@ -677,6 +696,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             "kitchen-sink-fixture-smoke-kitchen-sink",
             "kitchen-sink-attachments-update-entry",
             "kitchen-sink-attachments-soft-delete-entry",
+            "kitchen-sink-attachments-add-remove",
             "kitchen-sink-group-tags-update-entry",
             "kitchen-sink-group-tags-update-group",
             "\(richID)-keeotp-source-matrix",
@@ -689,6 +709,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             "kitchen-sink-change-entry-expiry",
             "aes-baseline-encryption-settings-chacha20-argon2id",
             "foreign-twofish-encryption-settings-aes256-keep-kdf",
+            "aes-baseline-encryption-settings-aes-kdf",
         ] {
             XCTAssertTrue(ids.contains(required), "missing artifact \(required)")
         }
@@ -704,7 +725,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 38)
+        XCTAssertEqual(descriptors.count, 41)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

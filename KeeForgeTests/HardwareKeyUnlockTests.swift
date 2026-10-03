@@ -23,7 +23,21 @@ final class HardwareKeyUnlockTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testHardwareKeyTransportsAreNFCOnly() {
+        XCTAssertEqual(HardwareKeyConfiguration.Transport.allCases, [.nfc])
+        XCTAssertTrue(HardwareKeyService.availableTransports.allSatisfy { $0 == .nfc })
+    }
+
     #if os(iOS)
+    func testAppDeclaresNFCWithoutExternalAccessoryProtocols() throws {
+        XCTAssertNil(Bundle.main.object(forInfoDictionaryKey: "UISupportedExternalAccessoryProtocols"))
+        let identifiers = try XCTUnwrap(Bundle.main.object(
+            forInfoDictionaryKey: "com.apple.developer.nfc.readersession.iso7816.select-identifiers"
+        ) as? [String])
+        XCTAssertEqual(identifiers, ["A000000527200101", "A0000005272001"])
+        XCTAssertNotNil(Bundle.main.object(forInfoDictionaryKey: "NFCReaderUsageDescription"))
+    }
+
     func testDisconnectMapsNFCUserCancellationAndTimeoutForTheUnlockUI() {
         let cancellation = NSError(
             domain: NFCReaderError.errorDomain,
@@ -156,7 +170,7 @@ final class HardwareKeyUnlockTests: XCTestCase {
     }
 
     func testLockWhileWaitingForTheYubiKeyCancelsTheRequest() async throws {
-        let vm = try makeViewModel(hardwareKey: HardwareKeyConfiguration(transport: .lightning, slot: .two)) { challenge, _ in
+        let vm = try makeViewModel(hardwareKey: HardwareKeyConfiguration(transport: .nfc, slot: .two)) { challenge, _ in
             do {
                 try await Task.sleep(for: .seconds(30))
             } catch {

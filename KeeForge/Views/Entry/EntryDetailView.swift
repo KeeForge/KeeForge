@@ -1100,6 +1100,9 @@ struct TOTPSection: View {
 struct CountdownRing: View {
     let progress: Double
     let seconds: Int
+    /// Off where the ring is too small to hold the number and the caller
+    /// prints it beside the ring instead.
+    var showsSeconds = true
 
     var body: some View {
         ZStack {
@@ -1114,8 +1117,10 @@ struct CountdownRing: View {
                 .rotationEffect(.degrees(-90))
                 .animation(.linear(duration: 1), value: progress)
 
-            Text("\(seconds)")
-                .font(.caption2.monospacedDigit())
+            if showsSeconds {
+                Text("\(seconds)")
+                    .font(.caption2.monospacedDigit())
+            }
         }
     }
 }

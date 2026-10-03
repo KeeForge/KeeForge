@@ -7,6 +7,7 @@ options:
     macOS: "15.0"
   xcodeVersion: "16.0"
   minimumXcodeGenVersion: "2.38"
+  postGenCommand: python3 ci_scripts/validate_cloud_test_schemes.py
 configFiles:
   Debug: Configs/BuildConfig.xcconfig
   Release: Configs/BuildConfig.xcconfig
@@ -113,11 +114,13 @@ targets:
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
         MARKETING_VERSION: "1.17.0"
-        CURRENT_PROJECT_VERSION: "60"
+        CURRENT_PROJECT_VERSION: "66"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
+        # YubiKit's SPM header links include private headers outside its umbrella header.
+        OTHER_SWIFT_FLAGS: "$(inherited) -Xcc -Wno-incomplete-umbrella"
     dependencies:
       - target: KeeForgeAutoFill
         embed: true
@@ -131,8 +134,9 @@ targets:
       - package: YubiKit
     sources:
       # KeeForgeCommands.swift (menu bar), MacLockMonitor.swift (lock
-      # lifecycle) and MacWindowCloseGuard.swift (window close) are macOS-only:
-      # members of KeeForgeMac, excluded here.
+      # lifecycle), MacWindowCloseGuard.swift (window close), and the menu bar
+      # quick access pair MacQuickAccessController.swift / MacGlobalHotKey.swift
+      # are macOS-only: members of KeeForgeMac, excluded here.
       - path: KeeForge/App
         excludes: ["README.md", "CLAUDE.md", "AGENTS.md", "KeeForgeCommands.swift"]
       - path: KeeForge/Models
@@ -147,6 +151,8 @@ targets:
           - "**/AGENTS.md"
           - "AppSupport/MacLockMonitor.swift"
           - "AppSupport/MacWindowCloseGuard.swift"
+          - "AppSupport/MacQuickAccessController.swift"
+          - "AppSupport/MacGlobalHotKey.swift"
       - path: KeeForge/ViewModels
         excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
       - path: KeeForge/Views
@@ -181,7 +187,7 @@ targets:
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
         MARKETING_VERSION: "1.17.0"
-        CURRENT_PROJECT_VERSION: "60"
+        CURRENT_PROJECT_VERSION: "66"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
         # Sparkle authenticates the direct-download channel only. Both values
@@ -256,7 +262,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtension.entitlements
         MARKETING_VERSION: "1.17.0"
-        CURRENT_PROJECT_VERSION: "60"
+        CURRENT_PROJECT_VERSION: "66"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
@@ -325,7 +331,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtensionMac.entitlements
         MARKETING_VERSION: "1.17.0"
-        CURRENT_PROJECT_VERSION: "60"
+        CURRENT_PROJECT_VERSION: "66"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
@@ -398,6 +404,10 @@ targets:
       - path: TestFixtures/invalid-xml.keyx
         buildPhase: resources
       - path: TestFixtures/autofill-union.kdbx
+        buildPhase: resources
+      - path: TestFixtures/autofill-store-alpha.kdbx
+        buildPhase: resources
+      - path: TestFixtures/autofill-store-bravo.kdbx
         buildPhase: resources
       - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
         buildPhase: resources
@@ -558,7 +568,79 @@ targets:
           - "OneDriveCloudProviderTests.swift"
 
 
+schemeTemplates:
+  CloudUITests:
+    build:
+      preActions:
+        - script: |
+            "${SRCROOT}/ci_scripts/prepare_build_config.sh" "${SRCROOT}"
+          settingsTarget: KeeForge
+      targets:
+        KeeForge: [test]
+        KeeForgeUITests: [test]
+    test:
+      config: Debug
+      gatherCoverageData: false
+
 schemes:
+  KeeForgeCloudUnitTests:
+    build:
+      preActions:
+        - script: |
+            "${SRCROOT}/ci_scripts/prepare_build_config.sh" "${SRCROOT}"
+          settingsTarget: KeeForge
+      targets:
+        KeeForge: [test]
+        KeeForgeTests: [test]
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - name: KeeForgeTests
+          parallelizable: false
+          randomExecutionOrder: true
+
+  KeeForgeCloudUIA:
+    templates: [CloudUITests]
+    test:
+      targets:
+        - name: KeeForgeUITests
+          parallelizable: false
+          randomExecutionOrder: false
+          selectedTests: &cloudUIGroupA
+            - AppSettingsUITests
+            - AppStoreScreenshots
+            - AutoFillStoreInspectorSmokeUITests
+            - AutoFillStoreUITests
+            - AutoFillTipUITests
+            - BackoffUITests
+            - CloudAccountEdgeUITests
+            - CloudBrowserSmokeUITests
+            - CloudUnlockSmokeUITests
+            - DatabaseCreationCompactUITests
+            - DatabaseCreationRegularWidthUITests
+            - DatabaseListUITests
+            - DocumentsVaultUITests
+            - EncryptionSettingsUITests
+            - EntryAttachmentsSmokeUITests
+            - EntryCreateSmokeUITests
+            - EntryCustomIconPickerUITests
+            - EntryDeleteSmokeUITests
+            - EntryDuplicateUITests
+            - EntryEditEdgeUITests
+            - EntryEditSmokeUITests
+            - EntryHistoryUITests
+
+  KeeForgeCloudUIB:
+    templates: [CloudUITests]
+    test:
+      targets:
+        - name: KeeForgeUITests
+          parallelizable: false
+          randomExecutionOrder: false
+          # The complement includes new classes automatically.
+          skippedTests: *cloudUIGroupA
+
   KeeForge:
     build:
       preActions:

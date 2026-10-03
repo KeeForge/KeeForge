@@ -1,6 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import LocalAuthentication
+import Security
 import SwiftUI
 import XCTest
 @testable import KeeForge
@@ -126,6 +127,75 @@ final class DatabaseViewModelTests: XCTestCase {
         let failure = try XCTUnwrap(vm.openFailure)
         XCTAssertEqual(failure.errorCode, "biometric.unavailable")
         XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
+    }
+
+    /// On the Mac the combined prompt can fail with the watch unavailable;
+    /// like a biometric one, it must not count toward the lockout.
+    func testQuickUnlockWithNoMechanismAvailableIsNotAFailedAttempt() async throws {
+        let vm = try makeViewModel(
+            biometricCompositeKeyOperation: { _, _ in throw LAError(.companionNotAvailable) }
+        )
+
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .failed)
+        let failure = try XCTUnwrap(vm.openFailure)
+        XCTAssertEqual(failure.errorCode, "biometric.unavailable")
+        XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
+        XCTAssertEqual(vm.failedAttempts, 0)
+    }
+
+    /// Authentication succeeded but the item could not be read, e.g. after
+    /// the enrolled fingerprints changed: point at the master password, which
+    /// writes a fresh item, instead of the generic "couldn't open" screen.
+    func testUnreadableStoredKeyAsksForTheMasterPassword() async throws {
+        let vm = try makeViewModel(
+            biometricCompositeKeyOperation: { _, _ in
+                throw KeychainService.KeychainError.retrieveFailed(errSecInteractionNotAllowed)
+            }
+        )
+
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .failed)
+        let failure = try XCTUnwrap(vm.openFailure)
+        XCTAssertEqual(failure.errorCode, "biometric.stored_key_unavailable")
+        XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
+        XCTAssertTrue(failure.summary.contains("master password"))
+        XCTAssertTrue(failure.canRetryUnlock)
+        XCTAssertFalse(failure.canRetryQuickUnlock)
+        XCTAssertFalse(failure.canChooseDifferentFile)
+        XCTAssertEqual(vm.failedAttempts, 0)
+    }
+
+    /// Every biometric failure leaves password unlock available, so the
+    /// failure screen must keep the password form up.
+    func testBiometricFailuresKeepThePasswordFormAvailable() {
+        let errors: [Error] = [
+            LAError(.userCancel),
+            LAError(.authenticationFailed),
+            LAError(.biometryLockout),
+            LAError(.companionNotAvailable),
+            LAError(.invalidContext),
+            KeychainService.KeychainError.retrieveFailed(errSecAuthFailed),
+        ]
+
+        for error in errors {
+            let failure = DatabaseOpenFailure.classify(error, isCloudBacked: false)
+            XCTAssertEqual(failure.category, .biometric, "\(error)")
+            XCTAssertTrue(failure.canRetryUnlock, failure.errorCode)
+        }
+    }
+
+    func testOnlyAnUnreadableStoredKeyStopsRetryingQuickUnlock() {
+        let transient = DatabaseOpenFailure.classify(LAError(.authenticationFailed), isCloudBacked: false)
+        let unreadable = DatabaseOpenFailure.classify(
+            KeychainService.KeychainError.retrieveFailed(errSecAuthFailed),
+            isCloudBacked: false
+        )
+
+        XCTAssertTrue(transient.canRetryQuickUnlock)
+        XCTAssertFalse(unreadable.canRetryQuickUnlock)
     }
 
     func testUnlockCloudDatabaseDoesNotRewriteSharedCache() async throws {
@@ -1641,6 +1711,71 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.isEntryInRecycleBin(entryID: target.id))
     }
 
+    // MARK: - Query search and reveal (macOS menu bar quick search, #156)
+
+    /// The quick search uses the main search's matching rules on a query of
+    /// its own, so typing in the menu bar panel never moves the window's
+    /// search field or its results.
+    func testEntriesMatchingAQueryFollowTheSearchRulesWithoutTouchingTheSearchField() async throws {
+        let visible = KPEntry(title: "Searchable Alpha")
+        let hidden = KPEntry(title: "Searchable Beta")
+        let other = KPEntry(title: "Something Else")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [visible, other]),
+            KPGroup(name: "Secret", entries: [hidden], searchingEnabled: .disabled),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(vm.entries(matching: "  searchable ").map(\.id), [visible.id])
+        XCTAssertTrue(vm.entries(matching: "   ").isEmpty)
+        XCTAssertEqual(vm.searchText, "")
+        XCTAssertTrue(vm.searchResults.isEmpty)
+    }
+
+    func testEntriesMatchingAQueryAreEmptyOnceLocked() async throws {
+        let target = KPEntry(title: "Searchable Alpha")
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [target]),
+        ]))
+        XCTAssertFalse(vm.entries(matching: "Searchable").isEmpty)
+
+        vm.lockRequest(force: true)
+
+        XCTAssertTrue(vm.entries(matching: "Searchable").isEmpty)
+    }
+
+    func testRevealEntrySelectsItInsideItsOwnGroup() async throws {
+        let target = KPEntry(title: "Nested Target")
+        let nested = KPGroup(name: "Nested", entries: [target])
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", groups: [
+            KPGroup(name: "Parent", groups: [nested]),
+        ]))
+        vm.searchText = "Nested"
+
+        vm.revealEntry(target.id)
+
+        XCTAssertEqual(vm.selectedGroupID, nested.id)
+        XCTAssertEqual(vm.selectedEntryID, target.id)
+        XCTAssertNil(vm.selectedTag)
+        XCTAssertEqual(vm.searchText, "Nested", "Clearing the query would make the workspace drop the selection")
+    }
+
+    func testRevealEntryIgnoresUnknownEntriesAndLockedSessions() async throws {
+        let target = KPEntry(title: "Target")
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [target]),
+        ]))
+        let groupBefore = vm.selectedGroupID
+
+        vm.revealEntry(UUID())
+        XCTAssertEqual(vm.selectedGroupID, groupBefore)
+        XCTAssertNil(vm.selectedEntryID)
+
+        vm.lockRequest(force: true)
+        vm.revealEntry(target.id)
+        XCTAssertNil(vm.selectedEntryID)
+    }
+
     // MARK: - Entry row Move to Group gate (#134)
 
     /// `EntryRowMoveAction.isAvailable` is the one gate every entry row's Move
@@ -1786,6 +1921,138 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.folderPath(forEntryID: nested.id), "Work")
         XCTAssertNil(vm.folderPath(forEntryID: topLevel.id))
+    }
+
+    /// All Entries is a browsing surface like the tag browser: it keeps the
+    /// entries of groups hidden from search, and drops only what is recycled.
+    func testAllEntriesListsEveryEntryOutsideTheRecycleBin() async throws {
+        let recycleBin = KPGroup(
+            name: "Recycle Bin",
+            entries: [KPEntry(title: "Recycled")],
+            groups: [KPGroup(name: "Old Projects", entries: [KPEntry(title: "Recycled Nested")])]
+        )
+        let root = KPGroup(
+            name: "Root",
+            entries: [KPEntry(title: "Top Level")],
+            groups: [
+                KPGroup(
+                    name: "Work",
+                    entries: [KPEntry(title: "VPN")],
+                    groups: [KPGroup(name: "Tools", entries: [KPEntry(title: "Team Chat")])]
+                ),
+                KPGroup(name: "Secret", entries: [KPEntry(title: "Hidden")], searchingEnabled: .disabled),
+                recycleBin,
+            ],
+            recycleBinUUID: recycleBin.id
+        )
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(vm.allEntries.map(\.title), ["Top Level", "VPN", "Team Chat", "Hidden"])
+        XCTAssertEqual(
+            vm.allEntriesGroupCount,
+            3,
+            "Work, Tools and Secret; neither the root nor the recycle bin's groups count"
+        )
+        XCTAssertEqual(vm.recycleBinGroup?.id, recycleBin.id)
+    }
+
+    /// The visible root is where browsing starts, so like the parser's
+    /// wrapper above it, it is not one of the groups the entries are spread
+    /// over.
+    func testAllEntriesGroupCountExcludesSyntheticWrapperAndVisibleRoot() async throws {
+        let wrapper = KPGroup(name: "Wrapper", groups: [
+            KPGroup(
+                name: "Passwords",
+                entries: [KPEntry(title: "Top Level")],
+                groups: [KPGroup(name: "Work", entries: [KPEntry(title: "Nested")])]
+            ),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: wrapper)
+
+        XCTAssertEqual(vm.allEntries.map(\.title), ["Top Level", "Nested"])
+        XCTAssertEqual(vm.allEntriesGroupCount, 1)
+        XCTAssertNil(vm.recycleBinGroup, "Nothing has been recycled, so there is no bin to open")
+    }
+
+    func testAllEntriesFollowsARecycledEntryOutOfTheList() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "All Entries Recycle")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.applyEntryEdit(
+            .createEntry(parentGroupID: parentGroupID, draft: EntryDraftPayload(title: "Doomed"))
+        )
+        try vm.applyEntryEdit(
+            .createEntry(parentGroupID: parentGroupID, draft: EntryDraftPayload(title: "Survivor"))
+        )
+        let doomed = try XCTUnwrap(vm.allEntries.first(where: { $0.title == "Doomed" }))
+        let groupCountBeforeDelete = vm.allEntriesGroupCount
+
+        try vm.deleteEntry(doomed.id, sendToRecycleBin: true)
+
+        XCTAssertEqual(vm.allEntries.map(\.title), ["Survivor"])
+        XCTAssertEqual(vm.recycleBinGroup?.entries.map(\.id), [doomed.id])
+        XCTAssertEqual(
+            vm.allEntriesGroupCount,
+            groupCountBeforeDelete,
+            "The bin the delete created is not a browsing group"
+        )
+    }
+
+    func testVerificationCodeEntriesKeepsOnlyLiveEntriesWithACode() async throws {
+        let totpConfig = TOTPConfig(secret: EncryptedValue(sealedData: Data([0]), hasValue: true))
+        let recycleBin = KPGroup(
+            name: "Recycle Bin",
+            entries: [KPEntry(title: "Recycled Code", totpConfig: totpConfig)]
+        )
+        let root = KPGroup(
+            name: "Root",
+            entries: [KPEntry(title: "No Code")],
+            groups: [
+                KPGroup(name: "Work", entries: [
+                    KPEntry(title: "Code", totpConfig: totpConfig),
+                    KPEntry(title: "Also No Code"),
+                ]),
+                recycleBin,
+            ],
+            recycleBinUUID: recycleBin.id
+        )
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(vm.verificationCodeEntries.map(\.title), ["Code"])
+    }
+
+    func testDatabaseOpensOnAllEntriesAndLockingReturnsThere() async throws {
+        let vm = try makeViewModel()
+        XCTAssertEqual(vm.viewMode, .allEntries)
+
+        await vm.unlock(password: fixturePassword)
+        vm.viewMode = .verificationCodes
+
+        vm.lock()
+
+        XCTAssertEqual(vm.viewMode, .allEntries, "The next unlock starts on All Entries, not on the view last picked")
+    }
+
+    func testInitialViewModeHonorsTheOverrideOnlyUnderUITesting() {
+        XCTAssertEqual(DatabaseViewModel.initialViewMode(arguments: [], environment: [:]), .allEntries)
+        XCTAssertEqual(
+            DatabaseViewModel.initialViewMode(
+                arguments: ["-ui-testing"],
+                environment: ["UI_TEST_VIEW_MODE": "groups"]
+            ),
+            .groups
+        )
+        XCTAssertEqual(
+            DatabaseViewModel.initialViewMode(arguments: [], environment: ["UI_TEST_VIEW_MODE": "groups"]),
+            .allEntries,
+            "Outside UI testing the environment cannot change where a database opens"
+        )
+        XCTAssertEqual(
+            DatabaseViewModel.initialViewMode(
+                arguments: ["-ui-testing"],
+                environment: ["UI_TEST_VIEW_MODE": "no-such-view"]
+            ),
+            .allEntries
+        )
     }
 
     func testHidingGroupFromAutoFillRemovesItsEntriesFromCredentialStore() async throws {
@@ -3168,7 +3435,7 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
 
         vm.selectedTag = "anything"
-        vm.navigationPath.append(TagDestination.allTags)
+        vm.navigationPath.append(TagDestination.entries(tag: "anything"))
 
         vm.lock()
 
@@ -3678,6 +3945,464 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.openTimeSHA512, mergedHash)
     }
 
+    // MARK: - Merging a conflicted AutoFill upload (#149)
+
+    func testMergePendingUploadsAddsTheAutoFillChangeUploadsAndOnlyThenDropsTheMarker() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
+        }
+        let savedHash = KDBXCrypto.sha512(Data("merged-upload".utf8))
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: savedHash)])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        let openedTitles = Set(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)))
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+
+        try await vm.mergePendingUploads()
+
+        let call = try XCTUnwrap(recorder.recordedCalls.first)
+        XCTAssertEqual(recorder.recordedCalls.count, 1)
+        XCTAssertEqual(call.openTimeSHA512, KDBXCrypto.sha512(fixtureData))
+        XCTAssertNil(call.reconciledRemoteSHA512)
+        XCTAssertEqual(call.expectedRev, "rev-A", "The upload must be conditional on the revision the merge was based on")
+        let savedTitles = Set(allEntryTitles(in: call.rootGroup))
+        XCTAssertTrue(savedTitles.contains("AutoFill Entry"))
+        XCTAssertTrue(savedTitles.isSuperset(of: openedTitles), "Nothing from the cloud copy may be lost")
+
+        XCTAssertEqual(pending.droppedMarkerIDs, [pending.storedMarker.id])
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+        XCTAssertNil(vm.pendingUploadMergeFailure)
+        XCTAssertNotNil(vm.mergeSummaryMessage)
+        XCTAssertEqual(vm.openTimeSHA512, savedHash)
+        XCTAssertTrue(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)).contains("AutoFill Entry"))
+    }
+
+    func testMergePendingUploadsKeepsUnsavedEditsInTheUpload() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
+        }
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unsaved Local Entry")
+        try await vm.mergePendingUploads()
+
+        let savedTitles = allEntryTitles(in: try XCTUnwrap(recorder.recordedCalls.first).rootGroup)
+        XCTAssertTrue(savedTitles.contains("AutoFill Entry"))
+        XCTAssertTrue(savedTitles.contains("Unsaved Local Entry"))
+        XCTAssertFalse(vm.isDirty)
+    }
+
+    func testMergePendingUploadsWhenTheCloudCopyChangedAgainKeepsTheMarker() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
+        }
+        let newerCloudData = Data("newer-cloud-copy".utf8)
+        let recorder = MergeSaveRecorder(results: [
+            .conflict(remoteSHA512: KDBXCrypto.sha512(newerCloudData), remoteData: newerCloudData),
+        ])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .cloudChanged)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+        XCTAssertNil(vm.saveConflict)
+        XCTAssertFalse(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)).contains("AutoFill Entry"))
+        XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(fixtureData))
+    }
+
+    /// `.cloudChanged` is also what a manual-sync-policy open gets: the
+    /// session never checked the cloud, so its copy is behind before the
+    /// merge starts, and reopening would skip the check again. The way out
+    /// the message names has to work: Sync Now, then merge again.
+    func testMergePendingUploadsThatHitANewerCloudCopySucceedsAfterSyncNow() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
+        }
+        let newerCloudData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "Newer Cloud Entry"))
+        }
+        let newerCloudHash = KDBXCrypto.sha512(newerCloudData)
+        let savedHash = KDBXCrypto.sha512(Data("merged-upload".utf8))
+        let recorder = MergeSaveRecorder(results: [
+            .conflict(remoteSHA512: newerCloudHash, remoteData: newerCloudData),
+            .saved(newSHA512: savedHash),
+        ])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makePendingUploadViewModel(
+            reference: reference,
+            fixtureData: fixtureData,
+            pending: pending,
+            recorder: recorder,
+            cloudRefreshOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: newerCloudData,
+                    status: .downloaded
+                )
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .cloudChanged)
+        let message = PendingUploadMergeFailure.cloudChanged.message
+        XCTAssertTrue(message.contains("Sync Now"), "Reopening skips the check under the manual policy; only Sync Now gets the newer copy")
+        XCTAssertFalse(message.contains("open it again"))
+        vm.dismissPendingUploadMergeFailure()
+
+        await vm.syncCloudNow()
+        XCTAssertEqual(vm.cloudSyncOutcome, .updated)
+        XCTAssertEqual(vm.openTimeSHA512, newerCloudHash)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(recorder.recordedCalls.count, 2)
+        let retry = try XCTUnwrap(recorder.recordedCalls.last)
+        XCTAssertEqual(retry.openTimeSHA512, newerCloudHash, "The retry must be based on the copy Sync Now fetched")
+        let savedTitles = Set(allEntryTitles(in: retry.rootGroup))
+        XCTAssertTrue(savedTitles.contains("AutoFill Entry"))
+        XCTAssertTrue(savedTitles.contains("Newer Cloud Entry"))
+        XCTAssertNil(vm.pendingUploadMergeFailure)
+        XCTAssertEqual(pending.droppedMarkerIDs, [pending.storedMarker.id])
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+        XCTAssertEqual(vm.openTimeSHA512, savedHash)
+    }
+
+    func testSyncStatusBannerLeavesAConflictedUploadToTheConflictBanner() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
+        }
+        let reference = makeCloudReference(remoteRev: "rev-A")
+
+        let conflicted = PendingUploadFake(reference: reference, payload: pendingData)
+        let conflictedVM = try makePendingUploadViewModel(
+            reference: reference,
+            fixtureData: fixtureData,
+            pending: conflicted,
+            recorder: MergeSaveRecorder(results: []),
+            pendingUploadMarkerCheck: { _ in true }
+        )
+        await conflictedVM.unlock(password: fixturePassword)
+        XCTAssertTrue(conflictedVM.hasPendingCloudUploads)
+        XCTAssertTrue(conflictedVM.hasPendingUploadConflict)
+        XCTAssertFalse(
+            CloudSyncStatusBanner.showsPendingUploadNote(for: conflictedVM),
+            "\"Still waiting to upload\" contradicts the conflict banner saying the upload failed"
+        )
+
+        let waiting = PendingUploadFake(reference: reference, payload: pendingData, isConflicted: false)
+        let waitingVM = try makePendingUploadViewModel(
+            reference: reference,
+            fixtureData: fixtureData,
+            pending: waiting,
+            recorder: MergeSaveRecorder(results: []),
+            pendingUploadMarkerCheck: { _ in true }
+        )
+        await waitingVM.unlock(password: fixturePassword)
+        XCTAssertFalse(waitingVM.hasPendingUploadConflict)
+        XCTAssertTrue(CloudSyncStatusBanner.showsPendingUploadNote(for: waitingVM))
+    }
+
+    func testMergePendingUploadsWhoseUploadFailsKeepsTheMarker() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
+        }
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makeViewModel(
+            reference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: fixtureData,
+                    status: .current
+                )
+            },
+            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+                throw URLError(.notConnectedToInternet)
+            },
+            pendingUploadRecovery: pending.environment
+        )
+
+        await vm.unlock(password: fixturePassword)
+        do {
+            try await vm.mergePendingUploads()
+            XCTFail("An upload that failed must be reported")
+        } catch {}
+
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+        XCTAssertFalse(vm.isSaving)
+    }
+
+    func testMergePendingUploadsWithTheChangeGoneFromTheDeviceWritesNothing() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8), storesPayload: false)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .changeUnavailable)
+        XCTAssertTrue(recorder.recordedCalls.isEmpty)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+    }
+
+    func testMergePendingUploadsWithAnUnprovenMarkerWritesNothingAndKeepsIt() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let baseData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "Base Only"))
+        }
+        let pending = PendingUploadFake(reference: reference, payload: baseData, isPayloadFinalized: nil)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .changeUnidentified)
+        XCTAssertTrue(recorder.recordedCalls.isEmpty)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+        XCTAssertNil(vm.mergeSummaryMessage)
+    }
+
+    func testMergePendingUploadsWithAnUnreadableChangeWritesNothing() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: Data("not-a-kdbx-file".utf8))
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .changeUnreadable(.backup(PendingUploadFake.payloadURL)))
+        XCTAssertTrue(recorder.recordedCalls.isEmpty)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+    }
+
+    func testMergePendingUploadsWithDivergedAttachmentsWritesNothing() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData(
+            binaryPoolFields: [Data([0x00]) + Data("attachment-bytes".utf8)]
+        ) { visibleRoot in
+            var entry = KPEntry(title: "AutoFill Entry With Attachment")
+            entry.attachments = [KPAttachment(name: "note.txt", ref: 0)]
+            visibleRoot.entries.append(entry)
+        }
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .attachmentsDiverged(.backup(PendingUploadFake.payloadURL)))
+        XCTAssertTrue(recorder.recordedCalls.isEmpty)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+    }
+
+    func testMergePendingUploadsRefusesARemoteRefIntoAFileTheUnsavedEditAdded() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            var entry = KPEntry(title: "AutoFill Entry With Missing Attachment")
+            entry.attachments = [KPAttachment(name: "missing.txt", ref: 0)]
+            visibleRoot.entries.append(entry)
+        }
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.binaryPool?.count, 0, "Fixture precondition: the opened database has no attachments")
+        try addUnsavedAttachment(in: vm, name: "local.txt", bytes: Data("local-bytes".utf8))
+
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .attachmentsDiverged(.backup(PendingUploadFake.payloadURL)))
+        XCTAssertTrue(recorder.recordedCalls.isEmpty)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+    }
+
+    func testARefusedPendingMergeNamesTheBackupInsteadOfExportCopy() throws {
+        let backupURL = URL(fileURLWithPath: "/backups/20260924-080000-000000.kdbx")
+        let backupDate = try XCTUnwrap(DatabaseExportService.backupDate(fromFilename: backupURL.lastPathComponent))
+
+        for failure in [
+            PendingUploadMergeFailure.changeUnreadable(.backup(backupURL)),
+            .attachmentsDiverged(.backup(backupURL)),
+        ] {
+            // Once the database has been opened the cache is the cloud copy,
+            // so exporting it would hand over the version without the change.
+            XCTAssertFalse(failure.message.contains("Export Copy"), "\(failure)")
+            XCTAssertTrue(failure.message.contains(backupDate.formatted(.dateTime)), "\(failure)")
+        }
+        XCTAssertTrue(PendingUploadMergeFailure.changeUnreadable(.cache).message.contains("Export Copy"))
+    }
+
+    func testAnOrdinarySaveThatAbsorbsThePendingUploadHidesTheBanner() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8))
+        let vm = try makeViewModel(
+            reference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: fixtureData,
+                    status: .current
+                )
+            },
+            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+                // `CloudDatabaseSaver.finishSave` drops the pending uploads
+                // whose payload the saved base already contained.
+                pending.dropAll()
+                return .saved(newSHA512: Data("saved".utf8))
+            },
+            pendingUploadRecovery: pending.environment
+        )
+
+        await vm.unlock(password: fixturePassword)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Ordinary Edit")
+        try await vm.save()
+
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+    }
+
+    func testPendingUploadConflictIsNotOfferedForAReadOnlyDatabase() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        var reference = makeCloudReference(remoteRev: "rev-A")
+        reference.isReadOnly = true
+        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8))
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .sessionUnavailable)
+        XCTAssertTrue(recorder.recordedCalls.isEmpty)
+    }
+
+    func testPendingUploadConflictAvailabilityTracksReadOnlyChanges() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        var reference = makeCloudReference(remoteRev: "rev-A")
+        reference.isReadOnly = true
+        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8))
+        let vm = try makePendingUploadViewModel(
+            reference: reference,
+            fixtureData: fixtureData,
+            pending: pending,
+            recorder: recorder
+        )
+
+        await vm.unlock(password: fixturePassword)
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+
+        vm.setReadOnly(false)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+
+        vm.setReadOnly(true)
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+    }
+
+    func testPendingUploadConflictIsNotReportedWithoutAConflict() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8), isConflicted: false)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+    }
+
+    func testLockingClearsThePendingUploadState() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: Data("not-a-kdbx-file".utf8))
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+        XCTAssertNotNil(vm.pendingUploadMergeFailure)
+
+        vm.lock()
+
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+        XCTAssertNil(vm.pendingUploadMergeFailure)
+    }
+
+    private func makePendingUploadViewModel(
+        reference: DatabaseReference,
+        fixtureData: Data,
+        pending: PendingUploadFake,
+        recorder: MergeSaveRecorder,
+        cloudRefreshOperation: @escaping DatabaseViewModel.CloudSyncOperation = { _, _ in
+            throw CloudProviderError.networkUnavailable
+        },
+        pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { _ in false }
+    ) throws -> DatabaseViewModel {
+        try makeViewModel(
+            reference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: fixtureData,
+                    status: .current
+                )
+            },
+            cloudRefreshOperation: cloudRefreshOperation,
+            cloudSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, expectedRev, _, _ in
+                recorder.record(
+                    openTimeSHA512: openTimeSHA512,
+                    reconciledRemoteSHA512: reconciledRemoteSHA512,
+                    expectedRev: expectedRev,
+                    rootGroup: draft.rootGroup
+                )
+            },
+            pendingUploadRecovery: pending.environment,
+            pendingUploadMarkerCheck: pendingUploadMarkerCheck
+        )
+    }
+
     func testMergeAndSaveDeclinedOnDivergedAttachmentPoolKeepsConflictOptions() async throws {
         let remoteData = try makeRemoteVariantData(
             binaryPoolFields: [Data([0x00]) + Data("attachment-bytes".utf8)]
@@ -3712,6 +4437,100 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.saveConflict, SaveConflict(remoteSHA512: remoteHash, remoteData: remoteData))
         XCTAssertNotNil(vm.draft)
         XCTAssertNil(vm.mergeSummaryMessage)
+    }
+
+    func testAddedAttachmentOpensBeforeSaveAndSavesWithThePool() async throws {
+        let pools = DraftPoolRecorder()
+        let savedHash = KDBXCrypto.sha512(Data("saved".utf8))
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                pools.record(draft.binaryPoolFields)
+                return .saved(newSHA512: savedHash)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let openedPool = try XCTUnwrap(vm.binaryPool).rawFields
+        let entry = try XCTUnwrap(vm.currentRootGroup?.allEntries.first)
+        let bytes = Data("attached-bytes".utf8)
+
+        try vm.applyEntryEdit(.updateEntry(
+            entryID: entry.id,
+            draft: EntryDraftPayload(
+                title: entry.title,
+                password: "pw",
+                attachments: [.new(name: "attached.txt", data: bytes)]
+            )
+        ))
+        let attachment = try XCTUnwrap(vm.entry(withID: entry.id)?.attachments.last)
+        XCTAssertEqual(attachment.name, "attached.txt")
+        let unsavedData = await vm.attachmentData(for: attachment)
+        XCTAssertEqual(unsavedData, bytes, "An attachment in an unsaved edit must already open.")
+        XCTAssertEqual(vm.attachmentByteCount(for: attachment), bytes.count)
+
+        try await vm.save()
+
+        let appended: Data = Data([0x01]) + bytes
+        let expectedPool = openedPool + [appended]
+        XCTAssertEqual(pools.recorded, [expectedPool])
+        XCTAssertNil(vm.draft)
+        XCTAssertEqual(vm.binaryPool?.rawFields, expectedPool)
+        let savedData = await vm.attachmentData(for: attachment)
+        XCTAssertEqual(savedData, bytes)
+    }
+
+    func testMergeAndSaveKeepsAnAttachmentTheUnsavedEditAdded() async throws {
+        let remoteData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "Remote Only Entry"))
+        }
+        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let recorder = MergeSaveRecorder(results: [
+            .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
+            .saved(newSHA512: KDBXCrypto.sha512(Data("merged".utf8))),
+        ])
+        let pools = DraftPoolRecorder()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _, _ in
+                pools.record(draft.binaryPoolFields)
+                return recorder.record(
+                    openTimeSHA512: openTimeSHA512,
+                    reconciledRemoteSHA512: reconciledRemoteSHA512,
+                    expectedRev: nil,
+                    rootGroup: draft.rootGroup
+                )
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let openedPool = try XCTUnwrap(vm.binaryPool).rawFields
+        let entry = try XCTUnwrap(vm.currentRootGroup?.allEntries.first)
+        let bytes = Data("merged-attachment".utf8)
+        try vm.applyEntryEdit(.updateEntry(
+            entryID: entry.id,
+            draft: EntryDraftPayload(
+                title: entry.title,
+                password: "pw",
+                attachments: [.new(name: "local.txt", data: bytes)]
+            )
+        ))
+        try await vm.save()
+        XCTAssertNotNil(vm.saveConflict)
+
+        try await vm.mergeAndSave()
+
+        // The remote still has the pool the session opened, so the refs it
+        // brings mean the same bytes in the draft's pool, which only appended.
+        XCTAssertNil(vm.mergeFailure)
+        let appended: Data = Data([0x01]) + bytes
+        let expectedPool = openedPool + [appended]
+        XCTAssertEqual(pools.recorded.last, expectedPool)
+        let calls = recorder.recordedCalls
+        XCTAssertEqual(calls.count, 2)
+        XCTAssertTrue(allEntryTitles(in: calls[1].rootGroup).contains("Remote Only Entry"))
+        let mergedEntry = try XCTUnwrap(calls[1].rootGroup.allEntries.first { $0.id == entry.id })
+        XCTAssertEqual(mergedEntry.attachments.map(\.name), ["local.txt"])
+        XCTAssertEqual(vm.binaryPool?.rawFields, expectedPool)
+        let attachment = try XCTUnwrap(vm.entry(withID: entry.id)?.attachments.first)
+        let mergedData = await vm.attachmentData(for: attachment)
+        XCTAssertEqual(mergedData, bytes)
     }
 
     func testMergeAndSaveWithUnreadableRemoteKeepsConflictOptions() async throws {
@@ -3961,6 +4780,100 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(call.bytes, conflictBytes)
         XCTAssertNil(vm.draft)
         XCTAssertNil(vm.saveConflict)
+    }
+
+    func testMergeAndSaveRefusesARemoteRefIntoAFileTheUnsavedEditAdded() async throws {
+        // The remote keeps the opened (empty) pool but carries a dangling ref
+        // 0, the index the unsaved edit's file took in the draft's pool.
+        let remoteData = try makeRemoteVariantData { visibleRoot in
+            var entry = KPEntry(title: "Remote Entry With Missing Attachment")
+            entry.attachments = [KPAttachment(name: "missing.txt", ref: 0)]
+            visibleRoot.entries.append(entry)
+        }
+        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let recorder = MergeSaveRecorder(results: [
+            .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
+            .saved(newSHA512: KDBXCrypto.sha512(Data("merged".utf8))),
+        ])
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _, _ in
+                recorder.record(
+                    openTimeSHA512: openTimeSHA512,
+                    reconciledRemoteSHA512: reconciledRemoteSHA512,
+                    expectedRev: nil,
+                    rootGroup: draft.rootGroup
+                )
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.binaryPool?.count, 0, "Fixture precondition: the opened database has no attachments")
+        try addUnsavedAttachment(in: vm, name: "local.txt", bytes: Data("local-bytes".utf8))
+        try await vm.save()
+        XCTAssertNotNil(vm.saveConflict)
+
+        try await vm.mergeAndSave()
+
+        XCTAssertEqual(vm.mergeFailure, .attachmentsDiverged)
+        XCTAssertEqual(recorder.recordedCalls.count, 1, "A declined merge must not write.")
+        XCTAssertNotNil(vm.saveConflict)
+        XCTAssertNotNil(vm.draft)
+    }
+
+    private func addUnsavedAttachment(in vm: DatabaseViewModel, name: String, bytes: Data) throws {
+        let entry = try XCTUnwrap(vm.currentRootGroup?.allEntries.first)
+        try vm.applyEntryEdit(.updateEntry(
+            entryID: entry.id,
+            draft: EntryDraftPayload(title: entry.title, password: "pw", attachments: [.new(name: name, data: bytes)])
+        ))
+    }
+
+    func testSaveAsConflictCopyWritesThePoolTheDraftsAttachmentsPointInto() async throws {
+        // The remote's pool holds different bytes at the index the local
+        // attachment uses, so writing the draft over the remote's pool would
+        // hand the copy's attachment the remote's bytes.
+        let remoteData = try makeRemoteVariantData(
+            binaryPoolFields: [Data([0x00]) + Data("remote-only-bytes".utf8)]
+        ) { visibleRoot in
+            var entry = KPEntry(title: "Remote Entry With Attachment")
+            entry.attachments = [KPAttachment(name: "remote.txt", ref: 0)]
+            visibleRoot.entries.append(entry)
+        }
+        let recorder = ConflictCopyRecorder()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                .conflict(remoteSHA512: KDBXCrypto.sha512(remoteData), remoteData: remoteData)
+            },
+            localConflictCopyOperation: { _, filename, bytes in
+                await recorder.record(filename: filename, bytes: bytes)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.binaryPool?.count, 0, "Fixture precondition: the opened database has no attachments")
+        let entry = try XCTUnwrap(vm.currentRootGroup?.allEntries.first)
+        try vm.applyEntryEdit(.updateEntry(
+            entryID: entry.id,
+            draft: EntryDraftPayload(
+                title: entry.title,
+                password: "pw",
+                attachments: [.new(name: "local.txt", data: Data("local-bytes".utf8))]
+            )
+        ))
+        try await vm.save()
+        XCTAssertNotNil(vm.saveConflict)
+
+        try await vm.saveAsConflictCopy()
+
+        let recordedCall = await recorder.firstCall()
+        let copy = try KDBXParser.parseWithMetaAndHeader(
+            data: try XCTUnwrap(recordedCall).bytes,
+            compositeKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil),
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+        let copiedEntry = try XCTUnwrap(copy.rootGroup.allEntries.first { $0.id == entry.id })
+        let attachment = try XCTUnwrap(copiedEntry.attachments.first)
+        XCTAssertEqual(attachment.name, "local.txt")
+        let pool = BinaryPool(rawFields: copy.header.innerHeaderBinaryFields)
+        XCTAssertEqual(pool[attachment.ref]?.data, Data("local-bytes".utf8))
     }
 
     func testSaveAsConflictCopyCloudUploadsSuffixedFileClearsConflict() async throws {
@@ -5037,6 +5950,241 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.draft)
     }
 
+    // MARK: - Password import (#157)
+
+    private func importDrafts() throws -> [EntryDraftPayload] {
+        let csv = """
+        Title,URL,Username,Password,Notes,OTPAuth
+        Imported One,https://one.example,one-user,"one,secret",note one,otpauth://totp/One?secret=JBSWY3DPEHPK3PXP
+        Imported Two,https://two.example,two-user,two-secret,,
+
+        """
+        return try ApplePasswordsCSVImporter.preview(from: Data(csv.utf8)).items.map(\.draft)
+    }
+
+    func testImportEntriesAddsEveryEntryToTheGroupInOneSave() async throws {
+        let saved = SavedDraftCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                saved.record(draft)
+                return .saved(newSHA512: Data("imported-hash".utf8))
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let sessionKey = try XCTUnwrap(vm.sessionKey)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+        let entriesBefore = try XCTUnwrap(vm.visibleRootGroup?.allEntries)
+
+        let outcome = try await vm.importEntries(try importDrafts(), into: groupID)
+
+        XCTAssertEqual(outcome, .saved)
+        XCTAssertEqual(saved.drafts.count, 1, "one save for the whole import")
+        let draft = try XCTUnwrap(saved.drafts.first)
+        XCTAssertEqual(draft.pendingEdits.count, 2)
+        XCTAssertNil(vm.draft)
+        XCTAssertEqual(vm.openTimeSHA512, Data("imported-hash".utf8))
+
+        let group = try XCTUnwrap(vm.group(withID: groupID))
+        let one = try XCTUnwrap(group.entries.first { $0.title == "Imported One" })
+        XCTAssertEqual(one.username, "one-user")
+        XCTAssertEqual(one.url, "https://one.example")
+        XCTAssertEqual(one.notes, "note one")
+        XCTAssertEqual(try one.password.decrypt(using: sessionKey), "one,secret")
+        XCTAssertEqual(one.otpURL, "otpauth://totp/One?secret=JBSWY3DPEHPK3PXP")
+        XCTAssertNotNil(one.totpConfig)
+        XCTAssertNotNil(group.entries.first { $0.title == "Imported Two" })
+
+        let entriesAfter = try XCTUnwrap(vm.visibleRootGroup?.allEntries)
+        XCTAssertEqual(entriesAfter.count, entriesBefore.count + 2)
+        for entry in entriesBefore {
+            XCTAssertEqual(vm.entry(withID: entry.id)?.title, entry.title, "existing entries are left alone")
+        }
+    }
+
+    func testImportEntriesReportsAConflictAndKeepsTheEntriesInTheDraft() async throws {
+        let remoteData = Data("remote".utf8)
+        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                .conflict(remoteSHA512: remoteHash, remoteData: remoteData)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        let outcome = try await vm.importEntries(try importDrafts(), into: groupID)
+
+        XCTAssertEqual(outcome, .awaitingConflictResolution)
+        XCTAssertNotNil(vm.saveConflict)
+        XCTAssertEqual(vm.draft?.pendingEdits.count, 2, "the conflict alert still has the entries to merge or save as a copy")
+    }
+
+    func testImportEntriesReportsAFailedSaveWithoutThrowingAndKeepsTheEntriesStaged() async throws {
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                throw CocoaError(.fileWriteOutOfSpace)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        let outcome = try await vm.importEntries(try importDrafts(), into: groupID)
+
+        guard case .saveFailed = outcome else {
+            return XCTFail("expected a save failure outcome, got \(outcome)")
+        }
+        XCTAssertEqual(vm.draft?.pendingEdits.count, 2, "Retry Save still has the entries to write")
+        XCTAssertTrue(vm.isDirty)
+    }
+
+    func testImportEntriesRefusesAReadOnlyDatabaseWithoutTouchingTheDraft() async throws {
+        var reference = try makeReference()
+        reference.isReadOnly = true
+        let saved = SavedDraftCapture()
+        let vm = try makeViewModel(
+            reference: reference,
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                saved.record(draft)
+                return .saved(newSHA512: Data())
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        do {
+            _ = try await vm.importEntries(try importDrafts(), into: groupID)
+            XCTFail("a read-only database must refuse the import")
+        } catch {
+            XCTAssertEqual(error as? SaveError, .databaseIsReadOnly)
+        }
+        XCTAssertNil(vm.draft)
+        XCTAssertTrue(saved.drafts.isEmpty)
+    }
+
+    func testImportEntriesRefusesTheRecycleBinItsSubgroupsAndMissingGroups() async throws {
+        let saved = SavedDraftCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                saved.record(draft)
+                return .saved(newSHA512: Data())
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let rootID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.createGroup(named: "Import Bin Child", in: rootID)
+        let child = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Import Bin Child" })
+        try vm.deleteGroup(child.id, sendToRecycleBin: true)
+        let recycleBinID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
+        let pendingBefore = vm.draft?.pendingEdits
+
+        for groupID in [recycleBinID, child.id, UUID()] {
+            do {
+                _ = try await vm.importEntries(try importDrafts(), into: groupID)
+                XCTFail("import into \(groupID) must be refused")
+            } catch {
+                XCTAssertEqual(error as? DatabaseViewModel.PasswordImportFailure, .destinationUnavailable)
+            }
+        }
+        XCTAssertEqual(vm.draft?.pendingEdits, pendingBefore)
+        XCTAssertTrue(saved.drafts.isEmpty)
+    }
+
+    func testImportEntriesDropsEntriesBuiltOnATreeThatChangedMeanwhile() async throws {
+        let gate = InFlightSaveGate()
+        let saved = SavedDraftCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                saved.record(draft)
+                return .saved(newSHA512: Data())
+            },
+            importStagingOperation: { base, drafts, groupID in
+                await gate.parkFirstCall()
+                return try await DatabaseViewModel.stageImportedEntries(base, drafts, groupID)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+        let drafts = try importDrafts()
+        let importTask = Task { try await vm.importEntries(drafts, into: groupID) }
+        await gate.firstCallStarted()
+
+        try vm.createGroup(named: "Edited Meanwhile", in: groupID)
+        await gate.releaseFirstCall()
+
+        do {
+            _ = try await importTask.value
+            XCTFail("entries built on the replaced tree must not be saved")
+        } catch {
+            XCTAssertEqual(error as? DatabaseViewModel.PasswordImportFailure, .databaseChanged)
+        }
+        XCTAssertEqual(
+            vm.draft?.pendingEdits,
+            [.createGroup(parentGroupID: groupID, name: "Edited Meanwhile")],
+            "the edit made meanwhile survives and nothing is imported"
+        )
+        XCTAssertTrue(saved.drafts.isEmpty)
+    }
+
+    func testImportEntriesDropsEntriesWhenTheSessionLocksMeanwhile() async throws {
+        let gate = InFlightSaveGate()
+        let saved = SavedDraftCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                saved.record(draft)
+                return .saved(newSHA512: Data())
+            },
+            importStagingOperation: { base, drafts, groupID in
+                await gate.parkFirstCall()
+                return try await DatabaseViewModel.stageImportedEntries(base, drafts, groupID)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+        let drafts = try importDrafts()
+        let importTask = Task { try await vm.importEntries(drafts, into: groupID) }
+        await gate.firstCallStarted()
+
+        vm.lock()
+        await gate.releaseFirstCall()
+
+        do {
+            _ = try await importTask.value
+            XCTFail("a locked session must not receive the entries")
+        } catch {
+            XCTAssertEqual(error as? DatabaseViewModel.PasswordImportFailure, .sessionUnavailable)
+        }
+        XCTAssertNil(vm.draft)
+        XCTAssertTrue(saved.drafts.isEmpty)
+    }
+
+    func testImportEntriesNeedsAnUnlockedSession() async throws {
+        let vm = try makeViewModel()
+
+        do {
+            _ = try await vm.importEntries(try importDrafts(), into: UUID())
+            XCTFail("a locked session must refuse the import")
+        } catch {
+            XCTAssertEqual(error as? DatabaseViewModel.PasswordImportFailure, .sessionUnavailable)
+        }
+    }
+
+    func testImportDuplicateCandidatesLeaveOutTheRecycleBin() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let entries = try XCTUnwrap(vm.visibleRootGroup?.allEntries)
+        let recycled = try XCTUnwrap(entries.first)
+        let kept = try XCTUnwrap(entries.dropFirst().first)
+
+        try vm.deleteEntry(recycled.id, sendToRecycleBin: true)
+        let candidates = vm.importDuplicateCandidates
+
+        XCTAssertTrue(candidates.contains(.init(title: kept.title, username: kept.username, url: kept.url)))
+        XCTAssertFalse(candidates.contains(.init(title: recycled.title, username: recycled.username, url: recycled.url)))
+        let liveEntries = try XCTUnwrap(vm.currentRootGroup?.allEntries)
+            .filter { vm.isEntryInRecycleBin(entryID: $0.id) == false }
+        XCTAssertEqual(candidates.count, liveEntries.count)
+    }
+
     // MARK: - Change encryption settings (#98)
 
     func testChangeEncryptionSettingsRoutesChangeThroughLocalSaveUnderTheSameKey() async throws {
@@ -5052,7 +6200,7 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
         let compositeKey = try XCTUnwrap(vm.compositeKey)
 
-        try await vm.changeEncryptionSettings(cipher: .chacha20, kdfPreset: .maximum, isCompressed: false)
+        try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: .argon2id(.maximum), isCompressed: false)
 
         let change = try XCTUnwrap(capture.change)
         XCTAssertEqual(change.cipherID, KDBXParser.chachaCipherUUID)
@@ -5068,6 +6216,27 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertState(vm.state, is: .unlocked)
     }
 
+    func testChangeEncryptionSettingsWritesAESKDFParameters() async throws {
+        let capture = EncryptionSettingsCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, compositeKey, _, _, newCompositeKey, encryptionSettings in
+                capture.record(compositeKey: compositeKey, newCompositeKey: newCompositeKey, change: encryptionSettings)
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.changeEncryptionSettings(cipher: nil, keyDerivation: .aesKDF(rounds: 250_000), isCompressed: nil)
+
+        let change = try XCTUnwrap(capture.change)
+        XCTAssertNil(change.cipherID, "AES-KDF is a key derivation; the cipher stays as it was")
+        XCTAssertNil(change.compressionFlags)
+        XCTAssertEqual(change.kdfParameters?["$UUID"] as? Data, KDBXParser.aesKDFUUID)
+        XCTAssertEqual(change.kdfParameters?["R"] as? UInt64, 250_000)
+        XCTAssertEqual((change.kdfParameters?["S"] as? Data)?.count, 32)
+        XCTAssertNil(capture.newCompositeKey, "A settings change must not rekey.")
+    }
+
     func testChangeEncryptionSettingsLeavesUnchosenFieldsNil() async throws {
         let capture = EncryptionSettingsCapture()
         let vm = try makeViewModel(
@@ -5078,7 +6247,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        try await vm.changeEncryptionSettings(cipher: nil, kdfPreset: nil, isCompressed: true)
+        try await vm.changeEncryptionSettings(cipher: nil, keyDerivation: nil, isCompressed: true)
 
         let change = try XCTUnwrap(capture.change)
         XCTAssertNil(change.cipherID)
@@ -5096,7 +6265,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        try await vm.changeEncryptionSettings(cipher: nil, kdfPreset: nil, isCompressed: nil)
+        try await vm.changeEncryptionSettings(cipher: nil, keyDerivation: nil, isCompressed: nil)
 
         XCTAssertFalse(localSaverCalls.didCall)
     }
@@ -5132,7 +6301,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        try await vm.changeEncryptionSettings(cipher: .chacha20, kdfPreset: nil, isCompressed: nil)
+        try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
 
         XCTAssertEqual(capture.expectedRev, "rev-A")
         XCTAssertEqual(capture.change?.cipherID, KDBXParser.chachaCipherUUID)
@@ -5273,7 +6442,7 @@ final class DatabaseViewModelTests: XCTestCase {
         }
 
         await vm.unlock(password: fixturePassword)
-        try await vm.changeEncryptionSettings(cipher: .chacha20, kdfPreset: nil, isCompressed: nil)
+        try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
 
         for _ in 0..<200 where box.followUpDidRun == false {
             try await Task.sleep(nanoseconds: 10_000_000)
@@ -5289,7 +6458,7 @@ final class DatabaseViewModelTests: XCTestCase {
         line: UInt = #line
     ) async {
         do {
-            try await viewModel.changeEncryptionSettings(cipher: .chacha20, kdfPreset: nil, isCompressed: nil)
+            try await viewModel.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
             XCTFail("Expected \(expected)", file: file, line: line)
         } catch let error as DatabaseViewModel.EncryptionSettingsError {
             XCTAssertEqual(error, expected, file: file, line: line)
@@ -5328,6 +6497,13 @@ final class DatabaseViewModelTests: XCTestCase {
                 progress: progress
             )
         },
+        cloudRefreshOperation: @escaping DatabaseViewModel.CloudSyncOperation = { reference, progress in
+            try await CloudSyncCoordinator.syncIfNeededForOpen(
+                reference: reference,
+                honorsManualSyncPolicy: false,
+                progress: progress
+            )
+        },
         localSaveOperation: @escaping DatabaseViewModel.LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, newCompositeKey, encryptionSettings in
             try await LocalDatabaseSaver.save(
                 draft: draft,
@@ -5354,20 +6530,11 @@ final class DatabaseViewModelTests: XCTestCase {
             )
         },
         conflictCopyEncryptionOperation: @escaping DatabaseViewModel.ConflictCopyEncryptionOperation = { draft, compositeKey, sourceData in
-            try await Task.detached {
-                let parsed = try KDBXParser.parseWithMetaAndHeader(
-                    data: sourceData,
-                    compositeKey: compositeKey,
-                    sessionKey: SymmetricKey(size: .bits256)
-                )
-                return try KDBXWriter.write(
-                    rootGroup: draft.rootGroup,
-                    meta: draft.meta,
-                    compositeKey: compositeKey,
-                    header: parsed.header,
-                    sessionKey: draft.writerSessionKey
-                )
-            }.value
+            try await DatabaseViewModel.encryptConflictCopy(
+                draft: draft,
+                compositeKey: compositeKey,
+                sourceData: sourceData
+            )
         },
         localConflictCopyOperation: @escaping DatabaseViewModel.LocalConflictCopyOperation = { reference, filename, bytes in
             try await Task.detached {
@@ -5433,6 +6600,7 @@ final class DatabaseViewModelTests: XCTestCase {
             let context = try await BiometricService.authenticate(reason: reason)
             return try DatabaseViewModel.retrieveStoredCompositeKey(for: reference, context: context)
         },
+        pendingUploadRecovery: PendingUploadRecovery.Environment = .live,
         pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { reference in
             PendingUploadQueue.listMarkers(for: reference.id).isEmpty == false
         },
@@ -5448,6 +6616,7 @@ final class DatabaseViewModelTests: XCTestCase {
         deviceOwnerAuthAvailabilityCheck: @escaping DatabaseViewModel.DeviceOwnerAuthAvailabilityCheck = {
             BiometricService.canAuthenticateDeviceOwner
         },
+        importStagingOperation: @escaping DatabaseViewModel.ImportStagingOperation = DatabaseViewModel.stageImportedEntries,
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) throws -> DatabaseViewModel {
@@ -5460,6 +6629,7 @@ final class DatabaseViewModelTests: XCTestCase {
         return DatabaseViewModel(
             databaseReference: resolvedReference,
             cloudSyncOperation: cloudSyncOperation,
+            cloudRefreshOperation: cloudRefreshOperation,
             localSaveOperation: localSaveOperation,
             cloudSaveOperation: cloudSaveOperation,
             conflictCopyEncryptionOperation: conflictCopyEncryptionOperation,
@@ -5468,10 +6638,12 @@ final class DatabaseViewModelTests: XCTestCase {
             reloadOperation: reloadOperation,
             biometricCompositeKeyOperation: biometricCompositeKeyOperation,
             pendingUploadMarkerCheck: pendingUploadMarkerCheck,
+            pendingUploadRecovery: pendingUploadRecovery,
             storedKeyPresenceCheck: storedKeyPresenceCheck,
             storedKeyStoreOperation: storedKeyStoreOperation,
             storedKeyDeleteOperation: storedKeyDeleteOperation,
             deviceOwnerAuthAvailabilityCheck: deviceOwnerAuthAvailabilityCheck,
+            importStagingOperation: importStagingOperation,
             conflictCopyDateProvider: conflictCopyDateProvider,
             nowProvider: nowProvider
         )
@@ -5738,7 +6910,7 @@ private actor AsyncGate {
 
 /// Parks the first save-operation call until the test releases it, so an edit
 /// can land while that save is provably in flight. Later calls pass through.
-private actor InFlightSaveGate {
+actor InFlightSaveGate {
     private var startWaiter: CheckedContinuation<Void, Never>?
     private var hasStarted = false
     private var releaseWaiter: CheckedContinuation<Void, Never>?
@@ -5762,6 +6934,23 @@ private actor InFlightSaveGate {
         isReleased = true
         releaseWaiter?.resume()
         releaseWaiter = nil
+    }
+}
+
+private final class SavedDraftCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedDrafts: [DatabaseDraft] = []
+
+    func record(_ draft: DatabaseDraft) {
+        lock.lock()
+        storedDrafts.append(draft)
+        lock.unlock()
+    }
+
+    var drafts: [DatabaseDraft] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedDrafts
     }
 }
 
@@ -5809,6 +6998,89 @@ private final class RekeyedKeyCapture: @unchecked Sendable {
 /// Scripts a sequence of save outcomes and records what each save was gated
 /// on, so a merge save's baseline can be asserted from the seam the view model
 /// actually calls.
+/// A conflicted pending upload whose payload sits in the one candidate file.
+private final class PendingUploadFake: @unchecked Sendable {
+    let storedMarker: PendingUploadQueue.StoredMarker
+    private let payload: Data
+    private let storesPayload: Bool
+    private let lock = NSLock()
+    private var markers: [PendingUploadQueue.StoredMarker]
+    private var dropped: [UUID] = []
+    static let payloadURL = URL(fileURLWithPath: "/pending-upload-fake/20260924-080000-000000.kdbx")
+
+    init(
+        reference: DatabaseReference,
+        payload: Data,
+        isConflicted: Bool = true,
+        storesPayload: Bool = true,
+        isPayloadFinalized: Bool? = true
+    ) {
+        let id = UUID()
+        storedMarker = PendingUploadQueue.StoredMarker(
+            id: id,
+            fileURL: URL(fileURLWithPath: "/pending-upload-fake/\(id.uuidString).json"),
+            marker: PendingUploadQueue.Marker(
+                databaseId: reference.id,
+                encryptedBytesCacheURL: "cache.kdbx",
+                openTimeSHA512: KDBXCrypto.sha512(payload),
+                expectedRev: "rev-0",
+                createdAt: Date(timeIntervalSince1970: 1_000),
+                isConflicted: isConflicted,
+                baseRev: "rev-0",
+                isPayloadFinalized: isPayloadFinalized
+            )
+        )
+        self.payload = payload
+        self.storesPayload = storesPayload
+        markers = [storedMarker]
+    }
+
+    var droppedMarkerIDs: [UUID] {
+        lock.withLock { dropped }
+    }
+
+    func dropAll() {
+        lock.withLock { markers.removeAll() }
+    }
+
+    var environment: PendingUploadRecovery.Environment {
+        PendingUploadRecovery.Environment(
+            listMarkers: { databaseId in
+                self.lock.withLock { self.markers.filter { $0.marker.databaseId == databaseId } }
+            },
+            cacheURL: { _ in URL(fileURLWithPath: "/pending-upload-fake/cloud-copy.kdbx") },
+            backupURLs: { _ in [Self.payloadURL] },
+            readData: { url in
+                guard self.storesPayload, url == Self.payloadURL else { throw CocoaError(.fileReadNoSuchFile) }
+                return self.payload
+            },
+            dropMarker: { storedMarker in
+                self.lock.withLock {
+                    self.dropped.append(storedMarker.id)
+                    self.markers.removeAll { $0.id == storedMarker.id }
+                }
+            }
+        )
+    }
+}
+
+private final class DraftPoolRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var pools: [[Data]?] = []
+
+    var recorded: [[Data]?] {
+        lock.lock()
+        defer { lock.unlock() }
+        return pools
+    }
+
+    func record(_ pool: [Data]?) {
+        lock.lock()
+        defer { lock.unlock() }
+        pools.append(pool)
+    }
+}
+
 private final class MergeSaveRecorder: @unchecked Sendable {
     struct Call {
         let openTimeSHA512: Data

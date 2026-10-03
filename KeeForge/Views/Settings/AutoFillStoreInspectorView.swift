@@ -12,6 +12,8 @@ import SwiftUI
 final class AutoFillStoreInspectorViewModel {
     private(set) var snapshot: InspectorStoreSnapshot?
     private(set) var isRefreshing = false
+    private(set) var enumerationError: String?
+    private(set) var capabilities: CredentialIdentityStoreCapabilities?
 
     private let store: any CredentialIdentityStoreProviding
 
@@ -35,8 +37,14 @@ final class AutoFillStoreInspectorViewModel {
         let store = self.store
 
         Task {
-            let snapshot = await Self.buildSnapshot(store: store) { namesByID[$0] }
-            self.snapshot = snapshot
+            self.capabilities = await store.capabilities()
+            do {
+                self.snapshot = try await Self.buildSnapshot(store: store) { namesByID[$0] }
+                self.enumerationError = nil
+            } catch {
+                self.snapshot = nil
+                self.enumerationError = "Credential store enumeration failed: \(String(describing: error))"
+            }
             self.isRefreshing = false
         }
     }
@@ -48,12 +56,12 @@ final class AutoFillStoreInspectorViewModel {
     nonisolated static func buildSnapshot(
         store: any CredentialIdentityStoreProviding,
         databaseName: @Sendable (UUID) -> String?
-    ) async -> InspectorStoreSnapshot {
+    ) async throws -> InspectorStoreSnapshot {
         let capabilities = await store.capabilities()
         return AutoFillStoreInspectorGrouping.makeSnapshot(
             isEnabled: capabilities.isEnabled,
             supportsIncrementalUpdates: capabilities.supportsIncrementalUpdates,
-            identities: await store.credentialIdentities(),
+            identities: try await store.credentialIdentities(),
             databaseName: databaseName
         )
     }
@@ -126,6 +134,16 @@ struct AutoFillStoreInspectorView: View {
                     )
                 }
             }
+        } else if let error = viewModel.enumerationError {
+            List {
+                if let capabilities = viewModel.capabilities {
+                    valueRow(field: "Enabled", value: capabilities.isEnabled ? "enabled" : "disabled",
+                             identifier: "autofill-inspector.enabled-state")
+                }
+                Text(verbatim: error)
+                    .accessibilityIdentifier("autofill-inspector.enumeration-error")
+                    .accessibilityValue(error)
+            }
         } else {
             ProgressView {
                 Text(verbatim: "Reading credential identity store…")
@@ -165,6 +183,9 @@ struct AutoFillStoreInspectorView: View {
                 value: "\(bucket.count)",
                 identifier: "autofill-inspector.database.\(bucket.databaseID.uuidString).count"
             )
+            Text(verbatim: "Identity metadata")
+                .accessibilityIdentifier("autofill-inspector.database.\(bucket.databaseID.uuidString).identities")
+                .accessibilityValue(bucket.rows.map(\.metadata).sorted().joined(separator: "\n"))
             ForEach(Array(bucket.rows.enumerated()), id: \.offset) { _, row in
                 identityRow(row)
             }
