@@ -486,8 +486,6 @@ struct UnlockView: View {
         switch (configuration.transport, configuration.slot) {
         case (.nfc, .one): String(localized: "YubiKey via NFC, Slot 1")
         case (.nfc, .two): String(localized: "YubiKey via NFC, Slot 2")
-        case (.lightning, .one): String(localized: "YubiKey via Lightning, Slot 1")
-        case (.lightning, .two): String(localized: "YubiKey via Lightning, Slot 2")
         }
     }
 
