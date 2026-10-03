@@ -1117,6 +1117,51 @@ final class ProtectedCustomFieldEditorAuthUITests: UnlockedDatabaseUITestCase {
     }
 }
 
+/// With a grace period selected, the unlock itself is the recent
+/// authentication: a reveal goes through although the stub would keep a prompt
+/// pending forever. Leaving the app ends the period, so the next reveal waits.
+@MainActor
+final class AuthenticationGracePeriodUITests: UnlockedDatabaseUITestCase {
+    override func configureLaunch(app: XCUIApplication) throws {
+        app.launchEnvironment["UI_TEST_DEVICE_OWNER_AUTH_PENDING"] = "1"
+        // Defaults pairs must precede the bare `-ui-testing` flag. The session
+        // has to survive the background for the second half of the test.
+        app.launchArguments = [
+            "-KeeForge.authenticationGracePeriod", "fiveMinutes",
+            "-KeeForge.lockOnBackground", "NO",
+            "-KeeForge.autoLockTimeout", "Never",
+        ] + app.launchArguments
+    }
+
+    func testRevealNeedsNoPromptAfterUnlockUntilTheAppIsLeft() {
+        unlockSuccessfully()
+        openEntry(named: "Discord", inGroup: "Social")
+
+        let revealButton = app.buttons["entry.password.reveal"]
+        XCTAssertTrue(revealButton.waitForExistence(timeout: Self.ciElementTimeout))
+        let password = app.staticTexts["discordpass!@#"]
+        revealButton.tap()
+        XCTAssertTrue(
+            password.waitForExistence(timeout: Self.ciElementTimeout),
+            "Reveal waited on authentication inside the grace period the unlock opened"
+        )
+        revealButton.tap()
+        XCTAssertTrue(password.waitForNonExistence(timeout: 5), "Password stayed revealed after hiding it")
+
+        XCUIDevice.shared.press(.home)
+        _ = app.wait(for: .runningBackground, timeout: 10)
+        app.activate()
+        _ = app.wait(for: .runningForeground, timeout: 10)
+
+        XCTAssertTrue(revealButton.waitForExistence(timeout: Self.ciElementTimeout), "The session did not survive the background")
+        revealButton.tap()
+        XCTAssertFalse(
+            password.waitForExistence(timeout: 3),
+            "Password was revealed without authentication after the app was left"
+        )
+    }
+}
+
 extension UnlockedDatabaseUITestCase {
     /// Opens the editor on the kitchen-sink `Protected Custom` entry, whose
     /// only custom field is the protected `API Token`, and asserts it is masked.

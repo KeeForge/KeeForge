@@ -3206,6 +3206,86 @@
         }
       }
     },
+    "After you unlock a database or authenticate, passwords and protected fields can be shown and copied for this long without asking again. Locking the database ends it. AutoFill is not affected." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nachdem du eine Datenbank entsperrt oder dich authentifiziert hast, können Passwörter und geschützte Felder so lange ohne erneute Abfrage angezeigt und kopiert werden. Das Sperren der Datenbank beendet diese Zeit. AutoFill ist davon nicht betroffen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Después de desbloquear una base de datos o autenticarte, las contraseñas y los campos protegidos se pueden mostrar y copiar durante este tiempo sin volver a preguntar. Bloquear la base de datos lo termina. El autorrelleno no se ve afectado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après avoir déverrouillé une base de données ou vous être authentifié, les mots de passe et les champs protégés peuvent être affichés et copiés pendant cette durée sans nouvelle demande. Verrouiller la base de données y met fin. Le remplissage automatique n'est pas concerné."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースのロックを解除するか認証したあと、この時間内は再度確認せずにパスワードと保護されたフィールドを表示およびコピーできます。データベースをロックすると終了します。自動入力には影響しません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁数据库或通过身份验证后，在这段时间内可以显示和拷贝密码及受保护字段，无需再次询问。锁定数据库会结束这段时间。自动填充不受影响。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖資料庫或通過身分驗證後，在這段時間內可以顯示和拷貝密碼及受保護欄位，無須再次詢問。鎖定資料庫會結束這段時間。自動填寫不受影響。"
+          }
+        }
+      }
+    },
+    "After you unlock a database or authenticate, passwords and protected fields can be shown and copied for this long without asking again. Locking the database or leaving KeeForge ends it. AutoFill is not affected." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nachdem du eine Datenbank entsperrt oder dich authentifiziert hast, können Passwörter und geschützte Felder so lange ohne erneute Abfrage angezeigt und kopiert werden. Das Sperren der Datenbank oder das Verlassen von KeeForge beendet diese Zeit. AutoFill ist davon nicht betroffen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Después de desbloquear una base de datos o autenticarte, las contraseñas y los campos protegidos se pueden mostrar y copiar durante este tiempo sin volver a preguntar. Bloquear la base de datos o salir de KeeForge lo termina. El autorrelleno no se ve afectado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après avoir déverrouillé une base de données ou vous être authentifié, les mots de passe et les champs protégés peuvent être affichés et copiés pendant cette durée sans nouvelle demande. Verrouiller la base de données ou quitter KeeForge y met fin. Le remplissage automatique n'est pas concerné."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースのロックを解除するか認証したあと、この時間内は再度確認せずにパスワードと保護されたフィールドを表示およびコピーできます。データベースをロックするか KeeForge を離れると終了します。自動入力には影響しません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁数据库或通过身份验证后，在这段时间内可以显示和拷贝密码及受保护字段，无需再次询问。锁定数据库或离开 KeeForge 会结束这段时间。自动填充不受影响。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖資料庫或通過身分驗證後，在這段時間內可以顯示和拷貝密碼及受保護欄位，無須再次詢問。鎖定資料庫或離開 KeeForge 會結束這段時間。自動填寫不受影響。"
+          }
+        }
+      }
+    },
     "Algorithm" : {
       "localizations" : {
         "de" : {
@@ -3442,6 +3522,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "允許未加密的 HTTP"
+          }
+        }
+      }
+    },
+    "Always Ask" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immer fragen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preguntar siempre"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toujours demander"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "常に確認"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "始终询问"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一律詢問"
           }
         }
       }
@@ -4402,6 +4522,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "身分驗證未完成。主金鑰未被更改。"
+          }
+        }
+      }
+    },
+    "Authentication Grace Period" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Karenzzeit für die Authentifizierung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Periodo de gracia de autenticación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Délai de grâce d'authentification"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認証の猶予時間"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "身份验证宽限期"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "身分驗證寬限期"
           }
         }
       }

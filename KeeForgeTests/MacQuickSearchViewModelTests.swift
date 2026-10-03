@@ -13,6 +13,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     private var session: DatabaseViewModel?
     private var copied: [String] = []
     private var authenticationRequests = 0
+    private var authenticationGates: [SecretAccessGate] = []
     private var authenticationResult = true
     private var copiedCallbacks = 0
     private var abortedCopies = 0
@@ -24,6 +25,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         session = nil
         copied = []
         authenticationRequests = 0
+        authenticationGates = []
         authenticationResult = true
         copiedCallbacks = 0
         abortedCopies = 0
@@ -160,9 +162,43 @@ final class MacQuickSearchViewModelTests: XCTestCase {
 
         XCTAssertTrue(didCopy)
         XCTAssertEqual(authenticationRequests, 1)
+        XCTAssertTrue(
+            authenticationGates.first === session?.secretAccess,
+            "The copy must be authorized by the session it reads from"
+        )
         XCTAssertEqual(copied, ["twitterpass123"])
         XCTAssertEqual(copiedCallbacks, 1)
         XCTAssertEqual(abortedCopies, 0)
+    }
+
+    func testTheDeviceOwnerGateSkipsThePromptInsideTheGracePeriod() async {
+        let harness = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
+        harness.gate.noteSuccessfulAuthentication()
+
+        let isAuthorized = await MacQuickSearchViewModel.deviceOwnerGate(harness.gate)
+
+        XCTAssertTrue(isAuthorized)
+        XCTAssertTrue(harness.promptReasons.isEmpty)
+    }
+
+    func testTheDeviceOwnerGatePromptsOutsideTheGracePeriod() async {
+        let harness = SecretAccessGateHarness(gracePeriod: .alwaysAsk)
+        harness.gate.noteSuccessfulAuthentication()
+
+        let isAuthorized = await MacQuickSearchViewModel.deviceOwnerGate(harness.gate)
+
+        XCTAssertTrue(isAuthorized)
+        XCTAssertEqual(harness.promptReasons.count, 1)
+    }
+
+    func testTheDeviceOwnerGateRefusesADeclinedPrompt() async {
+        let harness = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
+        harness.promptSucceeds = false
+
+        let isAuthorized = await MacQuickSearchViewModel.deviceOwnerGate(harness.gate)
+
+        XCTAssertFalse(isAuthorized)
+        XCTAssertEqual(harness.promptReasons.count, 1)
     }
 
     func testDeclinedAuthenticationCopiesNothingAndHandsFocusBack() async throws {
@@ -185,7 +221,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         self.session = session
         let model = MacQuickSearchViewModel(
             sessionProvider: { session },
-            authenticateDeviceOwner: {
+            authenticateDeviceOwner: { _ in
                 session.lockRequest(force: true)
                 return true
             },
@@ -209,7 +245,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         let twitterID = try XCTUnwrap(session.entries(matching: "Twitter").first { $0.title == "Twitter" }).id
         let model = MacQuickSearchViewModel(
             sessionProvider: { session },
-            authenticateDeviceOwner: {
+            authenticateDeviceOwner: { _ in
                 try? session.deleteEntry(twitterID, sendToRecycleBin: false)
                 return true
             },
@@ -342,9 +378,10 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     private func makeModel() -> MacQuickSearchViewModel {
         let model = MacQuickSearchViewModel(
             sessionProvider: { [weak self] in self?.session },
-            authenticateDeviceOwner: { [weak self] in
+            authenticateDeviceOwner: { [weak self] gate in
                 guard let self else { return false }
                 self.authenticationRequests += 1
+                self.authenticationGates.append(gate)
                 return self.authenticationResult
             },
             copyToClipboard: { [weak self] in self?.copied.append($0) }

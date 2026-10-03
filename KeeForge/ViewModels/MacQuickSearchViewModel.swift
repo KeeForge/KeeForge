@@ -31,7 +31,7 @@ final class MacQuickSearchViewModel {
     }
 
     typealias SessionProvider = @MainActor () -> DatabaseViewModel?
-    typealias DeviceOwnerAuthenticator = @MainActor () async -> Bool
+    typealias DeviceOwnerAuthenticator = @MainActor (_ gate: SecretAccessGate) async -> Bool
     typealias ClipboardWriter = @MainActor (String) -> Void
 
     /// Long lists belong in the main window; the panel is for picking one.
@@ -76,12 +76,13 @@ final class MacQuickSearchViewModel {
     }
 
     /// Same gate as the entry detail view, the row context menus and ⇧⌘C:
-    /// Touch ID, the login password or Apple Watch, skipped only when the Mac
-    /// has no way to authenticate its owner at all.
-    static func deviceOwnerGate() async -> Bool {
-        guard BiometricService.canAuthenticateDeviceOwner else { return true }
+    /// Touch ID, the login password or Apple Watch, skipped only inside the
+    /// session's authentication grace period or when the Mac has no way to
+    /// authenticate its owner at all.
+    static func deviceOwnerGate(_ gate: SecretAccessGate) async -> Bool {
+        guard gate.requiresAuthentication else { return true }
         do {
-            _ = try await BiometricService.authenticateDeviceOwner(reason: String(localized: "Copy password"))
+            try await gate.authenticate(reason: String(localized: "Copy password"))
             return true
         } catch {
             return false
@@ -173,11 +174,13 @@ final class MacQuickSearchViewModel {
     /// is checked again afterwards: it may have locked while the prompt was up.
     @discardableResult
     func copy(_ field: CopyField, from entry: KPEntry) async -> Bool {
-        guard canCopy(field, from: entry) else { return false }
+        guard canCopy(field, from: entry), let session = unlockedSession else { return false }
 
         let value: String?
         if field == .password {
-            value = await authenticateDeviceOwner() ? currentValue(of: field, entryID: entry.id) : nil
+            value = await authenticateDeviceOwner(session.secretAccess)
+                ? currentValue(of: field, entryID: entry.id)
+                : nil
             if value == nil { onCopyAborted?() }
         } else {
             value = currentValue(of: field, entryID: entry.id)

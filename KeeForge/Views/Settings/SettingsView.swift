@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var autoLockTimeout = SettingsService.autoLockTimeout
     @State private var lockOnBackground = SettingsService.lockOnBackground
     @State private var clipboardTimeout = SettingsService.clipboardTimeout
+    @State private var authenticationGracePeriod = SettingsService.authenticationGracePeriod
     @State private var autoUnlockWithFaceID = SettingsService.autoUnlockWithFaceID
     @State private var showWebsiteIcons = SettingsService.showWebsiteIcons
     @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
@@ -60,6 +61,7 @@ struct SettingsView: View {
                 autoLockTimeout: $autoLockTimeout,
                 macLockPolicy: $macLockPolicy,
                 clipboardTimeout: $clipboardTimeout,
+                authenticationGracePeriod: $authenticationGracePeriod,
                 autoUnlockWithBiometrics: $autoUnlockWithFaceID,
                 blockScreenCapture: $blockScreenCapture
             )
@@ -185,6 +187,9 @@ struct SettingsView: View {
             .onChange(of: clipboardTimeout) { _, newValue in
                 SettingsService.clipboardTimeout = newValue
             }
+            .onChange(of: authenticationGracePeriod) { _, newValue in
+                SettingsService.authenticationGracePeriod = newValue
+            }
             .onChange(of: autoUnlockWithFaceID) { _, newValue in
                 SettingsService.autoUnlockWithFaceID = newValue
             }
@@ -250,6 +255,7 @@ struct SettingsView: View {
                     autoLockTimeout: $autoLockTimeout,
                     lockOnBackground: $lockOnBackground,
                     clipboardTimeout: $clipboardTimeout,
+                    authenticationGracePeriod: $authenticationGracePeriod,
                     autoUnlockWithFaceID: $autoUnlockWithFaceID
                 )
             } label: {
@@ -360,6 +366,7 @@ private struct SecuritySettingsView: View {
     @Binding var autoLockTimeout: SettingsService.AutoLockTimeout
     @Binding var lockOnBackground: Bool
     @Binding var clipboardTimeout: SettingsService.ClipboardTimeout
+    @Binding var authenticationGracePeriod: SettingsService.AuthenticationGracePeriod
     @Binding var autoUnlockWithFaceID: Bool
 
     var body: some View {
@@ -388,6 +395,17 @@ private struct SecuritySettingsView: View {
                 } else {
                     Text("When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed.")
                 }
+            }
+
+            Section {
+                Picker("Authentication Grace Period", selection: $authenticationGracePeriod) {
+                    ForEach(SettingsService.AuthenticationGracePeriod.allCases, id: \.self) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .accessibilityIdentifier("settings.security.authentication-grace-picker")
+            } footer: {
+                Text("After you unlock a database or authenticate, passwords and protected fields can be shown and copied for this long without asking again. Locking the database or leaving KeeForge ends it. AutoFill is not affected.")
             }
         }
         .navigationTitle("Security")
@@ -857,6 +875,7 @@ private struct MacSecuritySettingsTab: View {
     @Binding var autoLockTimeout: SettingsService.AutoLockTimeout
     @Binding var macLockPolicy: SettingsService.MacLockPolicy
     @Binding var clipboardTimeout: SettingsService.ClipboardTimeout
+    @Binding var authenticationGracePeriod: SettingsService.AuthenticationGracePeriod
     @Binding var autoUnlockWithBiometrics: Bool
     @Binding var blockScreenCapture: Bool
 
@@ -888,6 +907,17 @@ private struct MacSecuritySettingsTab: View {
                 if BiometricService.isAvailable {
                     Text("AutoFill can unlock with Touch ID on its own. KeeForge itself never unlocks automatically — use the Touch ID button on the unlock screen.")
                 }
+            }
+
+            Section {
+                Picker("Authentication Grace Period", selection: $authenticationGracePeriod) {
+                    ForEach(SettingsService.AuthenticationGracePeriod.allCases, id: \.self) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .accessibilityIdentifier("settings.security.authentication-grace-picker")
+            } footer: {
+                Text("After you unlock a database or authenticate, passwords and protected fields can be shown and copied for this long without asking again. Locking the database ends it. AutoFill is not affected.")
             }
 
             Section {

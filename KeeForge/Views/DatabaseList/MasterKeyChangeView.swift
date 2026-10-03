@@ -212,7 +212,7 @@ struct MasterKeyChangeView: View {
                     BiometricService.isBiometricAuthInProgress = true
                 }
                 do {
-                    _ = try await BiometricService.authenticateDeviceOwner(
+                    try await sessionViewModel.secretAccess.authenticate(
                         reason: String(localized: "Change master key")
                     )
                     await performChange()

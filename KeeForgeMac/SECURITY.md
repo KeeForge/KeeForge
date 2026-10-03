@@ -89,6 +89,17 @@ prompt cannot be stranded after its window disappears. Sheets and panels do not
 count as host windows; Settings and minimized main windows do. Cancel keeps the
 window and session open.
 
+Revealing or copying a password or protected field asks for device-owner
+authentication through the session's
+[SecretAccessGate](../KeeForge/Services/Security/SecretAccessGate.swift). With
+the Authentication Grace Period setting at its default, Always Ask, every such
+action prompts. A longer setting (at most five minutes) skips the prompt for that
+long after an unlock or a successful authentication. The grant is held in memory
+only, ends on every lock request above, including one that unsaved work defers,
+and on a failed or cancelled prompt, and is not extended by using it. Under the
+default lock policy, switching to another app does not lock and therefore does
+not end the period either; the strict policy ends it with the lock.
+
 The main app does not automatically raise Touch ID on activation.
 `BiometricAutoUnlockPolicy` requires explicit unlock on Mac because an active
 scene does not prove the user has returned to a foreground window. The AutoFill
@@ -166,7 +177,8 @@ window. Every existing lock trigger therefore empties it. Closing the last main
 window still locks, so quick search needs that window open or minimized.
 
 Copying follows the main window's rules: the password waits on the same
-device-owner prompt as ⇧⌘C and is re-checked against the session after it,
+device-owner prompt as ⇧⌘C, skipped only inside the session's authentication
+grace period, and is re-checked against the session after it,
 while the user name and verification code copy without a prompt. Copies go
 through `ClipboardService`, with its concealed marker, clear timer, and
 clear-on-lock.

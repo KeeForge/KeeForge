@@ -89,11 +89,13 @@ final class MacQuickAccessController {
     ) {
         let searchModel = MacQuickSearchViewModel(
             sessionProvider: sessionProvider,
-            authenticateDeviceOwner: {
+            authenticateDeviceOwner: { gate in
                 // LocalAuthentication only prompts for the active app, and the
                 // panel does not activate KeeForge on its own.
-                NSApp.activate()
-                return await MacQuickSearchViewModel.deviceOwnerGate()
+                if gate.requiresAuthentication {
+                    NSApp.activate()
+                }
+                return await MacQuickSearchViewModel.deviceOwnerGate(gate)
             }
         )
         self.searchModel = searchModel

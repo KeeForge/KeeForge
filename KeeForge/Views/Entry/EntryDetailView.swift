@@ -179,6 +179,7 @@ struct EntryDetailView: View {
                         PasswordFieldRow(
                             password: entry.password,
                             sessionKey: sessionKey,
+                            secretAccess: viewModel.secretAccess,
                             resolveReferences: viewModel.resolvingFieldReferences
                         )
                     }
@@ -216,6 +217,7 @@ struct EntryDetailView: View {
                                     ProtectedFieldRow(
                                         label: key,
                                         value: viewModel.resolvingFieldReferences(value),
+                                        secretAccess: viewModel.secretAccess,
                                         showsInlineLabel: true
                                     )
                                 } else {
@@ -757,6 +759,7 @@ struct FieldRow: View {
 struct ProtectedFieldRow: View {
     let label: String
     let value: String
+    let secretAccess: SecretAccessGate
     var accessibilityPrefix: String = "entry"
     var showsInlineLabel: Bool = false
     @State private var revealed = false
@@ -807,7 +810,7 @@ struct ProtectedFieldRow: View {
 
             CopyButton(
                 text: value,
-                requireAuth: true,
+                secretAccess: secretAccess,
                 authenticationReason: String(localized: "Copy protected field"),
                 accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)"
             )
@@ -826,13 +829,11 @@ struct ProtectedFieldRow: View {
         }
 
         guard !authenticating else { return }
-        if BiometricService.canAuthenticateDeviceOwner {
+        if secretAccess.requiresAuthentication {
             authenticating = true
             Task {
                 do {
-                    _ = try await BiometricService.authenticateDeviceOwner(
-                        reason: String(localized: "View protected field")
-                    )
+                    try await secretAccess.authenticate(reason: String(localized: "View protected field"))
                     await MainActor.run {
                         HapticService.success()
                         revealed = true
@@ -854,6 +855,7 @@ struct ProtectedFieldRow: View {
 struct PasswordFieldRow: View {
     let password: EncryptedValue
     let sessionKey: SymmetricKey
+    let secretAccess: SecretAccessGate
     /// Applied to the decrypted plaintext before it is shown or copied, so a
     /// `{REF:…}` password reads and copies as the value it points at.
     var resolveReferences: (String) -> String = { $0 }
@@ -880,7 +882,7 @@ struct PasswordFieldRow: View {
 
                 CopyButton(
                     resolveText: { plaintext(of: password) },
-                    requireAuth: true,
+                    secretAccess: secretAccess,
                     accessibilityID: "\(accessibilityPrefix).copy.password"
                 )
             }
@@ -917,16 +919,17 @@ struct PasswordFieldRow: View {
         // password/Apple Watch), not on biometrics availability: a Mac
         // without Touch ID or an iPhone without enrolled Face ID must still
         // prompt for the login password/passcode instead of revealing with a
-        // single unauthenticated click. Auth is skipped only when the device
-        // has no protection configured at all.
-        if BiometricService.canAuthenticateDeviceOwner {
+        // single unauthenticated click. Auth is skipped only inside the
+        // authentication grace period, or when the device has no protection
+        // configured at all.
+        if secretAccess.requiresAuthentication {
             authenticating = true
             Task {
                 await MainActor.run {
                     BiometricService.isBiometricAuthInProgress = true
                 }
                 do {
-                    _ = try await BiometricService.authenticateDeviceOwner(reason: String(localized: "View password"))
+                    try await secretAccess.authenticate(reason: String(localized: "View password"))
                     await MainActor.run {
                         HapticService.success()
                         revealedText = plaintext(of: password)
@@ -983,7 +986,8 @@ struct URLFieldRow: View {
 
 struct CopyButton: View {
     private let resolveText: () -> String
-    var requireAuth: Bool = false
+    /// Set for a protected value: the copy then waits on this gate.
+    var secretAccess: SecretAccessGate?
     var authenticationReason: String = String(localized: "Copy password")
     let accessibilityID: String
     @State private var copied = false
@@ -991,12 +995,12 @@ struct CopyButton: View {
     /// Copy a plaintext value.
     init(
         text: String,
-        requireAuth: Bool = false,
+        secretAccess: SecretAccessGate? = nil,
         authenticationReason: String = String(localized: "Copy password"),
         accessibilityID: String
     ) {
         self.resolveText = { text }
-        self.requireAuth = requireAuth
+        self.secretAccess = secretAccess
         self.authenticationReason = authenticationReason
         self.accessibilityID = accessibilityID
     }
@@ -1004,12 +1008,12 @@ struct CopyButton: View {
     /// Copy a value that is decrypted lazily on demand.
     init(
         resolveText: @escaping () -> String,
-        requireAuth: Bool = false,
+        secretAccess: SecretAccessGate? = nil,
         authenticationReason: String = String(localized: "Copy password"),
         accessibilityID: String
     ) {
         self.resolveText = resolveText
-        self.requireAuth = requireAuth
+        self.secretAccess = secretAccess
         self.authenticationReason = authenticationReason
         self.accessibilityID = accessibilityID
     }
@@ -1018,14 +1022,15 @@ struct CopyButton: View {
         Button {
             // Same device-owner gate as password reveal: biometrics when
             // available, passcode/login password/Apple Watch fallback
-            // otherwise. Skipped only when the device has no protection.
-            if requireAuth && BiometricService.canAuthenticateDeviceOwner {
+            // otherwise. Skipped only inside the authentication grace period,
+            // or when the device has no protection.
+            if let secretAccess, secretAccess.requiresAuthentication {
                 Task {
                     await MainActor.run {
                         BiometricService.isBiometricAuthInProgress = true
                     }
                     do {
-                        _ = try await BiometricService.authenticateDeviceOwner(reason: authenticationReason)
+                        try await secretAccess.authenticate(reason: authenticationReason)
                         await MainActor.run {
                             performCopy()
                         }

@@ -27,18 +27,17 @@ struct EntryRowCopyActions: View {
 
     /// Same device-owner gate as the detail view's copy button and the macOS
     /// ⇧⌘C command: biometrics when available, passcode / login password /
-    /// Apple Watch otherwise, skipped only when the device has no protection.
+    /// Apple Watch otherwise, skipped only inside the authentication grace
+    /// period or when the device has no protection.
     private func copyPassword() {
-        guard BiometricService.canAuthenticateDeviceOwner else {
+        guard viewModel.secretAccess.requiresAuthentication else {
             performPasswordCopy()
             return
         }
 
         Task { @MainActor in
             do {
-                _ = try await BiometricService.authenticateDeviceOwner(
-                    reason: String(localized: "Copy password")
-                )
+                try await viewModel.secretAccess.authenticate(reason: String(localized: "Copy password"))
             } catch {
                 return
             }
