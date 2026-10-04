@@ -125,7 +125,10 @@ enum CredentialMatcher {
     private static func normalizeHost(_ value: String) -> String {
         var result = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         while result.hasSuffix(".") { result.removeLast() }
-        if result.hasPrefix("www.") { result.removeFirst(4) }
+        // On `www.co.uk`, `www` is the registrable label, not a prefix.
+        if result.hasPrefix("www."), PublicSuffixList.effectiveTLDPlusOne(String(result.dropFirst(4))) != nil {
+            result.removeFirst(4)
+        }
         return result
     }
 
