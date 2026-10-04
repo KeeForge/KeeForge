@@ -1,3 +1,4 @@
+import AuthenticationServices
 import CryptoKit
 import XCTest
 @testable import KeeForge
@@ -1315,6 +1316,117 @@ final class KDBXCompatibilityTests: XCTestCase {
         let secondXML = try secondSerializer.serialize()
 
         XCTAssertEqual(firstXML, secondXML, "Passkey round-trip must be byte-identical")
+    }
+
+    @MainActor
+    func test_autoFillSave_finishesAfterCancellation_preservesCommittedPasskeyWithoutCompletingReplacement() async throws {
+        let fixture = KDBXTestFixture.test
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let databaseURL = directory.appendingPathComponent("autofill-cancellation.kdbx")
+        let sourceBytes = try fixture.data(in: bundle)
+        try sourceBytes.write(to: databaseURL)
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let previousActiveDatabaseID = DatabaseListStore.activeAutoFillDatabaseID
+        defer {
+            DatabaseListStore.activeAutoFillDatabaseID = previousActiveDatabaseID
+            try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
+            try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
+        }
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try fixture.parse(in: bundle, sessionKey: sessionKey)
+        let presenter = CredentialProviderPresentingSpy()
+        let coordinator = CredentialProviderCoordinator(presenter: presenter)
+        coordinator.activeDatabaseReference = reference
+        coordinator.parsedRootGroup = parsed.rootGroup
+        coordinator.parsedMeta = parsed.meta
+        coordinator.parsedEntries = parsed.rootGroup.allEntries
+        coordinator.sessionKey = sessionKey
+        coordinator.compositeKey = parsed.compositeKey
+        coordinator.openTimeSHA512 = KDBXCrypto.sha512(sourceBytes)
+        let gate = AutoFillSaveCompletionGate()
+        let saveCommitted = expectation(description: "passkey bytes committed")
+        var environment = AutoFillSaveCoordinator.Environment.live
+        let saveDraft = environment.saveDraft
+        environment.saveDraft = { draft, reference, key, hash in
+            let result = try await saveDraft(draft, reference, key, hash)
+            await gate.wait(committed: saveCommitted)
+            return result
+        }
+        environment.populateCredentialStore = { _, _ in }
+        coordinator.passkeySaveEnvironment = environment
+        let identity = ASPasskeyCredentialIdentity(
+            relyingPartyIdentifier: "example.com",
+            userName: "alice",
+            credentialID: Data(),
+            userHandle: Data("alice-handle".utf8),
+            recordIdentifier: nil
+        )
+        coordinator.pendingPasskeyRegistrationRequest = ASPasskeyCredentialRequest(
+            credentialIdentity: identity,
+            clientDataHash: Data(repeating: 7, count: 32),
+            userVerificationPreference: .preferred,
+            supportedAlgorithms: [.ES256]
+        )
+        XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
+        let creator = try XCTUnwrap(presenter.passkeyCreator)
+        let saveTask = Task { await creator.onSave("Committed AutoFill Passkey") }
+        await fulfillment(of: [saveCommitted], timeout: 10)
+        let bytesBeforeCancellation = try? Data(contentsOf: databaseURL)
+
+        coordinator.cancelRequest(code: .userCanceled)
+        presenter.isPresentationActive = false
+        coordinator.prepareCredentialList(for: [])
+        let replacementRoot = KPGroup(name: "Replacement")
+        coordinator.parsedRootGroup = replacementRoot
+        await gate.resume()
+        let outcome = await saveTask.value
+
+        guard case .completed = outcome else {
+            return XCTFail("An obsolete save must not present an alert, got \(outcome)")
+        }
+        XCTAssertEqual(coordinator.parsedRootGroup?.id, replacementRoot.id)
+        XCTAssertNil(coordinator.openTimeSHA512)
+        XCTAssertNil(presenter.completedRegistration)
+        XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
+        let committedBytes = try XCTUnwrap(bytesBeforeCancellation)
+        XCTAssertNotEqual(committedBytes, sourceBytes)
+        XCTAssertEqual(try Data(contentsOf: databaseURL), committedBytes)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), committedBytes)
+        let reopenedKey = SymmetricKey(size: .bits256)
+        let reopened = try KDBXParser.parseWithMetaAndHeader(
+            data: committedBytes,
+            password: fixture.password,
+            sessionKey: reopenedKey
+        )
+        let saved = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.title == "Committed AutoFill Passkey" })
+        let passkey = try XCTUnwrap(saved.passkeyCredential)
+        XCTAssertEqual(passkey.relyingParty, "example.com")
+        XCTAssertNotNil(try PasskeyCrypto.privateKey(fromPEM: passkey.privateKeyPEM(using: reopenedKey)))
+        XCTAssertEqual(reopened.rootGroup.allEntries.count, parsed.rootGroup.allEntries.count + 1)
+        XCTAssertEqual(reopened.header.cipherID, parsed.header.cipherID)
+        XCTAssertEqual(try fixture.data(in: bundle), sourceBytes)
+        coordinator.cancelRequest(code: .userCanceled)
+    }
+
+    private actor AutoFillSaveCompletionGate {
+        private var continuation: CheckedContinuation<Void, Never>?
+        private var isResumed = false
+
+        func wait(committed: XCTestExpectation) async {
+            guard !isResumed else { return }
+            await withCheckedContinuation { continuation in
+                self.continuation = continuation
+                committed.fulfill()
+            }
+        }
+
+        func resume() {
+            isResumed = true
+            continuation?.resume()
+            continuation = nil
+        }
     }
 
     func test_passkeyEntryCreation_protectsPasskeyFieldsThroughWriteAndReparse() throws {

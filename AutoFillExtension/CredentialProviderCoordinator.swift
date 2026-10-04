@@ -1477,6 +1477,7 @@ final class CredentialProviderCoordinator {
     // MARK: - Matching / interactive presentation
 
     func presentPasswordMatchesOrFinish() {
+        let generation = requestGeneration
         let allPasswordEntries = parsedEntries.filter(\.hasPassword)
         let passwordEntries = allPasswordEntries.filter { !$0.isExpired() }
 
@@ -1542,12 +1543,13 @@ final class CredentialProviderCoordinator {
             } onSelectPossible: { [weak self] entry in
                 self?.completeRequest(with: entry)
             } onAddURLToPossible: { [weak self] entry in
-                self?.addOriginalRequestURL(to: entry)
+                self?.addOriginalRequestURL(to: entry, generation: generation)
             }
         }
     }
 
-    private func addOriginalRequestURL(to entry: KPEntry) {
+    private func addOriginalRequestURL(to entry: KPEntry, generation: Int) {
+        guard isRequestActive(generation) else { return }
         guard let rootGroup = parsedRootGroup,
               let meta = parsedMeta,
               let sessionKey,
@@ -1560,16 +1562,21 @@ final class CredentialProviderCoordinator {
         }
 
         Task { [weak self] in
-            guard let self else { return }
+            guard let self, self.isRequestActive(generation),
+                  self.activeDatabaseReference?.id == reference.id else { return }
             let draft: EntryDraftPayload?
             do {
                 draft = try await Task.detached(priority: .userInitiated) {
                     try Self.makeURLAdditionDraft(for: entry, requestURL: requestURL, sessionKey: sessionKey)
                 }.value
             } catch {
+                guard isRequestActive(generation),
+                      activeDatabaseReference?.id == reference.id else { return }
                 cancelRequest(code: .failed)
                 return
             }
+            guard isRequestActive(generation),
+                  activeDatabaseReference?.id == reference.id else { return }
             guard let draft else {
                 // The request URL's host is already stored on the entry.
                 completeRequest(with: entry)
@@ -1586,6 +1593,8 @@ final class CredentialProviderCoordinator {
                     openTimeSHA512: openTimeSHA512,
                     edit: .updateEntry(entryID: entry.id, draft: draft)
                 )
+                guard isRequestActive(generation),
+                      activeDatabaseReference?.id == reference.id else { return }
                 guard case .saved(let outcome) = result else {
                     cancelRequest(code: .failed)
                     return
@@ -1594,6 +1603,8 @@ final class CredentialProviderCoordinator {
                 parsedEntries = outcome.savedRootGroup.autoFillEntries(excludingGroupID: outcome.savedRootGroup.recycleBinUUID)
                 completeRequest(with: parsedEntries.first { $0.id == entry.id } ?? entry)
             } catch {
+                guard isRequestActive(generation),
+                      activeDatabaseReference?.id == reference.id else { return }
                 cancelRequest(code: .failed)
             }
         }
@@ -1838,6 +1849,7 @@ final class CredentialProviderCoordinator {
     /// from, so the request completes with a credential rather than with
     /// `completeSavePasswordRequest`.
     private func presentEntryCreator(for serviceIdentifier: ASCredentialServiceIdentifier) {
+        let generation = requestGeneration
         let initialDraft = AutoFillSaveCoordinator.initialDraft(
             for: serviceIdentifier,
             username: nil
@@ -1853,7 +1865,7 @@ final class CredentialProviderCoordinator {
                     guard let self else {
                         return .showError(String(localized: "The request is no longer available."))
                     }
-                    return await self.saveNewEntryAndFill(draftPayload: draftPayload)
+                    return await self.saveNewEntryAndFill(draftPayload: draftPayload, generation: generation)
                 },
                 onCancel: { [weak self] in
                     self?.cancelRequest(code: .userCanceled)
@@ -1867,8 +1879,10 @@ final class CredentialProviderCoordinator {
     /// saved entry: the plaintext is already in hand, and a brand-new entry
     /// has no TOTP config for `completeRequest(with:)` to copy.
     private func saveNewEntryAndFill(
-        draftPayload: EntryDraftPayload
+        draftPayload: EntryDraftPayload,
+        generation: Int
     ) async -> CredentialProviderEntrySaveOutcome {
+        guard isRequestActive(generation) else { return .completed }
         let user = draftPayload.username.isEmpty ? draftPayload.title : draftPayload.username
         guard !user.isEmpty else {
             return .showError(String(localized: "Enter a title or username for this credential."))
@@ -1901,6 +1915,7 @@ final class CredentialProviderCoordinator {
                 openTimeSHA512: openTimeSHA512
             )
 
+            guard isRequestActive(generation) else { return .completed }
             switch result {
             case .saved(let outcome):
                 self.parsedRootGroup = outcome.savedRootGroup
@@ -1914,12 +1929,14 @@ final class CredentialProviderCoordinator {
                 return .showWarningAndCancel(String(localized: "Database changed — open KeeForge to save"))
             }
         } catch {
+            guard isRequestActive(generation) else { return .completed }
             return .showError(error.localizedDescription)
         }
     }
 
     @available(iOS 26.2, *)
     private func presentEntryCreator(for savePasswordRequest: ASSavePasswordRequest) {
+        let generation = requestGeneration
         let initialDraft = AutoFillSaveCoordinator.initialDraft(
             for: savePasswordRequest.serviceIdentifier,
             username: savePasswordRequest.credential.user,
@@ -1938,7 +1955,8 @@ final class CredentialProviderCoordinator {
                     }
                     return await self.saveNewEntry(
                         draftPayload: draftPayload,
-                        for: savePasswordRequest
+                        for: savePasswordRequest,
+                        generation: generation
                     )
                 },
                 onCancel: { [weak self] in
@@ -1951,8 +1969,10 @@ final class CredentialProviderCoordinator {
     @available(iOS 26.2, *)
     private func saveNewEntry(
         draftPayload: EntryDraftPayload,
-        for _: ASSavePasswordRequest
+        for _: ASSavePasswordRequest,
+        generation: Int
     ) async -> CredentialProviderEntrySaveOutcome {
+        guard isRequestActive(generation) else { return .completed }
         guard let reference = activeDatabaseReference,
               let parsedRootGroup,
               let parsedMeta,
@@ -1973,6 +1993,7 @@ final class CredentialProviderCoordinator {
                 openTimeSHA512: openTimeSHA512
             )
 
+            guard isRequestActive(generation) else { return .completed }
             switch result {
             case .saved(let outcome):
                 self.parsedRootGroup = outcome.savedRootGroup
@@ -1985,6 +2006,7 @@ final class CredentialProviderCoordinator {
                 return .showWarningAndCancel(String(localized: "Database changed — open KeeForge to save"))
             }
         } catch {
+            guard isRequestActive(generation) else { return .completed }
             return .showError(error.localizedDescription)
         }
     }
@@ -2014,6 +2036,7 @@ final class CredentialProviderCoordinator {
         for request: ASPasskeyCredentialRequest,
         identity: ASPasskeyCredentialIdentity
     ) {
+        let generation = requestGeneration
         let relyingPartyID = identity.relyingPartyIdentifier
         let userName = identity.userName
         let userHandle = identity.userHandle
@@ -2038,7 +2061,8 @@ final class CredentialProviderCoordinator {
                         relyingPartyID: relyingPartyID,
                         userName: userName,
                         userHandle: userHandle,
-                        clientDataHash: clientDataHash
+                        clientDataHash: clientDataHash,
+                        generation: generation
                     )
                 },
                 onCancel: { [weak self] in
@@ -2064,8 +2088,10 @@ final class CredentialProviderCoordinator {
         relyingPartyID: String,
         userName: String,
         userHandle: Data,
-        clientDataHash: Data
+        clientDataHash: Data,
+        generation: Int
     ) async -> CredentialProviderEntrySaveOutcome {
+        guard isRequestActive(generation) else { return .completed }
         guard let reference = activeDatabaseReference,
               let parsedRootGroup,
               let parsedMeta,
@@ -2075,6 +2101,7 @@ final class CredentialProviderCoordinator {
             return .showError(SaveError.saveContextUnavailable.localizedDescription)
         }
 
+        let saveEnvironment = passkeySaveEnvironment
         let material: PasskeyRegistrationMaterial
         do {
             material = try await Task.detached(priority: .userInitiated) {
@@ -2091,9 +2118,11 @@ final class CredentialProviderCoordinator {
                 )
             }.value
         } catch {
+            guard isRequestActive(generation) else { return .completed }
             return .showError(error.localizedDescription)
         }
 
+        guard isRequestActive(generation) else { return .completed }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let draftPayload = EntryDraftPayload(
             title: trimmedTitle.isEmpty ? relyingPartyID : trimmedTitle,
@@ -2122,9 +2151,10 @@ final class CredentialProviderCoordinator {
                 sessionKey: sessionKey,
                 compositeKey: compositeKey,
                 openTimeSHA512: openTimeSHA512,
-                environment: passkeySaveEnvironment
+                environment: saveEnvironment
             )
 
+            guard isRequestActive(generation) else { return .completed }
             switch result {
             case .saved(let outcome):
                 self.parsedRootGroup = outcome.savedRootGroup
@@ -2143,6 +2173,7 @@ final class CredentialProviderCoordinator {
                 return .showWarningAndCancel(String(localized: "Database changed — open KeeForge to save"))
             }
         } catch {
+            guard isRequestActive(generation) else { return .completed }
             return .showError(error.localizedDescription)
         }
     }

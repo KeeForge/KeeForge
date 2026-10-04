@@ -38,6 +38,33 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         sharedDefaults.removeObject(forKey: "KeeForge.autoUnlockWithFaceID")
     }
 
+    func test_oldURLAdditionCallback_doesNotCancelReplacementRequest() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(
+            title: "github.com legacy",
+            username: "octocat",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey),
+            url: "https://legacy.example"
+        )
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+        coordinator.activeDatabaseReference = try seedResolvableDefaultDatabase()
+        coordinator.presentPasswordMatchesOrFinish()
+        let oldPicker = try XCTUnwrap(presenter.searchView)
+        XCTAssertEqual(oldPicker.possibleEntries.map(\.id), [entry.id])
+
+        coordinator.cancelRequest(code: .userCanceled)
+        presenter.isPresentationActive = false
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        oldPicker.onAddURLToPossible(entry)
+
+        XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
+        XCTAssertTrue(coordinator.pendingUnlock)
+        XCTAssertNil(presenter.completedCredential)
+        coordinator.cancelRequest(code: .userCanceled)
+    }
+
     // MARK: - Required cleanup-path tests
 
     func test_requestPreparedBeforeAppearance_waitsForActivePresentation() throws {
