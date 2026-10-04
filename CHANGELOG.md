@@ -4,11 +4,11 @@
 
 ### Fixes
 
+- Entries and groups with matching names or dates keep a stable order when sorted descending.
 - Saving stops with an error if notes or other text contain unsupported characters such as NUL, keeping the previous database readable instead of writing a file that cannot reopen (#181).
 - Notes keep their original line endings after saving. Imported group names, custom field names, and attachment names keep their whitespace.
 - Protected fields from other KeePass apps stay protected when saving.
 - The group editor stays open until a save conflict has been resolved, so you can finish saving without losing your place.
-
 - AutoFill stops updates when iOS returns unreadable credential identities, preventing an unreadable store from being treated as empty.
 - Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
 - When the saved Face ID, Touch ID or Apple Watch key can no longer be used, for example after enrolled fingerprints change, the unlock screen now says so and asks for your master password, which saves a new key.

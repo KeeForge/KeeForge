@@ -3408,18 +3408,20 @@ final class DatabaseViewModel {
         switch sortOrder {
         case .title:
             ordered = groups.sorted {
-                let result = $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-                return asc ? result : !result
+                let result = $0.name.localizedCaseInsensitiveCompare($1.name)
+                return asc ? result == .orderedAscending : result == .orderedDescending
             }
         case .createdDate:
             ordered = groups.sorted {
-                let result = ($0.creationTime ?? .distantPast) < ($1.creationTime ?? .distantPast)
-                return asc ? result : !result
+                let first = $0.creationTime ?? .distantPast
+                let second = $1.creationTime ?? .distantPast
+                return asc ? first < second : first > second
             }
         case .modifiedDate:
             ordered = groups.sorted {
-                let result = ($0.lastModificationTime ?? .distantPast) < ($1.lastModificationTime ?? .distantPast)
-                return asc ? result : !result
+                let first = $0.lastModificationTime ?? .distantPast
+                let second = $1.lastModificationTime ?? .distantPast
+                return asc ? first < second : first > second
             }
         }
         return Self.pinningRecycleBinLast(ordered, recycleBinID: currentRootGroup?.recycleBinUUID)
@@ -3444,18 +3446,20 @@ final class DatabaseViewModel {
         switch sortOrder {
         case .title:
             return entries.sorted {
-                let result = $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
-                return asc ? result : !result
+                let result = $0.title.localizedCaseInsensitiveCompare($1.title)
+                return asc ? result == .orderedAscending : result == .orderedDescending
             }
         case .createdDate:
             return entries.sorted {
-                let result = ($0.creationTime ?? .distantPast) < ($1.creationTime ?? .distantPast)
-                return asc ? result : !result
+                let first = $0.creationTime ?? .distantPast
+                let second = $1.creationTime ?? .distantPast
+                return asc ? first < second : first > second
             }
         case .modifiedDate:
             return entries.sorted {
-                let result = ($0.lastModificationTime ?? .distantPast) < ($1.lastModificationTime ?? .distantPast)
-                return asc ? result : !result
+                let first = $0.lastModificationTime ?? .distantPast
+                let second = $1.lastModificationTime ?? .distantPast
+                return asc ? first < second : first > second
             }
         }
     }
