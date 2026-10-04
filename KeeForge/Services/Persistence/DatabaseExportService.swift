@@ -106,9 +106,13 @@ enum DatabaseExportService {
         return "\(stem) (backup \(suffixTimestamp(for: createdAt, timeZone: timeZone))).kdbx"
     }
 
-    /// Inverse of the savers' `backupFilename(for:)`: `yyyyMMdd-HHmmss-uuuuuu.kdbx` in UTC.
+    /// Inverse of the savers' `backupFilename(for:)`: `yyyyMMdd-HHmmss-uuuuuu.kdbx` in UTC,
+    /// with or without `DatabaseListStore.retainedBackupSuffix`.
     static func backupDate(fromFilename filename: String) -> Date? {
-        let stem = (filename as NSString).deletingPathExtension
+        var stem = (filename as NSString).deletingPathExtension
+        if stem.hasSuffix(DatabaseListStore.retainedBackupSuffix) {
+            stem.removeLast(DatabaseListStore.retainedBackupSuffix.count)
+        }
         guard (filename as NSString).pathExtension.lowercased() == "kdbx" else { return nil }
         let parts = stem.split(separator: "-", omittingEmptySubsequences: false)
         guard parts.count == 3,

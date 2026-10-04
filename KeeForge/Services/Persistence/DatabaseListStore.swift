@@ -785,10 +785,22 @@ enum DatabaseListStore {
             && ProcessInfo.processInfo.environment[uiTestLocalSaveConflictDivergesPoolEnv] == "1"
     }
 
+    /// Ends the name of a backup that rotation never removes: an AutoFill
+    /// save that could not be merged into the database file
+    /// (`PendingLocalSaveStore.moveToBackups`). It is the only copy of that
+    /// save, and no later backup contains it.
+    static let retainedBackupSuffix = "-autofill"
+
+    static func isRetainedBackup(_ url: URL) -> Bool {
+        url.deletingPathExtension().lastPathComponent.hasSuffix(retainedBackupSuffix)
+    }
+
     static func pruneBackups(for reference: DatabaseReference, keeping count: Int) throws {
         guard count >= 0 else { return }
 
-        let backupsToRemove = recentBackups(for: reference).dropFirst(count)
+        let backupsToRemove = recentBackups(for: reference)
+            .filter { isRetainedBackup($0) == false }
+            .dropFirst(count)
         for url in backupsToRemove {
             try FileManager.default.removeItem(at: url)
         }

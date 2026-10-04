@@ -2225,6 +2225,13 @@ final class DatabaseViewModel {
     }
 
     func save() async throws {
+        try await saveDraft()
+        // An unsaved edit makes `mergePendingLocalSaves` wait; this save is
+        // what it was waiting for.
+        await mergePendingLocalSaves()
+    }
+
+    private func saveDraft() async throws {
         if isReadOnly {
             throw SaveError.databaseIsReadOnly
         }
@@ -2343,6 +2350,9 @@ final class DatabaseViewModel {
         newKeyFileBookmarkData: Data?,
         newKeyFileFilename: String?
     ) async throws {
+        // A pending local save is ciphertext under the old key: it has to be
+        // in the file before the key changes, or it can never be merged.
+        await mergePendingLocalSaves()
         guard case .unlocked = state, let compositeKey, let openTimeSHA512 else {
             throw RekeyError.sessionUnavailable
         }
@@ -2361,6 +2371,9 @@ final class DatabaseViewModel {
         // Pending AutoFill upload markers hold ciphertext under the old key;
         // draining them after a rekey would resurrect it on the remote.
         if databaseReference.isCloudBacked, pendingUploadMarkerCheck(databaseReference) {
+            throw RekeyError.pendingUploadsExist
+        }
+        guard PendingLocalSaveStore.hasSaves(for: databaseReference.id) == false else {
             throw RekeyError.pendingUploadsExist
         }
 
@@ -2854,10 +2867,11 @@ final class DatabaseViewModel {
     /// database file. A pending save is removed only once that save has
     /// succeeded; one that cannot be merged moves into the backups instead.
     ///
-    /// Runs on its own after an unlock and when the app becomes active. A
-    /// session that cannot save right now leaves everything in place for the
-    /// next run, and so does a save that fails or conflicts: the pending saves
-    /// are still on disk, and the user's own next save reports the cause.
+    /// Runs on its own after an unlock, after a save, before a master-key
+    /// change, and when the app becomes active. A session that cannot save
+    /// right now leaves everything in place for the next run, and so does a
+    /// save that fails or conflicts: the pending saves are still on disk, and
+    /// the user's own next save reports the cause.
     func mergePendingLocalSaves() async {
         guard case .unlocked = state,
               databaseReference.isCloudBacked == false,
@@ -2961,12 +2975,17 @@ final class DatabaseViewModel {
                 : .changeUnreadable(.backup(backupURL))
         }
 
-        // Nothing was saved, so the shared copy still holds what went to the
-        // backups; bring it back in line with the file.
-        if mergedSaves.isEmpty, PendingLocalSaveStore.hasSaves(for: reference.id) == false {
-            lastSharedCacheRefreshFingerprint = nil
-            refreshSharedDatabaseCacheIfPossible()
-        }
+        // The unlock and the saver left the shared copy alone while saves were
+        // pending. Bring it up to the file, unless another AutoFill save has
+        // arrived in the meantime.
+        await Task.detached(priority: .userInitiated) {
+            guard PendingLocalSaveStore.hasSaves(for: reference.id) == false,
+                  let url = DatabaseListStore.resolveDatabaseURL(for: reference),
+                  let data = try? Self.readSecurityScopedData(from: url) else {
+                return
+            }
+            try? DatabaseListStore.cacheDatabaseCopy(data, for: reference)
+        }.value
     }
 
     private func refreshPendingUploadConflict() {
@@ -4227,7 +4246,8 @@ final class DatabaseViewModel {
     ///
     /// A pending local save is the exception: the shared copy holds an
     /// AutoFill save the file does not, and replacing it would hide that save
-    /// from AutoFill until it is merged. The merge's own save refreshes it.
+    /// from AutoFill until it is merged. `mergePendingLocalSaves` refreshes it
+    /// once the file holds the save.
     private func cacheDatabaseCopyForLocalDatabase(_ data: Data) throws {
         guard databaseReference.isCloudBacked == false,
               PendingLocalSaveStore.hasSaves(for: databaseReference.id) == false else {

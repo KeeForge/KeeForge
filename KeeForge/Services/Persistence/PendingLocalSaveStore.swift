@@ -62,7 +62,9 @@ enum PendingLocalSaveStore {
     }
 
     /// Moves a save that cannot be merged into the database's backups, where
-    /// Database Details lists it for export.
+    /// Database Details lists it for export. It keeps its timestamp and gains
+    /// `DatabaseListStore.retainedBackupSuffix`, so backup rotation leaves it
+    /// alone: nothing else holds what it saved.
     static func moveToBackups(_ save: PendingSave, for reference: DatabaseReference) throws -> URL {
         let backupDirectoryURL = DatabaseListStore.databaseBackupDirectoryURL(for: reference)
         try FileManager.default.createDirectory(
@@ -71,15 +73,22 @@ enum PendingLocalSaveStore {
             attributes: nil
         )
 
-        var backupURL = backupDirectoryURL.appendingPathComponent(save.fileURL.lastPathComponent, isDirectory: false)
+        func backupURL(stem: String) -> URL {
+            backupDirectoryURL.appendingPathComponent(
+                "\(stem)\(DatabaseListStore.retainedBackupSuffix).kdbx",
+                isDirectory: false
+            )
+        }
+        var destinationURL = backupURL(stem: save.fileURL.deletingPathExtension().lastPathComponent)
         var date = Date.now
-        while FileManager.default.fileExists(atPath: backupURL.path) {
-            backupURL = backupDirectoryURL.appendingPathComponent(LocalDatabaseSaver.backupFilename(for: date), isDirectory: false)
+        while FileManager.default.fileExists(atPath: destinationURL.path) {
+            let filename = LocalDatabaseSaver.backupFilename(for: date)
+            destinationURL = backupURL(stem: (filename as NSString).deletingPathExtension)
             date.addTimeInterval(0.000_001)
         }
 
-        try FileManager.default.moveItem(at: save.fileURL, to: backupURL)
-        return backupURL
+        try FileManager.default.moveItem(at: save.fileURL, to: destinationURL)
+        return destinationURL
     }
 
     static func removeAll(for databaseID: UUID) {

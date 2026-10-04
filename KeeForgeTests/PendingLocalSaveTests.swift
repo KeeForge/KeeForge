@@ -76,10 +76,34 @@ final class PendingLocalSaveTests: XCTestCase {
             [backupURL.lastPathComponent]
         )
         XCTAssertEqual(try Data(contentsOf: backupURL), Data("unmergeable".utf8))
-        XCTAssertNotNil(
+        XCTAssertTrue(DatabaseListStore.isRetainedBackup(backupURL))
+        XCTAssertEqual(
             DatabaseExportService.backupDate(fromFilename: backupURL.lastPathComponent),
-            "Database Details dates a backup from its filename"
+            DatabaseExportService.backupDate(fromFilename: save.fileURL.lastPathComponent),
+            "Database Details dates a backup from its filename, and this one keeps the time of the AutoFill save"
         )
+    }
+
+    func testBackupRotationNeverRemovesASaveMovedToTheBackups() throws {
+        let reference = try TestDatabaseSupport.makeReference(for: makeScratchDatabaseCopy())
+        let earlier = Date(timeIntervalSince1970: 1_800_000_000)
+        let save = try PendingLocalSaveStore.add(Data("unmergeable".utf8), for: reference.id, now: earlier)
+        let retainedURL = try PendingLocalSaveStore.moveToBackups(save, for: reference)
+        let backupDirectory = DatabaseListStore.databaseBackupDirectoryURL(for: reference)
+        for offset in 1...7 {
+            let name = LocalDatabaseSaver.backupFilename(for: earlier.addingTimeInterval(Double(offset) * 60))
+            try Data("ordinary-\(offset)".utf8).write(to: backupDirectory.appendingPathComponent(name))
+        }
+
+        try DatabaseListStore.pruneBackups(for: reference, keeping: 5)
+
+        let remaining = DatabaseListStore.recentBackups(for: reference)
+        XCTAssertEqual(remaining.filter { DatabaseListStore.isRetainedBackup($0) == false }.count, 5)
+        XCTAssertEqual(try Data(contentsOf: retainedURL), Data("unmergeable".utf8), "The oldest file, and the only copy of the save")
+
+        try DatabaseListStore.pruneBackups(for: reference, keeping: 0)
+
+        XCTAssertEqual(DatabaseListStore.recentBackups(for: reference).map(\.lastPathComponent), [retainedURL.lastPathComponent])
     }
 
     // MARK: - Saving to the shared copy
@@ -201,6 +225,33 @@ final class PendingLocalSaveTests: XCTestCase {
         }
         XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
         XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), refreshed)
+    }
+
+    func testAnAppSaveLeavesTheSharedCopyAloneWhileASaveIsPending() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let original = try Data(contentsOf: databaseURL)
+        let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
+        try seedPendingSave(pending, for: reference)
+        let context = try makeDirtySaveContext(data: original, entryTitle: "App Edit")
+
+        let result = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512
+        )
+
+        guard case .saved = result else {
+            return XCTFail("Expected the app save to succeed")
+        }
+        XCTAssertTrue(try entryTitles(in: try Data(contentsOf: databaseURL)).contains("App Edit"))
+        XCTAssertEqual(
+            try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)),
+            pending,
+            "AutoFill reads the shared copy, and the saved bytes do not hold the pending passkey"
+        )
+        XCTAssertEqual(PendingLocalSaveStore.saves(for: reference.id).count, 1)
     }
 
     func testAutoFillSaveOfABookmarkedDatabaseLandsWhereTheExtensionCanWrite() async throws {
@@ -365,9 +416,11 @@ final class PendingLocalSaveTests: XCTestCase {
         }
         XCTAssertEqual(normalizedPath(reportedURL), normalizedPath(backupURL))
         XCTAssertEqual(try Data(contentsOf: databaseURL), original)
-        try await waitUntil("the shared copy follows the file again") {
-            (try? Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))) == original
-        }
+        XCTAssertEqual(
+            try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)),
+            original,
+            "The shared copy follows the file again"
+        )
     }
 
     func testAPendingSaveWithDivergedAttachmentsMovesToTheBackupsAndIsReported() async throws {
@@ -400,9 +453,47 @@ final class PendingLocalSaveTests: XCTestCase {
         let titles = try entryTitles(in: try Data(contentsOf: databaseURL))
         XCTAssertTrue(titles.contains("New Passkey"), "One unmergeable save must not hold back the others")
         XCTAssertFalse(titles.contains("Entry With Attachment"))
+        XCTAssertEqual(
+            try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)),
+            try Data(contentsOf: databaseURL)
+        )
     }
 
-    func testMergeWaitsForUnsavedEditsAndRunsOnceTheyAreSaved() async throws {
+    func testASaveMovedToTheBackupsSurvivesTheBackupRotationOfLaterSaves() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let original = try Data(contentsOf: databaseURL)
+        let diverged = try makeVariantData(
+            of: original,
+            binaryPoolFields: [Data([0x00]) + Data("attachment-bytes".utf8)]
+        ) { visibleRoot in
+            var entry = KPEntry(title: "Only Copy Of This Passkey")
+            entry.attachments = [KPAttachment(name: "note.txt", ref: 0)]
+            visibleRoot.entries.append(entry)
+        }
+        try seedPendingSave(diverged, for: reference)
+        let vm = DatabaseViewModel(databaseReference: reference)
+        await vm.unlock(password: fixturePassword)
+        let retainedURL = try XCTUnwrap(
+            DatabaseListStore.recentBackups(for: reference).first { (try? Data(contentsOf: $0)) == diverged }
+        )
+
+        for index in 1...6 {
+            vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Later Edit \(index)")
+            try await vm.save()
+        }
+
+        XCTAssertEqual(
+            try entryTitles(in: try Data(contentsOf: databaseURL)).filter { $0.hasPrefix("Later Edit") }.count,
+            6
+        )
+        let backups = DatabaseListStore.recentBackups(for: reference)
+        XCTAssertEqual(backups.filter { DatabaseListStore.isRetainedBackup($0) == false }.count, 5, "Ordinary backups still rotate")
+        XCTAssertEqual(try Data(contentsOf: retainedURL), diverged)
+        XCTAssertTrue(try entryTitles(in: try Data(contentsOf: retainedURL)).contains("Only Copy Of This Passkey"))
+    }
+
+    func testAPendingSaveWaitsForUnsavedEditsAndIsMergedByTheSaveThatWritesThem() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
@@ -416,14 +507,75 @@ final class PendingLocalSaveTests: XCTestCase {
 
         XCTAssertEqual(try Data(contentsOf: databaseURL), original, "Unsaved edits are the user's to save or discard")
         XCTAssertEqual(PendingLocalSaveStore.saves(for: reference.id).count, 1)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), pending)
 
         try await vm.save()
-        await vm.mergePendingLocalSaves()
 
-        let titles = try entryTitles(in: try Data(contentsOf: databaseURL))
+        let saved = try Data(contentsOf: databaseURL)
+        let titles = try entryTitles(in: saved)
         XCTAssertTrue(titles.contains("Unsaved Edit"))
-        XCTAssertTrue(titles.contains("New Passkey"))
+        XCTAssertTrue(titles.contains("New Passkey"), "The save the merge was waiting for must run it")
         XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
+        XCTAssertEqual(
+            try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)),
+            saved,
+            "AutoFill must never lose sight of the passkey"
+        )
+        XCTAssertTrue(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)).contains("New Passkey"))
+        XCTAssertNil(vm.draft)
+    }
+
+    func testChangingTheMasterKeyMergesAPendingSaveFirst() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let original = try Data(contentsOf: databaseURL)
+        let vm = DatabaseViewModel(databaseReference: reference)
+        await vm.unlock(password: fixturePassword)
+        let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
+        try seedPendingSave(pending, for: reference)
+
+        try await vm.changeMasterKey(
+            newPassword: "rotated-master",
+            newKeyFileData: nil,
+            newKeyFileBookmarkData: nil,
+            newKeyFileFilename: nil
+        )
+
+        let rekeyed = try Data(contentsOf: databaseURL)
+        let reopened = try KDBXParser.parse(data: rekeyed, password: "rotated-master", sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertTrue(
+            allEntryTitles(in: reopened).contains("New Passkey"),
+            "A save written under the old key cannot be merged once the key has changed"
+        )
+        XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), rekeyed)
+    }
+
+    func testChangingTheMasterKeyIsRefusedWhileAPendingSaveCannotBeMerged() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let original = try Data(contentsOf: databaseURL)
+        let vm = DatabaseViewModel(databaseReference: reference)
+        await vm.unlock(password: fixturePassword)
+        let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
+        try seedPendingSave(pending, for: reference)
+        let changedElsewhere = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "Added In Another App")) }
+        try changedElsewhere.write(to: databaseURL, options: .atomic)
+
+        do {
+            try await vm.changeMasterKey(
+                newPassword: "rotated-master",
+                newKeyFileData: nil,
+                newKeyFileBookmarkData: nil,
+                newKeyFileFilename: nil
+            )
+            XCTFail("The pending save is still under the old key")
+        } catch {
+            XCTAssertEqual(error as? DatabaseViewModel.RekeyError, .pendingUploadsExist)
+        }
+
+        XCTAssertEqual(try Data(contentsOf: databaseURL), changedElsewhere)
+        XCTAssertEqual(PendingLocalSaveStore.saves(for: reference.id).count, 1)
     }
 
     func testMergeWhoseSaveConflictsKeepsThePendingSave() async throws {

@@ -112,6 +112,7 @@ enum LocalDatabaseSaver {
         var cacheDatabaseCopy: @Sendable (Data, DatabaseReference) throws -> Void
         var addPendingLocalSave: @Sendable (Data, DatabaseReference) throws -> PendingLocalSaveStore.PendingSave
         var removePendingLocalSave: @Sendable (PendingLocalSaveStore.PendingSave) -> Void
+        var hasPendingLocalSaves: @Sendable (DatabaseReference) -> Bool
 
         static let live = Environment(
             beginBackgroundTask: { name in
@@ -169,6 +170,9 @@ enum LocalDatabaseSaver {
             },
             removePendingLocalSave: { pendingSave in
                 PendingLocalSaveStore.remove(pendingSave)
+            },
+            hasPendingLocalSaves: { reference in
+                PendingLocalSaveStore.hasSaves(for: reference.id)
             }
         )
 
@@ -342,8 +346,13 @@ enum LocalDatabaseSaver {
         // without a bookmark resolves straight to it), the replace above was
         // the cache write; repeating it widens the window where a concurrent
         // cache read can mismatch its pending-upload marker.
+        //
+        // A pending local save keeps the shared copy too: that copy holds an
+        // AutoFill save these bytes may not contain, and AutoFill reads it.
+        // Whoever merges the pending saves refreshes the copy afterwards.
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
-        if canonicalPath(of: location.url) != canonicalPath(of: cacheURL) {
+        if canonicalPath(of: location.url) != canonicalPath(of: cacheURL),
+           environment.hasPendingLocalSaves(reference) == false {
             try? environment.cacheDatabaseCopy(newData, reference)
         }
         try? environment.pruneBackups(reference, 5)

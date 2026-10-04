@@ -266,7 +266,8 @@ inside the App Group. The app merges them into the file after the next unlock,
 through its ordinary save with the open-time hash check and a backup. Until then
 the new passkey exists only in the App Group on this Mac. A pending save that
 will not open with the database's key, or cannot be merged safely, moves into
-the database's backups and the app says so.
+the database's backups and the app says so. Backup rotation never removes that
+file; it stays until the database is removed from KeeForge.
 
 [KDFExecutionPolicy.autoFillExtension](../KeeForge/Models/KDFExecutionPolicy.swift)
 bounds attacker-controlled Argon2 memory, work, and parallelism. The iOS runtime
