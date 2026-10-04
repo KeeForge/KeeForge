@@ -311,6 +311,49 @@ final class MacSmokeUITests: MacUITestCase {
 
     /// Real settings-window keystrokes prove that disabling the SwiftUI
     /// recorder removes its AppKit monitor; a controller test cannot reach it.
+    func testDisablingMenuBarDuringShortcutRecordingRestoresWindowCommands() throws {
+        typeCommandShortcut(",")
+        let settingsWindow = app.windows["com_apple_SwiftUI_Settings_window"].firstMatch
+        XCTAssertTrue(settingsWindow.waitForExistence(timeout: 15))
+        // Unselected Settings tabs are absent from XCUITest on macOS 26;
+        // use the same fixed-pane tab position as the screenshot audit.
+        settingsWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.448, dy: 0.09)).click()
+
+        let toggleQuery = settingsWindow.descendants(matching: .any)
+            .matching(identifier: "settings.menu-bar.toggle")
+        XCTAssertTrue(toggleQuery.firstMatch.waitForExistence(timeout: 10))
+        let toggle = try XCTUnwrap(toggleQuery.allElementsBoundByIndex.first {
+            $0.isHittable && $0.frame.height > 1
+                && ($0.elementType == .checkBox || $0.elementType == .switch || $0.elementType == .button)
+        }, "The menu-bar toggle did not expose a clickable native control")
+        let recorder = settingsWindow.buttons["settings.menu-bar.shortcut-recorder"].firstMatch
+        XCTAssertTrue(recorder.waitForExistence(timeout: 5))
+        let wasEnabled = recorder.isEnabled
+        if !wasEnabled { toggle.click() }
+        XCTAssertTrue(recorder.isEnabled)
+        let originalShortcut = displayText(of: recorder)
+        recorder.click()
+        XCTAssertTrue(waitForDisplayText("Type Shortcut…", identifier: "settings.menu-bar.shortcut-recorder"))
+
+        toggle.click()
+
+        XCTAssertTrue(waitForDisplayText(originalShortcut, identifier: "settings.menu-bar.shortcut-recorder"))
+        XCTAssertFalse(recorder.isEnabled)
+        typeCommandShortcut("w")
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: settingsWindow)
+        waitForExpectations(timeout: 10)
+
+        if wasEnabled {
+            typeCommandShortcut(",")
+            XCTAssertTrue(settingsWindow.waitForExistence(timeout: 10))
+            settingsWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.448, dy: 0.09)).click()
+            XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+            toggle.click()
+        }
+    }
+
+    /// This verifies SwiftUI observes the deferred route after the editor
+    /// settles a lock request; routing unit tests cover the decision itself.
     func testCloseDatabaseWaitsForDirtyEditorAndReturnsToListAfterDiscard() {
         unlockSuccessfully()
         typeCommandShortcut("n")

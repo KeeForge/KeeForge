@@ -273,6 +273,11 @@ Store spec has no updater dependency and blanks the feed, public key, and instal
 launcher settings. The artifact verifier rejects Sparkle/update configuration in
 MAS artifacts and StoreKit linkage in KeeForge's direct-build binaries.
 
+[SoftwareUpdateService](../KeeForge/Services/AppSupport/SoftwareUpdateService.swift)
+retains the direct-build updater and observes Sparkle's readiness on the main
+actor to control Check for Updates availability during startup and update checks.
+Sparkle owns appcast fetching, payload verification, and installation.
+
 Direct updates use an HTTPS appcast, Sparkle EdDSA verification against the embedded
 `SUPublicEDKey`, and notarized, stapled app payloads. The signing private key lives
 outside the repository in the login Keychain. Its recovery backup is essential

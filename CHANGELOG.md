@@ -19,7 +19,8 @@
 - Switching cloud accounts clears the previous account’s files. Closing creation or connection forms no longer lets late results reopen them.
 - Website icons refresh when an entry’s address changes, and selecting a key file no longer blocks the unlock screen while it loads.
 - Unsupported verification-code lengths show the correct explanation.
-- On Mac, the setup-link and AutoFill passkey forms show editable fields correctly.
+- On Mac, the setup-link and AutoFill passkey forms show editable fields correctly, and disabling the menu bar stops shortcut recording.
+- The direct-download Mac app keeps Check for Updates available in step with the updater.
 - The group editor stays open until a save conflict has been resolved, so you can finish saving without losing your place.
 - AutoFill stops updates when iOS returns unreadable credential identities, preventing an unreadable store from being treated as empty.
 - Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
