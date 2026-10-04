@@ -37,7 +37,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
     }
 
     func testDomainFromSubdomainURL() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://accounts.google.com/signin"), "google.com")
+        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://accounts.google.com/signin"), "accounts.google.com")
     }
 
     func testDomainFromBareDomainPrependsHTTPS() {
@@ -72,8 +72,8 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
         XCTAssertEqual(identities.count, 1)
         XCTAssertEqual(identities.first?.user, "octocat")
-        XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "github.com")
-        XCTAssertEqual(identities.first?.serviceIdentifier.type, .domain)
+        XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "https://github.com")
+        XCTAssertEqual(identities.first?.serviceIdentifier.type, .URL)
     }
 
     func testIdentityRecordIdentifierIsTaggedDatabaseAndEntryEncoding() {
@@ -151,7 +151,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         )
         let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
 
-        XCTAssertEqual(identities.map(\.serviceIdentifier.identifier), ["mybank.com"])
+        XCTAssertEqual(identities.map(\.serviceIdentifier.identifier), ["https://login.mybank.com"])
     }
 
     // MARK: - passwordIdentities: multiple URLs (additionalURLs via KP2A_URL_*)
@@ -168,8 +168,8 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         let domains = Set(identities.map { $0.serviceIdentifier.identifier })
 
         XCTAssertEqual(identities.count, 2)
-        XCTAssertTrue(domains.contains("github.com"))
-        XCTAssertTrue(domains.contains("gitlab.com"))
+        XCTAssertTrue(domains.contains("https://github.com"))
+        XCTAssertTrue(domains.contains("https://gitlab.com"))
     }
 
     func testFallsBackToAdditionalURLWhenPrimaryInvalid() {
@@ -183,7 +183,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
 
         XCTAssertEqual(identities.count, 1)
-        XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "example.com")
+        XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "https://backup.example.com")
     }
 
     func testEmptyWhenAllURLsInvalid() {
@@ -212,7 +212,66 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
 
         XCTAssertEqual(identities.count, 1)
-        XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "example.com")
+        XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "https://second.example.com")
+    }
+
+    // MARK: - passwordIdentities: subdomains
+
+    /// The system suggestion list shows the published identifier's host
+    /// under the user name, so it has to tell sibling subdomains apart (#173).
+    func testIdentityKeepsTheEntrySubdomain() {
+        let wiki = makeEntry(title: "Wiki", url: "https://wiki.dept.example.com/login", username: "user", hasPassword: true)
+        let mail = makeEntry(title: "Mail", url: "https://mail.example.com", username: "user", hasPassword: true)
+
+        XCTAssertEqual(
+            CredentialIdentityStoreManager.passwordIdentities(for: wiki, in: someDatabaseID).map(\.serviceIdentifier.identifier),
+            ["https://wiki.dept.example.com"]
+        )
+        XCTAssertEqual(
+            CredentialIdentityStoreManager.passwordIdentities(for: mail, in: someDatabaseID).map(\.serviceIdentifier.identifier),
+            ["https://mail.example.com"]
+        )
+    }
+
+    func testIdentitiesForSeveralSubdomainsOfOneEntryStaySeparate() {
+        let entry = makeEntry(
+            title: "Multi",
+            url: "https://mail.example.com",
+            username: "user",
+            hasPassword: true,
+            customFields: ["KP2A_URL_1": "https://wiki.example.com", "KP2A_URL_2": "https://mail.example.com/inbox"]
+        )
+        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
+
+        XCTAssertEqual(identities.map(\.serviceIdentifier.identifier), ["https://mail.example.com", "https://wiki.example.com"])
+    }
+
+    /// The identity store is outside the vault, so nothing but the host of
+    /// an entry URL may reach it.
+    func testIdentityCarriesOnlyTheHostOfTheEntryURL() {
+        let entry = makeEntry(
+            title: "Wiki",
+            url: "http://account:secret@wiki.example.com:8443/login?token=abc#top",
+            username: "user",
+            hasPassword: true
+        )
+        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
+
+        XCTAssertEqual(identities.map(\.serviceIdentifier.identifier), ["https://wiki.example.com"])
+    }
+
+    /// The published host must be one the matcher accepts for the same
+    /// entry, or a stale-identity fallback would find nothing to offer.
+    func testPublishedSubdomainStrictlyMatchesItsOwnEntry() {
+        let entry = makeEntry(title: "Wiki", url: "https://WWW.Wiki.Example.com:8443/login", username: "user", hasPassword: true)
+        let sibling = makeEntry(title: "Mail", url: "https://mail.example.com", username: "user", hasPassword: true)
+        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
+
+        XCTAssertEqual(identities.map(\.serviceIdentifier.identifier), ["https://wiki.example.com"])
+        XCTAssertEqual(
+            CredentialMatcher.strictMatchedEntries(from: [entry, sibling], for: identities.map(\.serviceIdentifier)).map(\.id),
+            [entry.id]
+        )
     }
 
     // MARK: - passwordIdentities: bare domain URLs
@@ -222,7 +281,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
 
         XCTAssertEqual(identities.count, 1)
-        XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "example.com")
+        XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "https://example.com")
     }
 
     // MARK: - passwordIdentities: deduplication
@@ -239,10 +298,10 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
 
         XCTAssertEqual(identities.count, 1)
-        XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "example.com")
+        XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "https://example.com")
     }
 
-    // MARK: - domainFromURLString: www stripping and registered domain
+    // MARK: - domainFromURLString: www stripping and subdomains
 
     func testDomainStripsWWWPrefix() {
         XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://www.facebook.com"), "facebook.com")
@@ -252,8 +311,8 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("www.facebook.com"), "facebook.com")
     }
 
-    func testDomainExtractsRegisteredDomainFromSubdomain() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://login.facebook.com/path"), "facebook.com")
+    func testDomainKeepsSubdomain() {
+        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://login.facebook.com/path"), "login.facebook.com")
     }
 
     func testDomainFromBareFacebookDomain() {
@@ -272,8 +331,8 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://www.bbc.co.uk"), "bbc.co.uk")
     }
 
-    func testDomainExtractsRegisteredDomainFromMultiPartTLD() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://news.bbc.co.uk"), "bbc.co.uk")
+    func testDomainKeepsSubdomainOfMultiPartTLD() {
+        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://news.bbc.co.uk"), "news.bbc.co.uk")
     }
 
     func testDomainReturnsNilForBareMultiPartTLD() {
@@ -281,22 +340,26 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("https://co.uk"))
     }
 
-    func testDomainUsesRegistrableDomainForUnlistedCountryCodeSuffix() {
+    func testDomainKeepsSubdomainOfCountryCodeSuffix() {
         XCTAssertEqual(
             CredentialIdentityStoreManager.domainFromURLString("https://login.mybank.com.pl"),
-            "mybank.com.pl"
+            "login.mybank.com.pl"
         )
     }
 
-    func testDomainKeepsPrivateSuffixTenantBoundary() {
+    func testDomainKeepsSubdomainOfPrivateSuffixTenant() {
         XCTAssertEqual(
             CredentialIdentityStoreManager.domainFromURLString("https://account.example.github.io"),
-            "example.github.io"
+            "account.example.github.io"
         )
     }
 
     func testDomainReturnsNilForPublicSuffix() {
         XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("https://github.io"))
+    }
+
+    func testDomainReturnsNilForWWWOnAPublicSuffix() {
+        XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("https://www.co.uk"))
     }
 
     // MARK: - oneTimeCodeIdentities (iOS 18+)
@@ -318,7 +381,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         let identity = CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID).first
 
         XCTAssertNotNil(identity)
-        XCTAssertEqual(identity?.label, "GitHub")
+        XCTAssertEqual(identity?.label, "GitHub (octocat)")
         XCTAssertEqual(identity?.serviceIdentifier.identifier, "github.com")
         XCTAssertEqual(
             identity?.recordIdentifier,
@@ -358,6 +421,40 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
         XCTAssertNotNil(identity)
         XCTAssertEqual(identity?.label, "user@example.com")
+    }
+
+    func testOTCIdentityUsesTitleAloneWhenUsernameAddsNothing() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
+        let withoutUsername = makeEntry(title: "GitHub", url: "https://github.com", username: "", hasPassword: false, hasTOTP: true)
+        let sameAsTitle = makeEntry(title: "octocat", url: "https://github.com", username: "octocat", hasPassword: false, hasTOTP: true)
+
+        XCTAssertEqual(
+            CredentialIdentityStoreManager.oneTimeCodeIdentities(for: withoutUsername, in: someDatabaseID).map(\.label),
+            ["GitHub"]
+        )
+        XCTAssertEqual(
+            CredentialIdentityStoreManager.oneTimeCodeIdentities(for: sameAsTitle, in: someDatabaseID).map(\.label),
+            ["octocat"]
+        )
+    }
+
+    /// Two accounts on one site share a title often enough that the title
+    /// alone cannot tell their codes apart in the system list (#173).
+    func testOTCIdentitiesForTwoAccountsOnOneSiteAreDistinguishable() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
+        let admin = makeEntry(title: "Cloud", url: "https://cloud.example.com", username: "admin", hasPassword: false, hasTOTP: true)
+        let user = makeEntry(title: "Cloud", url: "https://cloud.example.com", username: "member", hasPassword: false, hasTOTP: true)
+        let labels = [admin, user].flatMap {
+            CredentialIdentityStoreManager.oneTimeCodeIdentities(for: $0, in: someDatabaseID).map(\.label)
+        }
+
+        XCTAssertEqual(labels, ["Cloud (admin)", "Cloud (member)"])
     }
 
     func testOTCIdentityNilWhenNoTOTP() throws {
@@ -796,6 +893,34 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertFalse(fake.stored.contains {
             ($0 as? ASOneTimeCodeCredentialIdentity)?.serviceIdentifier.identifier == "example.com"
         })
+    }
+
+    /// Identities published before #173 sit under the registrable domain; a
+    /// refresh has to replace them, not leave both rows in the list.
+    func testPopulateRefreshReplacesPasswordIdentityPublishedUnderRegistrableDomain() async {
+        let fake = installFake()
+        let databaseID = UUID()
+        let otherDatabaseID = UUID()
+        let entry = makeEntry(title: "Wiki", url: "https://wiki.example.com", username: "user", hasPassword: true)
+        let earlierIdentity = ASPasswordCredentialIdentity(
+            serviceIdentifier: ASCredentialServiceIdentifier(identifier: "example.com", type: .domain),
+            user: "user",
+            recordIdentifier: CredentialRecordIdentifier(databaseID: databaseID, entryID: entry.id).encoded
+        )
+        fake.stored = [earlierIdentity] + CredentialIdentityStoreManager.passwordIdentities(
+            for: makeEntry(title: "Other", url: "https://other.example", username: "other", hasPassword: true),
+            in: otherDatabaseID
+        )
+
+        let mutation = expectMutations(2, on: fake)
+        CredentialIdentityStoreManager.populate(with: [entry], for: databaseID)
+        await fulfillment(of: [mutation], timeout: 1)
+
+        XCTAssertEqual(fake.calls, ["removeCredentialIdentities", "saveCredentialIdentities"])
+        XCTAssertEqual(
+            Set(fake.stored.compactMap { ($0 as? ASPasswordCredentialIdentity)?.serviceIdentifier.identifier }),
+            ["https://wiki.example.com", "https://other.example"]
+        )
     }
 
     func testPopulateWithNoEligibleEntriesEmptiesStore() async {

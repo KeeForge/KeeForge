@@ -2639,9 +2639,11 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         return reference
     }
 
+    /// A tapped suggestion, in the shape `CredentialIdentityStoreManager`
+    /// publishes password identities.
     private func makePasswordIdentity(recordIdentifier: String?) -> ASPasswordCredentialIdentity {
         ASPasswordCredentialIdentity(
-            serviceIdentifier: githubServiceIdentifier(),
+            serviceIdentifier: ASCredentialServiceIdentifier(identifier: "https://github.com", type: .URL),
             user: "octocat",
             recordIdentifier: recordIdentifier
         )

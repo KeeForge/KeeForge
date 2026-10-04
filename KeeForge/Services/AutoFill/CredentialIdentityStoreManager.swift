@@ -752,7 +752,16 @@ enum CredentialIdentityStoreManager: Sendable {
         var seenHosts = Set<String>()
         let hosts = CredentialMatcher.webURLs(of: entry).compactMap(otpHostFromURLString).filter { seenHosts.insert($0).inserted }
 
-        let label = entry.title.isEmpty ? entry.username : entry.title
+        // The system list shows only this label, so the title alone cannot
+        // tell two accounts on one site apart.
+        let label: String
+        if entry.title.isEmpty {
+            label = entry.username
+        } else if entry.username.isEmpty || entry.username == entry.title {
+            label = entry.title
+        } else {
+            label = "\(entry.title) (\(entry.username))"
+        }
         guard !label.isEmpty else { return [] }
 
         let recordIdentifier = CredentialRecordIdentifier(databaseID: databaseID, entryID: entry.id).encoded
@@ -806,11 +815,13 @@ enum CredentialIdentityStoreManager: Sendable {
         guard !username.isEmpty else { return [] }
         guard entry.hasPassword else { return [] }
 
-        let domains = Set(CredentialMatcher.webURLs(of: entry).compactMap(domainFromURLString))
-        guard !domains.isEmpty else { return [] }
+        let hosts = Set(CredentialMatcher.webURLs(of: entry).compactMap(domainFromURLString))
+        guard !hosts.isEmpty else { return [] }
 
-        return domains.sorted().map { domain in
-            let serviceIdentifier = ASCredentialServiceIdentifier(identifier: domain, type: .domain)
+        return hosts.sorted().map { host in
+            // The system prints a URL identifier's host under the suggestion,
+            // which is all that tells the subdomains of one site apart.
+            let serviceIdentifier = ASCredentialServiceIdentifier(identifier: "https://\(host)", type: .URL)
             return ASPasswordCredentialIdentity(
                 serviceIdentifier: serviceIdentifier,
                 user: username,
@@ -819,18 +830,14 @@ enum CredentialIdentityStoreManager: Sendable {
         }
     }
 
+    /// The URL's own host, as the matcher normalizes it. Hosts without a
+    /// registrable domain (IP addresses, `localhost`, bare public suffixes)
+    /// are not published.
     static func domainFromURLString(_ urlString: String) -> String? {
-        guard !urlString.isEmpty else { return nil }
-
-        let host: String?
-        if let h = URL(string: urlString)?.host {
-            host = h
-        } else {
-            host = URL(string: "https://\(urlString)")?.host
-        }
-
-        guard let host else { return nil }
-        return registeredDomain(from: host)
+        guard let host = CredentialMatcher.hostFromURLString(urlString),
+              registeredDomain(from: host) != nil
+        else { return nil }
+        return host
     }
 
     /// The exact request host, so an OTP field on `vt.example.com` is not
