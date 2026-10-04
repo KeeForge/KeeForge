@@ -4182,7 +4182,7 @@ final class DatabaseViewModel {
     /// it must never overwrite. Do not go back to `upload(expectedRev: nil)` —
     /// that is `WriteMode.overwrite` on Dropbox and `conflictBehavior=replace`
     /// on OneDrive, and it destroyed an earlier copy of the same name.
-    /// `createFile` is required to be no-overwrite (`Cloud/CLAUDE.md`) and
+    /// `createFile` is required to be no-overwrite (`Cloud/AGENTS.md`) and
     /// reports a collision as `.conflict`, which the retry answers by
     /// numbering the name. `providerResolver` is injectable only so tests can
     /// exercise this routing without a live provider.

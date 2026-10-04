@@ -22,11 +22,11 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 
 ## Open The Local Doc First
 
-Folders that own source files carry an `AGENTS.md`, with a `CLAUDE.md` symlink beside it
-so the doc loads on its own when you work in them — `KeeForge`, `KeeForge/{App,Models,ViewModels,Extensions}`,
-every `KeeForge/Services/*` and `KeeForge/Views/*` subfolder, `AutoFillExtension`,
-`KeeForgeTests` (and its `Support`), and `KeeForgeMacUITests`. Edit the `AGENTS.md`;
-never replace the symlink with a second copy. The docs below are read on demand:
+Read the owning folder's `AGENTS.md` before changing its files. These live in
+`KeeForge`, `KeeForge/{App,Models,ViewModels,Extensions}`, every `KeeForge/Services/*`
+and `KeeForge/Views/*` subfolder, `AutoFillExtension`, `KeeForgeTests` (and its `Support`),
+and `KeeForgeMacUITests`. Maintain instructions directly in `AGENTS.md`.
+The docs below are read on demand:
 
 - `KeeForge/AGENTS.md` — shared-source changes, workflow ownership, and KDBX compatibility requirements
 - `.agents/AGENTS.md` — release and pre-release review workflow selection
