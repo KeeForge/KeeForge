@@ -681,7 +681,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         let identity = try XCTUnwrap(fake.stored.first as? ASOneTimeCodeCredentialIdentity)
         XCTAssertEqual(fake.stored.count, 1)
         XCTAssertEqual(identity.serviceIdentifier.identifier, "example.com")
-        XCTAssertEqual(identity.label, "TOTP Only")
+        XCTAssertEqual(identity.label, "TOTP Only (user)")
         XCTAssertEqual(identity.recordIdentifier, "v2:\(someDatabaseID.uuidString):\(entry.id.uuidString)")
     }
 
@@ -1068,8 +1068,8 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         let removed = try XCTUnwrap(fake.removedIdentityBatches.first)
         XCTAssertEqual(removed.count, 2)
         let password = try XCTUnwrap(removed.compactMap { $0 as? ASPasswordCredentialIdentity }.first)
-        XCTAssertEqual(password.serviceIdentifier.identifier, "pw-site.com")
-        XCTAssertEqual(password.serviceIdentifier.type, .domain)
+        XCTAssertEqual(password.serviceIdentifier.identifier, "https://pw-site.com")
+        XCTAssertEqual(password.serviceIdentifier.type, .URL)
         XCTAssertEqual(password.user, "pw")
         XCTAssertEqual(password.recordIdentifier, "v2:\(databaseA.uuidString):\(passwordEntry.id.uuidString)")
         let passkey = try XCTUnwrap(removed.compactMap { $0 as? ASPasskeyCredentialIdentity }.first)
@@ -1119,7 +1119,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         for suppliedIdentity in removed {
             let identity = try XCTUnwrap(suppliedIdentity as? ASOneTimeCodeCredentialIdentity)
             XCTAssertEqual(identity.serviceIdentifier.type, .domain)
-            XCTAssertEqual(identity.label, "TOTP Only")
+            XCTAssertEqual(identity.label, "TOTP Only (user)")
             XCTAssertEqual(identity.recordIdentifier, "v2:\(databaseA.uuidString):\(totpEntry.id.uuidString)")
         }
     }
@@ -1213,8 +1213,8 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertEqual(removed.filter { $0 is ASOneTimeCodeCredentialIdentity }.count, 1)
         let expectedRecordIdentifier = "v2:\(databaseID.uuidString):\(entryA.id.uuidString)"
         let password = try XCTUnwrap(removed.compactMap { $0 as? ASPasswordCredentialIdentity }.first)
-        XCTAssertEqual(password.serviceIdentifier.identifier, "a-site.com")
-        XCTAssertEqual(password.serviceIdentifier.type, .domain)
+        XCTAssertEqual(password.serviceIdentifier.identifier, "https://a-site.com")
+        XCTAssertEqual(password.serviceIdentifier.type, .URL)
         XCTAssertEqual(password.user, "user@a-site.com")
         XCTAssertEqual(password.recordIdentifier, expectedRecordIdentifier)
         let passkey = try XCTUnwrap(removed.compactMap { $0 as? ASPasskeyCredentialIdentity }.first)
@@ -1226,7 +1226,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         let oneTimeCode = try XCTUnwrap(removed.compactMap { $0 as? ASOneTimeCodeCredentialIdentity }.first)
         XCTAssertEqual(oneTimeCode.serviceIdentifier.identifier, "a-site.com")
         XCTAssertEqual(oneTimeCode.serviceIdentifier.type, .domain)
-        XCTAssertEqual(oneTimeCode.label, "Full a-site.com")
+        XCTAssertEqual(oneTimeCode.label, "Full a-site.com (user@a-site.com)")
         XCTAssertEqual(oneTimeCode.recordIdentifier, expectedRecordIdentifier)
     }
 
