@@ -15,6 +15,7 @@ final class FTPConnectViewModel {
     var errorMessage: String?
 
     private let connector: any FTPConnecting
+    private var isCancelled = false
 
     init(connector: any FTPConnecting) {
         self.connector = connector
@@ -23,7 +24,7 @@ final class FTPConnectViewModel {
     /// Returns the connected account, or nil with `errorMessage` set. The
     /// provider is never called when client-side validation fails.
     func connect() async -> CloudAccount? {
-        guard isConnecting == false else { return nil }
+        guard isConnecting == false, isCancelled == false else { return nil }
 
         errorMessage = nil
 
@@ -66,11 +67,20 @@ final class FTPConnectViewModel {
         defer { isConnecting = false }
 
         do {
-            return try await connector.connect(configuration)
+            let account = try await connector.connect(configuration)
+            guard isCancelled == false, Task.isCancelled == false else { return nil }
+            password = ""
+            return account
         } catch {
+            guard isCancelled == false, Task.isCancelled == false else { return nil }
             errorMessage = Self.connectionMessage(for: error)
             return nil
         }
+    }
+
+    func cancelPendingConnection() {
+        isCancelled = true
+        password = ""
     }
 
     private static func connectionMessage(for error: Error) -> String {

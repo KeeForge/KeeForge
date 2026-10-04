@@ -15,6 +15,7 @@
 - Opening or closing a database now preserves unsaved editor changes until you choose to save or discard them.
 - Switching entries conceals revealed fields, and verification codes refresh when their setup changes. Authentication that finishes after a lock or selection change cannot reveal or copy stale secrets.
 - Attachment previews and imports no longer reopen or change an editor after it has closed or the database has locked.
+- Switching cloud accounts clears the previous account’s files. Closing creation or connection forms no longer lets late results reopen them.
 - Unsupported verification-code lengths show the correct explanation.
 - On Mac, the setup-link form shows editable fields correctly.
 - The group editor stays open until a save conflict has been resolved, so you can finish saving without losing your place.

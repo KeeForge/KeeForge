@@ -17,6 +17,7 @@ final class WebDAVConnectViewModel {
     var errorMessage: String?
 
     private let connector: any WebDAVConnecting
+    private var isCancelled = false
 
     init(connector: any WebDAVConnecting) {
         self.connector = connector
@@ -27,7 +28,7 @@ final class WebDAVConnectViewModel {
     /// (with `errorMessage` set). The provider is never called when client-side
     /// validation fails.
     func connect() async -> CloudAccount? {
-        guard isConnecting == false else { return nil }
+        guard isConnecting == false, isCancelled == false else { return nil }
 
         errorMessage = nil
 
@@ -73,11 +74,20 @@ final class WebDAVConnectViewModel {
         )
 
         do {
-            return try await connector.connect(configuration)
+            let account = try await connector.connect(configuration)
+            guard isCancelled == false, Task.isCancelled == false else { return nil }
+            password = ""
+            return account
         } catch {
+            guard isCancelled == false, Task.isCancelled == false else { return nil }
             errorMessage = Self.connectionMessage(for: error)
             return nil
         }
+    }
+
+    func cancelPendingConnection() {
+        isCancelled = true
+        password = ""
     }
 
     private static func connectionMessage(for error: Error) -> String {

@@ -53,10 +53,22 @@ enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
 
 @MainActor @Observable
 final class DatabaseCreationViewModel {
-    private let environment: DatabaseCreationService.Environment
+    typealias PreparationOperation = @Sendable (
+        DatabasePreparationRequest, DatabaseCreationService.Environment
+    ) async throws -> PreparedDatabase
 
-    init(environment: DatabaseCreationService.Environment = .live) {
+    private let environment: DatabaseCreationService.Environment
+    private let preparationOperation: PreparationOperation
+    private var isCancelled = false
+
+    init(
+        environment: DatabaseCreationService.Environment = .live,
+        preparationOperation: @escaping PreparationOperation = { request, environment in
+            try await DatabaseCreationService.prepare(request: request, environment: environment)
+        }
+    ) {
         self.environment = environment
+        self.preparationOperation = preparationOperation
     }
 
     var databaseName = ""
@@ -121,7 +133,7 @@ final class DatabaseCreationViewModel {
     }
 
     func prepareForExport() async -> Bool {
-        guard isCreating == false else { return false }
+        guard isCreating == false, isCancelled == false else { return false }
         guard validate() else { return false }
 
         isCreating = true
@@ -131,8 +143,8 @@ final class DatabaseCreationViewModel {
         }
 
         do {
-            preparedDatabase = try await DatabaseCreationService.prepare(
-                request: DatabasePreparationRequest(
+            let prepared = try await preparationOperation(
+                DatabasePreparationRequest(
                     displayName: databaseName,
                     password: password.isEmpty ? nil : password,
                     keyFileData: keyFileData,
@@ -141,11 +153,14 @@ final class DatabaseCreationViewModel {
                     cipher: cipher,
                     kdfPreset: kdfPreset
                 ),
-                environment: environment
+                environment
             )
+            guard isCancelled == false, Task.isCancelled == false else { return false }
+            preparedDatabase = prepared
             clearSecrets()
             return true
         } catch {
+            guard isCancelled == false, Task.isCancelled == false else { return false }
             creationError = error.localizedDescription
             return false
         }
@@ -174,7 +189,7 @@ final class DatabaseCreationViewModel {
         accountID: String,
         folderPath: String?
     ) async -> CreatedDatabase? {
-        guard isCreating == false else { return nil }
+        guard isCreating == false, isCancelled == false else { return nil }
         guard validate() else { return nil }
 
         isCreating = true
@@ -201,10 +216,12 @@ final class DatabaseCreationViewModel {
                 ),
                 environment: environment
             )
+            guard isCancelled == false, Task.isCancelled == false else { return nil }
             clearSecrets()
             preparedDatabase = nil
             return created
         } catch {
+            guard isCancelled == false, Task.isCancelled == false else { return nil }
             creationError = cloudCreationMessage(for: error)
             return nil
         }
@@ -218,6 +235,12 @@ final class DatabaseCreationViewModel {
 
     func clearPreparedDatabase() {
         preparedDatabase = nil
+    }
+
+    func cancelPendingCreation() {
+        isCancelled = true
+        clearSecrets()
+        clearPreparedDatabase()
     }
 
     private func validate() -> Bool {
