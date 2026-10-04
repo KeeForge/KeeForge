@@ -1069,13 +1069,13 @@ final class DatabaseViewModelTests: XCTestCase {
         let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
         let entry = try XCTUnwrap(socialGroup.entries.first)
 
-        vm.selectGroup(socialGroup.id)
-        vm.selectEntry(entry.id)
+        vm.workspace.selectedGroupID = socialGroup.id
+        vm.workspace.selectedEntryID = entry.id
 
         try vm.deleteGroup(socialGroup.id, sendToRecycleBin: true)
 
-        XCTAssertEqual(vm.selectedGroupID, vm.visibleRootGroupID)
-        XCTAssertNil(vm.selectedEntryID)
+        XCTAssertEqual(vm.workspace.selectedGroupID, vm.visibleRootGroupID)
+        XCTAssertNil(vm.workspace.selectedEntryID)
         XCTAssertTrue(vm.isGroupInRecycleBin(groupID: socialGroup.id))
     }
 
@@ -1085,15 +1085,15 @@ final class DatabaseViewModelTests: XCTestCase {
 
         let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
         let entry = try XCTUnwrap(socialGroup.entries.first)
-        vm.selectGroup(socialGroup.id)
-        vm.selectEntry(entry.id)
+        vm.workspace.selectedGroupID = socialGroup.id
+        vm.workspace.selectedEntryID = entry.id
 
         try vm.deleteEntry(entry.id, sendToRecycleBin: false)
 
         XCTAssertNil(vm.entry(withID: entry.id))
         // The stale selection is kept for the mounted EntryDetailView to clear;
         // clearing it in the delete update would wedge a pushed entry editor.
-        XCTAssertEqual(vm.selectedEntryID, entry.id)
+        XCTAssertEqual(vm.workspace.selectedEntryID, entry.id)
     }
 
     func testRecyclingSelectedEntryClearsSelection() async throws {
@@ -1102,14 +1102,14 @@ final class DatabaseViewModelTests: XCTestCase {
 
         let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
         let entry = try XCTUnwrap(socialGroup.entries.first)
-        vm.selectGroup(socialGroup.id)
-        vm.selectEntry(entry.id)
+        vm.workspace.selectedGroupID = socialGroup.id
+        vm.workspace.selectedEntryID = entry.id
 
         try vm.deleteEntry(entry.id, sendToRecycleBin: true)
 
         XCTAssertNotNil(vm.entry(withID: entry.id))
         XCTAssertTrue(vm.isEntryInRecycleBin(entryID: entry.id))
-        XCTAssertNil(vm.selectedEntryID)
+        XCTAssertNil(vm.workspace.selectedEntryID)
     }
 
     func testHidingGroupFromAutoFillMarksItAndItsSubgroupsExcluded() async throws {
@@ -1754,9 +1754,9 @@ final class DatabaseViewModelTests: XCTestCase {
 
         vm.revealEntry(target.id)
 
-        XCTAssertEqual(vm.selectedGroupID, nested.id)
-        XCTAssertEqual(vm.selectedEntryID, target.id)
-        XCTAssertNil(vm.selectedTag)
+        XCTAssertEqual(vm.workspace.selectedGroupID, nested.id)
+        XCTAssertEqual(vm.workspace.selectedEntryID, target.id)
+        XCTAssertNil(vm.workspace.selectedTag)
         XCTAssertEqual(vm.searchText, "Nested", "Clearing the query would make the workspace drop the selection")
     }
 
@@ -1765,15 +1765,15 @@ final class DatabaseViewModelTests: XCTestCase {
         let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", groups: [
             KPGroup(name: "Visible", entries: [target]),
         ]))
-        let groupBefore = vm.selectedGroupID
+        let groupBefore = vm.workspace.selectedGroupID
 
         vm.revealEntry(UUID())
-        XCTAssertEqual(vm.selectedGroupID, groupBefore)
-        XCTAssertNil(vm.selectedEntryID)
+        XCTAssertEqual(vm.workspace.selectedGroupID, groupBefore)
+        XCTAssertNil(vm.workspace.selectedEntryID)
 
         vm.lockRequest(force: true)
         vm.revealEntry(target.id)
-        XCTAssertNil(vm.selectedEntryID)
+        XCTAssertNil(vm.workspace.selectedEntryID)
     }
 
     // MARK: - Entry row Move to Group gate (#134)
@@ -2022,32 +2022,32 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testDatabaseOpensOnAllEntriesAndLockingReturnsThere() async throws {
         let vm = try makeViewModel()
-        XCTAssertEqual(vm.viewMode, .allEntries)
+        XCTAssertEqual(vm.workspace.viewMode, .allEntries)
 
         await vm.unlock(password: fixturePassword)
-        vm.viewMode = .verificationCodes
+        vm.workspace.viewMode = .verificationCodes
 
         vm.lock()
 
-        XCTAssertEqual(vm.viewMode, .allEntries, "The next unlock starts on All Entries, not on the view last picked")
+        XCTAssertEqual(vm.workspace.viewMode, .allEntries, "The next unlock starts on All Entries, not on the view last picked")
     }
 
     func testInitialViewModeHonorsTheOverrideOnlyUnderUITesting() {
-        XCTAssertEqual(DatabaseViewModel.initialViewMode(arguments: [], environment: [:]), .allEntries)
+        XCTAssertEqual(DatabaseWorkspaceState.initialViewMode(arguments: [], environment: [:]), .allEntries)
         XCTAssertEqual(
-            DatabaseViewModel.initialViewMode(
+            DatabaseWorkspaceState.initialViewMode(
                 arguments: ["-ui-testing"],
                 environment: ["UI_TEST_VIEW_MODE": "groups"]
             ),
             .groups
         )
         XCTAssertEqual(
-            DatabaseViewModel.initialViewMode(arguments: [], environment: ["UI_TEST_VIEW_MODE": "groups"]),
+            DatabaseWorkspaceState.initialViewMode(arguments: [], environment: ["UI_TEST_VIEW_MODE": "groups"]),
             .allEntries,
             "Outside UI testing the environment cannot change where a database opens"
         )
         XCTAssertEqual(
-            DatabaseViewModel.initialViewMode(
+            DatabaseWorkspaceState.initialViewMode(
                 arguments: ["-ui-testing"],
                 environment: ["UI_TEST_VIEW_MODE": "no-such-view"]
             ),
@@ -3294,10 +3294,10 @@ final class DatabaseViewModelTests: XCTestCase {
         )
         let entryID = try XCTUnwrap(vm.group(withID: groupID)?.entries.first?.id)
 
-        vm.selectedGroupID = groupID
+        vm.workspace.selectedGroupID = groupID
         XCTAssertEqual(vm.deletableSelection, .group(groupID))
 
-        vm.selectEntry(entryID)
+        vm.workspace.selectedEntryID = entryID
         XCTAssertEqual(vm.deletableSelection, .entry(entryID))
     }
 
@@ -3305,7 +3305,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let vm = try await makeCreatedViewModel(displayName: "Protected Delete Target")
         let rootID = try XCTUnwrap(vm.visibleRootGroupID)
 
-        vm.selectedGroupID = rootID
+        vm.workspace.selectedGroupID = rootID
 
         XCTAssertTrue(vm.isGroupProtectedFromDeletion(groupID: rootID))
         XCTAssertNil(vm.deletableSelection, "⌘⌫ must not offer to delete the vault root")
@@ -3321,9 +3321,47 @@ final class DatabaseViewModelTests: XCTestCase {
             .createEntry(parentGroupID: rootID, draft: EntryDraftPayload(title: "GitHub"))
         )
         let entryID = try XCTUnwrap(vm.visibleRootGroup?.entries.first?.id)
-        vm.selectEntry(entryID)
+        vm.workspace.selectedEntryID = entryID
 
         XCTAssertTrue(vm.canEditSelectedEntry)
+    }
+
+    func testWorkspaceCommandsRespectSessionAndReadOnlyGuards() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        vm.workspace.selectedEntryID = try XCTUnwrap(vm.currentRootGroup?.allEntries.first?.id)
+
+        func requestCommands() {
+            vm.requestNewEntry()
+            vm.requestNewGroup()
+            vm.requestEntryEdit()
+            vm.requestDeleteSelection()
+            vm.requestSearchFocus()
+        }
+        requestCommands()
+        XCTAssertEqual(vm.workspace.newEntryRequestID, 1)
+        XCTAssertEqual(vm.workspace.newGroupRequestID, 1)
+        XCTAssertEqual(vm.workspace.editEntryRequestID, 1)
+        XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 1)
+        XCTAssertEqual(vm.workspace.searchFocusRequestID, 1)
+
+        DatabaseListStore.update(vm.databaseReference)
+        vm.setReadOnly(true)
+        XCTAssertTrue(vm.isReadOnly)
+        requestCommands()
+        XCTAssertEqual(vm.workspace.newEntryRequestID, 1)
+        XCTAssertEqual(vm.workspace.newGroupRequestID, 1)
+        XCTAssertEqual(vm.workspace.editEntryRequestID, 1)
+        XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 1)
+        XCTAssertEqual(vm.workspace.searchFocusRequestID, 2)
+
+        vm.lock()
+        requestCommands()
+        XCTAssertEqual(vm.workspace.newEntryRequestID, 1)
+        XCTAssertEqual(vm.workspace.newGroupRequestID, 1)
+        XCTAssertEqual(vm.workspace.editEntryRequestID, 1)
+        XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 1)
+        XCTAssertEqual(vm.workspace.searchFocusRequestID, 2)
     }
 
     func testSelectedTagAndSelectedGroupAreMutuallyExclusive() async throws {
@@ -3337,17 +3375,17 @@ final class DatabaseViewModelTests: XCTestCase {
             )
         )
         let entryID = try XCTUnwrap(vm.visibleRootGroup?.entries.first(where: { $0.title == "Tagged" })?.id)
-        vm.selectedGroupID = parentGroupID
-        vm.selectEntry(entryID)
+        vm.workspace.selectedGroupID = parentGroupID
+        vm.workspace.selectedEntryID = entryID
 
-        vm.selectedTag = "selected"
+        vm.workspace.selectedTag = "selected"
 
-        XCTAssertNil(vm.selectedGroupID, "Selecting a tag clears the sidebar's group selection")
-        XCTAssertNil(vm.selectedEntryID, "Selecting a tag clears the entry selection, like switching groups")
+        XCTAssertNil(vm.workspace.selectedGroupID, "Selecting a tag clears the sidebar's group selection")
+        XCTAssertNil(vm.workspace.selectedEntryID, "Selecting a tag clears the entry selection, like switching groups")
 
-        vm.selectedGroupID = parentGroupID
+        vm.workspace.selectedGroupID = parentGroupID
 
-        XCTAssertNil(vm.selectedTag, "Selecting a group clears the tag selection")
+        XCTAssertNil(vm.workspace.selectedTag, "Selecting a group clears the tag selection")
     }
 
     func testSelectedTagSurvivesAnUnrelatedRebuild() async throws {
@@ -3360,7 +3398,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 draft: EntryDraftPayload(title: "Tagged", tags: ["kept"])
             )
         )
-        vm.selectedTag = "kept"
+        vm.workspace.selectedTag = "kept"
 
         try vm.applyEntryEdit(
             .createEntry(
@@ -3369,9 +3407,9 @@ final class DatabaseViewModelTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(vm.selectedTag, "kept")
+        XCTAssertEqual(vm.workspace.selectedTag, "kept")
         XCTAssertNil(
-            vm.selectedGroupID,
+            vm.workspace.selectedGroupID,
             "The root fallback must not snap back while a tag is selected — that would clear it"
         )
     }
@@ -3387,7 +3425,7 @@ final class DatabaseViewModelTests: XCTestCase {
             )
         )
         let entryID = try XCTUnwrap(vm.visibleRootGroup?.entries.first(where: { $0.title == "Only Carrier" })?.id)
-        vm.selectedTag = "doomed"
+        vm.workspace.selectedTag = "doomed"
         XCTAssertEqual(vm.entries(withTag: "doomed").map(\.id), [entryID])
 
         try vm.applyEntryEdit(
@@ -3397,9 +3435,9 @@ final class DatabaseViewModelTests: XCTestCase {
             )
         )
 
-        XCTAssertNil(vm.selectedTag, "A tag with no live carrier stops being a valid selection")
+        XCTAssertNil(vm.workspace.selectedTag, "A tag with no live carrier stops being a valid selection")
         XCTAssertEqual(
-            vm.selectedGroupID,
+            vm.workspace.selectedGroupID,
             vm.visibleRootGroupID,
             "The sidebar falls back to the group tree once the tag selection is gone"
         )
@@ -3418,7 +3456,7 @@ final class DatabaseViewModelTests: XCTestCase {
             )
         )
         let entryID = try XCTUnwrap(vm.visibleRootGroup?.entries.first(where: { $0.title == "Last Carrier" })?.id)
-        vm.selectedTag = "fleeting"
+        vm.workspace.selectedTag = "fleeting"
         XCTAssertEqual(vm.entries(withTag: "fleeting").count, 1)
 
         try vm.deleteEntry(entryID, sendToRecycleBin: true)
@@ -3427,20 +3465,20 @@ final class DatabaseViewModelTests: XCTestCase {
         // shows: an empty list and its own empty state, no crash and no pop.
         XCTAssertTrue(vm.entries(withTag: "fleeting").isEmpty)
         XCTAssertFalse(vm.tagsInDisplayOrder.contains("fleeting"))
-        XCTAssertNil(vm.selectedTag)
+        XCTAssertNil(vm.workspace.selectedTag)
     }
 
     func testLockClearsTheSelectedTag() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
 
-        vm.selectedTag = "anything"
-        vm.navigationPath.append(TagDestination.entries(tag: "anything"))
+        vm.workspace.selectedTag = "anything"
+        vm.workspace.navigationPath.append(.tag("anything"))
 
         vm.lock()
 
-        XCTAssertNil(vm.selectedTag)
-        XCTAssertTrue(vm.navigationPath.isEmpty, "Pushed tag destinations clear with the rest of the path")
+        XCTAssertNil(vm.workspace.selectedTag)
+        XCTAssertTrue(vm.workspace.navigationPath.isEmpty, "Pushed tag destinations clear with the rest of the path")
     }
 
     func testReloadDiscardingDraftClearsTheSelectedTag() async throws {
@@ -3459,13 +3497,13 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        vm.selectedTag = "anything"
-        vm.navigationPath.append(TagDestination.entries(tag: "anything"))
+        vm.workspace.selectedTag = "anything"
+        vm.workspace.navigationPath.append(.tag("anything"))
 
         try await vm.reloadDiscardingDraft()
 
-        XCTAssertNil(vm.selectedTag)
-        XCTAssertTrue(vm.navigationPath.isEmpty)
+        XCTAssertNil(vm.workspace.selectedTag)
+        XCTAssertTrue(vm.workspace.navigationPath.isEmpty)
     }
 
     // MARK: - Tag inheritance (group tags)
@@ -3742,14 +3780,14 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
 
         vm.searchText = "query"
-        vm.navigationPath.append("pushed")
+        vm.workspace.navigationPath.append(.entry(UUID()))
 
         vm.lock()
 
         XCTAssertState(vm.state, is: .locked)
         XCTAssertNil(vm.rootGroup)
         XCTAssertEqual(vm.searchText, "")
-        XCTAssertTrue(vm.navigationPath.isEmpty)
+        XCTAssertTrue(vm.workspace.navigationPath.isEmpty)
     }
 
     func testSaveOnCleanDraftIsNoOp() async throws {
@@ -5123,7 +5161,7 @@ final class DatabaseViewModelTests: XCTestCase {
         vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unsaved")
         try await vm.save()
         vm.searchText = "discord"
-        vm.navigationPath.append("detail")
+        vm.workspace.navigationPath.append(.entry(UUID()))
 
         try await vm.reloadDiscardingDraft()
 
@@ -5133,7 +5171,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.openTimeSHA512, Data("reloaded-hash".utf8))
         XCTAssertNil(vm.draft)
         XCTAssertNil(vm.saveConflict)
-        XCTAssertTrue(vm.navigationPath.isEmpty)
+        XCTAssertTrue(vm.workspace.navigationPath.isEmpty)
         XCTAssertEqual(vm.searchText, "")
         XCTAssertState(vm.state, is: .unlocked)
     }

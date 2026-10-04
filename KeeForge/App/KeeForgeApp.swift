@@ -260,33 +260,6 @@ private extension SettingsService.AppearanceMode {
     }
 }
 
-/// An incoming `otpauth://` enrollment waiting for its destination sheet.
-/// A wrapper rather than a bare `OTPAuthURI` so `sheet(item:)` has an
-/// `Identifiable` to key on.
-private struct PendingTOTPEnrollment: Identifiable {
-    /// A parked plaintext secret must not outlive the moment the user still
-    /// remembers asking for it: after this window it is discarded instead of
-    /// auto-presenting against whatever database unlocks much later.
-    static let lifetime: TimeInterval = 5 * 60
-
-    let id = UUID()
-    let uri: OTPAuthURI
-    let createdAt = Date()
-
-    var isExpired: Bool {
-        Date().timeIntervalSince(createdAt) > Self.lifetime
-    }
-}
-
-private enum TOTPEnrollmentAlert: String, Identifiable {
-    case unsupportedLink
-    case invalidLink
-    case unlockNeeded
-    case linkExpired
-
-    var id: String { rawValue }
-}
-
 private struct AppRootView: View {
     @Bindable var listViewModel: DatabaseListViewModel
     @Binding var activeDatabaseViewModel: DatabaseViewModel?
@@ -296,31 +269,15 @@ private struct AppRootView: View {
     @Environment(\.requestReview) private var requestReview
     #endif
     @Environment(\.scenePhase) private var scenePhase
-    @State private var didResolveInitialRoute = false
-    @State private var whatsNewRelease: WhatsNewRelease?
+    @State private var routing = AppRoutingCoordinator()
     #if os(macOS)
     @State private var showsMacTransitionNotice = false
     #endif
-    @State private var pendingAutoOpenReference: DatabaseReference?
-    /// SwiftUI drops a sheet or an alert raised in the same update that
-    /// dismisses another presentation — the compact unlock sheet closing on
-    /// `.unlocked`, or the What's New sheet's own `onDismiss`. Anything the
-    /// enrollment flow raises from those moments waits out the outgoing
-    /// dismissal first.
-    private static let enrollmentPresentationDelay = Duration.milliseconds(450)
-
-    /// Enrollment parked until a session unlocks (or the What's New sheet
-    /// closes); promoted to `presentedTOTPEnrollment` by the state `onChange`
-    /// below, or discarded once it expires. It stays parked until the sheet
-    /// reports itself on screen, so a dropped presentation still has something
-    /// to resume from.
-    @State private var pendingTOTPEnrollment: PendingTOTPEnrollment?
-    @State private var presentedTOTPEnrollment: PendingTOTPEnrollment?
-    @State private var totpEnrollmentAlert: TOTPEnrollmentAlert?
 
     var body: some View {
+        @Bindable var routing = routing
         Group {
-            if !didResolveInitialRoute {
+            if !routing.didResolveInitialRoute {
                 LaunchRoutingView()
             } else {
                 rootContent
@@ -360,7 +317,7 @@ private struct AppRootView: View {
                 )
         }
         #endif
-        .sheet(item: $whatsNewRelease, onDismiss: finishWhatsNewPresentation) { release in
+        .sheet(item: $routing.whatsNewRelease, onDismiss: finishWhatsNewPresentation) { release in
             WhatsNewView(release: release)
                 #if os(macOS)
                 .frame(
@@ -375,27 +332,41 @@ private struct AppRootView: View {
                 .presentationDragIndicator(.visible)
                 #endif
         }
-        .sheet(item: $presentedTOTPEnrollment) { enrollment in
+        .sheet(item: enrollmentPresentation) { enrollment in
             // The session is re-read at presentation time; when it vanished in
             // between (locked or closed), the `onChange` below re-parks.
             if let activeDatabaseViewModel {
+                let enrollmentSession = AppRoutingCoordinator.Session(
+                    identity: ObjectIdentifier(activeDatabaseViewModel),
+                    lockCycleID: activeDatabaseViewModel.lockCycleID,
+                    isUnlocked: activeDatabaseViewModel.state == .unlocked
+                )
                 TOTPEnrollmentDestinationView(
                     databaseViewModel: activeDatabaseViewModel,
                     uri: enrollment.uri
                 ) {
-                    presentedTOTPEnrollment = nil
-                    pendingTOTPEnrollment = nil
+                    routing.updateSession(routingSession)
+                    routing.cancelEnrollment(
+                        id: enrollment.id,
+                        session: enrollmentSession
+                    )
                 }
                 // The parked copy is only released once the sheet is actually
                 // on screen; until then it is the retry path.
-                .onAppear { pendingTOTPEnrollment = nil }
+                .onAppear {
+                    routing.updateSession(routingSession)
+                    routing.enrollmentDidAppear(
+                        id: enrollment.id,
+                        session: enrollmentSession
+                    )
+                }
                 // Rebuild the content when either the enrollment or the
                 // session changes under the open sheet (a second otpauth URL,
                 // or a swap to another unlocked database): the content
                 // snapshots its view model in @State at init and would
                 // otherwise keep enrolling the old secret into the old
                 // database.
-                .id("\(enrollment.id)-\(activeDatabaseViewModel.databaseReference.id)")
+                .id("\(enrollment.id)-\(enrollmentSession.identity)-\(enrollmentSession.lockCycleID)")
                 #if os(macOS)
                 .macSheetFrame()
                 #else
@@ -404,20 +375,21 @@ private struct AppRootView: View {
                 #endif
             }
         }
-        .onChange(of: activeDatabaseViewModel?.state) { _, newState in
-            if newState == .unlocked {
-                promoteParkedTOTPEnrollment()
-            } else if let presentedTOTPEnrollment {
-                // Locking or closing the database mid-flow tears the sheet's
-                // data out from under it; park the enrollment again (original
-                // creation date intact) so re-unlocking within its lifetime
-                // resumes the flow instead of losing the code.
-                pendingTOTPEnrollment = presentedTOTPEnrollment
-                self.presentedTOTPEnrollment = nil
+        .onChange(of: routingSession, initial: true) { _, session in
+            routing.updateSession(session)
+        }
+        .task(id: routing.deferredPresentation?.id) {
+            guard let requestID = routing.deferredPresentation?.id else { return }
+            // SwiftUI drops presentations raised during another sheet's dismissal.
+            do {
+                try await Task.sleep(for: .milliseconds(450))
+            } catch {
+                return
             }
+            routing.completeDeferredPresentation(id: requestID)
         }
         .onChange(of: scenePhase) { _, _ in
-            discardExpiredTOTPEnrollment()
+            routing.discardExpiredEnrollment()
         }
         .onChange(of: listViewModel.databases.map(\.id)) { _, identifiers in
             // The split layout keeps the sidebar list live next to the detail
@@ -427,41 +399,28 @@ private struct AppRootView: View {
                   identifiers.contains(activeID) == false else { return }
             activeDatabaseViewModel = nil
         }
-        .alert(item: $totpEnrollmentAlert, content: totpEnrollmentAlertContent)
+        .alert(item: $routing.enrollmentAlert, content: totpEnrollmentAlertContent)
     }
 
-    /// Moves a parked enrollment onto the destination sheet once a session is
-    /// unlocked. The presentation is handed to a later turn because the same
-    /// `.unlocked` transition dismisses `CompactDatabaseHost`'s unlock sheet,
-    /// and the parked copy is left in place so a dropped presentation is not
-    /// the end of the incoming code.
-    private func promoteParkedTOTPEnrollment() {
-        guard discardExpiredTOTPEnrollment() == false, pendingTOTPEnrollment != nil else { return }
-        Task { @MainActor in
-            try? await Task.sleep(for: Self.enrollmentPresentationDelay)
-            guard let enrollment = pendingTOTPEnrollment,
-                  enrollment.isExpired == false,
-                  activeDatabaseViewModel?.state == .unlocked else { return }
-            presentedTOTPEnrollment = enrollment
+    private var routingSession: AppRoutingCoordinator.Session? {
+        activeDatabaseViewModel.map {
+            AppRoutingCoordinator.Session(
+                identity: ObjectIdentifier($0), lockCycleID: $0.lockCycleID, isUnlocked: $0.state == .unlocked
+            )
         }
     }
 
-    /// Drops a parked enrollment that outlived `PendingTOTPEnrollment.lifetime`
-    /// and says so. Vanishing silently after telling the user to unlock a
-    /// database reads as the app losing their code.
-    @discardableResult
-    private func discardExpiredTOTPEnrollment() -> Bool {
-        guard pendingTOTPEnrollment?.isExpired == true else { return false }
-        pendingTOTPEnrollment = nil
-        requestTOTPEnrollmentAlert(.linkExpired)
-        return true
-    }
-
-    private func requestTOTPEnrollmentAlert(_ alert: TOTPEnrollmentAlert) {
-        Task { @MainActor in
-            try? await Task.sleep(for: Self.enrollmentPresentationDelay)
-            totpEnrollmentAlert = alert
-        }
+    private var enrollmentPresentation: Binding<PendingTOTPEnrollment?> {
+        let enrollmentID = routing.presentedEnrollment?.id
+        let session = routingSession
+        return Binding(
+            get: { routing.presentedEnrollment },
+            set: { enrollment in
+                guard enrollment == nil, let enrollmentID else { return }
+                routing.updateSession(routingSession)
+                routing.cancelEnrollment(id: enrollmentID, session: session)
+            }
+        )
     }
 
     private func totpEnrollmentAlertContent(for alert: TOTPEnrollmentAlert) -> Alert {
@@ -564,65 +523,42 @@ private struct AppRootView: View {
     }
 
     private func resolveInitialExperienceIfNeeded() async {
-        guard didResolveInitialRoute == false else { return }
-        defer { didResolveInitialRoute = true }
-
-        guard activeDatabaseViewModel == nil else { return }
-
+        guard !routing.didResolveInitialRoute else { return }
+        var showsTransitionNotice = false
         #if os(macOS)
-        if MacTransitionNoticeService.claimPresentation() {
-            // The list behind this notice is whatever the iPad build left, so
-            // Quick Launch would race an unlock sheet against a reference the
-            // user is about to replace. Release notes and Quick Launch both
-            // resume on the next launch, once the databases are re-added.
-            showsMacTransitionNotice = true
-            return
+        if activeDatabaseViewModel == nil {
+            showsTransitionNotice = MacTransitionNoticeService.claimPresentation()
+            showsMacTransitionNotice = showsTransitionNotice
         }
         #endif
-
-        let release = WhatsNewPresentationService.releaseToPresent()
-        let databaseReference = listViewModel.databaseToAutoOpenOnLaunch()
-
-        if let release {
-            // Keep the database list behind the release notes. In particular,
-            // defer Quick Launch so its unlock sheet cannot compete with the
-            // app-level What's New sheet.
-            pendingAutoOpenReference = databaseReference
-            whatsNewRelease = release
-        } else if let databaseReference {
-            openDatabase(databaseReference)
+        let mayAutoOpen = activeDatabaseViewModel == nil && !showsTransitionNotice
+        if let reference = routing.resolveInitialRoute(
+            hasActiveSession: activeDatabaseViewModel != nil,
+            showsTransitionNotice: showsTransitionNotice,
+            release: mayAutoOpen ? WhatsNewPresentationService.releaseToPresent() : nil,
+            autoOpenReference: mayAutoOpen ? listViewModel.databaseToAutoOpenOnLaunch() : nil
+        ) {
+            openDatabase(reference)
         }
     }
 
     private func openDatabase(_ reference: DatabaseReference) {
         activeDatabaseViewModel = DatabaseViewModel(databaseReference: reference)
+        routing.updateSession(routingSession)
     }
 
     private func openDatabaseAfterLaunchPresentation(_ reference: DatabaseReference) {
-        if whatsNewRelease == nil {
+        if let reference = routing.requestDatabase(reference) {
             openDatabase(reference)
-        } else {
-            // An explicit deep link takes precedence over any Quick Launch
-            // route that was waiting for the sheet to close.
-            pendingAutoOpenReference = reference
         }
     }
 
     private func finishWhatsNewPresentation() {
-        if let pendingAutoOpenReference {
-            self.pendingAutoOpenReference = nil
-            openDatabase(pendingAutoOpenReference)
+        if let reference = routing.finishLaunchPresentation() {
+            openDatabase(reference)
         }
-
-        // Everything below runs from the sheet's `onDismiss`, so both the
-        // enrollment sheet and the alert are deferred past that dismissal.
-        guard discardExpiredTOTPEnrollment() == false, pendingTOTPEnrollment != nil else { return }
-        if activeDatabaseViewModel?.state == .unlocked {
-            promoteParkedTOTPEnrollment()
-        } else {
-            // Stays parked; the state `onChange` promotes it on unlock.
-            requestTOTPEnrollmentAlert(.unlockNeeded)
-        }
+        routing.updateSession(routingSession)
+        routing.resumeEnrollmentAfterLaunchPresentation()
     }
 
     private func openCreatedDatabase(_ createdDatabase: CreatedDatabase) {
@@ -640,9 +576,16 @@ private struct AppRootView: View {
             return
         }
 
-        if OTPAuthURI.isOTPAuthURL(url) {
-            handleOTPAuthURL(url)
+        routing.updateSession(routingSession)
+        switch AppRoutingCoordinator.classify(url) {
+        case .enrollment(let uri):
+            routing.receiveEnrollment(uri)
             return
+        case .invalidEnrollment(let alert):
+            routing.enrollmentAlert = alert
+            return
+        case .database:
+            break
         }
 
         do {
@@ -661,32 +604,7 @@ private struct AppRootView: View {
         }
     }
 
-    private func handleOTPAuthURL(_ url: URL) {
-        let enrollment: PendingTOTPEnrollment
-        do {
-            enrollment = PendingTOTPEnrollment(uri: try OTPAuthURI(string: url.absoluteString))
-        } catch OTPAuthURIError.unsupportedType {
-            totpEnrollmentAlert = .unsupportedLink
-            return
-        } catch {
-            totpEnrollmentAlert = .invalidLink
-            return
-        }
 
-        if whatsNewRelease != nil {
-            // The What's New sheet is up (post-update cold launch); a
-            // competing presentation would be silently dropped by SwiftUI.
-            // Park the enrollment — no alert either — and let
-            // finishWhatsNewPresentation promote it (the same deferred
-            // deep-link pattern as openDatabaseAfterLaunchPresentation).
-            pendingTOTPEnrollment = enrollment
-        } else if let activeDatabaseViewModel, activeDatabaseViewModel.state == .unlocked {
-            presentedTOTPEnrollment = enrollment
-        } else {
-            pendingTOTPEnrollment = enrollment
-            totpEnrollmentAlert = .unlockNeeded
-        }
-    }
 }
 
 private struct CompactDatabaseHost: View {
@@ -963,7 +881,8 @@ struct DatabaseNavigationView: View {
     @State private var isCloudReconnectInFlight = false
 
     var body: some View {
-        NavigationStack(path: $viewModel.navigationPath) {
+        @Bindable var workspace = viewModel.workspace
+        NavigationStack(path: $workspace.navigationPath) {
             Group {
                 if let rootID = viewModel.visibleRootGroupID {
                     GroupListView(groupID: rootID, viewModel: viewModel)
@@ -975,15 +894,13 @@ struct DatabaseNavigationView: View {
                     )
                 }
             }
-            .navigationDestination(for: UUID.self) { groupID in
-                GroupListView(groupID: groupID, viewModel: viewModel)
-            }
-            .navigationDestination(for: KPEntry.self) { entry in
-                EntryDetailView(entryID: entry.id, viewModel: viewModel)
-            }
-            .navigationDestination(for: TagDestination.self) { destination in
-                switch destination {
-                case .entries(let tag):
+            .navigationDestination(for: DatabaseRoute.self) { route in
+                switch route {
+                case .group(let groupID):
+                    GroupListView(groupID: groupID, viewModel: viewModel)
+                case .entry(let entryID):
+                    EntryDetailView(entryID: entryID, viewModel: viewModel)
+                case .tag(let tag):
                     TagEntriesView(tag: tag, viewModel: viewModel)
                 }
             }

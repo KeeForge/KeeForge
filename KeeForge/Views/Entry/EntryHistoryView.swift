@@ -223,7 +223,7 @@ private struct EntryHistoryVersionFields: View {
             }
             if !version.tags.isEmpty {
                 // Plain capsules, not the detail screen's links: neither shell
-                // resolves `TagDestination`.
+                // resolves `DatabaseRoute`.
                 Section("Tags") {
                     FlowLayout(spacing: 6) {
                         ForEach(Array(version.tags.enumerated()), id: \.offset) { _, tag in

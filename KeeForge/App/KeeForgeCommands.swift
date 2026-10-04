@@ -37,7 +37,7 @@ struct KeeForgeCommands: Commands {
     }
 
     private var selectedEntry: KPEntry? {
-        guard isUnlocked, let viewModel, let entryID = viewModel.selectedEntryID else { return nil }
+        guard isUnlocked, let viewModel, let entryID = viewModel.workspace.selectedEntryID else { return nil }
         return viewModel.entry(withID: entryID)
     }
 

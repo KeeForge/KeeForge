@@ -26,3 +26,5 @@ Each subfolder's `CLAUDE.md` loads automatically when you work in it; `Services/
 - Start from the folder that owns the behavior, then open the matching tests before changing code.
 - If a change crosses app and extension boundaries, check both `../AutoFillExtension/AGENTS.md` and `../project.yml`.
 - Adding files: folder globs vs. the AutoFill allow-lists — see `AGENTS.md` → Workflows.
+
+Shared shell workflow ownership: `DatabaseViewModel` owns session/save policy and composes `DatabaseWorkspaceState` for typed navigation and selection. `DatabaseEditorCoordinator` handles entry/group editor lifecycle and completion; `AppSettingsViewModel` handles preference effects; `AppRoutingCoordinator` handles launch and deferred URL decisions. All four use Foundation/Observation and can be consumed by either SwiftUI or AppKit shells. Their contracts and tests are mapped in `ViewModels/AGENTS.md`.

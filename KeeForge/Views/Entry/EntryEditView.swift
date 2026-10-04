@@ -8,15 +8,11 @@ struct EntryEditView: View {
     let onComplete: (Completion) -> Void
 
     @State private var showDiscardConfirmation = false
-    /// Identifies this editor in the view model's unsaved-editor registry.
-    @State private var editorID = UUID()
     @State private var showDeleteConfirmation = false
     @State private var showPasswordGenerator = false
     @State private var isPasswordVisible: Bool
     @State private var isAuthenticatingReveal = false
-    @State private var editingErrorMessage: String?
-    @State private var isSubmitting = false
-    @State private var completionGate = EntryEditCompletionGate()
+    @State private var coordinator: DatabaseEditorCoordinator
 
     @State private var isTOTPSecretVisible: Bool
     @State private var revealedCustomFieldIDs: Set<UUID> = []
@@ -36,7 +32,7 @@ struct EntryEditView: View {
     @FocusState private var isTOTPPeriodFieldFocused: Bool
 
     private var isSavingInProgress: Bool {
-        isSubmitting || databaseViewModel.isSaving
+        coordinator.isSavingInProgress
     }
 
     private var isEntryInRecycleBin: Bool {
@@ -50,6 +46,7 @@ struct EntryEditView: View {
         onComplete: @escaping (Completion) -> Void = { _ in }
     ) {
         _formViewModel = State(initialValue: formViewModel)
+        _coordinator = State(initialValue: DatabaseEditorCoordinator(entry: formViewModel, database: databaseViewModel))
         _isPasswordVisible = State(initialValue: formViewModel.isPasswordInitiallyVisible)
         _isTOTPSecretVisible = State(initialValue: formViewModel.isPasswordInitiallyVisible)
         _totpPeriodText = State(initialValue: String(formViewModel.totpPeriod))
@@ -182,7 +179,7 @@ struct EntryEditView: View {
                     Button("Delete Entry", role: .destructive) {
                         showDeleteConfirmation = true
                     }
-                    .disabled(isSubmitting)
+                    .disabled(coordinator.isSubmitting)
                     .accessibilityIdentifier("entry-edit.delete")
                     // Attached to the button (not the Form) so iOS anchors the
                     // dialog to its source control instead of an arbitrary
@@ -232,7 +229,7 @@ struct EntryEditView: View {
             }
         }
         .overlay {
-            if isSubmitting && databaseViewModel.isSaving == false {
+            if coordinator.isSubmitting && databaseViewModel.isSaving == false {
                 ZStack {
                     Color.black.opacity(0.14)
                         .ignoresSafeArea()
@@ -312,13 +309,12 @@ struct EntryEditView: View {
                 snapBackInvalidTOTPPeriodText()
             }
         }
-        .onChange(of: conflictHasSettled) { _, settled in
-            if let completion = completionGate.conflictSettled(settled) {
-                onComplete(completion)
-            }
+        .onAppear { coordinator.activate() }
+        .onChange(of: coordinator.conflictHasSettled) { _, _ in
+            coordinator.completeAfterConflictIfSettled(onComplete: onComplete)
         }
-        .onChange(of: formViewModel.isDirty, initial: true) { _, isDirty in
-            databaseViewModel.setEditorHasUnsavedChanges(isDirty, editorID: editorID)
+        .onChange(of: formViewModel.isDirty) { _, _ in
+            coordinator.synchronizeUnsavedChanges()
         }
         .onChange(of: pendingEditorLockRequest != nil) { _, isPending in
             // Anything presented above the editor would swallow the prompt.
@@ -334,7 +330,7 @@ struct EntryEditView: View {
             attachmentErrorMessage = nil
         }
         .onDisappear {
-            databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
+            coordinator.deactivate()
         }
         .alert(
             "Save your changes before locking?",
@@ -350,19 +346,17 @@ struct EntryEditView: View {
             .disabled(formViewModel.canSave == false || isImportingAttachments)
             Button("Discard and Lock", role: .destructive) {
                 guard let request = pendingEditorLockRequest else { return }
-                databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
-                onComplete(.cancelled)
-                databaseViewModel.resumeLockRequest(request)
+                coordinator.discard(resuming: request, onComplete: onComplete)
             }
             Button("Keep Editing", role: .cancel) {
-                Task { await databaseViewModel.continueEditingAfterLockRequest() }
+                Task { await coordinator.continueEditingAfterLockRequest() }
             }
         } message: {
             Text(verbatim: formViewModel.saveBeforeLockMessage)
         }
         .alert("Discard changes?", isPresented: $showDiscardConfirmation) {
             Button("Discard Changes", role: .destructive) {
-                onComplete(.cancelled)
+                coordinator.discard(onComplete: onComplete)
             }
             Button("Keep Editing", role: .cancel) {}
         } message: {
@@ -371,17 +365,17 @@ struct EntryEditView: View {
         .alert(
             "Couldn’t Update Entry",
             isPresented: Binding(
-                get: { editingErrorMessage != nil },
+                get: { coordinator.errorMessage != nil },
                 set: { isPresented in
                     if isPresented == false {
-                        editingErrorMessage = nil
+                        coordinator.errorMessage = nil
                     }
                 }
             )
         ) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(editingErrorMessage ?? "")
+            Text(coordinator.errorMessage ?? "")
         }
     }
 
@@ -779,93 +773,20 @@ struct EntryEditView: View {
         if formViewModel.isDirty {
             showDiscardConfirmation = true
         } else {
-            onComplete(.cancelled)
+            coordinator.discard(onComplete: onComplete)
         }
     }
 
-    /// The lock request this editor's fields are holding up, if any.
     private var pendingEditorLockRequest: DatabaseViewModel.PendingLockRequest? {
-        guard let request = databaseViewModel.pendingLockRequest,
-              request.reason == .openEditor,
-              formViewModel.isDirty else { return nil }
-        return request
+        coordinator.pendingLockRequest
     }
 
     private func saveTapped(resuming lockRequest: DatabaseViewModel.PendingLockRequest? = nil) {
-        do {
-            switch formViewModel.mode {
-            case .create(let parentGroupID):
-                try databaseViewModel.applyEntryEdit(
-                    .createEntry(parentGroupID: parentGroupID, draft: formViewModel.entryDraftPayload)
-                )
-            case .edit(let entryID):
-                try databaseViewModel.applyEntryEdit(
-                    .updateEntry(entryID: entryID, draft: formViewModel.entryDraftPayload)
-                )
-            }
-        } catch {
-            editingErrorMessage = error.localizedDescription
-            return
-        }
-
-        // In the draft now: a write that fails from here is the workspace's.
-        databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
-
-        isSubmitting = true
-        Task { @MainActor in
-            await databaseViewModel.saveHandlingError()
-            isSubmitting = false
-
-            if let lockRequest {
-                finish(.saved)
-                databaseViewModel.resumeLockRequest(lockRequest)
-                return
-            }
-
-            if let saveError = databaseViewModel.saveError {
-                editingErrorMessage = saveError.localizedDescription
-                databaseViewModel.clearSaveError()
-            } else {
-                finish(.saved)
-            }
-        }
-    }
-
-    /// See `EntryEditCompletionGate` for why a conflicted save does not close
-    /// the editor right away.
-    private func finish(_ completion: Completion) {
-        if let completion = completionGate.finish(completion, hasSaveConflict: databaseViewModel.saveConflict != nil) {
-            onComplete(completion)
-        }
-    }
-
-    private var conflictHasSettled: Bool {
-        EntryEditCompletionGate.isSettled(
-            hasSaveConflict: databaseViewModel.saveConflict != nil,
-            isPresentingMergeResult: databaseViewModel.mergeSummaryMessage != nil || databaseViewModel.mergeFailure != nil,
-            isDirty: databaseViewModel.isDirty
-        )
+        Task { await coordinator.save(resuming: lockRequest, onComplete: onComplete) }
     }
 
     private func deleteTapped(sendToRecycleBin: Bool) {
-        guard case .edit(let entryID) = formViewModel.mode else { return }
-
-        do {
-            try databaseViewModel.deleteEntry(entryID, sendToRecycleBin: sendToRecycleBin)
-            isSubmitting = true
-            Task { @MainActor in
-                await databaseViewModel.saveHandlingError()
-                isSubmitting = false
-                if let saveError = databaseViewModel.saveError {
-                    editingErrorMessage = saveError.localizedDescription
-                    databaseViewModel.clearSaveError()
-                } else {
-                    finish(.deleted)
-                }
-            }
-        } catch {
-            editingErrorMessage = error.localizedDescription
-        }
+        Task { await coordinator.delete(sendToRecycleBin: sendToRecycleBin, onComplete: onComplete) }
     }
 }
 

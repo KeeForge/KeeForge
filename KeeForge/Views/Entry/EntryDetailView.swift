@@ -13,7 +13,7 @@ struct EntryDetailView: View {
     /// Routes a tapped tag chip in shells that select instead of push (the iPad
     /// workspace, whose detail column has no browsing stack of its own, and
     /// macOS, which selects the tag in its sidebar). Left nil in the compact
-    /// shell, where chips push `TagDestination.entries` like any other row.
+    /// shell, where chips push `DatabaseRoute.tag` like any other row.
     var onSelectTag: ((String) -> Void)? = nil
     /// False in the selection-driven shells (iPad detail column, macOS), where
     /// this screen is the detail root and closing means clearing the selection:
@@ -423,7 +423,7 @@ struct EntryDetailView: View {
             if let onSelectTag {
                 onSelectTag(tag)
             } else {
-                viewModel.navigationPath.append(TagDestination.entries(tag: tag))
+                viewModel.workspace.navigationPath.append(.tag(tag))
             }
         } label: {
             TagCapsule(tag: tag)
@@ -443,7 +443,7 @@ struct EntryDetailView: View {
             if let onSelectTag {
                 onSelectTag(tag)
             } else {
-                viewModel.navigationPath.append(TagDestination.entries(tag: tag))
+                viewModel.workspace.navigationPath.append(.tag(tag))
             }
         } label: {
             TagCapsule(tag: tag, systemImage: "folder", isOutlined: true)

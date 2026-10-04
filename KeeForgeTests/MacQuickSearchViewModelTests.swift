@@ -292,8 +292,8 @@ final class MacQuickSearchViewModelTests: XCTestCase {
 
         model.perform(.openInKeeForge)
 
-        XCTAssertEqual(session.selectedEntryID, github.id)
-        XCTAssertEqual(session.selectedGroupID, session.parentGroupID(forEntryID: github.id))
+        XCTAssertEqual(session.workspace.selectedEntryID, github.id)
+        XCTAssertEqual(session.workspace.selectedGroupID, session.parentGroupID(forEntryID: github.id))
         XCTAssertEqual(mainWindowRequests, 1)
     }
 
@@ -303,11 +303,11 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         let model = makeModel()
         let github = try entry(titled: "GitHub", in: model)
         session.setEditorHasUnsavedChanges(true, editorID: UUID())
-        let selectionBefore = session.selectedEntryID
+        let selectionBefore = session.workspace.selectedEntryID
 
         model.openInKeeForge(github)
 
-        XCTAssertEqual(session.selectedEntryID, selectionBefore)
+        XCTAssertEqual(session.workspace.selectedEntryID, selectionBefore)
         XCTAssertEqual(mainWindowRequests, 1, "The window still comes forward, showing the editor")
     }
 

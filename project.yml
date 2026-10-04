@@ -7,7 +7,7 @@ options:
     macOS: "15.0"
   xcodeVersion: "16.0"
   minimumXcodeGenVersion: "2.38"
-  postGenCommand: python3 ci_scripts/validate_cloud_test_schemes.py
+  postGenCommand: python3 ci_scripts/validate_architecture.py && python3 ci_scripts/validate_cloud_test_schemes.py
 configFiles:
   Debug: Configs/BuildConfig.xcconfig
   Release: Configs/BuildConfig.xcconfig

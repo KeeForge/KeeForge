@@ -2,6 +2,8 @@
 
 This folder holds small scripts used by Xcode Cloud and local build setup.
 
+`validate_architecture.py` runs on every `xcodegen generate`, before the cloud scheme check. It rejects SwiftUI imports in view models and direct preference writes in `SettingsView`; the workflow ownership rules live in the root and folder-local agent docs. Run `python3 ci_scripts/validate_architecture.py --self-test` to exercise its positive and negative cases. This is a narrow regression guard, not a substitute for reviewing workflow ownership.
+
 ## Xcode Cloud test partition
 
 The RC workflow uses three Required-to-Pass iOS test actions: `KeeForgeCloudUnitTests`,

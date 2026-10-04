@@ -796,6 +796,81 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     @MainActor
+    func test_editorCoordinators_createUpdateAndRename_surviveRealLocalSaveAndReopen() async throws {
+        let fixture = KDBXTestFixture.test
+        let sourceBytes = try fixture.data(in: bundle)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let databaseURL = directory.appendingPathComponent("editor-workflow.kdbx")
+        try sourceBytes.write(to: databaseURL)
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL, autoFillEnabled: false)
+        defer {
+            try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
+            try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
+        }
+        let database = DatabaseViewModel(databaseReference: reference, storedKeyPresenceCheck: { _ in false })
+        defer { database.lock() }
+        await database.unlock(password: fixture.password)
+        let root = try XCTUnwrap(database.rootGroup)
+        let group = try XCTUnwrap(root.groups.first)
+        let existing = try XCTUnwrap(root.allEntries.first)
+        let sessionKey = try XCTUnwrap(database.sessionKey)
+        let originalPassword = try existing.password.decrypt(using: sessionKey)
+        var completions: [EntryEditCompletion] = []
+
+        let createForm = EntryEditViewModel(createIn: group.id)
+        createForm.title = "Coordinator-created entry"
+        createForm.password = "created-protected-password"
+        createForm.pendingTagText = "coordinator-tag"
+        let createEditor = DatabaseEditorCoordinator(entry: createForm, database: database)
+        createEditor.activate()
+        await createEditor.save { completions.append($0) }
+        createEditor.deactivate()
+        XCTAssertNil(createEditor.errorMessage)
+
+        let updateForm = EntryEditViewModel(editing: existing, sessionKey: sessionKey)
+        updateForm.title = "Coordinator-updated entry"
+        updateForm.password = "updated-protected-password"
+        let updateEditor = DatabaseEditorCoordinator(entry: updateForm, database: database)
+        updateEditor.activate()
+        await updateEditor.save { completions.append($0) }
+        updateEditor.deactivate()
+        XCTAssertNil(updateEditor.errorMessage)
+
+        let groupForm = GroupEditViewModel(editing: group, isHiddenFromAutoFill: false)
+        groupForm.name = "Coordinator-renamed group"
+        let groupEditor = DatabaseEditorCoordinator(group: groupForm, database: database)
+        groupEditor.activate()
+        await groupEditor.save { completions.append($0) }
+        groupEditor.deactivate()
+        XCTAssertNil(groupEditor.errorMessage)
+        XCTAssertEqual(completions, [.saved, .saved, .saved])
+        XCTAssertFalse(database.isDirty)
+        XCTAssertFalse(database.hasUnsavedEditor)
+        database.lock()
+
+        let writtenData = try Data(contentsOf: databaseURL)
+        let reopenedKey = SymmetricKey(size: .bits256)
+        let reopened = try KDBXParser.parseWithMeta(
+            data: writtenData, password: fixture.password, sessionKey: reopenedKey
+        )
+        let created = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.title == createForm.title })
+        let updated = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.id == existing.id })
+        let renamed = try XCTUnwrap(reopened.rootGroup.groups.first { $0.id == group.id })
+        XCTAssertEqual(reopened.rootGroup.allEntries.count, root.allEntries.count + 1)
+        XCTAssertTrue(renamed.entries.contains { $0.id == created.id })
+        XCTAssertEqual(created.tags, ["coordinator-tag"])
+        XCTAssertEqual(try created.password.decrypt(using: reopenedKey), "created-protected-password")
+        XCTAssertEqual(updated.title, updateForm.title)
+        XCTAssertEqual(try updated.password.decrypt(using: reopenedKey), "updated-protected-password")
+        XCTAssertTrue(updated.history.contains { (try? $0.password.decrypt(using: reopenedKey)) == originalPassword })
+        XCTAssertEqual(renamed.name, groupForm.name)
+        XCTAssertEqual(try fixture.data(in: bundle), sourceBytes, "The bundled fixture must remain untouched")
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), writtenData)
+    }
+
+    @MainActor
     func test_keeOTPRemovalAndMalformedReplacementRemainSafe() throws {
         let testCase = try XCTUnwrap(KDBXCompatibilitySupport.keeOTPCases.first { $0.fieldName == "OTP" && $0.encoding == "Base64" })
         let entry = try makeKeeOTPEntry(testCase)

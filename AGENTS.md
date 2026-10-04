@@ -47,7 +47,7 @@ never replace the symlink with a second copy. The docs below are read on demand:
 ### Coding Styles
 
 - Use `@Observable`, not `ObservableObject` / `@Published`.
-- Use `NavigationStack` + `NavigationPath`, not `NavigationView`.
+- Use `NavigationStack` with typed routes, not `NavigationView`. Keep SwiftUI navigation objects out of shared view models.
 - Keep crypto, parsing, and secret handling off the main thread.
 - Treat these `KeeForge/Models/` files as stable core: `KDBXParser.swift`, `KDBX3Parser.swift`, `KDBXWriter.swift`, `KDBXXMLSerializer.swift`, `KDBXCrypto.swift`, `KDBXOuterCipher.swift`, `OpaqueXMLNodes.swift`, `DatabaseDraft.swift`, `EntryEdit.swift`, `Entry.swift`, `Group.swift`, `EncryptedValue.swift`, `TOTPGenerator.swift`. Change them only for real bugs or intentional format/security work, and add focused tests.
 - No force unwraps outside tests.
@@ -55,6 +55,9 @@ never replace the symlink with a second copy. The docs below are read on demand:
 
 ### Workflows
 
+- Keep reusable application workflows independent of SwiftUI. `KeeForge/ViewModels/` must not import SwiftUI; `xcodegen generate` checks this boundary. Store navigation as typed IDs/routes in `DatabaseWorkspaceState`, with SwiftUI/AppKit adapters in the shell. Do not put navigation objects or window/view references in database session logic. Presentation signals belong to workspace state; session methods may guard and forward commands.
+- Views render state, collect input, and present/dismiss UI. Put multi-step save/conflict/lock completion, dirty-editor registration, settings persistence and side effects, and deferred URL routing in the existing workflow owners (`DatabaseEditorCoordinator`, `AppSettingsViewModel`, `AppRoutingCoordinator`). A view may forward appearance, disappearance, and observed state changes; it must not become a second implementation of those policies.
+- Before adding a workflow, identify its existing owner and test its success, cancellation, failure, and stale async completion paths without driving the UI. Add a new coordinator only for a distinct responsibility; avoid forwarding facades, parallel sources of truth, and extracting files without separating responsibilities. Keep session lock/save/authentication decisions authoritative in `DatabaseViewModel` and services.
 - Release skills: `.agents/skills/prepare-release/SKILL.md` prepares new versions and patches;
   `.agents/skills/respin-release/SKILL.md` replaces an unshipped candidate; `.agents/skills/ship-release/SKILL.md` publishes
   accepted artifacts. Shared release procedures live in `.agents/skills/prepare-release/references/`.

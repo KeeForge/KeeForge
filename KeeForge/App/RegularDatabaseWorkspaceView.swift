@@ -8,10 +8,7 @@ import AppKit
 
 struct RegularDatabaseWorkspaceView: View {
     @Bindable var viewModel: DatabaseViewModel
-    /// The iPad sidebar's browsing stack. Type-erased rather than `[UUID]`
-    /// because it now carries both group pushes (`UUID`) and tag-browser
-    /// pushes (`TagDestination`), the same pair the compact shell's path holds.
-    @State private var navigationPath = NavigationPath()
+    @State private var navigationPath: [DatabaseRoute] = []
     @State private var presentedSaveError: DatabaseSaveError?
     @State private var isCloudReconnectInFlight = false
     #if os(iOS)
@@ -55,18 +52,18 @@ struct RegularDatabaseWorkspaceView: View {
             .onChange(of: viewModel.visibleRootGroupID) { _, _ in
                 // Lock, close, and database switch all land here (the visible
                 // root goes nil), clearing pushed group *and* tag destinations.
-                navigationPath = NavigationPath()
-                viewModel.selectEntry(nil)
+                navigationPath = []
+                viewModel.workspace.selectedEntryID = nil
                 #if os(iOS)
                 detailEditor = nil
                 #endif
             }
             .onChange(of: navigationPath) { _, _ in
-                viewModel.selectEntry(nil)
+                viewModel.workspace.selectedEntryID = nil
             }
             .onChange(of: viewModel.searchText) { oldValue, newValue in
                 guard oldValue != newValue else { return }
-                viewModel.selectEntry(nil)
+                viewModel.workspace.selectedEntryID = nil
             }
             .modifier(MacCommandHandling(view: self))
             .alert(item: $presentedSaveError) { error in
@@ -170,12 +167,12 @@ struct RegularDatabaseWorkspaceView: View {
     @ViewBuilder
     private var selectionDetail: some View {
         Group {
-            if let selectedEntryID = viewModel.selectedEntryID {
+            if let selectedEntryID = viewModel.workspace.selectedEntryID {
                 EntryDetailView(
                     entryID: selectedEntryID,
                     viewModel: viewModel,
                     onClose: {
-                        viewModel.selectEntry(nil)
+                        viewModel.workspace.selectedEntryID = nil
                     },
                     onSelectTag: selectTag,
                     popsOnClose: false
@@ -233,19 +230,19 @@ struct RegularDatabaseWorkspaceView: View {
         func body(content: Content) -> some View {
             #if os(macOS)
             content
-                .onChange(of: view.viewModel.newEntryRequestID) { oldValue, newValue in
+                .onChange(of: view.viewModel.workspace.newEntryRequestID) { oldValue, newValue in
                     guard newValue != oldValue else { return }
                     view.beginNewEntryFromCommand()
                 }
-                .onChange(of: view.viewModel.newGroupRequestID) { oldValue, newValue in
+                .onChange(of: view.viewModel.workspace.newGroupRequestID) { oldValue, newValue in
                     guard newValue != oldValue else { return }
                     view.beginNewGroup()
                 }
-                .onChange(of: view.viewModel.editEntryRequestID) { oldValue, newValue in
+                .onChange(of: view.viewModel.workspace.editEntryRequestID) { oldValue, newValue in
                     guard newValue != oldValue else { return }
                     view.beginSelectedEntryEdit()
                 }
-                .onChange(of: view.viewModel.deleteSelectionRequestID) { oldValue, newValue in
+                .onChange(of: view.viewModel.workspace.deleteSelectionRequestID) { oldValue, newValue in
                     guard newValue != oldValue else { return }
                     view.beginSelectionDeletion()
                 }
@@ -281,24 +278,24 @@ struct RegularDatabaseWorkspaceView: View {
                     onCreateEntry: hostEntryEditor,
                     onEditGroup: hostGroupEditor
                 )
-                .navigationDestination(for: UUID.self) { groupID in
-                    GroupListView(
-                        groupID: groupID,
-                        viewModel: viewModel,
-                        onSelectEntry: selectEntry,
-                        onCreateEntry: hostEntryEditor,
-                        onEditGroup: hostGroupEditor
-                    )
-                }
-                .navigationDestination(for: TagDestination.self) { destination in
+                .navigationDestination(for: DatabaseRoute.self) { destination in
                     switch destination {
-                    case .entries(let tag):
-                        // Entries are selected, not pushed, in this shell.
+                    case .group(let groupID):
+                        GroupListView(
+                            groupID: groupID,
+                            viewModel: viewModel,
+                            onSelectEntry: selectEntry,
+                            onCreateEntry: hostEntryEditor,
+                            onEditGroup: hostGroupEditor
+                        )
+                    case .tag(let tag):
                         TagEntriesView(
                             tag: tag,
                             viewModel: viewModel,
                             onSelectEntry: selectEntry
                         )
+                    case .entry(let entryID):
+                        EntryDetailView(entryID: entryID, viewModel: viewModel)
                     }
                 }
             } else {
@@ -313,7 +310,7 @@ struct RegularDatabaseWorkspaceView: View {
     #endif
 
     private func selectEntry(_ entry: KPEntry) {
-        viewModel.selectEntry(entry.id)
+        viewModel.workspace.selectedEntryID = entry.id
     }
 
     #if os(iOS)
@@ -336,9 +333,9 @@ struct RegularDatabaseWorkspaceView: View {
     /// same place the root Tags row leads), and the macOS sidebar's selection.
     private func selectTag(_ tag: String) {
         #if os(macOS)
-        viewModel.selectedTag = tag
+        viewModel.workspace.selectedTag = tag
         #else
-        navigationPath.append(TagDestination.entries(tag: tag))
+        navigationPath.append(.tag(tag))
         #endif
     }
 
@@ -364,15 +361,15 @@ struct RegularDatabaseWorkspaceView: View {
         .navigationTitle(viewModel.databaseDisplayName)
         .searchable(text: $viewModel.searchText, prompt: "Search entries")
         .searchFocused($isSearchFieldFocused)
-        .onChange(of: viewModel.searchFocusRequestID) { _, _ in
+        .onChange(of: viewModel.workspace.searchFocusRequestID) { _, _ in
             isSearchFieldFocused = true
         }
         .toolbar { macToolbar }
         .onAppear {
             // The tag check keeps a re-fired onAppear from silently clearing a
             // sidebar tag selection — selecting a group deselects the tag.
-            if viewModel.selectedGroupID == nil, viewModel.selectedTag == nil {
-                viewModel.selectedGroupID = viewModel.visibleRootGroupID
+            if viewModel.workspace.selectedGroupID == nil, viewModel.workspace.selectedTag == nil {
+                viewModel.workspace.selectedGroupID = viewModel.visibleRootGroupID
             }
         }
         .sheet(isPresented: $isShowingNewGroupSheet) {
@@ -386,7 +383,7 @@ struct RegularDatabaseWorkspaceView: View {
                     isShowingNewGroupSheet = false
                 },
                 onCreate: { name in
-                    guard let parentID = newGroupParentID ?? viewModel.selectedGroupID ?? viewModel.visibleRootGroupID else { return }
+                    guard let parentID = newGroupParentID ?? viewModel.workspace.selectedGroupID ?? viewModel.visibleRootGroupID else { return }
                     do {
                         try viewModel.createGroup(named: name, in: parentID)
                         newGroupName = ""
@@ -483,17 +480,17 @@ struct RegularDatabaseWorkspaceView: View {
     private var macSidebarSelection: Binding<MacSidebarSelection?> {
         Binding(
             get: {
-                if let tag = viewModel.selectedTag { return .tag(tag) }
-                if let groupID = viewModel.selectedGroupID { return .group(groupID) }
+                if let tag = viewModel.workspace.selectedTag { return .tag(tag) }
+                if let groupID = viewModel.workspace.selectedGroupID { return .group(groupID) }
                 return nil
             },
             set: { newValue in
                 switch newValue {
                 case .group(let groupID):
-                    viewModel.selectedGroupID = groupID
+                    viewModel.workspace.selectedGroupID = groupID
                     isMacSidebarFocused = true
                 case .tag(let tag):
-                    viewModel.selectedTag = tag
+                    viewModel.workspace.selectedTag = tag
                     isMacSidebarFocused = true
                 case nil:
                     break
@@ -558,7 +555,7 @@ struct RegularDatabaseWorkspaceView: View {
             // model's observation changes (the detail column does), so an
             // edited entry keeps a stale row label without this id. Reading
             // `contentRevision` here also re-runs the body so the id updates.
-            if let selectedTag = viewModel.selectedTag {
+            if let selectedTag = viewModel.workspace.selectedTag {
                 TagEntriesView(
                     tag: selectedTag,
                     viewModel: viewModel,
@@ -692,7 +689,7 @@ struct RegularDatabaseWorkspaceView: View {
         // falling back to the visible root. When there is no writable target we
         // do nothing — ⌘N is also disabled in that state in KeeForgeCommands —
         // rather than presenting an editor with no destination group.
-        guard let targetGroupID = viewModel.selectedGroupID ?? viewModel.visibleRootGroupID else { return }
+        guard let targetGroupID = viewModel.workspace.selectedGroupID ?? viewModel.visibleRootGroupID else { return }
 
         commandEditor = EntryEditViewModel(
             createIn: targetGroupID,
@@ -728,7 +725,7 @@ struct RegularDatabaseWorkspaceView: View {
 
     @MainActor
     private func beginSelectedEntryEdit() {
-        guard let entryID = viewModel.selectedEntryID else { return }
+        guard let entryID = viewModel.workspace.selectedEntryID else { return }
         beginEntryEdit(entryID: entryID)
     }
 
@@ -796,7 +793,7 @@ struct RegularDatabaseWorkspaceView: View {
 
 #if os(macOS)
 /// What the macOS sidebar's native `List(selection:)` carries. The two cases
-/// mirror `DatabaseViewModel.selectedGroupID` / `selectedTag`, which stay the
+/// mirror `DatabaseViewModel.workspace.selectedGroupID` / `selectedTag`, which stay the
 /// source of truth; this type only exists because one list needs one selection
 /// value.
 enum MacSidebarSelection: Hashable {
@@ -805,7 +802,7 @@ enum MacSidebarSelection: Hashable {
 }
 
 /// The macOS content column: the selected group's entries in a native
-/// `List(selection:)` bound to `DatabaseViewModel.selectedEntryID`, so arrow
+/// `List(selection:)` bound to `DatabaseViewModel.workspace.selectedEntryID`, so arrow
 /// keys, type-select, and the focus ring come from AppKit rather than being
 /// hand-rolled. A dedicated `@Bindable` observing view (not an inline
 /// `@ViewBuilder` on the workspace) so it re-renders on
@@ -828,11 +825,12 @@ private struct MacEntriesColumn: View {
     let onRequestDeletion: (PendingDeletion) -> Void
 
     private var resolvedGroup: KPGroup? {
-        guard let groupID = viewModel.selectedGroupID ?? viewModel.visibleRootGroupID else { return nil }
+        guard let groupID = viewModel.workspace.selectedGroupID ?? viewModel.visibleRootGroupID else { return nil }
         return viewModel.group(withID: groupID)
     }
 
     var body: some View {
+        @Bindable var workspace = viewModel.workspace
         if let group = resolvedGroup {
             let entries = viewModel.sortedEntries(group.entries)
             Group {
@@ -843,7 +841,7 @@ private struct MacEntriesColumn: View {
                         description: Text("This group has no entries.")
                     )
                 } else {
-                    List(entries, selection: $viewModel.selectedEntryID) { entry in
+                    List(entries, selection: $workspace.selectedEntryID) { entry in
                         MacEntryRow(
                             entry: entry,
                             viewModel: viewModel,
@@ -857,7 +855,7 @@ private struct MacEntriesColumn: View {
                     .listStyle(.inset)
                     .focused($isListFocused)
                     .onKeyPress(.return) {
-                        guard let entryID = viewModel.selectedEntryID else { return .ignored }
+                        guard let entryID = viewModel.workspace.selectedEntryID else { return .ignored }
                         onOpenEntry(entryID)
                         return .handled
                     }

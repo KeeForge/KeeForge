@@ -90,7 +90,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         )
         await vm.unlock(password: fixturePassword)
         let titlesBefore = entryTitles(in: vm)
-        vm.selectEntry(vm.rootGroup?.allEntries.first?.id)
+        vm.workspace.selectedEntryID = vm.rootGroup?.allEntries.first?.id
         let newerTitles = try Self.entryTitles(in: newerData, password: fixturePassword)
         let republished = expectation(description: "AutoFill republished from the newer tree")
         republished.assertForOverFulfill = false
@@ -122,7 +122,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertFalse(vm.isCloudRefreshPending)
         XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(newerData))
         XCTAssertNotEqual(entryTitles(in: vm), titlesBefore)
-        XCTAssertNil(vm.selectedEntryID, "Selection must not point into the replaced tree")
+        XCTAssertNil(vm.workspace.selectedEntryID, "Selection must not point into the replaced tree")
         XCTAssertEqual(vm.state, .unlocked)
     }
 
