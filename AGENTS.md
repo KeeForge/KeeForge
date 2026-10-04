@@ -59,7 +59,7 @@ never replace the symlink with a second copy. The docs below are read on demand:
   `.agents/skills/respin-release/SKILL.md` replaces an unshipped candidate; `.agents/skills/ship-release/SKILL.md` publishes
   accepted artifacts. Shared release procedures live in `.agents/skills/prepare-release/references/`.
 
-- Put temporary agent artifacts such as handoff prompts, investigation notes, and scratch scripts under `scratch/`; it is gitignored and must not contain files intended to ship.
+- Always create temporary agent artifacts such as handoff prompts, investigation notes, and scratch scripts under `scratch/` in the main checkout, including when working in a linked worktree. Identify the main checkout using the first worktree listed by `git worktree list --porcelain`. Never use a linked worktree's `scratch/`. This directory is gitignored and must not contain files intended to ship.
 - Use `.agents/skills/pre-release-review/SKILL.md` for standalone reviews before candidate preparation. Reports use the primary checkout's shared `scratch/pre-release/<UTC>__since-<baseline>__head-<SHA12>/report.md`; the report format lives in that skill's `references/report-format.md`.
 - App and Mac targets use folder globs in `project.yml`, so `xcodegen generate` alone picks up new files. Invariant: the `KeeForgeAutoFill` and `KeeForgeMacAutoFill` allow-lists in `project.yml` must stay byte-identical — edit both together.
 - When adding new files, update the nearest folder-local doc (`AGENTS.md`, or `README.md` where the folder has one) if the file changes that folder's map, ownership notes, or workflow guidance.
