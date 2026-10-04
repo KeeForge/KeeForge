@@ -11,6 +11,9 @@ final class MacAppSuggestionUITests: KeeForgeUITestCase {
     }
 
     func testMacAppSuggestionShowsAndDismisses() {
+        // A portrait iPad starts with the sidebar collapsed, and the banner
+        // sits in that sidebar above the database list.
+        revealSidebarIfNeeded()
         XCTAssertTrue(waitForDatabaseList(), "Database list did not appear")
 
         let openButton = app.buttons["mac-app-suggestion.open"]
