@@ -1,231 +1,214 @@
 ---
 name: publish-app-store-version
-description: Prepare and publish an already-built KeeForge version — iOS, macOS, or both — through the App Store Connect website. Use when the user asks to create or finish an App Store version, publish an uploaded build, prepare an App Review submission, stage everything before the final submit, or operate App Store Connect after the release/tag/CI workflow is complete. Covers build processing, export compliance, localized release notes, reviewer information and test fixture, release settings, review staging, and final submission. Do not use for version bumps, release candidates, tags, compatibility gates, or archive creation; use prepare-release or respin-release for candidates, and ship-release for coordinated production publication.
+description: Prepare and publish an already-built KeeForge iOS or macOS version through the App Store Connect API using an API key. Use for uploaded-build selection, localized listing and release notes, reviewer attachments, release settings, and App Review staging or submission. Do not use for version bumps, release candidates, tags, compatibility gates, or archive creation; use prepare-release or respin-release for candidates, and ship-release for coordinated production publication.
 ---
 
 # Publish KeeForge App Store Version
 
-## Scope
+## Scope and authorization
 
-Drive the post-build App Store Connect workflow for KeeForge. Use browser control because this work depends on the signed-in App Store Connect UI.
+Use the documented App Store Connect REST API at `https://api.appstoreconnect.apple.com`
+with API-key authentication. No signed-in browser, session cookies, or private website APIs are
+required. If an operation is unavailable through the public API or the key lacks permission,
+report the specific blocker. Do not silently switch to browser automation or broaden key access.
 
-Do not repeat the repository release workflow. Assume the requested version was already cut unless the user says otherwise. If no processed build exists, report that clearly or wait for the user to upload one.
+Operate only on the requested platforms and fields. Prepare localization, attachment, and review-draft writes within the authorized scope.
+Show the English release-note draft before saving public copy unless already approved.
+Retain the version-creation and final-submission confirmation boundaries below.
 
-Treat **Submit for Review** as the final consequential action. Prepare each platform independently,
-stage it through **Ready for Review**, and stop immediately before submission. Unless the user
-explicitly asks to submit, do not click the button. Even when they do, obtain a separate explicit
-action-time confirmation immediately before each platform's **Submit for Review** click; an iOS
-confirmation does not authorize macOS. The first Beta App Review and external TestFlight
-distribution may proceed when the user has already authorized that named candidate action in the
-current task; otherwise obtain confirmation immediately before it. That beta authorization never
-authorizes production release, App Review submission, or legal declarations.
+Staging ends before final submission. `PATCH /v1/reviewSubmissions/{id}` with
+`submitted: true` sends the contents to Apple; it is not a validation or staging request. Obtain
+a separate explicit action-time confirmation immediately before each platform's final submission,
+naming its exact version and build. Approval for iOS does not imply approval for macOS. A request
+to prepare everything before submission authorizes neither submission nor production release.
+Never use the legacy `appStoreVersionSubmissions` POST as a way to stage a draft.
 
-## Two App Store platforms, three release channels
+Beta App Review, external TestFlight distribution, production submission, production release,
+and legal declarations are separate actions. Perform them only within the user's explicit
+scope. Do not add a platform, change purchase configuration, or change availability as a side
+effect of publishing an existing platform.
 
-KeeForge ships an iOS app and a Mac App Store app from the same record, in version lockstep: all
-four product targets carry the same `MARKETING_VERSION` and globally monotonic repo
-`CURRENT_PROJECT_VERSION`, and one release bump covers them together. In App Store Connect that is **one app with two platforms**,
-each with its own version record, its own build, its own screenshots, and its own review
-submission.
+## Credentials stay local
 
-Establish which platforms are in play before touching anything:
+Read applicable private local guidance for credential discovery. Otherwise use configured
+environment variables or a user-specified private environment file:
 
-1. Ask the user, or read it from the handoff, whether this release covers iOS, macOS, or both.
-2. On the app's page, check which platforms exist. The Mac platform has to be added once, ever
-   (**Add Platform → macOS**) — that is a one-time account-level change, so confirm with the user
-   before doing it and never do it as a side effect of publishing.
-3. Do every numbered step below once per platform in play. They are separate version records:
-   creating the iOS version does not create the Mac one, and a build attached to one is invisible
-   to the other.
+- `APP_STORE_CONNECT_KEY_ID`
+- `APP_STORE_CONNECT_ISSUER_ID` for a team API key
+- `APP_STORE_CONNECT_KEY_PATH` for the private `.p8` key
 
-Platform-specific deltas, everywhere they matter:
+The public skill must contain no actual key or issuer IDs, credential filenames, personal
+filesystem paths, reviewer contact details, or tokens. Keep machine-specific discovery paths
+in private, Git-excluded local guidance. Do not copy the credentials into this skill, scratch
+artifacts, release manifests, issues, commits, or terminal output. Parse an environment file
+as data; do not execute its contents. Resolve configured home-relative paths in process.
 
-- **Builds.** Each platform has its own TestFlight build list. The release manifest hands over
-  one `{version, repoBuild, rcTag, commitSHA, iosTestFlightBuild, macTestFlightBuild}` mapping;
-  verify each platform's own build number is present and `Complete`, not just the first. The Mac
-  build comes from the same `rc/*` tag/SHA as the iOS one.
-- **Screenshots.** iOS screenshots do not satisfy the Mac listing and vice versa. The Mac version
-  needs its own Mac-sized captures: export `KeeForgeMacUITests/MacScreenshotAuditUITests`
-  attachments (see `KeeForgeMacUITests/AGENTS.md`), then run
-  `ci_scripts/make_appstore_screenshots.py --platform mac --input-dir <export>` for the seven
-  2880×1800 images. It refuses a partial set or a run with skipped captures.
-- **Reviewer notes.** The same fixture database and password apply, but the note should say how to
-  open it on the platform under review, and the Mac note should mention that AutoFill is enabled in
-  System Settings → General → AutoFill & Passwords rather than iOS's Settings → Passwords.
-- **Export compliance.** Declared per platform. `KeeForgeMac/Info.plist` carries the same
-  `ITSAppUsesNonExemptEncryption` value as `KeeForge/Info.plist`; verify it resolved on the Mac
-  record too rather than assuming it inherited.
-- **Universal purchase.** If the apps are meant to be one purchase across platforms, that is
-  configured once on the app record and is an account-level change — confirm before setting it.
-- **Submission.** Each platform is submitted for review separately, and can be in a different
-  review state. "Submitted" for iOS says nothing about macOS.
+Generate a short-lived ES256 JWT using an established library such as PyJWT with cryptography.
+For a team key use `iss`, `iat`, `exp`, and `aud: appstoreconnect-v1`; header fields are
+`kid`, `typ: JWT`, and `alg: ES256`. A two-minute lifetime suits a preflight; keep other tokens
+at or below 20 minutes and renew during longer work. Individual keys use `sub: user` instead
+of `iss`; confirm key type rather than guessing from a missing issuer.
 
-The direct-download (Developer ID) Mac channel does **not** go through App Store Connect at all.
-It is built and notarized from the same RC SHA, then staged and later published by
-`ci_scripts/build_mac_direct.sh` plus the Sparkle appcast. This skill never uploads or releases the
-direct artifact, but it verifies its manifest entry before the App Store versions are submitted.
+Keep the key and JWT in memory. Send the bearer token only to the API origin above. Do not put
+it in process arguments, shell traces, HTTP debug output, or a printed request object. Disable
+automatic redirects for authenticated requests. Upload URLs have their own authorization and
+must not receive the ASC bearer token.
 
-## The build is already chosen
+Start with a read-only app lookup to verify authentication and app identity. A successful GET
+proves read access only, not permission to submit or release. For `401`, check token expiry,
+clock, and configured key type; for `403`, report the missing permission without changing roles.
 
-The `prepare-release` and `respin-release` skills prepare one RC across both external TestFlight
-groups and the direct channel. After soak, `ship-release` hands this skill the non-secret release manifest. It includes the exact `{marketing version,
-repoBuild, rcTag, commitSHA, iosTestFlightBuild, macTestFlightBuild, directCFBundleVersion}`
-mapping. This skill **selects** the two already-uploaded builds; it never triggers, requests, or
-waits for a new one.
+See [API operations](references/api-operations.md) for endpoints, JSON:API request shapes,
+upload handling, and current Apple documentation. Verify the current documented schema before
+using a field not covered there.
 
-If the manifest or either platform build number is missing, ask for the release handoff — do not
-infer it from "the latest build". The latest TestFlight build is not necessarily the soaked one,
-and shipping a different binary than the one that was soaked defeats the entire release process.
+## Release inputs and platform identity
 
-If the requested build is absent from TestFlight, stop and report it. Do not start a build.
+KeeForge has one app record with separate `IOS` and `MAC_OS` versions, builds, localizations,
+screenshots, and review submissions. Resolve the app from the handoff or the repository's main
+bundle identifier, then confirm its identity. Do not select an app by display name alone.
 
-## KeeForge release inputs
+The `prepare-release` and `respin-release` skills prepare the candidate; after soak,
+`ship-release` hands off the accepted release manifest. Require that handoff at
+`scratch/release-manifests/{version}-b{repoBuild}.json`. Match the marketing version, repo build,
+RC tag/SHA, `iosTestFlightBuild`, `macTestFlightBuild`, and platform build IDs. Both builds must
+come from the accepted RC; `directCFBundleVersion` must equal `repoBuild`. Verify the recorded
+external TestFlight soak and direct-channel evidence. Internal-only testing and Xcode Cloud
+upload success do not establish an accepted external soak.
 
-- Read `CHANGELOG.md` and use only the section for the requested version. Do not include `Unreleased` entries.
-- Reviewer fixture: `/Users/tan/Documents/test.kdbx.zip`
-- Reviewer fixture password: `testpassword123`
-- For native Mac listing/reviewer copy, use the companion
-  [`mac-listing-metadata.md`](mac-listing-metadata.md). It is a record of what
-  is actually saved on the Mac version page, written back from ASC, plus the
-  field-limit guardrails and the checks that remain unresolved. Keep the two in
-  step: edit the record whenever the page changes.
-- Preserve the existing reviewer note unless it is incorrect. It should tell the reviewer that the compressed test database is attached and give the password.
-- App Store localizations: both platform pages expose the same seven — English (U.S., primary), Simplified Chinese, Traditional Chinese, French, German, Russian, and Spanish (Spain). The released macOS 1.16.0 page is filled in all seven and is a useful baseline. Still read the page rather than assuming: a locale can be added or removed at any time, and each platform's page is its own source of truth.
-- Release manifest: `scratch/release-manifests/{version}-b{repoBuild}.json`. Verify both processed
-  platform build numbers map to the same RC tag/SHA and that `directCFBundleVersion` equals
-  `repoBuild` before changing App Store Connect. The manifest may contain hashes, URLs, IDs,
-  statuses, and paths, but never passwords, tokens, credentials, private keys, keychain profiles,
-  or cloud secret values.
+The direct-download Mac artifact is outside this skill: verify its handoff evidence but never
+upload, notarize, rebuild, or release it here. Select the existing accepted App Store builds;
+never substitute the newest build, trigger CI, bump versions, or make an archive. If a required
+manifest mapping or build is missing, stop and report it. An existing upload may still be
+processing; bounded polling is allowed, but do not wait for an unrequested new build.
+
+For a narrowly requested listing correction or read-only investigation, inspect the specified
+record without requiring a release manifest. That scope does not authorize changing its build,
+staging a different candidate, or submitting it.
+
+Other inputs:
+
+- Read only the requested version's `CHANGELOG.md` section, never `Unreleased`.
+- Preserve existing reviewer notes and contact details unless incorrect. The disposable reviewer
+  fixture is `test.kdbx.zip`, with password `testpassword123`; resolve its local source from
+  private guidance or user input. Never substitute a personal database.
+- For Mac listing/reviewer copy, read [mac-listing-metadata.md](mac-listing-metadata.md).
+  It is a historical saved-copy reference, not live submission or release authorization.
+  Update it after an authorized Mac copy change with redacted readback evidence only.
+- Enumerate each version's actual localizations; the App Store list can differ from the app's
+  shipped languages. Do not assume seven locales or add a locale just because the app supports it.
 
 ## Workflow
 
-### 1. Inspect current state
+### 1. Inspect each platform
 
-1. Open the KeeForge app in App Store Connect.
-2. Note which platforms the app record carries, and which of them this release covers.
-3. Per platform: check whether the requested version already exists and note its state.
-4. Per platform: check TestFlight build uploads for the exact marketing version and platform build
-   number handed over in the release manifest.
-5. Treat `Complete` as processed. Do not attach a build that is still processing or failed.
-6. Confirm each build was manually distributed to its external testers — those are the builds that
-   were soaked. A build that only ever reached internal testers has not been through the process.
-   Xcode Cloud archive/upload automation does not count as external distribution.
-7. If the build is missing, report it and stop. Builds are produced by the Xcode Cloud **Tests (RC)** workflow on an `rc/*` tag; no workflow triggers on `v*`. Never start a build from here.
+Read the requested version, its attached build, localizations, reviewer details/attachments,
+screenshot sets, release settings, availability, and existing review submissions/items. Follow
+pagination, including nested relationship lists. Record only the non-secret IDs and state needed
+for the task; summarize reviewer contact completeness without printing personal contact values.
 
-### 2. Create the App Store version when needed
+Match the build's `preReleaseVersion.version` and `preReleaseVersion.platform` as well as its ID
+and `build.version` (the build number). API `processingState: VALID` means processing succeeded;
+it is distinct from an asset's `COMPLETE` state. Reject failed/invalid builds and
+`buildAudienceType: INTERNAL_ONLY` for production. Inspect beta eligibility and the accepted
+soak evidence rather than interpreting processing success as test distribution or approval.
 
-Create the exact version through **Add iOS App** (or **Add macOS App** for the Mac platform). Confirm immediately before creating the version record because it changes App Store Connect state. Repeat per platform in play. Do not create or release either record until the final RC manifest is accepted.
+If a version is already submitted, in review, or released, report its actual state and use only
+operations valid for the requested correction. Do not cancel, withdraw, recreate, or resubmit it
+to force it through the preparation path.
 
-Do not create a duplicate version if it already exists.
+### 2. Create or reuse the exact version and attach its build
+
+Reuse the matching platform/version record. If absent, confirm creation immediately before POSTing an
+`appStoreVersions` resource related to the app, with the exact `platform`, `versionString`, and
+intended `releaseType`. Coordinate KeeForge releases with `MANUAL` unless the owner explicitly
+chooses otherwise. Check for an existing record again after an ambiguous POST outcome.
+
+PATCH the version's `build` relationship with the exact manifest build ID. GET that relationship
+and build afterward and recheck the full platform/version/build mapping. If Apple rejects the
+build, report the error instead of choosing another candidate.
 
 ### 3. Verify export compliance
 
-`KeeForge/Info.plist` declares `ITSAppUsesNonExemptEncryption=false`; App Store Connect
-may resolve that build declaration from metadata without prompting. Verify the actual platform
-record rather than assuming it, and do not treat that declaration as a determination about any
-separate legal questionnaire or document.
+Read the selected build's `usesNonExemptEncryption` and any associated encryption declaration.
+Both app plists declare `ITSAppUsesNonExemptEncryption=false`, but that source declaration is
+not proof that the selected upload has resolved compliance. Verify both platforms separately.
 
-If App Store Connect still asks, KeeForge implements standard encryption outside or in addition to Apple's operating-system encryption. Inspect the previous accepted build's **Build Metadata** and the exact current question text first. The historical record below is context only, not an answer to reuse:
+Do not automatically PATCH a missing declaration to `false`. New encryption answers, documents,
+or France-related declarations require the exact current question/field choices and explicit
+owner/legal confirmation at action time. The accepted prior record is context, not authorization
+to reuse an answer. Preserve France availability unless the owner explicitly decides otherwise.
+If a required legal workflow is unsupported by the public API, identify the manual action needed.
 
-1. **Standard encryption algorithms instead of, or in addition to, using or accessing the encryption within Apple's operating system**
-2. A historical record once contained **No** for a France-related question; do not reuse or infer that answer. The live app record is publicly available in France, so leave France available by default unless the exact current question, accepted iOS declaration, and an owner/legal decision at action time require otherwise.
+### 4. Save localized copy and verify screenshots
 
-These are legal declarations. Present the exact choices and obtain explicit user confirmation at action time before saving them. Never infer a questionnaire answer from `ITSAppUsesNonExemptEncryption`, store availability, or this historical note.
+Draft concise user-facing release notes from the versioned changelog, mentioning minimum-OS
+changes. Save approved `whatsNew` through `appStoreVersionLocalizations`; translate the same
+meaning into every live locale. Keep KeeForge, KeePass, KDBX, AutoFill, WebDAV, TOTP, passkey,
+and iOS recognizable. Read back each field after saving and check documented field limits.
+Do not change descriptions, keywords, URLs, or other listing fields unless in scope.
 
-### 4. Attach the build
+Verify the version's screenshot sets and processed assets, including inherited galleries. iOS
+screenshots do not satisfy macOS. When new Mac screenshots are requested, use
+`KeeForgeMacUITests/MacScreenshotAuditUITests` exports and
+`ci_scripts/make_appstore_screenshots.py --platform mac --input-dir <export>` for the seven
+2880×1800 images; read the test folder's guidance before capturing. Upload only the appropriate
+platform assets using the reservation/upload/commit protocol in the API reference.
 
-1. Open **Add Build**.
-2. Select the platform explicitly before choosing the exact soaked build: the picker can default to iOS even for a Mac group. Match the platform's manifest `buildID`, marketing version, and build number from the handoff. When several builds exist for the version, the highest build number is not automatically the right one; iOS and macOS can also have the same displayed version and build number.
-3. Verify the selected platform, manifest `buildID`, build number, and marketing version before choosing **Done**.
-4. After attachment, verify the build row on the version page shows the expected build number.
-5. If the only builds offered do not include the handoff build number, stop and report the mismatch instead of substituting a different build.
+### 5. Verify reviewer details and fixture
 
-### 5. Write localized release notes
+Read `appStoreReviewDetail`: preserve the contact fields, confirm sign-in is unnecessary for
+KeeForge, and keep notes explaining how to open the attached fixture with its password. Mac
+notes should describe File > Open Database and System Settings > General > AutoFill & Passwords;
+iOS notes should describe its own import and AutoFill flow.
 
-Draft concise English release notes from the versioned changelog section. Prefer user-facing outcomes over implementation detail. Mention minimum-OS changes explicitly.
+List review attachments. Reuse an existing `test.kdbx.zip` only after confirming successful asset
+processing. If absent, resolve and verify the disposable fixture, reserve an
+`appStoreReviewAttachments` resource, upload its exact byte ranges, commit the checksum, and
+poll until `assetDeliveryState.state: COMPLETE`. A filename or successful reservation alone
+is not evidence of an uploaded attachment. If the fixture is unavailable, ask for its path.
 
-Show the English draft to the user before saving it as public metadata. After approval:
+### 6. Preserve release behavior and unrelated settings
 
-1. Save English (U.S.).
-2. Translate the same meaning faithfully into every other localization listed on the version page.
-3. Save each localization separately.
-4. Keep product terms such as KeeForge, KeePass, KDBX, AutoFill, WebDAV, TOTP, passkey, and iOS recognizable.
+For coordinated releases, verify both version records use `releaseType: MANUAL`. Preserve any
+existing phased-release configuration; create or change one only when explicitly requested.
+Keep existing ratings and do not send a rating-reset operation. Preserve availability, pricing,
+privacy, age ratings, and purchase configuration. If a setting cannot be verified through the
+current public API, report it as unverified rather than claiming the UI-equivalent check passed.
 
-If **Add for Review** reports missing localized `What's New in This Version` fields, use the listed locales as the source of truth, fill every missing field, save, and retry.
+### 7. Stage a review draft and stop
 
-### 6. Verify reviewer information and attachment
+For each platform, reuse an appropriate unsubmitted `reviewSubmissions` draft, or create one
+related to the app with the explicit platform. List its items before editing. Do not alter a
+draft containing unrelated versions/items or combine the two platforms into one submission.
 
-Before adding the version for review, verify all of the following:
+Add the exact version via `reviewSubmissionItems` only if it is not already present. Resolve
+concrete validation errors within scope and read back the submission, item, version, and build.
+The staging target is a `READY_FOR_REVIEW` submission with the exact version's item also
+`READY_FOR_REVIEW` and no submitted date. Report the version's own state separately; it is not
+interchangeable with the submission or item state. These checks cannot guarantee Apple will
+accept final submission; never submit just to discover additional validation errors.
 
-- Contact information is populated.
-- Sign-in is not required unless current app behavior changes.
-- Reviewer notes mention the attached compressed database and password `testpassword123`.
-- The **Attachment** section shows `test.kdbx.zip`.
+Stop here for a prepare-only request. Report each platform's version ID, build ID/number,
+submission ID/state, item state, release setting, and any remaining blocker. State explicitly
+that no `submitted: true` request was sent.
 
-If the attachment is absent:
+### 8. Submit only the authorized platform and candidate
 
-1. Confirm `/Users/tan/Documents/test.kdbx.zip` exists.
-2. Read the browser file-upload guidance.
-3. Upload that exact file through **Choose File (Optional)** using the file-chooser flow.
-4. Verify the filename appears after upload.
+Immediately before an authorized submission, re-fetch the draft and its items and verify the
+platform/version/build and release settings still match the authorization. PATCH that submission
+with `submitted: true` once, then GET its resulting state. On a timeout or ambiguous error,
+reconcile the live state before retrying. Do not assume a transport error means nothing happened.
 
-Do not upload a duplicate when the attachment is already present. If the file is missing, stop and ask the user for the correct path.
+Report each platform's resulting state independently. Stop after submission; a manual production
+release uses `appStoreVersionReleaseRequests` and requires separate explicit release authorization
+plus the `ship-release` skill's gates. This skill must not release a held version as a
+side effect of submitting it.
 
-### 7. Verify release behavior
+## Completion evidence
 
-Preserve the prior version's settings unless the user requests a change. For KeeForge, verify:
-
-- **Manually release this version** is selected for both platform records for the first coordinated
-  native Mac launch. Do not select automatic/immediate release.
-- If App Store Connect offers phased release for macOS, record it only if the user explicitly chose
-  it; otherwise manual timing is the rollout control. Keep iOS and macOS settings independently
-  visible.
-- **Keep existing rating** remains selected.
-
-Report any difference before changing it.
-
-### 8. Stage the review submission and stop
-
-Repeat this entire section separately for each platform in play:
-
-1. Save that platform's version metadata.
-2. Choose **Add for Review** for that platform.
-3. Resolve every concrete validation error App Store Connect lists.
-4. Wait for that platform's version state to become **Ready for Review**.
-5. Open the draft submission and verify it contains the exact version and build for that platform.
-6. Verify **Item Ready to Submit** and the presence of **Submit for Review**.
-7. Stop. This is the required handoff state; do not click **Submit for Review** in this staging
-   step.
-
-Stop here when the user asked to complete everything before final submission. Leave the draft open and report that the final button is untouched.
-
-### 9. Submit only on explicit confirmation
-
-If the user explicitly asks for final submission of a platform, request confirmation immediately
-before that platform's click, stating that **Submit for Review** will send that platform's version,
-build, and metadata to Apple for review. Do not rely on an earlier or batched confirmation. After
-the user confirms:
-
-1. Click **Submit for Review** once.
-2. Verify the resulting submission state from the page.
-3. Report each platform's resulting state and its manual/phased release setting. Do not click a
-   release control as part of submission.
-
-## Final checklist
-
-Run this list once per platform in play.
-
-- Every platform this release covers was identified up front, and none was left half-done.
-- Exact version record exists.
-- The attached build is the exact soaked build number from the handoff, not merely the newest.
-- Exact build is processed and attached.
-- Export compliance is complete.
-- Store availability is verified as intended (France remains on by default); any separate legal declaration is independently verified against the exact current question and accepted iOS record.
-- Release notes are saved for every localization listed on the version page.
-- Reviewer note includes the fixture password.
-- `test.kdbx.zip` is visibly attached.
-- Manual release (and any explicitly chosen macOS phased setting) and rating retention are verified.
-- Draft submission shows the exact version and build as ready.
-- Screenshots on the version page are that platform's own, not the other's.
-- Final submit is untouched unless separately confirmed.
-- Each platform's submission state is reported separately; one being submitted says nothing about the other.
+For each requested platform report the exact candidate, saved locales, screenshot and fixture
+processing, compliance status, release setting, and review state. Store only sanitized evidence
+in the release manifest: record IDs, build mapping, states, and timestamps. Exclude credentials,
+JWTs, signed upload URLs, private source paths, reviewer contacts, and complete API response dumps.
+Do not mark a blocked or partially staged platform complete because the other platform succeeded.

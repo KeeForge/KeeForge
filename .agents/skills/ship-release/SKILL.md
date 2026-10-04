@@ -60,7 +60,7 @@ Invoke `publish-app-store-version` once for iOS and once for macOS. Attach the e
 TestFlight build numbers from the manifest, save the platform-specific metadata/screenshots, and
 stage each platform independently through **Ready for Review**, then stop. Do not submit either
 platform yet. If the user later requests submission, obtain separate explicit action-time
-confirmation immediately before each platform's **Submit for Review** click; confirmation for one
+confirmation immediately before each platform's API submission request; confirmation for one
 platform does not authorize the other. Configure both records for manual release and leave approved
 versions held. `v{version}` does not exist yet.
 
