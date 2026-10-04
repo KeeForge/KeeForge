@@ -42,7 +42,8 @@ The docs below are read on demand:
 - `ci_scripts/README.md` — Xcode Cloud bootstrap and `run_kdbx_compatibility_gate.sh`, the required local release gate
 - `scripts/README.md` — local dev tooling
 - `.github/AGENTS.md` — CI workflow gating map (named `AGENTS.md` because GitHub renders a `.github/README.md` as the repo front-page README)
-- `docs/README.md` — historical archive of past design specs, audits, and notes (may not match current code)
+- `docs/threat-model.md` — living, high-level threat model; required review for major product or architecture changes
+- `docs/README.md` — documentation index and living-document maintenance rules; historical specs, audits, and notes may not match current code
 
 ## Repo-Wide Rules
 
@@ -123,6 +124,7 @@ Mac XCUITest is the slowest and most fragile lever available: it needs an unlock
 
 ## Security Reminders
 
+- **Keep [docs/threat-model.md](docs/threat-model.md) up to date.** It is a living document, exempt from archive rules. Review it for every major product or architecture change and update it in the same change whenever architecture, data flows, protected assets, trust boundaries, security controls, assumptions, or limitations change. Keep its source references accurate; maintenance requirements are detailed in `docs/README.md`.
 - Secrets are re-encrypted in memory with a per-session `SymmetricKey`; lock clears the session key and invalidates `EncryptedValue` access.
 - Composite keys live in Keychain, not raw master passwords.
 - Local saves compare the open-time SHA-512 before overwrite, create timestamped backups, and refresh the shared cached copy for AutoFill.

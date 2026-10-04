@@ -1,10 +1,14 @@
 # Docs Archive
 
-**This folder is an archive of past design and review documents.** Each doc captures the design that guided an implementation or audit at the time it was written. None of them are maintained afterward, and there is **no guarantee that they describe current code behavior** — features may have shipped differently, been reworked, or not been built at all. Always confirm against the current code (and folder-local `README.md` files next to the code) before relying on anything here.
+**Most of this folder is an archive of past design and review documents.** Each archived doc captures the design that guided an implementation or audit at the time it was written. Archived docs are not maintained afterward, and there is **no guarantee that they describe current code behavior** — features may have shipped differently, been reworked, or not been built at all. Always confirm against the current code (and folder-local `README.md` files next to the code) before relying on archived material.
 
-Files and folders are prefixed with the date the doc was written. Do not update these docs for new code changes unless explicitly asked.
+Archived files and folders are prefixed with the date the doc was written. Do not update archived docs for new code changes unless explicitly asked.
 
-The `i18n/` folder has no date prefix and is not archive material. The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo); code changes should not contradict it.
+## Living Documents — Required Maintenance
+
+**[threat-model.md](threat-model.md) is a living document and must be kept up to date with major product or architecture changes.** Review it as part of every major change and update it in the same change whenever the architecture, data flows, protected assets, trust boundaries, security controls, assumptions, or limitations change. This includes changes to unlock factors, storage and sync, AutoFill capabilities, network integrations, plaintext disclosure, platform permissions, and release/update distribution. Keep its source references accurate. It remains maintained after features ship and is exempt from the archive rules below.
+
+The threat model and the `i18n/` folder have no date prefix. The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo); code changes should not contradict it.
 
 `i18n/` is **living**: it holds the translated `README.<locale>.md` and `CONTRIBUTING.<locale>.md` files for every shipped locale. Update them whenever the root `README.md` or `CONTRIBUTING.md` changes, and keep their relative links pointing at repo-root paths through `../../`.
 
@@ -55,7 +59,7 @@ Point-in-time security reviews; findings may have been fixed (or new issues intr
 | 2026-07-04 | `checklists/2026-07-04-webdav-manual-e2e-checklist.md` | Manual WebDAV sync verification against real servers |
 | 2026-08-17 | `checklists/2026-08-17-ios-27-readiness-checklist.md` | iOS 27 / Xcode 27 readiness audit and preparation checklist (against beta 5) |
 
-## Adding A New Doc
+## Adding A New Archive Doc
 
 - Put it in the matching category folder and prefix the file (or the folder, for multi-file specs) with the date written: `YYYY-MM-DD-<kebab-case-name>`.
 - Add a row to the table above.
