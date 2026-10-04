@@ -38,6 +38,33 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         sharedDefaults.removeObject(forKey: "KeeForge.autoUnlockWithFaceID")
     }
 
+    func test_oldURLAdditionCallback_doesNotCancelReplacementRequest() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(
+            title: "github.com legacy",
+            username: "octocat",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey),
+            url: "https://legacy.example"
+        )
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+        coordinator.activeDatabaseReference = try seedResolvableDefaultDatabase()
+        coordinator.presentPasswordMatchesOrFinish()
+        let oldPicker = try XCTUnwrap(presenter.searchView)
+        XCTAssertEqual(oldPicker.possibleEntries.map(\.id), [entry.id])
+
+        coordinator.cancelRequest(code: .userCanceled)
+        presenter.isPresentationActive = false
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        oldPicker.onAddURLToPossible(entry)
+
+        XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
+        XCTAssertTrue(coordinator.pendingUnlock)
+        XCTAssertNil(presenter.completedCredential)
+        coordinator.cancelRequest(code: .userCanceled)
+    }
+
     // MARK: - Required cleanup-path tests
 
     func test_requestPreparedBeforeAppearance_waitsForActivePresentation() throws {
@@ -970,7 +997,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let (taggedCoordinator, taggedPresenter) = makeCoordinator()
         let taggedEntries = [
             try makeTOTPEntry(title: "GitHub", sessionKey: sessionKey),
-            try makeTOTPEntry(title: "GitHub Work", sessionKey: sessionKey),
+            try makeTOTPEntry(title: "GitHub Work", sessionKey: sessionKey, digits: 8),
         ]
         taggedCoordinator.serviceIdentifiers = [githubServiceIdentifier()]
         seedUnlockedVaultState(taggedCoordinator, entries: taggedEntries, sessionKey: sessionKey)
@@ -983,7 +1010,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         taggedCoordinator.completeOTCRequestFromPending()
 
         let taggedCode = try XCTUnwrap(taggedPresenter.completedOneTimeCode, "Tagged identifier should complete the OTC request")
-        XCTAssertEqual(taggedCode.count, 6)
+        XCTAssertEqual(taggedCode.count, 8)
         XCTAssertNotEqual(taggedCode, "------")
         assertCleanedUp(taggedCoordinator)
 
@@ -991,7 +1018,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let (legacyCoordinator, legacyPresenter) = makeCoordinator()
         let legacyEntries = [
             try makeTOTPEntry(title: "GitHub", sessionKey: sessionKey),
-            try makeTOTPEntry(title: "GitHub Work", sessionKey: sessionKey),
+            try makeTOTPEntry(title: "GitHub Work", sessionKey: sessionKey, digits: 8),
         ]
         legacyCoordinator.serviceIdentifiers = [githubServiceIdentifier()]
         seedUnlockedVaultState(legacyCoordinator, entries: legacyEntries, sessionKey: sessionKey)
@@ -1001,7 +1028,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         legacyCoordinator.completeOTCRequestFromPending()
 
         let legacyCode = try XCTUnwrap(legacyPresenter.completedOneTimeCode, "Legacy identifier should complete the OTC request")
-        XCTAssertEqual(legacyCode.count, 6)
+        XCTAssertEqual(legacyCode.count, 8)
         assertCleanedUp(legacyCoordinator)
 
         // Unrecognized identifier falls back to the interactive picker.
@@ -1394,6 +1421,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             for: makePasswordIdentity(recordIdentifier: nil)
         )
 
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         XCTAssertEqual(presenter.cancelledError?.code, .userInteractionRequired)
         assertCleanedUp(coordinator)
     }
@@ -2709,13 +2737,15 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         title: String,
         url: String = "https://github.com/login",
         sessionKey: SymmetricKey,
-        expired: Bool = false
+        expired: Bool = false,
+        digits: Int = 6
     ) throws -> KPEntry {
         KPEntry(
             title: title,
             url: url,
             totpConfig: TOTPConfig(
-                secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey)
+                secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey),
+                digits: digits
             ),
             expires: expired,
             expiryTime: expired ? .distantPast : nil

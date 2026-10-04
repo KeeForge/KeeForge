@@ -120,7 +120,7 @@ final class StoreKitManager {
                     await finishVerifiedTransaction(transaction)
                     purchaseResult = .success
                 case .unverified:
-                    purchaseResult = .error("Transaction could not be verified.")
+                    purchaseResult = .error(String(localized: "Transaction could not be verified."))
                 }
             case .userCancelled:
                 purchaseResult = .cancelled
@@ -131,7 +131,7 @@ final class StoreKitManager {
                 // listener finishes it once (and if) it is approved.
                 purchaseResult = .pending
             @unknown default:
-                purchaseResult = .error("Unknown purchase result.")
+                purchaseResult = .error(String(localized: "Unknown purchase result."))
             }
         } catch {
             purchaseResult = .error(error.localizedDescription)

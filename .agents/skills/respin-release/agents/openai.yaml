@@ -1,0 +1,4 @@
+interface:
+  display_name: "Respin KeeForge Release"
+  short_description: "Replace a candidate and restart its soak"
+  default_prompt: "Use $respin-release to prepare another candidate for KeeForge version {version}."

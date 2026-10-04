@@ -97,8 +97,10 @@ struct WebDAVConnectView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        viewModel.cancelPendingConnection()
                         onCancel()
                     }
+                    .disabled(viewModel.isConnecting)
                     .accessibilityIdentifier("webdav.connect.cancel")
                 }
 
@@ -113,6 +115,10 @@ struct WebDAVConnectView: View {
                     }
                 }
             }
+        }
+        .interactiveDismissDisabled(viewModel.isConnecting)
+        .onDisappear {
+            viewModel.cancelPendingConnection()
         }
         .macSheetFrame(minWidth: 480, minHeight: 380)
     }

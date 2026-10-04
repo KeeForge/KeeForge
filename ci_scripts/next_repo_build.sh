@@ -131,7 +131,7 @@ targets:
   KeeForge:
     settings:
       base:
-        CURRENT_PROJECT_VERSION: "7"
+        CURRENT_PROJECT_VERSION: "13"
   KeeForgeAutoFill:
     settings:
       base:
@@ -158,6 +158,8 @@ targets:
         CURRENT_PROJECT_VERSION: "12"
 YAML
   git -C "$repo" add project.yml; git -C "$repo" commit -qm current
+  result="$($0 --no-fetch --repo "$repo")"
+  grep -Fq 'next repoBuild: 14' <<<"$result" || die "self-test did not honor the historical monotonic floor"
   printf '%s\n' '{"version":"1.0.0","repoBuild":14,"rcTag":"rc/1.0.0-b14"}' >"$manifests/1.0.0-b14.json"
   result="$($0 --no-fetch --repo "$repo")"
   grep -Fq 'next repoBuild: 15' <<<"$result" || die "self-test did not honor manifest monotonic floor"

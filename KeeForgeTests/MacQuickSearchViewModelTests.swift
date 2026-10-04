@@ -137,6 +137,44 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         XCTAssertNil(model.selectedEntryID)
     }
 
+    func testMovingSelectionReadsTheLiveSessionOnceAtTheLastResult() async throws {
+        let entries = (0..<MacQuickSearchViewModel.resultLimit).map { KPEntry(title: "Bulk \($0)") }
+        let session = try await makeInjectedSession(rootGroup: KPGroup(name: "Root", entries: entries))
+        self.session = session
+        var sessionReads = 0
+        let model = MacQuickSearchViewModel(sessionProvider: {
+            sessionReads += 1
+            return session
+        })
+        model.query = "Bulk"
+        let results = model.results
+        model.selectedEntryID = try XCTUnwrap(results.last).id
+        sessionReads = 0
+
+        model.moveSelection(by: -1)
+
+        XCTAssertEqual(sessionReads, 1)
+        XCTAssertEqual(model.selectedEntryID, results[results.count - 2].id)
+    }
+
+    func testMovingSelectionWithAStaleIDStartsAtTheFirstResult() async throws {
+        session = try await makeUnlockedSession()
+        let model = makeModel()
+        model.query = ".com"
+        let results = model.results
+        XCTAssertGreaterThan(results.count, 1)
+        let staleID = UUID()
+        XCTAssertFalse(results.contains { $0.id == staleID })
+        model.selectedEntryID = staleID
+
+        model.moveSelection(by: 1)
+
+        XCTAssertEqual(model.selectedEntryID, results[1].id)
+        model.selectedEntryID = staleID
+        model.moveSelection(by: -1)
+        XCTAssertEqual(model.selectedEntryID, results.first?.id)
+    }
+
     func testPresentingClearsTheLastSearch() async throws {
         session = try await makeUnlockedSession()
         let model = makeModel()
@@ -262,6 +300,109 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         XCTAssertEqual(abortedCopies, 1)
     }
 
+    func testReplacingTheSessionWithTheSameEntryIDsDuringAuthenticationCopiesNothing() async throws {
+        let source = try await makeUnlockedSession()
+        defer { source.lockRequest(force: true) }
+        session = source
+        let replacement = try await makeUnlockedSession()
+        let authentication = SuspendedAuthentication()
+        let model = makeModel(authenticateDeviceOwner: { _ in await authentication.authenticate() })
+        let twitter = try entry(titled: "Twitter", in: model)
+        XCTAssertNotNil(replacement.entry(withID: twitter.id))
+        let copy = Task { await model.copy(.password, from: twitter) }
+        await authentication.waitUntilRequested()
+
+        session = replacement
+        authentication.complete()
+        let didCopy = await copy.value
+
+        XCTAssertFalse(didCopy)
+        XCTAssertTrue(copied.isEmpty)
+        XCTAssertEqual(abortedCopies, 1)
+    }
+
+    func testLockingAndReunlockingTheSameSessionDuringAuthenticationCopiesNothing() async throws {
+        let source = try await makeUnlockedSession()
+        session = source
+        let authentication = SuspendedAuthentication()
+        let model = makeModel(authenticateDeviceOwner: { _ in await authentication.authenticate() })
+        let twitter = try entry(titled: "Twitter", in: model)
+        let copy = Task { await model.copy(.password, from: twitter) }
+        await authentication.waitUntilRequested()
+
+        source.lockRequest(force: true)
+        await source.unlock(password: fixturePassword)
+        XCTAssertEqual(source.state, .unlocked)
+        authentication.complete()
+        let didCopy = await copy.value
+
+        XCTAssertFalse(didCopy)
+        XCTAssertTrue(copied.isEmpty)
+        XCTAssertEqual(abortedCopies, 1)
+    }
+
+    func testEditingThePasswordDuringAuthenticationCopiesNothing() async throws {
+        let source = try await makeUnlockedSession()
+        session = source
+        let authentication = SuspendedAuthentication()
+        let model = makeModel(authenticateDeviceOwner: { _ in await authentication.authenticate() })
+        let twitter = try entry(titled: "Twitter", in: model)
+        let copy = Task { await model.copy(.password, from: twitter) }
+        await authentication.waitUntilRequested()
+
+        let form = EntryEditViewModel(editing: twitter, sessionKey: try XCTUnwrap(source.sessionKey))
+        form.password = "changed during authentication"
+        try source.applyEntryEdit(.updateEntry(entryID: twitter.id, draft: form.entryDraftPayload))
+        authentication.complete()
+        let didCopy = await copy.value
+
+        XCTAssertFalse(didCopy)
+        XCTAssertTrue(copied.isEmpty)
+        XCTAssertEqual(abortedCopies, 1)
+    }
+
+    func testANewPanelPresentationRejectsTheOldCopyWithoutClosingTheNewPanel() async throws {
+        session = try await makeUnlockedSession()
+        let authentication = SuspendedAuthentication()
+        let model = makeModel(authenticateDeviceOwner: { _ in await authentication.authenticate() })
+        let twitter = try entry(titled: "Twitter", in: model)
+        let copy = Task { await model.copy(.password, from: twitter) }
+        await authentication.waitUntilRequested()
+
+        model.prepareForPresentation()
+        model.query = "GitHub"
+        authentication.complete()
+        let didCopy = await copy.value
+
+        XCTAssertFalse(didCopy)
+        XCTAssertTrue(copied.isEmpty)
+        XCTAssertEqual(copiedCallbacks, 0)
+        XCTAssertEqual(abortedCopies, 0, "An older prompt must not dismiss the new presentation")
+        XCTAssertEqual(model.query, "GitHub")
+    }
+
+    func testAuthenticationCanHideThePanelAndClearItsQueryBeforeCopying() async throws {
+        let source = try await makeUnlockedSession()
+        session = source
+        let authentication = SuspendedAuthentication()
+        let model = makeModel(authenticateDeviceOwner: { _ in await authentication.authenticate() })
+        let twitter = try entry(titled: "Twitter", in: model)
+        let copy = Task { await model.copy(.password, from: twitter) }
+        await authentication.waitUntilRequested()
+
+        // The native panel clears its query when authentication takes key focus.
+        model.query = ""
+        source.workspace.selectedEntryID = try XCTUnwrap(source.entries(matching: "GitHub").first).id
+        authentication.complete()
+        let didCopy = await copy.value
+
+        XCTAssertTrue(didCopy)
+        XCTAssertNil(model.selectedEntryID)
+        XCTAssertEqual(copied, ["twitterpass123"])
+        XCTAssertEqual(copiedCallbacks, 1)
+        XCTAssertEqual(abortedCopies, 0)
+    }
+
     func testUsernameAndVerificationCodeCopyWithoutAuthentication() async throws {
         let session = try await makeUnlockedSession()
         self.session = session
@@ -328,8 +469,8 @@ final class MacQuickSearchViewModelTests: XCTestCase {
 
         model.perform(.openInKeeForge)
 
-        XCTAssertEqual(session.selectedEntryID, github.id)
-        XCTAssertEqual(session.selectedGroupID, session.parentGroupID(forEntryID: github.id))
+        XCTAssertEqual(session.workspace.selectedEntryID, github.id)
+        XCTAssertEqual(session.workspace.selectedGroupID, session.parentGroupID(forEntryID: github.id))
         XCTAssertEqual(mainWindowRequests, 1)
     }
 
@@ -339,11 +480,11 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         let model = makeModel()
         let github = try entry(titled: "GitHub", in: model)
         session.setEditorHasUnsavedChanges(true, editorID: UUID())
-        let selectionBefore = session.selectedEntryID
+        let selectionBefore = session.workspace.selectedEntryID
 
         model.openInKeeForge(github)
 
-        XCTAssertEqual(session.selectedEntryID, selectionBefore)
+        XCTAssertEqual(session.workspace.selectedEntryID, selectionBefore)
         XCTAssertEqual(mainWindowRequests, 1, "The window still comes forward, showing the editor")
     }
 
@@ -375,10 +516,12 @@ final class MacQuickSearchViewModelTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func makeModel() -> MacQuickSearchViewModel {
+    private func makeModel(
+        authenticateDeviceOwner: MacQuickSearchViewModel.DeviceOwnerAuthenticator? = nil
+    ) -> MacQuickSearchViewModel {
         let model = MacQuickSearchViewModel(
             sessionProvider: { [weak self] in self?.session },
-            authenticateDeviceOwner: { [weak self] gate in
+            authenticateDeviceOwner: authenticateDeviceOwner ?? { [weak self] gate in
                 guard let self else { return false }
                 self.authenticationRequests += 1
                 self.authenticationGates.append(gate)
@@ -391,6 +534,30 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         model.onShowMainWindow = { [weak self] in self?.mainWindowRequests += 1 }
         model.onDismiss = { [weak self] in self?.dismissRequests += 1 }
         return model
+    }
+
+    @MainActor
+    private final class SuspendedAuthentication {
+        private var completion: CheckedContinuation<Bool, Never>?
+        private var started: CheckedContinuation<Void, Never>?
+
+        func authenticate() async -> Bool {
+            await withCheckedContinuation { continuation in
+                completion = continuation
+                started?.resume()
+                started = nil
+            }
+        }
+
+        func waitUntilRequested() async {
+            guard completion == nil else { return }
+            await withCheckedContinuation { started = $0 }
+        }
+
+        func complete() {
+            completion?.resume(returning: true)
+            completion = nil
+        }
     }
 
     /// Searches for `title` and selects the one exact match.

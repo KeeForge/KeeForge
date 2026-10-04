@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 import LocalAuthentication
-import SwiftUI
+import Observation
 
 enum DatabaseSaveError: Error, LocalizedError, Identifiable, Equatable, Sendable {
     case databaseIsReadOnly
@@ -357,49 +357,6 @@ final class DatabaseViewModel {
         }
     }
 
-    /// What the database's root list shows, chosen from its view menu.
-    enum ViewMode: String, Sendable {
-        case groups
-        case allEntries
-        case verificationCodes
-        case tags
-        case recycleBin
-
-        /// The views of the live database, in menu order. The recycle bin is
-        /// listed apart from them.
-        static let browsingModes: [ViewMode] = [.allEntries, .groups, .verificationCodes, .tags]
-
-        var title: String {
-            switch self {
-            case .groups:
-                String(localized: "Groups")
-            case .allEntries:
-                String(localized: "All Entries")
-            case .verificationCodes:
-                String(localized: "Verification Codes")
-            case .tags:
-                String(localized: "Tags")
-            case .recycleBin:
-                String(localized: "Recycle Bin")
-            }
-        }
-
-        var systemImage: String {
-            switch self {
-            case .groups:
-                "folder"
-            case .allEntries:
-                "list.bullet.rectangle"
-            case .verificationCodes:
-                "clock"
-            case .tags:
-                "tag"
-            case .recycleBin:
-                "trash"
-            }
-        }
-    }
-
     typealias CloudSyncOperation = @Sendable (
         _ reference: DatabaseReference,
         _ progress: @escaping @Sendable (Double) -> Void
@@ -507,63 +464,9 @@ final class DatabaseViewModel {
     var isSearchQueryEmpty: Bool {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
-    var isSearchActive = false {
-        didSet { resetInactivityTimer() }
-    }
-    var navigationPath = NavigationPath() {
-        didSet { resetInactivityTimer() }
-    }
-    var selectedGroupID: UUID? {
-        didSet {
-            if oldValue != selectedGroupID {
-                selectedEntryID = nil
-                if selectedGroupID != nil {
-                    selectedTag = nil
-                }
-            }
-            resetInactivityTimer()
-        }
-    }
-    /// The tag selected in the macOS sidebar's Tags section. Mutually exclusive
-    /// with `selectedGroupID`: the sidebar shows exactly one selection, so
-    /// setting either one clears the other (and the entry selection, the same
-    /// way switching groups does). Tag identity is exact-string.
-    var selectedTag: String? {
-        didSet {
-            if oldValue != selectedTag {
-                selectedEntryID = nil
-                if selectedTag != nil {
-                    selectedGroupID = nil
-                }
-            }
-            resetInactivityTimer()
-        }
-    }
-    var selectedEntryID: UUID? {
-        didSet { resetInactivityTimer() }
-    }
-    /// Incremented by the macOS menu-bar "New Entry" command (⌘N); the
-    /// unlocked workspace observes it and presents the entry editor.
-    private(set) var newEntryRequestID = 0
-    /// Incremented by the macOS menu-bar "Find" command (⌘F); the group list
-    /// observes it and focuses the search field.
-    private(set) var searchFocusRequestID = 0
-    /// Incremented by the macOS menu-bar "New Group" command (⇧⌘N); the
-    /// unlocked workspace observes it and presents the new-group sheet.
-    private(set) var newGroupRequestID = 0
-    /// Incremented by the macOS menu-bar "Edit Entry" command (⌘E); the
-    /// unlocked workspace observes it and opens the editor on the selection.
-    private(set) var editEntryRequestID = 0
-    /// Incremented by the macOS menu-bar "Delete" command (⌘⌫); the unlocked
-    /// workspace observes it and raises the shared delete confirmation.
-    private(set) var deleteSelectionRequestID = 0
+    let workspace = DatabaseWorkspaceState()
     var sortOrder: SortOrder {
         didSet { Self.persistSortOrder(sortOrder) }
-    }
-    /// Session state like the navigation path: every unlock starts on
-    /// `initialViewMode` again.
-    var viewMode = DatabaseViewModel.initialViewMode() {
-        didSet { resetInactivityTimer() }
     }
 
     private(set) var failedAttempts = 0
@@ -625,6 +528,7 @@ final class DatabaseViewModel {
     /// Sync Now waiting out a save that is still in flight (`waitForInFlightSave`).
     @ObservationIgnored private var saveCompletionWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var pendingLockRequest: PendingLockRequest?
+    private(set) var lockRequestCancellationID = 0
     /// Open editors holding fields the draft has not seen. Without this a lock
     /// trigger tears the editor down and drops the typing with no prompt.
     private var unsavedEditorIDs: Set<UUID> = []
@@ -841,6 +745,7 @@ final class DatabaseViewModel {
         self.importStagingOperation = importStagingOperation
         self.conflictCopyDateProvider = conflictCopyDateProvider
         self.nowProvider = nowProvider
+        workspace.onInteraction = { [weak self] in self?.resetInactivityTimer() }
     }
 
     convenience init(createdDatabase: CreatedDatabase) {
@@ -1053,8 +958,8 @@ final class DatabaseViewModel {
         }
         #endif
         switch BiometricService.availableType {
-        case .faceID: return "Unlock with Face ID"
-        case .touchID: return "Unlock with Touch ID"
+        case .faceID: return String(localized: "Unlock with Face ID")
+        case .touchID: return String(localized: "Unlock with Touch ID")
         case .none: return "Biometrics unavailable"
         }
     }
@@ -1545,7 +1450,20 @@ final class DatabaseViewModel {
     }
 
     func applyEntryEdit(_ edit: EntryEdit) throws {
-        draft = try makeWorkingDraft().apply(edit)
+        stageDraft(try makeWorkingDraft().apply(edit))
+    }
+
+    func createEntry(parentGroupID: UUID, draft payload: EntryDraftPayload) throws -> UUID {
+        let staged = try makeWorkingDraft().apply(.createEntry(parentGroupID: parentGroupID, draft: payload))
+        guard let entryID = Self.findGroup(parentGroupID, in: staged.rootGroup)?.entries.last?.id else {
+            throw SaveError.saveContextUnavailable
+        }
+        stageDraft(staged)
+        return entryID
+    }
+
+    private func stageDraft(_ staged: DatabaseDraft) {
+        draft = staged
         saveConflict = nil
         refreshCredentialStoreForCurrentTreeIfNeeded()
         resetInactivityTimer()
@@ -1650,8 +1568,8 @@ final class DatabaseViewModel {
 
         // A recycled entry still exists in the rebuilt index, so a mounted
         // detail view cannot observe its disappearance and close itself.
-        if selectedEntryID == entryID, entryIndex[entryID] != nil {
-            selectedEntryID = nil
+        if workspace.selectedEntryID == entryID, entryIndex[entryID] != nil {
+            workspace.selectedEntryID = nil
         }
     }
 
@@ -1661,14 +1579,14 @@ final class DatabaseViewModel {
 
         try applyEntryEdit(.deleteGroup(groupID: groupID, sendToRecycleBin: sendToRecycleBin))
 
-        if let selectedGroupID, affectedGroupIDs.contains(selectedGroupID) {
-            self.selectedGroupID = visibleRootGroupID
+        if let selectedGroupID = workspace.selectedGroupID, affectedGroupIDs.contains(selectedGroupID) {
+            workspace.selectedGroupID = visibleRootGroupID
         }
         // Deselect only an entry that still exists (recycled with its group);
         // a permanently deleted one is handled as in `synchronizeSelections()`.
-        if let selectedEntryID, affectedEntryIDs.contains(selectedEntryID),
+        if let selectedEntryID = workspace.selectedEntryID, affectedEntryIDs.contains(selectedEntryID),
            entryIndex[selectedEntryID] != nil {
-            self.selectedEntryID = nil
+            workspace.selectedEntryID = nil
         }
     }
 
@@ -2002,27 +1920,27 @@ final class DatabaseViewModel {
     /// Used by the macOS menu-bar New Entry command.
     func requestNewEntry() {
         guard case .unlocked = state, isReadOnly == false else { return }
-        newEntryRequestID += 1
+        workspace.request(.newEntry)
     }
 
     /// Requests focusing the search field. Used by the macOS Find command.
     func requestSearchFocus() {
         guard case .unlocked = state else { return }
-        searchFocusRequestID += 1
+        workspace.request(.searchFocus)
     }
 
     /// Requests presenting the new-group sheet under the selected group. Used
     /// by the macOS menu-bar New Group command.
     func requestNewGroup() {
         guard case .unlocked = state, isReadOnly == false else { return }
-        newGroupRequestID += 1
+        workspace.request(.newGroup)
     }
 
     /// Requests opening the entry editor on the current selection. Used by the
     /// macOS menu-bar Edit Entry command.
     func requestEntryEdit() {
         guard canEditSelectedEntry else { return }
-        editEntryRequestID += 1
+        workspace.request(.editEntry)
     }
 
     /// Requests the delete confirmation for the current selection. Used by the
@@ -2030,13 +1948,13 @@ final class DatabaseViewModel {
     /// row context menus use, so a menu-bar delete never bypasses it.
     func requestDeleteSelection() {
         guard deletableSelection != nil else { return }
-        deleteSelectionRequestID += 1
+        workspace.request(.deleteSelection)
     }
 
     /// Whether the macOS Edit Entry command applies right now.
     var canEditSelectedEntry: Bool {
         guard case .unlocked = state, isReadOnly == false, sessionKey != nil else { return false }
-        guard let selectedEntryID else { return false }
+        guard let selectedEntryID = workspace.selectedEntryID else { return false }
         return entry(withID: selectedEntryID) != nil
     }
 
@@ -2052,10 +1970,10 @@ final class DatabaseViewModel {
 
     var deletableSelection: SelectionDeletionTarget? {
         guard case .unlocked = state, isReadOnly == false else { return nil }
-        if let selectedEntryID, entry(withID: selectedEntryID) != nil {
+        if let selectedEntryID = workspace.selectedEntryID, entry(withID: selectedEntryID) != nil {
             return .entry(selectedEntryID)
         }
-        if let selectedGroupID,
+        if let selectedGroupID = workspace.selectedGroupID,
            group(withID: selectedGroupID) != nil,
            isGroupProtectedFromDeletion(groupID: selectedGroupID) == false {
             return .group(selectedGroupID)
@@ -2114,14 +2032,14 @@ final class DatabaseViewModel {
             ? Self.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
         searchText = ""
-        navigationPath = NavigationPath()
-        viewMode = Self.initialViewMode()
-        selectedGroupID = nil
-        selectedTag = nil
-        selectedEntryID = nil
+        workspace.resetForLock()
         #if os(macOS)
         grantPendingWindowCloseIfNeeded()
         #endif
+    }
+
+    func lockForDatabaseTransition() {
+        lockRequest(force: isSessionOpen == false, manuallyTriggered: true)
     }
 
     func lockRequest(
@@ -2287,6 +2205,7 @@ final class DatabaseViewModel {
     }
 
     private func cancelLockRequest() {
+        lockRequestCancellationID += 1
         pendingLockRequest = nil
         #if os(macOS)
         // Keep Editing is also the Cancel of a window close waiting on this
@@ -3049,12 +2968,9 @@ final class DatabaseViewModel {
         saveConflict = nil
         mergeFailure = nil
         mergeSummaryMessage = nil
-        navigationPath = NavigationPath()
+        workspace.resetNavigation()
         searchText = ""
-        isSearchActive = false
-        selectedGroupID = nil
-        selectedTag = nil
-        selectedEntryID = nil
+        workspace.isSearchActive = false
         state = .unlocking
         cloudSyncProgress = nil
         unlockStatusMessage = databaseReference.isCloudBacked
@@ -3079,10 +2995,7 @@ final class DatabaseViewModel {
     /// selection go back to the root: the new tree may no longer hold what
     /// they pointed at.
     private func applyReloadedDatabase(_ reloaded: ReloadedDatabase) {
-        navigationPath = NavigationPath()
-        selectedGroupID = nil
-        selectedTag = nil
-        selectedEntryID = nil
+        workspace.resetNavigation()
         rootGroup = reloaded.rootGroup
         databaseReference = reloaded.reference
         openedFormatVersion = reloaded.formatVersion
@@ -3245,21 +3158,13 @@ final class DatabaseViewModel {
         cloudSyncOutcome = nil
     }
 
-    func selectGroup(_ groupID: UUID?) {
-        selectedGroupID = groupID
-    }
-
-    func selectEntry(_ entryID: UUID?) {
-        selectedEntryID = entryID
-    }
-
     /// Selects an entry in its own group, as the macOS menu bar quick search's
     /// Open in KeeForge does. The window's search query is left alone: clearing
     /// it would make the workspace drop the selection again.
     func revealEntry(_ entryID: UUID) {
         guard case .unlocked = state, let groupID = parentGroupID(forEntryID: entryID) else { return }
-        selectedGroupID = groupID
-        selectedEntryID = entryID
+        workspace.selectedGroupID = groupID
+        workspace.selectedEntryID = entryID
     }
 
     func setReadOnly(_ isReadOnly: Bool) {
@@ -3529,18 +3434,20 @@ final class DatabaseViewModel {
         switch sortOrder {
         case .title:
             ordered = groups.sorted {
-                let result = $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-                return asc ? result : !result
+                let result = $0.name.localizedCaseInsensitiveCompare($1.name)
+                return asc ? result == .orderedAscending : result == .orderedDescending
             }
         case .createdDate:
             ordered = groups.sorted {
-                let result = ($0.creationTime ?? .distantPast) < ($1.creationTime ?? .distantPast)
-                return asc ? result : !result
+                let first = $0.creationTime ?? .distantPast
+                let second = $1.creationTime ?? .distantPast
+                return asc ? first < second : first > second
             }
         case .modifiedDate:
             ordered = groups.sorted {
-                let result = ($0.lastModificationTime ?? .distantPast) < ($1.lastModificationTime ?? .distantPast)
-                return asc ? result : !result
+                let first = $0.lastModificationTime ?? .distantPast
+                let second = $1.lastModificationTime ?? .distantPast
+                return asc ? first < second : first > second
             }
         }
         return Self.pinningRecycleBinLast(ordered, recycleBinID: currentRootGroup?.recycleBinUUID)
@@ -3565,18 +3472,20 @@ final class DatabaseViewModel {
         switch sortOrder {
         case .title:
             return entries.sorted {
-                let result = $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
-                return asc ? result : !result
+                let result = $0.title.localizedCaseInsensitiveCompare($1.title)
+                return asc ? result == .orderedAscending : result == .orderedDescending
             }
         case .createdDate:
             return entries.sorted {
-                let result = ($0.creationTime ?? .distantPast) < ($1.creationTime ?? .distantPast)
-                return asc ? result : !result
+                let first = $0.creationTime ?? .distantPast
+                let second = $1.creationTime ?? .distantPast
+                return asc ? first < second : first > second
             }
         case .modifiedDate:
             return entries.sorted {
-                let result = ($0.lastModificationTime ?? .distantPast) < ($1.lastModificationTime ?? .distantPast)
-                return asc ? result : !result
+                let first = $0.lastModificationTime ?? .distantPast
+                let second = $1.lastModificationTime ?? .distantPast
+                return asc ? first < second : first > second
             }
         }
     }
@@ -3614,20 +3523,6 @@ final class DatabaseViewModel {
 
     static func persistSortAscending(_ ascending: Bool) {
         UserDefaults.standard.set(ascending, forKey: sortAscendingKey)
-    }
-
-    /// A database opens on All Entries. UI tests can start on another view
-    /// through `UI_TEST_VIEW_MODE`: their helpers browse from the group list.
-    static func initialViewMode(
-        arguments: [String] = ProcessInfo.processInfo.arguments,
-        environment: [String: String] = ProcessInfo.processInfo.environment
-    ) -> ViewMode {
-        guard arguments.contains("-ui-testing"),
-              let rawValue = environment["UI_TEST_VIEW_MODE"],
-              let mode = ViewMode(rawValue: rawValue) else {
-            return .allEntries
-        }
-        return mode
     }
 
     // MARK: - Private
@@ -3669,8 +3564,7 @@ final class DatabaseViewModel {
             autoFillExcludedGroupIDs = []
             searchResults = []
             contentRevision += 1
-            selectedGroupID = nil
-            selectedEntryID = nil
+            workspace.clearSelection()
             return
         }
 
@@ -3817,33 +3711,11 @@ final class DatabaseViewModel {
     }
 
     private func synchronizeSelections() {
-        guard let visibleRootGroupID else {
-            selectedGroupID = nil
-            selectedTag = nil
-            selectedEntryID = nil
-            return
-        }
-
-        // A tag stops existing the moment its last live carrier is edited,
-        // deleted, or recycled. Drop the selection first so the group fallback
-        // below picks the sidebar back up.
-        if let selectedTag, tagEntryIDs[selectedTag] == nil {
-            self.selectedTag = nil
-        }
-
-        if let selectedGroupID, groupIndex[selectedGroupID] == nil {
-            self.selectedGroupID = visibleRootGroupID
-        } else if selectedGroupID == nil, selectedTag == nil {
-            // Only fall back to the root when nothing else is selected — a tag
-            // selection deliberately leaves `selectedGroupID` nil, and snapping
-            // it back here would clear the tag on the next rebuild.
-            selectedGroupID = visibleRootGroupID
-        }
-
-        // A vanished entry's selection is left for the mounted `EntryDetailView`
-        // to clear via `onClose`. Clearing it here unmounts the detail column in
-        // the same update that deletes the entry, tearing down the entry
-        // editor's presentation host while the editor is still pushed.
+        workspace.reconcileSelection(
+            visibleRootGroupID: visibleRootGroupID,
+            groupExists: { groupIndex[$0] != nil },
+            tagExists: { tagEntryIDs[$0] != nil }
+        )
     }
 
     private static func nestedGroupCount(in group: KPGroup) -> Int {
@@ -4343,7 +4215,7 @@ final class DatabaseViewModel {
     /// it must never overwrite. Do not go back to `upload(expectedRev: nil)` —
     /// that is `WriteMode.overwrite` on Dropbox and `conflictBehavior=replace`
     /// on OneDrive, and it destroyed an earlier copy of the same name.
-    /// `createFile` is required to be no-overwrite (`Cloud/CLAUDE.md`) and
+    /// `createFile` is required to be no-overwrite (`Cloud/AGENTS.md`) and
     /// reports a collision as `.conflict`, which the retry answers by
     /// numbering the name. `providerResolver` is injectable only so tests can
     /// exercise this routing without a live provider.

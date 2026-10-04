@@ -126,6 +126,20 @@ final class WebDAVCloudProviderTests: XCTestCase {
         }
     }
 
+    func testDecodedFileAndFolderNamesPreserveLiteralPercentSequences() throws {
+        let base = try XCTUnwrap(URL(string: "https://host.example.com/dav/"))
+
+        XCTAssertEqual(
+            WebDAVCloudProvider.url(forFileId: "/a%41b/vault%20name.kdbx", base: base).absoluteString,
+            "https://host.example.com/dav/a%2541b/vault%2520name.kdbx"
+        )
+        XCTAssertEqual(
+            WebDAVCloudProvider.url(forFolderPath: "/a%41b", base: base).absoluteString,
+            "https://host.example.com/dav/a%2541b/"
+        )
+        XCTAssertEqual(WebDAVCloudProvider.serverRelativePath(from: "/a%41b/vault%20name.kdbx"), "/a%41b/vault%20name.kdbx")
+    }
+
     func testFileURLResolutionWithPercentEncodedBasePath() throws {
         // mailbox.org (Open-Xchange) layout: the drive root folder is literally
         // named "Meine Dateien", so the normalized base URL carries a

@@ -82,17 +82,11 @@ final class KDBXParserTests: XCTestCase {
         }
     }
 
-    func testParseFindsCorrectEntryCount() throws {
-        let root = try parseFixture()
-        XCTAssertEqual(root.allEntries.count, Expected.entries.count,
-                       "Expected \(Expected.entries.count) entries, got \(root.allEntries.count)")
-    }
-
     // MARK: - No Duplicates (History entries must be excluded)
 
     func testNoDuplicateEntries() throws {
         // test.kdbx has 2 history versions inside the Twitter entry.
-        // Without proper History filtering, the parser would return 6 entries instead of 4.
+        // History versions must stay attached to Twitter, outside the live entry count.
         let root = try parseFixture()
         let entries = root.allEntries
 
@@ -1637,23 +1631,6 @@ final class KDBXParserTests: XCTestCase {
         // Terminator
         map.append(0x00)
 
-        return map
-    }
-
-    private func buildAESVariantMap(rounds: UInt64) -> Data {
-        var map = Data()
-        map.appendLE(UInt16(0x0100))
-
-        appendVariantEntry(&map, type: 0x42, key: "$UUID",
-                           value: Data([0xC9, 0xD9, 0xF3, 0x9A, 0x62, 0x8A, 0x44, 0x60,
-                                        0xBF, 0x74, 0x0D, 0x08, 0xC1, 0x8A, 0x4F, 0xEA]))
-        appendVariantEntry(&map, type: 0x42, key: "S", value: Data((32..<64).map(UInt8.init)))
-
-        var roundBytes = Data(count: 8)
-        roundBytes.withUnsafeMutableBytes { $0.storeBytes(of: rounds.littleEndian, as: UInt64.self) }
-        appendVariantEntry(&map, type: 0x05, key: "R", value: roundBytes)
-
-        map.append(0x00)
         return map
     }
 

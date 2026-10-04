@@ -1,4 +1,5 @@
 #if KEEFORGE_DIRECT_DOWNLOAD
+import Combine
 import Sparkle
 import SwiftUI
 
@@ -15,27 +16,39 @@ import SwiftUI
 /// `SUPublicEDKey` in `KeeForgeMac/Info.plist`, which read the
 /// `SPARKLE_FEED_URL` and `SPARKLE_PUBLIC_ED_KEY` build settings.
 @MainActor
+@Observable
 final class SoftwareUpdateService {
-    static let shared = SoftwareUpdateService()
-
-    private let controller: SPUStandardUpdaterController
-
-    private init() {
+    static let shared: SoftwareUpdateService = {
         // `startingUpdater: true` is safe here because a misconfigured feed
         // only disables update checks; it does not block launch.
-        controller = SPUStandardUpdaterController(
+        let controller = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: nil,
             userDriverDelegate: nil
         )
-    }
+        return SoftwareUpdateService(
+            readiness: controller.updater.publisher(for: \.canCheckForUpdates).eraseToAnyPublisher(),
+            checkForUpdates: { controller.updater.checkForUpdates() }
+        )
+    }()
 
-    var canCheckForUpdates: Bool {
-        controller.updater.canCheckForUpdates
+    private(set) var canCheckForUpdates = false
+    @ObservationIgnored private var readinessSubscription: AnyCancellable?
+    @ObservationIgnored private let performUpdateCheck: @MainActor () -> Void
+
+    init(readiness: AnyPublisher<Bool, Never>, checkForUpdates: @escaping @MainActor () -> Void) {
+        performUpdateCheck = checkForUpdates
+        readinessSubscription = readiness
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] ready in
+                MainActor.assumeIsolated {
+                    self?.canCheckForUpdates = ready
+                }
+            }
     }
 
     func checkForUpdates() {
-        controller.updater.checkForUpdates()
+        performUpdateCheck()
     }
 }
 
@@ -43,16 +56,11 @@ final class SoftwareUpdateService {
 /// the App Store build is updated by the App Store, and a user-reachable
 /// updater there is grounds for rejection.
 struct CheckForUpdatesCommand: View {
-    @State private var canCheckForUpdates = SoftwareUpdateService.shared.canCheckForUpdates
-
     var body: some View {
         Button("Check for Updates…") {
             SoftwareUpdateService.shared.checkForUpdates()
         }
-        .disabled(canCheckForUpdates == false)
-        .task {
-            canCheckForUpdates = SoftwareUpdateService.shared.canCheckForUpdates
-        }
+        .disabled(SoftwareUpdateService.shared.canCheckForUpdates == false)
     }
 }
 #endif

@@ -147,6 +147,10 @@ private struct EntryHistoryVersionFields: View {
     let sessionKey: SymmetricKey
     @Bindable var viewModel: DatabaseViewModel
 
+    private var secretActionIsCurrent: @MainActor () -> Bool {
+        EntrySecretAction.currentSession(viewModel)
+    }
+
     var body: some View {
         Group {
             if !version.title.isEmpty {
@@ -173,7 +177,8 @@ private struct EntryHistoryVersionFields: View {
                     sessionKey: sessionKey,
                     secretAccess: viewModel.secretAccess,
                     resolveReferences: viewModel.resolvingFieldReferences,
-                    accessibilityPrefix: "entry-history"
+                    accessibilityPrefix: "entry-history",
+                    isCurrent: secretActionIsCurrent
                 )
             }
             if !version.url.isEmpty {
@@ -209,7 +214,8 @@ private struct EntryHistoryVersionFields: View {
                                 value: viewModel.resolvingFieldReferences(value),
                                 secretAccess: viewModel.secretAccess,
                                 accessibilityPrefix: "entry-history",
-                                showsInlineLabel: true
+                                showsInlineLabel: true,
+                                isCurrent: secretActionIsCurrent
                             )
                         } else {
                             FieldRow(
@@ -225,7 +231,7 @@ private struct EntryHistoryVersionFields: View {
             }
             if !version.tags.isEmpty {
                 // Plain capsules, not the detail screen's links: neither shell
-                // resolves `TagDestination`.
+                // resolves `DatabaseRoute`.
                 Section("Tags") {
                     FlowLayout(spacing: 6) {
                         ForEach(Array(version.tags.enumerated()), id: \.offset) { _, tag in

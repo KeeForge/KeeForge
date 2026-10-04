@@ -41,7 +41,9 @@ struct CloudFileBrowserView: View {
                             account: selectedAccount,
                             initialPath: nil,
                             showsAllFiles: $showsAllFiles,
-                            onSelect: handleFileSelection
+                            onSelect: { file in
+                                handleFileSelection(file, accountID: selectedAccount.id)
+                            }
                         )
                     } else {
                         ContentUnavailableView {
@@ -111,6 +113,7 @@ struct CloudFileBrowserView: View {
                 }
             }
         }
+        .id(session.selectedAccountID)
         .task {
             session.refreshAccounts()
         }
@@ -148,8 +151,8 @@ struct CloudFileBrowserView: View {
     }
 
     @MainActor
-    private func handleFileSelection(_ file: CloudFile) {
-        guard let selectedAccount = session.selectedAccount else { return }
+    private func handleFileSelection(_ file: CloudFile, accountID: String) {
+        guard let selectedAccount = session.selectionAccount(matching: accountID) else { return }
         onSelect(
             CloudDatabaseSelection(
                 provider: providerID,
@@ -218,7 +221,13 @@ struct CloudFolderPickerView: View {
                             account: selectedAccount,
                             initialPath: nil,
                             displayPath: provider.displayName,
-                            onSelect: handleFolderSelection
+                            onSelect: { folderPath, displayPath in
+                                handleFolderSelection(
+                                    folderPath: folderPath,
+                                    displayPath: displayPath,
+                                    accountID: selectedAccount.id
+                                )
+                            }
                         )
                     } else {
                         ContentUnavailableView {
@@ -288,6 +297,7 @@ struct CloudFolderPickerView: View {
                 }
             }
         }
+        .id(session.selectedAccountID)
         .macSheetFrame(minWidth: 520, minHeight: 460)
         .task {
             session.refreshAccounts()
@@ -326,8 +336,8 @@ struct CloudFolderPickerView: View {
     }
 
     @MainActor
-    private func handleFolderSelection(folderPath: String?, displayPath: String) {
-        guard let selectedAccount = session.selectedAccount else { return }
+    private func handleFolderSelection(folderPath: String?, displayPath: String, accountID: String) {
+        guard let selectedAccount = session.selectionAccount(matching: accountID) else { return }
         onSelect(
             CloudFolderSelection(
                 provider: providerID,

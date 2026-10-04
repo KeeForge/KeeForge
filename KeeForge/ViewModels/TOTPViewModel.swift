@@ -8,8 +8,8 @@ final class TOTPViewModel {
     private(set) var secondsRemaining: Int = 0
     private(set) var progress: Double = 1.0
 
-    private let config: TOTPConfig
-    private let resolvedSecret: TOTPGenerator.ResolvedSecret?
+    private var config: TOTPConfig
+    private var resolvedSecret: TOTPGenerator.ResolvedSecret?
     private var timer: Timer?
 
     var period: Int { config.period }
@@ -31,6 +31,7 @@ final class TOTPViewModel {
     }
 
     func start() {
+        stop()
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -44,10 +45,15 @@ final class TOTPViewModel {
         timer = nil
     }
 
-    private func refresh() {
-        let now = Date()
-        code = TOTPGenerator.generateCode(config: config, resolvedSecret: resolvedSecret, date: now)
-        secondsRemaining = TOTPGenerator.secondsRemaining(period: config.period, date: now)
+    func update(config: TOTPConfig, sessionKey: SymmetricKey, date: Date = .now) {
+        self.config = config
+        resolvedSecret = TOTPGenerator.resolveSecret(config: config, sessionKey: sessionKey)
+        refresh(date: date)
+    }
+
+    private func refresh(date: Date = .now) {
+        code = TOTPGenerator.generateCode(config: config, resolvedSecret: resolvedSecret, date: date)
+        secondsRemaining = TOTPGenerator.secondsRemaining(period: config.period, date: date)
         progress = Double(secondsRemaining) / Double(config.period)
     }
 

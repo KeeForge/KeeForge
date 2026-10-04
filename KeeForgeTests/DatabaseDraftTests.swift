@@ -14,6 +14,66 @@ final class DatabaseDraftTests: XCTestCase {
 
     private let sessionKey = SymmetricKey(size: .bits256)
 
+    func test_invalidEntryTextIsRejectedBeforeItCanEnterDraftOrHistory() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let text = "Before\u{0}After"
+        let payloads = [
+            EntryDraftPayload(title: text), EntryDraftPayload(title: "Valid", username: text),
+            EntryDraftPayload(title: "Valid", url: text), EntryDraftPayload(title: "Valid", notes: text),
+            EntryDraftPayload(title: "Valid", customFields: [text: "value"]),
+            EntryDraftPayload(title: "Valid", customFields: ["Custom": text]),
+            EntryDraftPayload(title: "Valid", tags: [text]),
+            EntryDraftPayload(title: "Valid", attachments: [.new(name: text, data: Data([1]))]),
+        ]
+        for payload in payloads {
+            for edit in [EntryEdit.createEntry(parentGroupID: tree.parentGroupID, draft: payload),
+                         .updateEntry(entryID: tree.parentEntry.id, draft: payload)] {
+                XCTAssertThrowsError(try draft.apply(edit)) { error in
+                    XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+                }
+            }
+            XCTAssertThrowsError(try draft.creatingEntries([EntryDraftPayload(title: "Valid Import"), payload], inGroup: tree.parentGroupID))
+        }
+        XCTAssertFalse(draft.isDirty)
+        let corrected = try draft.apply(.updateEntry(entryID: tree.parentEntry.id, draft: EntryDraftPayload(title: "Corrected", notes: "Readable notes")))
+        let entry = try XCTUnwrap(corrected.rootGroup.allEntries.first { $0.id == tree.parentEntry.id })
+        XCTAssertEqual(entry.notes, "Readable notes")
+        XCTAssertEqual(entry.history.first?.notes, tree.parentEntry.notes)
+        XCTAssertEqual(corrected.pendingEdits.count, 1)
+    }
+
+    func test_invalidGroupTextIsRejectedBeforeStaging() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let text = "Before\u{0}After"
+        let edits: [EntryEdit] = [
+            .createGroup(parentGroupID: tree.parentGroupID, name: text),
+            .updateGroup(groupID: tree.parentGroupID, draft: GroupDraftPayload(name: text)),
+            .updateGroup(groupID: tree.parentGroupID, draft: GroupDraftPayload(name: "Valid", notes: text)),
+            .updateGroup(groupID: tree.parentGroupID, draft: GroupDraftPayload(name: "Valid", tags: [text])),
+        ]
+        for edit in edits {
+            XCTAssertThrowsError(try draft.apply(edit)) { error in
+                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+            }
+        }
+        XCTAssertFalse(draft.isDirty)
+    }
+
+    func test_protectedCustomTextRetainsNULWithoutChangingProtection() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let text = "Before\u{0}After"
+        let updated = try draft.apply(.createEntry(parentGroupID: tree.parentGroupID, draft: EntryDraftPayload(
+            title: "Protected Text", password: text, customFields: ["Protected Custom": text], protectedCustomFieldKeys: ["Protected Custom"]
+        )))
+        let entry = try XCTUnwrap(updated.rootGroup.allEntries.first { $0.title == "Protected Text" })
+        XCTAssertEqual(entry.customFields["Protected Custom"], text)
+        XCTAssertTrue(entry.protectedStringKeys.contains("Protected Custom"))
+        XCTAssertEqual(try entry.password.decrypt(using: sessionKey), text)
+    }
+
     func test_createEntry_addsEntryToParentGroup_setsTimestamps() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: true)
         let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
@@ -1237,6 +1297,46 @@ final class DatabaseDraftTests: XCTestCase {
         let undoneDraft = try restoredDraft.apply(.restoreEntryVersion(entryID: entryID, historyIndex: 0))
         let undone = try XCTUnwrap(findEntry(withID: entryID, in: undoneDraft.rootGroup))
         XCTAssertEqual(undone.title, "Edited Title")
+    }
+
+    func test_restoreEntryVersion_takesExpiryXMLFromHistoryAndKeepsOtherLiveXML() throws {
+        let versionXML = OpaqueXMLNodes(nodes: [
+            .init(path: ["Times"], insertionIndex: 0, xml: "<ExpiryTime>2020-01-02T03:04:05Z</ExpiryTime>"),
+            .init(path: ["Times"], insertionIndex: 0, xml: "<Expires>True</Expires>"),
+            .init(path: ["Times"], insertionIndex: 0, xml: "<UsageCount>1</UsageCount>"),
+            .init(insertionIndex: 2, xml: "<VendorData>history</VendorData>")
+        ])
+        let liveXML = OpaqueXMLNodes(nodes: [
+            .init(path: ["Times"], insertionIndex: 2, xml: "<LastAccessTime>2025-01-01T00:00:00Z</LastAccessTime>"),
+            .init(path: ["Times"], insertionIndex: 2, xml: "<ExpiryTime>2030-01-01T00:00:00Z</ExpiryTime>"),
+            .init(path: ["Times"], insertionIndex: 2, xml: "<Expires>False</Expires>"),
+            .init(path: ["Times"], insertionIndex: 2, xml: "<UsageCount>9</UsageCount>"),
+            .init(insertionIndex: 2, xml: "<VendorData>live</VendorData>")
+        ])
+        let version = KPEntry(
+            title: "Earlier", expires: true, expiryTime: Date(timeIntervalSince1970: 1_577_934_245),
+            unknownXML: versionXML
+        )
+        let entry = KPEntry(
+            title: "Current", creationTime: Date(timeIntervalSince1970: 1_000),
+            lastModificationTime: Date(timeIntervalSince1970: 2_000),
+            expires: false, expiryTime: Date(timeIntervalSince1970: 1_893_456_000),
+            history: [version], unknownXML: liveXML
+        )
+        let draft = DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [entry]), meta: KPMeta(), sessionKey: sessionKey)
+
+        let updated = try draft.apply(.restoreEntryVersion(entryID: entry.id, historyIndex: 0))
+        let restored = try XCTUnwrap(updated.rootGroup.allEntries.first)
+
+        XCTAssertTrue(restored.expires)
+        XCTAssertEqual(restored.expiryTime, Date(timeIntervalSince1970: 1_577_934_245))
+        var expectedXML = liveXML
+        expectedXML.nodes[1] = .init(path: ["Times"], insertionIndex: 2, xml: "<ExpiryTime>2020-01-02T03:04:05Z</ExpiryTime>")
+        expectedXML.nodes[2] = .init(path: ["Times"], insertionIndex: 2, xml: "<Expires>True</Expires>")
+        XCTAssertEqual(restored.unknownXML, expectedXML)
+        XCTAssertEqual(restored.history[0].unknownXML, liveXML)
+        XCTAssertEqual(restored.history[1].unknownXML, versionXML)
+        XCTAssertEqual(draft.rootGroup.allEntries.first?.unknownXML, liveXML)
     }
 
     func test_restoreEntryVersion_keepsIdentityCreationTimeAndPreservedXML() throws {

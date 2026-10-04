@@ -51,6 +51,13 @@ final class MacSmokeUITests: MacUITestCase {
 
         let copyUsername = app.buttons["entry.copy.username"].firstMatch
         XCTAssertTrue(copyUsername.waitForExistence(timeout: 15), "Entry detail did not show the username row")
+        let reveal = app.buttons["entry.password.reveal"].firstMatch
+        XCTAssertTrue(reveal.waitForExistence(timeout: 15), "Password reveal button missing")
+        reveal.click()
+        let plaintext = app.staticTexts.matching(
+            NSPredicate(format: "label == %@ OR value == %@", "githubpass789", "githubpass789")
+        ).firstMatch
+        XCTAssertTrue(plaintext.waitForExistence(timeout: 10), "Reveal did not expose the fixture password")
 
         let changeCountBefore = NSPasteboard.general.changeCount
         copyUsername.click()
@@ -61,7 +68,7 @@ final class MacSmokeUITests: MacUITestCase {
         }
 
         XCTAssertGreaterThan(NSPasteboard.general.changeCount, changeCountBefore, "Copy Username did not write to the pasteboard")
-        XCTAssertEqual(NSPasteboard.general.string(forType: .string)?.isEmpty, false, "Copied username was empty")
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "devuser", "Copy Username must copy the fixture entry's username")
         XCTAssertNotNil(
             NSPasteboard.general.string(forType: concealedType),
             "Copies must carry org.nspasteboard.ConcealedType so clipboard managers skip them"
@@ -69,6 +76,36 @@ final class MacSmokeUITests: MacUITestCase {
     }
 
     // MARK: - Keyboard navigation
+
+    /// SwiftUI owns the detail subtree's reveal state; a model test cannot
+    /// establish whether the split view preserves it across entry selection.
+    func testChangingEntrySelectionConcealsPreviouslyRevealedPassword() {
+        unlockSuccessfully()
+        openGroup(named: "Work")
+        openEntry(named: "Email")
+
+        let hiddenPassword = app.staticTexts.matching(
+            NSPredicate(format: "label == %@ OR value == %@", "Hidden password", "Hidden password")
+        ).firstMatch
+        XCTAssertTrue(hiddenPassword.waitForExistence(timeout: 15))
+        let reveal = app.buttons["entry.password.reveal"].firstMatch
+        XCTAssertTrue(reveal.waitForExistence(timeout: 5))
+        reveal.click()
+
+        let revealDeadline = Date().addingTimeInterval(5)
+        while hiddenPassword.exists, Date() < revealDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertFalse(hiddenPassword.exists, "The first entry's password was not revealed")
+
+        openEntry(named: "GitHub")
+
+        XCTAssertTrue(waitForDisplayText("GitHub", identifier: "entry-detail.title"))
+        XCTAssertTrue(
+            hiddenPassword.waitForExistence(timeout: 5),
+            "Changing selection must conceal the new entry's password"
+        )
+    }
 
     /// The vault columns are native `List(selection:)`, so the arrow keys are
     /// AppKit's, not something the app implements. These two tests are what
@@ -272,6 +309,87 @@ final class MacSmokeUITests: MacUITestCase {
         XCTAssertTrue(lockPolicyPicker.waitForExistence(timeout: 15), "Settings window did not show the lock-policy picker")
     }
 
+    /// Real settings-window keystrokes prove that disabling the SwiftUI
+    /// recorder removes its AppKit monitor; a controller test cannot reach it.
+    func testDisablingMenuBarDuringShortcutRecordingRestoresWindowCommands() throws {
+        typeCommandShortcut(",")
+        let settingsWindow = app.windows["com_apple_SwiftUI_Settings_window"].firstMatch
+        XCTAssertTrue(settingsWindow.waitForExistence(timeout: 15))
+        // Unselected Settings tabs are absent from XCUITest on macOS 26;
+        // use the same fixed-pane tab position as the screenshot audit.
+        settingsWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.448, dy: 0.09)).click()
+
+        let toggleQuery = settingsWindow.descendants(matching: .any)
+            .matching(identifier: "settings.menu-bar.toggle")
+        XCTAssertTrue(toggleQuery.firstMatch.waitForExistence(timeout: 10))
+        let toggle = try XCTUnwrap(toggleQuery.allElementsBoundByIndex.first {
+            $0.isHittable && $0.frame.height > 1
+                && ($0.elementType == .checkBox || $0.elementType == .switch || $0.elementType == .button)
+        }, "The menu-bar toggle did not expose a clickable native control")
+        let recorder = settingsWindow.buttons["settings.menu-bar.shortcut-recorder"].firstMatch
+        XCTAssertTrue(recorder.waitForExistence(timeout: 5))
+        let wasEnabled = recorder.isEnabled
+        if !wasEnabled { toggle.click() }
+        XCTAssertTrue(recorder.isEnabled)
+        let originalShortcut = displayText(of: recorder)
+        recorder.click()
+        XCTAssertTrue(waitForDisplayText("Type Shortcut…", identifier: "settings.menu-bar.shortcut-recorder"))
+
+        toggle.click()
+
+        XCTAssertTrue(waitForDisplayText(originalShortcut, identifier: "settings.menu-bar.shortcut-recorder"))
+        XCTAssertFalse(recorder.isEnabled)
+        typeCommandShortcut("w")
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: settingsWindow)
+        waitForExpectations(timeout: 10)
+
+        if wasEnabled {
+            typeCommandShortcut(",")
+            XCTAssertTrue(settingsWindow.waitForExistence(timeout: 10))
+            settingsWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.448, dy: 0.09)).click()
+            XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+            toggle.click()
+        }
+    }
+
+    /// This verifies SwiftUI observes the deferred route after the editor
+    /// settles a lock request; routing unit tests cover the decision itself.
+    func testCloseDatabaseWaitsForDirtyEditorAndReturnsToListAfterDiscard() {
+        unlockSuccessfully()
+        typeCommandShortcut("n")
+        let titleField = app.textFields["entry-edit.title-field"].firstMatch
+        XCTAssertTrue(titleField.waitForExistence(timeout: 15))
+        titleField.click()
+        app.typeText("Unsaved Close Database Entry")
+
+        typeCommandShortcut("w", modifiers: [.command, .shift])
+        let keepEditing = app.sheets.buttons["Keep Editing"].firstMatch
+        XCTAssertTrue(keepEditing.waitForExistence(timeout: 10), "Close Database did not prompt for the dirty editor")
+        XCTAssertTrue(keepEditing.isHittable)
+        keepEditing.click()
+
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        XCTAssertEqual(titleField.value as? String, "Unsaved Close Database Entry")
+        let databasePlaceholder = app.staticTexts.matching(
+            NSPredicate(format: "label == %@ OR value == %@", "Select a Database", "Select a Database")
+        ).firstMatch
+        XCTAssertFalse(databasePlaceholder.exists, "Keep Editing closed the database")
+
+        typeCommandShortcut("w", modifiers: [.command, .shift])
+        let discard = app.sheets.buttons["Discard and Lock"].firstMatch
+        XCTAssertTrue(discard.waitForExistence(timeout: 10))
+        XCTAssertTrue(discard.isHittable)
+        discard.click()
+
+        XCTAssertTrue(
+            databasePlaceholder.waitForExistence(timeout: 15),
+            "Discarding the editor did not complete Close Database"
+        )
+        XCTAssertFalse(titleField.exists)
+        XCTAssertFalse(app.secureTextFields["unlock.password.field"].exists)
+        XCTAssertTrue(app.buttons["database.row"].firstMatch.exists)
+    }
+
     // MARK: - Unlock keyboard handling
 
     // `MacUnlockPasswordFieldTests` covers the focus lifecycle headlessly; only a
@@ -345,6 +463,10 @@ final class MacPasswordAuthBoundaryUITests: MacUITestCase {
 
         let reveal = app.buttons["entry.password.reveal"].firstMatch
         XCTAssertTrue(reveal.waitForExistence(timeout: 15), "Password reveal button missing")
+        let plaintext = app.staticTexts.matching(
+            NSPredicate(format: "label == %@ OR value == %@", "githubpass789", "githubpass789")
+        ).firstMatch
+        XCTAssertFalse(plaintext.exists, "Password was visible before reveal")
         reveal.click()
 
         // The reveal button disables while authentication is in flight, which
@@ -363,6 +485,10 @@ final class MacPasswordAuthBoundaryUITests: MacUITestCase {
         XCTAssertTrue(
             sawAuthInFlight,
             "Reveal did not enter the authenticating state — password may have been revealed without device-owner authentication"
+        )
+        XCTAssertFalse(
+            plaintext.waitForExistence(timeout: 3),
+            "Password was revealed while device-owner authentication was still pending"
         )
     }
 

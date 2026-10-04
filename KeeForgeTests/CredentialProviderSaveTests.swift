@@ -59,7 +59,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(draft.url, "")
     }
 
-    func test_saveNewEntry_localSource_writesCacheAndCallsCompleteRequest_doesNotEnqueue() async throws {
+    func test_saveNewEntry_localSource_createsDraftAndPublishesIdentitiesWithoutEnqueuing() async throws {
         let reference = makeLocalReference()
         let sessionKey = SymmetricKey(size: .bits256)
         let visibleRoot = KPGroup(name: "MyDatabase")
@@ -333,7 +333,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(recorder.notifyCount, 1)
     }
 
-    func test_activeAutoFillDatabase_readOnly_blocksCreation() {
+    func test_activeAutoFillDatabase_retainsLocalReadOnlyFlag() {
         let reference = makeLocalReference(isReadOnly: true)
         DatabaseListStore.update(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
@@ -343,7 +343,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertTrue(active?.isReadOnly == true)
     }
 
-    func test_activeAutoFillDatabase_readOnlyCloud_blocksCreation() {
+    func test_activeAutoFillDatabase_retainsCloudReadOnlyFlag() {
         let reference = makeCloudReference(rev: "rev-1", isReadOnly: true)
         DatabaseListStore.update(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
@@ -353,7 +353,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertTrue(active?.isReadOnly == true)
     }
 
-    func test_saveNewEntry_conflict_doesNotEnqueueOrPopulate() async throws {
+    func test_saveNewEntry_conflict_dropsProvisionalMarkerWithoutFinalizingOrPopulating() async throws {
         let reference = makeCloudReference(rev: "rev-2")
         let sessionKey = SymmetricKey(size: .bits256)
         let recorder = SaveRecorder()
@@ -602,6 +602,37 @@ final class CredentialProviderSaveTests: XCTestCase {
             presenter.cancelledErrorCodes.isEmpty,
             "Zero enabled databases must defer the empty state, not cancel with .failed"
         )
+    }
+
+    func test_prepareSaveRequest_readOnlyLocalAndCloudDatabases_showNoticeBeforeCancelling() throws {
+        guard #available(iOS 26.2, *) else {
+            throw XCTSkip("ASSavePasswordRequest requires iOS 26.2")
+        }
+
+        for reference in [makeLocalReference(isReadOnly: true), makeCloudReference(rev: "rev-1", isReadOnly: true)] {
+            DatabaseListStore.update(reference)
+            DatabaseListStore.activeAutoFillDatabaseID = reference.id
+            let presenter = CredentialProviderPresentingSpy()
+            presenter.isPresentationActive = false
+            let coordinator = CredentialProviderCoordinator(presenter: presenter)
+
+            coordinator.prepareInterface(for: makeSavePasswordRequest())
+
+            XCTAssertNotNil(coordinator.pendingReadOnlyCancellationMessage)
+            XCTAssertFalse(coordinator.pendingUnlock)
+            XCTAssertNil(coordinator.pendingSavePasswordRequestStorage)
+            XCTAssertTrue(presenter.cancelledErrorCodes.isEmpty)
+
+            presenter.isPresentationActive = true
+            coordinator.presentationDidBecomeActive()
+            let notice = try XCTUnwrap(presenter.readOnlyNotice)
+            XCTAssertEqual(notice.message, String(localized: "This database is read-only. Open KeeForge to enable editing."))
+            notice.onAcknowledge()
+
+            XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
+            XCTAssertFalse(presenter.didCompleteSavePassword)
+            XCTAssertNil(coordinator.pendingReadOnlyCancellationMessage)
+        }
     }
 
     @available(iOS 26.2, *)

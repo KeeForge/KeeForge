@@ -8,6 +8,8 @@ import XCTest
 final class CustomIconXMLTests: XCTestCase {
 
     private let imageData = Data([0x89, 0x50, 0x4E, 0x47, 0x00, 0x01, 0x02])
+    private let iconUUID = UUID(uuidString: "00112233-4455-6677-8899-AABBCCDDEEFF")!
+    private let expectedIconElement = "<Icon><UUID>ABEiM0RVZneImaq7zN3u/w==</UUID><Data>iVBORwABAg==</Data></Icon>"
 
     private func customIconsFragment(in unknownXML: OpaqueXMLNodes) -> String? {
         unknownXML.nodes.first { $0.path.isEmpty && $0.elementName == "CustomIcons" }?.xml
@@ -23,7 +25,7 @@ final class CustomIconXMLTests: XCTestCase {
             """
         var unknownXML = OpaqueXMLNodes()
         unknownXML.append(xml: existing, insertionIndex: 3)
-        let uuid = UUID()
+        let uuid = iconUUID
 
         let updated = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: imageData, to: unknownXML))
 
@@ -32,7 +34,7 @@ final class CustomIconXMLTests: XCTestCase {
             fragment.hasPrefix(String(existing.dropLast("</CustomIcons>".count))),
             "everything ahead of the closing tag must be byte-identical"
         )
-        XCTAssertTrue(fragment.hasSuffix(CustomIconXML.iconElement(uuid: uuid, imageData: imageData) + "</CustomIcons>"))
+        XCTAssertTrue(fragment.hasSuffix(expectedIconElement + "</CustomIcons>"))
         XCTAssertEqual(updated.nodes.count, 1, "the icon joins the element, it does not become a sibling")
         XCTAssertEqual(updated.nodes[0].insertionIndex, 3, "and the element keeps its position among Meta's children")
     }
@@ -43,13 +45,13 @@ final class CustomIconXMLTests: XCTestCase {
     func test_addsTheFirstIconToAnEmptyElement() throws {
         var unknownXML = OpaqueXMLNodes()
         unknownXML.append(xml: "<CustomIcons></CustomIcons>", insertionIndex: 0)
-        let uuid = UUID()
+        let uuid = iconUUID
 
         let updated = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: imageData, to: unknownXML))
 
         XCTAssertEqual(
             customIconsFragment(in: updated),
-            "<CustomIcons>\(CustomIconXML.iconElement(uuid: uuid, imageData: imageData))</CustomIcons>"
+            "<CustomIcons>\(expectedIconElement)</CustomIcons>"
         )
     }
 
@@ -68,13 +70,13 @@ final class CustomIconXMLTests: XCTestCase {
     func test_createsTheElementWhenTheDatabaseHasNone() throws {
         var unknownXML = OpaqueXMLNodes()
         unknownXML.append(xml: "<Generator>KeePassXC</Generator>", insertionIndex: 0)
-        let uuid = UUID()
+        let uuid = iconUUID
 
         let updated = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: imageData, to: unknownXML))
 
         XCTAssertEqual(
             customIconsFragment(in: updated),
-            "<CustomIcons>\(CustomIconXML.iconElement(uuid: uuid, imageData: imageData))</CustomIcons>"
+            "<CustomIcons>\(expectedIconElement)</CustomIcons>"
         )
         XCTAssertTrue(
             updated.nodes.contains { $0.xml == "<Generator>KeePassXC</Generator>" },
@@ -86,7 +88,9 @@ final class CustomIconXMLTests: XCTestCase {
     /// raise the file's minor version, turning an icon download into a format
     /// upgrade the user never asked for.
     func test_writesOnlyTheElementsThatPredateKDBX41() {
-        let element = CustomIconXML.iconElement(uuid: UUID(), imageData: imageData)
+        let element = CustomIconXML.iconElement(uuid: iconUUID, imageData: imageData)
+
+        XCTAssertEqual(element, expectedIconElement)
 
         XCTAssertFalse(element.contains("<Name>"))
         XCTAssertFalse(element.contains("<LastModificationTime>"))
@@ -97,19 +101,21 @@ final class CustomIconXMLTests: XCTestCase {
     /// The splice finds its insertion point by searching the fragment's own
     /// text, so the icon payload must not be able to look like markup. Base64
     /// cannot, which is what makes the search safe.
-    func test_encodedImageCannotBeMistakenForMarkup() {
+    func test_encodedImageCannotBeMistakenForMarkup() throws {
         let everyByte = Data((0...255).map { UInt8($0) })
 
-        let encoded = everyByte.base64EncodedString()
-        XCTAssertFalse(encoded.contains("<"))
-        XCTAssertFalse(encoded.contains(">"))
-
-        // And with every byte value in the payload, the element still has
-        // exactly one closing tag for the splice to find.
+        let expectedData = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BB" +
+            "QkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKD" +
+            "hIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TF" +
+            "xsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="
         var unknownXML = OpaqueXMLNodes()
         unknownXML.append(xml: "<CustomIcons></CustomIcons>", insertionIndex: 0)
-        let updated = CustomIconXML.adding(uuid: UUID(), imageData: everyByte, to: unknownXML)
-        let fragment = updated.flatMap(customIconsFragment(in:)) ?? ""
+        let updated = try XCTUnwrap(CustomIconXML.adding(uuid: iconUUID, imageData: everyByte, to: unknownXML))
+        let fragment = try XCTUnwrap(customIconsFragment(in: updated))
+        XCTAssertEqual(
+            fragment,
+            "<CustomIcons><Icon><UUID>ABEiM0RVZneImaq7zN3u/w==</UUID><Data>\(expectedData)</Data></Icon></CustomIcons>"
+        )
         XCTAssertEqual(fragment.components(separatedBy: "</CustomIcons>").count - 1, 1)
     }
 }
