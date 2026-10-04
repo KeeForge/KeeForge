@@ -58,7 +58,7 @@ struct EntryEditView: View {
         self.onComplete = onComplete
     }
 
-    var body: some View {
+    private var editorForm: some View {
         Form {
             Section("Basics") {
                 basicFieldRow("Title") {
@@ -214,6 +214,10 @@ struct EntryEditView: View {
                 }
             }
         }
+    }
+
+    private var presentedForm: some View {
+        editorForm
         .macGroupedForm()
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
@@ -303,6 +307,10 @@ struct EntryEditView: View {
                 )
             }
         }
+    }
+
+    var body: some View {
+        presentedForm
         .onChange(of: totpPeriodText) { _, newValue in
             if let period = Int(newValue), period > 0 {
                 formViewModel.totpPeriod = period
@@ -381,19 +389,23 @@ struct EntryEditView: View {
         }
         .alert(
             "Couldn’t Update Entry",
-            isPresented: Binding(
-                get: { coordinator.errorMessage != nil },
-                set: { isPresented in
-                    if isPresented == false {
-                        coordinator.errorMessage = nil
-                    }
-                }
-            )
+            isPresented: isErrorPresented
         ) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(coordinator.errorMessage ?? "")
         }
+    }
+
+    private var isErrorPresented: Binding<Bool> {
+        Binding(
+            get: { coordinator.errorMessage != nil },
+            set: { isPresented in
+                if isPresented == false {
+                    coordinator.errorMessage = nil
+                }
+            }
+        )
     }
 
     private var isSaveDisabled: Bool {
