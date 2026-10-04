@@ -539,7 +539,7 @@ struct KDBXXMLSerializer {
     }
 
     private mutating func rewriteProtectedValues(in xml: String) throws -> String {
-        let pattern = #"<Value(?=[^>]*Protected="True")[^>]*>(.*?)</Value>"#
+        let pattern = #"<Value(?=[^>]*\sProtected="[Tt][Rr][Uu][Ee]")[^>]*>(.*?)</Value>"#
         let regex = try NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators])
         let nsRange = NSRange(xml.startIndex..<xml.endIndex, in: xml)
         let matches = regex.matches(in: xml, options: [], range: nsRange)
@@ -567,10 +567,12 @@ struct KDBXXMLSerializer {
     }
 
     private func escape(_ text: String) -> String {
+        // XML parsing normalizes a literal CR to LF; a reference preserves it.
         text
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\r", with: "&#xD;")
     }
 
     private func unescape(_ text: String) -> String {
@@ -579,6 +581,7 @@ struct KDBXXMLSerializer {
             .replacingOccurrences(of: "&gt;", with: ">")
             .replacingOccurrences(of: "&quot;", with: "\"")
             .replacingOccurrences(of: "&apos;", with: "'")
+            .replacingOccurrences(of: "&#xD;", with: "\r")
             .replacingOccurrences(of: "&amp;", with: "&")
     }
 

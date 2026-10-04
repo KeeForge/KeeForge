@@ -5,6 +5,8 @@
 ### Fixes
 
 - Saving stops with an error if notes or other text contain unsupported characters such as NUL, keeping the previous database readable instead of writing a file that cannot reopen (#181).
+- Notes keep their original line endings after saving. Imported group names, custom field names, and attachment names keep their whitespace.
+- Protected fields from other KeePass apps stay protected when saving.
 - The group editor stays open until a save conflict has been resolved, so you can finish saving without losing your place.
 
 - AutoFill stops updates when iOS returns unreadable credential identities, preventing an unreadable store from being treated as empty.

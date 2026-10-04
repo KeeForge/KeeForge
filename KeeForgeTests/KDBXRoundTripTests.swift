@@ -42,13 +42,77 @@ final class KDBXRoundTripTests: XCTestCase {
     }
 
     func test_serializerPreservesValidUnicodeAndXMLNewlines() throws {
-        let boundaries: [UInt32] = [0x85, 0xFDD0, 0xFFFD, 0x1FFFE, 0x10FFFF]
+        let boundaries: [UInt32] = [0x7F, 0x80, 0x85, 0x9F, 0x2028, 0x2029, 0xFEFF, 0xFDD0, 0xFFFD, 0x1FFFE, 0x10FFFF]
         let suffix = try boundaries.map { String(try XCTUnwrap(Unicode.Scalar($0))) }.joined()
         let text = "\t日本語 😀 café & < >\r\nNext\rLast\n" + suffix
         let root = KPGroup(name: "Root", entries: [KPEntry(notes: text)])
         let reparsed = try serializeAndParse((root, KPMeta()))
-        XCTAssertEqual(reparsed.rootGroup.allEntries.first?.notes,
-                       text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n"))
+        XCTAssertEqual(reparsed.rootGroup.allEntries.first?.notes, text)
+    }
+
+    func test_serializerPreservesCarriageReturnsInUnprotectedText() throws {
+        let text = "First\r\nSecond\rThird\n"
+        let root = KPGroup(name: "Root", entries: [KPEntry(notes: text)])
+        let xml = try serializedXML(of: (root, KPMeta()))
+        XCTAssertTrue(String(decoding: xml, as: UTF8.self).contains("First&#xD;\nSecond&#xD;Third"))
+        XCTAssertEqual(try parseXML(xml).rootGroup.allEntries.first?.notes, text)
+    }
+
+    func test_opaqueProtectedValueWithLowercaseTrueStaysEncryptedAcrossSave() throws {
+        var opaque = OpaqueXMLNodes()
+        opaque.append(xml: "<Vendor><Value Protected=\"True\">secret</Value></Vendor>", insertionIndex: 0)
+        let first = try serializedXML(of: (KPGroup(name: "Root"), KPMeta(unknownXML: opaque)))
+        for spelling in ["true", "TRUE", "TrUe"] {
+            let foreignXML = String(decoding: first, as: UTF8.self)
+                .replacingOccurrences(of: "Protected=\"True\"", with: "Protected=\"\(spelling)\"")
+            let parsed = try parseXML(Data(foreignXML.utf8))
+            let original = try XCTUnwrap(parsed.meta.unknownXML.nodes.first?.xml)
+            XCTAssertTrue(original.contains(">secret</Value>"))
+
+            let written = try serializedXML(of: parsed)
+            XCTAssertFalse(String(decoding: written, as: UTF8.self).contains(">secret</Value>"))
+            let reparsed = try parseXML(written)
+            XCTAssertEqual(reparsed.meta.unknownXML.nodes.first?.xml, original)
+        }
+    }
+
+    func test_opaqueTextPreservesCarriageReturnEntityAcrossSave() throws {
+        let xml = "<KeePassFile><Meta><Vendor>A&#xD;B</Vendor></Meta><Root/></KeePassFile>"
+        let parsed = try parseXML(Data(xml.utf8))
+        XCTAssertEqual(parsed.meta.unknownXML.nodes.first?.xml, "<Vendor>A&#xD;B</Vendor>")
+        let written = try serializedXML(of: parsed)
+        XCTAssertEqual(try parseXML(written).meta.unknownXML.nodes.first?.xml, "<Vendor>A&#xD;B</Vendor>")
+    }
+
+    func test_opaqueProtectedValuePreservesCarriageReturnAcrossSave() throws {
+        var opaque = OpaqueXMLNodes()
+        opaque.append(xml: "<Vendor><Value Protected=\"True\">A\rB</Value></Vendor>", insertionIndex: 0)
+        let first = try serializedXML(of: (KPGroup(name: "Root"), KPMeta(unknownXML: opaque)))
+        let parsed = try parseXML(first)
+        let original = try XCTUnwrap(parsed.meta.unknownXML.nodes.first?.xml)
+        XCTAssertTrue(original.contains(">A&#xD;B</Value>"))
+        let written = try serializedXML(of: parsed)
+        XCTAssertEqual(try parseXML(written).meta.unknownXML.nodes.first?.xml, original)
+    }
+
+    func test_parserPreservesWhitespaceInImportedGroupNamesAndKeys() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>  Parent&#xD;\t </Name><Entry>
+        <String><Key>  API Key&#xD;\t </Key><Value>secret</Value></String>
+        <Binary><Key>  report.txt </Key><Value Ref="0"/></Binary>
+        </Entry></Group></Root></KeePassFile>
+        """
+        let parsed = try parseXML(Data(xml.utf8))
+        let group = try XCTUnwrap(parsed.rootGroup.groups.first)
+        let entry = try XCTUnwrap(group.entries.first)
+        XCTAssertEqual(group.name, "  Parent\r\t ")
+        XCTAssertEqual(entry.customFields["  API Key\r\t "], "secret")
+        XCTAssertEqual(entry.attachments.first?.name, "  report.txt ")
+
+        let reparsed = try serializeAndParse(parsed)
+        XCTAssertEqual(reparsed.rootGroup.groups.first?.name, group.name)
+        XCTAssertEqual(reparsed.rootGroup.allEntries.first?.customFields, entry.customFields)
+        XCTAssertEqual(reparsed.rootGroup.allEntries.first?.attachments.first?.name, entry.attachments.first?.name)
     }
 
     func test_serializerKeepsProtectedNULValuesByteExact() throws {
@@ -1197,10 +1261,7 @@ final class KDBXRoundTripTests: XCTestCase {
 
     // MARK: - Group Notes round-trip
 
-    /// Group `<Notes>` is a structured `KPGroup` field, so the text has to come
-    /// back byte-for-byte. Unlike group `<Name>`, it is deliberately not
-    /// trimmed: leading and trailing whitespace in free-form notes is the
-    /// author's, and a save must not quietly rewrite it.
+    /// Group names and notes preserve whitespace from foreign databases.
     func test_groupNotes_structuredRoundTrip_preservesWhitespaceAndNewlinesExactly() throws {
         let notes = "  leading spaces\nsecond line\n\ttabbed\ntrailing newline\n  "
         let xml = """
@@ -1217,7 +1278,7 @@ final class KDBXRoundTripTests: XCTestCase {
             let group = try XCTUnwrap(container.groups.first)
             XCTAssertEqual(group.notes, notes)
             XCTAssertTrue(group.hasNotesElement)
-            XCTAssertEqual(group.name, "Padded Name", "Group <Name> is trimmed; <Notes> deliberately is not")
+            XCTAssertEqual(group.name, "  Padded Name  ")
             XCTAssertFalse(
                 group.unknownXML.nodes.contains { $0.elementName == "Notes" },
                 "<Notes> is structured now, so no opaque copy may be left behind"

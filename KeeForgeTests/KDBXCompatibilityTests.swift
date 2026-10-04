@@ -51,6 +51,31 @@ final class KDBXCompatibilityTests: XCTestCase {
         }
     }
 
+    func test_lowercaseProtectedOpaqueValueWithNULSurvivesKDBXWriteAndReload() throws {
+        let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle)
+        var meta = loaded.meta
+        meta.unknownXML.append(
+            xml: "<Vendor><Value Protected=\"true\">A\u{0}B</Value></Vendor>",
+            insertionIndex: 0
+        )
+
+        let written = try KDBXWriter.write(
+            rootGroup: loaded.rootGroup,
+            meta: meta,
+            compositeKey: loaded.compositeKey,
+            header: loaded.header,
+            sessionKey: loaded.sessionKey
+        )
+        let reparsed = try KDBXParser.parseWithMeta(
+            data: written,
+            compositeKey: loaded.compositeKey,
+            sessionKey: loaded.sessionKey
+        )
+        XCTAssertTrue(reparsed.meta.unknownXML.nodes.contains {
+            $0.xml.contains("<Vendor><Value Protected=\"true\">A\u{0}B</Value></Vendor>")
+        })
+    }
+
     func test_allSupportedEditScenarios_writeReparseAndOnlyChangeExpectedSemantics() throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
 

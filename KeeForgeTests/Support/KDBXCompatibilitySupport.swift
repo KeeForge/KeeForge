@@ -2393,7 +2393,7 @@ private extension KDBXCompatibilitySupport {
     static let updateEntryEnrolledOTPAuthURI =
         "otpauth://totp/Compat:updated-user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Compat"
 
-    static let createdEntryUnicodeNotes = String(repeating: "Hello 日本語 😀 café & < >\t\n", count: 32_768)
+    static let createdEntryUnicodeNotes = String(repeating: "Hello 日本語 😀 café & < >\t\r\nNext\rLast\n", count: 32_768)
 
     static func createEntryScenario() -> Scenario {
         Scenario(
