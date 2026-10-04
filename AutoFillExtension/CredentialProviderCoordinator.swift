@@ -41,6 +41,9 @@ struct CredentialProviderPasskeyCreatorContext {
     let databaseName: String
     let destinationGroupName: String
     let initialTitle: String
+    /// The passkey reaches the database file only when the app next unlocks
+    /// the database (`LocalDatabaseSaver.autoFillSavesAwaitWriteBack`).
+    let awaitsWriteBack: Bool
 }
 
 /// The narrow seam between the coordinator and a platform presentation shell.
@@ -2050,7 +2053,8 @@ final class CredentialProviderCoordinator {
                     userName: userName,
                     databaseName: activeDatabaseReference?.displayName ?? "",
                     destinationGroupName: saveDestinationGroupName,
-                    initialTitle: relyingPartyID
+                    initialTitle: relyingPartyID,
+                    awaitsWriteBack: activeDatabaseReference.map(LocalDatabaseSaver.autoFillSavesAwaitWriteBack(for:)) ?? false
                 ),
                 onSave: { [weak self] title in
                     guard let self else {

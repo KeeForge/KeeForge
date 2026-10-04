@@ -259,6 +259,15 @@ cleanup. It also supports passkey registration; its shared save machinery must
 preserve encrypted storage, conflict checks, and pending-upload handling. The
 boundary is not a claim that the extension is read-only.
 
+A registration never writes a bookmarked file. The extension saves the encrypted
+database to the shared copy it read and keeps the same bytes in
+[PendingLocalSaveStore](../KeeForge/Services/Persistence/PendingLocalSaveStore.swift),
+inside the App Group. The app merges them into the file after the next unlock,
+through its ordinary save with the open-time hash check and a backup. Until then
+the new passkey exists only in the App Group on this Mac. A pending save that
+will not open with the database's key, or cannot be merged safely, moves into
+the database's backups and the app says so.
+
 [KDFExecutionPolicy.autoFillExtension](../KeeForge/Models/KDFExecutionPolicy.swift)
 bounds attacker-controlled Argon2 memory, work, and parallelism. The iOS runtime
 memory preflight in [AutoFillMemoryLimit](../KeeForge/Services/AutoFill/AutoFillMemoryLimit.swift)

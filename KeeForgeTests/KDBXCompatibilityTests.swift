@@ -1333,7 +1333,16 @@ final class KDBXCompatibilityTests: XCTestCase {
             DatabaseListStore.activeAutoFillDatabaseID = previousActiveDatabaseID
             try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
             try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
+            PendingLocalSaveStore.removeAll(for: reference.id)
         }
+        // The Mac extension cannot open the bookmarked file: it reads the
+        // shared copy and saves there, leaving the file to the app (#182).
+        try DatabaseListStore.cacheDatabaseCopy(sourceBytes, for: reference)
+        #if os(macOS)
+        let committedURL = DatabaseListStore.cacheLocation(for: reference)
+        #else
+        let committedURL = databaseURL
+        #endif
         let sessionKey = SymmetricKey(size: .bits256)
         let parsed = try fixture.parse(in: bundle, sessionKey: sessionKey)
         let presenter = CredentialProviderPresentingSpy()
@@ -1373,7 +1382,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         let creator = try XCTUnwrap(presenter.passkeyCreator)
         let saveTask = Task { await creator.onSave("Committed AutoFill Passkey") }
         await fulfillment(of: [saveCommitted], timeout: 10)
-        let bytesBeforeCancellation = try? Data(contentsOf: databaseURL)
+        let bytesBeforeCancellation = try? Data(contentsOf: committedURL)
 
         coordinator.cancelRequest(code: .userCanceled)
         presenter.isPresentationActive = false
@@ -1392,8 +1401,17 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
         let committedBytes = try XCTUnwrap(bytesBeforeCancellation)
         XCTAssertNotEqual(committedBytes, sourceBytes)
-        XCTAssertEqual(try Data(contentsOf: databaseURL), committedBytes)
+        XCTAssertEqual(try Data(contentsOf: committedURL), committedBytes)
         XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), committedBytes)
+        #if os(macOS)
+        XCTAssertEqual(try Data(contentsOf: databaseURL), sourceBytes)
+        XCTAssertEqual(
+            try PendingLocalSaveStore.saves(for: reference.id).map { try Data(contentsOf: $0.fileURL) },
+            [committedBytes]
+        )
+        #else
+        XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
+        #endif
         let reopenedKey = SymmetricKey(size: .bits256)
         let reopened = try KDBXParser.parseWithMetaAndHeader(
             data: committedBytes,
