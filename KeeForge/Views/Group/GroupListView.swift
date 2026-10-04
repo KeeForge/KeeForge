@@ -809,7 +809,7 @@ struct GroupListView: View {
     }
 
     private func groupDeleteButtonTitle(for groupID: UUID) -> String {
-        viewModel.isGroupInRecycleBin(groupID: groupID) ? "Delete Permanently" : "Delete"
+        viewModel.isGroupInRecycleBin(groupID: groupID) ? String(localized: "Delete Permanently") : String(localized: "Delete")
     }
 
     /// Same eligibility as the icon and AutoFill shortcuts: the Recycle Bin and

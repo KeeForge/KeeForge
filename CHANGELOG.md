@@ -8,6 +8,7 @@
 
 - Prevents database corruption when notes or other text contain unsupported characters such as NUL (#181). Saving stops with an error and keeps the previous database readable. Already affected databases are not repaired by updating: restore a readable backup or use the [KeeForge KDBX recovery tool](https://github.com/KeeForge/kdbx-recovery) to create a recovered copy.
 - The Face ID and Touch ID unlock buttons now use the selected app language (#183).
+- Group deletion actions now use the selected app language on iPhone, iPad, and Mac (#184).
 - Restoring an earlier entry version keeps that version's expiration settings after saving and reopening the database.
 - WebDAV folders and newly created databases with percent sequences in their names now keep the correct path.
 - AutoFill changes in cloud databases stay queued if KeeForge opens while AutoFill is still saving, preventing an interrupted save from losing its pending upload.

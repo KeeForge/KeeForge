@@ -1046,7 +1046,7 @@ private struct MacGroupTreeRow: View {
     }
 
     private var deleteTitle: String {
-        viewModel.isGroupInRecycleBin(groupID: node.id) ? "Delete Permanently" : "Delete"
+        viewModel.isGroupInRecycleBin(groupID: node.id) ? String(localized: "Delete Permanently") : String(localized: "Delete")
     }
 
     private func requestDeletion() {
