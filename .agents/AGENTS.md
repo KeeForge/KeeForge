@@ -10,3 +10,5 @@ Read the relevant skill before release or pre-release review work:
 For an explicitly requested SwiftUI review or UI change, use `skills/keeforge-swiftui/SKILL.md` during its adoption pilot. It adapts general SwiftUI guidance to KeeForge; folder-local contracts remain authoritative.
 
 For product feedback triage, use `skills/triage-feedback/SKILL.md` to inspect evidence, classify concerns, and draft a response before any authorized follow-up.
+
+For test-quality audits and consolidation, use `skills/test-audit/SKILL.md`. Its authoring checklist also applies while changing tests; preserve distinct platform and compatibility guarantees.

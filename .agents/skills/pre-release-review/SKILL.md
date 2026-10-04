@@ -92,6 +92,10 @@ context, not maintained contracts; do not propose synchronizing them by default.
 
 ### Coverage and test quality
 
+Use [test-audit](../test-audit/SKILL.md)'s authoring and retention criteria when judging
+test quality. Keep this review scoped to changed behavior; an exhaustive subsystem
+campaign is separate work, and findings belong in this review's existing report.
+
 Map changed behavior to actual test assertions and execution destinations. Assess:
 
 - Success, failure, cancellation, persistence/reopen, and regression paths where relevant.
