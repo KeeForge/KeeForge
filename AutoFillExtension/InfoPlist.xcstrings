@@ -28,6 +28,12 @@
             "value" : "KeeForge AutoFill"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge AutoFill"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -71,6 +77,12 @@
           }
         },
         "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForgeAutoFill"
+          }
+        },
+        "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForgeAutoFill"
