@@ -444,6 +444,38 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         assertLockedAfterSync(vm)
     }
 
+    func testDatabaseTransitionDuringSyncReloadHonorsUnsavedEditorBeforeLocking() async throws {
+        let vm = try await makeViewModelParsingANewerCopy()
+        let routing = AppRoutingCoordinator()
+        let editorID = UUID()
+        let lockTrigger = triggerWhenParsing(vm) {
+            vm.setEditorHasUnsavedChanges(true, editorID: editorID)
+
+            routing.requestDatabaseTransition(to: .close, from: vm)
+
+            XCTAssertEqual(vm.state, .unlocking, "A reload is still an open session for editor decisions")
+            XCTAssertEqual(vm.pendingLockRequest?.reason, .openEditor)
+            XCTAssertNil(routing.completeDatabaseTransition(from: vm))
+            let request = vm.pendingLockRequest
+            vm.setEditorHasUnsavedChanges(false, editorID: editorID)
+            if let request { vm.resumeLockRequest(request) }
+        }
+        defer {
+            lockTrigger.cancel()
+            vm.lock()
+        }
+
+        await vm.syncCloudNow()
+        lockTrigger.cancel()
+        let didTrigger = await lockTrigger.value
+
+        XCTAssertTrue(didTrigger, "The transition must arrive while the newer copy is parsed")
+        assertLockedAfterSync(vm)
+        guard case .close? = routing.completeDatabaseTransition(from: vm) else {
+            return XCTFail("Resolving the editor should resume the close during reload")
+        }
+    }
+
     /// A YubiKey session's composite key holds the response to the opened
     /// copy's challenge. A newer copy carries a new challenge, so Sync Now
     /// leaves it in the cache for the next unlock instead of failing to parse.

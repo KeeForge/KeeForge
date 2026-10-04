@@ -211,6 +211,30 @@ final class HardwareKeyUnlockTests: XCTestCase {
         XCTAssertFalse(vm.sessionUsesHardwareKey)
     }
 
+    func testDatabaseTransitionCancelsUnlockAndIgnoresALateYubiKeyAnswer() async throws {
+        let key = HeldYubiKey()
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC, respond: key.respond)
+        let routing = AppRoutingCoordinator()
+        let unlock = Task { await vm.unlock(password: fixture.password) }
+        defer {
+            vm.lock()
+            key.answer()
+            unlock.cancel()
+        }
+        try await waitUntil { key.isHolding }
+        guard key.isHolding else { return XCTFail("The unlock never reached the held YubiKey request") }
+        XCTAssertEqual(vm.state, .unlocking)
+
+        routing.requestDatabaseTransition(to: .close, from: vm)
+        key.answer()
+        await unlock.value
+
+        assertLocked(vm)
+        guard case .close? = routing.completeDatabaseTransition(from: vm) else {
+            return XCTFail("Closing should cancel the unlock and retain its destination")
+        }
+    }
+
     func testBackgroundingWhileWaitingForTheYubiKeyLocksWhenLockOnBackgroundIsOn() async throws {
         #if os(iOS)
         let savedLockOnBackground = SettingsService.lockOnBackground

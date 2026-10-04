@@ -11,6 +11,12 @@
 - Saving stops with an error if notes or other text contain unsupported characters such as NUL, keeping the previous database readable instead of writing a file that cannot reopen (#181).
 - Notes keep their original line endings after saving. Imported group names, custom field names, and attachment names keep their whitespace.
 - Protected fields from other KeePass apps stay protected when saving.
+- Retrying a failed new-entry save no longer creates duplicate entries, and Save and Lock keeps edits made after a failed save.
+- Opening or closing a database now preserves unsaved editor changes until you choose to save or discard them.
+- Switching entries conceals revealed fields, and verification codes refresh when their setup changes. Authentication that finishes after a lock or selection change cannot reveal or copy stale secrets.
+- Attachment previews and imports no longer reopen or change an editor after it has closed or the database has locked.
+- Unsupported verification-code lengths show the correct explanation.
+- On Mac, the setup-link form shows editable fields correctly.
 - The group editor stays open until a save conflict has been resolved, so you can finish saving without losing your place.
 - AutoFill stops updates when iOS returns unreadable credential identities, preventing an unreadable store from being treated as empty.
 - Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.

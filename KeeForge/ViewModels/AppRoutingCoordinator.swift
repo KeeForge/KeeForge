@@ -36,6 +36,31 @@ final class AppRoutingCoordinator {
         let isUnlocked: Bool
     }
 
+    enum DatabaseDestination {
+        case open(DatabaseReference)
+        case close
+    }
+
+    struct DatabaseTransition: Identifiable {
+        let id = UUID()
+        let destination: DatabaseDestination
+        let sourceIdentity: ObjectIdentifier?
+        let sourceLockCycle: Int?
+        let sourceCancellationID: Int?
+    }
+
+    struct DatabaseTransitionState: Equatable {
+        let identity: ObjectIdentifier
+        let lockCycleID: Int
+        let cancellationID: Int
+
+        @MainActor init(_ database: DatabaseViewModel) {
+            identity = ObjectIdentifier(database)
+            lockCycleID = database.lockCycleID
+            cancellationID = database.lockRequestCancellationID
+        }
+    }
+
     struct DeferredPresentation: Identifiable {
         enum Content {
             case enrollment(UUID, ObjectIdentifier)
@@ -52,6 +77,7 @@ final class AppRoutingCoordinator {
     private(set) var presentedEnrollment: PendingTOTPEnrollment?
     var enrollmentAlert: TOTPEnrollmentAlert?
     private(set) var deferredPresentation: DeferredPresentation?
+    private(set) var databaseTransition: DatabaseTransition?
 
     private var pendingAutoOpenReference: DatabaseReference?
     private var isLaunchPresentationPending = false
@@ -97,6 +123,40 @@ final class AppRoutingCoordinator {
             return nil
         }
         return reference
+    }
+
+    func requestDatabaseTransition(to destination: DatabaseDestination, from database: DatabaseViewModel?) {
+        if case .open(let reference) = destination, reference.id == database?.databaseReference.id {
+            return
+        }
+        databaseTransition = DatabaseTransition(
+            destination: destination,
+            sourceIdentity: database.map { ObjectIdentifier($0) },
+            sourceLockCycle: database?.lockCycleID,
+            sourceCancellationID: database?.lockRequestCancellationID
+        )
+        database?.lockForDatabaseTransition()
+    }
+
+    func completeDatabaseTransition(from database: DatabaseViewModel?) -> DatabaseDestination? {
+        guard let transition = databaseTransition else { return nil }
+        guard transition.sourceIdentity == database.map({ ObjectIdentifier($0) }) else {
+            databaseTransition = nil
+            return nil
+        }
+        if let database {
+            guard database.lockRequestCancellationID == transition.sourceCancellationID else {
+                databaseTransition = nil
+                return nil
+            }
+            guard database.lockCycleID != transition.sourceLockCycle else { return nil }
+            guard database.state == .locked else {
+                databaseTransition = nil
+                return nil
+            }
+        }
+        databaseTransition = nil
+        return transition.destination
     }
 
     func finishLaunchPresentation() -> DatabaseReference? {

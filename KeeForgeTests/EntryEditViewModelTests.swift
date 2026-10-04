@@ -616,8 +616,56 @@ final class EntryEditViewModelTests: XCTestCase {
         viewModel.totpDigits = 7
 
         let reason = try XCTUnwrap(viewModel.unsupportedTOTPDigitsMessage)
+        XCTAssertEqual(reason, String(localized: "This entry stores its code in the legacy KeeOTP format, which only supports 6- or 8-digit codes."))
         XCTAssertEqual(viewModel.saveBlockedMessage, reason)
         XCTAssertTrue(viewModel.saveBeforeLockMessage.contains(reason))
+    }
+
+    func testOrdinaryTOTPDigitValidationMatchesTheSupportedChoices() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.title = "Code"
+        viewModel.totpSecret = "JBSWY3DPEHPK3PXP"
+
+        XCTAssertEqual(viewModel.supportedTOTPDigits, [6, 7, 8])
+        for digits in 1...9 {
+            viewModel.totpDigits = digits
+            if [6, 7, 8].contains(digits) {
+                XCTAssertNil(viewModel.unsupportedTOTPDigitsMessage, "digits=\(digits)")
+                XCTAssertTrue(viewModel.canSave, "digits=\(digits)")
+            } else {
+                XCTAssertEqual(
+                    viewModel.unsupportedTOTPDigitsMessage,
+                    String(localized: "KeeForge supports 6-, 7-, or 8-digit verification codes."),
+                    "digits=\(digits)"
+                )
+                XCTAssertFalse(viewModel.canSave, "digits=\(digits)")
+            }
+        }
+    }
+
+    func testNineDigitSetupLinkExplainsTheSupportedCodesAndBlocksSaveUntilCorrected() throws {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.title = "Code"
+
+        XCTAssertNil(viewModel.applySetupLink(
+            "otpauth://totp/Example:x?secret=JBSWY3DPEHPK3PXP&digits=9"
+        ))
+
+        let reason = try XCTUnwrap(viewModel.unsupportedTOTPDigitsMessage)
+        XCTAssertEqual(reason, String(localized: "KeeForge supports 6-, 7-, or 8-digit verification codes."))
+        XCTAssertEqual(viewModel.totpDigits, 9)
+        XCTAssertEqual(viewModel.saveBlockedMessage, reason)
+        XCTAssertTrue(viewModel.saveBeforeLockMessage.contains(reason))
+        XCTAssertFalse(viewModel.canSave)
+        XCTAssertNil(viewModel.totpPreview)
+
+        viewModel.totpDigits = 8
+
+        XCTAssertNil(viewModel.unsupportedTOTPDigitsMessage)
+        XCTAssertTrue(viewModel.canSave)
+        XCTAssertNotNil(viewModel.totpPreview)
+        XCTAssertEqual(viewModel.entryDraftPayload.totpConfig?.digits, 8)
+        XCTAssertNil(viewModel.entryDraftPayload.totpConfig?.otpauthURI)
     }
 
     func testANewFieldCannotTakeANameTheParserReadsAsKeeOTP() {

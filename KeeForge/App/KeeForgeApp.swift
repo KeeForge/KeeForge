@@ -10,6 +10,7 @@ import AppKit
 struct KeeForgeApp: App {
     @State private var listViewModel = DatabaseListViewModel()
     @State private var activeDatabaseViewModel: DatabaseViewModel?
+    @State private var routing = AppRoutingCoordinator()
     @State private var pendingUploadDrainer = PendingUploadDrainer()
     @State private var screenProtectionService = ScreenProtectionService()
     #if os(macOS)
@@ -62,7 +63,8 @@ struct KeeForgeApp: App {
             .commands {
                 KeeForgeCommands(
                     listViewModel: listViewModel,
-                    activeDatabaseViewModel: $activeDatabaseViewModel
+                    activeDatabaseViewModel: $activeDatabaseViewModel,
+                    routing: routing
                 )
                 #if KEEFORGE_DIRECT_DOWNLOAD
                 CommandGroup(after: .appInfo) {
@@ -156,13 +158,15 @@ struct KeeForgeApp: App {
         } else {
             AppRootView(
                 listViewModel: listViewModel,
-                activeDatabaseViewModel: $activeDatabaseViewModel
+                activeDatabaseViewModel: $activeDatabaseViewModel,
+                routing: routing
             )
         }
         #else
         AppRootView(
             listViewModel: listViewModel,
-            activeDatabaseViewModel: $activeDatabaseViewModel
+            activeDatabaseViewModel: $activeDatabaseViewModel,
+            routing: routing
         )
         #endif
     }
@@ -269,7 +273,7 @@ private struct AppRootView: View {
     @Environment(\.requestReview) private var requestReview
     #endif
     @Environment(\.scenePhase) private var scenePhase
-    @State private var routing = AppRoutingCoordinator()
+    let routing: AppRoutingCoordinator
     #if os(macOS)
     @State private var showsMacTransitionNotice = false
     #endif
@@ -378,6 +382,12 @@ private struct AppRootView: View {
         .onChange(of: routingSession, initial: true) { _, session in
             routing.updateSession(session)
         }
+        .onChange(of: routing.databaseTransition?.id, initial: true) { _, _ in
+            finishDatabaseTransitionIfReady()
+        }
+        .onChange(of: databaseTransitionState) { _, _ in
+            finishDatabaseTransitionIfReady()
+        }
         .task(id: routing.deferredPresentation?.id) {
             guard let requestID = routing.deferredPresentation?.id else { return }
             // SwiftUI drops presentations raised during another sheet's dismissal.
@@ -408,6 +418,10 @@ private struct AppRootView: View {
                 identity: ObjectIdentifier($0), lockCycleID: $0.lockCycleID, isUnlocked: $0.state == .unlocked
             )
         }
+    }
+
+    private var databaseTransitionState: AppRoutingCoordinator.DatabaseTransitionState? {
+        activeDatabaseViewModel.map(AppRoutingCoordinator.DatabaseTransitionState.init)
     }
 
     private var enrollmentPresentation: Binding<PendingTOTPEnrollment?> {
@@ -543,7 +557,17 @@ private struct AppRootView: View {
     }
 
     private func openDatabase(_ reference: DatabaseReference) {
-        activeDatabaseViewModel = DatabaseViewModel(databaseReference: reference)
+        routing.requestDatabaseTransition(to: .open(reference), from: activeDatabaseViewModel)
+    }
+
+    private func finishDatabaseTransitionIfReady() {
+        guard let destination = routing.completeDatabaseTransition(from: activeDatabaseViewModel) else { return }
+        switch destination {
+        case .open(let reference):
+            activeDatabaseViewModel = DatabaseViewModel(databaseReference: reference)
+        case .close:
+            returnToDatabaseList()
+        }
         routing.updateSession(routingSession)
     }
 

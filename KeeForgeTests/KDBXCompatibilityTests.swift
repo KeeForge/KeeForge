@@ -922,6 +922,96 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     @MainActor
+    func test_editorCreateRetryAfterWriteFailure_savesOneUpdatedEntryWithProtectedFields() async throws {
+        let fixture = KDBXTestFixture.test
+        let sourceBytes = try fixture.data(in: bundle)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let databaseURL = directory.appendingPathComponent("editor-create-retry.kdbx")
+        try sourceBytes.write(to: databaseURL)
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL, autoFillEnabled: false)
+        defer {
+            try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
+            try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
+        }
+        let attempts = EditorSaveAttempts()
+        let database = DatabaseViewModel(
+            databaseReference: reference,
+            localSaveOperation: { draft, reference, key, hash, reconciledHash, newKey, settings in
+                if await attempts.shouldFail() { throw DatabaseSaveError.networkUnavailable }
+                return try await LocalDatabaseSaver.save(
+                    draft: draft, reference: reference, compositeKey: key, openTimeSHA512: hash,
+                    reconciledRemoteSHA512: reconciledHash, kdfPolicy: .mainApp,
+                    newCompositeKey: newKey, encryptionSettings: settings
+                )
+            },
+            storedKeyPresenceCheck: { _ in false }
+        )
+        defer { database.lock() }
+        await database.unlock(password: fixture.password)
+        let root = try XCTUnwrap(database.rootGroup)
+        let group = try XCTUnwrap(root.groups.first)
+        let form = EntryEditViewModel(createIn: root.id)
+        form.title = "Creation before failed write"
+        form.password = "first-protected-password"
+        form.addAttachment(named: "removed.txt", data: Data("remove before retry".utf8))
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        var completions: [EntryEditCompletion] = []
+
+        await editor.save { completions.append($0) }
+        let createdID = try XCTUnwrap(database.currentRootGroup?.allEntries.first { $0.title == form.title }?.id)
+        XCTAssertTrue(completions.isEmpty)
+        XCTAssertNotNil(editor.errorMessage)
+        XCTAssertEqual(try Data(contentsOf: databaseURL), sourceBytes)
+
+        form.title = "Creation after edited retry"
+        form.password = "retry-protected-password"
+        form.username = "retry-user"
+        form.pendingTagText = "retry-tag"
+        form.removeAttachment(id: try XCTUnwrap(form.attachments.first?.id))
+        form.setCreateDestination(to: group.id, inheritedTags: [])
+        database.lockRequest(manuallyTriggered: true)
+        let lockRequest = try XCTUnwrap(editor.pendingLockRequest)
+        await editor.save(resuming: lockRequest) { completions.append($0) }
+        editor.deactivate()
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertNil(editor.errorMessage)
+        XCTAssertFalse(database.isDirty)
+        XCTAssertEqual(database.state, .locked)
+        database.lock()
+
+        let writtenData = try Data(contentsOf: databaseURL)
+        let reopenedKey = SymmetricKey(size: .bits256)
+        let reopened = try KDBXParser.parseWithMeta(
+            data: writtenData, password: fixture.password, sessionKey: reopenedKey
+        )
+        let created = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.id == createdID })
+        XCTAssertEqual(reopened.rootGroup.allEntries.count, root.allEntries.count + 1)
+        XCTAssertTrue(try XCTUnwrap(reopened.rootGroup.groups.first { $0.id == group.id }).entries.contains { $0.id == createdID })
+        XCTAssertEqual(created.title, form.title)
+        XCTAssertEqual(created.username, "retry-user")
+        XCTAssertEqual(created.tags, ["retry-tag"])
+        XCTAssertEqual(try created.password.decrypt(using: reopenedKey), "retry-protected-password")
+        XCTAssertTrue(created.attachments.isEmpty)
+        XCTAssertTrue(created.history.contains {
+            (try? $0.password.decrypt(using: reopenedKey)) == "first-protected-password"
+        })
+        XCTAssertEqual(try fixture.data(in: bundle), sourceBytes)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), writtenData)
+    }
+
+    private actor EditorSaveAttempts {
+        private var count = 0
+
+        func shouldFail() -> Bool {
+            count += 1
+            return count == 1
+        }
+    }
+
+    @MainActor
     func test_keeOTPRemovalAndMalformedReplacementRemainSafe() throws {
         let testCase = try XCTUnwrap(KDBXCompatibilitySupport.keeOTPCases.first { $0.fieldName == "OTP" && $0.encoding == "Base64" })
         let entry = try makeKeeOTPEntry(testCase)

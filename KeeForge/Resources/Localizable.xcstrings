@@ -20614,6 +20614,46 @@
         }
       }
     },
+    "KeeForge supports 6-, 7-, or 8-digit verification codes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge unterstützt Bestätigungscodes mit 6, 7 oder 8 Ziffern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge admite códigos de verificación de 6, 7 u 8 dígitos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge prend en charge les codes de vérification à 6, 7 ou 8 chiffres."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForgeは6桁、7桁、8桁の確認コードに対応しています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 支持 6、7 或 8 位数的验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 支援 6、7 或 8 位數的驗證碼。"
+          }
+        }
+      }
+    },
     "KeeForge supports YubiKeys only for KDBX 4 databases. Turn off Hardware Key to open this database." : {
       "localizations" : {
         "de" : {

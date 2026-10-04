@@ -528,6 +528,7 @@ final class DatabaseViewModel {
     /// Sync Now waiting out a save that is still in flight (`waitForInFlightSave`).
     @ObservationIgnored private var saveCompletionWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var pendingLockRequest: PendingLockRequest?
+    private(set) var lockRequestCancellationID = 0
     /// Open editors holding fields the draft has not seen. Without this a lock
     /// trigger tears the editor down and drops the typing with no prompt.
     private var unsavedEditorIDs: Set<UUID> = []
@@ -1444,7 +1445,20 @@ final class DatabaseViewModel {
     }
 
     func applyEntryEdit(_ edit: EntryEdit) throws {
-        draft = try makeWorkingDraft().apply(edit)
+        stageDraft(try makeWorkingDraft().apply(edit))
+    }
+
+    func createEntry(parentGroupID: UUID, draft payload: EntryDraftPayload) throws -> UUID {
+        let staged = try makeWorkingDraft().apply(.createEntry(parentGroupID: parentGroupID, draft: payload))
+        guard let entryID = Self.findGroup(parentGroupID, in: staged.rootGroup)?.entries.last?.id else {
+            throw SaveError.saveContextUnavailable
+        }
+        stageDraft(staged)
+        return entryID
+    }
+
+    private func stageDraft(_ staged: DatabaseDraft) {
+        draft = staged
         saveConflict = nil
         refreshCredentialStoreForCurrentTreeIfNeeded()
         resetInactivityTimer()
@@ -2018,6 +2032,10 @@ final class DatabaseViewModel {
         #endif
     }
 
+    func lockForDatabaseTransition() {
+        lockRequest(force: isSessionOpen == false, manuallyTriggered: true)
+    }
+
     func lockRequest(
         force: Bool = false,
         manuallyTriggered: Bool = false,
@@ -2181,6 +2199,7 @@ final class DatabaseViewModel {
     }
 
     private func cancelLockRequest() {
+        lockRequestCancellationID += 1
         pendingLockRequest = nil
         #if os(macOS)
         // Keep Editing is also the Cancel of a window close waiting on this

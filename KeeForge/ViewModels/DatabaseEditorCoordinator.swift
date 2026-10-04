@@ -8,6 +8,12 @@ final class DatabaseEditorCoordinator {
         case group(GroupEditViewModel)
     }
 
+    private struct StagedCreation {
+        let entryID: UUID
+        var parentGroupID: UUID
+        var payload: EntryDraftPayload
+    }
+
     private let form: Form
     private let database: DatabaseViewModel
     private let editorID = UUID()
@@ -15,6 +21,7 @@ final class DatabaseEditorCoordinator {
     private var lifetime = UUID()
     private var activatedLockCycle = 0
     private var completionGate = EntryEditCompletionGate()
+    private var stagedCreation: StagedCreation?
     private(set) var isSubmitting = false
     var errorMessage: String?
 
@@ -59,6 +66,9 @@ final class DatabaseEditorCoordinator {
     }
 
     func activate() {
+        if activatedLockCycle != database.lockCycleID {
+            stagedCreation = nil
+        }
         isActive = true
         activatedLockCycle = database.lockCycleID
         synchronizeUnsavedChanges()
@@ -100,13 +110,15 @@ final class DatabaseEditorCoordinator {
         resuming request: DatabaseViewModel.PendingLockRequest? = nil,
         onComplete: (EntryEditCompletion) -> Void
     ) async {
-        guard isActive, canSave, isSavingInProgress == false else { return }
+        guard isActive, database.lockCycleID == activatedLockCycle,
+              canSave, isSavingInProgress == false else { return }
+        errorMessage = nil
         do {
             switch form {
             case .entry(let entry):
                 switch entry.mode {
                 case .create(let parentGroupID):
-                    try database.applyEntryEdit(.createEntry(parentGroupID: parentGroupID, draft: entry.entryDraftPayload))
+                    try stageCreation(parentGroupID: parentGroupID, payload: entry.entryDraftPayload)
                 case .edit(let entryID):
                     try database.applyEntryEdit(.updateEntry(entryID: entryID, draft: entry.entryDraftPayload))
                 }
@@ -124,13 +136,34 @@ final class DatabaseEditorCoordinator {
     }
 
     func delete(sendToRecycleBin: Bool, onComplete: (EntryEditCompletion) -> Void) async {
-        guard isActive, isSavingInProgress == false,
+        guard isActive, database.lockCycleID == activatedLockCycle, isSavingInProgress == false,
               case .entry(let entry) = form, case .edit(let entryID) = entry.mode else { return }
         do {
             try database.deleteEntry(entryID, sendToRecycleBin: sendToRecycleBin)
             await persist(completion: .deleted, onComplete: onComplete)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func stageCreation(parentGroupID: UUID, payload: EntryDraftPayload) throws {
+        var payload = payload
+        // A create form's empty attachment list must also remove previously staged files.
+        payload.attachments = payload.attachments ?? []
+        if var staged = stagedCreation, database.entry(withID: staged.entryID) != nil {
+            if staged.parentGroupID != parentGroupID {
+                try database.applyEntryEdit(.moveEntry(entryID: staged.entryID, destinationGroupID: parentGroupID))
+                staged.parentGroupID = parentGroupID
+                stagedCreation = staged
+            }
+            if staged.payload != payload {
+                try database.applyEntryEdit(.updateEntry(entryID: staged.entryID, draft: payload))
+                staged.payload = payload
+                stagedCreation = staged
+            }
+        } else {
+            let entryID = try database.createEntry(parentGroupID: parentGroupID, draft: payload)
+            stagedCreation = StagedCreation(entryID: entryID, parentGroupID: parentGroupID, payload: payload)
         }
     }
 
@@ -150,9 +183,11 @@ final class DatabaseEditorCoordinator {
             finish(completion, onComplete: onComplete)
             database.resumeLockRequest(request)
         } else if let saveError = database.saveError {
+            synchronizeUnsavedChanges()
             errorMessage = saveError.localizedDescription
             database.clearSaveError()
         } else {
+            if database.saveConflict != nil { synchronizeUnsavedChanges() }
             finish(completion, onComplete: onComplete)
         }
     }

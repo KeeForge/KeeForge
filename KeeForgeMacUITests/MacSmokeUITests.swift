@@ -77,6 +77,36 @@ final class MacSmokeUITests: MacUITestCase {
 
     // MARK: - Keyboard navigation
 
+    /// SwiftUI owns the detail subtree's reveal state; a model test cannot
+    /// establish whether the split view preserves it across entry selection.
+    func testChangingEntrySelectionConcealsPreviouslyRevealedPassword() {
+        unlockSuccessfully()
+        openGroup(named: "Work")
+        openEntry(named: "Email")
+
+        let hiddenPassword = app.staticTexts.matching(
+            NSPredicate(format: "label == %@ OR value == %@", "Hidden password", "Hidden password")
+        ).firstMatch
+        XCTAssertTrue(hiddenPassword.waitForExistence(timeout: 15))
+        let reveal = app.buttons["entry.password.reveal"].firstMatch
+        XCTAssertTrue(reveal.waitForExistence(timeout: 5))
+        reveal.click()
+
+        let revealDeadline = Date().addingTimeInterval(5)
+        while hiddenPassword.exists, Date() < revealDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertFalse(hiddenPassword.exists, "The first entry's password was not revealed")
+
+        openEntry(named: "GitHub")
+
+        XCTAssertTrue(waitForDisplayText("GitHub", identifier: "entry-detail.title"))
+        XCTAssertTrue(
+            hiddenPassword.waitForExistence(timeout: 5),
+            "Changing selection must conceal the new entry's password"
+        )
+    }
+
     /// The vault columns are native `List(selection:)`, so the arrow keys are
     /// AppKit's, not something the app implements. These two tests are what
     /// catch a regression back to hand-rolled button rows, where nothing moved.
@@ -277,6 +307,44 @@ final class MacSmokeUITests: MacUITestCase {
             .matching(identifier: "settings.lock-policy.picker")
             .firstMatch
         XCTAssertTrue(lockPolicyPicker.waitForExistence(timeout: 15), "Settings window did not show the lock-policy picker")
+    }
+
+    /// Real settings-window keystrokes prove that disabling the SwiftUI
+    /// recorder removes its AppKit monitor; a controller test cannot reach it.
+    func testCloseDatabaseWaitsForDirtyEditorAndReturnsToListAfterDiscard() {
+        unlockSuccessfully()
+        typeCommandShortcut("n")
+        let titleField = app.textFields["entry-edit.title-field"].firstMatch
+        XCTAssertTrue(titleField.waitForExistence(timeout: 15))
+        titleField.click()
+        app.typeText("Unsaved Close Database Entry")
+
+        typeCommandShortcut("w", modifiers: [.command, .shift])
+        let keepEditing = app.sheets.buttons["Keep Editing"].firstMatch
+        XCTAssertTrue(keepEditing.waitForExistence(timeout: 10), "Close Database did not prompt for the dirty editor")
+        XCTAssertTrue(keepEditing.isHittable)
+        keepEditing.click()
+
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        XCTAssertEqual(titleField.value as? String, "Unsaved Close Database Entry")
+        let databasePlaceholder = app.staticTexts.matching(
+            NSPredicate(format: "label == %@ OR value == %@", "Select a Database", "Select a Database")
+        ).firstMatch
+        XCTAssertFalse(databasePlaceholder.exists, "Keep Editing closed the database")
+
+        typeCommandShortcut("w", modifiers: [.command, .shift])
+        let discard = app.sheets.buttons["Discard and Lock"].firstMatch
+        XCTAssertTrue(discard.waitForExistence(timeout: 10))
+        XCTAssertTrue(discard.isHittable)
+        discard.click()
+
+        XCTAssertTrue(
+            databasePlaceholder.waitForExistence(timeout: 15),
+            "Discarding the editor did not complete Close Database"
+        )
+        XCTAssertFalse(titleField.exists)
+        XCTAssertFalse(app.secureTextFields["unlock.password.field"].exists)
+        XCTAssertTrue(app.buttons["database.row"].firstMatch.exists)
     }
 
     // MARK: - Unlock keyboard handling

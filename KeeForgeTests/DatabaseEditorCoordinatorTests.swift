@@ -109,8 +109,362 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
         XCTAssertNotNil(editor.errorMessage)
         XCTAssertNil(database.saveError)
         XCTAssertTrue(database.isDirty)
-        XCTAssertFalse(database.hasUnsavedEditor)
+        XCTAssertTrue(database.hasUnsavedEditor)
         database.lock()
+    }
+
+    func testFailedCreateThenFurtherEditsSaveTheLatestFieldsBeforeLocking() async throws {
+        let attempts = SaveAttempts()
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            try await attempts.save(draft: draft, hash: hash)
+        }
+        defer { database.lock() }
+        let form = EntryEditViewModel(createIn: try XCTUnwrap(database.rootGroup?.id))
+        form.title = "Staged create before failure"
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        await editor.save { _ in XCTFail("First write should fail") }
+        XCTAssertTrue(database.hasUnsavedEditor)
+
+        form.title = "Latest create before lock"
+        database.lockRequest(manuallyTriggered: true)
+        let request = try XCTUnwrap(editor.pendingLockRequest)
+        XCTAssertEqual(request.reason, .openEditor)
+        var completions: [EntryEditCompletion] = []
+        await editor.save(resuming: request) { completions.append($0) }
+
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertEqual(database.state, .locked)
+        let titles = await attempts.writtenTitles
+        XCTAssertEqual(titles.filter { $0 == form.title }.count, 1)
+        XCTAssertFalse(titles.contains("Staged create before failure"))
+    }
+
+    func testFailedEntryUpdateThenFurtherEditsSaveTheLatestFieldsBeforeLocking() async throws {
+        let attempts = SaveAttempts()
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            try await attempts.save(draft: draft, hash: hash)
+        }
+        defer { database.lock() }
+        let form = EntryEditViewModel(
+            editing: try XCTUnwrap(database.rootGroup?.allEntries.first),
+            sessionKey: try XCTUnwrap(database.sessionKey)
+        )
+        form.title = "Staged update before failure"
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        await editor.save { _ in XCTFail("First write should fail") }
+        XCTAssertTrue(database.hasUnsavedEditor)
+
+        form.title = "Latest update before lock"
+        database.lockRequest(manuallyTriggered: true)
+        let request = try XCTUnwrap(editor.pendingLockRequest)
+        var completions: [EntryEditCompletion] = []
+        await editor.save(resuming: request) { completions.append($0) }
+
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertEqual(database.state, .locked)
+        let titles = await attempts.writtenTitles
+        XCTAssertTrue(titles.contains(form.title))
+        XCTAssertFalse(titles.contains("Staged update before failure"))
+    }
+
+    func testFailedGroupUpdateThenFurtherEditsSaveTheLatestFieldsBeforeLocking() async throws {
+        let attempts = SaveAttempts()
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            try await attempts.save(draft: draft, hash: hash)
+        }
+        defer { database.lock() }
+        let form = GroupEditViewModel(
+            editing: try XCTUnwrap(database.rootGroup?.groups.first), isHiddenFromAutoFill: false
+        )
+        form.name = "Staged group before failure"
+        let editor = DatabaseEditorCoordinator(group: form, database: database)
+        editor.activate()
+        await editor.save { _ in XCTFail("First write should fail") }
+        XCTAssertTrue(database.hasUnsavedEditor)
+
+        form.name = "Latest group before lock"
+        database.lockRequest(manuallyTriggered: true)
+        let request = try XCTUnwrap(editor.pendingLockRequest)
+        var completions: [EntryEditCompletion] = []
+        await editor.save(resuming: request) { completions.append($0) }
+
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertEqual(database.state, .locked)
+        let names = await attempts.writtenGroupNames
+        XCTAssertTrue(names.contains(form.name))
+        XCTAssertFalse(names.contains("Staged group before failure"))
+    }
+
+    func testCreateConflictKeepsTheOpenEditorRegisteredForFurtherEditsAndLock() async throws {
+        let attempts = SaveAttempts(conflicts: true)
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            try await attempts.save(draft: draft, hash: hash)
+        }
+        defer { database.lock() }
+        let form = EntryEditViewModel(createIn: try XCTUnwrap(database.rootGroup?.id))
+        form.title = "Staged conflict"
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        await editor.save { _ in XCTFail("Conflict must hold completion") }
+        XCTAssertTrue(database.hasUnsavedEditor)
+
+        form.title = "Latest fields after conflict"
+        database.lockRequest(manuallyTriggered: true)
+        let request = try XCTUnwrap(editor.pendingLockRequest)
+        await editor.save(resuming: request) { _ in }
+
+        XCTAssertEqual(database.state, .locked)
+        let titles = await attempts.writtenTitles
+        XCTAssertTrue(titles.contains(form.title))
+        XCTAssertFalse(titles.contains("Staged conflict"))
+    }
+
+    func testCreateRetryAfterWriteFailureKeepsOneEntryAndDoesNotAddHistory() async throws {
+        let attempts = SaveAttempts()
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            try await attempts.save(draft: draft, hash: hash)
+        }
+        defer { database.lock() }
+        let originalCount = try XCTUnwrap(database.rootGroup).allEntries.count
+        let form = EntryEditViewModel(createIn: try XCTUnwrap(database.rootGroup?.id))
+        form.title = "Retry unchanged creation"
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        var completions: [EntryEditCompletion] = []
+
+        await editor.save { completions.append($0) }
+        let staged = try XCTUnwrap(database.currentRootGroup?.allEntries.first { $0.title == form.title })
+        XCTAssertTrue(completions.isEmpty)
+        XCTAssertNotNil(editor.errorMessage)
+
+        await editor.save { completions.append($0) }
+
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertEqual(database.rootGroup?.allEntries.count, originalCount + 1)
+        XCTAssertEqual(database.entry(withID: staged.id)?.title, form.title)
+        XCTAssertTrue(try XCTUnwrap(database.entry(withID: staged.id)).history.isEmpty)
+        let editCounts = await attempts.editCounts
+        XCTAssertEqual(editCounts, [1, 1])
+        XCTAssertNil(editor.errorMessage)
+        XCTAssertFalse(database.isDirty)
+    }
+
+    func testCreateRetryUpdatesFieldsDestinationAndRemovedAttachmentsOnTheSameEntry() async throws {
+        let attempts = SaveAttempts()
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            try await attempts.save(draft: draft, hash: hash)
+        }
+        defer { database.lock() }
+        let root = try XCTUnwrap(database.rootGroup)
+        let destination = try XCTUnwrap(root.groups.first)
+        let form = EntryEditViewModel(createIn: root.id)
+        form.title = "First attempt"
+        form.password = "first-password"
+        form.addAttachment(named: "remove.txt", data: Data("temporary".utf8))
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        var completions: [EntryEditCompletion] = []
+
+        await editor.save { completions.append($0) }
+        let entryID = try XCTUnwrap(database.currentRootGroup?.allEntries.first { $0.title == form.title }?.id)
+        form.title = "Edited retry"
+        form.password = "retry-password"
+        form.username = "retry-user"
+        form.pendingTagText = "retry-tag"
+        form.removeAttachment(id: try XCTUnwrap(form.attachments.first?.id))
+        form.setCreateDestination(to: destination.id, inheritedTags: [])
+        await editor.save { completions.append($0) }
+
+        let entry = try XCTUnwrap(database.entry(withID: entryID))
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertEqual(database.rootGroup?.allEntries.count, root.allEntries.count + 1)
+        XCTAssertTrue(try XCTUnwrap(database.group(withID: destination.id)).entries.contains { $0.id == entryID })
+        XCTAssertEqual(entry.title, "Edited retry")
+        XCTAssertEqual(entry.username, "retry-user")
+        XCTAssertEqual(entry.tags, ["retry-tag"])
+        XCTAssertEqual(try entry.password.decrypt(using: XCTUnwrap(database.sessionKey)), "retry-password")
+        XCTAssertTrue(entry.attachments.isEmpty)
+    }
+
+    func testCreateRetryStagesFreshEntryAfterItsDraftWasDiscarded() async throws {
+        let attempts = SaveAttempts()
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            try await attempts.save(draft: draft, hash: hash)
+        }
+        defer { database.lock() }
+        let root = try XCTUnwrap(database.rootGroup)
+        let form = EntryEditViewModel(createIn: root.id)
+        form.title = "Discarded staging"
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        await editor.save { _ in XCTFail("First write should fail") }
+        let discardedID = try XCTUnwrap(database.currentRootGroup?.allEntries.first { $0.title == form.title }?.id)
+
+        database.discardDraft()
+        form.title = "Fresh retry"
+        var completions: [EntryEditCompletion] = []
+        await editor.save { completions.append($0) }
+
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertNil(database.entry(withID: discardedID))
+        XCTAssertEqual(database.rootGroup?.allEntries.count, root.allEntries.count + 1)
+        XCTAssertNotNil(database.rootGroup?.allEntries.first { $0.title == form.title })
+    }
+
+    func testCreateConflictRetryKeepsTheStagedIdentity() async throws {
+        let attempts = SaveAttempts(conflicts: true)
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            try await attempts.save(draft: draft, hash: hash)
+        }
+        defer { database.lock() }
+        let root = try XCTUnwrap(database.rootGroup)
+        let form = EntryEditViewModel(createIn: root.id)
+        form.title = "Conflicted creation"
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        var completions: [EntryEditCompletion] = []
+        await editor.save { completions.append($0) }
+        let entryID = try XCTUnwrap(database.currentRootGroup?.allEntries.first { $0.title == form.title }?.id)
+        XCTAssertNotNil(database.saveConflict)
+        XCTAssertTrue(completions.isEmpty)
+
+        form.title = "Retry after conflict"
+        await editor.save { completions.append($0) }
+        editor.completeAfterConflictIfSettled { completions.append($0) }
+
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertNil(database.saveConflict)
+        XCTAssertEqual(database.rootGroup?.allEntries.count, root.allEntries.count + 1)
+        XCTAssertEqual(database.entry(withID: entryID)?.title, form.title)
+    }
+
+    func testCreateRetryAfterConflictReloadReplacesTheDiscardedIdentity() async throws {
+        let attempts = SaveAttempts(conflicts: true)
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            try await attempts.save(draft: draft, hash: hash)
+        }
+        defer { database.lock() }
+        let root = try XCTUnwrap(database.rootGroup)
+        let form = EntryEditViewModel(createIn: root.id)
+        form.title = "Reloaded creation"
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        await editor.save { _ in XCTFail("Conflict must hold completion") }
+        let discardedID = try XCTUnwrap(database.currentRootGroup?.allEntries.first { $0.title == form.title }?.id)
+
+        try await database.reloadDiscardingDraft()
+        XCTAssertNil(database.entry(withID: discardedID))
+        form.title = "Created after reload"
+        var completions: [EntryEditCompletion] = []
+        await editor.save { completions.append($0) }
+
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertNil(database.entry(withID: discardedID))
+        XCTAssertEqual(database.rootGroup?.allEntries.count, root.allEntries.count + 1)
+        XCTAssertNotNil(database.rootGroup?.allEntries.first { $0.title == form.title })
+    }
+
+    func testCreateRetryRefusesVanishedDestinationWithoutLosingItsStagedEntry() async throws {
+        let attempts = SaveAttempts()
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            try await attempts.save(draft: draft, hash: hash)
+        }
+        defer { database.lock() }
+        let root = try XCTUnwrap(database.rootGroup)
+        let form = EntryEditViewModel(createIn: root.id)
+        form.title = "Keep staged identity"
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        await editor.save { _ in XCTFail("First write should fail") }
+        let stagedID = try XCTUnwrap(database.currentRootGroup?.allEntries.first { $0.title == form.title }?.id)
+        form.setCreateDestination(to: UUID(), inheritedTags: [])
+
+        await editor.save { _ in XCTFail("Missing destination must not complete") }
+
+        XCTAssertNotNil(editor.errorMessage)
+        XCTAssertNotNil(database.entry(withID: stagedID))
+        XCTAssertEqual(database.draft?.pendingEdits.count, 1)
+        let editCounts = await attempts.editCounts
+        XCTAssertEqual(editCounts, [1])
+        form.setCreateDestination(to: root.id, inheritedTags: [])
+        await editor.save { _ in }
+        XCTAssertEqual(database.entry(withID: stagedID)?.title, form.title)
+        XCTAssertEqual(database.rootGroup?.allEntries.count, root.allEntries.count + 1)
+    }
+
+    func testDiscardAfterCreateWriteFailureLeavesTheDatabaseDraftAndStopsEditorRetries() async throws {
+        let database = try await makeDatabase { _, _, _, _, _, _, _ in
+            throw DatabaseSaveError.networkUnavailable
+        }
+        defer { database.lock() }
+        let form = EntryEditViewModel(createIn: try XCTUnwrap(database.rootGroup?.id))
+        form.title = "Database owns the failed write"
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        await editor.save { _ in XCTFail("Write should fail") }
+        let stagedID = try XCTUnwrap(database.currentRootGroup?.allEntries.first { $0.title == form.title }?.id)
+        var completions: [EntryEditCompletion] = []
+
+        editor.discard { completions.append($0) }
+        await editor.save { completions.append($0) }
+
+        XCTAssertEqual(completions, [.cancelled])
+        XCTAssertTrue(database.isDirty)
+        XCTAssertNotNil(database.entry(withID: stagedID))
+        XCTAssertEqual(database.draft?.pendingEdits.count, 1)
+        XCTAssertFalse(database.hasUnsavedEditor)
+    }
+
+    func testReactivatedEditorRetriesTheSameCreationAndIgnoresPriorLifetimeCompletion() async throws {
+        let action = SaveAction()
+        let attempts = SaveAttempts()
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            await action.run()
+            return try await attempts.save(draft: draft, hash: hash)
+        }
+        defer { database.lock() }
+        let root = try XCTUnwrap(database.rootGroup)
+        let form = EntryEditViewModel(createIn: root.id)
+        form.title = "Reactivated creation"
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        action.operation = {
+            editor.deactivate()
+            editor.activate()
+        }
+        var completions: [EntryEditCompletion] = []
+        await editor.save { completions.append($0) }
+        let stagedID = try XCTUnwrap(database.currentRootGroup?.allEntries.first { $0.title == form.title }?.id)
+        XCTAssertTrue(completions.isEmpty)
+        XCTAssertNil(editor.errorMessage)
+
+        action.operation = {}
+        await editor.save { completions.append($0) }
+
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertEqual(database.rootGroup?.allEntries.count, root.allEntries.count + 1)
+        XCTAssertEqual(database.entry(withID: stagedID)?.title, form.title)
+    }
+
+    func testOldActiveEditorCannotStageItsCreationAfterSessionLocksAndUnlocks() async throws {
+        let database = try await makeDatabase { _, _, _, _, _, _, _ in
+            throw DatabaseSaveError.networkUnavailable
+        }
+        defer { database.lock() }
+        let form = EntryEditViewModel(createIn: try XCTUnwrap(database.rootGroup?.id))
+        form.title = "Stale creation"
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        await editor.save { _ in XCTFail("Write should fail") }
+        database.lock()
+        await database.unlock(password: KDBXTestFixture.test.password)
+
+        await editor.save { _ in XCTFail("Old editor must not complete in another session") }
+
+        XCTAssertFalse(database.isDirty)
+        XCTAssertNil(database.currentRootGroup?.allEntries.first { $0.title == form.title })
     }
 
     func testGroupConflictWaitsForSuccessfulMergeAndSummaryAcknowledgement() async throws {
@@ -267,6 +621,26 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
     private final class SaveAction {
         var operation: () -> Void = {}
         func run() { operation() }
+    }
+
+    private actor SaveAttempts {
+        let conflicts: Bool
+        private(set) var editCounts: [Int] = []
+        private(set) var writtenTitles: [String] = []
+        private(set) var writtenGroupNames: [String] = []
+
+        init(conflicts: Bool = false) { self.conflicts = conflicts }
+
+        func save(draft: DatabaseDraft, hash: Data) throws -> SaveResult {
+            editCounts.append(draft.pendingEdits.count)
+            if editCounts.count == 1 {
+                if conflicts { return .conflict(remoteSHA512: Data([1]), remoteData: Data([2])) }
+                throw DatabaseSaveError.networkUnavailable
+            }
+            writtenTitles = draft.rootGroup.allEntries.map(\.title)
+            writtenGroupNames = draft.rootGroup.groups.map(\.name)
+            return .saved(newSHA512: hash)
+        }
     }
 
     private func makeDatabase(

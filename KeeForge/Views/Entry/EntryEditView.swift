@@ -11,7 +11,7 @@ struct EntryEditView: View {
     @State private var showDeleteConfirmation = false
     @State private var showPasswordGenerator = false
     @State private var isPasswordVisible: Bool
-    @State private var isAuthenticatingReveal = false
+    @State private var secretAction = EntrySecretAction()
     @State private var coordinator: DatabaseEditorCoordinator
 
     @State private var isTOTPSecretVisible: Bool
@@ -22,7 +22,7 @@ struct EntryEditView: View {
     @State private var showGroupPicker = false
     @State private var showRemoveTOTPConfirmation = false
     @State private var showAttachmentImporter = false
-    @State private var isImportingAttachments = false
+    @State private var attachmentLoadCoordinator = AttachmentLoadCoordinator()
     @State private var attachmentErrorMessage: String?
     /// String mirror for the numeric period field; committed to the view
     /// model only when it parses to a positive integer. Focus loss and submit
@@ -33,6 +33,10 @@ struct EntryEditView: View {
 
     private var isSavingInProgress: Bool {
         coordinator.isSavingInProgress
+    }
+
+    private var isImportingAttachments: Bool {
+        attachmentLoadCoordinator.isLoading
     }
 
     private var isEntryInRecycleBin: Bool {
@@ -270,7 +274,8 @@ struct EntryEditView: View {
         #endif
         .modifier(EntryAttachmentImporter(
             isPresented: $showAttachmentImporter,
-            isImporting: $isImportingAttachments,
+            databaseViewModel: databaseViewModel,
+            loadCoordinator: attachmentLoadCoordinator,
             errorMessage: $attachmentErrorMessage,
             onLoad: { formViewModel.addAttachment(named: $0.name, data: $0.data) }
         ))
@@ -310,6 +315,10 @@ struct EntryEditView: View {
             }
         }
         .onAppear { coordinator.activate() }
+        .onChange(of: formViewModel.password) { secretAction.invalidate() }
+        .onChange(of: formViewModel.totpSecret) { secretAction.invalidate() }
+        .onChange(of: formViewModel.customFields) { secretAction.invalidate() }
+        .onChange(of: formViewModel.mode) { secretAction.invalidate() }
         .onChange(of: coordinator.conflictHasSettled) { _, _ in
             coordinator.completeAfterConflictIfSettled(onComplete: onComplete)
         }
@@ -330,6 +339,10 @@ struct EntryEditView: View {
             attachmentErrorMessage = nil
         }
         .onDisappear {
+            secretAction.invalidate()
+            isPasswordVisible = false
+            isTOTPSecretVisible = false
+            revealedCustomFieldIDs = []
             coordinator.deactivate()
         }
         .alert(
@@ -384,27 +397,39 @@ struct EntryEditView: View {
     }
 
     private func togglePasswordVisibility() {
-        toggleProtectedFieldVisibility($isPasswordVisible, reason: String(localized: "View password"))
+        let password = formViewModel.password
+        toggleProtectedFieldVisibility(
+            $isPasswordVisible,
+            reason: String(localized: "View password"),
+            isCurrentSource: { formViewModel.password == password }
+        )
     }
 
     private func toggleTOTPSecretVisibility() {
+        let secret = formViewModel.totpSecret
         toggleProtectedFieldVisibility(
             $isTOTPSecretVisible,
-            reason: String(localized: "View verification code secret")
+            reason: String(localized: "View verification code secret"),
+            isCurrentSource: { formViewModel.totpSecret == secret }
         )
     }
 
     /// Reveal is gated behind device-owner authentication in edit mode; a
     /// create-mode value was typed this session, so hiding and re-showing it
     /// stays ungated.
-    private func toggleProtectedFieldVisibility(_ isVisible: Binding<Bool>, reason: String) {
+    private func toggleProtectedFieldVisibility(
+        _ isVisible: Binding<Bool>,
+        reason: String,
+        isCurrentSource: @escaping @MainActor () -> Bool
+    ) {
         if isVisible.wrappedValue {
             HapticService.tap()
             isVisible.wrappedValue = false
             return
         }
 
-        guard isAuthenticatingReveal == false else { return }
+        let currentSession = EntrySecretAction.currentSession(databaseViewModel)
+        guard !secretAction.isAuthenticating, currentSession(), isCurrentSource() else { return }
         guard formViewModel.requiresAuthenticationToRevealPassword,
               BiometricService.canAuthenticateDeviceOwner else {
             HapticService.tap()
@@ -412,21 +437,16 @@ struct EntryEditView: View {
             return
         }
 
-        isAuthenticatingReveal = true
-        Task {
-            do {
+        secretAction.perform(
+            authenticate: {
                 _ = try await BiometricService.authenticateDeviceOwner(reason: reason)
-                await MainActor.run {
-                    HapticService.success()
-                    isVisible.wrappedValue = true
-                }
-            } catch {
-                // The stored secret stays concealed when authentication fails.
+            },
+            isCurrent: { currentSession() && isCurrentSource() },
+            disclose: {
+                HapticService.success()
+                isVisible.wrappedValue = true
             }
-            await MainActor.run {
-                isAuthenticatingReveal = false
-            }
-        }
+        )
     }
 
     private func customFieldRow(_ field: Binding<EntryEditViewModel.CustomField>) -> some View {
@@ -502,9 +522,11 @@ struct EntryEditView: View {
     }
 
     private func toggleCustomFieldVisibility(_ id: UUID) {
+        guard let field = formViewModel.customFields.first(where: { $0.id == id }) else { return }
         toggleProtectedFieldVisibility(
             customFieldVisibility(id),
-            reason: String(localized: "View protected field")
+            reason: String(localized: "View protected field"),
+            isCurrentSource: { formViewModel.customFields.first(where: { $0.id == id }) == field }
         )
     }
 
@@ -842,6 +864,7 @@ private struct TOTPSetupLinkSheet: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .keyboardType(.URL)
+                .macFormFieldStyle()
                 .accessibilityIdentifier("entry-edit.totp.link-field")
 
                 if let errorMessage {
@@ -851,6 +874,7 @@ private struct TOTPSetupLinkSheet: View {
                         .accessibilityIdentifier("entry-edit.totp.link-error")
                 }
             }
+            .macGroupedForm()
             .navigationTitle("Enter Setup Link")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

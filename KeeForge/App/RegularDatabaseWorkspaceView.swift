@@ -177,6 +177,7 @@ struct RegularDatabaseWorkspaceView: View {
                     onSelectTag: selectTag,
                     popsOnClose: false
                 )
+                .id(selectedEntryID)
             } else if viewModel.searchText.isEmpty || viewModel.searchResults.isEmpty {
                 // With no matches the sidebar already says "No Results"; the
                 // detail must not contradict it with "select a matching entry".

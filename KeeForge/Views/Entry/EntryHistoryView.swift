@@ -147,6 +147,10 @@ private struct EntryHistoryVersionFields: View {
     let sessionKey: SymmetricKey
     @Bindable var viewModel: DatabaseViewModel
 
+    private var secretActionIsCurrent: @MainActor () -> Bool {
+        EntrySecretAction.currentSession(viewModel)
+    }
+
     var body: some View {
         Group {
             if !version.title.isEmpty {
@@ -172,7 +176,8 @@ private struct EntryHistoryVersionFields: View {
                     password: version.password,
                     sessionKey: sessionKey,
                     resolveReferences: viewModel.resolvingFieldReferences,
-                    accessibilityPrefix: "entry-history"
+                    accessibilityPrefix: "entry-history",
+                    isCurrent: secretActionIsCurrent
                 )
             }
             if !version.url.isEmpty {
@@ -207,7 +212,8 @@ private struct EntryHistoryVersionFields: View {
                                 label: key,
                                 value: viewModel.resolvingFieldReferences(value),
                                 accessibilityPrefix: "entry-history",
-                                showsInlineLabel: true
+                                showsInlineLabel: true,
+                                isCurrent: secretActionIsCurrent
                             )
                         } else {
                             FieldRow(
