@@ -38,10 +38,10 @@ struct DatabaseCreationView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        viewModel.clearSecrets()
-                        viewModel.clearPreparedDatabase()
+                        viewModel.cancelPendingCreation()
                         dismiss()
                     }
+                    .disabled(viewModel.isCreating)
                     .accessibilityIdentifier("database-create.cancel-button")
                 }
 
@@ -69,6 +69,10 @@ struct DatabaseCreationView: View {
                     .accessibilityIdentifier("database-create.create-button")
                 }
             }
+        }
+        .interactiveDismissDisabled(viewModel.isCreating)
+        .onDisappear {
+            viewModel.cancelPendingCreation()
         }
         .fileExporter(
             isPresented: $isDestinationExporterPresented,

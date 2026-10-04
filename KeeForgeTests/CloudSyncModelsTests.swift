@@ -182,13 +182,34 @@ final class CloudSyncModelsTests: XCTestCase {
     /// them here makes a rename fail as a test, not as a silent downgrade to
     /// `unknown` on the next launch.
     func testCloudSyncIssueEncodesStableCodes() throws {
-        let encoded = try JSONEncoder().encode(CloudSyncIssue.conflict)
-        let json = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
-        )
+        let cases: [(CloudSyncIssue, String)] = [
+            (.invalidConfiguration, "invalidConfiguration"),
+            (.authenticationCancelled, "authenticationCancelled"),
+            (.notAuthenticated, "notAuthenticated"),
+            (.networkUnavailable, "networkUnavailable"),
+            (.fileNotFound, "fileNotFound"),
+            (.conflict, "conflict"),
+            (.writeScopeRequired, "writeScopeRequired"),
+            (.rateLimited, "rateLimited"),
+            (.serviceUnavailable, "serviceUnavailable"),
+            (.insufficientSpace, "insufficientSpace"),
+            (.permissionDenied, "permissionDenied"),
+            (.invalidName, "invalidName"),
+            (.unknown("server said no"), "unknown"),
+        ]
 
-        XCTAssertEqual(json["code"] as? String, "conflict")
-        XCTAssertNil(json["message"])
+        for (issue, code) in cases {
+            let encoded = try JSONEncoder().encode(issue)
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+            XCTAssertEqual(json["code"] as? String, code, "\(issue)")
+            if case .unknown(let message) = issue {
+                XCTAssertEqual(json["message"] as? String, message)
+            } else {
+                XCTAssertNil(json["message"], "\(issue)")
+                let persisted = Data("{\"code\":\"\(code)\"}".utf8)
+                XCTAssertEqual(try JSONDecoder().decode(CloudSyncIssue.self, from: persisted), issue)
+            }
+        }
     }
 
     func testCloudSyncIssueDecodesUnrecognizedCodeAsUnknownRatherThanThrowing() throws {

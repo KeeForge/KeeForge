@@ -417,7 +417,136 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    func test_save_finishesAfterCancellation_doesNotRestoreClearedVault() async throws {
+        try await assertLateSaveIsIgnored(startsReplacementRequest: false)
+    }
+
+    func test_save_finishesDuringReplacementRequest_doesNotCompleteOrOverwriteIt() async throws {
+        try await assertLateSaveIsIgnored(startsReplacementRequest: true)
+    }
+
+    func test_save_failsDuringReplacementRequest_doesNotShowObsoleteError() async throws {
+        try await assertLateSaveIsIgnored(startsReplacementRequest: true, fails: true)
+    }
+
+    func test_save_oldCreatorCallback_doesNotSaveIntoReplacementVault() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let reference = try seedResolvableDefaultDatabase()
+        seedUnlockedVaultState(coordinator)
+        coordinator.activeDatabaseReference = reference
+        let recorder = Recorder()
+        coordinator.passkeySaveEnvironment = makeRecordingEnvironment(recorder)
+        coordinator.pendingPasskeyRegistrationRequest = makeRegistrationRequest()
+        XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
+        let oldCreator = try XCTUnwrap(presenter.passkeyCreator)
+
+        presenter.isPresentationActive = false
+        coordinator.prepareCredentialList(for: [])
+        let replacementRoot = KPGroup(name: "Replacement")
+        seedUnlockedVaultState(coordinator)
+        coordinator.parsedRootGroup = replacementRoot
+        coordinator.activeDatabaseReference = reference
+
+        let outcome = await oldCreator.onSave("Old Passkey")
+
+        guard case .completed = outcome else {
+            return XCTFail("An obsolete callback must not present an alert, got \(outcome)")
+        }
+        XCTAssertTrue(recorder.events.isEmpty)
+        XCTAssertNil(presenter.completedRegistration)
+        XCTAssertEqual(coordinator.parsedRootGroup?.id, replacementRoot.id)
+        XCTAssertNotNil(coordinator.sessionKey)
+        coordinator.cancelRequest(code: .userCanceled)
+    }
+
     // MARK: - Helpers
+
+    private func assertLateSaveIsIgnored(
+        startsReplacementRequest: Bool,
+        fails: Bool = false
+    ) async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let reference = try seedResolvableDefaultDatabase()
+        seedUnlockedVaultState(coordinator)
+        coordinator.activeDatabaseReference = reference
+        let recorder = Recorder()
+        let gate = SaveGate()
+        let saveStarted = expectation(description: "save suspended")
+        coordinator.passkeySaveEnvironment = makeRecordingEnvironment(
+            recorder,
+            saveDraft: { draft, _, _, _ in
+                await gate.wait(started: saveStarted)
+                if fails { throw SaveError.databaseLocationUnavailable }
+                recorder.events.append("saveDraft")
+                recorder.savedRootGroups.append(draft.rootGroup)
+                return .saved(AutoFillSaveCoordinator.SaveOutcome(
+                    savedRootGroup: draft.rootGroup,
+                    newSHA512: Data("old-save-sha".utf8),
+                    enqueuedPendingUpload: false
+                ))
+            }
+        )
+        coordinator.pendingPasskeyRegistrationRequest = makeRegistrationRequest()
+        XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
+        let creator = try XCTUnwrap(presenter.passkeyCreator)
+        let saveTask = Task { await creator.onSave("Old Passkey") }
+        await fulfillment(of: [saveStarted], timeout: 2)
+
+        coordinator.cancelRequest(code: .userCanceled)
+        assertCleanedUp(coordinator)
+        let replacementRoot = KPGroup(name: "Replacement")
+        let replacementHash = Data("replacement-sha".utf8)
+        if startsReplacementRequest {
+            presenter.isPresentationActive = false
+            coordinator.prepareCredentialList(for: [])
+            seedUnlockedVaultState(coordinator)
+            coordinator.activeDatabaseReference = reference
+            coordinator.parsedRootGroup = replacementRoot
+            coordinator.openTimeSHA512 = replacementHash
+        }
+
+        await gate.resume()
+        let outcome = await saveTask.value
+
+        guard case .completed = outcome else {
+            return XCTFail("An obsolete save must not present an alert, got \(outcome)")
+        }
+        XCTAssertNil(presenter.completedRegistration)
+        XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
+        if fails {
+            XCTAssertTrue(recorder.savedRootGroups.isEmpty)
+        } else {
+            XCTAssertEqual(recorder.events, ["saveDraft", "populate"])
+            XCTAssertNotNil(recorder.savedRootGroups.first?.allEntries.first?.passkeyCredential)
+        }
+        if startsReplacementRequest {
+            XCTAssertEqual(coordinator.parsedRootGroup?.id, replacementRoot.id)
+            XCTAssertEqual(coordinator.openTimeSHA512, replacementHash)
+            XCTAssertNotNil(coordinator.sessionKey)
+            coordinator.cancelRequest(code: .userCanceled)
+        } else {
+            assertCleanedUp(coordinator)
+        }
+    }
+
+    private actor SaveGate {
+        private var continuation: CheckedContinuation<Void, Never>?
+        private var isResumed = false
+
+        func wait(started: XCTestExpectation) async {
+            guard !isResumed else { return }
+            await withCheckedContinuation { continuation in
+                self.continuation = continuation
+                started.fulfill()
+            }
+        }
+
+        func resume() {
+            isResumed = true
+            continuation?.resume()
+            continuation = nil
+        }
+    }
 
     private func makeCoordinator() -> (CredentialProviderCoordinator, CredentialProviderPresentingSpy) {
         let presenter = CredentialProviderPresentingSpy()

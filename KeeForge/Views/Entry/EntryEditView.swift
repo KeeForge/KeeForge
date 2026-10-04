@@ -8,15 +8,11 @@ struct EntryEditView: View {
     let onComplete: (Completion) -> Void
 
     @State private var showDiscardConfirmation = false
-    /// Identifies this editor in the view model's unsaved-editor registry.
-    @State private var editorID = UUID()
     @State private var showDeleteConfirmation = false
     @State private var showPasswordGenerator = false
     @State private var isPasswordVisible: Bool
-    @State private var isAuthenticatingReveal = false
-    @State private var editingErrorMessage: String?
-    @State private var isSubmitting = false
-    @State private var completionGate = EntryEditCompletionGate()
+    @State private var secretAction = EntrySecretAction()
+    @State private var coordinator: DatabaseEditorCoordinator
 
     @State private var isTOTPSecretVisible: Bool
     @State private var revealedCustomFieldIDs: Set<UUID> = []
@@ -26,7 +22,7 @@ struct EntryEditView: View {
     @State private var showGroupPicker = false
     @State private var showRemoveTOTPConfirmation = false
     @State private var showAttachmentImporter = false
-    @State private var isImportingAttachments = false
+    @State private var attachmentLoadCoordinator = AttachmentLoadCoordinator()
     @State private var attachmentErrorMessage: String?
     /// String mirror for the numeric period field; committed to the view
     /// model only when it parses to a positive integer. Focus loss and submit
@@ -36,7 +32,11 @@ struct EntryEditView: View {
     @FocusState private var isTOTPPeriodFieldFocused: Bool
 
     private var isSavingInProgress: Bool {
-        isSubmitting || databaseViewModel.isSaving
+        coordinator.isSavingInProgress
+    }
+
+    private var isImportingAttachments: Bool {
+        attachmentLoadCoordinator.isLoading
     }
 
     private var isEntryInRecycleBin: Bool {
@@ -50,6 +50,7 @@ struct EntryEditView: View {
         onComplete: @escaping (Completion) -> Void = { _ in }
     ) {
         _formViewModel = State(initialValue: formViewModel)
+        _coordinator = State(initialValue: DatabaseEditorCoordinator(entry: formViewModel, database: databaseViewModel))
         _isPasswordVisible = State(initialValue: formViewModel.isPasswordInitiallyVisible)
         _isTOTPSecretVisible = State(initialValue: formViewModel.isPasswordInitiallyVisible)
         _totpPeriodText = State(initialValue: String(formViewModel.totpPeriod))
@@ -182,7 +183,7 @@ struct EntryEditView: View {
                     Button("Delete Entry", role: .destructive) {
                         showDeleteConfirmation = true
                     }
-                    .disabled(isSubmitting)
+                    .disabled(coordinator.isSubmitting)
                     .accessibilityIdentifier("entry-edit.delete")
                     // Attached to the button (not the Form) so iOS anchors the
                     // dialog to its source control instead of an arbitrary
@@ -232,7 +233,7 @@ struct EntryEditView: View {
             }
         }
         .overlay {
-            if isSubmitting && databaseViewModel.isSaving == false {
+            if coordinator.isSubmitting && databaseViewModel.isSaving == false {
                 ZStack {
                     Color.black.opacity(0.14)
                         .ignoresSafeArea()
@@ -273,7 +274,8 @@ struct EntryEditView: View {
         #endif
         .modifier(EntryAttachmentImporter(
             isPresented: $showAttachmentImporter,
-            isImporting: $isImportingAttachments,
+            databaseViewModel: databaseViewModel,
+            loadCoordinator: attachmentLoadCoordinator,
             errorMessage: $attachmentErrorMessage,
             onLoad: { formViewModel.addAttachment(named: $0.name, data: $0.data) }
         ))
@@ -312,13 +314,16 @@ struct EntryEditView: View {
                 snapBackInvalidTOTPPeriodText()
             }
         }
-        .onChange(of: conflictHasSettled) { _, settled in
-            if let completion = completionGate.conflictSettled(settled) {
-                onComplete(completion)
-            }
+        .onAppear { coordinator.activate() }
+        .onChange(of: formViewModel.password) { secretAction.invalidate() }
+        .onChange(of: formViewModel.totpSecret) { secretAction.invalidate() }
+        .onChange(of: formViewModel.customFields) { secretAction.invalidate() }
+        .onChange(of: formViewModel.mode) { secretAction.invalidate() }
+        .onChange(of: coordinator.conflictHasSettled) { _, _ in
+            coordinator.completeAfterConflictIfSettled(onComplete: onComplete)
         }
-        .onChange(of: formViewModel.isDirty, initial: true) { _, isDirty in
-            databaseViewModel.setEditorHasUnsavedChanges(isDirty, editorID: editorID)
+        .onChange(of: formViewModel.isDirty) { _, _ in
+            coordinator.synchronizeUnsavedChanges()
         }
         .onChange(of: pendingEditorLockRequest != nil) { _, isPending in
             // Anything presented above the editor would swallow the prompt.
@@ -334,7 +339,11 @@ struct EntryEditView: View {
             attachmentErrorMessage = nil
         }
         .onDisappear {
-            databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
+            secretAction.invalidate()
+            isPasswordVisible = false
+            isTOTPSecretVisible = false
+            revealedCustomFieldIDs = []
+            coordinator.deactivate()
         }
         .alert(
             "Save your changes before locking?",
@@ -350,19 +359,17 @@ struct EntryEditView: View {
             .disabled(formViewModel.canSave == false || isImportingAttachments)
             Button("Discard and Lock", role: .destructive) {
                 guard let request = pendingEditorLockRequest else { return }
-                databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
-                onComplete(.cancelled)
-                databaseViewModel.resumeLockRequest(request)
+                coordinator.discard(resuming: request, onComplete: onComplete)
             }
             Button("Keep Editing", role: .cancel) {
-                Task { await databaseViewModel.continueEditingAfterLockRequest() }
+                Task { await coordinator.continueEditingAfterLockRequest() }
             }
         } message: {
             Text(verbatim: formViewModel.saveBeforeLockMessage)
         }
         .alert("Discard changes?", isPresented: $showDiscardConfirmation) {
             Button("Discard Changes", role: .destructive) {
-                onComplete(.cancelled)
+                coordinator.discard(onComplete: onComplete)
             }
             Button("Keep Editing", role: .cancel) {}
         } message: {
@@ -371,17 +378,17 @@ struct EntryEditView: View {
         .alert(
             "Couldn’t Update Entry",
             isPresented: Binding(
-                get: { editingErrorMessage != nil },
+                get: { coordinator.errorMessage != nil },
                 set: { isPresented in
                     if isPresented == false {
-                        editingErrorMessage = nil
+                        coordinator.errorMessage = nil
                     }
                 }
             )
         ) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(editingErrorMessage ?? "")
+            Text(coordinator.errorMessage ?? "")
         }
     }
 
@@ -390,27 +397,39 @@ struct EntryEditView: View {
     }
 
     private func togglePasswordVisibility() {
-        toggleProtectedFieldVisibility($isPasswordVisible, reason: String(localized: "View password"))
+        let password = formViewModel.password
+        toggleProtectedFieldVisibility(
+            $isPasswordVisible,
+            reason: String(localized: "View password"),
+            isCurrentSource: { formViewModel.password == password }
+        )
     }
 
     private func toggleTOTPSecretVisibility() {
+        let secret = formViewModel.totpSecret
         toggleProtectedFieldVisibility(
             $isTOTPSecretVisible,
-            reason: String(localized: "View verification code secret")
+            reason: String(localized: "View verification code secret"),
+            isCurrentSource: { formViewModel.totpSecret == secret }
         )
     }
 
     /// Reveal is gated behind device-owner authentication in edit mode; a
     /// create-mode value was typed this session, so hiding and re-showing it
     /// stays ungated.
-    private func toggleProtectedFieldVisibility(_ isVisible: Binding<Bool>, reason: String) {
+    private func toggleProtectedFieldVisibility(
+        _ isVisible: Binding<Bool>,
+        reason: String,
+        isCurrentSource: @escaping @MainActor () -> Bool
+    ) {
         if isVisible.wrappedValue {
             HapticService.tap()
             isVisible.wrappedValue = false
             return
         }
 
-        guard isAuthenticatingReveal == false else { return }
+        let currentSession = EntrySecretAction.currentSession(databaseViewModel)
+        guard !secretAction.isAuthenticating, currentSession(), isCurrentSource() else { return }
         guard formViewModel.requiresAuthenticationToRevealPassword,
               BiometricService.canAuthenticateDeviceOwner else {
             HapticService.tap()
@@ -418,21 +437,16 @@ struct EntryEditView: View {
             return
         }
 
-        isAuthenticatingReveal = true
-        Task {
-            do {
+        secretAction.perform(
+            authenticate: {
                 _ = try await BiometricService.authenticateDeviceOwner(reason: reason)
-                await MainActor.run {
-                    HapticService.success()
-                    isVisible.wrappedValue = true
-                }
-            } catch {
-                // The stored secret stays concealed when authentication fails.
+            },
+            isCurrent: { currentSession() && isCurrentSource() },
+            disclose: {
+                HapticService.success()
+                isVisible.wrappedValue = true
             }
-            await MainActor.run {
-                isAuthenticatingReveal = false
-            }
-        }
+        )
     }
 
     private func customFieldRow(_ field: Binding<EntryEditViewModel.CustomField>) -> some View {
@@ -508,9 +522,11 @@ struct EntryEditView: View {
     }
 
     private func toggleCustomFieldVisibility(_ id: UUID) {
+        guard let field = formViewModel.customFields.first(where: { $0.id == id }) else { return }
         toggleProtectedFieldVisibility(
             customFieldVisibility(id),
-            reason: String(localized: "View protected field")
+            reason: String(localized: "View protected field"),
+            isCurrentSource: { formViewModel.customFields.first(where: { $0.id == id }) == field }
         )
     }
 
@@ -779,93 +795,20 @@ struct EntryEditView: View {
         if formViewModel.isDirty {
             showDiscardConfirmation = true
         } else {
-            onComplete(.cancelled)
+            coordinator.discard(onComplete: onComplete)
         }
     }
 
-    /// The lock request this editor's fields are holding up, if any.
     private var pendingEditorLockRequest: DatabaseViewModel.PendingLockRequest? {
-        guard let request = databaseViewModel.pendingLockRequest,
-              request.reason == .openEditor,
-              formViewModel.isDirty else { return nil }
-        return request
+        coordinator.pendingLockRequest
     }
 
     private func saveTapped(resuming lockRequest: DatabaseViewModel.PendingLockRequest? = nil) {
-        do {
-            switch formViewModel.mode {
-            case .create(let parentGroupID):
-                try databaseViewModel.applyEntryEdit(
-                    .createEntry(parentGroupID: parentGroupID, draft: formViewModel.entryDraftPayload)
-                )
-            case .edit(let entryID):
-                try databaseViewModel.applyEntryEdit(
-                    .updateEntry(entryID: entryID, draft: formViewModel.entryDraftPayload)
-                )
-            }
-        } catch {
-            editingErrorMessage = error.localizedDescription
-            return
-        }
-
-        // In the draft now: a write that fails from here is the workspace's.
-        databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
-
-        isSubmitting = true
-        Task { @MainActor in
-            await databaseViewModel.saveHandlingError()
-            isSubmitting = false
-
-            if let lockRequest {
-                finish(.saved)
-                databaseViewModel.resumeLockRequest(lockRequest)
-                return
-            }
-
-            if let saveError = databaseViewModel.saveError {
-                editingErrorMessage = saveError.localizedDescription
-                databaseViewModel.clearSaveError()
-            } else {
-                finish(.saved)
-            }
-        }
-    }
-
-    /// See `EntryEditCompletionGate` for why a conflicted save does not close
-    /// the editor right away.
-    private func finish(_ completion: Completion) {
-        if let completion = completionGate.finish(completion, hasSaveConflict: databaseViewModel.saveConflict != nil) {
-            onComplete(completion)
-        }
-    }
-
-    private var conflictHasSettled: Bool {
-        EntryEditCompletionGate.isSettled(
-            hasSaveConflict: databaseViewModel.saveConflict != nil,
-            isPresentingMergeResult: databaseViewModel.mergeSummaryMessage != nil || databaseViewModel.mergeFailure != nil,
-            isDirty: databaseViewModel.isDirty
-        )
+        Task { await coordinator.save(resuming: lockRequest, onComplete: onComplete) }
     }
 
     private func deleteTapped(sendToRecycleBin: Bool) {
-        guard case .edit(let entryID) = formViewModel.mode else { return }
-
-        do {
-            try databaseViewModel.deleteEntry(entryID, sendToRecycleBin: sendToRecycleBin)
-            isSubmitting = true
-            Task { @MainActor in
-                await databaseViewModel.saveHandlingError()
-                isSubmitting = false
-                if let saveError = databaseViewModel.saveError {
-                    editingErrorMessage = saveError.localizedDescription
-                    databaseViewModel.clearSaveError()
-                } else {
-                    finish(.deleted)
-                }
-            }
-        } catch {
-            editingErrorMessage = error.localizedDescription
-        }
+        Task { await coordinator.delete(sendToRecycleBin: sendToRecycleBin, onComplete: onComplete) }
     }
 }
 
@@ -921,6 +864,7 @@ private struct TOTPSetupLinkSheet: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .keyboardType(.URL)
+                .macFormFieldStyle()
                 .accessibilityIdentifier("entry-edit.totp.link-field")
 
                 if let errorMessage {
@@ -930,6 +874,7 @@ private struct TOTPSetupLinkSheet: View {
                         .accessibilityIdentifier("entry-edit.totp.link-error")
                 }
             }
+            .macGroupedForm()
             .navigationTitle("Enter Setup Link")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

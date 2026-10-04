@@ -171,6 +171,62 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.errorMessage)
     }
 
+    func testAccountSwitchClearsPreviousFilesWhileNewAccountLoads() async {
+        let provider = GatedBrowserCloudProvider()
+        let startedGate = AsyncGate()
+        let releaseGate = AsyncGate()
+        let oldFiles = [
+            CloudFile(id: "old", name: "old.kdbx", path: "/old.kdbx", isFolder: false, modifiedDate: nil, size: nil)
+        ]
+        let newFiles = [
+            CloudFile(id: "new", name: "new.kdbx", path: "/new.kdbx", isFolder: false, modifiedDate: nil, size: nil)
+        ]
+        provider.responses = [
+            { oldFiles },
+            { startedGate.open(); await releaseGate.wait(); return newFiles }
+        ]
+        let viewModel = CloudFolderBrowserViewModel(path: nil)
+        await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: false)
+        XCTAssertEqual(viewModel.files, oldFiles)
+
+        let newLoad = Task { await viewModel.load(provider: provider, accountID: "acct-2", includesAllFiles: false) }
+        await startedGate.wait()
+
+        XCTAssertTrue(viewModel.files.isEmpty)
+        XCTAssertTrue(viewModel.isLoading)
+        XCTAssertNil(viewModel.errorMessage)
+        releaseGate.open()
+        await newLoad.value
+        XCTAssertEqual(viewModel.files, newFiles)
+        XCTAssertFalse(viewModel.isLoading)
+    }
+
+    func testOldAccountLoadCannotReplaceNewAccountFiles() async {
+        let provider = GatedBrowserCloudProvider()
+        let startedGate = AsyncGate()
+        let releaseGate = AsyncGate()
+        let oldFiles = [
+            CloudFile(id: "old", name: "old.kdbx", path: "/old.kdbx", isFolder: false, modifiedDate: nil, size: nil)
+        ]
+        let newFiles = [
+            CloudFile(id: "new", name: "new.kdbx", path: "/new.kdbx", isFolder: false, modifiedDate: nil, size: nil)
+        ]
+        provider.responses = [
+            { startedGate.open(); await releaseGate.wait(); return oldFiles },
+            { newFiles }
+        ]
+        let viewModel = CloudFolderBrowserViewModel(path: nil)
+        let oldLoad = Task { await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: false) }
+        await startedGate.wait()
+        await viewModel.load(provider: provider, accountID: "acct-2", includesAllFiles: false)
+
+        releaseGate.open()
+        await oldLoad.value
+        XCTAssertEqual(viewModel.files, newFiles)
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertFalse(viewModel.isLoading)
+    }
+
     func testLoadDoesNotSurfaceCancellationErrorAsUserFacingMessage() async {
         let provider = MockBrowserCloudProvider()
         let viewModel = CloudFolderBrowserViewModel(path: nil)
@@ -264,6 +320,22 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
         session.cancelPendingAuthentication()
 
         XCTAssertEqual(provider.cancelPendingAuthenticationCallCount, 1)
+    }
+
+    func testBrowserSessionRejectsSelectionFromPreviousAccount() {
+        let firstAccount = CloudAccount(id: "acct-1", displayName: "First", provider: "dropbox")
+        let secondAccount = CloudAccount(id: "acct-2", displayName: "Second", provider: "dropbox")
+        let session = CloudFileBrowserSession(providerID: "dropbox") { _ in nil }
+        session.accounts = [firstAccount, secondAccount]
+        session.selectedAccountID = firstAccount.id
+        XCTAssertEqual(session.selectionAccount(matching: firstAccount.id), firstAccount)
+
+        session.selectedAccountID = secondAccount.id
+
+        XCTAssertNil(session.selectionAccount(matching: firstAccount.id))
+        XCTAssertEqual(session.selectionAccount(matching: secondAccount.id), secondAccount)
+        session.accounts = []
+        XCTAssertNil(session.selectionAccount(matching: secondAccount.id))
     }
 }
 

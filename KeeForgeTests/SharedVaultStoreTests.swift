@@ -23,17 +23,6 @@ final class SharedVaultStoreTests: XCTestCase {
         XCTAssertNil(SharedVaultStore.loadBookmarkedURL())
     }
 
-    func testDocumentPickerServiceDelegatesSaveLoadAndClear() throws {
-        let url = try makeTemporaryFileURL(name: "doc-picker-test.kdbx")
-
-        try DocumentPickerService.saveBookmark(for: url)
-        let loaded = try XCTUnwrap(DocumentPickerService.loadBookmarkedURL())
-        XCTAssertEqualFilePaths(loaded, url)
-
-        DocumentPickerService.clearBookmark()
-        XCTAssertNil(DocumentPickerService.loadBookmarkedURL())
-    }
-
     func testDocumentPickerRecognizesKDBXExtensionWithoutReadingHeader() {
         let url = URL(fileURLWithPath: "/tmp/vault.kdbx")
         var didReadHeader = false

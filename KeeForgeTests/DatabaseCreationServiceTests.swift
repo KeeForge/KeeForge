@@ -228,7 +228,8 @@ final class DatabaseCreationServiceTests: XCTestCase {
 
     func testCreateDatabaseDoesNotRegisterReferenceWhenDestinationWriteFails() async throws {
         let destinationURL = try makeDestinationURL(name: "WriteFailure.kdbx")
-        let environment = failingWriteEnvironment()
+        let recorder = WriteRecorder()
+        let environment = failingWriteEnvironment(recorder: recorder)
 
         do {
             _ = try await DatabaseCreationService.create(
@@ -243,8 +244,12 @@ final class DatabaseCreationServiceTests: XCTestCase {
                 environment: environment
             )
             XCTFail("Expected destination write to fail.")
-        } catch {
+        } catch let error as CocoaError {
+            XCTAssertEqual(error.code, .fileWriteNoPermission)
+            XCTAssertTrue(recorder.didWrite)
             XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
         }
     }
 
@@ -411,6 +416,8 @@ final class DatabaseCreationServiceTests: XCTestCase {
         let metadata = try XCTUnwrap(created.reference.cloudSyncMetadata)
         let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: created.reference))
 
+        XCTAssertEqual(recorder.uploadedProvider, CloudProviderKind.dropbox.rawValue)
+        XCTAssertEqual(recorder.uploadedAccountID, "acct-1")
         XCTAssertEqual(recorder.uploadedPath, "/Vaults/Cloud Vault.kdbx")
         XCTAssertEqual(parsed.rootGroup.groups.first?.name, "Cloud Vault")
         XCTAssertEqual(created.reference.filename, "Cloud Vault.kdbx")
@@ -489,13 +496,16 @@ final class DatabaseCreationServiceTests: XCTestCase {
         }
     }
 
-    private func failingWriteEnvironment() -> DatabaseCreationService.Environment {
+    private func failingWriteEnvironment(recorder: WriteRecorder) -> DatabaseCreationService.Environment {
         .init(
             now: { Date(timeIntervalSince1970: 1_700_000_000) },
             id: { UUID() },
             beginBackgroundTask: { _ in .invalid },
             endBackgroundTask: { _ in },
-            writePrimaryFile: { _, _, _ in throw CocoaError(.fileWriteNoPermission) },
+            writePrimaryFile: { _, _, _ in
+                recorder.recordWrite()
+                throw CocoaError(.fileWriteNoPermission)
+            },
             createCloudFile: DatabaseCreationService.Environment.live.createCloudFile,
             cacheDatabaseCopy: { data, reference in
                 try DatabaseListStore.cacheDatabaseCopy(data, for: reference)
@@ -629,11 +639,21 @@ private final class WriteRecorder: @unchecked Sendable {
 
 private final class CloudCreateRecorder: @unchecked Sendable {
     private let error: Error?
+    private nonisolated(unsafe) var storageProvider: String?
+    private nonisolated(unsafe) var storageAccountID: String?
     private nonisolated(unsafe) var storagePath: String?
     private nonisolated(unsafe) var storageData: Data?
 
     init(error: Error? = nil) {
         self.error = error
+    }
+
+    var uploadedProvider: String? {
+        storageProvider
+    }
+
+    var uploadedAccountID: String? {
+        storageAccountID
     }
 
     var uploadedPath: String? {
@@ -651,6 +671,8 @@ private final class CloudCreateRecorder: @unchecked Sendable {
         data: Data,
         progress: @escaping DatabaseCreationService.CloudProgressHandler
     ) async throws -> CloudCreatedFile {
+        storageProvider = provider
+        storageAccountID = accountId
         storagePath = path
         storageData = data
 

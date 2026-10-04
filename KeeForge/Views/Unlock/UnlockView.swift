@@ -11,6 +11,8 @@ struct UnlockView: View {
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
     @State private var keyFileData: Data?
     @State private var keyFileName: String?
+    @State private var keyFileSelection = UnlockKeyFileSelection()
+    @State private var keyFileSelectionTask: Task<Void, Never>?
     @State private var feedbackContext: FeedbackComposerContext?
     @State private var showRemoveMissingConfirmation = false
     @State private var copiedErrorDetails = false
@@ -79,6 +81,7 @@ struct UnlockView: View {
         .onChange(of: viewModel.openFailure?.errorCode) { _, _ in
             copiedErrorDetails = false
         }
+        .onDisappear(perform: cancelPendingKeyFileSelection)
     }
 
     private var headerCard: some View {
@@ -227,7 +230,7 @@ struct UnlockView: View {
             }
             .buttonStyle(.borderedProminent)
             .macControlSizeLarge()
-            .disabled(hasKeyComponent == false || isUnlocking)
+            .disabled(hasKeyComponent == false || isUnlocking || keyFileSelection.isLoading)
             .accessibilityIdentifier("unlock.button")
 
             if viewModel.canUseBiometrics {
@@ -395,6 +398,7 @@ struct UnlockView: View {
 
                 if keyFileData != nil {
                     Button {
+                        cancelPendingKeyFileSelection()
                         keyFileData = nil
                         keyFileName = nil
                     } label: {
@@ -413,6 +417,10 @@ struct UnlockView: View {
                 }
                 .font(.subheadline)
                 .accessibilityIdentifier("unlock.keyfile.select")
+
+                if keyFileSelection.isLoading {
+                    ProgressView()
+                }
             }
             .modifier(UnlockInputContainer())
         }
@@ -541,7 +549,7 @@ struct UnlockView: View {
     }
 
     private func unlockWithPassword() {
-        guard hasKeyComponent else { return }
+        guard hasKeyComponent, !keyFileSelection.isLoading else { return }
         Task {
             await viewModel.unlock(password: password, keyFileData: keyFileData)
             if case .unlocked = viewModel.state {
@@ -566,7 +574,10 @@ struct UnlockView: View {
 
     private func loadAssociatedKeyFileIfNeeded() async {
         guard keyFileData == nil else { return }
+        let selectionRevision = keyFileSelection.revision
         guard let associatedKeyFile = await viewModel.loadAssociatedKeyFile() else { return }
+        guard !Task.isCancelled, keyFileData == nil,
+              keyFileSelection.revision == selectionRevision else { return }
         keyFileData = associatedKeyFile.data
         keyFileName = associatedKeyFile.filename
     }
@@ -612,22 +623,72 @@ struct UnlockView: View {
     private func handleKeyFileSelection(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
+            cancelPendingKeyFileSelection()
+            keyFileData = nil
+            keyFileName = nil
+            keyFileSelectionTask = Task {
+                guard let result = await keyFileSelection.read(url: url) else { return }
+                keyFileSelectionTask = nil
+                switch result {
+                case .success(let data):
+                    keyFileData = data
+                    keyFileName = url.lastPathComponent
+                case .failure(let error):
+                    selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+                }
+            }
+        case .failure(let error):
+            selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+        }
+    }
+
+    private func cancelPendingKeyFileSelection() {
+        keyFileSelectionTask?.cancel()
+        keyFileSelectionTask = nil
+        keyFileSelection.cancel()
+    }
+}
+
+@MainActor @Observable
+final class UnlockKeyFileSelection {
+    private(set) var isLoading = false
+    private(set) var revision = UUID()
+    private let readData: @Sendable (URL) async throws -> Data
+
+    init(readData: @escaping @Sendable (URL) async throws -> Data = { url in
+        try await CoordinatedFileReader.performBlocking(timeout: .seconds(10)) {
             let hasSecurityScope = url.startAccessingSecurityScopedResource()
             defer {
                 if hasSecurityScope {
                     url.stopAccessingSecurityScopedResource()
                 }
             }
-            do {
-                keyFileData = try CoordinatedFileReader.readData(from: url)
-                keyFileName = url.lastPathComponent
-            } catch {
-                keyFileData = nil
-                keyFileName = nil
-            }
-        case .failure(let error):
-            selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+            return try CoordinatedFileReader.readData(from: url)
         }
+    }) {
+        self.readData = readData
+    }
+
+    func read(url: URL) async -> Result<Data, Error>? {
+        guard !Task.isCancelled else { return nil }
+        let requestID = UUID()
+        revision = requestID
+        isLoading = true
+        let result: Result<Data, Error>
+        do {
+            result = .success(try await readData(url))
+        } catch {
+            result = .failure(error)
+        }
+        guard revision == requestID else { return nil }
+        isLoading = false
+        guard !Task.isCancelled else { return nil }
+        return result
+    }
+
+    func cancel() {
+        revision = UUID()
+        isLoading = false
     }
 }
 

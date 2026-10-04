@@ -13,7 +13,7 @@ struct EntryDetailView: View {
     /// Routes a tapped tag chip in shells that select instead of push (the iPad
     /// workspace, whose detail column has no browsing stack of its own, and
     /// macOS, which selects the tag in its sidebar). Left nil in the compact
-    /// shell, where chips push `TagDestination.entries` like any other row.
+    /// shell, where chips push `DatabaseRoute.tag` like any other row.
     var onSelectTag: ((String) -> Void)? = nil
     /// False in the selection-driven shells (iPad detail column, macOS), where
     /// this screen is the detail root and closing means clearing the selection:
@@ -122,6 +122,10 @@ struct EntryDetailView: View {
         viewModel.sessionKey
     }
 
+    private var secretActionIsCurrent: @MainActor () -> Bool {
+        EntrySecretAction.currentSession(viewModel)
+    }
+
     private var showsCompactLockButton: Bool {
         // `\.horizontalSizeClass` does not exist on macOS; the Mac app always
         // uses the regular layout.
@@ -179,7 +183,8 @@ struct EntryDetailView: View {
                         PasswordFieldRow(
                             password: entry.password,
                             sessionKey: sessionKey,
-                            resolveReferences: viewModel.resolvingFieldReferences
+                            resolveReferences: viewModel.resolvingFieldReferences,
+                            isCurrent: secretActionIsCurrent
                         )
                     }
 
@@ -216,7 +221,8 @@ struct EntryDetailView: View {
                                     ProtectedFieldRow(
                                         label: key,
                                         value: viewModel.resolvingFieldReferences(value),
-                                        showsInlineLabel: true
+                                        showsInlineLabel: true,
+                                        isCurrent: secretActionIsCurrent
                                     )
                                 } else {
                                     FieldRow(
@@ -423,7 +429,7 @@ struct EntryDetailView: View {
             if let onSelectTag {
                 onSelectTag(tag)
             } else {
-                viewModel.navigationPath.append(TagDestination.entries(tag: tag))
+                viewModel.workspace.navigationPath.append(.tag(tag))
             }
         } label: {
             TagCapsule(tag: tag)
@@ -443,7 +449,7 @@ struct EntryDetailView: View {
             if let onSelectTag {
                 onSelectTag(tag)
             } else {
-                viewModel.navigationPath.append(TagDestination.entries(tag: tag))
+                viewModel.workspace.navigationPath.append(.tag(tag))
             }
         } label: {
             TagCapsule(tag: tag, systemImage: "folder", isOutlined: true)
@@ -759,23 +765,28 @@ struct ProtectedFieldRow: View {
     let value: String
     var accessibilityPrefix: String = "entry"
     var showsInlineLabel: Bool = false
+    var isCurrent: @MainActor () -> Bool
     @State private var revealed = false
-    @State private var authenticating = false
+    @State private var secretAction = EntrySecretAction()
 
     @ViewBuilder
     var body: some View {
-        if showsInlineLabel {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(label)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                fieldContent
-            }
-        } else {
-            Section(label) {
-                fieldContent
+        Group {
+            if showsInlineLabel {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(label)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    fieldContent
+                }
+            } else {
+                Section(label) {
+                    fieldContent
+                }
             }
         }
+        .onChange(of: value) { invalidateReveal() }
+        .onDisappear { invalidateReveal() }
     }
 
     private var fieldContent: some View {
@@ -801,7 +812,7 @@ struct ProtectedFieldRow: View {
             }
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
-            .disabled(authenticating)
+            .disabled(secretAction.isAuthenticating)
             .accessibilityIdentifier("\(accessibilityPrefix).protected-field.\(normalizedLabel).reveal")
             .macHelp(revealed ? String(localized: "Hide \(label)") : String(localized: "Show \(label)"))
 
@@ -809,7 +820,9 @@ struct ProtectedFieldRow: View {
                 text: value,
                 requireAuth: true,
                 authenticationReason: String(localized: "Copy protected field"),
-                accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)"
+                accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)",
+                secretAction: secretAction,
+                isCurrent: isCurrent
             )
         }
     }
@@ -825,29 +838,29 @@ struct ProtectedFieldRow: View {
             return
         }
 
-        guard !authenticating else { return }
+        guard !secretAction.isAuthenticating, isCurrent() else { return }
         if BiometricService.canAuthenticateDeviceOwner {
-            authenticating = true
-            Task {
-                do {
+            secretAction.perform(
+                authenticate: {
                     _ = try await BiometricService.authenticateDeviceOwner(
                         reason: String(localized: "View protected field")
                     )
-                    await MainActor.run {
-                        HapticService.success()
-                        revealed = true
-                    }
-                } catch {
-                    // Intentionally no-op on failed authentication.
+                },
+                isCurrent: isCurrent,
+                disclose: {
+                    HapticService.success()
+                    revealed = true
                 }
-                await MainActor.run {
-                    authenticating = false
-                }
-            }
+            )
         } else {
             HapticService.tap()
             revealed = true
         }
+    }
+
+    private func invalidateReveal() {
+        secretAction.invalidate()
+        revealed = false
     }
 }
 
@@ -861,9 +874,10 @@ struct PasswordFieldRow: View {
     /// entry detail's long-standing `entry.*` ids; the history viewer passes its own
     /// so the two screens never contribute the same identifier to one hierarchy.
     var accessibilityPrefix: String = "entry"
+    var isCurrent: @MainActor () -> Bool
     @State private var revealed = false
     @State private var revealedText: String?
-    @State private var authenticating = false
+    @State private var secretAction = EntrySecretAction()
 
     var body: some View {
         Section("Password") {
@@ -874,20 +888,28 @@ struct PasswordFieldRow: View {
                 }
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
-                .disabled(authenticating)
+                .disabled(secretAction.isAuthenticating)
                 .accessibilityIdentifier("\(accessibilityPrefix).password.reveal")
                 .macHelp(revealTooltip)
 
                 CopyButton(
                     resolveText: { plaintext(of: password) },
                     requireAuth: true,
-                    accessibilityID: "\(accessibilityPrefix).copy.password"
+                    accessibilityID: "\(accessibilityPrefix).copy.password",
+                    secretAction: secretAction,
+                    isCurrent: isCurrent
                 )
             }
         }
-        .onChange(of: password) { _, updatedPassword in
-            guard revealed else { return }
-            revealedText = plaintext(of: updatedPassword)
+        .onChange(of: password) {
+            secretAction.invalidate()
+            refreshRevealedPassword()
+        }
+        .onChange(of: sessionKey) { invalidateReveal() }
+        .onAppear { refreshRevealedPassword() }
+        .onDisappear {
+            secretAction.invalidate()
+            revealedText = nil
         }
     }
 
@@ -912,7 +934,7 @@ struct PasswordFieldRow: View {
     }
 
     private func authenticateAndReveal() {
-        guard !authenticating else { return }
+        guard !secretAction.isAuthenticating, isCurrent() else { return }
         // Gate on device-owner authentication (biometrics OR passcode/login
         // password/Apple Watch), not on biometrics availability: a Mac
         // without Touch ID or an iPhone without enrolled Face ID must still
@@ -920,31 +942,36 @@ struct PasswordFieldRow: View {
         // single unauthenticated click. Auth is skipped only when the device
         // has no protection configured at all.
         if BiometricService.canAuthenticateDeviceOwner {
-            authenticating = true
-            Task {
-                await MainActor.run {
-                    BiometricService.isBiometricAuthInProgress = true
-                }
-                do {
+            secretAction.perform(
+                authenticate: {
                     _ = try await BiometricService.authenticateDeviceOwner(reason: String(localized: "View password"))
-                    await MainActor.run {
-                        HapticService.success()
-                        revealedText = plaintext(of: password)
-                        revealed = true
-                    }
-                } catch {
-                    // Intentionally no-op on failed authentication.
+                },
+                isCurrent: isCurrent,
+                disclose: {
+                    HapticService.success()
+                    revealedText = plaintext(of: password)
+                    revealed = true
                 }
-                await MainActor.run {
-                    BiometricService.isBiometricAuthInProgress = false
-                    authenticating = false
-                }
-            }
+            )
         } else {
             HapticService.tap()
             revealedText = plaintext(of: password)
             revealed = true
         }
+    }
+
+    private func invalidateReveal() {
+        secretAction.invalidate()
+        revealed = false
+        revealedText = nil
+    }
+
+    private func refreshRevealedPassword() {
+        guard revealed, isCurrent() else {
+            revealedText = nil
+            return
+        }
+        revealedText = plaintext(of: password)
     }
 }
 
@@ -986,56 +1013,59 @@ struct CopyButton: View {
     var requireAuth: Bool = false
     var authenticationReason: String = String(localized: "Copy password")
     let accessibilityID: String
+    private let sharedSecretAction: EntrySecretAction?
+    private let isCurrent: @MainActor () -> Bool
+    @State private var localSecretAction = EntrySecretAction()
     @State private var copied = false
+    @State private var copyFeedbackID = UUID()
 
-    /// Copy a plaintext value.
+    private var secretAction: EntrySecretAction { sharedSecretAction ?? localSecretAction }
+
     init(
         text: String,
         requireAuth: Bool = false,
         authenticationReason: String = String(localized: "Copy password"),
-        accessibilityID: String
+        accessibilityID: String,
+        secretAction: EntrySecretAction? = nil,
+        isCurrent: @escaping @MainActor () -> Bool = { true }
     ) {
-        self.resolveText = { text }
-        self.requireAuth = requireAuth
-        self.authenticationReason = authenticationReason
-        self.accessibilityID = accessibilityID
+        self.init(
+            resolveText: { text },
+            requireAuth: requireAuth,
+            authenticationReason: authenticationReason,
+            accessibilityID: accessibilityID,
+            secretAction: secretAction,
+            isCurrent: isCurrent
+        )
     }
 
-    /// Copy a value that is decrypted lazily on demand.
     init(
         resolveText: @escaping () -> String,
         requireAuth: Bool = false,
         authenticationReason: String = String(localized: "Copy password"),
-        accessibilityID: String
+        accessibilityID: String,
+        secretAction: EntrySecretAction? = nil,
+        isCurrent: @escaping @MainActor () -> Bool = { true }
     ) {
         self.resolveText = resolveText
         self.requireAuth = requireAuth
         self.authenticationReason = authenticationReason
         self.accessibilityID = accessibilityID
+        self.sharedSecretAction = secretAction
+        self.isCurrent = isCurrent
     }
 
     var body: some View {
         Button {
-            // Same device-owner gate as password reveal: biometrics when
-            // available, passcode/login password/Apple Watch fallback
-            // otherwise. Skipped only when the device has no protection.
+            guard isCurrent() else { return }
             if requireAuth && BiometricService.canAuthenticateDeviceOwner {
-                Task {
-                    await MainActor.run {
-                        BiometricService.isBiometricAuthInProgress = true
-                    }
-                    do {
+                secretAction.perform(
+                    authenticate: {
                         _ = try await BiometricService.authenticateDeviceOwner(reason: authenticationReason)
-                        await MainActor.run {
-                            performCopy()
-                        }
-                    } catch {
-                        // Intentionally no-op on failed authentication.
-                    }
-                    await MainActor.run {
-                        BiometricService.isBiometricAuthInProgress = false
-                    }
-                }
+                    },
+                    isCurrent: isCurrent,
+                    disclose: performCopy
+                )
             } else {
                 performCopy()
             }
@@ -1047,18 +1077,29 @@ struct CopyButton: View {
         .frame(width: 44, height: 44)
         .contentShape(Rectangle())
         .buttonStyle(.borderless)
+        .disabled(secretAction.isAuthenticating)
         .accessibilityIdentifier(accessibilityID)
         .macHelp(String(localized: "Copy"))
+        .onDisappear {
+            secretAction.invalidate()
+            copied = false
+        }
+        .task(id: copyFeedbackID) {
+            guard copied else { return }
+            do {
+                try await Task.sleep(for: .seconds(1.5))
+            } catch {
+                return
+            }
+            copied = false
+        }
     }
 
     private func performCopy() {
         ClipboardService.copy(resolveText())
         copied = true
+        copyFeedbackID = UUID()
         HapticService.success()
-        Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            copied = false
-        }
     }
 }
 
@@ -1066,12 +1107,14 @@ struct CopyButton: View {
 
 struct TOTPSection: View {
     let config: TOTPConfig
+    let sessionKey: SymmetricKey
     /// Identifier namespace, matching `FieldRow` / `PasswordFieldRow`.
     var accessibilityPrefix: String = "entry"
     @State private var totpVM: TOTPViewModel
 
     init(config: TOTPConfig, sessionKey: SymmetricKey, accessibilityPrefix: String = "entry") {
         self.config = config
+        self.sessionKey = sessionKey
         self.accessibilityPrefix = accessibilityPrefix
         self._totpVM = State(initialValue: TOTPViewModel(config: config, sessionKey: sessionKey))
     }
@@ -1092,8 +1135,21 @@ struct TOTPSection: View {
                 CopyButton(text: totpVM.code, accessibilityID: "\(accessibilityPrefix).copy.totp")
             }
         }
-        .onAppear { totpVM.start() }
+        .onAppear {
+            updateTOTP()
+            totpVM.start()
+        }
+        .onChange(of: config.secret) { updateTOTP() }
+        .onChange(of: config.decodedSecret) { updateTOTP() }
+        .onChange(of: config.period) { updateTOTP() }
+        .onChange(of: config.digits) { updateTOTP() }
+        .onChange(of: config.algorithm) { updateTOTP() }
+        .onChange(of: sessionKey) { updateTOTP() }
         .onDisappear { totpVM.stop() }
+    }
+
+    private func updateTOTP() {
+        totpVM.update(config: config, sessionKey: sessionKey)
     }
 }
 

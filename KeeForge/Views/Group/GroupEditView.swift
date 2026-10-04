@@ -12,15 +12,12 @@ struct GroupEditView: View {
     let onComplete: () -> Void
 
     @State private var showDiscardConfirmation = false
-    /// Identifies this editor in the view model's unsaved-editor registry.
-    @State private var editorID = UUID()
     @State private var isShowingIconPicker = false
-    @State private var editingErrorMessage: String?
-    @State private var isSubmitting = false
+    @State private var coordinator: DatabaseEditorCoordinator
     @FocusState private var notesFocused: Bool
 
     private var isSavingInProgress: Bool {
-        isSubmitting || databaseViewModel.isSaving
+        coordinator.isSavingInProgress
     }
 
     init(
@@ -29,6 +26,7 @@ struct GroupEditView: View {
         onComplete: @escaping () -> Void = {}
     ) {
         _formViewModel = State(initialValue: formViewModel)
+        _coordinator = State(initialValue: DatabaseEditorCoordinator(group: formViewModel, database: databaseViewModel))
         self.databaseViewModel = databaseViewModel
         self.onComplete = onComplete
     }
@@ -111,7 +109,7 @@ struct GroupEditView: View {
             #endif
         }
         .overlay {
-            if isSubmitting && databaseViewModel.isSaving == false {
+            if coordinator.isSubmitting && databaseViewModel.isSaving == false {
                 ZStack {
                     Color.black.opacity(0.14)
                         .ignoresSafeArea()
@@ -143,8 +141,12 @@ struct GroupEditView: View {
                 formViewModel.iconID = iconID
             }
         }
-        .onChange(of: formViewModel.isDirty, initial: true) { _, isDirty in
-            databaseViewModel.setEditorHasUnsavedChanges(isDirty, editorID: editorID)
+        .onAppear { coordinator.activate() }
+        .onChange(of: coordinator.conflictHasSettled) { _, _ in
+            coordinator.completeAfterConflictIfSettled { _ in onComplete() }
+        }
+        .onChange(of: formViewModel.isDirty) { _, _ in
+            coordinator.synchronizeUnsavedChanges()
         }
         .onChange(of: pendingEditorLockRequest != nil) { _, isPending in
             // Anything presented above the editor would swallow the prompt.
@@ -153,7 +155,7 @@ struct GroupEditView: View {
             showDiscardConfirmation = false
         }
         .onDisappear {
-            databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
+            coordinator.deactivate()
         }
         .alert(
             "Save your changes before locking?",
@@ -166,21 +168,20 @@ struct GroupEditView: View {
                 guard let request = pendingEditorLockRequest else { return }
                 saveTapped(resuming: request)
             }
+            .disabled(formViewModel.canSave == false)
             Button("Discard and Lock", role: .destructive) {
                 guard let request = pendingEditorLockRequest else { return }
-                databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
-                onComplete()
-                databaseViewModel.resumeLockRequest(request)
+                coordinator.discard(resuming: request) { _ in onComplete() }
             }
             Button("Keep Editing", role: .cancel) {
-                Task { await databaseViewModel.continueEditingAfterLockRequest() }
+                Task { await coordinator.continueEditingAfterLockRequest() }
             }
         } message: {
             Text("Your group changes haven't been saved to this database yet.")
         }
         .alert("Discard changes?", isPresented: $showDiscardConfirmation) {
             Button("Discard Changes", role: .destructive) {
-                onComplete()
+                coordinator.discard { _ in onComplete() }
             }
             Button("Keep Editing", role: .cancel) {}
         } message: {
@@ -189,17 +190,17 @@ struct GroupEditView: View {
         .alert(
             "Couldn’t Update Group",
             isPresented: Binding(
-                get: { editingErrorMessage != nil },
+                get: { coordinator.errorMessage != nil },
                 set: { isPresented in
                     if isPresented == false {
-                        editingErrorMessage = nil
+                        coordinator.errorMessage = nil
                     }
                 }
             )
         ) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(editingErrorMessage ?? "")
+            Text(coordinator.errorMessage ?? "")
         }
     }
 
@@ -315,49 +316,15 @@ struct GroupEditView: View {
         if formViewModel.isDirty {
             showDiscardConfirmation = true
         } else {
-            onComplete()
+            coordinator.discard { _ in onComplete() }
         }
     }
 
-    /// The lock request this editor's fields are holding up, if any.
     private var pendingEditorLockRequest: DatabaseViewModel.PendingLockRequest? {
-        guard let request = databaseViewModel.pendingLockRequest,
-              request.reason == .openEditor,
-              formViewModel.isDirty else { return nil }
-        return request
+        coordinator.pendingLockRequest
     }
 
     private func saveTapped(resuming lockRequest: DatabaseViewModel.PendingLockRequest? = nil) {
-        do {
-            try databaseViewModel.updateGroup(
-                groupID: formViewModel.groupID,
-                draft: formViewModel.makeDraftPayload()
-            )
-        } catch {
-            editingErrorMessage = error.localizedDescription
-            return
-        }
-
-        // In the draft now: a write that fails from here is the workspace's.
-        databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
-
-        isSubmitting = true
-        Task { @MainActor in
-            await databaseViewModel.saveHandlingError()
-            isSubmitting = false
-
-            if let lockRequest {
-                onComplete()
-                databaseViewModel.resumeLockRequest(lockRequest)
-                return
-            }
-
-            if let saveError = databaseViewModel.saveError {
-                editingErrorMessage = saveError.localizedDescription
-                databaseViewModel.clearSaveError()
-            } else {
-                onComplete()
-            }
-        }
+        Task { await coordinator.save(resuming: lockRequest) { _ in onComplete() } }
     }
 }

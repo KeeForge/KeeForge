@@ -204,11 +204,11 @@ final class PasskeyCredentialTests: XCTestCase {
         XCTAssertEqual(decoded, original)
     }
 
-    func testBase64URLDecodesWithPadding() {
-        // "dGVzdA==" is standard base64 for "test"
-        // Base64URL version without padding: "dGVzdA"
-        let decoded = base64URLDecode("dGVzdA")
-        XCTAssertEqual(String(data: decoded!, encoding: .utf8), "test")
+    func testBase64URLDecodesPaddedAndUnpaddedInput() throws {
+        for encoded in ["dGVzdA==", "dGVzdA"] {
+            let decoded = try XCTUnwrap(base64URLDecode(encoded), encoded)
+            XCTAssertEqual(String(data: decoded, encoding: .utf8), "test", encoded)
+        }
     }
 
     // MARK: - CredentialIdentityStoreManager passkey identity
@@ -285,7 +285,7 @@ final class PasskeyCryptoTests: XCTestCase {
         XCTAssertEqual(authData.count, 37)
 
         // Verify flags byte: UP | UV | BE | BS
-        XCTAssertEqual(authData[32], PasskeyCrypto.assertionFlags)
+        XCTAssertEqual(authData[32], 0x1D)
 
         // Counter should be 0 (4 bytes big-endian)
         XCTAssertEqual(authData[33], 0)
@@ -351,7 +351,7 @@ final class PasskeyCryptoTests: XCTestCase {
             counter: 42
         )
         XCTAssertEqual(authData.count, 37)
-        XCTAssertEqual(authData[32], PasskeyCrypto.assertionFlags)
+        XCTAssertEqual(authData[32], 0x1D)
         // Counter 42 = 0x0000002A big-endian
         XCTAssertEqual(authData[33], 0)
         XCTAssertEqual(authData[34], 0)

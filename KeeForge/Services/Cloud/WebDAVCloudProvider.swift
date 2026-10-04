@@ -372,8 +372,7 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
 
     /// Normalizes a decoded path to a leading-slash, no-trailing-slash form.
     static func serverRelativePath(from path: String) -> String {
-        let decoded = path.removingPercentEncoding ?? path
-        let trimmed = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != "/" else { return "/" }
         var result = trimmed.hasPrefix("/") ? trimmed : "/" + trimmed
         while result.count > 1, result.hasSuffix("/") {

@@ -8,13 +8,16 @@ private enum PasswordVisualStyle {
 
 struct PasswordDisplayRow<Actions: View>: View {
     let revealedText: String?
+    private let passwordAccessibilityIdentifier: String?
     private let actions: Actions
 
     init(
         revealedText: String?,
+        passwordAccessibilityIdentifier: String? = nil,
         @ViewBuilder actions: () -> Actions
     ) {
         self.revealedText = revealedText
+        self.passwordAccessibilityIdentifier = passwordAccessibilityIdentifier
         self.actions = actions()
     }
 
@@ -30,9 +33,16 @@ struct PasswordDisplayRow<Actions: View>: View {
                     // copy path would bypass ClipboardService (no expiry, no
                     // localOnly/ConcealedType, no clear-on-lock). The sanctioned
                     // CopyButton -> ClipboardService.copy is the only copy path.
-                    PasswordDisplayText(revealedText)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Group {
+                        if let passwordAccessibilityIdentifier {
+                            PasswordDisplayText(revealedText)
+                                .accessibilityIdentifier(passwordAccessibilityIdentifier)
+                        } else {
+                            PasswordDisplayText(revealedText)
+                        }
+                    }
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
                 } else {
                     PasswordConcealedText()
                 }

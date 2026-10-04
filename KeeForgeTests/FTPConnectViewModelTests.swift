@@ -90,6 +90,32 @@ final class FTPConnectViewModelTests: XCTestCase {
         }
     }
 
+    func testDismissedConnectionDropsLateSuccessAndError() async {
+        let results: [Result<CloudAccount, Error>] = [
+            .success(MockFTPConnector.account),
+            .failure(CloudProviderError.notAuthenticated),
+        ]
+        for result in results {
+            let connector = SuspendedFTPConnector()
+            let viewModel = FTPConnectViewModel(connector: connector)
+            viewModel.serverURL = "ftp://nas.local/"
+            viewModel.username = "alex"
+            viewModel.password = "secret"
+            viewModel.allowsUnencryptedFTP = true
+            let connection = Task { await viewModel.connect() }
+            await connector.waitUntilStarted()
+
+            viewModel.cancelPendingConnection()
+            await connector.finish(result)
+            let account = await connection.value
+
+            XCTAssertNil(account)
+            XCTAssertNil(viewModel.errorMessage)
+            XCTAssertFalse(viewModel.isConnecting)
+            XCTAssertEqual(viewModel.password, "")
+        }
+    }
+
     private func makeViewModel(connector: MockFTPConnector) -> FTPConnectViewModel {
         let viewModel = FTPConnectViewModel(connector: connector)
         viewModel.serverURL = "ftp://nas.local/"
@@ -97,6 +123,29 @@ final class FTPConnectViewModelTests: XCTestCase {
         viewModel.password = "secret"
         viewModel.allowsUnencryptedFTP = true
         return viewModel
+    }
+}
+
+private actor SuspendedFTPConnector: FTPConnecting {
+    private var continuation: CheckedContinuation<CloudAccount, Error>?
+    private var startedContinuation: CheckedContinuation<Void, Never>?
+
+    func connect(_ configuration: FTPConnectionConfiguration) async throws -> CloudAccount {
+        try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+            startedContinuation?.resume()
+            startedContinuation = nil
+        }
+    }
+
+    func waitUntilStarted() async {
+        if continuation != nil { return }
+        await withCheckedContinuation { startedContinuation = $0 }
+    }
+
+    func finish(_ result: Result<CloudAccount, Error>) {
+        continuation?.resume(with: result)
+        continuation = nil
     }
 }
 

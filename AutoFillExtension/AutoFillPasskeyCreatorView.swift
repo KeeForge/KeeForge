@@ -119,6 +119,8 @@ struct AutoFillPasskeyCreatorView: View {
                         .foregroundStyle(.secondary)
 
                     titleField
+                        .macFormFieldStyle()
+                        .macLabelsHidden()
                         .accessibilityIdentifier("autofill-passkey-creator.title-field")
                 }
                 .padding(.vertical, 2)

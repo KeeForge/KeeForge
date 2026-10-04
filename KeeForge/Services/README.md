@@ -2,7 +2,7 @@
 
 This folder is the integration layer between app logic and the outside world: App Group storage, file/bookmark access, cloud SDKs, Keychain, system APIs, AutoFill helpers, and app-level support services.
 
-Each subfolder's `CLAUDE.md` loads automatically when you work in it.
+Read each subfolder's `AGENTS.md` before working in it.
 
 ## Start Here
 

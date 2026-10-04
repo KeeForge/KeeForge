@@ -2,8 +2,21 @@ import CryptoKit
 import Foundation
 
 struct KDBXXMLSerializer {
-    enum SerializationError: Error {
+    enum SerializationError: Error, LocalizedError, Equatable {
         case invalidInnerStreamKey
+        case invalidXMLCharacter(UInt32)
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidInnerStreamKey:
+                nil
+            case .invalidXMLCharacter(let codepoint):
+                String(
+                    format: String(localized: "The database contains an unsupported character (%@). Remove it from your text before saving."),
+                    String(format: "U+%04X", codepoint)
+                )
+            }
+        }
     }
 
     private let rootGroup: KPGroup
@@ -32,9 +45,25 @@ struct KDBXXMLSerializer {
         xml += try serializeRoot()
         xml += "</KeePassFile>"
 
+        try Self.validateText(xml)
+
         var data = Self.xmlPrefix
         data.append(Data(xml.utf8))
         return data
+    }
+
+    static func validateText(_ text: String) throws {
+        // XML 1.0 forbids these scalars even in numeric character references.
+        if let invalid = text.unicodeScalars.first(where: { scalar in
+            switch scalar.value {
+            case 0x09, 0x0A, 0x0D, 0x20...0xD7FF, 0xE000...0xFFFD, 0x10000...0x10FFFF:
+                false
+            default:
+                true
+            }
+        }) {
+            throw SerializationError.invalidXMLCharacter(invalid.value)
+        }
     }
 
     private mutating func serializeMeta() throws -> String {
@@ -510,7 +539,7 @@ struct KDBXXMLSerializer {
     }
 
     private mutating func rewriteProtectedValues(in xml: String) throws -> String {
-        let pattern = #"<Value(?=[^>]*Protected="True")[^>]*>(.*?)</Value>"#
+        let pattern = #"<Value(?=[^>]*\sProtected="[Tt][Rr][Uu][Ee]")[^>]*>(.*?)</Value>"#
         let regex = try NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators])
         let nsRange = NSRange(xml.startIndex..<xml.endIndex, in: xml)
         let matches = regex.matches(in: xml, options: [], range: nsRange)
@@ -538,10 +567,12 @@ struct KDBXXMLSerializer {
     }
 
     private func escape(_ text: String) -> String {
+        // XML parsing normalizes a literal CR to LF; a reference preserves it.
         text
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\r", with: "&#xD;")
     }
 
     private func unescape(_ text: String) -> String {
@@ -550,6 +581,7 @@ struct KDBXXMLSerializer {
             .replacingOccurrences(of: "&gt;", with: ">")
             .replacingOccurrences(of: "&quot;", with: "\"")
             .replacingOccurrences(of: "&apos;", with: "'")
+            .replacingOccurrences(of: "&#xD;", with: "\r")
             .replacingOccurrences(of: "&amp;", with: "&")
     }
 

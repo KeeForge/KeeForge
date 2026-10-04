@@ -890,6 +890,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 .replacingOccurrences(of: "&", with: "&amp;")
                 .replacingOccurrences(of: "<", with: "&lt;")
                 .replacingOccurrences(of: ">", with: "&gt;")
+                .replacingOccurrences(of: "\r", with: "&#xD;")
         }
 
         private static func escapeAttribute(_ text: String) -> String {
@@ -1319,7 +1320,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
         case "Name":
             if !inMeta, currentEntry == nil, let index = groupStack.indices.last {
-                groupStack[index].name = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+                groupStack[index].name = currentText
             }
 
         case "Notes" where parentName == "Group":
@@ -1345,7 +1346,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
         case "Key":
             if inKey {
-                currentKey = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+                currentKey = currentText
                 inKey = false
             }
 
@@ -1538,6 +1539,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\r", with: "&#xD;")
     }
 
     private func escapeAttribute(_ text: String) -> String {

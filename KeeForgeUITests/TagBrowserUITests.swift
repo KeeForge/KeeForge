@@ -134,6 +134,9 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
 
         let taggedGroup = groupRow(named: "Tagged")
         XCTAssertTrue(revealElement(taggedGroup), "Tagged group was not visible")
+        // A partly hittable last row can still have its center under the bottom search bar.
+        scrollableContainer()?.swipeUp()
+        XCTAssertTrue(revealElement(taggedGroup), "Tagged group was not visible after scrolling")
         taggedGroup.press(forDuration: 1.2)
 
         let hideAction = app.buttons["group-row.autofill-exclusion-context"]

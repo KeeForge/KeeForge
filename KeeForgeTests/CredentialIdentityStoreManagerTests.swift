@@ -567,9 +567,9 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertFalse(entry.hasTOTP)
     }
 
-    // MARK: - Entry filtering (TOTP-only entries included)
+    // MARK: - Publication eligibility
 
-    func testTOTPOnlyEntryPassesAutoFillFilter() {
+    func testPopulatePublishesTOTPOnlyEntry() async throws {
         let entry = makeEntry(
             title: "TOTP Only",
             url: "https://example.com",
@@ -577,12 +577,18 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: false,
             hasTOTP: true
         )
-        // Simulates the filter used in loadEntries
-        let filtered = [entry].filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
-        XCTAssertEqual(filtered.count, 1)
+        let fake = installFake()
+        CredentialIdentityStoreManager.populate(with: [entry], for: someDatabaseID)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+
+        let identity = try XCTUnwrap(fake.stored.first as? ASOneTimeCodeCredentialIdentity)
+        XCTAssertEqual(fake.stored.count, 1)
+        XCTAssertEqual(identity.serviceIdentifier.identifier, "example.com")
+        XCTAssertEqual(identity.label, "TOTP Only")
+        XCTAssertEqual(identity.recordIdentifier, "v2:\(someDatabaseID.uuidString):\(entry.id.uuidString)")
     }
 
-    func testEntryWithNoCredentialsExcludedFromFilter() {
+    func testPopulateWithCredentiallessEntryClearsOwnStore() async {
         let entry = makeEntry(
             title: "Empty",
             url: "https://example.com",
@@ -590,11 +596,18 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: false,
             hasTOTP: false
         )
-        let filtered = [entry].filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
-        XCTAssertTrue(filtered.isEmpty)
+        let fake = installFake()
+        fake.stored = [seededPasswordIdentity(
+            recordIdentifier: CredentialRecordIdentifier(databaseID: someDatabaseID, entryID: entry.id).encoded
+        )]
+        CredentialIdentityStoreManager.populate(with: [entry], for: someDatabaseID)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+
+        XCTAssertEqual(fake.calls, ["removeAllCredentialIdentities"])
+        XCTAssertTrue(fake.stored.isEmpty)
     }
 
-    func testExpiredEntryExcludedFromAutomaticAutoFillFilter() {
+    func testPopulateWithOnlyExpiredEntryClearsOwnStore() async {
         let entry = KPEntry(
             title: "Expired",
             username: "user",
@@ -604,11 +617,15 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             expiryTime: .distantPast
         )
 
-        let filtered = [entry].filter {
-            !$0.isExpired() && ($0.hasPassword || $0.hasPasskey || $0.hasTOTP)
-        }
+        let fake = installFake()
+        fake.stored = [seededPasswordIdentity(
+            recordIdentifier: CredentialRecordIdentifier(databaseID: someDatabaseID, entryID: entry.id).encoded
+        )]
+        CredentialIdentityStoreManager.populate(with: [entry], for: someDatabaseID)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
 
-        XCTAssertTrue(filtered.isEmpty)
+        XCTAssertEqual(fake.calls, ["removeAllCredentialIdentities"])
+        XCTAssertTrue(fake.stored.isEmpty)
     }
 
     // MARK: - CredentialRecordIdentifier: wire format (slice 02)
@@ -875,7 +892,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         fake.onMutation = { XCTFail("Nothing matches the target database; no removal call expected") }
 
         CredentialIdentityStoreManager.removeIdentities(forDatabase: UUID())
-        try? await Task.sleep(for: .milliseconds(100))
+        await CredentialIdentityStoreManager.waitForPendingMutations()
 
         XCTAssertTrue(fake.calls.isEmpty)
         XCTAssertEqual(fake.stored.count, 1)
@@ -923,6 +940,19 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
         XCTAssertEqual(fake.calls, ["removeCredentialIdentities"])
         XCTAssertEqual(storedRecordIdentifiers(fake), [foreignTwinIdentifier])
+        let removed = try XCTUnwrap(fake.removedIdentityBatches.first)
+        XCTAssertEqual(removed.count, 2)
+        let password = try XCTUnwrap(removed.compactMap { $0 as? ASPasswordCredentialIdentity }.first)
+        XCTAssertEqual(password.serviceIdentifier.identifier, "pw-site.com")
+        XCTAssertEqual(password.serviceIdentifier.type, .domain)
+        XCTAssertEqual(password.user, "pw")
+        XCTAssertEqual(password.recordIdentifier, "v2:\(databaseA.uuidString):\(passwordEntry.id.uuidString)")
+        let passkey = try XCTUnwrap(removed.compactMap { $0 as? ASPasskeyCredentialIdentity }.first)
+        XCTAssertEqual(passkey.relyingPartyIdentifier, "pk-site.com")
+        XCTAssertEqual(passkey.userName, "alice@pk-site.com")
+        XCTAssertEqual(passkey.credentialID, Data("test-credential-id".utf8))
+        XCTAssertEqual(passkey.userHandle, Data("user-handle".utf8))
+        XCTAssertEqual(passkey.recordIdentifier, "v2:\(databaseA.uuidString):\(passkeyEntry.id.uuidString)")
     }
 
     func testRemoveIdentitiesForEntriesAlsoRemovesOneTimeCodeIdentities() async throws {
@@ -955,6 +985,18 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
         XCTAssertEqual(fake.calls, ["removeCredentialIdentities"])
         XCTAssertEqual(storedRecordIdentifiers(fake), [survivorIdentifier])
+        let removed = try XCTUnwrap(fake.removedIdentityBatches.first)
+        XCTAssertEqual(removed.count, 2)
+        XCTAssertEqual(
+            removed.compactMap { ($0 as? ASOneTimeCodeCredentialIdentity)?.serviceIdentifier.identifier },
+            ["vt.example.com", "example.com"]
+        )
+        for suppliedIdentity in removed {
+            let identity = try XCTUnwrap(suppliedIdentity as? ASOneTimeCodeCredentialIdentity)
+            XCTAssertEqual(identity.serviceIdentifier.type, .domain)
+            XCTAssertEqual(identity.label, "TOTP Only")
+            XCTAssertEqual(identity.recordIdentifier, "v2:\(databaseA.uuidString):\(totpEntry.id.uuidString)")
+        }
     }
 
     func testClearStoreEmptiesStore() async {
@@ -1039,6 +1081,28 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertEqual(fake.calls, ["removeCredentialIdentities"])
         XCTAssertEqual(fake.stored.count, bIdentities.count)
         XCTAssertEqual(Set(storedRecordIdentifiers(fake)), [bIdentifier])
+        let removed = try XCTUnwrap(fake.removedIdentityBatches.first)
+        XCTAssertEqual(removed.count, aIdentities.count)
+        XCTAssertEqual(removed.filter { $0 is ASPasswordCredentialIdentity }.count, 1)
+        XCTAssertEqual(removed.filter { $0 is ASPasskeyCredentialIdentity }.count, 1)
+        XCTAssertEqual(removed.filter { $0 is ASOneTimeCodeCredentialIdentity }.count, 1)
+        let expectedRecordIdentifier = "v2:\(databaseID.uuidString):\(entryA.id.uuidString)"
+        let password = try XCTUnwrap(removed.compactMap { $0 as? ASPasswordCredentialIdentity }.first)
+        XCTAssertEqual(password.serviceIdentifier.identifier, "a-site.com")
+        XCTAssertEqual(password.serviceIdentifier.type, .domain)
+        XCTAssertEqual(password.user, "user@a-site.com")
+        XCTAssertEqual(password.recordIdentifier, expectedRecordIdentifier)
+        let passkey = try XCTUnwrap(removed.compactMap { $0 as? ASPasskeyCredentialIdentity }.first)
+        XCTAssertEqual(passkey.relyingPartyIdentifier, "a-site.com")
+        XCTAssertEqual(passkey.userName, "alice@a-site.com")
+        XCTAssertEqual(passkey.credentialID, Data("test-credential-id".utf8))
+        XCTAssertEqual(passkey.userHandle, Data("user-handle".utf8))
+        XCTAssertEqual(passkey.recordIdentifier, expectedRecordIdentifier)
+        let oneTimeCode = try XCTUnwrap(removed.compactMap { $0 as? ASOneTimeCodeCredentialIdentity }.first)
+        XCTAssertEqual(oneTimeCode.serviceIdentifier.identifier, "a-site.com")
+        XCTAssertEqual(oneTimeCode.serviceIdentifier.type, .domain)
+        XCTAssertEqual(oneTimeCode.label, "Full a-site.com")
+        XCTAssertEqual(oneTimeCode.recordIdentifier, expectedRecordIdentifier)
     }
 
     func testRemoveIdentityWithRecordIdentifierNoMatchIsNoOp() async {
@@ -1050,7 +1114,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         CredentialIdentityStoreManager.removeIdentity(
             withRecordIdentifier: CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
         )
-        try? await Task.sleep(for: .milliseconds(100))
+        await CredentialIdentityStoreManager.waitForPendingMutations()
 
         XCTAssertTrue(fake.calls.isEmpty)
         XCTAssertEqual(fake.stored.count, 1)
@@ -1064,7 +1128,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         fake.onMutation = { XCTFail("A disabled store must never be mutated") }
 
         CredentialIdentityStoreManager.removeIdentity(withRecordIdentifier: targetIdentifier)
-        try? await Task.sleep(for: .milliseconds(100))
+        await CredentialIdentityStoreManager.waitForPendingMutations()
 
         XCTAssertTrue(fake.calls.isEmpty)
         XCTAssertEqual(fake.stored.count, 1)
@@ -1308,7 +1372,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         let entry = makeEntry(title: "A", url: "https://a-site.com", username: "a", hasPassword: true)
 
         CredentialIdentityStoreManager.populate(with: [entry], for: UUID())
-        try? await Task.sleep(for: .milliseconds(100))
+        await CredentialIdentityStoreManager.waitForPendingMutations()
 
         XCTAssertTrue(fake.calls.isEmpty)
         XCTAssertEqual(storedRecordIdentifiers(fake), [otherIdentifier])
