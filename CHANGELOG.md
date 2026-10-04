@@ -2,8 +2,30 @@
 
 ## Unreleased
 
+> **Next release requirement:** This database-corruption fix (#181) must be item **#1** in the next release’s “What’s New”, including the in-app sheet on iPhone, iPad, and Mac and the App Store release notes. Include a link to the [KeeForge KDBX recovery tool](https://github.com/KeeForge/kdbx-recovery). Explicitly say that updating prevents new corruption but does not repair already damaged files; affected users should restore a readable backup or use the offline recovery tool to create a recovered copy. Keep this item ahead of every new feature.
+
 ### Fixes
 
+- Prevents database corruption when notes or other text contain unsupported characters such as NUL (#181). Saving stops with an error and keeps the previous database readable. Already affected databases are not repaired by updating: restore a readable backup or use the [KeeForge KDBX recovery tool](https://github.com/KeeForge/kdbx-recovery) to create a recovered copy.
+- The Face ID and Touch ID unlock buttons now use the selected app language (#183).
+- Group deletion actions now use the selected app language on iPhone, iPad, and Mac (#184).
+- Restoring an earlier entry version keeps that version's expiration settings after saving and reopening the database.
+- WebDAV folders and newly created databases with percent sequences in their names now keep the correct path.
+- AutoFill changes in cloud databases stay queued if KeeForge opens while AutoFill is still saving, preventing an interrupted save from losing its pending upload.
+- Entries and groups with matching names or dates keep a stable order when sorted descending.
+- Notes keep their original line endings after saving. Imported group names, custom field names, and attachment names keep their whitespace.
+- Protected fields from other KeePass apps stay protected when saving.
+- Retrying a failed new-entry save no longer creates duplicate entries, and Save and Lock keeps edits made after a failed save.
+- Opening or closing a database now preserves unsaved editor changes until you choose to save or discard them.
+- Switching entries conceals revealed fields, and verification codes refresh when their setup changes. Authentication that finishes after a lock or selection change cannot reveal or copy stale secrets.
+- Attachment previews and imports no longer reopen or change an editor after it has closed or the database has locked.
+- AutoFill ignores late results from cancelled requests instead of applying them to a newer request.
+- Switching cloud accounts clears the previous account’s files. Closing creation or connection forms no longer lets late results reopen them.
+- Website icons refresh when an entry’s address changes, and selecting a key file no longer blocks the unlock screen while it loads.
+- Tip jar purchase notices are translated, and unsupported verification-code lengths show the correct explanation.
+- On Mac, the setup-link and AutoFill passkey forms show editable fields correctly, and disabling the menu bar stops shortcut recording.
+- The direct-download Mac app keeps Check for Updates available in step with the updater.
+- The group editor stays open until a save conflict has been resolved, so you can finish saving without losing your place.
 - AutoFill stops updates when iOS returns unreadable credential identities, preventing an unreadable store from being treated as empty.
 - Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
 - When the saved Face ID, Touch ID or Apple Watch key can no longer be used, for example after enrolled fingerprints change, the unlock screen now says so and asks for your master password, which saves a new key.
@@ -12,7 +34,7 @@
 
 ### New Features
 
-- Set, change, or remove an entry's expiration date in the entry editor (#120). Under Expiration, turn on Expires and pick a date and time, or choose a preset: in 1, 3, or 6 months, or in 1 year. Moving an expired entry's date into the future, or turning Expires off, clears its expired status. Restoring an earlier version from the entry's history now brings back that version's expiration date too.
+- Set, change, or remove an entry's expiration date in the entry editor (#120). Under Expiration, turn on Expires and pick a date and time, or choose a preset: in 1, 3, or 6 months, or in 1 year. Moving an expired entry's date into the future, or turning Expires off, clears its expired status.
 - Settings are easier to scan on iPhone and iPad. Each row in Settings now shows what is currently set — the auto-lock timeout, whether AutoFill is on and for how many databases, the theme, the connected cloud accounts — and Cloud Accounts has its own screen. Database Details is now a short list instead of one long form: a header with the file name, format, and size, then General, AutoFill, Master Key, Encryption, Cloud Sync, and Backups & Export, each showing its current state and opening its own screen. Nothing was removed; the Mac settings window keeps its tabs, and Database Details on Mac uses the same list. In the tip jar and on the About screen, descriptions, prices, and link titles now use the regular text color, so they stay readable with any accent color.
 - iPhone and iPad: choose what an open database shows (#100, #108). Tap the title to switch between All Entries, Groups, Verification Codes, Tags, and the Recycle Bin. On iOS 26 and later the search field moves to the bottom of the screen; earlier versions keep it under the title and get the menu as a toolbar button. A database now opens on All Entries, which lists every entry with its group. Verification Codes shows the current code of every entry that has one, with its countdown and a copy button. The Recycle Bin and Tags are opened from this menu instead of the group list.
 - Add and remove an entry's attachments in the entry editor, on iPhone, iPad, and Mac (#162). Under Attachments, tap "Add Attachment" to pick one or more files, or the remove button next to an attachment to take it off the entry; the changes are saved with the entry. A file whose name is already taken on the entry gets a number, such as "scan (2).pdf". A removed attachment stays in the entry's history, as in other KeePass apps. Attachments you don't change stay exactly as they were.

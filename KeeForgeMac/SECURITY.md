@@ -126,6 +126,11 @@ rewrites them with the combined policy.
 
 ## Screen and clipboard privacy
 
+Password reveal and copy actions recheck their originating session, lock cycle,
+and content revision after device-owner authentication. Detail and editor actions
+also reject changed navigation, selection, or inputs; changing the selected entry
+conceals its fields. A successful prompt does not authorize a later session.
+
 [ScreenProtectionService](../KeeForge/Services/Security/ScreenProtectionService.swift)
 places a blur cover over vault-content windows when the app resigns active and
 removes it on activation. Settings is excluded from the cover because it contains
@@ -171,6 +176,10 @@ while the user name and verification code copy without a prompt. Copies go
 through `ClipboardService`, with its concealed marker, clear timer, and
 clear-on-lock.
 
+A new panel presentation invalidates an earlier pending password copy. Losing
+focus to the authentication prompt may hide the panel and clear its query without
+invalidating that copy; the original session and content must still match.
+
 The panel is a non-activating, borderless `NSPanel`. It cannot become a main
 window, so it never counts as a UI-hosting window for the lock monitor. It is
 not titled, so the resign-active blur cover skips it. Because a search usually
@@ -184,6 +193,10 @@ itself when shown, with the same best-effort limits as the other windows.
 writes plaintext temporary files for preview/share, removes them on dismissal and
 completed database lock, and purges orphaned files at launch. Quick Look or another
 receiving application may retain its own copies outside KeeForge's control.
+
+The preview consumer validates its request and session after asynchronous loading
+and before creating a plaintext file, so a completed lock or dismissed preview
+cannot be followed by a late file write from that request.
 
 [PlatformCompat.atomicProtected](../KeeForge/Extensions/PlatformCompat.swift)
 uses atomic writes without iOS's per-file `.completeFileProtection` on macOS.
@@ -259,6 +272,11 @@ Only [project-direct.yml](../project-direct.yml) links Sparkle. The default App
 Store spec has no updater dependency and blanks the feed, public key, and installer
 launcher settings. The artifact verifier rejects Sparkle/update configuration in
 MAS artifacts and StoreKit linkage in KeeForge's direct-build binaries.
+
+[SoftwareUpdateService](../KeeForge/Services/AppSupport/SoftwareUpdateService.swift)
+retains the direct-build updater and observes Sparkle's readiness on the main
+actor to control Check for Updates availability during startup and update checks.
+Sparkle owns appcast fetching, payload verification, and installation.
 
 Direct updates use an HTTPS appcast, Sparkle EdDSA verification against the embedded
 `SUPublicEDKey`, and notarized, stapled app payloads. The signing private key lives

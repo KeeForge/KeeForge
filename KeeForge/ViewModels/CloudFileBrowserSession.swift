@@ -33,6 +33,11 @@ final class CloudFileBrowserSession {
         accounts.first { $0.id == selectedAccountID }
     }
 
+    func selectionAccount(matching accountID: String) -> CloudAccount? {
+        guard selectedAccountID == accountID else { return nil }
+        return selectedAccount
+    }
+
     /// True when this provider is connected through an in-app server/username/
     /// password form (WebDAV, FTP) rather than a hosted OAuth flow.
     var usesManualConnectionForm: Bool {

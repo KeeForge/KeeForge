@@ -328,6 +328,111 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.preparedFilename, filenameBeforeClear)
     }
 
+    func testDismissedPreparationDropsLatePreparedDatabase() async throws {
+        let prepared = try await DatabaseCreationService.prepare(
+            request: DatabasePreparationRequest(
+                displayName: "Late Vault", password: "password", keyFileData: nil,
+                keyFileBookmarkData: nil, keyFileFilename: nil
+            )
+        )
+        let suspension = CreationSuspension<PreparedDatabase>()
+        let viewModel = DatabaseCreationViewModel(preparationOperation: { _, _ in
+            try await suspension.wait()
+        })
+        viewModel.databaseName = "Late Vault"
+        viewModel.password = "password"
+        viewModel.confirmPassword = "password"
+        let preparation = Task { await viewModel.prepareForExport() }
+        await suspension.waitUntilStarted()
+
+        viewModel.cancelPendingCreation()
+        await suspension.resolve(.success(prepared))
+        let succeeded = await preparation.value
+
+        XCTAssertFalse(succeeded)
+        XCTAssertNil(viewModel.preparedDatabase)
+        XCTAssertNil(viewModel.creationError)
+        XCTAssertFalse(viewModel.isCreating)
+        XCTAssertEqual(viewModel.password, "")
+        XCTAssertEqual(viewModel.confirmPassword, "")
+    }
+
+    func testDismissedPreparationDropsLateError() async {
+        let suspension = CreationSuspension<PreparedDatabase>()
+        let viewModel = DatabaseCreationViewModel(preparationOperation: { _, _ in
+            try await suspension.wait()
+        })
+        viewModel.databaseName = "Late Vault"
+        viewModel.password = "password"
+        viewModel.confirmPassword = "password"
+        let preparation = Task { await viewModel.prepareForExport() }
+        await suspension.waitUntilStarted()
+
+        viewModel.cancelPendingCreation()
+        await suspension.resolve(.failure(DatabaseCreationService.CreationError.generatedFileFailedToReopen))
+        let succeeded = await preparation.value
+
+        XCTAssertFalse(succeeded)
+        XCTAssertNil(viewModel.preparedDatabase)
+        XCTAssertNil(viewModel.creationError)
+        XCTAssertFalse(viewModel.isCreating)
+    }
+
+    func testDismissedCloudCreationDoesNotReturnLateCommittedDatabase() async {
+        let suspension = CreationSuspension<Void>()
+        let viewModel = DatabaseCreationViewModel(
+            environment: cloudEnvironment { _, _, path, data, _ in
+                try await suspension.wait()
+                return Self.makeCreatedFile(path: path, data: data)
+            }
+        )
+        viewModel.databaseName = "Late Cloud Vault"
+        viewModel.password = "password"
+        viewModel.confirmPassword = "password"
+        let creation = Task {
+            await viewModel.createInCloud(provider: "dropbox", accountID: "acct-1", folderPath: nil)
+        }
+        await suspension.waitUntilStarted()
+
+        viewModel.cancelPendingCreation()
+        await suspension.resolve(.success(()))
+        let created = await creation.value
+
+        XCTAssertNil(created)
+        XCTAssertNil(viewModel.creationError)
+        XCTAssertFalse(viewModel.isCreating)
+        XCTAssertEqual(viewModel.password, "")
+        XCTAssertEqual(viewModel.confirmPassword, "")
+        // Dismissal suppresses opening the result; it cannot undo a committed upload.
+        XCTAssertEqual(DatabaseListStore.databases.map(\.filename), ["Late Cloud Vault.kdbx"])
+    }
+
+    func testDismissedCloudCreationDropsLateError() async {
+        let suspension = CreationSuspension<Void>()
+        let viewModel = DatabaseCreationViewModel(
+            environment: cloudEnvironment { _, _, path, data, _ in
+                try await suspension.wait()
+                return Self.makeCreatedFile(path: path, data: data)
+            }
+        )
+        viewModel.databaseName = "Late Cloud Vault"
+        viewModel.password = "password"
+        viewModel.confirmPassword = "password"
+        let creation = Task {
+            await viewModel.createInCloud(provider: "dropbox", accountID: "acct-1", folderPath: nil)
+        }
+        await suspension.waitUntilStarted()
+
+        viewModel.cancelPendingCreation()
+        await suspension.resolve(.failure(CloudProviderError.insufficientSpace))
+        let created = await creation.value
+
+        XCTAssertNil(created)
+        XCTAssertNil(viewModel.creationError)
+        XCTAssertFalse(viewModel.isCreating)
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
     // MARK: - Helpers
 
     /// A `.live` environment with only `createCloudFile` swapped for the given
@@ -372,5 +477,30 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         let url = directory.appendingPathComponent(name, isDirectory: false)
         try contents.write(to: url, options: .atomic)
         return url
+    }
+}
+
+private actor CreationSuspension<Value: Sendable> {
+    private var continuation: CheckedContinuation<Value, Error>?
+    private var startedContinuation: CheckedContinuation<Void, Never>?
+    private var hasStarted = false
+
+    func wait() async throws -> Value {
+        try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+            hasStarted = true
+            startedContinuation?.resume()
+            startedContinuation = nil
+        }
+    }
+
+    func waitUntilStarted() async {
+        if hasStarted { return }
+        await withCheckedContinuation { startedContinuation = $0 }
+    }
+
+    func resolve(_ result: Result<Value, Error>) {
+        continuation?.resume(with: result)
+        continuation = nil
     }
 }

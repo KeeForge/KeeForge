@@ -16,18 +16,20 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 
 - Native iPhone, iPad, and Mac KeePass manager for KDBX 4.x databases; also reads KDBX 3.1 (read-only)
 - Swift 6, SwiftUI, iOS 18+ / macOS 15+, `@Observable`, strict concurrency
-- XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`
+- XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`; target-membership rules live in `KeeForge/AGENTS.md`
 - Xcode Cloud uses `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`; the ordinary `KeeForge` scheme retains both full suites. UI B is the complement of A, so new UI classes stay covered. XcodeGen validates this partition automatically; details live in `ci_scripts/README.md`.
 - Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`. The native macOS app shipped in v1.16.0; macOS work now follows the ordinary changelog flow under `## Unreleased`.
 
 ## Open The Local Doc First
 
-Folders that own source files carry an `AGENTS.md`, with a `CLAUDE.md` symlink beside it
-so the doc loads on its own when you work in them — `KeeForge/{App,Models,ViewModels,Extensions}`,
-every `KeeForge/Services/*` and `KeeForge/Views/*` subfolder, `AutoFillExtension`,
-`KeeForgeTests` (and its `Support`), and `KeeForgeMacUITests`. Edit the `AGENTS.md`;
-never replace the symlink with a second copy. The docs below are read on demand:
+Read the owning folder's `AGENTS.md` before changing its files. These live in
+`KeeForge`, `KeeForge/{App,Models,ViewModels,Extensions}`, every `KeeForge/Services/*`
+and `KeeForge/Views/*` subfolder, `AutoFillExtension`, `KeeForgeTests` (and its `Support`),
+and `KeeForgeMacUITests`. Maintain instructions directly in `AGENTS.md`.
+The docs below are read on demand:
 
+- `KeeForge/AGENTS.md` — shared-source changes, workflow ownership, and KDBX compatibility requirements
+- `.agents/AGENTS.md` — repository agent workflow selection
 - `KeeForge/README.md` — app-target map and cross-cutting flows that span folders
 - `KeeForge/Services/README.md` — save-path split, App Group and Keychain boundaries, shared AutoFill allow-list rules
 - `KeeForge/Views/README.md` — UI rules every shell shares: the macOS grouped-form requirement, the `ForEach`/`.onMove` single-row-type rule, and the identifier surface
@@ -40,14 +42,15 @@ never replace the symlink with a second copy. The docs below are read on demand:
 - `ci_scripts/README.md` — Xcode Cloud bootstrap and `run_kdbx_compatibility_gate.sh`, the required local release gate
 - `scripts/README.md` — local dev tooling
 - `.github/AGENTS.md` — CI workflow gating map (named `AGENTS.md` because GitHub renders a `.github/README.md` as the repo front-page README)
-- `docs/README.md` — historical archive of past design specs, audits, and notes (may not match current code)
+- `docs/threat-model.md` — living, high-level threat model; required review for major product or architecture changes
+- `docs/README.md` — documentation index and living-document maintenance rules; historical specs, audits, and notes may not match current code
 
 ## Repo-Wide Rules
 
 ### Coding Styles
 
 - Use `@Observable`, not `ObservableObject` / `@Published`.
-- Use `NavigationStack` + `NavigationPath`, not `NavigationView`.
+- Use `NavigationStack` with typed routes, not `NavigationView`. Keep SwiftUI navigation objects out of shared view models.
 - Keep crypto, parsing, and secret handling off the main thread.
 - Treat these `KeeForge/Models/` files as stable core: `KDBXParser.swift`, `KDBX3Parser.swift`, `KDBXWriter.swift`, `KDBXXMLSerializer.swift`, `KDBXCrypto.swift`, `KDBXOuterCipher.swift`, `OpaqueXMLNodes.swift`, `DatabaseDraft.swift`, `EntryEdit.swift`, `Entry.swift`, `Group.swift`, `EncryptedValue.swift`, `TOTPGenerator.swift`. Change them only for real bugs or intentional format/security work, and add focused tests.
 - No force unwraps outside tests.
@@ -55,15 +58,11 @@ never replace the symlink with a second copy. The docs below are read on demand:
 
 ### Workflows
 
-- Put temporary agent artifacts such as handoff prompts, investigation notes, and scratch scripts under `scratch/`; it is gitignored and must not contain files intended to ship.
-- Use `.agents/skills/pre-release-review/SKILL.md` for standalone reviews before candidate preparation. Reports use the primary checkout's shared `scratch/pre-release/<UTC>__since-<baseline>__head-<SHA12>/report.md`; the report format lives in that skill's `references/report-format.md`.
-- App and Mac targets use folder globs in `project.yml`, so `xcodegen generate` alone picks up new files. Invariant: the `KeeForgeAutoFill` and `KeeForgeMacAutoFill` allow-lists in `project.yml` must stay byte-identical — edit both together.
-- When adding new files, update the nearest folder-local doc (`AGENTS.md`, or `README.md` where the folder has one) if the file changes that folder's map, ownership notes, or workflow guidance.
-- Do not update `docs/specs` for new code changes unless explicitly asked. These specs are mostly historical artifacts, not living implementation docs.
-- When changing code shared with `AutoFillExtension`, keep extension-safe imports/APIs and target membership in sync.
-- When adding or changing database creation, edit operations, KDBX parser/writer behavior, protected fields, unknown XML handling, AutoFill save, cloud save, or local save, update `KeeForgeTests/KDBXCompatibilityTests.swift` and the compatibility artifact gate if the supported compatibility matrix changes.
+- Keep this section repo-wide; put specific procedures in the owning folder's `AGENTS.md` and link them from the local-doc map above.
+- Keep temporary agent artifacts in the main checkout's gitignored `scratch/`, never a linked worktree's. Find the main checkout with the first entry in `git worktree list --porcelain`.
+- Update the nearest folder doc when ownership, file maps, or workflows change. Leave historical `docs/specs` alone unless explicitly asked.
 - Preserve accessibility identifiers or update the relevant UI tests in the same change.
-- Update `CHANGELOG.md` for user-facing feature or bug-fix commits under `## Unreleased` on every platform. It's okay to skip if the bug fix is for an unreleased feature. Keep changelog updates concise, simple and user facing; don't include implementation details unless necessary.
+- Add concise, user-facing changes to `CHANGELOG.md` under `## Unreleased`; fixes for unreleased features may skip it.
 
 ### Localization
 
@@ -80,6 +79,15 @@ never replace the symlink with a second copy. The docs below are read on demand:
 ### Version Control Notes
 
 - Every commit must be DCO signed off (`git commit -s`); the "DCO" status check is required.
+
+## Code Review
+
+- Review the current PR head, the full diff, and affected callers. On re-review, verify earlier findings in code and check for new regressions; recheck the head before posting or approving.
+- Prioritize concrete correctness, data-loss, and security bugs. Trace save/sync/merge and authentication flows through cancellation, background locking, concurrent edits, partial failures, and recovery; include existing on-disk data from shipped versions.
+- Check iPhone, iPad, Mac, and AutoFill parity where affected. Shared SwiftUI and passing unit tests do not establish native layout, keyboard/focus behavior, or usable recovery actions. Check localized copy against the actual behavior.
+- Use focused tests or production-code reproductions for suspected bugs. Regression tests should fail on the broken behavior and exercise relevant persistence/cache effects, not mock them away. Check KDBX interoperability when format or save behavior changes.
+- Report actionable findings by severity with a precise code location, trigger, user impact, and evidence. State the reviewed revision, validation performed, and remaining UI/device/hardware gaps; skipped tests and green CI do not prove untested behavior.
+- When asked to post findings, use inline comments on the relevant code. Post reviews, approve, or resolve discussions only within the user's authorization.
 
 ## Build And Test
 
@@ -116,6 +124,7 @@ Mac XCUITest is the slowest and most fragile lever available: it needs an unlock
 
 ## Security Reminders
 
+- **Keep [docs/threat-model.md](docs/threat-model.md) up to date.** It is a living document, exempt from archive rules. Review it for every major product or architecture change and update it in the same change whenever architecture, data flows, protected assets, trust boundaries, security controls, assumptions, or limitations change. Keep its source references accurate; maintenance requirements are detailed in `docs/README.md`.
 - Secrets are re-encrypted in memory with a per-session `SymmetricKey`; lock clears the session key and invalidates `EncryptedValue` access.
 - Composite keys live in Keychain, not raw master passwords.
 - Local saves compare the open-time SHA-512 before overwrite, create timestamped backups, and refresh the shared cached copy for AutoFill.

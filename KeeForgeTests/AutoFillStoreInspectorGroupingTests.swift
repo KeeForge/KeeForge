@@ -113,8 +113,8 @@ final class AutoFillStoreInspectorGroupingTests: XCTestCase {
     }
 
     func testDatabaseBucketsAreSortedByDisplayNameThenUUID() {
-        let databaseA = UUID()
-        let databaseB = UUID()
+        let databaseA = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        let databaseB = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
 
         let identities: [any ASCredentialIdentity] = [
             passwordIdentity(domain: "z.com", user: "z", recordIdentifier: current(databaseB, UUID())),
@@ -126,6 +126,9 @@ final class AutoFillStoreInspectorGroupingTests: XCTestCase {
         let result = AutoFillStoreInspectorGrouping.makeBuckets(from: identities) { names[$0] }
 
         XCTAssertEqual(result.databaseBuckets.map(\.displayName), ["Apples", "Zucchini"])
+
+        let tied = AutoFillStoreInspectorGrouping.makeBuckets(from: identities) { _ in "Same name" }
+        XCTAssertEqual(tied.databaseBuckets.map(\.databaseID), [databaseA, databaseB])
     }
 
     // MARK: - makeSnapshot

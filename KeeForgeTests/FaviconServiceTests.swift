@@ -1,6 +1,12 @@
 import XCTest
 @testable import KeeForge
 
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
+
 final class FaviconServiceTests: XCTestCase {
     private let showWebsiteIconsKey = "KeeForge.showWebsiteIcons"
 
@@ -138,12 +144,14 @@ final class FaviconServiceTests: XCTestCase {
 
     // MARK: - Cache Key
 
-    func testCacheKeyIsSHA256Hex() {
-        let key = FaviconService.cacheKey(for: "example.com")
-        // SHA256 hex string is 64 characters
-        XCTAssertEqual(key.count, 64)
-        // All hex characters
-        XCTAssertTrue(key.allSatisfy { $0.isHexDigit })
+    func testCacheKeyMatchesSHA256UTF8Vectors() {
+        let vectors = [
+            ("example.com", "a379a6f6eeafb9a55e378c118034e2751e682fab9f2d30ab13d2125586ce1947"),
+            ("例え.jp", "97ce124cc09f803713ff460372441876bf57a4cea1c567de5d849a26ee263524"),
+        ]
+        for (domain, expected) in vectors {
+            XCTAssertEqual(FaviconService.cacheKey(for: domain), expected, domain)
+        }
     }
 
     func testCacheKeyDeterministic() {
@@ -235,5 +243,109 @@ final class FaviconServiceTests: XCTestCase {
 
         SettingsService.showWebsiteIcons = false
         XCTAssertFalse(SettingsService.showWebsiteIcons)
+    }
+}
+
+@MainActor
+final class FaviconLoadModelTests: XCTestCase {
+    func testChangingDomainReplacesThePreviousIcon() async {
+        let firstImage = PlatformImage()
+        let secondImage = PlatformImage()
+        var domains: [String] = []
+        let model = FaviconLoadModel { domain in
+            domains.append(domain)
+            return domain == "first.example" ? firstImage : secondImage
+        }
+
+        await model.load(domain: "first.example")
+        XCTAssertTrue(model.image === firstImage)
+        await model.load(domain: "second.example")
+
+        XCTAssertTrue(model.image === secondImage)
+        XCTAssertEqual(domains, ["first.example", "second.example"])
+    }
+
+    func testStartingAnotherLoadClearsThePreviousIconBeforeItFinishes() async {
+        let firstImage = PlatformImage()
+        let suspended = FaviconImageSuspension()
+        let model = FaviconLoadModel { domain in
+            if domain == "first.example" { return firstImage }
+            return await suspended.wait()
+        }
+        await model.load(domain: "first.example")
+        let loading = Task { await model.load(domain: "second.example") }
+        await suspended.waitUntilStarted()
+
+        XCTAssertNil(model.image)
+        suspended.resolve(nil)
+        await loading.value
+        XCTAssertNil(model.image)
+    }
+
+    func testAnEarlierResponseCannotReplaceTheCurrentDomainIcon() async {
+        let firstImage = PlatformImage()
+        let secondImage = PlatformImage()
+        let suspended = FaviconImageSuspension()
+        let model = FaviconLoadModel { domain in
+            if domain == "first.example" { return await suspended.wait() }
+            return secondImage
+        }
+        let firstLoad = Task { await model.load(domain: "first.example") }
+        await suspended.waitUntilStarted()
+        await model.load(domain: "second.example")
+        suspended.resolve(firstImage)
+        await firstLoad.value
+
+        XCTAssertTrue(model.image === secondImage)
+    }
+
+    func testRemovingTheRequestedDomainClearsAndInvalidatesTheLoad() async {
+        let suspended = FaviconImageSuspension()
+        let model = FaviconLoadModel { _ in await suspended.wait() }
+        let loading = Task { await model.load(domain: "first.example") }
+        await suspended.waitUntilStarted()
+        await model.load(domain: nil)
+        suspended.resolve(PlatformImage())
+        await loading.value
+
+        XCTAssertNil(model.image)
+    }
+
+    func testACancelledLoadCannotPublishItsResponse() async {
+        let suspended = FaviconImageSuspension()
+        let model = FaviconLoadModel { _ in await suspended.wait() }
+        let loading = Task { await model.load(domain: "first.example") }
+        await suspended.waitUntilStarted()
+        loading.cancel()
+        suspended.resolve(PlatformImage())
+        await loading.value
+
+        XCTAssertNil(model.image)
+    }
+}
+
+@MainActor
+private final class FaviconImageSuspension {
+    private var continuation: CheckedContinuation<PlatformImage?, Never>?
+    private var startedContinuation: CheckedContinuation<Void, Never>?
+    private var hasStarted = false
+
+    func wait() async -> PlatformImage? {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            hasStarted = true
+            startedContinuation?.resume()
+            startedContinuation = nil
+        }
+    }
+
+    func waitUntilStarted() async {
+        if hasStarted { return }
+        await withCheckedContinuation { startedContinuation = $0 }
+    }
+
+    func resolve(_ image: PlatformImage?) {
+        continuation?.resume(returning: image)
+        continuation = nil
     }
 }

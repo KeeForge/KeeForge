@@ -1013,6 +1013,16 @@ final class EntryHistoryUITests: UnlockedDatabaseUITestCase {
         tapElement(historyRow)
 
         app.buttons["entry-history.version.0"].tap()
+        let historicalReveal = app.buttons["entry-history.password.reveal"]
+        XCTAssertTrue(revealElement(historicalReveal), "Selected history version did not show its password row")
+        tapElement(historicalReveal)
+        guard let selectedPassword = ["oldtwitter1", "oldtwitter2"].first(where: {
+            app.staticTexts[$0].waitForExistence(timeout: 2)
+        }) else {
+            return XCTFail("Selected history version did not reveal a known fixture password")
+        }
+        XCTAssertNotEqual(selectedPassword, "twitterpass123", "The selected version must differ from the current entry")
+
         let restore = app.buttons["entry-history.restore"]
         XCTAssertTrue(restore.waitForExistence(timeout: 5))
         restore.tap()
@@ -1034,6 +1044,14 @@ final class EntryHistoryUITests: UnlockedDatabaseUITestCase {
         // The replaced state is kept, so the entry now has one more version than before.
         let after = Int(app.buttons["entry-detail.history"].value as? String ?? "")
         XCTAssertEqual(after, versionCountBefore + 1, "the replaced state must be kept as a version")
+        XCTAssertTrue(historicalReveal.waitForNonExistence(timeout: 5), "The history sheet did not dismiss after restoring")
+        let restoredReveal = app.buttons["entry.password.reveal"]
+        XCTAssertTrue(revealElement(restoredReveal), "Restored entry did not show its password row")
+        tapElement(restoredReveal)
+        XCTAssertTrue(
+            app.staticTexts[selectedPassword].waitForExistence(timeout: Self.ciElementTimeout),
+            "Restore kept the old live fields instead of applying the selected version's password"
+        )
     }
 }
 

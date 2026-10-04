@@ -71,10 +71,13 @@ canonical_existing_dir() {
   (cd -P -- "$1" && pwd -P)
 }
 
-canonical_parent="$(canonical_existing_dir "${STATE_PARENT}")" || {
-  echo "error: release-session scratch directory is unavailable" >&2
-  exit 1
-}
+canonical_parent=""
+if (( self_test_processes == 0 )); then
+  canonical_parent="$(canonical_existing_dir "${STATE_PARENT}")" || {
+    echo "error: release-session scratch directory is unavailable" >&2
+    exit 1
+  }
+fi
 
 validate_state_root() {
   local expected_parent actual_parent base

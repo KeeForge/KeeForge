@@ -232,25 +232,25 @@ func validateGroup(_ group: URL) throws {
     print("group-validate regular_files=\(contents.regularFiles.count) links=\(contents.symlinks.count)")
 }
 
-func singleDifference(backup: URL, live: URL) throws -> (extra: String, missing: String)? {
+func singleDifference(backup: URL, live: URL) throws -> String? {
     let original = try relativeRegularFiles(in: backup)
     let current = try relativeRegularFiles(in: live)
     let extra = current.subtracting(original)
     let missing = original.subtracting(current)
-    guard extra.count == 1, missing.count == 1, let extraPath = extra.first, let missingPath = missing.first else {
+    guard extra.count == 1, missing.count <= 1, let extraPath = extra.first else {
         return nil
     }
-    return (extraPath, missingPath)
+    return extraPath
 }
 
 func removeProvenFixtureExtra(backup: URL, live: URL, fixture: URL) throws {
     guard let difference = try singleDifference(backup: backup, live: live),
-          difference.extra.hasPrefix("databases/"),
-          difference.extra.hasSuffix(".kdbx")
+          difference.hasPrefix("databases/"),
+          difference.hasSuffix(".kdbx")
     else {
         throw RestoreError.verificationFailed
     }
-    let extra = live.appendingPathComponent(difference.extra)
+    let extra = live.appendingPathComponent(difference)
     guard try sha256(extra) == sha256(fixture) else { throw RestoreError.verificationFailed }
     try FileManager.default.removeItem(at: extra)
     print("proven-screenshot-fixture-extra=removed count=1")

@@ -13,7 +13,10 @@ struct PasswordGeneratorSheet: View {
         NavigationStack {
             Form {
                 Section("Suggested Password") {
-                    PasswordDisplayRow(revealedText: generatedPassword) {
+                    PasswordDisplayRow(
+                        revealedText: generatedPassword,
+                        passwordAccessibilityIdentifier: "password-generator.password"
+                    ) {
                         HStack(spacing: 16) {
                             Button {
                                 regenerate()

@@ -2,6 +2,8 @@
 
 This folder holds small scripts used by Xcode Cloud and local build setup.
 
+`validate_architecture.py` runs on every `xcodegen generate`, before the cloud scheme check. It rejects SwiftUI imports in view models and direct preference writes in `SettingsView`; the workflow ownership rules live in the root and folder-local agent docs. Run `python3 ci_scripts/validate_architecture.py --self-test` to exercise its positive and negative cases. This is a narrow regression guard, not a substitute for reviewing workflow ownership.
+
 ## Xcode Cloud test partition
 
 The RC workflow uses three Required-to-Pass iOS test actions: `KeeForgeCloudUnitTests`,
@@ -20,7 +22,7 @@ fixtures and the new-class coverage check. UI tests inheriting `KeeForgeUITestCa
 `-test-timeouts-enabled YES` to enforce it. Opt-in App Store screenshot capture is separate.
 
 The live account configuration and destination details are documented in
-`../.agents/skills/release/xcode-cloud-setup.md`.
+`../.agents/skills/prepare-release/references/xcode-cloud-setup.md`.
 
 ## Signed contributor testing
 
@@ -162,7 +164,7 @@ invoke `gh`, `curl`, `xcodebuild`, `notarytool`, tags, pushes, or ASC.
    - `search` for every `expectedSearchTerms` entry, `ls` for every `expectedGroupPaths` entry.
    - `attachment-export` plus a SHA-256 comparison for every `expectedAttachments` entry (the `kitchen-sink.kdbx`- and `unknown-inner-header.kdbx`-derived artifacts).
    - `show -s -a Password` for every `expectedPasswords` entry. This checks protected password decryption: searching and listing only read plaintext XML, so without it a protected-value stream that is self-consistent but non-conforming would pass the whole gate. Every fixture-smoke artifact verifies both a password KeeForge just wrote and one the fixture already carried (authored by another KeePass implementation), covering AES, ChaCha20, Twofish, key-file, KDBX 4.1, unknown-XML, unknown-inner-header, high-iteration Argon2 (1500 x 1 MiB), and attachment databases; the rich `create-entry`/`update-entry` artifacts cover a created and an edited password.
-   - `export -f xml` for `expectedCustomFields`: the `custom-field-edits` artifact must retain edited/added values (including Unicode, XML metacharacters, newlines, and empty strings), renamed and reused protected names, removal of plain/protected fields, and the original fields in history. KeePassXC decrypts the values and exports protection as `ProtectInMemory`; both are checked, with exact history count and explicit absent-field assertions. The gate fails if no custom-field checks run.
+   - `export -f xml` for `expectedCustomFields`: the `custom-field-edits` artifact must retain edited/added values (including Unicode, XML metacharacters, newlines, and empty strings), renamed and reused protected names, removal of plain/protected fields, and the original fields in history. KeePassXC decrypts the values and exports protection as `ProtectInMemory`; both are checked, with exact history count and explicit absent-field assertions. For fields containing carriage returns, parsing KeePassXC's XML export normalizes them to line feeds, so the gate also checks the raw `show -a` output byte-for-byte. The gate fails if no custom-field checks run.
    - `export -f xml` for `expectedExpiries`: the `set-entry-expiry` and `change-entry-expiry` artifacts must read back with `Expires` true and the expected `ExpiryTime` (base64 or ISO 8601 accepted). The gate fails if no expiry checks run.
    - `show -t` (TOTP) for every `expectedTOTPs` entry, proving real KeePassXC *generates a code* from what KeeForge enrolled — `update-entry` carries the fresh-enrollment verbatim `otp` URI (the entry editor's primary output) and `create-entry` the `TimeOtp-*` authoring path. The expected code is recomputed by an independent RFC 6238 reference implementation inside the gate script for the time windows in effect just before and just after the CLI call, and either is accepted — the call takes well under one period, so a 30-second window rollover mid-check can never flake the gate.
    Entry paths are resolved by exact-title `search` hit (and cached), so entries that moved into the Recycle Bin or were renamed by the edit still resolve.
@@ -179,7 +181,7 @@ The artifact set itself is declared in `KeeForgeTests/KDBXCompatibilitySupport.s
 - If CI needs new generated files or dependencies, add them here instead of assuming the checked-in `.xcodeproj` is current.
 - `Configs/BuildConfig.xcconfig` is a checked-in include file, not a generated source of truth. It lives in `Configs/` (not the repo root) so XcodeGen wraps it in a stable `Configs` group instead of one named after the checkout directory.
 - Local developers should copy `BuildConfig.local.example.xcconfig` to `BuildConfig.local.xcconfig` (both at the repo root), fill in `DROPBOX_APP_KEY`, and optionally add `ONEDRIVE_CLIENT_ID` to test OneDrive OAuth.
-- Xcode Cloud **must** provide `DROPBOX_APP_KEY` and `ONEDRIVE_CLIENT_ID` as environment variables on any workflow with an archive action. That is the **Tests (RC)** workflow on `rc/*` tags, whose archive action runs alongside its three test actions — no workflow triggers on `v*` (see `.agents/skills/release/xcode-cloud-setup.md`). For non-archive actions `ci_post_clone.sh` falls back to CI-only placeholders so project generation still succeeds. An archive (or a run with `REQUIRE_REAL_CLOUD_KEYS=1`) whose `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID` is missing or still a placeholder fails the build instead of shipping non-working cloud sign-in. Outside archives, `ONEDRIVE_CLIENT_ID` stays optional — the app just disables OneDrive sign-in.
+- Xcode Cloud **must** provide `DROPBOX_APP_KEY` and `ONEDRIVE_CLIENT_ID` as environment variables on any workflow with an archive action. That is the **Tests (RC)** workflow on `rc/*` tags, whose archive action runs alongside its three test actions — no workflow triggers on `v*` (see `.agents/skills/prepare-release/references/xcode-cloud-setup.md`). For non-archive actions `ci_post_clone.sh` falls back to CI-only placeholders so project generation still succeeds. An archive (or a run with `REQUIRE_REAL_CLOUD_KEYS=1`) whose `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID` is missing or still a placeholder fails the build instead of shipping non-working cloud sign-in. Outside archives, `ONEDRIVE_CLIENT_ID` stays optional — the app just disables OneDrive sign-in.
 - GitHub Actions can keep using simulator-safe placeholder values to materialize `BuildConfig.local.xcconfig`; the app treats the CI placeholders as cloud providers disabled for real sign-in.
 - The Dropbox key is interpolated into the `db-$(DROPBOX_APP_KEY)` `CFBundleURLScheme`, so the CI placeholder is `ciplaceholderdropboxappkey`. Placeholders must be RFC1738-legal (alphanumerics only) — App Store Connect rejects underscores in URL schemes (ITMS-90158). `prepare_build_config.sh` also recognizes the legacy literal `CI_PLACEHOLDER_DROPBOX_APP_KEY` as a placeholder (`LEGACY_CI_PLACEHOLDER_DROPBOX_APP_KEY`). `KeeForgeTests/URLSchemeFormatTests.swift` enforces this on the built app bundle.
 

@@ -1,3 +1,4 @@
+import AuthenticationServices
 import CryptoKit
 import XCTest
 @testable import KeeForge
@@ -31,6 +32,51 @@ final class KDBXCompatibilityTests: XCTestCase {
         Bundle(for: Self.self)
     }
 
+    func test_invalidNotesAreRejectedByDraftAndWriterForAESAndTwofish() throws {
+        for fixture in [KDBXCompatibilitySupport.Fixture.syntheticRich, .syntheticTwofish] {
+            let loaded = try KDBXCompatibilitySupport.load(fixture, bundle: bundle)
+            let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey)
+            let invalid = EntryDraftPayload(title: "Invalid Notes", notes: "Example heading\u{0}\r\nExample body")
+            XCTAssertThrowsError(try draft.apply(.createEntry(parentGroupID: loaded.rootGroup.id, draft: invalid))) { error in
+                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+            }
+            XCTAssertTrue(draft.pendingEdits.isEmpty)
+            let root = loaded.rootGroup.deepCopy()
+            root.entries.append(KPEntry(title: invalid.title, notes: invalid.notes))
+            XCTAssertThrowsError(try KDBXWriter.write(
+                rootGroup: root, meta: loaded.meta, compositeKey: loaded.compositeKey,
+                header: loaded.header, sessionKey: loaded.sessionKey
+            )) { error in
+                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+            }
+        }
+    }
+
+    func test_lowercaseProtectedOpaqueValueWithNULSurvivesKDBXWriteAndReload() throws {
+        let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle)
+        var meta = loaded.meta
+        meta.unknownXML.append(
+            xml: "<Vendor><Value Protected=\"true\">A\u{0}B</Value></Vendor>",
+            insertionIndex: 0
+        )
+
+        let written = try KDBXWriter.write(
+            rootGroup: loaded.rootGroup,
+            meta: meta,
+            compositeKey: loaded.compositeKey,
+            header: loaded.header,
+            sessionKey: loaded.sessionKey
+        )
+        let reparsed = try KDBXParser.parseWithMeta(
+            data: written,
+            compositeKey: loaded.compositeKey,
+            sessionKey: loaded.sessionKey
+        )
+        XCTAssertTrue(reparsed.meta.unknownXML.nodes.contains {
+            $0.xml.contains("<Vendor><Value Protected=\"true\">A\u{0}B</Value></Vendor>")
+        })
+    }
+
     func test_allSupportedEditScenarios_writeReparseAndOnlyChangeExpectedSemantics() throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
 
@@ -44,6 +90,12 @@ final class KDBXCompatibilityTests: XCTestCase {
             .kdbx4(minor: 0),
             "Fixture precondition: KeeForge authors 4.0 until content requires 4.1"
         )
+        let updateTarget = try XCTUnwrap(rich.rootGroup.allEntries.first { $0.title == "Compat Update Target" })
+        XCTAssertTrue(updateTarget.expires, "Fixture precondition: edits must preserve active expiry")
+        XCTAssertEqual(updateTarget.expiryTime, Date(timeIntervalSince1970: 1_893_553_445))
+        let untouched = try XCTUnwrap(rich.rootGroup.allEntries.first { $0.title == "Compat Untouched Entry" })
+        XCTAssertFalse(untouched.expires, "Fixture precondition: a stored date need not enable expiry")
+        XCTAssertEqual(untouched.expiryTime, Date(timeIntervalSince1970: 1_577_934_245))
         var writtenVersions: [String: KDBXParser.FileVersion] = [:]
         for scenario in KDBXCompatibilitySupport.fullEditScenarios() {
             let result = try collector.run(scenario, on: rich)
@@ -806,6 +858,171 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     @MainActor
+    func test_editorCoordinators_createUpdateAndRename_surviveRealLocalSaveAndReopen() async throws {
+        let fixture = KDBXTestFixture.test
+        let sourceBytes = try fixture.data(in: bundle)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let databaseURL = directory.appendingPathComponent("editor-workflow.kdbx")
+        try sourceBytes.write(to: databaseURL)
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL, autoFillEnabled: false)
+        defer {
+            try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
+            try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
+        }
+        let database = DatabaseViewModel(databaseReference: reference, storedKeyPresenceCheck: { _ in false })
+        defer { database.lock() }
+        await database.unlock(password: fixture.password)
+        let root = try XCTUnwrap(database.rootGroup)
+        let group = try XCTUnwrap(root.groups.first)
+        let existing = try XCTUnwrap(root.allEntries.first)
+        let sessionKey = try XCTUnwrap(database.sessionKey)
+        let originalPassword = try existing.password.decrypt(using: sessionKey)
+        var completions: [EntryEditCompletion] = []
+
+        let createForm = EntryEditViewModel(createIn: group.id)
+        createForm.title = "Coordinator-created entry"
+        createForm.password = "created-protected-password"
+        createForm.pendingTagText = "coordinator-tag"
+        let createEditor = DatabaseEditorCoordinator(entry: createForm, database: database)
+        createEditor.activate()
+        await createEditor.save { completions.append($0) }
+        createEditor.deactivate()
+        XCTAssertNil(createEditor.errorMessage)
+
+        let updateForm = EntryEditViewModel(editing: existing, sessionKey: sessionKey)
+        updateForm.title = "Coordinator-updated entry"
+        updateForm.password = "updated-protected-password"
+        let updateEditor = DatabaseEditorCoordinator(entry: updateForm, database: database)
+        updateEditor.activate()
+        await updateEditor.save { completions.append($0) }
+        updateEditor.deactivate()
+        XCTAssertNil(updateEditor.errorMessage)
+
+        let groupForm = GroupEditViewModel(editing: group, isHiddenFromAutoFill: false)
+        groupForm.name = "Coordinator-renamed group"
+        let groupEditor = DatabaseEditorCoordinator(group: groupForm, database: database)
+        groupEditor.activate()
+        await groupEditor.save { completions.append($0) }
+        groupEditor.deactivate()
+        XCTAssertNil(groupEditor.errorMessage)
+        XCTAssertEqual(completions, [.saved, .saved, .saved])
+        XCTAssertFalse(database.isDirty)
+        XCTAssertFalse(database.hasUnsavedEditor)
+        database.lock()
+
+        let writtenData = try Data(contentsOf: databaseURL)
+        let reopenedKey = SymmetricKey(size: .bits256)
+        let reopened = try KDBXParser.parseWithMeta(
+            data: writtenData, password: fixture.password, sessionKey: reopenedKey
+        )
+        let created = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.title == createForm.title })
+        let updated = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.id == existing.id })
+        let renamed = try XCTUnwrap(reopened.rootGroup.groups.first { $0.id == group.id })
+        XCTAssertEqual(reopened.rootGroup.allEntries.count, root.allEntries.count + 1)
+        XCTAssertTrue(renamed.entries.contains { $0.id == created.id })
+        XCTAssertEqual(created.tags, ["coordinator-tag"])
+        XCTAssertEqual(try created.password.decrypt(using: reopenedKey), "created-protected-password")
+        XCTAssertEqual(updated.title, updateForm.title)
+        XCTAssertEqual(try updated.password.decrypt(using: reopenedKey), "updated-protected-password")
+        XCTAssertTrue(updated.history.contains { (try? $0.password.decrypt(using: reopenedKey)) == originalPassword })
+        XCTAssertEqual(renamed.name, groupForm.name)
+        XCTAssertEqual(try fixture.data(in: bundle), sourceBytes, "The bundled fixture must remain untouched")
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), writtenData)
+    }
+
+    @MainActor
+    func test_editorCreateRetryAfterWriteFailure_savesOneUpdatedEntryWithProtectedFields() async throws {
+        let fixture = KDBXTestFixture.test
+        let sourceBytes = try fixture.data(in: bundle)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let databaseURL = directory.appendingPathComponent("editor-create-retry.kdbx")
+        try sourceBytes.write(to: databaseURL)
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL, autoFillEnabled: false)
+        defer {
+            try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
+            try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
+        }
+        let attempts = EditorSaveAttempts()
+        let database = DatabaseViewModel(
+            databaseReference: reference,
+            localSaveOperation: { draft, reference, key, hash, reconciledHash, newKey, settings in
+                if await attempts.shouldFail() { throw DatabaseSaveError.networkUnavailable }
+                return try await LocalDatabaseSaver.save(
+                    draft: draft, reference: reference, compositeKey: key, openTimeSHA512: hash,
+                    reconciledRemoteSHA512: reconciledHash, kdfPolicy: .mainApp,
+                    newCompositeKey: newKey, encryptionSettings: settings
+                )
+            },
+            storedKeyPresenceCheck: { _ in false }
+        )
+        defer { database.lock() }
+        await database.unlock(password: fixture.password)
+        let root = try XCTUnwrap(database.rootGroup)
+        let group = try XCTUnwrap(root.groups.first)
+        let form = EntryEditViewModel(createIn: root.id)
+        form.title = "Creation before failed write"
+        form.password = "first-protected-password"
+        form.addAttachment(named: "removed.txt", data: Data("remove before retry".utf8))
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        var completions: [EntryEditCompletion] = []
+
+        await editor.save { completions.append($0) }
+        let createdID = try XCTUnwrap(database.currentRootGroup?.allEntries.first { $0.title == form.title }?.id)
+        XCTAssertTrue(completions.isEmpty)
+        XCTAssertNotNil(editor.errorMessage)
+        XCTAssertEqual(try Data(contentsOf: databaseURL), sourceBytes)
+
+        form.title = "Creation after edited retry"
+        form.password = "retry-protected-password"
+        form.username = "retry-user"
+        form.pendingTagText = "retry-tag"
+        form.removeAttachment(id: try XCTUnwrap(form.attachments.first?.id))
+        form.setCreateDestination(to: group.id, inheritedTags: [])
+        database.lockRequest(manuallyTriggered: true)
+        let lockRequest = try XCTUnwrap(editor.pendingLockRequest)
+        await editor.save(resuming: lockRequest) { completions.append($0) }
+        editor.deactivate()
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertNil(editor.errorMessage)
+        XCTAssertFalse(database.isDirty)
+        XCTAssertEqual(database.state, .locked)
+        database.lock()
+
+        let writtenData = try Data(contentsOf: databaseURL)
+        let reopenedKey = SymmetricKey(size: .bits256)
+        let reopened = try KDBXParser.parseWithMeta(
+            data: writtenData, password: fixture.password, sessionKey: reopenedKey
+        )
+        let created = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.id == createdID })
+        XCTAssertEqual(reopened.rootGroup.allEntries.count, root.allEntries.count + 1)
+        XCTAssertTrue(try XCTUnwrap(reopened.rootGroup.groups.first { $0.id == group.id }).entries.contains { $0.id == createdID })
+        XCTAssertEqual(created.title, form.title)
+        XCTAssertEqual(created.username, "retry-user")
+        XCTAssertEqual(created.tags, ["retry-tag"])
+        XCTAssertEqual(try created.password.decrypt(using: reopenedKey), "retry-protected-password")
+        XCTAssertTrue(created.attachments.isEmpty)
+        XCTAssertTrue(created.history.contains {
+            (try? $0.password.decrypt(using: reopenedKey)) == "first-protected-password"
+        })
+        XCTAssertEqual(try fixture.data(in: bundle), sourceBytes)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), writtenData)
+    }
+
+    private actor EditorSaveAttempts {
+        private var count = 0
+
+        func shouldFail() -> Bool {
+            count += 1
+            return count == 1
+        }
+    }
+
+    @MainActor
     func test_keeOTPRemovalAndMalformedReplacementRemainSafe() throws {
         let testCase = try XCTUnwrap(KDBXCompatibilitySupport.keeOTPCases.first { $0.fieldName == "OTP" && $0.encoding == "Base64" })
         let entry = try makeKeeOTPEntry(testCase)
@@ -1109,6 +1326,117 @@ final class KDBXCompatibilityTests: XCTestCase {
         let secondXML = try secondSerializer.serialize()
 
         XCTAssertEqual(firstXML, secondXML, "Passkey round-trip must be byte-identical")
+    }
+
+    @MainActor
+    func test_autoFillSave_finishesAfterCancellation_preservesCommittedPasskeyWithoutCompletingReplacement() async throws {
+        let fixture = KDBXTestFixture.test
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let databaseURL = directory.appendingPathComponent("autofill-cancellation.kdbx")
+        let sourceBytes = try fixture.data(in: bundle)
+        try sourceBytes.write(to: databaseURL)
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let previousActiveDatabaseID = DatabaseListStore.activeAutoFillDatabaseID
+        defer {
+            DatabaseListStore.activeAutoFillDatabaseID = previousActiveDatabaseID
+            try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
+            try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
+        }
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try fixture.parse(in: bundle, sessionKey: sessionKey)
+        let presenter = CredentialProviderPresentingSpy()
+        let coordinator = CredentialProviderCoordinator(presenter: presenter)
+        coordinator.activeDatabaseReference = reference
+        coordinator.parsedRootGroup = parsed.rootGroup
+        coordinator.parsedMeta = parsed.meta
+        coordinator.parsedEntries = parsed.rootGroup.allEntries
+        coordinator.sessionKey = sessionKey
+        coordinator.compositeKey = parsed.compositeKey
+        coordinator.openTimeSHA512 = KDBXCrypto.sha512(sourceBytes)
+        let gate = AutoFillSaveCompletionGate()
+        let saveCommitted = expectation(description: "passkey bytes committed")
+        var environment = AutoFillSaveCoordinator.Environment.live
+        let saveDraft = environment.saveDraft
+        environment.saveDraft = { draft, reference, key, hash in
+            let result = try await saveDraft(draft, reference, key, hash)
+            await gate.wait(committed: saveCommitted)
+            return result
+        }
+        environment.populateCredentialStore = { _, _ in }
+        coordinator.passkeySaveEnvironment = environment
+        let identity = ASPasskeyCredentialIdentity(
+            relyingPartyIdentifier: "example.com",
+            userName: "alice",
+            credentialID: Data(),
+            userHandle: Data("alice-handle".utf8),
+            recordIdentifier: nil
+        )
+        coordinator.pendingPasskeyRegistrationRequest = ASPasskeyCredentialRequest(
+            credentialIdentity: identity,
+            clientDataHash: Data(repeating: 7, count: 32),
+            userVerificationPreference: .preferred,
+            supportedAlgorithms: [.ES256]
+        )
+        XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
+        let creator = try XCTUnwrap(presenter.passkeyCreator)
+        let saveTask = Task { await creator.onSave("Committed AutoFill Passkey") }
+        await fulfillment(of: [saveCommitted], timeout: 10)
+        let bytesBeforeCancellation = try? Data(contentsOf: databaseURL)
+
+        coordinator.cancelRequest(code: .userCanceled)
+        presenter.isPresentationActive = false
+        coordinator.prepareCredentialList(for: [])
+        let replacementRoot = KPGroup(name: "Replacement")
+        coordinator.parsedRootGroup = replacementRoot
+        await gate.resume()
+        let outcome = await saveTask.value
+
+        guard case .completed = outcome else {
+            return XCTFail("An obsolete save must not present an alert, got \(outcome)")
+        }
+        XCTAssertEqual(coordinator.parsedRootGroup?.id, replacementRoot.id)
+        XCTAssertNil(coordinator.openTimeSHA512)
+        XCTAssertNil(presenter.completedRegistration)
+        XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
+        let committedBytes = try XCTUnwrap(bytesBeforeCancellation)
+        XCTAssertNotEqual(committedBytes, sourceBytes)
+        XCTAssertEqual(try Data(contentsOf: databaseURL), committedBytes)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), committedBytes)
+        let reopenedKey = SymmetricKey(size: .bits256)
+        let reopened = try KDBXParser.parseWithMetaAndHeader(
+            data: committedBytes,
+            password: fixture.password,
+            sessionKey: reopenedKey
+        )
+        let saved = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.title == "Committed AutoFill Passkey" })
+        let passkey = try XCTUnwrap(saved.passkeyCredential)
+        XCTAssertEqual(passkey.relyingParty, "example.com")
+        XCTAssertNotNil(try PasskeyCrypto.privateKey(fromPEM: passkey.privateKeyPEM(using: reopenedKey)))
+        XCTAssertEqual(reopened.rootGroup.allEntries.count, parsed.rootGroup.allEntries.count + 1)
+        XCTAssertEqual(reopened.header.cipherID, parsed.header.cipherID)
+        XCTAssertEqual(try fixture.data(in: bundle), sourceBytes)
+        coordinator.cancelRequest(code: .userCanceled)
+    }
+
+    private actor AutoFillSaveCompletionGate {
+        private var continuation: CheckedContinuation<Void, Never>?
+        private var isResumed = false
+
+        func wait(committed: XCTestExpectation) async {
+            guard !isResumed else { return }
+            await withCheckedContinuation { continuation in
+                self.continuation = continuation
+                committed.fulfill()
+            }
+        }
+
+        func resume() {
+            isResumed = true
+            continuation?.resume()
+            continuation = nil
+        }
     }
 
     func test_passkeyEntryCreation_protectsPasskeyFieldsThroughWriteAndReparse() throws {

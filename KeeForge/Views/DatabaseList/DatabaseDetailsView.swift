@@ -32,6 +32,7 @@ struct DatabaseDetailsView: View {
     @State private var fileInfo: DatabaseFileInfo?
     @State private var isLoadingFileInfo = true
     @State private var showKeyFilePicker = false
+    @State private var selectionAlert: DocumentPickerService.SelectionAlert?
     @State private var showAppSettings = false
     @State private var showAutoFillDestinationPicker = false
     @State private var backups: [DatabaseExportService.Backup] = []
@@ -110,9 +111,24 @@ struct DatabaseDetailsView: View {
             allowedContentTypes: [.data],
             allowsMultipleSelection: false
         ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                try? listViewModel.setKeyFile(url: url, for: reference)
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                do {
+                    try listViewModel.setKeyFile(url: url, for: reference)
+                } catch {
+                    selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+                }
+            case .failure(let error):
+                selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
             }
+        }
+        .alert(item: $selectionAlert) { alert in
+            Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK"))
+            )
         }
         .sheet(isPresented: $showAppSettings) {
             SettingsView(viewModel: sessionViewModel, listViewModel: listViewModel)

@@ -111,11 +111,11 @@ final class AutoLockTests: XCTestCase {
 
     func testLockClearsNavigationPath() async throws {
         let vm = try await makeUnlockedViewModel()
-        vm.navigationPath.append("something")
+        vm.workspace.navigationPath.append(.entry(UUID()))
 
         vm.lock()
 
-        XCTAssertTrue(vm.navigationPath.isEmpty)
+        XCTAssertTrue(vm.workspace.navigationPath.isEmpty)
     }
 
     func testInactivityTimerCreatedWithCorrectInterval() async throws {
@@ -142,6 +142,23 @@ final class AutoLockTests: XCTestCase {
         vm.lock()
 
         XCTAssertNil(vm.inactivityTimer)
+    }
+
+    func testWorkspaceNavigationResetsInactivityOnlyWhileUnlocked() async throws {
+        SettingsService.autoLockTimeout = .fiveMinutes
+        let vm = try await makeUnlockedViewModel()
+        let previousTimer = try XCTUnwrap(vm.inactivityTimer)
+
+        vm.workspace.navigationPath.append(.entry(UUID()))
+
+        XCTAssertFalse(previousTimer.isValid)
+        XCTAssertNotNil(vm.inactivityTimer)
+        XCTAssertFalse(vm.inactivityTimer === previousTimer)
+
+        vm.lock()
+        vm.workspace.selectedGroupID = UUID()
+        XCTAssertNil(vm.inactivityTimer)
+        XCTAssertNil(vm.inactivityDeadline)
     }
 
     func testNeverSettingMeansNoTimer() async throws {
@@ -535,9 +552,7 @@ final class AutoLockTests: XCTestCase {
     #endif
 
     private func makeUnlockedViewModel() async throws -> DatabaseViewModel {
-        let vm = try makeViewModel()
-        await vm.unlock(password: fixturePassword)
-        return vm
+        try await makeUnlockedViewModel(nowProvider: { .now })
     }
 
     private func makeUnlockedViewModel(
@@ -545,6 +560,10 @@ final class AutoLockTests: XCTestCase {
     ) async throws -> DatabaseViewModel {
         let vm = try makeViewModel(nowProvider: nowProvider)
         await vm.unlock(password: fixturePassword)
+        guard case .unlocked = vm.state else {
+            XCTFail("Expected an unlocked test session, got \(vm.state): \(String(describing: vm.openFailure))")
+            return vm
+        }
         return vm
     }
 

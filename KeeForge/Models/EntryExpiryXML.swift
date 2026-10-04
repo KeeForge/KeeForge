@@ -42,23 +42,6 @@ enum EntryExpiryXML {
         return updated
     }
 
-    /// `entry` carrying `version`'s expiration elements verbatim, for restoring
-    /// a history version: the display copy comes from the version, so the
-    /// bytes the writer emits have to as well. An element the version lacks is
-    /// removed.
-    static func entry(_ entry: KPEntry, withExpirationOf version: KPEntry) -> KPEntry {
-        var updated = entry
-        updated.expires = version.expires
-        updated.expiryTime = version.expiryTime
-        for name in ["ExpiryTime", "Expires"] {
-            // The parser keeps the value of the last duplicate, so that is the
-            // element the version's display copy came from.
-            let fragment = version.unknownXML.nodes.last { $0.path == timesPath && $0.elementName == name }
-            updated.unknownXML = setting(name, to: fragment?.xml, in: updated)
-        }
-        return updated
-    }
-
     /// `entry`'s preserved XML with every `<name>` under `<Times>` replaced by
     /// `xml`, or removed when `xml` is nil. A replacement takes the first
     /// existing element's slot; a new element goes where KeePass writes it.

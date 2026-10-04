@@ -375,12 +375,13 @@ final class EntryEditViewModel {
         keeOTPSource == nil ? [6, 7, 8] : [6, 8]
     }
 
-    /// Set while the form asks for a digit count the entry's storage format
-    /// cannot express. The payload would silently revert the whole TOTP edit
-    /// rather than write a query that fails to reload, so the editor blocks
-    /// the save and explains instead.
+    /// KeeOTP edits outside its supported digit counts would revert to the
+    /// original configuration, so the editor blocks them before saving.
     var unsupportedTOTPDigitsMessage: String? {
         guard supportedTOTPDigits.contains(totpDigits) == false else { return nil }
+        guard keeOTPSource != nil else {
+            return String(localized: "KeeForge supports 6-, 7-, or 8-digit verification codes.")
+        }
         return String(localized: "This entry stores its code in the legacy KeeOTP format, which only supports 6- or 8-digit codes.")
     }
 

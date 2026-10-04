@@ -18,17 +18,36 @@ final class PendingUploadQueueTests: XCTestCase {
         try super.tearDownWithError()
     }
 
-    func test_enqueue_writesMarkerAtomically() throws {
-        let environment = makeEnvironment { data, url in
-            let tempURL = url.deletingLastPathComponent().appendingPathComponent(".partial-write.tmp", isDirectory: false)
-            try data.write(to: tempURL, options: .atomic)
-            try FileManager.default.removeItem(at: tempURL)
-            throw CocoaError(.fileWriteUnknown)
-        }
+    func test_enqueue_failedMarkerWriteDoesNotNotify() throws {
+        let notificationCounter = Counter()
+        let environment = makeEnvironment(
+            writeMarkerAtomically: { _, _ in throw CocoaError(.fileWriteUnknown) },
+            onDarwinNotification: { notificationCounter.increment() }
+        )
         let marker = makeMarker()
 
-        XCTAssertThrowsError(try PendingUploadQueue.enqueue(marker, environment: environment))
+        XCTAssertThrowsError(try PendingUploadQueue.enqueue(marker, environment: environment)) { error in
+            XCTAssertEqual((error as? CocoaError)?.code, .fileWriteUnknown)
+        }
         XCTAssertTrue(PendingUploadQueue.listMarkers(for: marker.databaseId, environment: environment).isEmpty)
+        XCTAssertEqual(notificationCounter.value, 0)
+    }
+
+    func test_liveMarkerWriter_failedRenamePreservesDestinationAndCleansStagingFile() throws {
+        let destination = containerURL.appendingPathComponent("occupied.json", isDirectory: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        let sentinel = destination.appendingPathComponent("existing-data")
+        let originalData = Data("must survive".utf8)
+        try originalData.write(to: sentinel)
+
+        XCTAssertThrowsError(
+            try PendingUploadQueue.Environment.live.writeMarkerAtomically(Data("new-marker".utf8), destination)
+        ) { error in
+            XCTAssertEqual((error as? POSIXError)?.code, .EIO)
+        }
+
+        XCTAssertEqual(try Data(contentsOf: sentinel), originalData)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: containerURL.path), ["occupied.json"])
     }
 
     func test_listMarkers_returnsAllForGivenDatabase() throws {

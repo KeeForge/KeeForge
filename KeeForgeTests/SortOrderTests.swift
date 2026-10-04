@@ -151,6 +151,42 @@ final class SortOrderTests: XCTestCase {
         XCTAssertEqual(sorted.map(\.name), ["Recent", "Old"])
     }
 
+    func testSortingPreservesSourceOrderForEqualKeys() {
+        let cases: [(order: DatabaseViewModel.SortOrder, missingDates: Bool)] = [
+            (.title, false), (.createdDate, false), (.modifiedDate, false),
+            (.createdDate, true), (.modifiedDate, true),
+        ]
+        for testCase in cases {
+            let oldest = Date(timeIntervalSince1970: 1_000)
+            let tied = testCase.missingDates ? nil : Date(timeIntervalSince1970: 2_000)
+            let newest = Date(timeIntervalSince1970: 3_000)
+            let entries = [
+                KPEntry(title: "Alpha", creationTime: oldest, lastModificationTime: oldest),
+                KPEntry(title: "Tie", creationTime: tied, lastModificationTime: tied),
+                KPEntry(title: "Tie", creationTime: tied, lastModificationTime: tied),
+                KPEntry(title: "Zebra", creationTime: newest, lastModificationTime: newest),
+            ]
+            let groups = entries.map {
+                KPGroup(id: $0.id, name: $0.title, creationTime: $0.creationTime, lastModificationTime: $0.lastModificationTime)
+            }
+            viewModel.sortOrder = testCase.order
+
+            for ascending in [true, false] {
+                viewModel.sortAscending = ascending
+                let expectedIndices: [Int]
+                if testCase.missingDates {
+                    expectedIndices = ascending ? [1, 2, 0, 3] : [3, 0, 1, 2]
+                } else {
+                    expectedIndices = ascending ? [0, 1, 2, 3] : [3, 1, 2, 0]
+                }
+                let expectedIDs = expectedIndices.map { entries[$0].id }
+                let context = "\(testCase.order), missingDates=\(testCase.missingDates), ascending=\(ascending)"
+                XCTAssertEqual(viewModel.sortedEntries(entries).map(\.id), expectedIDs, context)
+                XCTAssertEqual(viewModel.sortedGroups(groups).map(\.id), expectedIDs, context)
+            }
+        }
+    }
+
     // MARK: - Recycle Bin Placement
 
     func testRecycleBinSortsLastRegardlessOfSortOrder() async throws {

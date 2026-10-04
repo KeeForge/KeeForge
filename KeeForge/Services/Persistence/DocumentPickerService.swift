@@ -15,18 +15,6 @@ enum DocumentPickerService {
     static let keyFilePickerContentTypes: [UTType] = [.item]
     private static let kdbxMagic = Data([0x03, 0xD9, 0xA2, 0x9A, 0x67, 0xFB, 0x4B, 0xB5])
 
-    static func saveBookmark(for url: URL) throws {
-        try SharedVaultStore.saveBookmark(for: url)
-    }
-
-    static func loadBookmarkedURL() -> URL? {
-        SharedVaultStore.loadBookmarkedURL()
-    }
-
-    static func clearBookmark() {
-        SharedVaultStore.clearBookmark()
-    }
-
     static func isLikelyDatabaseFile(_ url: URL) -> Bool {
         url.pathExtension.lowercased() == "kdbx"
     }

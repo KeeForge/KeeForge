@@ -232,7 +232,10 @@ def verify_field_set(entry, expected, label):
         value = strings.get(name)
         if value is None:
             raise ValueError(f"{label}: missing field {name!r}")
-        if (value.text or "") != field["value"]:
+        # KeePassXC emits literal CR on XML export; XML parsing normalizes it
+        # to LF. A raw `show` check below verifies the original CR survived.
+        exported_value = field["value"].replace("\r\n", "\n").replace("\r", "\n")
+        if (value.text or "") != exported_value:
             raise ValueError(f"{label}: incorrect value for field {name!r}")
         # KeePassXC exports decrypted values and preserves their protection
         # as ProtectInMemory, rather than the on-disk Protected attribute.
@@ -383,6 +386,30 @@ for artifact in artifacts:
                 failures.append(f"{artifact_id}: {error}")
             else:
                 custom_field_checks_verified += len(custom_fields)
+
+        for expected in custom_fields:
+            for field in expected["current"]["fields"]:
+                if "\r" not in field["value"]:
+                    continue
+                entry_path, resolve_error = resolve_entry_path(
+                    db_path, base_options, artifact["password"], expected["entryTitle"], artifact_id
+                )
+                if entry_path is None:
+                    failures.append(resolve_error)
+                    continue
+                command = [keepassxc_cli, "show", *base_options, "-s", "-a", field["name"], db_path, entry_path]
+                raw_result = subprocess.run(
+                    command,
+                    input=(artifact["password"] + "\n").encode("utf-8"),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                if raw_result.returncode != 0:
+                    failures.append(f"{artifact_id}: could not read {field['name']!r} in KeePassXC")
+                    continue
+                actual = raw_result.stdout.decode("utf-8").removesuffix("\n")
+                if actual != field["value"]:
+                    failures.append(f"{artifact_id}: KeePassXC changed carriage returns in {field['name']!r}")
 
     expiries = artifact.get("expectedExpiries", [])
     if expiries:

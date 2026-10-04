@@ -1157,6 +1157,10 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
         let regenerateButton = app.buttons["password-generator.regenerate"]
         XCTAssertTrue(revealElement(regenerateButton), "Regenerate button was not reachable")
         regenerateButton.tap()
+        let suggestion = app.staticTexts["password-generator.password"]
+        XCTAssertTrue(revealElement(suggestion), "Generated password suggestion was not visible")
+        let generatedPassword = suggestion.label
+        XCTAssertFalse(generatedPassword.isEmpty, "Generator showed an empty suggestion")
 
         let useButton = app.buttons["password-generator.use"]
         XCTAssertTrue(revealElement(useButton), "Use Password button was not reachable")
@@ -1167,13 +1171,20 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
         let passwordValue = passwordField.value as? String
         XCTAssertNotNil(passwordValue)
         XCTAssertFalse(passwordValue?.isEmpty ?? true)
+        XCTAssertEqual(passwordValue, generatedPassword, "Use did not transfer the displayed suggestion to the editor")
 
         app.buttons["entry-edit.save"].tap()
         XCTAssertTrue(waitForElementToDisappear(app.buttons["entry-edit.save"], timeout: 10))
 
         lockAndReopenVault()
         openEntry(named: generatedPasswordEntryTitle, inGroup: workGroupName)
-        XCTAssertTrue(app.buttons["entry.password.reveal"].waitForExistence(timeout: 5))
+        let revealButton = app.buttons["entry.password.reveal"]
+        XCTAssertTrue(revealButton.waitForExistence(timeout: 5))
+        tapElement(revealButton)
+        XCTAssertTrue(
+            app.staticTexts[generatedPassword].waitForExistence(timeout: Self.ciElementTimeout),
+            "The saved entry did not retain the generated password after locking and reopening"
+        )
     }
 
     func testSaveConflictOffersMergeReloadAndConflictCopy() {

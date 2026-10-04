@@ -284,6 +284,7 @@ struct DatabaseDraft: Sendable {
         }
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        try KDBXXMLSerializer.validateText(trimmedName)
         let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: parentGroupPath[...]) { group in
             if group.groups.contains(where: { $0.name.compare(trimmedName, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) {
                 throw DraftError.duplicateGroupName(parentGroupID: parentGroupID, name: trimmedName)
@@ -545,6 +546,11 @@ struct DatabaseDraft: Sendable {
         }
 
         let tags = TagNormalizer.tags(from: draft.tags)
+        try KDBXXMLSerializer.validateText(trimmedName)
+        try KDBXXMLSerializer.validateText(draft.notes)
+        for tag in tags {
+            try KDBXXMLSerializer.validateText(tag)
+        }
         let timestamp = Date.now
         let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: groupPath[...]) { group in
             var unknownXML = group.unknownXML
@@ -740,15 +746,13 @@ struct DatabaseDraft: Sendable {
     ///
     /// Identity and provenance stay with the live entry rather than coming from the
     /// snapshot: `id` (so references elsewhere keep resolving), `creationTime` (the
-    /// entry was created once, restoring is not re-creating it), `unknownXML`, and
+    /// entry was created once, restoring is not re-creating it), non-expiry `unknownXML`, and
     /// `customIconUUID`. The last two go together — the live entry's preserved XML
     /// describes the element layout the writer round-trips today, including where
     /// `<History>` sits and any `<CustomIconUUID>` (the serializer writes that element
     /// only from the preserved XML), so the display copy has to match those bytes or
     /// the shown icon would differ from every other client's after a save.
-    /// Everything else the user can see or edit comes from the snapshot — including
-    /// the expiration, whose `<ExpiryTime>`/`<Expires>` fragments are the one part of
-    /// the preserved XML taken from it (`EntryExpiryXML`).
+    /// Everything else the user can see or edit comes from the snapshot.
     private func applyRestoreEntryVersion(
         entryID: UUID,
         historyIndex: Int
@@ -762,6 +766,23 @@ struct DatabaseDraft: Sendable {
             throw DraftError.historyVersionNotFound(entryID: entryID, index: historyIndex)
         }
         let version = current.history[historyIndex]
+        var unknownXML = current.unknownXML
+        // Expiry has a display copy, but the serializer writes its preserved XML.
+        for elementName in ["ExpiryTime", "Expires"] {
+            let matches: (OpaqueXMLNodes.Node) -> Bool = {
+                $0.path == ["Times"] && $0.elementName == elementName
+            }
+            let insertionIndex = unknownXML.nodes.first(where: matches)?.insertionIndex
+                ?? ((current.creationTime != nil ? 1 : 0) + 1)
+            let nodeIndex = unknownXML.nodes.firstIndex(where: matches) ?? unknownXML.nodes.count
+            unknownXML.nodes.removeAll(where: matches)
+            unknownXML.nodes.insert(
+                contentsOf: version.unknownXML.nodes.filter(matches).map {
+                    OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: insertionIndex, xml: $0.xml)
+                },
+                at: nodeIndex
+            )
+        }
 
         let restored = KPEntry(
             id: current.id,
@@ -780,6 +801,8 @@ struct DatabaseDraft: Sendable {
             otpURL: version.otpURL,
             creationTime: current.creationTime,
             lastModificationTime: Date.now,
+            expires: version.expires,
+            expiryTime: version.expiryTime,
             // Restoring a version does not move the entry, so where it lives
             // stays with the live entry, like `id` and `creationTime`.
             locationChanged: current.locationChanged,
@@ -788,15 +811,12 @@ struct DatabaseDraft: Sendable {
                 existing: current.history,
                 meta: currentMetaStorage
             ),
-            unknownXML: current.unknownXML,
+            unknownXML: unknownXML,
             protectedStringKeys: version.protectedStringKeys,
             attachments: version.attachments
         )
 
-        let updatedRootGroup = try replacingEntry(
-            at: entryLocation,
-            with: EntryExpiryXML.entry(restored, withExpirationOf: version)
-        )
+        let updatedRootGroup = try replacingEntry(at: entryLocation, with: restored)
 
         return (updatedRootGroup, currentMetaStorage)
     }
@@ -1054,6 +1074,7 @@ struct DatabaseDraft: Sendable {
                 passkeyPrivateKey: passkeyPrivateKey
             )
         )
+        try validateText(in: draft, protectedStringKeys: entry.protectedStringKeys)
         return draft.expiry.map { EntryExpiryXML.entry(entry, expiring: $0) } ?? entry
     }
 
@@ -1104,7 +1125,35 @@ struct DatabaseDraft: Sendable {
             )),
             attachments: originalEntry.attachments
         )
+        try validateText(in: draft, protectedStringKeys: entry.protectedStringKeys)
         return draft.expiry.map { EntryExpiryXML.entry(entry, expiring: $0) } ?? entry
+    }
+
+    private func validateText(in draft: EntryDraftPayload, protectedStringKeys: Set<String>) throws {
+        var fields = [
+            ("Title", draft.title), ("UserName", draft.username),
+            ("URL", draft.url), ("Notes", draft.notes),
+        ] + draft.customFields.map { ($0.key, $0.value) }
+        if let source = draft.totpConfig?.keeOTPSource {
+            fields.append((source.fieldName, source.rawQuery))
+        } else if let uri = draft.totpConfig?.otpauthURI {
+            fields.append(("otp", uri))
+        }
+        for (key, value) in fields {
+            try KDBXXMLSerializer.validateText(key)
+            if !protectedStringKeys.contains(key) {
+                try KDBXXMLSerializer.validateText(value)
+            }
+        }
+        for tag in draft.tags {
+            try KDBXXMLSerializer.validateText(tag)
+        }
+        for attachment in draft.attachments ?? [] {
+            switch attachment {
+            case .existing(let name, _), .new(let name, _):
+                try KDBXXMLSerializer.validateText(name)
+            }
+        }
     }
 
     private func updatedOtpURL(

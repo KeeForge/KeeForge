@@ -898,6 +898,13 @@ enum KDBXCompatibilitySupport {
                 let entryID = try XCTUnwrap(before.entryID(titled: "Compat Restore Target"))
                 let beforeEntry = try XCTUnwrap(before.entries[entryID])
                 XCTAssertEqual(beforeEntry.history.count, 1, "Fixture precondition: one stored version")
+                XCTAssertTrue(beforeEntry.expires)
+                XCTAssertNotNil(beforeEntry.expiryTime)
+                let previous = try XCTUnwrap(beforeEntry.history.first)
+                XCTAssertFalse(previous.expires)
+                XCTAssertEqual(previous.expiryTime, Date(timeIntervalSince1970: 1_577_934_245))
+                XCTAssertNotEqual(previous.expiryTime, beforeEntry.expiryTime)
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
 
                 try assertSurvivingGroupsPreserveScalars(before: before, after: after)
                 assertMetaUnchanged(before: before, after: after)
@@ -907,12 +914,25 @@ enum KDBXCompatibilitySupport {
                 XCTAssertEqual(afterEntry.username, "previous-user")
                 XCTAssertEqual(afterEntry.url, "https://previous.example.com")
                 XCTAssertEqual(afterEntry.password, "previous-password")
+                XCTAssertEqual(afterEntry.expires, previous.expires)
+                XCTAssertEqual(afterEntry.expiryTime, previous.expiryTime)
+                let liveNonExpiryXML = beforeEntry.unknownXML.nodes.filter {
+                    $0.path != ["Times"] || ($0.elementName != "ExpiryTime" && $0.elementName != "Expires")
+                }
+                let restoredNonExpiryXML = afterEntry.unknownXML.nodes.filter {
+                    $0.path != ["Times"] || ($0.elementName != "ExpiryTime" && $0.elementName != "Expires")
+                }
+                XCTAssertEqual(restoredNonExpiryXML, liveNonExpiryXML)
 
                 // The replaced state is kept, so the restore stays reversible after a
                 // full write/reparse round trip.
                 XCTAssertEqual(afterEntry.history.count, 2)
                 XCTAssertEqual(afterEntry.history[0].username, "current-user")
                 XCTAssertEqual(afterEntry.history[0].password, "current-password")
+                XCTAssertEqual(afterEntry.history[0].expires, beforeEntry.expires)
+                XCTAssertEqual(afterEntry.history[0].expiryTime, beforeEntry.expiryTime)
+                XCTAssertEqual(afterEntry.history[0].unknownXML, beforeEntry.unknownXML)
+                XCTAssertEqual(afterEntry.history[1], previous)
             }
         )
     }
@@ -2224,13 +2244,10 @@ struct CompatibilitySnapshot {
         let passkeyPrivateKeyPEM: String?
         let totp: TOTP?
         let otpURL: String?
-        let creationTime: Date?
-        let lastModificationTime: Date?
-        /// The display copy of `<Times>/<Expires>` and `<ExpiryTime>`, whose
-        /// elements live in `unknownXML`; covered so the two cannot disagree
-        /// after a reparse.
         let expires: Bool
         let expiryTime: Date?
+        let creationTime: Date?
+        let lastModificationTime: Date?
         /// Covered here so only an edit that actually reparents the entry may
         /// touch `<Times>/<LocationChanged>` — every other scenario has to keep
         /// it byte-identical across the save.
@@ -2457,10 +2474,10 @@ struct CompatibilitySnapshot {
             passkeyPrivateKeyPEM: try entry.passkeyPrivateKey.map { try $0.decrypt(using: sessionKey) },
             totp: capturedTOTP,
             otpURL: entry.otpURL,
-            creationTime: entry.creationTime,
-            lastModificationTime: entry.lastModificationTime,
             expires: entry.expires,
             expiryTime: entry.expiryTime,
+            creationTime: entry.creationTime,
+            lastModificationTime: entry.lastModificationTime,
             locationChanged: entry.locationChanged,
             history: try entry.history.map { try capture(entry: $0, sessionKey: sessionKey, binaryPool: binaryPool) },
             unknownXML: entry.unknownXML,
@@ -2479,6 +2496,8 @@ private extension KDBXCompatibilitySupport {
     static let updateEntryEnrolledOTPAuthURI =
         "otpauth://totp/Compat:updated-user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Compat"
 
+    static let createdEntryUnicodeNotes = String(repeating: "Hello 日本語 😀 café & < >\t\r\nNext\rLast\n", count: 32_768)
+
     static func createEntryScenario() -> Scenario {
         Scenario(
             id: "create-entry",
@@ -2494,7 +2513,7 @@ private extension KDBXCompatibilitySupport {
                         username: "created-user",
                         password: "created-secret",
                         url: "https://created.example.com/login",
-                        notes: "Created through compatibility matrix",
+                        notes: createdEntryUnicodeNotes,
                         customFields: [
                             "CustomKey": "CustomValue",
                             PasskeyCredential.credentialIDKey: "3q2-7wEj",
@@ -2513,6 +2532,11 @@ private extension KDBXCompatibilitySupport {
                     )
                 )
             },
+            expectedCustomFields: [.init(
+                entryTitle: "Compat Created Entry",
+                current: .init(fields: [.init(name: "Notes", value: createdEntryUnicodeNotes, isProtected: false)], absentFields: []),
+                history: []
+            )],
             assertChange: { before, after, _ in
                 try assertUnchangedEntries(before: before, after: after)
                 try assertSurvivingGroupsPreserveScalars(before: before, after: after)
@@ -2522,6 +2546,7 @@ private extension KDBXCompatibilitySupport {
                 let created = try XCTUnwrap(after.entries[createdID])
                 XCTAssertEqual(created.username, "created-user")
                 XCTAssertEqual(created.password, "created-secret")
+                XCTAssertEqual(created.notes, createdEntryUnicodeNotes)
                 // The PEM supplied via the draft's custom fields is diverted
                 // into the sealed passkeyPrivateKey and never stays in
                 // customFields.
@@ -2594,6 +2619,8 @@ private extension KDBXCompatibilitySupport {
                 XCTAssertNotNil(updated.passkeyPrivateKeyPEM)
                 XCTAssertTrue(updated.protectedStringKeys.contains(PasskeyCredential.privateKeyPEMKey))
                 XCTAssertEqual(updated.unknownXML, original.unknownXML)
+                XCTAssertEqual(updated.expires, original.expires)
+                XCTAssertEqual(updated.expiryTime, original.expiryTime)
                 XCTAssertEqual(
                     updated.otpURL,
                     updateEntryEnrolledOTPAuthURI,
@@ -2673,6 +2700,8 @@ private extension KDBXCompatibilitySupport {
                 XCTAssertEqual(updated.totp, original.totp)
                 XCTAssertEqual(updated.passkeyPrivateKeyPEM, original.passkeyPrivateKeyPEM)
                 XCTAssertEqual(updated.unknownXML, original.unknownXML)
+                XCTAssertEqual(updated.expires, original.expires)
+                XCTAssertEqual(updated.expiryTime, original.expiryTime)
                 var expectedHistory = original
                 expectedHistory.history = []
                 XCTAssertEqual(updated.history, [expectedHistory])
@@ -2726,18 +2755,18 @@ private extension KDBXCompatibilitySupport {
             id: "set-entry-expiry",
             title: "Set an expiry on an entry without expiration elements",
             artifactFileName: "synthetic-rich-set-entry-expiry.kdbx",
-            expectedSearchTerms: ["Compat Update Target"],
+            expectedSearchTerms: ["Compat Soft Delete Target"],
             expectedGroupPaths: [],
             makeEdit: { loaded in
-                let entry = try XCTUnwrap(findEntry(titled: "Compat Update Target", in: loaded.rootGroup))
+                let entry = try XCTUnwrap(findEntry(titled: "Compat Soft Delete Target", in: loaded.rootGroup))
                 return .updateEntry(
                     entryID: entry.id,
                     draft: try expiryOnlyPayload(for: entry, sessionKey: loaded.sessionKey, expiry: .at(entryExpiryDate))
                 )
             },
-            expectedExpiries: [.init(entryTitle: "Compat Update Target", expires: true, expiryTime: entryExpiryISO8601)],
+            expectedExpiries: [.init(entryTitle: "Compat Soft Delete Target", expires: true, expiryTime: entryExpiryISO8601)],
             assertChange: { before, after, _ in
-                let entryID = try XCTUnwrap(before.entryID(titled: "Compat Update Target"))
+                let entryID = try XCTUnwrap(before.entryID(titled: "Compat Soft Delete Target"))
                 try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
                 try assertSurvivingGroupsPreserveScalars(before: before, after: after)
                 assertMetaUnchanged(before: before, after: after)
@@ -3113,6 +3142,11 @@ private extension KDBXCompatibilitySupport {
     ) throws -> (data: Data, rootGroup: KPGroup, meta: KPMeta) {
         let recycleBinID = hasRecycleBin ? UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000043")! : nil
         let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let activeExpiry = Date(timeIntervalSince1970: 1_893_553_445)
+        let activeExpiryNodes = [
+            OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<ExpiryTime>2030-01-02T03:04:05Z</ExpiryTime>"),
+            OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<Expires>True</Expires>"),
+        ]
 
         let updateTarget = KPEntry(
             id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000101")!,
@@ -3138,7 +3172,9 @@ private extension KDBXCompatibilitySupport {
             ),
             creationTime: timestamp,
             lastModificationTime: timestamp,
-            unknownXML: OpaqueXMLNodes(nodes: [
+            expires: true,
+            expiryTime: activeExpiry,
+            unknownXML: OpaqueXMLNodes(nodes: activeExpiryNodes + [
                 OpaqueXMLNodes.Node(
                     insertionIndex: 9,
                     xml: "<CustomData><Item><Key>CompatUnknown</Key><Value>PreserveMe</Value></Item></CustomData>"
@@ -3162,7 +3198,13 @@ private extension KDBXCompatibilitySupport {
             username: "untouched-user",
             password: try EncryptedValue.encrypt("untouched-password", using: sessionKey),
             creationTime: timestamp,
-            lastModificationTime: timestamp
+            lastModificationTime: timestamp,
+            expires: false,
+            expiryTime: Date(timeIntervalSince1970: 1_577_934_245),
+            unknownXML: OpaqueXMLNodes(nodes: [
+                OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<ExpiryTime>2020-01-02T03:04:05Z</ExpiryTime>"),
+                OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<Expires>False</Expires>"),
+            ])
         )
 
         // Carries one stored `<History>` version so the restore scenario has something
@@ -3176,6 +3218,8 @@ private extension KDBXCompatibilitySupport {
             url: "https://current.example.com",
             creationTime: timestamp,
             lastModificationTime: timestamp,
+            expires: true,
+            expiryTime: activeExpiry,
             history: [
                 // A history version carries its parent's UUID, as KDBX requires.
                 KPEntry(
@@ -3185,9 +3229,19 @@ private extension KDBXCompatibilitySupport {
                     password: try EncryptedValue.encrypt("previous-password", using: sessionKey),
                     url: "https://previous.example.com",
                     creationTime: timestamp,
-                    lastModificationTime: timestamp.addingTimeInterval(-3_600)
+                    lastModificationTime: timestamp.addingTimeInterval(-3_600),
+                    expires: false,
+                    expiryTime: Date(timeIntervalSince1970: 1_577_934_245),
+                    unknownXML: OpaqueXMLNodes(nodes: [
+                        OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<ExpiryTime>2020-01-02T03:04:05Z</ExpiryTime>"),
+                        OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<Expires>False</Expires>"),
+                        OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<UsageCount>3</UsageCount>"),
+                    ])
                 )
-            ]
+            ],
+            unknownXML: OpaqueXMLNodes(nodes: activeExpiryNodes + [
+                OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<UsageCount>7</UsageCount>"),
+            ])
         )
 
         let emptyTagsEntry = KPEntry(
