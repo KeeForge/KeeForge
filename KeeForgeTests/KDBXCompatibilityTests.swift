@@ -89,6 +89,12 @@ final class KDBXCompatibilityTests: XCTestCase {
             .kdbx4(minor: 0),
             "Fixture precondition: KeeForge authors 4.0 until content requires 4.1"
         )
+        let updateTarget = try XCTUnwrap(rich.rootGroup.allEntries.first { $0.title == "Compat Update Target" })
+        XCTAssertTrue(updateTarget.expires, "Fixture precondition: edits must preserve active expiry")
+        XCTAssertEqual(updateTarget.expiryTime, Date(timeIntervalSince1970: 1_893_553_445))
+        let untouched = try XCTUnwrap(rich.rootGroup.allEntries.first { $0.title == "Compat Untouched Entry" })
+        XCTAssertFalse(untouched.expires, "Fixture precondition: a stored date need not enable expiry")
+        XCTAssertEqual(untouched.expiryTime, Date(timeIntervalSince1970: 1_577_934_245))
         var writtenVersions: [String: KDBXParser.FileVersion] = [:]
         for scenario in KDBXCompatibilitySupport.fullEditScenarios() {
             let result = try collector.run(scenario, on: rich)

@@ -746,7 +746,7 @@ struct DatabaseDraft: Sendable {
     ///
     /// Identity and provenance stay with the live entry rather than coming from the
     /// snapshot: `id` (so references elsewhere keep resolving), `creationTime` (the
-    /// entry was created once, restoring is not re-creating it), `unknownXML`, and
+    /// entry was created once, restoring is not re-creating it), non-expiry `unknownXML`, and
     /// `customIconUUID`. The last two go together — the live entry's preserved XML
     /// describes the element layout the writer round-trips today, including where
     /// `<History>` sits and any `<CustomIconUUID>` (the serializer writes that element
@@ -766,6 +766,23 @@ struct DatabaseDraft: Sendable {
             throw DraftError.historyVersionNotFound(entryID: entryID, index: historyIndex)
         }
         let version = current.history[historyIndex]
+        var unknownXML = current.unknownXML
+        // Expiry has a display copy, but the serializer writes its preserved XML.
+        for elementName in ["ExpiryTime", "Expires"] {
+            let matches: (OpaqueXMLNodes.Node) -> Bool = {
+                $0.path == ["Times"] && $0.elementName == elementName
+            }
+            let insertionIndex = unknownXML.nodes.first(where: matches)?.insertionIndex
+                ?? ((current.creationTime != nil ? 1 : 0) + 1)
+            let nodeIndex = unknownXML.nodes.firstIndex(where: matches) ?? unknownXML.nodes.count
+            unknownXML.nodes.removeAll(where: matches)
+            unknownXML.nodes.insert(
+                contentsOf: version.unknownXML.nodes.filter(matches).map {
+                    OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: insertionIndex, xml: $0.xml)
+                },
+                at: nodeIndex
+            )
+        }
 
         let restored = KPEntry(
             id: current.id,
@@ -794,7 +811,7 @@ struct DatabaseDraft: Sendable {
                 existing: current.history,
                 meta: currentMetaStorage
             ),
-            unknownXML: current.unknownXML,
+            unknownXML: unknownXML,
             protectedStringKeys: version.protectedStringKeys,
             attachments: version.attachments
         )

@@ -880,6 +880,13 @@ enum KDBXCompatibilitySupport {
                 let entryID = try XCTUnwrap(before.entryID(titled: "Compat Restore Target"))
                 let beforeEntry = try XCTUnwrap(before.entries[entryID])
                 XCTAssertEqual(beforeEntry.history.count, 1, "Fixture precondition: one stored version")
+                XCTAssertTrue(beforeEntry.expires)
+                XCTAssertNotNil(beforeEntry.expiryTime)
+                let previous = try XCTUnwrap(beforeEntry.history.first)
+                XCTAssertFalse(previous.expires)
+                XCTAssertEqual(previous.expiryTime, Date(timeIntervalSince1970: 1_577_934_245))
+                XCTAssertNotEqual(previous.expiryTime, beforeEntry.expiryTime)
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
 
                 try assertSurvivingGroupsPreserveScalars(before: before, after: after)
                 assertMetaUnchanged(before: before, after: after)
@@ -889,12 +896,25 @@ enum KDBXCompatibilitySupport {
                 XCTAssertEqual(afterEntry.username, "previous-user")
                 XCTAssertEqual(afterEntry.url, "https://previous.example.com")
                 XCTAssertEqual(afterEntry.password, "previous-password")
+                XCTAssertEqual(afterEntry.expires, previous.expires)
+                XCTAssertEqual(afterEntry.expiryTime, previous.expiryTime)
+                let liveNonExpiryXML = beforeEntry.unknownXML.nodes.filter {
+                    $0.path != ["Times"] || ($0.elementName != "ExpiryTime" && $0.elementName != "Expires")
+                }
+                let restoredNonExpiryXML = afterEntry.unknownXML.nodes.filter {
+                    $0.path != ["Times"] || ($0.elementName != "ExpiryTime" && $0.elementName != "Expires")
+                }
+                XCTAssertEqual(restoredNonExpiryXML, liveNonExpiryXML)
 
                 // The replaced state is kept, so the restore stays reversible after a
                 // full write/reparse round trip.
                 XCTAssertEqual(afterEntry.history.count, 2)
                 XCTAssertEqual(afterEntry.history[0].username, "current-user")
                 XCTAssertEqual(afterEntry.history[0].password, "current-password")
+                XCTAssertEqual(afterEntry.history[0].expires, beforeEntry.expires)
+                XCTAssertEqual(afterEntry.history[0].expiryTime, beforeEntry.expiryTime)
+                XCTAssertEqual(afterEntry.history[0].unknownXML, beforeEntry.unknownXML)
+                XCTAssertEqual(afterEntry.history[1], previous)
             }
         )
     }
@@ -2145,6 +2165,8 @@ struct CompatibilitySnapshot {
         let passkeyPrivateKeyPEM: String?
         let totp: TOTP?
         let otpURL: String?
+        let expires: Bool
+        let expiryTime: Date?
         let creationTime: Date?
         let lastModificationTime: Date?
         /// Covered here so only an edit that actually reparents the entry may
@@ -2373,6 +2395,8 @@ struct CompatibilitySnapshot {
             passkeyPrivateKeyPEM: try entry.passkeyPrivateKey.map { try $0.decrypt(using: sessionKey) },
             totp: capturedTOTP,
             otpURL: entry.otpURL,
+            expires: entry.expires,
+            expiryTime: entry.expiryTime,
             creationTime: entry.creationTime,
             lastModificationTime: entry.lastModificationTime,
             locationChanged: entry.locationChanged,
@@ -2516,6 +2540,8 @@ private extension KDBXCompatibilitySupport {
                 XCTAssertNotNil(updated.passkeyPrivateKeyPEM)
                 XCTAssertTrue(updated.protectedStringKeys.contains(PasskeyCredential.privateKeyPEMKey))
                 XCTAssertEqual(updated.unknownXML, original.unknownXML)
+                XCTAssertEqual(updated.expires, original.expires)
+                XCTAssertEqual(updated.expiryTime, original.expiryTime)
                 XCTAssertEqual(
                     updated.otpURL,
                     updateEntryEnrolledOTPAuthURI,
@@ -2595,6 +2621,8 @@ private extension KDBXCompatibilitySupport {
                 XCTAssertEqual(updated.totp, original.totp)
                 XCTAssertEqual(updated.passkeyPrivateKeyPEM, original.passkeyPrivateKeyPEM)
                 XCTAssertEqual(updated.unknownXML, original.unknownXML)
+                XCTAssertEqual(updated.expires, original.expires)
+                XCTAssertEqual(updated.expiryTime, original.expiryTime)
                 var expectedHistory = original
                 expectedHistory.history = []
                 XCTAssertEqual(updated.history, [expectedHistory])
@@ -2941,6 +2969,11 @@ private extension KDBXCompatibilitySupport {
     ) throws -> (data: Data, rootGroup: KPGroup, meta: KPMeta) {
         let recycleBinID = hasRecycleBin ? UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000043")! : nil
         let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let activeExpiry = Date(timeIntervalSince1970: 1_893_553_445)
+        let activeExpiryNodes = [
+            OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<ExpiryTime>2030-01-02T03:04:05Z</ExpiryTime>"),
+            OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<Expires>True</Expires>"),
+        ]
 
         let updateTarget = KPEntry(
             id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000101")!,
@@ -2966,7 +2999,9 @@ private extension KDBXCompatibilitySupport {
             ),
             creationTime: timestamp,
             lastModificationTime: timestamp,
-            unknownXML: OpaqueXMLNodes(nodes: [
+            expires: true,
+            expiryTime: activeExpiry,
+            unknownXML: OpaqueXMLNodes(nodes: activeExpiryNodes + [
                 OpaqueXMLNodes.Node(
                     insertionIndex: 9,
                     xml: "<CustomData><Item><Key>CompatUnknown</Key><Value>PreserveMe</Value></Item></CustomData>"
@@ -2990,7 +3025,13 @@ private extension KDBXCompatibilitySupport {
             username: "untouched-user",
             password: try EncryptedValue.encrypt("untouched-password", using: sessionKey),
             creationTime: timestamp,
-            lastModificationTime: timestamp
+            lastModificationTime: timestamp,
+            expires: false,
+            expiryTime: Date(timeIntervalSince1970: 1_577_934_245),
+            unknownXML: OpaqueXMLNodes(nodes: [
+                OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<ExpiryTime>2020-01-02T03:04:05Z</ExpiryTime>"),
+                OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<Expires>False</Expires>"),
+            ])
         )
 
         // Carries one stored `<History>` version so the restore scenario has something
@@ -3004,6 +3045,8 @@ private extension KDBXCompatibilitySupport {
             url: "https://current.example.com",
             creationTime: timestamp,
             lastModificationTime: timestamp,
+            expires: true,
+            expiryTime: activeExpiry,
             history: [
                 // A history version carries its parent's UUID, as KDBX requires.
                 KPEntry(
@@ -3013,9 +3056,19 @@ private extension KDBXCompatibilitySupport {
                     password: try EncryptedValue.encrypt("previous-password", using: sessionKey),
                     url: "https://previous.example.com",
                     creationTime: timestamp,
-                    lastModificationTime: timestamp.addingTimeInterval(-3_600)
+                    lastModificationTime: timestamp.addingTimeInterval(-3_600),
+                    expires: false,
+                    expiryTime: Date(timeIntervalSince1970: 1_577_934_245),
+                    unknownXML: OpaqueXMLNodes(nodes: [
+                        OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<ExpiryTime>2020-01-02T03:04:05Z</ExpiryTime>"),
+                        OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<Expires>False</Expires>"),
+                        OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<UsageCount>3</UsageCount>"),
+                    ])
                 )
-            ]
+            ],
+            unknownXML: OpaqueXMLNodes(nodes: activeExpiryNodes + [
+                OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<UsageCount>7</UsageCount>"),
+            ])
         )
 
         let emptyTagsEntry = KPEntry(

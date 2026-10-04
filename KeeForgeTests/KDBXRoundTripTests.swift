@@ -679,6 +679,61 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(reparsedEntry.expiryTime, entry.expiryTime)
     }
 
+    func test_restoreEntryVersion_persistsSelectedExpiryAndKeepsUndo() throws {
+        let earlierExpiry = "<ExpiryTime>2020-01-02T03:04:05Z</ExpiryTime>"
+        let currentExpiry = "<ExpiryTime>2030-01-01T00:00:00Z</ExpiryTime>"
+        let earlierDate = Date(timeIntervalSince1970: 1_577_934_245)
+        let currentDate = Date(timeIntervalSince1970: 1_893_456_000)
+        let cases: [(name: String, liveXML: String, versionXML: String, liveExpires: Bool, liveDate: Date?, versionExpires: Bool, versionDate: Date?)] = [
+            ("different dates", currentExpiry + "<Expires>True</Expires>", earlierExpiry + "<Expires>True</Expires>", true, currentDate, true, earlierDate),
+            ("enable expiry", currentExpiry + "<Expires>False</Expires>", earlierExpiry + "<Expires>True</Expires>", false, currentDate, true, earlierDate),
+            ("disable expiry", currentExpiry + "<Expires>True</Expires>", earlierExpiry + "<Expires>False</Expires>", true, currentDate, false, earlierDate),
+            ("remove expiry elements", currentExpiry + "<Expires>True</Expires>", "", true, currentDate, false, nil),
+            ("add expiry elements", "", earlierExpiry + "<Expires>True</Expires>", false, nil, true, earlierDate)
+        ]
+        for item in cases {
+            let xml = """
+            <KeePassFile><Root><Group><Name>Root</Name><Entry>
+            <Times><CreationTime>2024-01-01T00:00:00Z</CreationTime><LastModificationTime>2025-01-01T00:00:00Z</LastModificationTime>
+            <LastAccessTime>2025-01-02T00:00:00Z</LastAccessTime>\(item.liveXML)<UsageCount>9</UsageCount><VendorTime>live</VendorTime><LocationChanged>2025-01-03T00:00:00Z</LocationChanged></Times>
+            <String><Key>Title</Key><Value>Current</Value></String><VendorData>live</VendorData>
+            <History><Entry><Times>\(item.versionXML)<UsageCount>1</UsageCount><VendorTime>history</VendorTime></Times>
+            <String><Key>Title</Key><Value>Earlier</Value></String><VendorData>history</VendorData></Entry></History>
+            </Entry></Group></Root></KeePassFile>
+            """
+            let parsed = try parseXML(Data(xml.utf8))
+            let current = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+            let version = try XCTUnwrap(current.history.first)
+            XCTAssertEqual(current.expires, item.liveExpires, item.name)
+            XCTAssertEqual(current.expiryTime, item.liveDate, item.name)
+            XCTAssertEqual(version.expires, item.versionExpires, item.name)
+            XCTAssertEqual(version.expiryTime, item.versionDate, item.name)
+            let draft = DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: roundTripSessionKey)
+
+            let updated = try draft.apply(.restoreEntryVersion(entryID: current.id, historyIndex: 0))
+            let reparsed = try serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta))
+            let restored = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+
+            XCTAssertEqual(restored.expires, item.versionExpires, item.name)
+            XCTAssertEqual(restored.expiryTime, item.versionDate, item.name)
+            XCTAssertEqual(restored.creationTime, current.creationTime, item.name)
+            XCTAssertEqual(restored.locationChanged, current.locationChanged, item.name)
+            for fragment in ["<LastAccessTime>2025-01-02T00:00:00Z</LastAccessTime>", "<UsageCount>9</UsageCount>", "<VendorTime>live</VendorTime>", "<VendorData>live</VendorData>"] {
+                XCTAssertTrue(restored.unknownXML.nodes.contains { $0.xml == fragment }, item.name + ": " + fragment)
+            }
+            let replaced = try XCTUnwrap(restored.history.first)
+            XCTAssertEqual(replaced.expires, item.liveExpires, item.name)
+            XCTAssertEqual(replaced.expiryTime, item.liveDate, item.name)
+            XCTAssertEqual(restored.history.count, 2, item.name)
+            let reopenedDraft = DatabaseDraft(rootGroup: reparsed.rootGroup, meta: reparsed.meta, sessionKey: roundTripSessionKey)
+            let undone = try reopenedDraft.apply(.restoreEntryVersion(entryID: current.id, historyIndex: 0))
+            let reopenedUndo = try serializeAndParse((rootGroup: undone.rootGroup, meta: undone.meta))
+            let undoneEntry = try XCTUnwrap(reopenedUndo.rootGroup.allEntries.first)
+            XCTAssertEqual(undoneEntry.expires, item.liveExpires, item.name)
+            XCTAssertEqual(undoneEntry.expiryTime, item.liveDate, item.name)
+        }
+    }
+
     private func binaryTimestamp(_ seconds: Int64) -> String {
         var littleEndian = seconds.littleEndian
         return withUnsafeBytes(of: &littleEndian) { Data($0) }.base64EncodedString()
@@ -785,8 +840,9 @@ final class KDBXRoundTripTests: XCTestCase {
             XCTAssertEqual(groups["Off"]?.searchingEnabled, .disabled)
             XCTAssertEqual(groups["On"]?.searchingEnabled, .enabled)
             XCTAssertEqual(groups["Inherit"]?.searchingEnabled, .inherit)
+            let noElement = try XCTUnwrap(groups["NoElement"])
             XCTAssertNil(
-                groups["NoElement"]?.searchingEnabled,
+                noElement.searchingEnabled,
                 "A group without the element must stay without it"
             )
         }
@@ -1668,7 +1724,11 @@ final class KDBXRoundTripTests: XCTestCase {
         """
 
         let parsed = try parseXML(Data(xml.utf8))
-        XCTAssertNil(parsed.rootGroup.locationChanged)
+        let group = try XCTUnwrap(parsed.rootGroup.groups.first)
+        XCTAssertNil(group.locationChanged)
+        let preserved = try XCTUnwrap(group.unknownXML.nodes.first { $0.elementName == "LocationChanged" })
+        XCTAssertEqual(preserved.path, ["Times"])
+        XCTAssertEqual(preserved.xml, "<LocationChanged>not-a-timestamp</LocationChanged>")
 
         var serializer = KDBXXMLSerializer(
             rootGroup: parsed.rootGroup,

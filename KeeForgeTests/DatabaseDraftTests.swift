@@ -1299,6 +1299,46 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(undone.title, "Edited Title")
     }
 
+    func test_restoreEntryVersion_takesExpiryXMLFromHistoryAndKeepsOtherLiveXML() throws {
+        let versionXML = OpaqueXMLNodes(nodes: [
+            .init(path: ["Times"], insertionIndex: 0, xml: "<ExpiryTime>2020-01-02T03:04:05Z</ExpiryTime>"),
+            .init(path: ["Times"], insertionIndex: 0, xml: "<Expires>True</Expires>"),
+            .init(path: ["Times"], insertionIndex: 0, xml: "<UsageCount>1</UsageCount>"),
+            .init(insertionIndex: 2, xml: "<VendorData>history</VendorData>")
+        ])
+        let liveXML = OpaqueXMLNodes(nodes: [
+            .init(path: ["Times"], insertionIndex: 2, xml: "<LastAccessTime>2025-01-01T00:00:00Z</LastAccessTime>"),
+            .init(path: ["Times"], insertionIndex: 2, xml: "<ExpiryTime>2030-01-01T00:00:00Z</ExpiryTime>"),
+            .init(path: ["Times"], insertionIndex: 2, xml: "<Expires>False</Expires>"),
+            .init(path: ["Times"], insertionIndex: 2, xml: "<UsageCount>9</UsageCount>"),
+            .init(insertionIndex: 2, xml: "<VendorData>live</VendorData>")
+        ])
+        let version = KPEntry(
+            title: "Earlier", expires: true, expiryTime: Date(timeIntervalSince1970: 1_577_934_245),
+            unknownXML: versionXML
+        )
+        let entry = KPEntry(
+            title: "Current", creationTime: Date(timeIntervalSince1970: 1_000),
+            lastModificationTime: Date(timeIntervalSince1970: 2_000),
+            expires: false, expiryTime: Date(timeIntervalSince1970: 1_893_456_000),
+            history: [version], unknownXML: liveXML
+        )
+        let draft = DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [entry]), meta: KPMeta(), sessionKey: sessionKey)
+
+        let updated = try draft.apply(.restoreEntryVersion(entryID: entry.id, historyIndex: 0))
+        let restored = try XCTUnwrap(updated.rootGroup.allEntries.first)
+
+        XCTAssertTrue(restored.expires)
+        XCTAssertEqual(restored.expiryTime, Date(timeIntervalSince1970: 1_577_934_245))
+        var expectedXML = liveXML
+        expectedXML.nodes[1] = .init(path: ["Times"], insertionIndex: 2, xml: "<ExpiryTime>2020-01-02T03:04:05Z</ExpiryTime>")
+        expectedXML.nodes[2] = .init(path: ["Times"], insertionIndex: 2, xml: "<Expires>True</Expires>")
+        XCTAssertEqual(restored.unknownXML, expectedXML)
+        XCTAssertEqual(restored.history[0].unknownXML, liveXML)
+        XCTAssertEqual(restored.history[1].unknownXML, versionXML)
+        XCTAssertEqual(draft.rootGroup.allEntries.first?.unknownXML, liveXML)
+    }
+
     func test_restoreEntryVersion_keepsIdentityCreationTimeAndPreservedXML() throws {
         let (draft, entryID, _) = try makeDraftWithHistory()
         let beforeRestore = try XCTUnwrap(findEntry(withID: entryID, in: draft.rootGroup))
