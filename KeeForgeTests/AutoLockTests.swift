@@ -552,9 +552,7 @@ final class AutoLockTests: XCTestCase {
     #endif
 
     private func makeUnlockedViewModel() async throws -> DatabaseViewModel {
-        let vm = try makeViewModel()
-        await vm.unlock(password: fixturePassword)
-        return vm
+        try await makeUnlockedViewModel(nowProvider: { .now })
     }
 
     private func makeUnlockedViewModel(
@@ -562,6 +560,10 @@ final class AutoLockTests: XCTestCase {
     ) async throws -> DatabaseViewModel {
         let vm = try makeViewModel(nowProvider: nowProvider)
         await vm.unlock(password: fixturePassword)
+        guard case .unlocked = vm.state else {
+            XCTFail("Expected an unlocked test session, got \(vm.state): \(String(describing: vm.openFailure))")
+            return vm
+        }
         return vm
     }
 

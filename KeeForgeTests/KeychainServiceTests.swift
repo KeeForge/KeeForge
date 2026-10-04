@@ -181,14 +181,12 @@ final class KeychainServiceTests: XCTestCase {
             let retrieved = try KeychainService.retrieveCompositeKey(for: databaseID, context: context)
             XCTAssertEqual(retrieved, SymmetricKey(data: keyData), "A successful retrieve must return exactly the stored bytes")
         } catch {
-            // The item is protected by .biometryCurrentSet, so a headless
-            // simulator/CI host without enrolled (or matchable) biometrics
-            // cannot decrypt it non-interactively. That is not the same as
-            // the item being absent: isItemNotFound must be false here,
-            // because the item genuinely exists (it was just stored above).
-            XCTAssertFalse(
-                KeychainService.isItemNotFound(error),
-                "A key that was just stored must never appear as item-not-found, even when auth cannot complete"
+            guard case KeychainService.KeychainError.retrieveFailed(let status) = error else {
+                return XCTFail("Expected a Keychain authentication error, got \(error)")
+            }
+            XCTAssertTrue(
+                status == errSecAuthFailed || status == errSecInteractionNotAllowed,
+                "A stored key must return its bytes or require authentication; got status \(status)"
             )
         }
     }

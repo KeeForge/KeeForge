@@ -100,6 +100,12 @@ final class HardwareKeyUnlockTests: XCTestCase {
         }
         await vm.unlock(password: fixture.password)
 
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected unlocked, got \(vm.state): \(String(describing: vm.openFailure))")
+        }
+        XCTAssertTrue(vm.sessionUsesHardwareKey)
+        XCTAssertTrue(vm.isReadOnly)
+
         vm.lock()
 
         XCTAssertFalse(vm.sessionUsesHardwareKey)

@@ -198,9 +198,10 @@ final class CredentialProviderPickerCreationTests: XCTestCase {
             EntryDraftPayload(title: "GitHub", username: "octocat", password: "secret", url: "github.com")
         )
 
-        guard case .showError = outcome else {
+        guard case .showError(let message) = outcome else {
             return XCTFail("Expected an error outcome, got \(outcome)")
         }
+        XCTAssertEqual(message, SaveError.saveContextUnavailable.localizedDescription)
         XCTAssertNil(presenter.completedCredential)
     }
 #endif
