@@ -603,6 +603,9 @@ final class DatabaseViewModel {
     private let storedKeyStoreOperation: StoredKeyStoreOperation
     private let storedKeyDeleteOperation: StoredKeyDeleteOperation
     private let deviceOwnerAuthAvailabilityCheck: DeviceOwnerAuthAvailabilityCheck
+    /// The device-owner gate for revealing and copying this session's
+    /// protected values, with its recent-authentication grace period.
+    let secretAccess: SecretAccessGate
     private let hardwareKeyResponseOperation: HardwareKeyResponseOperation
     private let hardwareKeyTransportsProvider: HardwareKeyTransportsProvider
     private let importStagingOperation: ImportStagingOperation
@@ -703,6 +706,7 @@ final class DatabaseViewModel {
         deviceOwnerAuthAvailabilityCheck: @escaping DeviceOwnerAuthAvailabilityCheck = {
             BiometricService.canAuthenticateDeviceOwner
         },
+        secretAccess: SecretAccessGate = SecretAccessGate(),
         hardwareKeyResponseOperation: @escaping HardwareKeyResponseOperation = { challenge, configuration in
             try await HardwareKeyService.response(to: challenge, using: configuration)
         },
@@ -735,6 +739,7 @@ final class DatabaseViewModel {
         self.storedKeyStoreOperation = storedKeyStoreOperation
         self.storedKeyDeleteOperation = storedKeyDeleteOperation
         self.deviceOwnerAuthAvailabilityCheck = deviceOwnerAuthAvailabilityCheck
+        self.secretAccess = secretAccess
         self.hardwareKeyResponseOperation = hardwareKeyResponseOperation
         self.hardwareKeyTransportsProvider = hardwareKeyTransportsProvider
         self.importStagingOperation = importStagingOperation
@@ -1977,6 +1982,7 @@ final class DatabaseViewModel {
     }
 
     func lock(manuallyTriggered: Bool = false, preservingClipboard: Bool = false) {
+        secretAccess.invalidate()
         cancelInactivityTimer()
         hardwareKeyTask?.cancel()
         hardwareKeyTask = nil
@@ -2041,6 +2047,8 @@ final class DatabaseViewModel {
         manuallyTriggered: Bool = false,
         preservingClipboard: Bool = false
     ) {
+        // A lock that unsaved work defers still ends the grace period.
+        secretAccess.invalidate()
         guard isSessionOpen else {
             if force {
                 lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard)
@@ -2186,9 +2194,7 @@ final class DatabaseViewModel {
             }
 
             do {
-                _ = try await BiometricService.authenticateDeviceOwner(
-                    reason: String(localized: "Unlock Database")
-                )
+                try await secretAccess.authenticate(reason: String(localized: "Unlock Database"))
             } catch {
                 lockRequest(force: true)
                 return
@@ -3228,6 +3234,7 @@ final class DatabaseViewModel {
     }
 
     func handleSceneDidEnterBackground() {
+        secretAccess.invalidate()
         if activeUnlockAttempt != nil {
             // An unlock still running (a YubiKey that has not answered, a slow
             // KDF) would otherwise finish behind the lock asked for here.
@@ -3730,6 +3737,7 @@ final class DatabaseViewModel {
     /// Starts an unlock attempt and returns its token for `finishUnlockAttempt`.
     private func prepareForUnlock() -> UUID {
         let attempt = UUID()
+        secretAccess.invalidate()
         activeUnlockAttempt = attempt
         unlockAttemptBackgroundedAt = nil
         // Adopt any heal the store performed since this session's reference
@@ -3799,6 +3807,8 @@ final class DatabaseViewModel {
             unlockAttemptBackgroundedAt = nil
             backgroundEnteredAt = backgroundedAt
             cancelInactivityTimer(clearDeadline: false)
+        } else {
+            secretAccess.noteSuccessfulAuthentication()
         }
 
         persistCompositeKeyForBiometricUnlock(quickLaunchKey)

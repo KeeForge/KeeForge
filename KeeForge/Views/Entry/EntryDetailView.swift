@@ -183,6 +183,7 @@ struct EntryDetailView: View {
                         PasswordFieldRow(
                             password: entry.password,
                             sessionKey: sessionKey,
+                            secretAccess: viewModel.secretAccess,
                             resolveReferences: viewModel.resolvingFieldReferences,
                             isCurrent: secretActionIsCurrent
                         )
@@ -221,6 +222,7 @@ struct EntryDetailView: View {
                                     ProtectedFieldRow(
                                         label: key,
                                         value: viewModel.resolvingFieldReferences(value),
+                                        secretAccess: viewModel.secretAccess,
                                         showsInlineLabel: true,
                                         isCurrent: secretActionIsCurrent
                                     )
@@ -763,6 +765,7 @@ struct FieldRow: View {
 struct ProtectedFieldRow: View {
     let label: String
     let value: String
+    let secretAccess: SecretAccessGate
     var accessibilityPrefix: String = "entry"
     var showsInlineLabel: Bool = false
     var isCurrent: @MainActor () -> Bool
@@ -818,7 +821,7 @@ struct ProtectedFieldRow: View {
 
             CopyButton(
                 text: value,
-                requireAuth: true,
+                secretAccess: secretAccess,
                 authenticationReason: String(localized: "Copy protected field"),
                 accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)",
                 secretAction: secretAction,
@@ -839,12 +842,10 @@ struct ProtectedFieldRow: View {
         }
 
         guard !secretAction.isAuthenticating, isCurrent() else { return }
-        if BiometricService.canAuthenticateDeviceOwner {
+        if secretAccess.requiresAuthentication {
             secretAction.perform(
                 authenticate: {
-                    _ = try await BiometricService.authenticateDeviceOwner(
-                        reason: String(localized: "View protected field")
-                    )
+                    try await secretAccess.authenticate(reason: String(localized: "View protected field"))
                 },
                 isCurrent: isCurrent,
                 disclose: {
@@ -867,6 +868,7 @@ struct ProtectedFieldRow: View {
 struct PasswordFieldRow: View {
     let password: EncryptedValue
     let sessionKey: SymmetricKey
+    let secretAccess: SecretAccessGate
     /// Applied to the decrypted plaintext before it is shown or copied, so a
     /// `{REF:…}` password reads and copies as the value it points at.
     var resolveReferences: (String) -> String = { $0 }
@@ -894,7 +896,7 @@ struct PasswordFieldRow: View {
 
                 CopyButton(
                     resolveText: { plaintext(of: password) },
-                    requireAuth: true,
+                    secretAccess: secretAccess,
                     accessibilityID: "\(accessibilityPrefix).copy.password",
                     secretAction: secretAction,
                     isCurrent: isCurrent
@@ -939,12 +941,13 @@ struct PasswordFieldRow: View {
         // password/Apple Watch), not on biometrics availability: a Mac
         // without Touch ID or an iPhone without enrolled Face ID must still
         // prompt for the login password/passcode instead of revealing with a
-        // single unauthenticated click. Auth is skipped only when the device
-        // has no protection configured at all.
-        if BiometricService.canAuthenticateDeviceOwner {
+        // single unauthenticated click. Auth is skipped only inside the
+        // authentication grace period, or when the device has no protection
+        // configured at all.
+        if secretAccess.requiresAuthentication {
             secretAction.perform(
                 authenticate: {
-                    _ = try await BiometricService.authenticateDeviceOwner(reason: String(localized: "View password"))
+                    try await secretAccess.authenticate(reason: String(localized: "View password"))
                 },
                 isCurrent: isCurrent,
                 disclose: {
@@ -1010,7 +1013,8 @@ struct URLFieldRow: View {
 
 struct CopyButton: View {
     private let resolveText: () -> String
-    var requireAuth: Bool = false
+    /// Set for a protected value: the copy then waits on this gate.
+    var secretAccess: SecretAccessGate?
     var authenticationReason: String = String(localized: "Copy password")
     let accessibilityID: String
     private let sharedSecretAction: EntrySecretAction?
@@ -1023,7 +1027,7 @@ struct CopyButton: View {
 
     init(
         text: String,
-        requireAuth: Bool = false,
+        secretAccess: SecretAccessGate? = nil,
         authenticationReason: String = String(localized: "Copy password"),
         accessibilityID: String,
         secretAction: EntrySecretAction? = nil,
@@ -1031,7 +1035,7 @@ struct CopyButton: View {
     ) {
         self.init(
             resolveText: { text },
-            requireAuth: requireAuth,
+            secretAccess: secretAccess,
             authenticationReason: authenticationReason,
             accessibilityID: accessibilityID,
             secretAction: secretAction,
@@ -1041,14 +1045,14 @@ struct CopyButton: View {
 
     init(
         resolveText: @escaping () -> String,
-        requireAuth: Bool = false,
+        secretAccess: SecretAccessGate? = nil,
         authenticationReason: String = String(localized: "Copy password"),
         accessibilityID: String,
         secretAction: EntrySecretAction? = nil,
         isCurrent: @escaping @MainActor () -> Bool = { true }
     ) {
         self.resolveText = resolveText
-        self.requireAuth = requireAuth
+        self.secretAccess = secretAccess
         self.authenticationReason = authenticationReason
         self.accessibilityID = accessibilityID
         self.sharedSecretAction = secretAction
@@ -1057,11 +1061,15 @@ struct CopyButton: View {
 
     var body: some View {
         Button {
+            // Same device-owner gate as password reveal: biometrics when
+            // available, passcode/login password/Apple Watch fallback
+            // otherwise. Skipped only inside the authentication grace period,
+            // or when the device has no protection.
             guard isCurrent() else { return }
-            if requireAuth && BiometricService.canAuthenticateDeviceOwner {
+            if let secretAccess, secretAccess.requiresAuthentication {
                 secretAction.perform(
                     authenticate: {
-                        _ = try await BiometricService.authenticateDeviceOwner(reason: authenticationReason)
+                        try await secretAccess.authenticate(reason: authenticationReason)
                     },
                     isCurrent: isCurrent,
                     disclose: performCopy

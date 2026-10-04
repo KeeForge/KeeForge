@@ -258,23 +258,28 @@ struct KeeForgeCommands: Commands {
         )
     }
 
+    /// Same device-owner gate as reveal/copy in the entry detail view:
+    /// biometrics when available, login password / Apple Watch otherwise.
+    /// Only skipped inside the session's authentication grace period, or when
+    /// the device has no protection at all.
     @discardableResult
     static func copySelectedEntryPassword(
         in viewModel: DatabaseViewModel,
         action: EntrySecretAction,
         activeSession: @escaping @MainActor () -> DatabaseViewModel?,
-        authenticate: @escaping @MainActor () async throws -> Void = {
-            if BiometricService.canAuthenticateDeviceOwner {
-                _ = try await BiometricService.authenticateDeviceOwner(reason: String(localized: "Copy password"))
-            }
-        },
+        authenticate: (@MainActor () async throws -> Void)? = nil,
         copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
     ) -> Task<Void, Never>? {
         guard let entryID = viewModel.workspace.selectedEntryID,
               viewModel.entry(withID: entryID)?.hasPassword == true else { return nil }
         let isCurrentSession = EntrySecretAction.currentSession(viewModel)
+        let secretAccess = viewModel.secretAccess
         return action.perform(
-            authenticate: authenticate,
+            authenticate: authenticate ?? {
+                if secretAccess.requiresAuthentication {
+                    try await secretAccess.authenticate(reason: String(localized: "Copy password"))
+                }
+            },
             isCurrent: { activeSession() === viewModel && isCurrentSession() },
             disclose: {
                 guard let entry = viewModel.entry(withID: entryID) else { return }

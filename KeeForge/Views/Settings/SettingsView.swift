@@ -54,6 +54,7 @@ struct SettingsView: View {
                 autoLockTimeout: $settings.autoLockTimeout,
                 macLockPolicy: $settings.macLockPolicy,
                 clipboardTimeout: $settings.clipboardTimeout,
+                authenticationGracePeriod: $settings.authenticationGracePeriod,
                 autoUnlockWithBiometrics: $settings.autoUnlockWithFaceID,
                 blockScreenCapture: $settings.blockScreenCapture
             )
@@ -175,6 +176,7 @@ struct SettingsView: View {
                     autoLockTimeout: $settings.autoLockTimeout,
                     lockOnBackground: $settings.lockOnBackground,
                     clipboardTimeout: $settings.clipboardTimeout,
+                    authenticationGracePeriod: $settings.authenticationGracePeriod,
                     autoUnlockWithFaceID: $settings.autoUnlockWithFaceID
                 )
             } label: {
@@ -287,6 +289,7 @@ private struct SecuritySettingsView: View {
     @Binding var autoLockTimeout: SettingsService.AutoLockTimeout
     @Binding var lockOnBackground: Bool
     @Binding var clipboardTimeout: SettingsService.ClipboardTimeout
+    @Binding var authenticationGracePeriod: SettingsService.AuthenticationGracePeriod
     @Binding var autoUnlockWithFaceID: Bool
 
     var body: some View {
@@ -315,6 +318,17 @@ private struct SecuritySettingsView: View {
                 } else {
                     Text("When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed.")
                 }
+            }
+
+            Section {
+                Picker("Authentication Grace Period", selection: $authenticationGracePeriod) {
+                    ForEach(SettingsService.AuthenticationGracePeriod.allCases, id: \.self) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .accessibilityIdentifier("settings.security.authentication-grace-picker")
+            } footer: {
+                Text("After you unlock a database or authenticate, passwords and protected fields can be shown and copied for this long without asking again. Locking the database or leaving KeeForge ends it. AutoFill is not affected.")
             }
         }
         .navigationTitle("Security")
@@ -785,6 +799,7 @@ private struct MacSecuritySettingsTab: View {
     @Binding var autoLockTimeout: SettingsService.AutoLockTimeout
     @Binding var macLockPolicy: SettingsService.MacLockPolicy
     @Binding var clipboardTimeout: SettingsService.ClipboardTimeout
+    @Binding var authenticationGracePeriod: SettingsService.AuthenticationGracePeriod
     @Binding var autoUnlockWithBiometrics: Bool
     @Binding var blockScreenCapture: Bool
 
@@ -816,6 +831,17 @@ private struct MacSecuritySettingsTab: View {
                 if BiometricService.isAvailable {
                     Text("AutoFill can unlock with Touch ID on its own. KeeForge itself never unlocks automatically — use the Touch ID button on the unlock screen.")
                 }
+            }
+
+            Section {
+                Picker("Authentication Grace Period", selection: $authenticationGracePeriod) {
+                    ForEach(SettingsService.AuthenticationGracePeriod.allCases, id: \.self) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .accessibilityIdentifier("settings.security.authentication-grace-picker")
+            } footer: {
+                Text("After you unlock a database or authenticate, passwords and protected fields can be shown and copied for this long without asking again. Locking the database ends it. AutoFill is not affected.")
             }
 
             Section {

@@ -447,7 +447,7 @@ struct EntryEditView: View {
         let currentSession = EntrySecretAction.currentSession(databaseViewModel)
         guard !secretAction.isAuthenticating, currentSession(), isCurrentSource() else { return }
         guard formViewModel.requiresAuthenticationToRevealPassword,
-              BiometricService.canAuthenticateDeviceOwner else {
+              databaseViewModel.secretAccess.requiresAuthentication else {
             HapticService.tap()
             isVisible.wrappedValue = true
             return
@@ -455,7 +455,7 @@ struct EntryEditView: View {
 
         secretAction.perform(
             authenticate: {
-                _ = try await BiometricService.authenticateDeviceOwner(reason: reason)
+                try await databaseViewModel.secretAccess.authenticate(reason: reason)
             },
             isCurrent: { currentSession() && isCurrentSource() },
             disclose: {

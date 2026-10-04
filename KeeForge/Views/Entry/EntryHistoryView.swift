@@ -175,6 +175,7 @@ private struct EntryHistoryVersionFields: View {
                 PasswordFieldRow(
                     password: version.password,
                     sessionKey: sessionKey,
+                    secretAccess: viewModel.secretAccess,
                     resolveReferences: viewModel.resolvingFieldReferences,
                     accessibilityPrefix: "entry-history",
                     isCurrent: secretActionIsCurrent
@@ -211,6 +212,7 @@ private struct EntryHistoryVersionFields: View {
                             ProtectedFieldRow(
                                 label: key,
                                 value: viewModel.resolvingFieldReferences(value),
+                                secretAccess: viewModel.secretAccess,
                                 accessibilityPrefix: "entry-history",
                                 showsInlineLabel: true,
                                 isCurrent: secretActionIsCurrent
