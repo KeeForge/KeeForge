@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Distribution
+
+- Direct Mac release exports can select locally installed signing profiles after a Developer ID certificate replacement.
+
 > **Next release requirement:** This database-corruption fix (#181) must be item **#1** in the next release’s “What’s New”, including the in-app sheet on iPhone, iPad, and Mac and the App Store release notes. Include a link to the [KeeForge KDBX recovery tool](https://github.com/KeeForge/kdbx-recovery). Explicitly say that updating prevents new corruption but does not repair already damaged files; affected users should restore a readable backup or use the offline recovery tool to create a recovered copy. Keep this item ahead of every new feature.
 
 ### Fixes

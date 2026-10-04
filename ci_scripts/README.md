@@ -189,6 +189,16 @@ The artifact set itself is declared in `KeeForgeTests/KDBXCompatibilitySupport.s
 
 ### Direct-build safety contract
 
+For local signing with installed Developer ID profiles, save private export
+settings as `Configs/ExportOptions-DeveloperID.local.plist`. The direct-build
+script selects this gitignored file when present. Set `method` to `developer-id`,
+`signingStyle` to `manual`, `signingCertificate` to the certificate's SHA-1,
+`teamID` to its team, and `provisioningProfiles` to a dictionary mapping
+`com.keevault.app` and `com.keevault.app.autofill` to their installed profile
+UUIDs. Refresh both mappings when replacing the certificate. Copy this file
+alongside `BuildConfig.local.xcconfig` into a release worktree before building.
+Without local export settings, the committed options use Xcode automatic signing.
+
 Each phase defaults to `build/mac-direct-{version}-b{repoBuild}`. An explicit
 output must be an absolute path naming a safe basename exactly one level below
 `${repo}/build`; relative paths, the build directory itself, traversal,
