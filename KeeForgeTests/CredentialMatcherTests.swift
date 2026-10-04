@@ -30,6 +30,12 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertEqual(CredentialMatcher.hostFromURLString("http://example.org/page"), "example.org")
     }
 
+    func testHostDropsWWWOnlyAboveARegistrableDomain() {
+        XCTAssertEqual(CredentialMatcher.hostFromURLString("https://www.example.co.uk/login"), "example.co.uk")
+        XCTAssertEqual(CredentialMatcher.hostFromURLString("https://www.co.uk/login"), "www.co.uk")
+        XCTAssertEqual(CredentialMatcher.hostFromURLString("WWW.com."), "www.com")
+    }
+
     // MARK: - searchTerm
 
     func testSearchTermDomainType() {
@@ -286,6 +292,21 @@ final class CredentialMatcherTests: XCTestCase {
         let ids = [ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
         XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).isEmpty)
         XCTAssertEqual(CredentialMatcher.matchedEntries(from: entries, for: ids).count, 1)
+    }
+
+    /// Reading a `www.co.uk` request as `co.uk` would make every entry under
+    /// that public suffix a strict match.
+    func testWWWAsRegistrableLabelDoesNotMatchAcrossItsPublicSuffix() {
+        let own = makeEntry(title: "WWW", url: "https://www.co.uk/login", username: "u", password: "p")
+        let other = makeEntry(title: "Bank", url: "https://bank.co.uk", username: "u", password: "p")
+
+        for id in [
+            ASCredentialServiceIdentifier(identifier: "https://www.co.uk/login", type: .URL),
+            ASCredentialServiceIdentifier(identifier: "www.co.uk", type: .domain)
+        ] {
+            XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: [own, other], for: [id]).map(\.title), ["WWW"])
+            XCTAssertEqual(CredentialMatcher.matchedEntries(from: [own, other], for: [id]).map(\.title), ["WWW"])
+        }
     }
 
     func testStrictMatchesAdditionalURLHost() {

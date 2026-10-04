@@ -274,6 +274,18 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         )
     }
 
+    func testIdentityForWWWAsRegistrableLabelMatchesOnlyItsOwnEntry() {
+        let entry = makeEntry(title: "WWW", url: "https://www.co.uk/login", username: "user", hasPassword: true)
+        let sameSuffix = makeEntry(title: "Bank", url: "https://bank.co.uk", username: "user", hasPassword: true)
+        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
+
+        XCTAssertEqual(identities.map(\.serviceIdentifier.identifier), ["https://www.co.uk"])
+        XCTAssertEqual(
+            CredentialMatcher.strictMatchedEntries(from: [entry, sameSuffix], for: identities.map(\.serviceIdentifier)).map(\.id),
+            [entry.id]
+        )
+    }
+
     // MARK: - passwordIdentities: bare domain URLs
 
     func testIdentityWithBareDomainURL() {
@@ -358,8 +370,14 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("https://github.io"))
     }
 
-    func testDomainReturnsNilForWWWOnAPublicSuffix() {
-        XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("https://www.co.uk"))
+    /// `www` is the registrable label on these hosts, so dropping it would
+    /// leave a bare public suffix and the entry would publish nothing.
+    func testDomainKeepsWWWWhenItIsTheRegistrableLabel() {
+        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://www.co.uk/login"), "www.co.uk")
+        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://www.com"), "www.com")
+        // `!www.ck` is an exception to the `*.ck` wildcard rule.
+        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://www.ck"), "www.ck")
+        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://www.www.co.uk"), "www.co.uk")
     }
 
     // MARK: - oneTimeCodeIdentities (iOS 18+)
@@ -618,6 +636,19 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         let identities = CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID)
 
         XCTAssertEqual(identities.map { $0.serviceIdentifier.identifier }, ["example.com", "vt.example.com"])
+    }
+
+    func testOTCIdentityKeepsWWWWhenItIsTheRegistrableLabel() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
+        let entry = makeEntry(title: "WWW", url: "https://www.co.uk/otp", username: "user", hasPassword: false, hasTOTP: true)
+
+        XCTAssertEqual(
+            CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID).map { $0.serviceIdentifier.identifier },
+            ["www.co.uk"]
+        )
     }
 
     func testOTCIdentitiesSkipHostsWithoutARegistrableDomain() throws {
