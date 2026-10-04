@@ -1220,7 +1220,7 @@ struct CloudSyncStatusBanner: View {
 /// presentation started then can be dropped.
 ///
 /// `.contain` keeps the button's own identifier; a bare container identifier
-/// would be copied onto it (see `AutoFillTipBanner`).
+/// would be copied onto it (see `tipBannerCard()`).
 struct PendingUploadConflictBanner: View {
     @Bindable var viewModel: DatabaseViewModel
 
