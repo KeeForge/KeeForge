@@ -1,0 +1,4 @@
+interface:
+  display_name: "Triage Feedback"
+  short_description: "Investigate feedback and draft a reporter response"
+  default_prompt: "Use $triage-feedback to investigate this feedback, inspect its attachments, recommend a disposition, and draft a reply without taking external action."
