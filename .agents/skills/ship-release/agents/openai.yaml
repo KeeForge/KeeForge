@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ship KeeForge Release"
+  short_description: "Publish the exact accepted KeeForge builds"
+  default_prompt: "Use $ship-release to ship the accepted KeeForge version {version}."

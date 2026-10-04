@@ -14,7 +14,7 @@ Review changed behavior and its surrounding contracts before the release process
 Produce evidence-backed findings and a focused manual test plan. Invocation authorizes
 necessary verification, including tests, and writing review artifacts. Source fixes,
 website edits, issue mutations, commits, and release operations are separate work unless
-the user also requests them. Do not invoke the release skill automatically.
+the user also requests them. Do not invoke release preparation, respinning, or shipping skills automatically.
 
 ## Establish the scope
 

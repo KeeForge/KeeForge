@@ -1,6 +1,6 @@
 ---
 name: publish-app-store-version
-description: Prepare and publish an already-built KeeForge version — iOS, macOS, or both — through the App Store Connect website. Use when the user asks to create or finish an App Store version, publish an uploaded build, prepare an App Review submission, stage everything before the final submit, or operate App Store Connect after the release/tag/CI workflow is complete. Covers build processing, export compliance, localized release notes, reviewer information and test fixture, release settings, review staging, and final submission. Do not use for version bumps, release candidates, tags, compatibility gates, or archive creation; use the release skill for those tasks.
+description: Prepare and publish an already-built KeeForge version — iOS, macOS, or both — through the App Store Connect website. Use when the user asks to create or finish an App Store version, publish an uploaded build, prepare an App Review submission, stage everything before the final submit, or operate App Store Connect after the release/tag/CI workflow is complete. Covers build processing, export compliance, localized release notes, reviewer information and test fixture, release settings, review staging, and final submission. Do not use for version bumps, release candidates, tags, compatibility gates, or archive creation; use prepare-release or respin-release for candidates, and ship-release for coordinated production publication.
 ---
 
 # Publish KeeForge App Store Version
@@ -40,7 +40,7 @@ Establish which platforms are in play before touching anything:
 
 Platform-specific deltas, everywhere they matter:
 
-- **Builds.** Each platform has its own TestFlight build list. The `release` manifest hands over
+- **Builds.** Each platform has its own TestFlight build list. The release manifest hands over
   one `{version, repoBuild, rcTag, commitSHA, iosTestFlightBuild, macTestFlightBuild}` mapping;
   verify each platform's own build number is present and `Complete`, not just the first. The Mac
   build comes from the same `rc/*` tag/SHA as the iOS one.
@@ -67,8 +67,8 @@ direct artifact, but it verifies its manifest entry before the App Store version
 
 ## The build is already chosen
 
-The `release` skill soaks one RC across both external TestFlight groups and the direct channel, then
-hands this skill the non-secret release manifest. It includes the exact `{marketing version,
+The `prepare-release` and `respin-release` skills prepare one RC across both external TestFlight
+groups and the direct channel. After soak, `ship-release` hands this skill the non-secret release manifest. It includes the exact `{marketing version,
 repoBuild, rcTag, commitSHA, iosTestFlightBuild, macTestFlightBuild, directCFBundleVersion}`
 mapping. This skill **selects** the two already-uploaded builds; it never triggers, requests, or
 waits for a new one.

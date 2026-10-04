@@ -90,7 +90,7 @@ Three properties matter:
    decision.
 
    Leaving the archives ungated is deliberate. When a cloud test failure turns out to be a flake
-   (`gate-adjudication.md`), the binary already exists and can be distributed by hand; gating the
+   ([gate-adjudication.md](gate-adjudication.md)), the binary already exists and can be distributed by hand; gating the
    archive would force a respin to rebuild a binary that was never at fault. Switching any test
    action to *Not Required to Pass* would remove the real gate and let a build distribute
    over failing tests. Splitting tests and archives into workflows both triggered on `rc/*` would

@@ -1,7 +1,7 @@
 # Adjudicating a Failed RC Gate
 
-Read this during A8 when any RC verdict is not green. A8 adjudicates three cloud verdicts plus
-the two local KDBX gates and the local Mac smoke; Mode C ships an already-accepted candidate and
+Read this during [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke) when any RC verdict is not green. [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke) adjudicates three cloud verdicts plus
+the two local KDBX gates and the local Mac smoke; [production shipping](../../ship-release/SKILL.md) ships an already-accepted candidate and
 does not reopen these decisions. Do not distribute either App Store build or call the direct build
 release-ready while any required verdict is unresolved.
 
@@ -26,7 +26,7 @@ may expose these as separate Xcode Cloud check runs or as one workflow summary; 
 Xcode Cloud check for the RC SHA and record the URLs/statuses in the manifest. The iOS test
 action and both archive actions must reach a terminal, accepted state before external distribution.
 If the tag push produced no run, a manual branch run is acceptable only through the conditional
-recovery in `xcode-cloud-setup.md` ("Recovering a missing tag-triggered run"), with its full SHA
+recovery in [xcode-cloud-setup.md](xcode-cloud-setup.md) ("Recovering a missing tag-triggered run"), with its full SHA
 verified in the run Overview and recorded in the manifest. Reject any run whose SHA differs.
 
 ```bash
@@ -180,4 +180,4 @@ distribute until all three cloud verdicts and all local gates are accepted.
 An archive failure complaining about `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID` means the Xcode
 Cloud workflow is missing its environment variables. This is intentional:
 `ci_scripts/ci_pre_xcodebuild.sh` blocks an archive rather than shipping broken cloud sign-in. See
-`xcode-cloud-setup.md`.
+[xcode-cloud-setup.md](xcode-cloud-setup.md).
