@@ -1,0 +1,4 @@
+interface:
+  display_name: "KeeForge Test Audit"
+  short_description: "Audit test value and preserve regression coverage"
+  default_prompt: "Use $test-audit to review a KeeForge subsystem and report evidence-backed test improvements before cleanup."

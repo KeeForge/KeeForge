@@ -400,32 +400,6 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
     }
 
-    func testRemoveDoesNotClearCredentialStoreWhenRemovingInactiveDatabase() async throws {
-        let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "active.kdbx"))
-        let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "inactive.kdbx"))
-        DatabaseListStore.activeAutoFillDatabaseID = first.id
-
-        CredentialIdentityStoreManager.clearObserver = {
-            XCTFail("Credential store should remain populated for the active AutoFill database")
-        }
-
-        let removalExpectation = expectation(description: "Targeted identity removal for the inactive database")
-        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, includingLegacyIdentifiers in
-            XCTAssertEqual(databaseID, second.id)
-            XCTAssertFalse(
-                includingLegacyIdentifiers,
-                "Removing an inactive database must not sweep legacy identifiers"
-            )
-            removalExpectation.fulfill()
-        }
-
-        DatabaseListStore.remove(id: second.id)
-
-        await fulfillment(of: [removalExpectation], timeout: 1)
-        try? await Task.sleep(for: .milliseconds(100))
-        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, first.id)
-    }
-
     func testRemovingNonActiveDatabaseTriggersTargetedIdentityRemoval() async throws {
         let active = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "kept.kdbx"))
         let removed = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "dropped.kdbx"))
@@ -972,19 +946,19 @@ final class DatabaseListStoreTests: XCTestCase {
 
         let fileURL = documentsDirectory.appendingPathComponent("resident.kdbx")
         try (Self.kdbxMagic + Data("original".utf8)).write(to: fileURL)
-        let reference = try DatabaseListStore.add(url: fileURL)
+        var reference = try DatabaseListStore.add(url: fileURL)
         XCTAssertTrue(reference.isDocumentsResident)
 
-        // Files-app Delete: the bookmark keeps following the old copy into
-        // .Trash while a fresh file appears at the original path.
         let trashDirectory = documentsDirectory.appendingPathComponent(".Trash", isDirectory: true)
         try FileManager.default.createDirectory(at: trashDirectory, withIntermediateDirectories: true)
-        try FileManager.default.moveItem(
-            at: fileURL,
-            to: trashDirectory.appendingPathComponent("resident.kdbx")
-        )
+        let trashedURL = trashDirectory.appendingPathComponent("resident.kdbx")
+        try FileManager.default.moveItem(at: fileURL, to: trashedURL)
         let replacement = Self.kdbxMagic + Data("replacement".utf8)
         try replacement.write(to: fileURL)
+        reference.bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: trashedURL)
+        DatabaseListStore.update(reference)
+        let resolvedBeforeLocate = try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: try XCTUnwrap(reference.bookmarkData)))
+        XCTAssertEqualFilePaths(resolvedBeforeLocate.url, trashedURL)
 
         let location = DatabaseListStore.locateDatabaseFile(for: reference)
         guard case .available(let url) = location else {

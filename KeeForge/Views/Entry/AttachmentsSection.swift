@@ -30,7 +30,7 @@ private struct AttachmentRow: View {
     let index: Int
     @Bindable var viewModel: DatabaseViewModel
 
-    @State private var isResolving = false
+    @State private var loadCoordinator = AttachmentLoadCoordinator()
     @State private var isDangling = false
     @State private var previewURL: URL?
     @State private var byteCount: Int?
@@ -59,7 +59,7 @@ private struct AttachmentRow: View {
                     }
                 }
                 Spacer()
-                if isResolving {
+                if loadCoordinator.isLoading {
                     ProgressView()
                 } else if let previewURL {
                     ShareLink(item: previewURL) {
@@ -78,34 +78,38 @@ private struct AttachmentRow: View {
         // enumerate rows via the `entry.attachment.<index>` prefix instead.
         .accessibilityIdentifier("entry.attachment.\(index)")
         .attachmentQuickLookPreview(url: $previewURL, onDismiss: cleanUpTempFile)
-        .onDisappear(perform: cleanUpTempFile)
+        .onAppear { loadCoordinator.activate() }
+        .onDisappear {
+            loadCoordinator.deactivate()
+            cleanUpTempFile()
+        }
         // Selecting another entry reuses this row rather than tearing it down
         // (the shells share one detail column), so `onDisappear` may never
         // fire. Without this the macOS Quick Look panel would linger over the
         // newly selected entry — and over any sheet opened on top of it.
-        .onChange(of: entryID) { _, _ in cleanUpTempFile() }
+        .onChange(of: entryID) { _, _ in
+            loadCoordinator.invalidate()
+            cleanUpTempFile()
+        }
+        .onChange(of: viewModel.lockCycleID) { _, _ in
+            loadCoordinator.invalidate()
+            cleanUpTempFile()
+        }
     }
 
     private func preparePreview() {
-        guard isResolving == false, previewURL == nil else { return }
-        isResolving = true
-
-        Task {
-            guard let data = await viewModel.attachmentData(for: attachment) else {
-                await MainActor.run {
-                    isDangling = true
-                    isResolving = false
-                }
+        guard loadCoordinator.isLoading == false, previewURL == nil else { return }
+        let lockCycle = viewModel.lockCycleID
+        loadCoordinator.load(
+            operation: { await viewModel.attachmentData(for: attachment) },
+            isCurrent: { viewModel.lockCycleID == lockCycle && viewModel.sessionKey != nil }
+        ) { data in
+            guard let data else {
+                isDangling = true
                 return
             }
-
-            let url = try? AttachmentPreviewFileStore.write(data, suggestedName: displayName)
-
-            await MainActor.run {
-                byteCount = data.count
-                previewURL = url
-                isResolving = false
-            }
+            byteCount = data.count
+            previewURL = try? AttachmentPreviewFileStore.write(data, suggestedName: displayName)
         }
     }
 

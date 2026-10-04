@@ -8,7 +8,7 @@ Detailed guidance for adding, running, and fixing XCUITests in `KeeForgeUITests/
 
 The Cloud-specific schemes split this target into two serial groups, `KeeForgeCloudUIA`
 and `KeeForgeCloudUIB`, alongside a separate unit-only scheme. All three are active in the
-RC workflow; see `../.agents/skills/release/xcode-cloud-setup.md`. Group A selects whole classes
+RC workflow; see `../.agents/skills/prepare-release/references/xcode-cloud-setup.md`. Group A selects whole classes
 in `project.yml`; B runs the complement, including new classes automatically. XcodeGen's
 post-generation check verifies the partition. Rebalance using measured cloud durations;
 see `../ci_scripts/README.md`. The ordinary `KeeForge` scheme still runs the full target.
@@ -73,7 +73,7 @@ macOS UI tests: see `../KeeForgeMacUITests/AGENTS.md`; the accessibility identif
 - `AutoFillTipUITests` — "Turn On AutoFill" banner on the database list (forced via `UI_TEST_SHOW_AUTOFILL_TIP=1`; the banner is suppressed in all other UI test classes and screenshots)
 - `MacAppSuggestionUITests` — "Using KeeForge on a Mac?" banner on the database list (forced via `UI_TEST_SHOW_MAC_APP_SUGGESTION=1`; no simulator is the iOS app on a Mac, so nothing else shows it)
 - `WhatsNewUITests` — feature-sheet structure and dismissal (forced via `UI_TEST_SHOW_WHATS_NEW=1`; the release sheet is suppressed in all other UI test classes and screenshots)
-- `EntryEditEdgeUITests` — password generation, conflict handling, discard prompts, and read-only editing affordances
+- `EntryEditEdgeUITests` — password generation (captures the displayed `password-generator.password` suggestion before Use, checks the editor receives it, then checks the exact password after saving and reopening), conflict handling, discard prompts, and read-only editing affordances
 - `SaveConflictMergeUITests` — end-to-end "Merge Changes" on a real save conflict: a local title edit conflicts with a genuinely divergent on-disk copy, Merge reports the counted-changes "Changes Merged" summary (`merge-summary.ok`), and both the remote-only entry and the local edit survive with the unsaved-changes banner cleared
 - `SaveConflictMergeDeclineUITests` — the declined-merge path on the `kitchen-sink` fixture: the divergent copy also grows a binary-pool field, so Merge reports "Couldn't Merge Changes" (`merge-failure.ok`), acknowledging it re-presents the conflict alert, and Cancel leaves the unsaved draft and its banner intact
 - `KeyFileUITests` — key file selection and picker flows plus visible rejection of malformed XML key data during unlock
@@ -323,6 +323,7 @@ Common sources of UI test flakiness in this repo:
 - document picker flows are asynchronous and require explicit waiting
 - password-filled create flows can trigger the system `Save Password?` sheet in the simulator
 - a row below the fold on a 375x667 screen (iPhone SE) is never materialized by a lazy `List`/`Form`, so `waitForExistence` on it can only time out however generous the timeout. Anchor "did this screen open" assertions on a navigation bar or toolbar item, and `revealElement` anything further down. Two tests failed this way on an iOS 26.5 iPhone SE: the AutoFill settings per-database toggles (pushed past the fold by the Copy Verification Code footer) and the entry-history version screen's Last Modified row
+- `isHittable` can be true for a partially exposed row whose center is covered by the bottom search toolbar. `revealElement` then returns without scrolling, but `press(forDuration:)` can hit the toolbar instead of opening the row's context menu. For a last-row context action, scroll the list to bring the row clear of the toolbar before pressing; `TagBrowserUITests.testHiddenGroupEntriesLeaveSearchButRemainInTheTagBrowser` does this for Tagged on the small physical iPhone. Keep the context-action assertion so a missed gesture still fails.
 - regular-width workspace and database-details smoke flows are much more stable when they target dedicated accessibility identifiers such as `regular-workspace.select-entry-placeholder` and `database-details.quick-launch-toggle`
 - on iOS 27, buttons inside a `Section` of a SwiftUI `Menu` lose their accessibility identifiers (labels survive; direct menu children are unaffected). Query them with `menuButton(identifier:label:)` instead of `app.buttons["the.identifier"]`
 

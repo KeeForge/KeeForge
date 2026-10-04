@@ -18,7 +18,9 @@ extension FocusedValues {
 struct KeeForgeCommands: Commands {
     let listViewModel: DatabaseListViewModel
     @Binding var activeDatabaseViewModel: DatabaseViewModel?
+    let routing: AppRoutingCoordinator
     @FocusedValue(\.databaseViewModel) private var focusedDatabaseViewModel
+    @State private var passwordCopyAction = EntrySecretAction()
 
     /// Prefer the focused scene's session; fall back to the app's active
     /// session so commands keep working while auxiliary panels have focus.
@@ -37,7 +39,7 @@ struct KeeForgeCommands: Commands {
     }
 
     private var selectedEntry: KPEntry? {
-        guard isUnlocked, let viewModel, let entryID = viewModel.selectedEntryID else { return nil }
+        guard isUnlocked, let viewModel, let entryID = viewModel.workspace.selectedEntryID else { return nil }
         return viewModel.entry(withID: entryID)
     }
 
@@ -135,7 +137,7 @@ struct KeeForgeCommands: Commands {
                 copySelectedEntryPassword()
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
-            .disabled(selectedEntry?.hasPassword != true)
+            .disabled(selectedEntry?.hasPassword != true || passwordCopyAction.isAuthenticating)
 
             Button("Copy URL") {
                 guard let viewModel, let entry = selectedEntry else { return }
@@ -207,18 +209,7 @@ struct KeeForgeCommands: Commands {
     // MARK: - Actions
 
     private func closeDatabase() {
-        guard let viewModel else { return }
-
-        if isUnlocked, viewModel.isDirty {
-            // Surface the existing discard-changes flow instead of silently
-            // dropping unsaved edits; the user can close after resolving it.
-            viewModel.lockRequest(manuallyTriggered: true)
-            return
-        }
-
-        viewModel.lockRequest(force: true, manuallyTriggered: true)
-        activeDatabaseViewModel = nil
-        listViewModel.reload()
+        routing.requestDatabaseTransition(to: .close, from: activeDatabaseViewModel)
     }
 
     /// ⌘O. The `.fileImporter` that adds a database lives in `DatabaseListView`,
@@ -226,12 +217,6 @@ struct KeeForgeCommands: Commands {
     /// own `NSOpenPanel` and reports failures with an `NSAlert` — a menu
     /// command has no SwiftUI host to raise an alert on.
     private func openDatabase() {
-        if let viewModel, isUnlocked, viewModel.isDirty {
-            // Same rule as Close Database: resolve the unsaved draft first.
-            viewModel.lockRequest(manuallyTriggered: true)
-            return
-        }
-
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [DocumentPickerService.databaseContentType]
         panel.allowsMultipleSelection = false
@@ -252,8 +237,7 @@ struct KeeForgeCommands: Commands {
     }
 
     private func openSession(_ reference: DatabaseReference) {
-        viewModel?.lockRequest(force: true, manuallyTriggered: true)
-        activeDatabaseViewModel = DatabaseViewModel(databaseReference: reference)
+        routing.requestDatabaseTransition(to: .open(reference), from: activeDatabaseViewModel)
     }
 
     private func presentOpenFailure(_ error: Error) {
@@ -266,21 +250,37 @@ struct KeeForgeCommands: Commands {
     }
 
     private func copySelectedEntryPassword() {
-        guard let viewModel, let entry = selectedEntry, viewModel.sessionKey != nil else { return }
+        guard let viewModel else { return }
+        Self.copySelectedEntryPassword(
+            in: viewModel,
+            action: passwordCopyAction,
+            activeSession: { activeDatabaseViewModel }
+        )
+    }
 
-        Task { @MainActor in
-            // Same device-owner gate as reveal/copy in the entry detail view:
-            // biometrics when available, login password / Apple Watch
-            // otherwise. Only skipped when the device has no protection at all.
+    @discardableResult
+    static func copySelectedEntryPassword(
+        in viewModel: DatabaseViewModel,
+        action: EntrySecretAction,
+        activeSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: @escaping @MainActor () async throws -> Void = {
             if BiometricService.canAuthenticateDeviceOwner {
-                do {
-                    _ = try await BiometricService.authenticateDeviceOwner(reason: String(localized: "Copy password"))
-                } catch {
-                    return
-                }
+                _ = try await BiometricService.authenticateDeviceOwner(reason: String(localized: "Copy password"))
             }
-            ClipboardService.copy(viewModel.resolvedPassword(for: entry))
-        }
+        },
+        copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
+    ) -> Task<Void, Never>? {
+        guard let entryID = viewModel.workspace.selectedEntryID,
+              viewModel.entry(withID: entryID)?.hasPassword == true else { return nil }
+        let isCurrentSession = EntrySecretAction.currentSession(viewModel)
+        return action.perform(
+            authenticate: authenticate,
+            isCurrent: { activeSession() === viewModel && isCurrentSession() },
+            disclose: {
+                guard let entry = viewModel.entry(withID: entryID) else { return }
+                copy(viewModel.resolvedPassword(for: entry))
+            }
+        )
     }
 
     /// Not behind the device-owner gate, matching the entry detail view's

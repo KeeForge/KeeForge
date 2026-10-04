@@ -29,6 +29,11 @@ struct MacMenuBarSettingsTab: View {
             }
         }
         .formStyle(.grouped)
+        .onChange(of: controller.isMenuBarItemEnabled) { _, isEnabled in
+            if !isEnabled {
+                controller.isRecordingShortcut = false
+            }
+        }
     }
 }
 
@@ -74,6 +79,11 @@ struct MacShortcutRecorder: View {
             }
         }
         .onDisappear(perform: stopRecording)
+        .onChange(of: isRecording) { _, isRecording in
+            if !isRecording {
+                stopRecording()
+            }
+        }
     }
 
     private func startRecording() {

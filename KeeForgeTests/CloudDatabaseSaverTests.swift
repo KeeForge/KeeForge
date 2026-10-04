@@ -5,6 +5,39 @@ import XCTest
 final class CloudDatabaseSaverTests: XCTestCase {
     private let fixturePassword = "testpassword123"
 
+    func testSaveRejectsInvalidXMLBeforeUploadBackupOrCacheReplacement() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Pending Valid Entry")
+        let root = context.draft.rootGroup
+        root.entries.append(KPEntry(notes: "Example heading\u{0}\r\nExample body"))
+        let invalidDraft = DatabaseDraft(rootGroup: root, meta: context.draft.meta, sessionKey: context.draft.writerSessionKey)
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: Int64(context.currentData.count), rev: "rev-A")
+            },
+            upload: { _, data, expectedRev, _ in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                return CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: Int64(data.count), rev: "rev-B")
+            }
+        )
+        do {
+            _ = try await CloudDatabaseSaver.save(
+                draft: invalidDraft, reference: reference, compositeKey: context.compositeKey,
+                openTimeSHA512: context.openTimeSHA512, expectedRev: "rev-A", environment: environment
+            )
+            XCTFail("Invalid XML must not be uploaded")
+        } catch {
+            XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+        }
+        let uploadCount = await recorder.callCount()
+        XCTAssertEqual(uploadCount, 0)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
+        XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata, reference.cloudSyncMetadata)
+    }
+
     override func setUp() {
         super.setUp()
         DatabaseListStore.clearAll()

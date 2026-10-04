@@ -163,21 +163,31 @@ final class MacQuickSearchViewModel {
     func moveSelection(by offset: Int) {
         let results = results
         guard results.isEmpty == false else { return }
-        let current = results.firstIndex { $0.id == selectedEntry?.id } ?? 0
+        let current = results.firstIndex { $0.id == selectedEntryID } ?? 0
         let next = min(max(current + offset, 0), results.count - 1)
         selectedEntryID = results[next].id
     }
 
     /// Copies one field of `entry` and reports whether anything reached the
     /// clipboard. The password waits on the device-owner gate, and the session
-    /// is checked again afterwards: it may have locked while the prompt was up.
+    /// and source revision are checked afterwards: they may change while the
+    /// prompt is up.
     @discardableResult
     func copy(_ field: CopyField, from entry: KPEntry) async -> Bool {
-        guard canCopy(field, from: entry) else { return false }
+        guard let source = unlockedSession, canCopy(field, from: entry) else { return false }
 
         let value: String?
         if field == .password {
-            value = await authenticateDeviceOwner() ? currentValue(of: field, entryID: entry.id) : nil
+            let lockCycleID = source.lockCycleID
+            let contentRevision = source.contentRevision
+            let presentationID = presentationID
+            let authenticated = await authenticateDeviceOwner()
+            // Authentication hides the panel and clears its query without ending the copy.
+            guard self.presentationID == presentationID else { return false }
+            let sourceIsCurrent = unlockedSession === source
+                && source.lockCycleID == lockCycleID
+                && source.contentRevision == contentRevision
+            value = authenticated && sourceIsCurrent ? currentValue(of: field, entryID: entry.id) : nil
             if value == nil { onCopyAborted?() }
         } else {
             value = currentValue(of: field, entryID: entry.id)

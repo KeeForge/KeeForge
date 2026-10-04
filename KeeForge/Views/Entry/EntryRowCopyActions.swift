@@ -7,6 +7,7 @@ import SwiftUI
 struct EntryRowCopyActions: View {
     let entry: KPEntry
     let viewModel: DatabaseViewModel
+    @State private var secretAction = EntrySecretAction()
 
     var body: some View {
         if entry.username.isEmpty == false {
@@ -21,7 +22,10 @@ struct EntryRowCopyActions: View {
             Button("Copy Password") {
                 copyPassword()
             }
+            .disabled(secretAction.isAuthenticating)
             .accessibilityIdentifier("entry-row.copy-password-context")
+            .onChange(of: entry.password) { secretAction.invalidate() }
+            .onChange(of: entry.id) { secretAction.invalidate() }
         }
     }
 
@@ -29,25 +33,26 @@ struct EntryRowCopyActions: View {
     /// ⇧⌘C command: biometrics when available, passcode / login password /
     /// Apple Watch otherwise, skipped only when the device has no protection.
     private func copyPassword() {
+        let isCurrent = EntrySecretAction.currentSession(viewModel)
+        guard isCurrent() else { return }
         guard BiometricService.canAuthenticateDeviceOwner else {
             performPasswordCopy()
             return
         }
-
-        Task { @MainActor in
-            do {
+        secretAction.perform(
+            authenticate: {
                 _ = try await BiometricService.authenticateDeviceOwner(
                     reason: String(localized: "Copy password")
                 )
-            } catch {
-                return
-            }
-            performPasswordCopy()
-        }
+            },
+            isCurrent: isCurrent,
+            disclose: performPasswordCopy
+        )
     }
 
     private func performPasswordCopy() {
-        ClipboardService.copy(viewModel.resolvedPassword(for: entry))
+        guard let currentEntry = viewModel.entry(withID: entry.id) else { return }
+        ClipboardService.copy(viewModel.resolvedPassword(for: currentEntry))
         HapticService.success()
     }
 }

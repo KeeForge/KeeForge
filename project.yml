@@ -7,7 +7,7 @@ options:
     macOS: "15.0"
   xcodeVersion: "16.0"
   minimumXcodeGenVersion: "2.38"
-  postGenCommand: python3 ci_scripts/validate_cloud_test_schemes.py
+  postGenCommand: python3 ci_scripts/validate_architecture.py && python3 ci_scripts/validate_cloud_test_schemes.py
 configFiles:
   Debug: Configs/BuildConfig.xcconfig
   Release: Configs/BuildConfig.xcconfig
@@ -138,29 +138,27 @@ targets:
       # quick access pair MacQuickAccessController.swift / MacGlobalHotKey.swift
       # are macOS-only: members of KeeForgeMac, excluded here.
       - path: KeeForge/App
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md", "KeeForgeCommands.swift"]
+        excludes: ["README.md", "AGENTS.md", "KeeForgeCommands.swift"]
       - path: KeeForge/Models
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md"]
       - path: KeeForge/Services
         excludes:
           - "README.md"
-          - "CLAUDE.md"
           - "AGENTS.md"
           - "**/README.md"
-          - "**/CLAUDE.md"
           - "**/AGENTS.md"
           - "AppSupport/MacLockMonitor.swift"
           - "AppSupport/MacWindowCloseGuard.swift"
           - "AppSupport/MacQuickAccessController.swift"
           - "AppSupport/MacGlobalHotKey.swift"
       - path: KeeForge/ViewModels
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md"]
       - path: KeeForge/Views
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md", "**/README.md", "**/CLAUDE.md", "**/AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md", "**/README.md", "**/AGENTS.md"]
       - path: KeeForge/Extensions
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md"]
       - path: KeeForge/Resources
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md"]
       # Platform-neutral AutoFill coordinator is compiled into the app target
       # too so KeeForgeTests (hosted by the app) can unit-test it.
       - path: AutoFillExtension/CredentialProviderCoordinator.swift
@@ -210,9 +208,9 @@ targets:
         product: PublicSuffixList
     sources:
       - path: KeeForge/App
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md"]
       - path: KeeForge/Models
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md"]
       # The Mac app is WebDAV-only, so the Dropbox and OneDrive
       # providers are excluded rather than compiled and hidden. Excluding them
       # is what lets the SwiftyDropbox and MSAL packages come off the target:
@@ -222,21 +220,19 @@ targets:
       - path: KeeForge/Services
         excludes:
           - "README.md"
-          - "CLAUDE.md"
           - "AGENTS.md"
           - "**/README.md"
-          - "**/CLAUDE.md"
           - "**/AGENTS.md"
           - "Cloud/DropboxCloudProvider.swift"
           - "Cloud/OneDriveCloudProvider.swift"
       - path: KeeForge/ViewModels
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md"]
       - path: KeeForge/Views
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md", "**/README.md", "**/CLAUDE.md", "**/AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md", "**/README.md", "**/AGENTS.md"]
       - path: KeeForge/Extensions
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md"]
       - path: KeeForge/Resources
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md", "LaunchScreen.storyboard"]
+        excludes: ["README.md", "AGENTS.md", "LaunchScreen.storyboard"]
       # Platform-neutral AutoFill coordinator is compiled into the Mac app target
       # too so KeeForgeMacTests (hosted by the app) can unit-test it — mirrors the
       # iOS KeeForge target. Its save/generate-password paths compile out on macOS.
@@ -275,9 +271,9 @@ targets:
       # Exclude the macOS-only Info.plist / entitlements so they are not bundled
       # as stray resources in the iOS extension.
       - path: AutoFillExtension
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md", "InfoMac.plist", "AutoFillExtensionMac.entitlements"]
+        excludes: ["README.md", "AGENTS.md", "InfoMac.plist", "AutoFillExtensionMac.entitlements"]
       - path: KeeForge/Models
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md"]
       # >>> SHARED AUTOFILL ALLOW-LIST (maintenance invariant) >>>
       # These explicit service/view paths MUST stay literally identical — same
       # paths, same order — to the KeeForgeMacAutoFill target below. The two
@@ -346,9 +342,9 @@ targets:
       # (CredentialProviderViewControllerMac.swift) lives beside the iOS shell in
       # this folder, each gated by `#if os()`.
       - path: AutoFillExtension
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md", "Info.plist", "AutoFillExtension.entitlements"]
+        excludes: ["README.md", "AGENTS.md", "Info.plist", "AutoFillExtension.entitlements"]
       - path: KeeForge/Models
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md"]
       # >>> SHARED AUTOFILL ALLOW-LIST (maintenance invariant) >>>
       # MUST stay literally identical — same paths, same order — to the
       # KeeForgeAutoFill target above. See the note there. Edit both together.
@@ -400,7 +396,7 @@ targets:
       - target: KeeForge
     sources:
       - path: KeeForgeUITests
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md"]
       - path: TestFixtures/invalid-xml.keyx
         buildPhase: resources
       - path: TestFixtures/autofill-union.kdbx
@@ -476,7 +472,7 @@ targets:
       - package: KeeForgeTwofish
     sources:
       - path: KeeForgeTests
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md", "**/README.md", "**/CLAUDE.md", "**/AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md", "**/README.md", "**/AGENTS.md"]
 
   KeeForgeMacUITests:
     type: bundle.ui-testing
@@ -493,7 +489,7 @@ targets:
       - target: KeeForgeMac
     sources:
       - path: KeeForgeMacUITests
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
+        excludes: ["README.md", "AGENTS.md"]
 
   KeeForgeMacTests:
     type: bundle.unit-test
@@ -559,10 +555,8 @@ targets:
       - path: KeeForgeTests
         excludes:
           - "README.md"
-          - "CLAUDE.md"
           - "AGENTS.md"
           - "**/README.md"
-          - "**/CLAUDE.md"
           - "**/AGENTS.md"
           - "DropboxCloudProviderTests.swift"
           - "OneDriveCloudProviderTests.swift"

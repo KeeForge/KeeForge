@@ -6,6 +6,128 @@ final class KDBXRoundTripTests: XCTestCase {
     private let roundTripSessionKey = SymmetricKey(size: .bits256)
     private let roundTripInnerStreamKey = Data("KeeForge Slice01 Inner Stream Key".utf8)
 
+    func test_serializerRejectsEveryXMLInvalidUnicodeScalar() throws {
+        let invalid: [UInt32] = Array(0...8) + [11, 12] + Array(14...31) + [0xFFFE, 0xFFFF]
+        for codepoint in invalid {
+            let text = "Before" + String(try XCTUnwrap(Unicode.Scalar(codepoint))) + "After"
+            let root = KPGroup(name: "Root", entries: [KPEntry(notes: text)])
+            XCTAssertThrowsError(try serializedXML(of: (root, KPMeta()))) { error in
+                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(codepoint))
+            }
+        }
+    }
+
+    func test_serializerRejectsNULInEveryUnprotectedTextPath() throws {
+        let text = "Before\u{0}After"
+        let entries = [
+            KPEntry(title: text), KPEntry(username: text), KPEntry(url: text), KPEntry(notes: text),
+            KPEntry(customFields: [text: "value"]), KPEntry(customFields: ["Custom": text]),
+            KPEntry(customFields: [text: "value"], protectedStringKeys: [text]),
+            KPEntry(tags: [text]), KPEntry(attachments: [KPAttachment(name: text, ref: 0)]),
+            KPEntry(history: [KPEntry(notes: text)]),
+        ]
+        let roots = entries.map { KPGroup(name: "Root", entries: [$0]) } + [
+            KPGroup(name: "Root", groups: [KPGroup(name: text)]),
+            KPGroup(name: "Root", groups: [KPGroup(name: "Group", notes: text)]),
+            KPGroup(name: "Root", groups: [KPGroup(name: "Group", tags: [text])]),
+        ]
+        var unknownXML = OpaqueXMLNodes()
+        unknownXML.append(xml: "<CustomData>\(text)</CustomData>", insertionIndex: 0)
+        for root in roots {
+            XCTAssertThrowsError(try serializedXML(of: (root, KPMeta()))) { error in
+                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+            }
+        }
+        XCTAssertThrowsError(try serializedXML(of: (KPGroup(name: "Root"), KPMeta(unknownXML: unknownXML))))
+    }
+
+    func test_serializerPreservesValidUnicodeAndXMLNewlines() throws {
+        let boundaries: [UInt32] = [0x7F, 0x80, 0x85, 0x9F, 0x2028, 0x2029, 0xFEFF, 0xFDD0, 0xFFFD, 0x1FFFE, 0x10FFFF]
+        let suffix = try boundaries.map { String(try XCTUnwrap(Unicode.Scalar($0))) }.joined()
+        let text = "\t日本語 😀 café & < >\r\nNext\rLast\n" + suffix
+        let root = KPGroup(name: "Root", entries: [KPEntry(notes: text)])
+        let reparsed = try serializeAndParse((root, KPMeta()))
+        XCTAssertEqual(reparsed.rootGroup.allEntries.first?.notes, text)
+    }
+
+    func test_serializerPreservesCarriageReturnsInUnprotectedText() throws {
+        let text = "First\r\nSecond\rThird\n"
+        let root = KPGroup(name: "Root", entries: [KPEntry(notes: text)])
+        let xml = try serializedXML(of: (root, KPMeta()))
+        XCTAssertTrue(String(decoding: xml, as: UTF8.self).contains("First&#xD;\nSecond&#xD;Third"))
+        XCTAssertEqual(try parseXML(xml).rootGroup.allEntries.first?.notes, text)
+    }
+
+    func test_opaqueProtectedValueWithLowercaseTrueStaysEncryptedAcrossSave() throws {
+        var opaque = OpaqueXMLNodes()
+        opaque.append(xml: "<Vendor><Value Protected=\"True\">secret</Value></Vendor>", insertionIndex: 0)
+        let first = try serializedXML(of: (KPGroup(name: "Root"), KPMeta(unknownXML: opaque)))
+        for spelling in ["true", "TRUE", "TrUe"] {
+            let foreignXML = String(decoding: first, as: UTF8.self)
+                .replacingOccurrences(of: "Protected=\"True\"", with: "Protected=\"\(spelling)\"")
+            let parsed = try parseXML(Data(foreignXML.utf8))
+            let original = try XCTUnwrap(parsed.meta.unknownXML.nodes.first?.xml)
+            XCTAssertTrue(original.contains(">secret</Value>"))
+
+            let written = try serializedXML(of: parsed)
+            XCTAssertFalse(String(decoding: written, as: UTF8.self).contains(">secret</Value>"))
+            let reparsed = try parseXML(written)
+            XCTAssertEqual(reparsed.meta.unknownXML.nodes.first?.xml, original)
+        }
+    }
+
+    func test_opaqueTextPreservesCarriageReturnEntityAcrossSave() throws {
+        let xml = "<KeePassFile><Meta><Vendor>A&#xD;B</Vendor></Meta><Root/></KeePassFile>"
+        let parsed = try parseXML(Data(xml.utf8))
+        XCTAssertEqual(parsed.meta.unknownXML.nodes.first?.xml, "<Vendor>A&#xD;B</Vendor>")
+        let written = try serializedXML(of: parsed)
+        XCTAssertEqual(try parseXML(written).meta.unknownXML.nodes.first?.xml, "<Vendor>A&#xD;B</Vendor>")
+    }
+
+    func test_opaqueProtectedValuePreservesCarriageReturnAcrossSave() throws {
+        var opaque = OpaqueXMLNodes()
+        opaque.append(xml: "<Vendor><Value Protected=\"True\">A\rB</Value></Vendor>", insertionIndex: 0)
+        let first = try serializedXML(of: (KPGroup(name: "Root"), KPMeta(unknownXML: opaque)))
+        let parsed = try parseXML(first)
+        let original = try XCTUnwrap(parsed.meta.unknownXML.nodes.first?.xml)
+        XCTAssertTrue(original.contains(">A&#xD;B</Value>"))
+        let written = try serializedXML(of: parsed)
+        XCTAssertEqual(try parseXML(written).meta.unknownXML.nodes.first?.xml, original)
+    }
+
+    func test_parserPreservesWhitespaceInImportedGroupNamesAndKeys() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>  Parent&#xD;\t </Name><Entry>
+        <String><Key>  API Key&#xD;\t </Key><Value>secret</Value></String>
+        <Binary><Key>  report.txt </Key><Value Ref="0"/></Binary>
+        </Entry></Group></Root></KeePassFile>
+        """
+        let parsed = try parseXML(Data(xml.utf8))
+        let group = try XCTUnwrap(parsed.rootGroup.groups.first)
+        let entry = try XCTUnwrap(group.entries.first)
+        XCTAssertEqual(group.name, "  Parent\r\t ")
+        XCTAssertEqual(entry.customFields["  API Key\r\t "], "secret")
+        XCTAssertEqual(entry.attachments.first?.name, "  report.txt ")
+
+        let reparsed = try serializeAndParse(parsed)
+        XCTAssertEqual(reparsed.rootGroup.groups.first?.name, group.name)
+        XCTAssertEqual(reparsed.rootGroup.allEntries.first?.customFields, entry.customFields)
+        XCTAssertEqual(reparsed.rootGroup.allEntries.first?.attachments.first?.name, entry.attachments.first?.name)
+    }
+
+    func test_serializerKeepsProtectedNULValuesByteExact() throws {
+        let text = "Example heading\u{0}\r\nExample body"
+        let entry = KPEntry(
+            password: try EncryptedValue.encrypt(text, using: roundTripSessionKey), notes: text,
+            customFields: ["Protected Custom": text], protectedStringKeys: ["Notes", "Protected Custom"]
+        )
+        let reparsed = try serializeAndParse((KPGroup(name: "Root", entries: [entry]), KPMeta()))
+        let reloaded = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+        XCTAssertEqual(reloaded.notes, text)
+        XCTAssertEqual(reloaded.customFields["Protected Custom"], text)
+        XCTAssertEqual(try reloaded.password.decrypt(using: roundTripSessionKey), text)
+    }
+
     func test_parseSerializeParse_test_kdbx_returnsEqualTree() throws {
         try assertFixtureRoundTrips(.test)
     }
@@ -557,6 +679,61 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(reparsedEntry.expiryTime, entry.expiryTime)
     }
 
+    func test_restoreEntryVersion_persistsSelectedExpiryAndKeepsUndo() throws {
+        let earlierExpiry = "<ExpiryTime>2020-01-02T03:04:05Z</ExpiryTime>"
+        let currentExpiry = "<ExpiryTime>2030-01-01T00:00:00Z</ExpiryTime>"
+        let earlierDate = Date(timeIntervalSince1970: 1_577_934_245)
+        let currentDate = Date(timeIntervalSince1970: 1_893_456_000)
+        let cases: [(name: String, liveXML: String, versionXML: String, liveExpires: Bool, liveDate: Date?, versionExpires: Bool, versionDate: Date?)] = [
+            ("different dates", currentExpiry + "<Expires>True</Expires>", earlierExpiry + "<Expires>True</Expires>", true, currentDate, true, earlierDate),
+            ("enable expiry", currentExpiry + "<Expires>False</Expires>", earlierExpiry + "<Expires>True</Expires>", false, currentDate, true, earlierDate),
+            ("disable expiry", currentExpiry + "<Expires>True</Expires>", earlierExpiry + "<Expires>False</Expires>", true, currentDate, false, earlierDate),
+            ("remove expiry elements", currentExpiry + "<Expires>True</Expires>", "", true, currentDate, false, nil),
+            ("add expiry elements", "", earlierExpiry + "<Expires>True</Expires>", false, nil, true, earlierDate)
+        ]
+        for item in cases {
+            let xml = """
+            <KeePassFile><Root><Group><Name>Root</Name><Entry>
+            <Times><CreationTime>2024-01-01T00:00:00Z</CreationTime><LastModificationTime>2025-01-01T00:00:00Z</LastModificationTime>
+            <LastAccessTime>2025-01-02T00:00:00Z</LastAccessTime>\(item.liveXML)<UsageCount>9</UsageCount><VendorTime>live</VendorTime><LocationChanged>2025-01-03T00:00:00Z</LocationChanged></Times>
+            <String><Key>Title</Key><Value>Current</Value></String><VendorData>live</VendorData>
+            <History><Entry><Times>\(item.versionXML)<UsageCount>1</UsageCount><VendorTime>history</VendorTime></Times>
+            <String><Key>Title</Key><Value>Earlier</Value></String><VendorData>history</VendorData></Entry></History>
+            </Entry></Group></Root></KeePassFile>
+            """
+            let parsed = try parseXML(Data(xml.utf8))
+            let current = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+            let version = try XCTUnwrap(current.history.first)
+            XCTAssertEqual(current.expires, item.liveExpires, item.name)
+            XCTAssertEqual(current.expiryTime, item.liveDate, item.name)
+            XCTAssertEqual(version.expires, item.versionExpires, item.name)
+            XCTAssertEqual(version.expiryTime, item.versionDate, item.name)
+            let draft = DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: roundTripSessionKey)
+
+            let updated = try draft.apply(.restoreEntryVersion(entryID: current.id, historyIndex: 0))
+            let reparsed = try serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta))
+            let restored = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+
+            XCTAssertEqual(restored.expires, item.versionExpires, item.name)
+            XCTAssertEqual(restored.expiryTime, item.versionDate, item.name)
+            XCTAssertEqual(restored.creationTime, current.creationTime, item.name)
+            XCTAssertEqual(restored.locationChanged, current.locationChanged, item.name)
+            for fragment in ["<LastAccessTime>2025-01-02T00:00:00Z</LastAccessTime>", "<UsageCount>9</UsageCount>", "<VendorTime>live</VendorTime>", "<VendorData>live</VendorData>"] {
+                XCTAssertTrue(restored.unknownXML.nodes.contains { $0.xml == fragment }, item.name + ": " + fragment)
+            }
+            let replaced = try XCTUnwrap(restored.history.first)
+            XCTAssertEqual(replaced.expires, item.liveExpires, item.name)
+            XCTAssertEqual(replaced.expiryTime, item.liveDate, item.name)
+            XCTAssertEqual(restored.history.count, 2, item.name)
+            let reopenedDraft = DatabaseDraft(rootGroup: reparsed.rootGroup, meta: reparsed.meta, sessionKey: roundTripSessionKey)
+            let undone = try reopenedDraft.apply(.restoreEntryVersion(entryID: current.id, historyIndex: 0))
+            let reopenedUndo = try serializeAndParse((rootGroup: undone.rootGroup, meta: undone.meta))
+            let undoneEntry = try XCTUnwrap(reopenedUndo.rootGroup.allEntries.first)
+            XCTAssertEqual(undoneEntry.expires, item.liveExpires, item.name)
+            XCTAssertEqual(undoneEntry.expiryTime, item.liveDate, item.name)
+        }
+    }
+
     private func binaryTimestamp(_ seconds: Int64) -> String {
         var littleEndian = seconds.littleEndian
         return withUnsafeBytes(of: &littleEndian) { Data($0) }.base64EncodedString()
@@ -663,8 +840,9 @@ final class KDBXRoundTripTests: XCTestCase {
             XCTAssertEqual(groups["Off"]?.searchingEnabled, .disabled)
             XCTAssertEqual(groups["On"]?.searchingEnabled, .enabled)
             XCTAssertEqual(groups["Inherit"]?.searchingEnabled, .inherit)
+            let noElement = try XCTUnwrap(groups["NoElement"])
             XCTAssertNil(
-                groups["NoElement"]?.searchingEnabled,
+                noElement.searchingEnabled,
                 "A group without the element must stay without it"
             )
         }
@@ -1139,10 +1317,7 @@ final class KDBXRoundTripTests: XCTestCase {
 
     // MARK: - Group Notes round-trip
 
-    /// Group `<Notes>` is a structured `KPGroup` field, so the text has to come
-    /// back byte-for-byte. Unlike group `<Name>`, it is deliberately not
-    /// trimmed: leading and trailing whitespace in free-form notes is the
-    /// author's, and a save must not quietly rewrite it.
+    /// Group names and notes preserve whitespace from foreign databases.
     func test_groupNotes_structuredRoundTrip_preservesWhitespaceAndNewlinesExactly() throws {
         let notes = "  leading spaces\nsecond line\n\ttabbed\ntrailing newline\n  "
         let xml = """
@@ -1159,7 +1334,7 @@ final class KDBXRoundTripTests: XCTestCase {
             let group = try XCTUnwrap(container.groups.first)
             XCTAssertEqual(group.notes, notes)
             XCTAssertTrue(group.hasNotesElement)
-            XCTAssertEqual(group.name, "Padded Name", "Group <Name> is trimmed; <Notes> deliberately is not")
+            XCTAssertEqual(group.name, "  Padded Name  ")
             XCTAssertFalse(
                 group.unknownXML.nodes.contains { $0.elementName == "Notes" },
                 "<Notes> is structured now, so no opaque copy may be left behind"
@@ -1549,7 +1724,11 @@ final class KDBXRoundTripTests: XCTestCase {
         """
 
         let parsed = try parseXML(Data(xml.utf8))
-        XCTAssertNil(parsed.rootGroup.locationChanged)
+        let group = try XCTUnwrap(parsed.rootGroup.groups.first)
+        XCTAssertNil(group.locationChanged)
+        let preserved = try XCTUnwrap(group.unknownXML.nodes.first { $0.elementName == "LocationChanged" })
+        XCTAssertEqual(preserved.path, ["Times"])
+        XCTAssertEqual(preserved.xml, "<LocationChanged>not-a-timestamp</LocationChanged>")
 
         var serializer = KDBXXMLSerializer(
             rootGroup: parsed.rootGroup,

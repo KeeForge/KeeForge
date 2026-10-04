@@ -407,6 +407,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         if typeAppShortcut("n"), app.textFields["entry-edit.title-field"].waitForExistence(timeout: 8) {
             settle(0.6)
             await snapSurface(hosting: "entry-edit.title-field", "08-entry-editor-sheet")
+            _ = await captureTOTPSetupLink()
             let cancelButton = app.buttons["entry-edit.cancel"].firstMatch
             if cancelButton.waitForExistence(timeout: 3), cancelButton.isHittable {
                 cancelButton.click()
@@ -463,6 +464,85 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         await snap("10-minimum-width")
 
         attachCaptureReport()
+    }
+
+    func testCaptureTOTPSetupLink() async {
+        unlockSuccessfully()
+        guard typeAppShortcut("n"),
+              app.textFields["entry-edit.title-field"].waitForExistence(timeout: 8) else {
+            XCTFail("The entry editor did not open")
+            return
+        }
+        settle(0.6)
+        let captured = await captureTOTPSetupLink()
+        attachCaptureReport()
+        XCTAssertTrue(captured, "The TOTP setup-link error form was not captured")
+        if let editor = surface(hosting: "entry-edit.title-field"),
+           let cancel = visibleControl(editor.buttons.matching(identifier: "entry-edit.cancel"), in: editor) {
+            cancel.click()
+        }
+    }
+
+    private func visibleControl(_ query: XCUIElementQuery, in surface: XCUIElement) -> XCUIElement? {
+        query.allElementsBoundByIndex.first { element in
+            let frame = element.frame
+            return frame.origin.x.isFinite && frame.origin.y.isFinite
+                && frame.width > 1 && frame.height > 1
+                && surface.frame.contains(frame) && element.isHittable
+        }
+    }
+
+    private func captureTOTPSetupLink() async -> Bool {
+        let name = "08c-totp-setup-link"
+        func fail(_ reason: String) -> Bool {
+            noteSkip(name, reason: reason)
+            let attachment = XCTAttachment(string: app.debugDescription)
+            attachment.name = "\(name)-hierarchy"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            return false
+        }
+        guard let editor = surface(hosting: "entry-edit.title-field") else {
+            return fail("the editor surface was missing")
+        }
+        guard let scrollView = visibleControl(editor.scrollViews, in: editor) else {
+            return fail("the editor scroll view was not visible")
+        }
+        var setupLink = visibleControl(editor.buttons.matching(identifier: "entry-edit.totp.enter-link"), in: scrollView)
+        var scrollDelta: CGFloat = 300
+        for _ in 0..<6 {
+            if setupLink != nil { break }
+            let previousY = editor.buttons["entry-edit.totp.enter-link"].frame.minY
+            scrollView.scroll(byDeltaX: 0, deltaY: scrollDelta)
+            settle(0.3)
+            setupLink = visibleControl(editor.buttons.matching(identifier: "entry-edit.totp.enter-link"), in: scrollView)
+            if setupLink == nil, editor.buttons["entry-edit.totp.enter-link"].frame.minY >= previousY {
+                scrollDelta = -scrollDelta
+            }
+        }
+        guard let setupLink else { return fail("the setup-link button was not visible after scrolling") }
+        setupLink.click()
+        guard app.textFields["entry-edit.totp.link-field"].waitForExistence(timeout: 5),
+              let linkSheet = surface(hosting: "entry-edit.totp.link-field"),
+              let linkField = visibleControl(linkSheet.textFields.matching(identifier: "entry-edit.totp.link-field"), in: linkSheet) else {
+            return fail("the setup-link sheet never opened")
+        }
+        linkField.click()
+        linkField.typeText("invalid-setup-link")
+        guard let apply = visibleControl(linkSheet.buttons.matching(identifier: "entry-edit.totp.link-apply"), in: linkSheet),
+              apply.isEnabled else { return fail("the setup-link Apply button was unavailable") }
+        apply.click()
+        guard linkSheet.staticTexts["entry-edit.totp.link-error"].waitForExistence(timeout: 5) else {
+            return fail("the setup-link validation error never appeared")
+        }
+        settle(0.3)
+        await snapSurface(hosting: "entry-edit.totp.link-field", name)
+        guard let cancel = visibleControl(linkSheet.buttons.matching(identifier: "entry-edit.totp.link-cancel"), in: linkSheet) else {
+            return fail("the setup-link Cancel button was unavailable")
+        }
+        cancel.click()
+        settle(0.3)
+        return skippedCaptures.contains(where: { $0.hasPrefix("\(name):") }) == false
     }
 
     /// Drags the main window's bottom-right corner far up and left; AppKit

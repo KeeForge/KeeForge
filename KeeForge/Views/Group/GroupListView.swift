@@ -55,8 +55,8 @@ struct GroupListView: View {
 
     /// The view the database root shows; `nil` on pushed levels, which always
     /// browse their own group.
-    private var rootViewMode: DatabaseViewModel.ViewMode? {
-        groupID == viewModel.visibleRootGroupID ? viewModel.viewMode : nil
+    private var rootViewMode: DatabaseWorkspaceState.ViewMode? {
+        groupID == viewModel.visibleRootGroupID ? viewModel.workspace.viewMode : nil
     }
 
     /// The group whose contents are listed: the recycle bin while the root
@@ -392,7 +392,7 @@ struct GroupListView: View {
                         prompt: "Search entries"
                     )
                     .searchFocused(view.$isSearchFieldFocused)
-                    .onChange(of: view.viewModel.searchFocusRequestID) { _, _ in
+                    .onChange(of: view.viewModel.workspace.searchFocusRequestID) { _, _ in
                         view.isSearchFieldFocused = true
                     }
             } else {
@@ -436,7 +436,7 @@ struct GroupListView: View {
     @ViewBuilder
     private var viewMenuItems: some View {
         Section {
-            ForEach(DatabaseViewModel.ViewMode.browsingModes, id: \.self) { mode in
+            ForEach(DatabaseWorkspaceState.ViewMode.browsingModes, id: \.self) { mode in
                 viewToggle(for: mode)
             }
         }
@@ -450,7 +450,7 @@ struct GroupListView: View {
     /// menu: the navigation bar's own large title takes no taps, not even as
     /// a custom `.largeTitle` toolbar item.
     @ViewBuilder
-    private func titleViewMenu(for mode: DatabaseViewModel.ViewMode) -> some View {
+    private func titleViewMenu(for mode: DatabaseWorkspaceState.ViewMode) -> some View {
         let header = Section {
         } header: {
             viewMenu {
@@ -519,13 +519,13 @@ struct GroupListView: View {
 
     /// Toggles rather than one `Picker`, whose options cannot be split into
     /// sections inside a menu.
-    private func viewToggle(for mode: DatabaseViewModel.ViewMode) -> some View {
+    private func viewToggle(for mode: DatabaseWorkspaceState.ViewMode) -> some View {
         Toggle(
             isOn: Binding(
-                get: { viewModel.viewMode == mode },
+                get: { viewModel.workspace.viewMode == mode },
                 set: { isOn in
                     if isOn {
-                        viewModel.viewMode = mode
+                        viewModel.workspace.viewMode = mode
                     }
                 }
             )
@@ -648,7 +648,7 @@ struct GroupListView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("group.navlink")
             } else {
-                NavigationLink(value: groupID) {
+                NavigationLink(value: DatabaseRoute.group(groupID)) {
                     GroupRow(groupID: groupID, viewModel: viewModel)
                 }
                 .accessibilityIdentifier("group.navlink")
@@ -737,7 +737,7 @@ struct GroupListView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("entry.navlink")
             } else {
-                NavigationLink(value: entry) {
+                NavigationLink(value: DatabaseRoute.entry(entry.id)) {
                     row
                 }
                 .accessibilityIdentifier("entry.navlink")
@@ -788,13 +788,13 @@ struct GroupListView: View {
         }
     }
 
-    /// What tapping a `NavigationLink(value: entry)` row does in each shell:
+    /// What tapping a `NavigationLink(value: DatabaseRoute.entry(entry.id))` row does in each shell:
     /// the regular-width workspace selects, the compact stack pushes.
     private func open(_ entry: KPEntry) {
         if let onSelectEntry {
             onSelectEntry(entry)
         } else {
-            viewModel.navigationPath.append(entry)
+            viewModel.workspace.navigationPath.append(.entry(entry.id))
         }
     }
 
@@ -809,7 +809,7 @@ struct GroupListView: View {
     }
 
     private func groupDeleteButtonTitle(for groupID: UUID) -> String {
-        viewModel.isGroupInRecycleBin(groupID: groupID) ? "Delete Permanently" : "Delete"
+        viewModel.isGroupInRecycleBin(groupID: groupID) ? String(localized: "Delete Permanently") : String(localized: "Delete")
     }
 
     /// Same eligibility as the icon and AutoFill shortcuts: the Recycle Bin and

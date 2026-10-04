@@ -190,7 +190,9 @@ final class CloudSyncCoordinatorTests: XCTestCase {
                 providerResolver: { _ in provider }
             )
             XCTFail("A superseded first download must not report success")
-        } catch {}
+        } catch {
+            XCTAssertEqual((error as? CocoaError)?.code, .fileWriteFileExists)
+        }
 
         XCTAssertEqual(try Data(contentsOf: cacheURL), savedBytes)
     }
@@ -332,6 +334,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
             XCTAssertEqual((error as? CocoaError)?.code, .fileWriteFileExists)
         }
         XCTAssertEqual(try Data(contentsOf: destination), Data("concurrent-first-write".utf8))
+        XCTAssertEqual(try Data(contentsOf: replacement), Data("downloaded-bytes".utf8))
     }
 
     // MARK: - Orphaned staging sweep

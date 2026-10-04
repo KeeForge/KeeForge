@@ -63,16 +63,6 @@ final class DatabaseReferenceMigrationTests: XCTestCase {
         XCTAssertEqual(DatabaseListStore.activeAutoFillDatabase?.id, migratedReference.id)
     }
 
-    func testActiveAutoFillDatabaseFallsBackToMigratedDatabaseWhenUnset() throws {
-        let url = try makeTemporaryFileURL(name: "autofill.kdbx")
-        try SharedVaultStore.saveBookmark(for: url)
-
-        let migratedReference = try XCTUnwrap(DatabaseListStore.databases.first)
-        DatabaseListStore.activeAutoFillDatabaseID = nil
-
-        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabase?.id, migratedReference.id)
-    }
-
     func testCloudDatabaseReferenceRoundTripsThroughCodable() throws {
         let reference = DatabaseReference(
             id: UUID(),

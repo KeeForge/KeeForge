@@ -204,7 +204,8 @@ final class PendingUploadDrainer {
                 continue
             }
 
-            if uploadedPayloadSHAs[reference.id]?.contains(storedMarker.marker.openTimeSHA512) == true {
+            if storedMarker.marker.isPayloadFinalized != false,
+               uploadedPayloadSHAs[reference.id]?.contains(storedMarker.marker.openTimeSHA512) == true {
                 try? environment.dropMarker(storedMarker)
                 outcome.drainedDatabaseIDs.insert(reference.id)
                 continue
@@ -234,6 +235,8 @@ final class PendingUploadDrainer {
                 outcome.conflictDatabaseIDs.insert(reference.id)
                 continue
             }
+
+            guard storedMarker.marker.isPayloadFinalized != false else { continue }
 
             var didCompleteMarker = false
             for attempt in 0..<2 {
