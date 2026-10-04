@@ -3,7 +3,10 @@ import XCTest
 @MainActor
 final class UnlockFlowUITests: KeeForgeUITestCase {
     override var databaseFixtures: [DatabaseFixture] {
-        [
+        if name.contains("testSingleDatabaseLaunchShowsListWhenQuickLaunchIsOff") {
+            return [DatabaseFixture(resourceName: "test", injectedFilename: "test-primary.kdbx")]
+        }
+        return [
             DatabaseFixture(resourceName: "test", injectedFilename: "test-primary.kdbx"),
             DatabaseFixture(resourceName: "test", injectedFilename: "test-secondary.kdbx"),
         ]
@@ -17,6 +20,8 @@ final class UnlockFlowUITests: KeeForgeUITestCase {
     func testSingleDatabaseLaunchShowsListWhenQuickLaunchIsOff() {
         let databaseRow = app.buttons["database.row"].firstMatch
         XCTAssertTrue(databaseRow.waitForExistence(timeout: 10), "Database list should appear on launch when quick launch is off")
+        XCTAssertEqual(app.buttons.matching(identifier: "database.row").count, 1)
+        XCTAssertFalse(app.secureTextFields["unlock.password.field"].exists, "Quick Launch must stay off for the single seeded database")
     }
 
     func testBackToDatabaseListReturnsToHomeScreen() {

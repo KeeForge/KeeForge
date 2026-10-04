@@ -51,6 +51,13 @@ final class MacSmokeUITests: MacUITestCase {
 
         let copyUsername = app.buttons["entry.copy.username"].firstMatch
         XCTAssertTrue(copyUsername.waitForExistence(timeout: 15), "Entry detail did not show the username row")
+        let reveal = app.buttons["entry.password.reveal"].firstMatch
+        XCTAssertTrue(reveal.waitForExistence(timeout: 15), "Password reveal button missing")
+        reveal.click()
+        let plaintext = app.staticTexts.matching(
+            NSPredicate(format: "label == %@ OR value == %@", "githubpass789", "githubpass789")
+        ).firstMatch
+        XCTAssertTrue(plaintext.waitForExistence(timeout: 10), "Reveal did not expose the fixture password")
 
         let changeCountBefore = NSPasteboard.general.changeCount
         copyUsername.click()
@@ -61,7 +68,7 @@ final class MacSmokeUITests: MacUITestCase {
         }
 
         XCTAssertGreaterThan(NSPasteboard.general.changeCount, changeCountBefore, "Copy Username did not write to the pasteboard")
-        XCTAssertEqual(NSPasteboard.general.string(forType: .string)?.isEmpty, false, "Copied username was empty")
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "devuser", "Copy Username must copy the fixture entry's username")
         XCTAssertNotNil(
             NSPasteboard.general.string(forType: concealedType),
             "Copies must carry org.nspasteboard.ConcealedType so clipboard managers skip them"
@@ -345,6 +352,10 @@ final class MacPasswordAuthBoundaryUITests: MacUITestCase {
 
         let reveal = app.buttons["entry.password.reveal"].firstMatch
         XCTAssertTrue(reveal.waitForExistence(timeout: 15), "Password reveal button missing")
+        let plaintext = app.staticTexts.matching(
+            NSPredicate(format: "label == %@ OR value == %@", "githubpass789", "githubpass789")
+        ).firstMatch
+        XCTAssertFalse(plaintext.exists, "Password was visible before reveal")
         reveal.click()
 
         // The reveal button disables while authentication is in flight, which
@@ -363,6 +374,10 @@ final class MacPasswordAuthBoundaryUITests: MacUITestCase {
         XCTAssertTrue(
             sawAuthInFlight,
             "Reveal did not enter the authenticating state — password may have been revealed without device-owner authentication"
+        )
+        XCTAssertFalse(
+            plaintext.waitForExistence(timeout: 3),
+            "Password was revealed while device-owner authentication was still pending"
         )
     }
 
