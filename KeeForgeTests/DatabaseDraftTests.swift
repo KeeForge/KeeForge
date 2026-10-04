@@ -1095,10 +1095,14 @@ final class DatabaseDraftTests: XCTestCase {
             customFields: ["Custom": "Value"],
             tags: ["one", "two"],
             totpConfig: .init(secret: "BASE32SECRET", period: 60, digits: 8, algorithm: .sha512),
+            expiry: .at(Date(timeIntervalSince1970: 1_939_278_600)),
             lastModificationTime: Date(timeIntervalSince1970: 1_700_000_000)
         )
+        var neverExpiring = payload
+        neverExpiring.expiry = .never
         let edits: [EntryEdit] = [
             .createEntry(parentGroupID: createParentID, draft: payload),
+            .updateEntry(entryID: updateEntryID, draft: neverExpiring),
             .createGroup(parentGroupID: createParentID, name: "New Group"),
             .updateEntry(entryID: updateEntryID, draft: payload),
             .deleteEntry(entryID: deleteEntryID, sendToRecycleBin: true),
@@ -1974,6 +1978,246 @@ final class DatabaseDraftTests: XCTestCase {
             XCTAssertEqual(error as? DatabaseDraft.DraftError, .entryNotFound(missingEntryID))
         }
         XCTAssertTrue(draft.meta.customIcons.isEmpty, "a failed edit must not leave an orphaned icon behind")
+    }
+
+    // MARK: - Entry expiration
+
+    private let futureExpiry = Date(timeIntervalSince1970: 1_939_278_600)
+
+    private func kdbxTimestamp(_ seconds: Int64) -> String {
+        var littleEndian = seconds.littleEndian
+        return withUnsafeBytes(of: &littleEndian) { Data($0) }.base64EncodedString()
+    }
+
+    /// A one-entry draft whose `<Times>` carries every child KeePass writes, in
+    /// its order, the way KeePassXC and pykeepass store an entry.
+    private func makeCanonicalTimesDraft(
+        expiryTimeElements: String
+    ) throws -> (draft: DatabaseDraft, entryID: UUID) {
+        let xml = """
+        <KeePassFile><Root><Group><UUID>rG5FhCLXQ0GDRLRUEBEHUw==</UUID><Name>Root</Name>\
+        <Entry><UUID>3q2+7wAAAAAAAAAAAAAAAA==</UUID>\
+        <Times><CreationTime>\(kdbxTimestamp(63_700_000_000))</CreationTime>\
+        <LastModificationTime>\(kdbxTimestamp(63_710_000_000))</LastModificationTime>\
+        <LastAccessTime>\(kdbxTimestamp(63_720_000_000))</LastAccessTime>\
+        \(expiryTimeElements)<UsageCount>7</UsageCount>\
+        <LocationChanged>\(kdbxTimestamp(63_740_000_000))</LocationChanged></Times>\
+        <String><Key>Title</Key><Value>Expiring</Value></String>\
+        <String><Key>Password</Key><Value>pw</Value></String></Entry>\
+        </Group></Root></KeePassFile>
+        """
+        let parsed = try parseDraftXML(xml)
+        let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+        return (DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: sessionKey), entry.id)
+    }
+
+    private func parseDraftXML(_ xml: String) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        try KDBXXMLParser(
+            data: Data(xml.utf8),
+            innerStreamKey: Data("KeeForge Draft Inner Stream Key".utf8),
+            innerStreamID: KDBXParser.innerStreamChaCha20,
+            sessionKey: sessionKey
+        ).parse()
+    }
+
+    private func applyingExpiry(
+        _ expiry: EntryExpiry?,
+        to entryID: UUID,
+        in draft: DatabaseDraft
+    ) throws -> (draft: DatabaseDraft, entry: KPEntry) {
+        let entry = try XCTUnwrap(findEntry(withID: entryID, in: draft.rootGroup))
+        var payload = try makeDraftPayload(from: entry)
+        payload.expiry = expiry
+        let updatedDraft = try draft.apply(.updateEntry(entryID: entryID, draft: payload))
+        return (updatedDraft, try XCTUnwrap(findEntry(withID: entryID, in: updatedDraft.rootGroup)))
+    }
+
+    private func expirationElements(of entry: KPEntry) -> [String] {
+        entry.unknownXML.nodes
+            .filter { $0.path == ["Times"] && ["ExpiryTime", "Expires"].contains($0.elementName) }
+            .map(\.xml)
+    }
+
+    func test_createEntry_withExpiry_writesBothElementsWhereKeePassPutsThem() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let payload = EntryDraftPayload(
+            title: "Expiring",
+            password: "pw",
+            expiry: .at(futureExpiry.addingTimeInterval(0.75))
+        )
+
+        let updatedDraft = try draft.apply(.createEntry(parentGroupID: tree.parentGroupID, draft: payload))
+
+        let created = try XCTUnwrap(updatedDraft.rootGroup.allEntries.first { $0.title == "Expiring" })
+        XCTAssertTrue(created.expires)
+        XCTAssertEqual(created.expiryTime, futureExpiry, "KDBX keeps whole seconds; the display copy must match")
+        XCTAssertTrue(
+            try serializedXML(of: updatedDraft).contains(
+                "</LastModificationTime><ExpiryTime>\(futureExpiry.kdbxBase64String)</ExpiryTime>"
+                    + "<Expires>True</Expires><LocationChanged>"
+            ),
+            "KeePass writes ExpiryTime and Expires between LastModificationTime and LocationChanged"
+        )
+    }
+
+    func test_createEntry_thatNeverExpires_writesNoExpirationElements() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        let updatedDraft = try draft
+            .apply(.createEntry(parentGroupID: tree.parentGroupID, draft: EntryDraftPayload(title: "Never", expiry: .never)))
+            .apply(.createEntry(parentGroupID: tree.parentGroupID, draft: EntryDraftPayload(title: "Unset")))
+
+        for title in ["Never", "Unset"] {
+            let created = try XCTUnwrap(updatedDraft.rootGroup.allEntries.first { $0.title == title })
+            XCTAssertFalse(created.expires)
+            XCTAssertNil(created.expiryTime)
+            XCTAssertTrue(created.unknownXML.isEmpty, "\(title) must be written exactly as before expiry editing existed")
+        }
+    }
+
+    func test_updateEntry_addsAnExpiryToAnEntryWithoutExpirationElements() throws {
+        let (draft, entryID) = try makeEntryIconDraft()
+
+        let (updatedDraft, updated) = try applyingExpiry(.at(futureExpiry), to: entryID, in: draft)
+
+        XCTAssertTrue(updated.expires)
+        XCTAssertEqual(updated.expiryTime, futureExpiry)
+        XCTAssertTrue(
+            try liveEntryXML(of: updatedDraft).contains(
+                "</LastModificationTime><ExpiryTime>\(futureExpiry.kdbxBase64String)</ExpiryTime>"
+                    + "<Expires>True</Expires></Times>"
+            )
+        )
+        let version = try XCTUnwrap(updated.history.first)
+        XCTAssertFalse(version.expires, "the stored version keeps the state it was saved with")
+        XCTAssertTrue(expirationElements(of: version).isEmpty)
+    }
+
+    /// The issue's "unexpire": an expired entry gets a later date, and both
+    /// elements are rewritten where the source put them, leaving
+    /// `<LastAccessTime>` and `<UsageCount>` around them byte-identical.
+    func test_updateEntry_movingAnExpiredEntrysDateForwardRewritesTheElementsInPlace() throws {
+        let (draft, entryID) = try makeCanonicalTimesDraft(
+            expiryTimeElements: "<ExpiryTime>\(kdbxTimestamp(63_730_000_000))</ExpiryTime><Expires>True</Expires>"
+        )
+        let original = try XCTUnwrap(findEntry(withID: entryID, in: draft.rootGroup))
+        XCTAssertTrue(original.isExpired(), "Precondition: 63 730 000 000 s after year 1 is in 2020")
+
+        let (updatedDraft, updated) = try applyingExpiry(.at(futureExpiry), to: entryID, in: draft)
+
+        XCTAssertTrue(updated.expires)
+        XCTAssertEqual(updated.expiryTime, futureExpiry)
+        XCTAssertFalse(updated.isExpired())
+        let liveXML = try liveEntryXML(of: updatedDraft)
+        XCTAssertTrue(liveXML.contains(
+            "<LastAccessTime>\(kdbxTimestamp(63_720_000_000))</LastAccessTime>"
+                + "<ExpiryTime>\(futureExpiry.kdbxBase64String)</ExpiryTime><Expires>True</Expires>"
+                + "<UsageCount>7</UsageCount><LocationChanged>\(kdbxTimestamp(63_740_000_000))</LocationChanged>"
+        ), liveXML)
+        XCTAssertEqual(liveXML.components(separatedBy: "<ExpiryTime>").count - 1, 1)
+        XCTAssertEqual(liveXML.components(separatedBy: "<Expires>").count - 1, 1)
+        XCTAssertEqual(updated.unknownXML.nodes.count, original.unknownXML.nodes.count)
+        XCTAssertEqual(try XCTUnwrap(updated.history.first).unknownXML, original.unknownXML)
+
+        let reparsed = try XCTUnwrap(try parseDraftXML(serializedXML(of: updatedDraft)).rootGroup.allEntries.first)
+        XCTAssertTrue(reparsed.expires)
+        XCTAssertEqual(reparsed.expiryTime, futureExpiry, "the display copy must be what the bytes say")
+    }
+
+    /// Turning expiration off keeps the stored date, as KeePass and KeePassXC do.
+    func test_updateEntry_neverStopsTheEntryExpiringAndKeepsTheStoredDate() throws {
+        let storedDate = kdbxTimestamp(63_730_000_000)
+        let (draft, entryID) = try makeCanonicalTimesDraft(
+            expiryTimeElements: "<ExpiryTime>\(storedDate)</ExpiryTime><Expires>True</Expires>"
+        )
+        let original = try XCTUnwrap(findEntry(withID: entryID, in: draft.rootGroup))
+
+        let (updatedDraft, updated) = try applyingExpiry(.never, to: entryID, in: draft)
+
+        XCTAssertFalse(updated.expires)
+        XCTAssertFalse(updated.isExpired())
+        XCTAssertEqual(updated.expiryTime, original.expiryTime)
+        XCTAssertTrue(try liveEntryXML(of: updatedDraft).contains(
+            "<ExpiryTime>\(storedDate)</ExpiryTime><Expires>False</Expires><UsageCount>7</UsageCount>"
+        ))
+    }
+
+    /// Saving a form whose expiry did not change, or a payload that does not
+    /// know about expiry at all (the AutoFill URL addition), must not rewrite
+    /// the elements — not even an ISO 8601 date into the equal base64 one.
+    func test_updateEntry_unchangedOrUnspecifiedExpiryLeavesTheElementsAlone() throws {
+        let (draft, entryID) = try makeCanonicalTimesDraft(
+            expiryTimeElements: "<ExpiryTime>2031-06-15T08:30:00Z</ExpiryTime><Expires>True</Expires>"
+        )
+        let original = try XCTUnwrap(findEntry(withID: entryID, in: draft.rootGroup))
+        XCTAssertEqual(original.enabledExpiryTime, futureExpiry)
+
+        for expiry in [EntryExpiry.at(futureExpiry), nil] {
+            let (_, updated) = try applyingExpiry(expiry, to: entryID, in: draft)
+            XCTAssertEqual(updated.unknownXML, original.unknownXML, "\(String(describing: expiry))")
+            XCTAssertTrue(updated.expires)
+            XCTAssertEqual(updated.expiryTime, original.expiryTime)
+        }
+
+        let (neverDraft, neverEntryID) = try makeCanonicalTimesDraft(
+            expiryTimeElements: "<ExpiryTime>\(kdbxTimestamp(63_730_000_000))</ExpiryTime><Expires>False</Expires>"
+        )
+        let neverOriginal = try XCTUnwrap(findEntry(withID: neverEntryID, in: neverDraft.rootGroup))
+        let (_, neverUpdated) = try applyingExpiry(.never, to: neverEntryID, in: neverDraft)
+        XCTAssertEqual(neverUpdated.unknownXML, neverOriginal.unknownXML)
+    }
+
+    /// Clients disagree on which of two `<Expires>` wins, so an edit leaves one.
+    func test_updateEntry_collapsesDuplicateExpirationElements() throws {
+        let (draft, entryID) = try makeCanonicalTimesDraft(
+            expiryTimeElements: "<ExpiryTime>\(kdbxTimestamp(63_730_000_000))</ExpiryTime>"
+                + "<Expires>False</Expires><Expires>True</Expires>"
+        )
+
+        let (updatedDraft, updated) = try applyingExpiry(.never, to: entryID, in: draft)
+
+        XCTAssertEqual(
+            expirationElements(of: updated),
+            ["<ExpiryTime>\(kdbxTimestamp(63_730_000_000))</ExpiryTime>", "<Expires>False</Expires>"]
+        )
+        XCTAssertEqual(try liveEntryXML(of: updatedDraft).components(separatedBy: "<Expires>").count - 1, 1)
+    }
+
+    /// Restoring a version brings back its expiration with the rest of its
+    /// fields, bytes included — otherwise the history viewer would show the
+    /// version's expiry while the save wrote the replaced one.
+    func test_restoreEntryVersion_bringsBackTheVersionsExpirationElements() throws {
+        let (draft, entryID) = try makeCanonicalTimesDraft(
+            expiryTimeElements: "<ExpiryTime>\(kdbxTimestamp(63_730_000_000))</ExpiryTime><Expires>True</Expires>"
+        )
+        let original = try XCTUnwrap(findEntry(withID: entryID, in: draft.rootGroup))
+        let (editedDraft, _) = try applyingExpiry(.at(futureExpiry), to: entryID, in: draft)
+
+        let restoredDraft = try editedDraft.apply(.restoreEntryVersion(entryID: entryID, historyIndex: 0))
+
+        let restored = try XCTUnwrap(findEntry(withID: entryID, in: restoredDraft.rootGroup))
+        XCTAssertTrue(restored.expires)
+        XCTAssertEqual(restored.expiryTime, original.expiryTime)
+        XCTAssertTrue(restored.isExpired())
+        XCTAssertEqual(expirationElements(of: restored), expirationElements(of: original))
+        XCTAssertEqual(restored.unknownXML, original.unknownXML, "the elements go back into their own slots")
+        XCTAssertEqual(try XCTUnwrap(restored.history.first).enabledExpiryTime, futureExpiry)
+    }
+
+    func test_restoreEntryVersion_ofAVersionWithoutExpirationRemovesTheElements() throws {
+        let (draft, entryID) = try makeEntryIconDraft()
+        let (editedDraft, edited) = try applyingExpiry(.at(futureExpiry), to: entryID, in: draft)
+        XCTAssertEqual(expirationElements(of: edited).count, 2)
+
+        let restoredDraft = try editedDraft.apply(.restoreEntryVersion(entryID: entryID, historyIndex: 0))
+
+        let restored = try XCTUnwrap(findEntry(withID: entryID, in: restoredDraft.rootGroup))
+        XCTAssertFalse(restored.expires)
+        XCTAssertNil(restored.expiryTime)
+        XCTAssertTrue(expirationElements(of: restored).isEmpty)
+        XCTAssertFalse(try liveEntryXML(of: restoredDraft).contains("<Expires>"))
     }
 
     // MARK: - Update group

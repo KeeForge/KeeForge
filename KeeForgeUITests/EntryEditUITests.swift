@@ -585,6 +585,57 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         let copyButton = app.buttons["entry.copy.account_number"]
         XCTAssertTrue(revealElement(copyButton), "The saved custom field was not shown on the entry")
     }
+
+    func testExpiryIsSetFromAPresetShownOnTheEntryAndTurnedOff() {
+        unlockSuccessfully()
+        openEntry(named: discordEntryTitle, inGroup: socialGroupName)
+        let expiryRow = app.descendants(matching: .any)["entry-detail.expiry"].firstMatch
+        XCTAssertFalse(expiryRow.exists, "Precondition: the fixture entry does not expire")
+
+        let editButton = app.buttons["entry-detail.edit"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 5))
+        tapElement(editButton)
+
+        let expiryToggle = app.switches["entry-edit.expiry.toggle"]
+        XCTAssertTrue(revealElement(expiryToggle, in: scrollableContainer()), "The Expires switch was not reachable")
+        setSwitch(expiryToggle, isOn: true)
+
+        let presets = app.buttons["entry-edit.expiry.presets"]
+        XCTAssertTrue(revealElement(presets, in: scrollableContainer()), "The expiry presets were not reachable")
+        tapElement(presets)
+        let oneYear = menuButton(identifier: "entry-edit.expiry.preset.12", label: "In 1 Year")
+        XCTAssertTrue(oneYear.waitForExistence(timeout: 5), "The one-year preset was not offered")
+        tapElement(oneYear)
+        XCTAssertTrue(app.descendants(matching: .any)["entry-edit.expiry.date-picker"].firstMatch.exists)
+        XCTAssertFalse(app.descendants(matching: .any)["entry-edit.expiry.past-warning"].firstMatch.exists)
+
+        let editorAttachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        editorAttachment.name = "expiry-editor"
+        editorAttachment.lifetime = .keepAlways
+        add(editorAttachment)
+
+        let saveButton = app.buttons["entry-edit.save"]
+        tapElement(saveButton)
+        XCTAssertTrue(waitForSaveCompletion(saveButton: saveButton, timeout: 10))
+
+        XCTAssertTrue(revealElement(expiryRow), "The saved expiry was not shown on the entry")
+        XCTAssertFalse(app.descendants(matching: .any)["entry-detail.expired-warning"].firstMatch.exists)
+
+        let detailAttachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        detailAttachment.name = "expiry-detail"
+        detailAttachment.lifetime = .keepAlways
+        add(detailAttachment)
+
+        XCTAssertTrue(revealElement(editButton, direction: .down), "Edit button was not reachable")
+        tapElement(editButton)
+        XCTAssertTrue(revealElement(expiryToggle, in: scrollableContainer()), "The Expires switch was not reachable")
+        XCTAssertEqual(expiryToggle.value as? String, "1", "The editor did not open on the saved expiry")
+        setSwitch(expiryToggle, isOn: false)
+        tapElement(saveButton)
+        XCTAssertTrue(waitForSaveCompletion(saveButton: saveButton, timeout: 10))
+
+        XCTAssertTrue(expiryRow.waitForNonExistence(timeout: 5), "Turning Expires off did not remove the expiry")
+    }
 }
 
 @MainActor

@@ -1345,4 +1345,113 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertTrue(duplicate.attachments.isEmpty)
         XCTAssertNil(duplicate.entryDraftPayload.attachments)
     }
+
+    // MARK: - Expiration
+
+    private let expiryDate = Date(timeIntervalSince1970: 1_939_278_600)
+
+    func testEditingAnExpiringEntrySeedsItsExpiryWithoutDirtyingTheForm() {
+        let viewModel = EntryEditViewModel(
+            editing: KPEntry(title: "Bank", expires: true, expiryTime: expiryDate),
+            sessionKey: sessionKey
+        )
+
+        XCTAssertTrue(viewModel.expires)
+        XCTAssertEqual(viewModel.expiryDate, expiryDate)
+        XCTAssertFalse(viewModel.isDirty)
+        XCTAssertEqual(viewModel.entryDraftPayload.expiry, .at(expiryDate))
+    }
+
+    /// KeePassXC stores a date on every entry and only `Expires` says whether
+    /// it counts, so a disabled date must not seed the picker: switching
+    /// expiration on would otherwise expire the entry on the spot.
+    func testEditingAnEntryWithADisabledDateStartsOffWithAFutureDate() {
+        let staleDate = Date(timeIntervalSince1970: 1_000)
+        let viewModel = EntryEditViewModel(
+            editing: KPEntry(title: "Bank", expires: false, expiryTime: staleDate),
+            sessionKey: sessionKey
+        )
+
+        XCTAssertFalse(viewModel.expires)
+        XCTAssertGreaterThan(viewModel.expiryDate, .now)
+        XCTAssertFalse(viewModel.isDirty)
+        XCTAssertEqual(viewModel.entryDraftPayload.expiry, .never)
+
+        viewModel.expires = true
+
+        XCTAssertTrue(viewModel.isDirty)
+        XCTAssertFalse(viewModel.isExpiryDateInPast)
+    }
+
+    func testTurningExpiryOffAndBackOnReturnsToTheSavedState() {
+        let viewModel = EntryEditViewModel(
+            editing: KPEntry(title: "Bank", expires: true, expiryTime: expiryDate),
+            sessionKey: sessionKey
+        )
+
+        viewModel.expires = false
+
+        XCTAssertTrue(viewModel.isDirty)
+        XCTAssertTrue(viewModel.canSave)
+        XCTAssertEqual(viewModel.entryDraftPayload.expiry, .never)
+
+        viewModel.expires = true
+
+        XCTAssertEqual(viewModel.expiryDate, expiryDate, "the picked date survives the switch being off")
+        XCTAssertFalse(viewModel.isDirty)
+    }
+
+    func testMovingTheExpiryDateIsAnEdit() {
+        let viewModel = EntryEditViewModel(
+            editing: KPEntry(title: "Bank", expires: true, expiryTime: expiryDate),
+            sessionKey: sessionKey
+        )
+        let later = expiryDate.addingTimeInterval(86_400)
+
+        viewModel.expiryDate = later
+
+        XCTAssertTrue(viewModel.isDirty)
+        XCTAssertEqual(viewModel.entryDraftPayload.expiry, .at(later))
+    }
+
+    func testExpiryPresetTurnsExpiryOnCalendarMonthsFromNow() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        XCTAssertFalse(viewModel.expires)
+        XCTAssertEqual(viewModel.entryDraftPayload.expiry, .never)
+
+        viewModel.applyExpiryPreset(months: 3, from: now)
+
+        let expected = try XCTUnwrap(Calendar.current.date(byAdding: .month, value: 3, to: now))
+        XCTAssertTrue(viewModel.expires)
+        XCTAssertEqual(viewModel.expiryDate, expected)
+        XCTAssertTrue(viewModel.isDirty)
+        XCTAssertEqual(viewModel.entryDraftPayload.expiry, .at(expected))
+    }
+
+    func testIsExpiryDateInPastOnlyWhileExpiryIsOn() {
+        let viewModel = EntryEditViewModel(
+            editing: KPEntry(title: "Bank", expires: true, expiryTime: Date(timeIntervalSince1970: 1_000)),
+            sessionKey: sessionKey
+        )
+
+        XCTAssertTrue(viewModel.isExpiryDateInPast)
+
+        viewModel.expires = false
+
+        XCTAssertFalse(viewModel.isExpiryDateInPast)
+    }
+
+    /// The copy is a new entry and starts out not expiring; the form shows
+    /// that before it is saved.
+    func testDuplicatingAnExpiringEntryDoesNotCarryTheExpiry() {
+        let viewModel = EntryEditViewModel(
+            duplicating: KPEntry(title: "Bank", expires: true, expiryTime: expiryDate),
+            sessionKey: sessionKey,
+            into: UUID()
+        )
+
+        XCTAssertFalse(viewModel.expires)
+        XCTAssertEqual(viewModel.entryDraftPayload.expiry, .never)
+    }
 }

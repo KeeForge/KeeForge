@@ -72,6 +72,17 @@ final class ModelLogicTests: XCTestCase {
         XCTAssertNil(KPEntry(expires: false, expiryTime: past).enabledExpiryTime)
     }
 
+    /// 2031-06-15T08:30:00Z is 64 074 875 400 s after 0001-01-01 UTC.
+    func testKDBXDateEncodingIsLittleEndianWholeSecondsSinceYearOne() {
+        let date = Date(timeIntervalSince1970: 1_939_278_600.75)
+        var expectedSeconds = Int64(64_074_875_400).littleEndian
+        let expected = withUnsafeBytes(of: &expectedSeconds) { Data($0).base64EncodedString() }
+
+        XCTAssertEqual(date.kdbxBase64String, expected)
+        XCTAssertEqual(date.kdbxStoredDate, Date(timeIntervalSince1970: 1_939_278_600))
+        XCTAssertEqual(date.kdbxStoredDate.kdbxBase64String, expected)
+    }
+
     func testKPGroupSystemIconNameMapsKnownAndDefaultIDs() {
         XCTAssertEqual(KPGroup(name: "a", iconID: 0).systemIconName, "key.fill")
         XCTAssertEqual(KPGroup(name: "a", iconID: 1).systemIconName, "globe")
