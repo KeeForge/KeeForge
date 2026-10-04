@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- AutoFill changes in cloud databases stay queued if KeeForge opens while AutoFill is still saving, preventing an interrupted save from losing its pending upload.
 - Entries and groups with matching names or dates keep a stable order when sorted descending.
 - Saving stops with an error if notes or other text contain unsupported characters such as NUL, keeping the previous database readable instead of writing a file that cannot reopen (#181).
 - Notes keep their original line endings after saving. Imported group names, custom field names, and attachment names keep their whitespace.
