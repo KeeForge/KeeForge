@@ -5338,6 +5338,12 @@
             "value" : "La base de données contient un caractère non pris en charge (%@). Supprimez-le de votre texte avant d’enregistrer."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database contiene un carattere non supportato (%@). Rimuovilo dal testo prima di salvare."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",

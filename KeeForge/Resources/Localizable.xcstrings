@@ -23724,6 +23724,12 @@
             "value" : "KeeForge prend en charge les codes de vérification à 6, 7 ou 8 chiffres."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge supporta codici di verifica a 6, 7 o 8 cifre."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -30942,6 +30948,12 @@
             "value" : "Échec de l’achat"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acquisto non riuscito"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -30980,6 +30992,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Achat en attente"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acquisto in sospeso"
           }
         },
         "ja" : {
@@ -39264,6 +39282,12 @@
             "value" : "La base de données contient un caractère non pris en charge (%@). Supprimez-le de votre texte avant d’enregistrer."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database contiene un carattere non supportato (%@). Rimuovilo dal testo prima di salvare."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -45706,6 +45730,12 @@
             "value" : "La transaction n’a pas pu être vérifiée."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non è stato possibile verificare la transazione."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -46342,6 +46372,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Résultat d’achat inconnu."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Risultato dell'acquisto sconosciuto."
           }
         },
         "ja" : {
@@ -46982,6 +47018,12 @@
             "value" : "Déverrouiller avec Face ID"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sblocca con Face ID"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -47020,6 +47062,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Déverrouiller avec Touch ID"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sblocca con Touch ID"
           }
         },
         "ja" : {
@@ -50372,6 +50420,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Votre pourboire doit être approuvé avant d’être finalisé (par exemple, via Demander l’autorisation d’achat). Il sera finalisé automatiquement après approbation."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La mancia deve essere approvata prima di essere completata (ad esempio tramite Chiedi di acquistare). Verrà completata automaticamente dopo l'approvazione."
           }
         },
         "ja" : {
