@@ -953,8 +953,8 @@ final class DatabaseViewModel {
         }
         #endif
         switch BiometricService.availableType {
-        case .faceID: return "Unlock with Face ID"
-        case .touchID: return "Unlock with Touch ID"
+        case .faceID: return String(localized: "Unlock with Face ID")
+        case .touchID: return String(localized: "Unlock with Touch ID")
         case .none: return "Biometrics unavailable"
         }
     }

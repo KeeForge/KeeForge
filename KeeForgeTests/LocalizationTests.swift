@@ -126,6 +126,32 @@ final class LocalizationTests: XCTestCase {
         }
     }
 
+    func testStandaloneBiometricUnlockLabelsResolveForShippedLocales() throws {
+        let translations = [
+            (locale: "de", faceID: "Mit Face ID entsperren", touchID: "Mit Touch ID entsperren"),
+            (locale: "es", faceID: "Desbloquear con Face ID", touchID: "Desbloquear con Touch ID"),
+            (locale: "fr", faceID: "Déverrouiller avec Face ID", touchID: "Déverrouiller avec Touch ID"),
+            (locale: "ja", faceID: "Face IDでロック解除", touchID: "Touch IDでロック解除"),
+            (locale: "zh-Hans", faceID: "使用 Face ID 解锁", touchID: "使用 Touch ID 解锁"),
+            (locale: "zh-Hant", faceID: "使用 Face ID 解鎖", touchID: "使用 Touch ID 解鎖"),
+        ]
+        XCTAssertEqual(Set(translations.map(\.locale)), Set(Self.shippedTranslationLocales))
+        for translation in translations {
+            let path = try XCTUnwrap(Bundle.main.path(forResource: translation.locale, ofType: "lproj"))
+            let bundle = try XCTUnwrap(Bundle(path: path))
+            XCTAssertEqual(
+                String(localized: "Unlock with Face ID", bundle: bundle),
+                translation.faceID,
+                translation.locale
+            )
+            XCTAssertEqual(
+                String(localized: "Unlock with Touch ID", bundle: bundle),
+                translation.touchID,
+                translation.locale
+            )
+        }
+    }
+
     // MARK: - Test 2: format-specifier parity between English and each shipped locale
 
     func testFormatSpecifiersMatchBetweenEnglishAndShippedLocales() throws {
