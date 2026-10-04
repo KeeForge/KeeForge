@@ -46,6 +46,12 @@ Use these categories, adapting the visible wording if the user supplied their ow
 
 For mixed feedback, retain a disposition for every concern and explain any primary category used by the tracker. Do not close the entire record because only one concern is resolved. A duplicate is a tracking relationship in addition to the substantive category; it does not require a new issue.
 
+## Check existing correspondence
+
+Before drafting, check prior correspondence when access is available and authorized. Search by the reporter's email address and read relevant conversations, including sent replies, to identify questions already answered, information already supplied, and existing commitments. If correspondence cannot be checked, state that limitation rather than assuming there was no prior contact.
+
+An address appearing in the mailbox does not establish that this particular concern was answered. Apply address-level exclusions only when the user requests them, and record the matching correspondence and exclusion reason separately from the feedback's substantive disposition. Excluding an item from review or follow-up does not by itself authorize marking it done in the source system.
+
 ## Draft a response
 
 When contact information and permission allow follow-up, draft a concise reply in the reporter's language unless instructed otherwise. If consent is absent or ambiguous, record that limitation rather than assuming permission to send. Appreciation alone can receive a short thank-you draft when contact is permitted.
