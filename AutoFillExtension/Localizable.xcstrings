@@ -24,6 +24,12 @@
             "value" : "« %@ » existe déjà dans ce groupe."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” esiste già in questo gruppo."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -62,6 +68,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "« %@ » est déjà présent dans votre liste de bases de données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” è già nel tuo elenco dei database."
           }
         },
         "ja" : {
@@ -104,6 +116,12 @@
             "value" : "« %@ » est déjà utilisé par une base de données disponible uniquement dans KeeForge."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” è già usato da un database presente solo in KeeForge."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -142,6 +160,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "(sans titre)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(senza titolo)"
           }
         },
         "ja" : {
@@ -190,6 +214,12 @@
             "value" : "%1$@ · %2$@ itérations · %3$@ threads"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ iterazioni · %3$@ thread"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -236,6 +266,12 @@
             "value" : "%1$@ (~%2$lld bits)"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (~%2$lld bit)"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -274,6 +310,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ tours"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ cicli"
           }
         },
         "ja" : {
@@ -316,6 +358,12 @@
             "value" : "1 minute"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 minuto"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -354,6 +402,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "5 minutes"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 minuti"
           }
         },
         "ja" : {
@@ -396,6 +450,12 @@
             "value" : "10 secondes"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 secondi"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -434,6 +494,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "30 secondes"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30 secondi"
           }
         },
         "ja" : {
@@ -476,6 +542,12 @@
             "value" : "Un groupe ne peut pas être déplacé dans lui-même ni dans l'un de ses sous-groupes."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un gruppo non può essere spostato in se stesso o in uno dei suoi sottogruppi."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -514,6 +586,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ajouter l’URL d’origine à cette entrée"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi l'URL originale a questa voce"
           }
         },
         "ja" : {
@@ -556,6 +634,12 @@
             "value" : "Ajouter l’URL d’origine ?"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungere l'URL originale?"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -594,6 +678,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ajouter l’URL"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi URL"
           }
         },
         "ja" : {
@@ -676,6 +766,12 @@
             "value" : "Impossible d'ajouter des pièces jointes ici."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qui non è possibile aggiungere allegati."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -714,6 +810,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "L'authentification a été annulée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'autenticazione è stata annullata."
           }
         },
         "ja" : {
@@ -756,6 +858,12 @@
             "value" : "Remplissage automatique avec KeeForge"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserimento automatico con KeeForge"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -794,6 +902,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Généralités"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Informazioni di base"
           }
         },
         "ja" : {
@@ -836,6 +950,12 @@
             "value" : "HMAC de bloc invalide — mot de passe incorrect ou fichier corrompu"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HMAC del blocco non valido: password errata o file danneggiato"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -874,6 +994,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Annuler"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annulla"
           }
         },
         "ja" : {
@@ -916,6 +1042,12 @@
             "value" : "Choisir les identifiants"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scegli credenziali"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -954,6 +1086,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La synchronisation cloud n'est pas configurée pour ce build."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sincronizzazione cloud non è configurata per questa build."
           }
         },
         "ja" : {
@@ -996,6 +1134,12 @@
             "value" : "Échec de la compression"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compressione non riuscita"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1034,6 +1178,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossible d'extraire les données de la clé EC P-256"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile estrarre i dati della chiave EC P-256"
           }
         },
         "ja" : {
@@ -1082,6 +1232,12 @@
             "value" : "Impossible de créer la clé d’accès"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile creare la passkey"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1120,6 +1276,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossible d'ouvrir le fichier"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile aprire il file"
           }
         },
         "ja" : {
@@ -1162,6 +1324,12 @@
             "value" : "Impossible d’enregistrer"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile salvare"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1200,6 +1368,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossible d'enregistrer la clé d'accès"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile salvare la passkey"
           }
         },
         "ja" : {
@@ -1242,6 +1416,12 @@
             "value" : "Créer un identifiant"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crea nuove credenziali"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1280,6 +1460,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sombre"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scuro"
           }
         },
         "ja" : {
@@ -1322,6 +1508,12 @@
             "value" : "Base de données"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Database"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1360,6 +1552,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Base de données modifiée"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Database modificato"
           }
         },
         "ja" : {
@@ -1402,6 +1600,12 @@
             "value" : "Base de données modifiée — ouvrez KeeForge pour enregistrer"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Database modificato: apri KeeForge per salvare"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1440,6 +1644,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la décompression"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decompressione non riuscita"
           }
         },
         "ja" : {
@@ -1482,6 +1692,12 @@
             "value" : "Échec du déchiffrement — mot de passe incorrect ?"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decrittografia non riuscita: password errata?"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1520,6 +1736,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Déconnecté"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non collegato"
           }
         },
         "ja" : {
@@ -1562,6 +1784,12 @@
             "value" : "Échec du chiffrement"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crittografia non riuscita"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1600,6 +1828,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saisissez un mot de passe pour cet identifiant."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci una password per queste credenziali."
           }
         },
         "ja" : {
@@ -1642,6 +1876,12 @@
             "value" : "Saisissez un titre ou un nom d’utilisateur pour cet identifiant."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci un titolo o un nome utente per queste credenziali."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1680,6 +1920,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saisissez votre mot de passe principal ou utilisez le déverrouillage biométrique."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci la tua password principale o usa la biometria."
           }
         },
         "ja" : {
@@ -1722,6 +1968,12 @@
             "value" : "Entrée introuvable : %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voce non trovata: %@"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1760,6 +2012,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Expiré"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scaduta"
           }
         },
         "ja" : {
@@ -1802,6 +2060,12 @@
             "value" : "Échec de la création du contrôle d'accès biométrique"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile creare il controllo di accesso biometrico"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1840,6 +2104,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la création de la clé de signature"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile creare la chiave di firma"
           }
         },
         "ja" : {
@@ -1882,6 +2152,12 @@
             "value" : "Échec de l'analyse du XML de la base de données"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile analizzare l'XML del database"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1920,6 +2196,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la signature de l'assertion"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile firmare l'asserzione"
           }
         },
         "ja" : {
@@ -1962,6 +2244,12 @@
             "value" : "Le fichier est tronqué"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il file è troncato"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2000,6 +2288,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Générer un mot de passe"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Genera password"
           }
         },
         "ja" : {
@@ -2042,6 +2336,12 @@
             "value" : "Générer un mot de passe"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Genera password"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2080,6 +2380,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bon"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buona"
           }
         },
         "ja" : {
@@ -2122,6 +2428,12 @@
             "value" : "Groupe"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gruppo"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2160,6 +2472,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le nom du groupe ne peut pas être vide."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il nome del gruppo non può essere vuoto."
           }
         },
         "ja" : {
@@ -2202,6 +2520,12 @@
             "value" : "Groupe introuvable : %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gruppo non trovato: %@"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2240,6 +2564,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mot de passe masqué"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password nascosta"
           }
         },
         "ja" : {
@@ -2282,6 +2612,12 @@
             "value" : "Masquer %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nascondi %@"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2320,6 +2656,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la vérification HMAC — fichier corrompu ou mot de passe incorrect"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifica HMAC non riuscita: file danneggiato o password errata"
           }
         },
         "ja" : {
@@ -2362,6 +2704,12 @@
             "value" : "Immédiatement"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subito"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2400,6 +2748,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fichier invalide"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File non valido"
           }
         },
         "ja" : {
@@ -2442,6 +2796,12 @@
             "value" : "En-tête interne invalide"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Header interno non valido"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2480,6 +2840,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clé principale invalide"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiave principale non valida"
           }
         },
         "ja" : {
@@ -2522,6 +2888,12 @@
             "value" : "Clé privée encodée en PEM invalide"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiave privata con codifica PEM non valida"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2560,6 +2932,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Paramètre KDF hors limites : %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parametro KDF fuori intervallo: %@"
           }
         },
         "ja" : {
@@ -2602,6 +2980,12 @@
             "value" : "Échec de la vérification du hachage du fichier de clé — le fichier est peut-être corrompu"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifica dell'hash del file chiave non riuscita: il file potrebbe essere danneggiato"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2640,6 +3024,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le fichier de clé est vide"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il file chiave è vuoto"
           }
         },
         "ja" : {
@@ -2682,6 +3072,12 @@
             "value" : "Le XML du fichier de clé contient des données de clé invalides"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'XML del file chiave contiene dati della chiave non validi"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2720,6 +3116,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la récupération dans le trousseau (statut %d)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recupero dal portachiavi non riuscito (stato %d)"
           }
         },
         "ja" : {
@@ -2762,6 +3164,12 @@
             "value" : "Échec de l'enregistrement dans le trousseau (statut %d)"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvataggio nel portachiavi non riuscito (stato %d)"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2800,6 +3208,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Les anciennes bases de données KDBX 3.1 peuvent être ouvertes, mais KeeForge ne les autorise qu'en mode lecture seule."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I vecchi database KDBX 3.1 possono essere aperti, ma KeeForge li consente solo in modalità di sola lettura."
           }
         },
         "ja" : {
@@ -2842,6 +3256,12 @@
             "value" : "Clair"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiaro"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2880,6 +3300,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Table de variantes mal formée dans l'en-tête"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Variant map non valida nell'header"
           }
         },
         "ja" : {
@@ -2922,6 +3348,12 @@
             "value" : "Mot de passe principal"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password principale"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2960,6 +3392,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Correspondances"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrispondenze"
           }
         },
         "ja" : {
@@ -3002,6 +3440,12 @@
             "value" : "Champ d'en-tête manquant : %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Campo dell'header mancante: %@"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3040,6 +3484,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Jamais"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mai"
           }
         },
         "ja" : {
@@ -3082,6 +3532,12 @@
             "value" : "Nouvel identifiant"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nuova credenziale"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3120,6 +3576,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nouvelle clé d'accès"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nuova passkey"
           }
         },
         "ja" : {
@@ -3162,6 +3624,12 @@
             "value" : "Aucun identifiant trouvé"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuna credenziale trovata"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3200,6 +3668,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucun identifiant ne correspond à cette recherche."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuna credenziale corrisponde a questa ricerca."
           }
         },
         "ja" : {
@@ -3242,6 +3716,12 @@
             "value" : "Aucune base de données pour le remplissage automatique"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessun database per l'inserimento automatico"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3280,6 +3760,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucune correspondance exacte trouvée. Ces identifiants ne sont que des correspondances possibles."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non sono state trovate corrispondenze esatte. Queste credenziali sono solo possibili corrispondenze."
           }
         },
         "ja" : {
@@ -3322,6 +3808,12 @@
             "value" : "Aucune connexion réseau. Utilisation de la copie en cache si disponible."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuna connessione di rete. Viene usata la copia nella cache, se disponibile."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3360,6 +3852,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucun"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuno"
           }
         },
         "ja" : {
@@ -3402,6 +3900,12 @@
             "value" : "Fichier KDBX invalide"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File KDBX non valido"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3442,6 +3946,12 @@
             "value" : "Notes"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3477,6 +3987,12 @@
           }
         },
         "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
@@ -3522,6 +4038,12 @@
             "value" : "Identifiants de la clé d'accès introuvables"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Credenziale passkey non trovata"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3560,6 +4082,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Il manque la clé privée à l'entrée de la clé d'accès"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nella voce della passkey manca la chiave privata"
           }
         },
         "ja" : {
@@ -3602,6 +4130,12 @@
             "value" : "Connexion par clé d'accès avec KeeForge"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accesso con passkey tramite KeeForge"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3640,6 +4174,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mot de passe"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password"
           }
         },
         "ja" : {
@@ -3682,6 +4222,12 @@
             "value" : "Force du mot de passe : %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sicurezza della password: %@"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3720,6 +4266,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Veuillez reconnecter ce compte cloud."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ricollega questo account cloud."
           }
         },
         "ja" : {
@@ -3762,6 +4314,12 @@
             "value" : "Veuillez sélectionner une base de données KeePass au format .kdbx."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seleziona un database KeePass .kdbx."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3800,6 +4358,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Correspondances possibles"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Possibili corrispondenze"
           }
         },
         "ja" : {
@@ -3842,6 +4406,12 @@
             "value" : "Base de données en lecture seule"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Database in sola lettura"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3880,6 +4450,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reconnectez ce compte cloud pour enregistrer les modifications."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ricollega questo account cloud per salvare le modifiche."
           }
         },
         "ja" : {
@@ -3922,6 +4498,12 @@
             "value" : "Corbeille"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cestino"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3960,6 +4542,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Régénérer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rigenera"
           }
         },
         "ja" : {
@@ -4002,6 +4590,12 @@
             "value" : "Enregistrer et remplir"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salva e inserisci"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4040,6 +4634,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enregistrer la clé d'accès"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salva passkey"
           }
         },
         "ja" : {
@@ -4082,6 +4682,12 @@
             "value" : "L'enregistrement des anciennes bases de données KDBX 3.1 n'est pas encore pris en charge."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il salvataggio dei vecchi database KDBX 3.1 non è ancora supportato."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4120,6 +4726,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rechercher des entrées"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cerca voci"
           }
         },
         "ja" : {
@@ -4162,6 +4774,12 @@
             "value" : "Recherche effectuée dans la copie de cette base de données enregistrée par KeeForge le %@. Pour trouver les identifiants ajoutés depuis, ouvrez KeeForge afin de l’actualiser."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La ricerca è stata eseguita nella copia di KeeForge di questo database, risalente al %@. Per trovare le credenziali aggiunte da allora, apri KeeForge per aggiornarla."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4200,6 +4818,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossible de générer des données aléatoires sécurisées."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile generare dati casuali sicuri."
           }
         },
         "ja" : {
@@ -4242,6 +4866,12 @@
             "value" : "Afficher %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostra %@"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4280,6 +4910,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Afficher tous les identifiants"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostra tutte le credenziali"
           }
         },
         "ja" : {
@@ -4322,6 +4958,12 @@
             "value" : "Changer de base de données"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambia database"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4360,6 +5002,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dernière synchronisation il y a plus de 24 h"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincronizzazione più vecchia di 24 ore"
           }
         },
         "ja" : {
@@ -4402,6 +5050,12 @@
             "value" : "Système par défaut"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predefinito di sistema"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4440,6 +5094,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette version précédente n'est plus disponible."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quella versione precedente non è più disponibile."
           }
         },
         "ja" : {
@@ -4482,6 +5142,12 @@
             "value" : "La pièce jointe « %@ » ne fait plus partie de cette entrée."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'allegato “%@” non fa più parte di questa voce."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4520,6 +5186,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le service cloud est occupé actuellement. Réessayez dans un instant."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il servizio cloud è occupato in questo momento. Riprova tra un momento."
           }
         },
         "ja" : {
@@ -4562,6 +5234,12 @@
             "value" : "Le service cloud est temporairement indisponible. Réessayez plus tard."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il servizio cloud è temporaneamente non disponibile. Riprova più tardi."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4602,6 +5280,12 @@
             "value" : "Le service cloud a rejeté ce nom de fichier."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il servizio cloud ha rifiutato questo nome di file."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4640,6 +5324,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La base de données semble corrompue ou incomplète."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database sembra danneggiato o incompleto."
           }
         },
         "ja" : {
@@ -4688,6 +5378,12 @@
             "value" : "La base de données contient un caractère non pris en charge (%@). Supprimez-le de votre texte avant d’enregistrer."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database contiene un carattere non supportato (%@). Rimuovilo dal testo prima di salvare."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4726,6 +5422,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le fichier de base de données est introuvable."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile individuare il file del database."
           }
         },
         "ja" : {
@@ -4768,6 +5470,12 @@
             "value" : "Le fichier de base de données n'a pas répondu à temps. Vérifiez que son serveur ou sa connexion réseau est disponible."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il file del database non ha risposto in tempo. Verifica che il server o la connessione di rete siano disponibili."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4806,6 +5514,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le fichier de base de données se trouve dans « Supprimés récemment » dans l'app Fichiers. Restaurez-le dans Fichiers, ou choisissez le fichier actuel avec « Localiser le fichier de base de données » dans KeeForge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il file del database è in Eliminati di recente nell'app File. Ripristinalo in File oppure scegli il file attuale con Individua file del database in KeeForge."
           }
         },
         "ja" : {
@@ -4848,6 +5562,12 @@
             "value" : "Il manque à la base de données des métadonnées de dérivation de clé."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nel database mancano i metadati di derivazione della chiave."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4886,6 +5606,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Il manque à la base de données des données de sel pour la dérivation de clé."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nel database mancano i dati del salt di derivazione della chiave."
           }
         },
         "ja" : {
@@ -4928,6 +5654,12 @@
             "value" : "La base de données n'est pas prête à être enregistrée."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database non è pronto per il salvataggio."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4966,6 +5698,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La base de données deviendrait trop volumineuse pour que KeeForge puisse la rouvrir ; elle n'a donc pas été enregistrée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database diventerebbe troppo grande perché KeeForge possa riaprirlo, quindi non è stato salvato."
           }
         },
         "ja" : {
@@ -5009,6 +5747,12 @@
             "value" : "La nouvelle base de données n'a pas pu être vérifiée après le chiffrement."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non è stato possibile verificare il nuovo database dopo la crittografia."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5048,6 +5792,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La nouvelle clé principale a été téléversée, mais la copie locale n'a pas pu être mise à jour. Le fichier cloud requiert désormais la nouvelle clé principale."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La nuova chiave principale è stata caricata, ma non è stato possibile aggiornare la copia locale. Il file nel cloud ora richiede la nuova chiave principale."
           }
         },
         "ja" : {
@@ -5090,6 +5840,12 @@
             "value" : "La base de données distante est introuvable."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile trovare il database remoto."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5128,6 +5884,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La demande n'est plus disponible."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La richiesta non è più disponibile."
           }
         },
         "ja" : {
@@ -5170,6 +5932,12 @@
             "value" : "Il n'y a pas assez d'espace de stockage disponible dans ce compte cloud."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo spazio di archiviazione in questo account cloud non è sufficiente."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5208,6 +5976,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ceci ajoute l’URL de la requête d’origine à l’identifiant sélectionné. La base de données ne sera modifiée qu’après votre confirmation."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'URL originale della richiesta viene aggiunto alla credenziale selezionata. Il database verrà modificato solo se confermi."
           }
         },
         "ja" : {
@@ -5250,6 +6024,12 @@
             "value" : "Cette base de données a été modifiée dans le cloud. Rechargez-la avant de l'enregistrer à nouveau."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database è cambiato nel cloud. Ricaricalo prima di salvare di nuovo."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5288,6 +6068,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette base de données contient des pièces jointes dont les données sont manquantes. Un nouveau fichier prendrait leur place ; il ne peut donc pas être ajouté."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database contiene allegati di cui mancano i dati. Un nuovo file prenderebbe il loro posto, quindi non può essere aggiunto."
           }
         },
         "ja" : {
@@ -5330,6 +6116,12 @@
             "value" : "Cette base de données est en lecture seule."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database è in sola lettura."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5370,6 +6162,12 @@
             "value" : "Cette base de données est en lecture seule. Ouvrez KeeForge pour activer la modification."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database è in sola lettura. Apri KeeForge per abilitare la modifica."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5408,6 +6206,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette base de données nécessite une YubiKey, que le remplissage automatique ne peut pas encore utiliser. Ouvrez-la plutôt dans l’app KeeForge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database richiede una YubiKey, che l'inserimento automatico non può ancora usare. Aprilo invece nell'app KeeForge."
           }
         },
         "ja" : {
@@ -5456,6 +6260,12 @@
             "value" : "Cette base de données a besoin d’environ %1$@ de mémoire pour être déverrouillée, soit plus que les %2$@ autorisés pour AutoFill. Ouvrez l’entrée dans l’app KeeForge, ou réduisez le réglage de mémoire Argon2 de la base de données dans une app KeePass pour ordinateur."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per sbloccare questo database servono circa %1$@ di memoria, più dei %2$@ che l'inserimento automatico può usare. Apri la voce nell'app KeeForge oppure riduci l'impostazione della memoria Argon2 del database in un'app KeePass per computer."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5494,6 +6304,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette base de données utilise un ancien format KeePass que KeeForge ne prend pas encore en charge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database usa un formato KeePass meno recente che KeeForge non supporta ancora."
           }
         },
         "ja" : {
@@ -5536,6 +6352,12 @@
             "value" : "Cette base de données utilise un flux de champs protégés non pris en charge."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database usa un flusso dei campi protetti non supportato."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5574,6 +6396,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Les icônes de cette base de données sont enregistrées sous une forme à laquelle KeeForge ne peut rien ajouter sans risquer celles qui s’y trouvent déjà."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le icone di questo database sono archiviate in una forma a cui KeeForge non può aggiungerne altre senza mettere a rischio quelle già presenti."
           }
         },
         "ja" : {
@@ -5616,6 +6444,12 @@
             "value" : "Les paramètres de dérivation de clé de cette base de données (%@ de mémoire × %@ itérations, %@ threads) dépassent ce que cette app peut exécuter en toute sécurité. Réduisez les paramètres Argon2 de la base de données dans une app KeePass de bureau, enregistrez-la, puis réessayez."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le impostazioni di derivazione della chiave di questo database (%@ di memoria × %@ iterazioni, %@ thread) superano ciò che questa app può eseguire in sicurezza. Riduci le impostazioni Argon2 del database in un'app KeePass per computer e salvalo, poi riprova."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5654,6 +6488,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Avec ce fichier, les pièces jointes deviendraient trop volumineuses pour que KeeForge puisse rouvrir la base de données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con questo file gli allegati diventerebbero troppo grandi perché KeeForge possa riaprire il database."
           }
         },
         "ja" : {
@@ -5696,6 +6536,12 @@
             "value" : "Ce groupe ne peut pas être supprimé."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo gruppo non può essere eliminato."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5734,6 +6580,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette demande de clé d'accès n'est pas prise en charge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa richiesta di passkey non è supportata."
           }
         },
         "ja" : {
@@ -5776,6 +6628,12 @@
             "value" : "Titre"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titolo"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5814,6 +6672,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Réessayer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riprova"
           }
         },
         "ja" : {
@@ -5856,6 +6720,12 @@
             "value" : "Activez le remplissage automatique pour une base de données dans les réglages de KeeForge pour l’utiliser ici."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attiva l'inserimento automatico per un database nelle impostazioni di KeeForge per usarlo qui."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5894,6 +6764,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Inconnu"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sconosciuto"
           }
         },
         "ja" : {
@@ -5936,6 +6812,12 @@
             "value" : "Déverrouiller"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sblocca"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5974,6 +6856,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec du déverrouillage"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sblocco non riuscito"
           }
         },
         "ja" : {
@@ -6016,6 +6904,12 @@
             "value" : "Déverrouiller KeeForge"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sblocca KeeForge"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6054,6 +6948,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Déverrouiller KeeForge pour le remplissage automatique"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sblocca KeeForge per l'inserimento automatico"
           }
         },
         "ja" : {
@@ -6096,6 +6996,12 @@
             "value" : "Chiffrement non pris en charge : %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cifrario non supportato: %@"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6134,6 +7040,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mode de compression non pris en charge : %u"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modalità di compressione non supportata: %u"
           }
         },
         "ja" : {
@@ -6176,6 +7088,12 @@
             "value" : "Flux aléatoire interne non pris en charge : %u"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flusso casuale interno non supportato: %u"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6214,6 +7132,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fonction de dérivation de clé non prise en charge : %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Funzione di derivazione della chiave non supportata: %@"
           }
         },
         "ja" : {
@@ -6256,6 +7180,12 @@
             "value" : "Valeur de mappage de variante non prise en charge pour la clé : %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valore della variant map non supportato per la chiave: %@"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6291,6 +7221,12 @@
           }
         },
         "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL"
+          }
+        },
+        "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "URL"
@@ -6336,6 +7272,12 @@
             "value" : "Utiliser la biométrie"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa la biometria"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6374,6 +7316,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Utiliser Face ID"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa Face ID"
           }
         },
         "ja" : {
@@ -6416,6 +7364,12 @@
             "value" : "Utiliser le mot de passe"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa la password"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6454,6 +7408,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Utiliser Touch ID"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa Touch ID"
           }
         },
         "ja" : {
@@ -6496,6 +7456,12 @@
             "value" : "Nom d'utilisateur"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nome utente"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6534,6 +7500,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Très bon"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Molto buona"
           }
         },
         "ja" : {
@@ -6576,6 +7548,12 @@
             "value" : "Très faible"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Molto debole"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6614,6 +7592,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Faible"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Debole"
           }
         },
         "ja" : {
@@ -6656,6 +7640,12 @@
             "value" : "Site web"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sito web"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6694,6 +7684,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lorsque KeeForge n'est pas l'app active"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quando KeeForge non è l'app attiva"
           }
         },
         "ja" : {
@@ -6736,6 +7732,12 @@
             "value" : "Lorsque l'écran se verrouille ou se met en veille"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quando lo schermo si blocca o va in stop"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6774,6 +7776,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vous n'avez pas l'autorisation de modifier ce fichier."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non hai l'autorizzazione per modificare questo file."
           }
         },
         "ja" : {

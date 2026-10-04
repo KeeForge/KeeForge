@@ -2303,6 +2303,7 @@
 				en,
 				es,
 				fr,
+				it,
 				ja,
 				"zh-Hans",
 				"zh-Hant",

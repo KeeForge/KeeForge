@@ -29,6 +29,12 @@
             "value" : "KeeForge"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -67,6 +73,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Base de données KeePass (kdbx)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Database KeePass (kdbx)"
           }
         },
         "ja" : {
@@ -116,6 +128,12 @@
             "value" : "KeeForge utilise le NFC pour lire la YubiKey qui déverrouille votre base de données de mots de passe."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge usa NFC per leggere la YubiKey che sblocca il tuo database di password."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -161,6 +179,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge utilise la caméra pour scanner les codes QR de codes de vérification."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge usa la fotocamera per scansionare i codici QR dei codici di verifica."
           }
         },
         "ja" : {
@@ -210,6 +234,12 @@
             "value" : "KeeForge utilise Face ID pour déverrouiller rapidement votre base de données de mots de passe."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge usa Face ID per sbloccare rapidamente il tuo database di password."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -255,6 +285,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge utilise votre réseau local pour se connecter aux serveurs WebDAV et FTP que vous ajoutez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge usa la tua rete locale per connettersi ai server WebDAV e FTP che aggiungi."
           }
         },
         "ja" : {
