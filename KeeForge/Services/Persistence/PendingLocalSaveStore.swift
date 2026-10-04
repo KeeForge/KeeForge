@@ -37,16 +37,20 @@ enum PendingLocalSaveStore {
 
     /// Oldest first.
     static func saves(for databaseID: UUID) -> [PendingSave] {
+        let directory = directoryURL(for: databaseID)
         let contents = (try? FileManager.default.contentsOfDirectory(
-            at: directoryURL(for: databaseID),
+            at: directory,
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
         )) ?? []
 
+        // Rebuilt from the directory: the listing resolves symlinks in the
+        // path, so its URLs can differ from the one `add` returned.
         return contents
             .filter { $0.pathExtension.lowercased() == "kdbx" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .map { PendingSave(databaseID: databaseID, fileURL: $0) }
+            .map(\.lastPathComponent)
+            .sorted()
+            .map { PendingSave(databaseID: databaseID, fileURL: directory.appendingPathComponent($0, isDirectory: false)) }
     }
 
     static func hasSaves(for databaseID: UUID) -> Bool {

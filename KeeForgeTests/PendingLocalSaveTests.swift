@@ -360,7 +360,10 @@ final class PendingLocalSaveTests: XCTestCase {
         let backupURL = try XCTUnwrap(
             DatabaseListStore.recentBackups(for: reference).first { (try? Data(contentsOf: $0)) == unreadable }
         )
-        XCTAssertEqual(vm.pendingUploadMergeFailure, .changeUnreadable(.backup(backupURL)))
+        guard case .changeUnreadable(.backup(let reportedURL))? = vm.pendingUploadMergeFailure else {
+            return XCTFail("Expected the unreadable save to be reported, got \(String(describing: vm.pendingUploadMergeFailure))")
+        }
+        XCTAssertEqual(normalizedPath(reportedURL), normalizedPath(backupURL))
         XCTAssertEqual(try Data(contentsOf: databaseURL), original)
         try await waitUntil("the shared copy follows the file again") {
             (try? Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))) == original
@@ -390,7 +393,10 @@ final class PendingLocalSaveTests: XCTestCase {
         let backupURL = try XCTUnwrap(
             DatabaseListStore.recentBackups(for: reference).first { (try? Data(contentsOf: $0)) == diverged }
         )
-        XCTAssertEqual(vm.pendingUploadMergeFailure, .attachmentsDivergedFromFile(backup: backupURL))
+        guard case .attachmentsDivergedFromFile(let reportedURL)? = vm.pendingUploadMergeFailure else {
+            return XCTFail("Expected the diverged save to be reported, got \(String(describing: vm.pendingUploadMergeFailure))")
+        }
+        XCTAssertEqual(normalizedPath(reportedURL), normalizedPath(backupURL))
         let titles = try entryTitles(in: try Data(contentsOf: databaseURL))
         XCTAssertTrue(titles.contains("New Passkey"), "One unmergeable save must not hold back the others")
         XCTAssertFalse(titles.contains("Entry With Attachment"))
