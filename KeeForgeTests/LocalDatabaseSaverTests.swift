@@ -60,17 +60,25 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let reparsed = try KDBXParser.parseWithMeta(
             data: try Data(contentsOf: databaseURL),
             password: fixturePassword,
-            sessionKey: SymmetricKey(size: .bits256)
+            sessionKey: context.draft.writerSessionKey
         )
 
-        let savedTitles = reparsed.rootGroup.allEntries.map(\.title)
-        let originalTitles = context.originalRootGroup.allEntries.map(\.title)
-
-        XCTAssertTrue(savedTitles.contains("Slice 04 Added Entry"))
-        XCTAssertEqual(savedTitles.count, originalTitles.count + 1)
-        for title in originalTitles {
-            XCTAssertTrue(savedTitles.contains(title))
-        }
+        let expectedRoot = context.draft.rootGroup
+        let expectedParent = TestDatabaseSupport.visibleRootGroupID(in: expectedRoot) == expectedRoot.id
+            ? expectedRoot
+            : expectedRoot.groups[0]
+        let createdIndex = try XCTUnwrap(expectedParent.entries.firstIndex { $0.title == "Slice 04 Added Entry" })
+        let createdAt = try XCTUnwrap(expectedParent.entries[createdIndex].creationTime)
+        // KDBX timestamps store whole seconds.
+        let storedTimestamp = Date(timeIntervalSince1970: floor(createdAt.timeIntervalSince1970))
+        expectedParent.entries[createdIndex].creationTime = storedTimestamp
+        expectedParent.entries[createdIndex].lastModificationTime = storedTimestamp
+        expectedParent.entries[createdIndex].locationChanged = storedTimestamp
+        try KDBXTreeAssertions.assertTreesEqual(
+            (rootGroup: reparsed.rootGroup, meta: reparsed.meta),
+            (rootGroup: expectedRoot, meta: context.draft.meta),
+            sessionKey: context.draft.writerSessionKey
+        )
     }
 
     func testSaveTwofishDatabasePreservesCipherAndRefreshesCache() async throws {

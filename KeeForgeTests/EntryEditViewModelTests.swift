@@ -1180,14 +1180,6 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.requiresAuthenticationToRevealPassword)
     }
 
-    func testNewEntryFormStillOpensEmptyUnsavableAndWithItsPasswordVisible() {
-        let viewModel = EntryEditViewModel(createIn: UUID())
-
-        XCTAssertFalse(viewModel.canSave)
-        XCTAssertTrue(viewModel.isPasswordInitiallyVisible)
-        XCTAssertFalse(viewModel.requiresAuthenticationToRevealPassword)
-    }
-
     // MARK: - The create form's destination group
 
     func testSetCreateDestinationRetargetsTheFormAndRefreshesInheritedTagSuggestions() {

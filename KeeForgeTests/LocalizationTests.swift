@@ -154,10 +154,11 @@ final class LocalizationTests: XCTestCase {
                     // subset suffices.
                     if let localizedPlural = entry.localizations?[locale]?.variations?.plural {
                         let enOther = entry.localizations?["en"]?.variations?.plural?["other"]?.stringUnit?.value ?? key
-                        let enSpecifiers = Set(Self.normalizedFormatSpecifiers(in: enOther))
+                        let enSpecifiers = Self.normalizedFormatSpecifiers(in: enOther)
+                        let enCounts = Dictionary(enSpecifiers.map { ($0, 1) }, uniquingKeysWith: +)
                         for (category, branch) in localizedPlural {
                             guard let localizedValue = branch.stringUnit?.value else { continue }
-                            let localizedSpecifiers = Set(Self.normalizedFormatSpecifiers(in: localizedValue))
+                            let localizedSpecifiers = Self.normalizedFormatSpecifiers(in: localizedValue)
                             if category == "other" {
                                 XCTAssertEqual(
                                     localizedSpecifiers,
@@ -166,7 +167,8 @@ final class LocalizationTests: XCTestCase {
                                 )
                             } else {
                                 XCTAssertTrue(
-                                    localizedSpecifiers.isSubset(of: enSpecifiers),
+                                    Dictionary(localizedSpecifiers.map { ($0, 1) }, uniquingKeysWith: +)
+                                        .allSatisfy { $0.value <= enCounts[$0.key, default: 0] },
                                     "\(catalog.name): key \"\(key)\" \(locale) plural branch \"\(category)\" uses specifiers \(localizedSpecifiers) not present in the English form \(enSpecifiers)"
                                 )
                             }
@@ -177,12 +179,25 @@ final class LocalizationTests: XCTestCase {
         }
     }
 
+    func testFormatSpecifierExtractionPreservesTypesCountsAndEscapes() {
+        let cases: [(input: String, expected: [String])] = [
+            ("%@ (~%2$lld bits)", ["%@", "%lld"]),
+            ("%2$lld %1$@ %2$lld", ["%@", "%lld", "%lld"]),
+            ("%lld %llu %ld %d %u", ["%d", "%ld", "%lld", "%llu", "%u"]),
+            ("%%lld %% %@ %lld", ["%@", "%lld"]),
+            ("%08.2f %zu %1$hhd", ["%08.2f", "%hhd", "%zu"]),
+        ]
+        for testCase in cases {
+            XCTAssertEqual(Self.normalizedFormatSpecifiers(in: testCase.input), testCase.expected, testCase.input)
+        }
+    }
+
     /// Extracts every `%`-format specifier from `string`, normalizing
     /// positional specifiers (`%1$@`) to their unpositioned form (`%@`) and
     /// dropping literal `%%` escapes, then sorts so ordering differences
     /// (which are legitimate translation choices) don't fail the comparison.
     private static func normalizedFormatSpecifiers(in string: String) -> [String] {
-        let pattern = #"%\d+\$[a-zA-Z@]|%[a-zA-Z@]|%%"#
+        let pattern = #"%%|%(?:\d+\$)?[-+#0 ']*(?:\d+|\*(?:\d+\$)?)?(?:\.(?:\d+|\*(?:\d+\$)?))?(?:hh|h|ll|l|j|z|t|L|q)?[@diuoxXfFeEgGaAcCsSpn]"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             XCTFail("Failed to compile format-specifier regex")
             return []
@@ -202,11 +217,7 @@ final class LocalizationTests: XCTestCase {
     /// "%1$@" -> "%@", "%2$d" -> "%d"; specifiers with no positional prefix
     /// pass through unchanged.
     private static func stripPositionalPrefix(_ specifier: String) -> String {
-        guard specifier.hasPrefix("%"), let dollarIndex = specifier.firstIndex(of: "$") else {
-            return specifier
-        }
-        let conversion = specifier[specifier.index(after: dollarIndex)...]
-        return "%" + conversion
+        specifier.replacingOccurrences(of: #"^%\d+\$"#, with: "%", options: .regularExpression)
     }
 
     // MARK: - Test 3: keys shared between the two Localizable catalogs stay in sync

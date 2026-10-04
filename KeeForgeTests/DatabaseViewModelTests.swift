@@ -204,6 +204,7 @@ final class DatabaseViewModelTests: XCTestCase {
         // meantime. The cache here holds fresher bytes and must survive the
         // unlock untouched.
         let reference = makeCloudReference(remoteRev: "rev-1")
+        let fixtureData = try Data(contentsOf: fixtureURL())
         let pendingAutoFillBytes = Data("pending-autofill-save-bytes".utf8)
         try DatabaseListStore.cacheDatabaseCopy(pendingAutoFillBytes, for: reference)
 
@@ -213,13 +214,16 @@ final class DatabaseViewModelTests: XCTestCase {
                 CloudSyncResolution(
                     reference: reference,
                     localURL: DatabaseListStore.cacheLocation(for: reference),
-                    data: Data("stale-open-snapshot".utf8),
+                    data: fixtureData,
                     status: .current
                 )
             }
         )
 
         await vm.unlock(password: fixturePassword)
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected a successful cloud unlock before checking the cache")
+        }
 
         let cacheBytes = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
         XCTAssertEqual(cacheBytes, pendingAutoFillBytes)
@@ -2919,38 +2923,21 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testSearchResultsMatchesEntryFieldsCaseInsensitively() async throws {
-        let vm = try makeViewModel()
-        await vm.unlock(password: fixturePassword)
-
+        let entry = KPEntry(
+            title: "titleNeedle",
+            username: "usernameNeedle",
+            url: "https://urlNeedle.example",
+            notes: "notesNeedle"
+        )
+        let root = KPGroup(name: "Search", entries: [entry, KPEntry(title: "Unrelated")])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
         guard case .unlocked = vm.state else {
-            XCTFail("Expected unlocked state before search")
-            return
+            return XCTFail("Expected unlocked state before search")
         }
 
-        let allEntries = vm.rootGroup?.allEntries ?? []
-        let entryByTitle = allEntries.first(where: { !$0.title.isEmpty })
-        let entryByUsername = allEntries.first(where: { !$0.username.isEmpty })
-        let entryByURL = allEntries.first(where: { !$0.url.isEmpty })
-        let entryByNotes = allEntries.first(where: { !$0.notes.isEmpty })
-
-        if let entryByTitle {
-            vm.searchText = mixedCasePrefix(from: entryByTitle.title)
-            XCTAssertTrue(vm.searchResults.contains(where: { $0.id == entryByTitle.id }))
-        }
-
-        if let entryByUsername {
-            vm.searchText = mixedCasePrefix(from: entryByUsername.username)
-            XCTAssertTrue(vm.searchResults.contains(where: { $0.id == entryByUsername.id }))
-        }
-
-        if let entryByURL {
-            vm.searchText = mixedCasePrefix(from: entryByURL.url)
-            XCTAssertTrue(vm.searchResults.contains(where: { $0.id == entryByURL.id }))
-        }
-
-        if let entryByNotes {
-            vm.searchText = mixedCasePrefix(from: entryByNotes.notes)
-            XCTAssertTrue(vm.searchResults.contains(where: { $0.id == entryByNotes.id }))
+        for query in ["TiTlEnEeDlE", "UsErNaMeNeEdLe", "UrLnEeDlE", "NoTeSnEeDlE"] {
+            vm.searchText = query
+            XCTAssertEqual(vm.searchResults.map(\.id), [entry.id], query)
         }
 
         vm.searchText = ""
@@ -3779,6 +3766,11 @@ final class DatabaseViewModelTests: XCTestCase {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
 
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected unlocked state before locking")
+        }
+        XCTAssertNotNil(vm.rootGroup)
+
         vm.searchText = "query"
         vm.workspace.navigationPath.append(.entry(UUID()))
 
@@ -4169,6 +4161,7 @@ final class DatabaseViewModelTests: XCTestCase {
         }
         let reference = makeCloudReference(remoteRev: "rev-A")
         let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let uploadCalls = CallTracker()
         let vm = try makeViewModel(
             reference: reference,
             cloudSyncOperation: { reference, _ in
@@ -4180,6 +4173,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 )
             },
             cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+                uploadCalls.recordCall()
                 throw URLError(.notConnectedToInternet)
             },
             pendingUploadRecovery: pending.environment
@@ -4189,8 +4183,11 @@ final class DatabaseViewModelTests: XCTestCase {
         do {
             try await vm.mergePendingUploads()
             XCTFail("An upload that failed must be reported")
-        } catch {}
+        } catch {
+            XCTAssertEqual((error as? URLError)?.code, .notConnectedToInternet)
+        }
 
+        XCTAssertTrue(uploadCalls.didCall, "The upload must be attempted before its failure is asserted")
         XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
         XCTAssertTrue(vm.hasPendingUploadConflict)
         XCTAssertFalse(vm.isSaving)
@@ -6871,13 +6868,6 @@ final class DatabaseViewModelTests: XCTestCase {
             PasskeyCredential.usernameKey: "alice@example.com",
             PasskeyCredential.userHandleKey: "dXNlci1oYW5kbGU",
         ]
-    }
-
-    private func mixedCasePrefix(from source: String) -> String {
-        let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
-        let prefix = String(trimmed.prefix(4))
-        guard !prefix.isEmpty else { return source }
-        return prefix.uppercased()
     }
 
     private func expectedConflictFilename(originalFilename: String, date: Date) -> String {

@@ -138,12 +138,14 @@ final class FaviconServiceTests: XCTestCase {
 
     // MARK: - Cache Key
 
-    func testCacheKeyIsSHA256Hex() {
-        let key = FaviconService.cacheKey(for: "example.com")
-        // SHA256 hex string is 64 characters
-        XCTAssertEqual(key.count, 64)
-        // All hex characters
-        XCTAssertTrue(key.allSatisfy { $0.isHexDigit })
+    func testCacheKeyMatchesSHA256UTF8Vectors() {
+        let vectors = [
+            ("example.com", "a379a6f6eeafb9a55e378c118034e2751e682fab9f2d30ab13d2125586ce1947"),
+            ("例え.jp", "97ce124cc09f803713ff460372441876bf57a4cea1c567de5d849a26ee263524"),
+        ]
+        for (domain, expected) in vectors {
+            XCTAssertEqual(FaviconService.cacheKey(for: domain), expected, domain)
+        }
     }
 
     func testCacheKeyDeterministic() {
