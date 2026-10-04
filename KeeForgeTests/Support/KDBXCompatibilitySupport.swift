@@ -2393,6 +2393,8 @@ private extension KDBXCompatibilitySupport {
     static let updateEntryEnrolledOTPAuthURI =
         "otpauth://totp/Compat:updated-user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Compat"
 
+    static let createdEntryUnicodeNotes = String(repeating: "Hello 日本語 😀 café & < >\t\n", count: 32_768)
+
     static func createEntryScenario() -> Scenario {
         Scenario(
             id: "create-entry",
@@ -2408,7 +2410,7 @@ private extension KDBXCompatibilitySupport {
                         username: "created-user",
                         password: "created-secret",
                         url: "https://created.example.com/login",
-                        notes: "Created through compatibility matrix",
+                        notes: createdEntryUnicodeNotes,
                         customFields: [
                             "CustomKey": "CustomValue",
                             PasskeyCredential.credentialIDKey: "3q2-7wEj",
@@ -2427,6 +2429,11 @@ private extension KDBXCompatibilitySupport {
                     )
                 )
             },
+            expectedCustomFields: [.init(
+                entryTitle: "Compat Created Entry",
+                current: .init(fields: [.init(name: "Notes", value: createdEntryUnicodeNotes, isProtected: false)], absentFields: []),
+                history: []
+            )],
             assertChange: { before, after, _ in
                 try assertUnchangedEntries(before: before, after: after)
                 try assertSurvivingGroupsPreserveScalars(before: before, after: after)
@@ -2436,6 +2443,7 @@ private extension KDBXCompatibilitySupport {
                 let created = try XCTUnwrap(after.entries[createdID])
                 XCTAssertEqual(created.username, "created-user")
                 XCTAssertEqual(created.password, "created-secret")
+                XCTAssertEqual(created.notes, createdEntryUnicodeNotes)
                 // The PEM supplied via the draft's custom fields is diverted
                 // into the sealed passkeyPrivateKey and never stays in
                 // customFields.

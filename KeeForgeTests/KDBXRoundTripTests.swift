@@ -6,6 +6,64 @@ final class KDBXRoundTripTests: XCTestCase {
     private let roundTripSessionKey = SymmetricKey(size: .bits256)
     private let roundTripInnerStreamKey = Data("KeeForge Slice01 Inner Stream Key".utf8)
 
+    func test_serializerRejectsEveryXMLInvalidUnicodeScalar() throws {
+        let invalid: [UInt32] = Array(0...8) + [11, 12] + Array(14...31) + [0xFFFE, 0xFFFF]
+        for codepoint in invalid {
+            let text = "Before" + String(try XCTUnwrap(Unicode.Scalar(codepoint))) + "After"
+            let root = KPGroup(name: "Root", entries: [KPEntry(notes: text)])
+            XCTAssertThrowsError(try serializedXML(of: (root, KPMeta()))) { error in
+                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(codepoint))
+            }
+        }
+    }
+
+    func test_serializerRejectsNULInEveryUnprotectedTextPath() throws {
+        let text = "Before\u{0}After"
+        let entries = [
+            KPEntry(title: text), KPEntry(username: text), KPEntry(url: text), KPEntry(notes: text),
+            KPEntry(customFields: [text: "value"]), KPEntry(customFields: ["Custom": text]),
+            KPEntry(customFields: [text: "value"], protectedStringKeys: [text]),
+            KPEntry(tags: [text]), KPEntry(attachments: [KPAttachment(name: text, ref: 0)]),
+            KPEntry(history: [KPEntry(notes: text)]),
+        ]
+        let roots = entries.map { KPGroup(name: "Root", entries: [$0]) } + [
+            KPGroup(name: "Root", groups: [KPGroup(name: text)]),
+            KPGroup(name: "Root", groups: [KPGroup(name: "Group", notes: text)]),
+            KPGroup(name: "Root", groups: [KPGroup(name: "Group", tags: [text])]),
+        ]
+        var unknownXML = OpaqueXMLNodes()
+        unknownXML.append(xml: "<CustomData>\(text)</CustomData>", insertionIndex: 0)
+        for root in roots {
+            XCTAssertThrowsError(try serializedXML(of: (root, KPMeta()))) { error in
+                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+            }
+        }
+        XCTAssertThrowsError(try serializedXML(of: (KPGroup(name: "Root"), KPMeta(unknownXML: unknownXML))))
+    }
+
+    func test_serializerPreservesValidUnicodeAndXMLNewlines() throws {
+        let boundaries: [UInt32] = [0x85, 0xFDD0, 0xFFFD, 0x1FFFE, 0x10FFFF]
+        let suffix = try boundaries.map { String(try XCTUnwrap(Unicode.Scalar($0))) }.joined()
+        let text = "\t日本語 😀 café & < >\r\nNext\rLast\n" + suffix
+        let root = KPGroup(name: "Root", entries: [KPEntry(notes: text)])
+        let reparsed = try serializeAndParse((root, KPMeta()))
+        XCTAssertEqual(reparsed.rootGroup.allEntries.first?.notes,
+                       text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n"))
+    }
+
+    func test_serializerKeepsProtectedNULValuesByteExact() throws {
+        let text = "Example heading\u{0}\r\nExample body"
+        let entry = KPEntry(
+            password: try EncryptedValue.encrypt(text, using: roundTripSessionKey), notes: text,
+            customFields: ["Protected Custom": text], protectedStringKeys: ["Notes", "Protected Custom"]
+        )
+        let reparsed = try serializeAndParse((KPGroup(name: "Root", entries: [entry]), KPMeta()))
+        let reloaded = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+        XCTAssertEqual(reloaded.notes, text)
+        XCTAssertEqual(reloaded.customFields["Protected Custom"], text)
+        XCTAssertEqual(try reloaded.password.decrypt(using: roundTripSessionKey), text)
+    }
+
     func test_parseSerializeParse_test_kdbx_returnsEqualTree() throws {
         try assertFixtureRoundTrips(.test)
     }

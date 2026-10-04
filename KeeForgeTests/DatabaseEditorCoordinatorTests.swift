@@ -3,6 +3,38 @@ import XCTest
 
 @MainActor
 final class DatabaseEditorCoordinatorTests: XCTestCase {
+    func testInvalidNotesKeepFormOpenAndCorrectionCreatesOnlyOneEntry() async throws {
+        let database = try await makeDatabase()
+        let root = try XCTUnwrap(database.rootGroup)
+        let initialCount = root.allEntries.count
+        let form = EntryEditViewModel(createIn: root.id)
+        form.title = "Correctable Notes"
+        form.notes = "Example heading\u{0}\r\nExample body"
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        var completions: [EntryEditCompletion] = []
+
+        await editor.save { completions.append($0) }
+
+        XCTAssertTrue(completions.isEmpty)
+        XCTAssertTrue(editor.errorMessage?.contains("U+0000") == true)
+        XCTAssertEqual(form.notes, "Example heading\u{0}\r\nExample body")
+        XCTAssertTrue(database.hasUnsavedEditor)
+        XCTAssertNil(database.draft)
+        XCTAssertEqual(database.rootGroup?.allEntries.count, initialCount)
+
+        form.notes = "Example heading\nExample body"
+        await editor.save { completions.append($0) }
+
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertFalse(database.isDirty)
+        XCTAssertEqual(database.rootGroup?.allEntries.count, initialCount + 1)
+        let entry = try XCTUnwrap(database.rootGroup?.allEntries.first { $0.title == form.title })
+        XCTAssertEqual(entry.notes, form.notes)
+        XCTAssertTrue(entry.history.isEmpty)
+        database.lock()
+    }
+
     func testEditorsRegisterIndependentlyAndDeactivateWithoutClearingEachOther() async throws {
         let database = try await makeDatabase()
         let groupID = try XCTUnwrap(database.rootGroup?.id)

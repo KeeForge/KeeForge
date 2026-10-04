@@ -2,8 +2,21 @@ import CryptoKit
 import Foundation
 
 struct KDBXXMLSerializer {
-    enum SerializationError: Error {
+    enum SerializationError: Error, LocalizedError, Equatable {
         case invalidInnerStreamKey
+        case invalidXMLCharacter(UInt32)
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidInnerStreamKey:
+                nil
+            case .invalidXMLCharacter(let codepoint):
+                String(
+                    format: String(localized: "The database contains an unsupported character (%@). Remove it from your text before saving."),
+                    String(format: "U+%04X", codepoint)
+                )
+            }
+        }
     }
 
     private let rootGroup: KPGroup
@@ -32,9 +45,25 @@ struct KDBXXMLSerializer {
         xml += try serializeRoot()
         xml += "</KeePassFile>"
 
+        try Self.validateText(xml)
+
         var data = Self.xmlPrefix
         data.append(Data(xml.utf8))
         return data
+    }
+
+    static func validateText(_ text: String) throws {
+        // XML 1.0 forbids these scalars even in numeric character references.
+        if let invalid = text.unicodeScalars.first(where: { scalar in
+            switch scalar.value {
+            case 0x09, 0x0A, 0x0D, 0x20...0xD7FF, 0xE000...0xFFFD, 0x10000...0x10FFFF:
+                false
+            default:
+                true
+            }
+        }) {
+            throw SerializationError.invalidXMLCharacter(invalid.value)
+        }
     }
 
     private mutating func serializeMeta() throws -> String {

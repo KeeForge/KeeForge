@@ -5,6 +5,33 @@ import XCTest
 final class LocalDatabaseSaverTests: XCTestCase {
     private let fixturePassword = "testpassword123"
 
+    func testSaveRejectsInvalidXMLWithoutReplacingFileCacheOrBackups() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let context = try makeDirtySaveContext(databaseURL: databaseURL, entryTitle: "Pending Valid Entry")
+        let original = try Data(contentsOf: databaseURL)
+        try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
+        let root = context.draft.rootGroup
+        root.entries.append(KPEntry(notes: "Example heading\u{0}\r\nExample body"))
+        let invalidDraft = DatabaseDraft(rootGroup: root, meta: context.draft.meta, sessionKey: context.draft.writerSessionKey)
+
+        do {
+            _ = try await LocalDatabaseSaver.save(
+                draft: invalidDraft, reference: reference, compositeKey: context.compositeKey,
+                openTimeSHA512: context.openTimeSHA512
+            )
+            XCTFail("Invalid XML must not reach storage")
+        } catch {
+            XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+        }
+
+        XCTAssertEqual(try Data(contentsOf: databaseURL), original)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), original)
+        XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
+        XCTAssertEqual(invalidDraft.rootGroup.entries.last?.notes, "Example heading\u{0}\r\nExample body")
+        _ = try KDBXParser.parse(data: original, password: fixturePassword, sessionKey: SymmetricKey(size: .bits256))
+    }
+
     override func setUp() {
         super.setUp()
         DatabaseListStore.clearAll()

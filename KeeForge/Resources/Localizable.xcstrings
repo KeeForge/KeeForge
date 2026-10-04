@@ -34018,6 +34018,52 @@
         }
       }
     },
+    "The database contains an unsupported character (%@). Remove it from your text before saving." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbank enthält ein nicht unterstütztes Zeichen (%@). Entferne es vor dem Speichern aus deinem Text."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The database contains an unsupported character (%@). Remove it from your text before saving."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos contiene un carácter no compatible (%@). Elimínalo del texto antes de guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données contient un caractère non pris en charge (%@). Supprimez-le de votre texte avant d’enregistrer."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースにサポートされていない文字（%@）が含まれています。保存する前にテキストから削除してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库包含不支持的字符（%@）。请在保存前从文本中删除该字符。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫包含不支援的字元（%@）。請在儲存前從文字中刪除該字元。"
+          }
+        }
+      }
+    },
     "The database file changed since it was opened. Reload the database and try again." : {
       "localizations" : {
         "de" : {
