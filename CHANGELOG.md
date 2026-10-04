@@ -2,13 +2,15 @@
 
 ## Unreleased
 
+> **Next release requirement:** This database-corruption fix (#181) must be item **#1** in the next release’s “What’s New”, including the in-app sheet on iPhone, iPad, and Mac and the App Store release notes. Include a link to the [KeeForge KDBX recovery tool](https://github.com/KeeForge/kdbx-recovery). Explicitly say that updating prevents new corruption but does not repair already damaged files; affected users should restore a readable backup or use the offline recovery tool to create a recovered copy. Keep this item ahead of every new feature.
+
 ### Fixes
 
+- Prevents database corruption when notes or other text contain unsupported characters such as NUL (#181). Saving stops with an error and keeps the previous database readable. Already affected databases are not repaired by updating: restore a readable backup or use the [KeeForge KDBX recovery tool](https://github.com/KeeForge/kdbx-recovery) to create a recovered copy.
 - Restoring an earlier entry version keeps that version's expiration settings after saving and reopening the database.
 - WebDAV folders and newly created databases with percent sequences in their names now keep the correct path.
 - AutoFill changes in cloud databases stay queued if KeeForge opens while AutoFill is still saving, preventing an interrupted save from losing its pending upload.
 - Entries and groups with matching names or dates keep a stable order when sorted descending.
-- Saving stops with an error if notes or other text contain unsupported characters such as NUL, keeping the previous database readable instead of writing a file that cannot reopen (#181).
 - Notes keep their original line endings after saving. Imported group names, custom field names, and attachment names keep their whitespace.
 - Protected fields from other KeePass apps stay protected when saving.
 - Retrying a failed new-entry save no longer creates duplicate entries, and Save and Lock keeps edits made after a failed save.
