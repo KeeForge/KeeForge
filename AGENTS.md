@@ -79,6 +79,15 @@ The docs below are read on demand:
 
 - Every commit must be DCO signed off (`git commit -s`); the "DCO" status check is required.
 
+## Code Review
+
+- Review the current PR head, the full diff, and affected callers. On re-review, verify earlier findings in code and check for new regressions; recheck the head before posting or approving.
+- Prioritize concrete correctness, data-loss, and security bugs. Trace save/sync/merge and authentication flows through cancellation, background locking, concurrent edits, partial failures, and recovery; include existing on-disk data from shipped versions.
+- Check iPhone, iPad, Mac, and AutoFill parity where affected. Shared SwiftUI and passing unit tests do not establish native layout, keyboard/focus behavior, or usable recovery actions. Check localized copy against the actual behavior.
+- Use focused tests or production-code reproductions for suspected bugs. Regression tests should fail on the broken behavior and exercise relevant persistence/cache effects, not mock them away. Check KDBX interoperability when format or save behavior changes.
+- Report actionable findings by severity with a precise code location, trigger, user impact, and evidence. State the reviewed revision, validation performed, and remaining UI/device/hardware gaps; skipped tests and green CI do not prove untested behavior.
+- When asked to post findings, use inline comments on the relevant code. Post reviews, approve, or resolve discussions only within the user's authorization.
+
 ## Build And Test
 
 ```bash
