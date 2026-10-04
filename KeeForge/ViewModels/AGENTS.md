@@ -37,9 +37,10 @@ Observable app state and UI-independent workflow owners live here. Use Foundatio
 
 ## Guidance
 
-- Before changing a workflow, name its owner above. Keep `DatabaseViewModel` authoritative for session/save/authentication policy; a coordinator composes those operations rather than bypassing or reimplementing them.
+- Store navigation as typed IDs/routes in `DatabaseWorkspaceState`, with SwiftUI/AppKit adapters in the shell. Keep navigation objects and window/view references out of session logic. Presentation signals belong to workspace state; session methods may guard and forward commands.
+- Views render state, collect input, and present/dismiss UI. They may forward appearance, disappearance, and observed state changes, but must not duplicate editor dirty tracking/save/conflict/lock completion, Settings effects, or deferred routing policy. Use the owners above.
+- Before changing a workflow, name its owner above. Add a coordinator only for a distinct responsibility; avoid forwarding facades and parallel sources of truth. Keep `DatabaseViewModel` authoritative for session/save/authentication policy; a coordinator composes those operations rather than bypassing or reimplementing them.
 - Test workflow success, failure, cancellation, and stale asynchronous completion without UI automation. Keep UI tests for actual presentation, bindings, and focus. An extracted file with the same mixed responsibilities is not a separation.
-
 - These types are `@MainActor @Observable`; heavy work should delegate to services or detached tasks and only publish the final UI state back here.
 - `DatabaseViewModel.State`, `failedAttempts`, `lockCycleID`, `draft`, `openTimeSHA512`, `saveConflict`, `databaseReference.expectedCloudRevision`, the session-key lifecycle, and the selected group/entry state are the main security and navigation invariants.
 - Clipboard scrub on lock is another security invariant: `lock(manuallyTriggered:preservingClipboard:)` calls `ClipboardService.clearOwnedContents()` on every lock; `preservingClipboard` is the one deliberate exception, set only by iOS backgrounding so the copy-then-switch-to-paste flow still delivers the copied secret. This has regressed twice — read the comment block on `lock` in `DatabaseViewModel.swift` before changing it.

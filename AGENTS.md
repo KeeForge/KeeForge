@@ -16,18 +16,20 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 
 - Native iPhone, iPad, and Mac KeePass manager for KDBX 4.x databases; also reads KDBX 3.1 (read-only)
 - Swift 6, SwiftUI, iOS 18+ / macOS 15+, `@Observable`, strict concurrency
-- XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`
+- XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`; target-membership rules live in `KeeForge/AGENTS.md`
 - Xcode Cloud uses `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`; the ordinary `KeeForge` scheme retains both full suites. UI B is the complement of A, so new UI classes stay covered. XcodeGen validates this partition automatically; details live in `ci_scripts/README.md`.
 - Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`. The native macOS app shipped in v1.16.0; macOS work now follows the ordinary changelog flow under `## Unreleased`.
 
 ## Open The Local Doc First
 
 Folders that own source files carry an `AGENTS.md`, with a `CLAUDE.md` symlink beside it
-so the doc loads on its own when you work in them — `KeeForge/{App,Models,ViewModels,Extensions}`,
+so the doc loads on its own when you work in them — `KeeForge`, `KeeForge/{App,Models,ViewModels,Extensions}`,
 every `KeeForge/Services/*` and `KeeForge/Views/*` subfolder, `AutoFillExtension`,
 `KeeForgeTests` (and its `Support`), and `KeeForgeMacUITests`. Edit the `AGENTS.md`;
 never replace the symlink with a second copy. The docs below are read on demand:
 
+- `KeeForge/AGENTS.md` — shared-source changes, workflow ownership, and KDBX compatibility requirements
+- `.agents/AGENTS.md` — release and pre-release review workflow selection
 - `KeeForge/README.md` — app-target map and cross-cutting flows that span folders
 - `KeeForge/Services/README.md` — save-path split, App Group and Keychain boundaries, shared AutoFill allow-list rules
 - `KeeForge/Views/README.md` — UI rules every shell shares: the macOS grouped-form requirement, the `ForEach`/`.onMove` single-row-type rule, and the identifier surface
@@ -55,22 +57,11 @@ never replace the symlink with a second copy. The docs below are read on demand:
 
 ### Workflows
 
-- Keep reusable application workflows independent of SwiftUI. `KeeForge/ViewModels/` must not import SwiftUI; `xcodegen generate` checks this boundary. Store navigation as typed IDs/routes in `DatabaseWorkspaceState`, with SwiftUI/AppKit adapters in the shell. Do not put navigation objects or window/view references in database session logic. Presentation signals belong to workspace state; session methods may guard and forward commands.
-- Views render state, collect input, and present/dismiss UI. Put multi-step save/conflict/lock completion, dirty-editor registration, settings persistence and side effects, and deferred URL routing in the existing workflow owners (`DatabaseEditorCoordinator`, `AppSettingsViewModel`, `AppRoutingCoordinator`). A view may forward appearance, disappearance, and observed state changes; it must not become a second implementation of those policies.
-- Before adding a workflow, identify its existing owner and test its success, cancellation, failure, and stale async completion paths without driving the UI. Add a new coordinator only for a distinct responsibility; avoid forwarding facades, parallel sources of truth, and extracting files without separating responsibilities. Keep session lock/save/authentication decisions authoritative in `DatabaseViewModel` and services.
-- Release skills: `.agents/skills/prepare-release/SKILL.md` prepares new versions and patches;
-  `.agents/skills/respin-release/SKILL.md` replaces an unshipped candidate; `.agents/skills/ship-release/SKILL.md` publishes
-  accepted artifacts. Shared release procedures live in `.agents/skills/prepare-release/references/`.
-
-- Always create temporary agent artifacts such as handoff prompts, investigation notes, and scratch scripts under `scratch/` in the main checkout, including when working in a linked worktree. Identify the main checkout using the first worktree listed by `git worktree list --porcelain`. Never use a linked worktree's `scratch/`. This directory is gitignored and must not contain files intended to ship.
-- Use `.agents/skills/pre-release-review/SKILL.md` for standalone reviews before candidate preparation. Reports use the primary checkout's shared `scratch/pre-release/<UTC>__since-<baseline>__head-<SHA12>/report.md`; the report format lives in that skill's `references/report-format.md`.
-- App and Mac targets use folder globs in `project.yml`, so `xcodegen generate` alone picks up new files. Invariant: the `KeeForgeAutoFill` and `KeeForgeMacAutoFill` allow-lists in `project.yml` must stay byte-identical — edit both together.
-- When adding new files, update the nearest folder-local doc (`AGENTS.md`, or `README.md` where the folder has one) if the file changes that folder's map, ownership notes, or workflow guidance.
-- Do not update `docs/specs` for new code changes unless explicitly asked. These specs are mostly historical artifacts, not living implementation docs.
-- When changing code shared with `AutoFillExtension`, keep extension-safe imports/APIs and target membership in sync.
-- When adding or changing database creation, edit operations, KDBX parser/writer behavior, protected fields, unknown XML handling, AutoFill save, cloud save, or local save, update `KeeForgeTests/KDBXCompatibilityTests.swift` and the compatibility artifact gate if the supported compatibility matrix changes.
+- Keep this section repo-wide; put specific procedures in the owning folder's `AGENTS.md` and link them from the local-doc map above.
+- Keep temporary agent artifacts in the main checkout's gitignored `scratch/`, never a linked worktree's. Find the main checkout with the first entry in `git worktree list --porcelain`.
+- Update the nearest folder doc when ownership, file maps, or workflows change. Leave historical `docs/specs` alone unless explicitly asked.
 - Preserve accessibility identifiers or update the relevant UI tests in the same change.
-- Update `CHANGELOG.md` for user-facing feature or bug-fix commits under `## Unreleased` on every platform. It's okay to skip if the bug fix is for an unreleased feature. Keep changelog updates concise, simple and user facing; don't include implementation details unless necessary.
+- Add concise, user-facing changes to `CHANGELOG.md` under `## Unreleased`; fixes for unreleased features may skip it.
 
 ### Localization
 
