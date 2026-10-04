@@ -29,7 +29,7 @@ and `KeeForgeMacUITests`. Maintain instructions directly in `AGENTS.md`.
 The docs below are read on demand:
 
 - `KeeForge/AGENTS.md` — shared-source changes, workflow ownership, and KDBX compatibility requirements
-- `.agents/AGENTS.md` — release and pre-release review workflow selection
+- `.agents/AGENTS.md` — repository agent workflow selection
 - `KeeForge/README.md` — app-target map and cross-cutting flows that span folders
 - `KeeForge/Services/README.md` — save-path split, App Group and Keychain boundaries, shared AutoFill allow-list rules
 - `KeeForge/Views/README.md` — UI rules every shell shares: the macOS grouped-form requirement, the `ForEach`/`.onMove` single-row-type rule, and the identifier surface

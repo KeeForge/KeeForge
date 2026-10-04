@@ -1,0 +1,12 @@
+# Accessibility and platform interaction
+
+- Inspect the effective accessibility element, including labels supplied by modifiers or surrounding controls. An image-only button with a meaningful `accessibilityLabel` is not inherently unlabeled. Follow KeeForge's paired label and `macHelp` convention; plain `help` changes iOS VoiceOver hints. In a macOS-only file, that iOS hazard does not apply, so a convention difference alone is not an accessibility defect.
+- Prefer semantic text styles. Check custom text sizes, truncation, fixed frames, and control hit areas with larger text and translated labels. For custom scalable dimensions, consider `@ScaledMetric`; verify availability before suggesting newer font-scaling APIs. Distinguish decorative icon dimensions from readable text.
+- Check whether meaning relies only on color, and whether motion-heavy transitions respect Reduce Motion. Decorative images should not add redundant announcements. Frequently changing action labels may benefit from stable Voice Control input labels.
+- Prefer semantic buttons for actions. Before replacing a gesture, inspect selection, nested controls, single/double-click behavior, focus, and keyboard handling. A Mac selectable row is not automatically an action button. If accessibility behavior is uncertain, request a focused runtime check rather than declaring that a gesture alone is broken.
+- Evaluate touch targets on iPhone/iPad separately from pointer and keyboard interaction on Mac. Check the effective hit area rather than just the image's frame.
+- Preserve native UIKit/AppKit bridges when required by system hosting, secure input, selection, or focus. Shared SwiftUI remains the default, but replacing a bridge needs evidence that the replacement preserves its contract.
+- Mac sheet forms need the repository's grouped-form and field-style helpers. AutoFill's Mac host has no window toolbar: actions placed only in `toolbar` or `searchable` can disappear even when compilation succeeds. Follow the extension's local guidance.
+- Prefer system empty states and semantic styles when they fit the existing design. Existing custom layouts, explicit spacing, or font weights are not defects by themselves.
+
+Static inspection can identify missing semantics and layout risks; it cannot establish actual VoiceOver output, focus behavior, or readable layout on every supported shell. Name the relevant manual or capture check when needed.
