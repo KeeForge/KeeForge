@@ -17,6 +17,7 @@
 - Attachment previews and imports no longer reopen or change an editor after it has closed or the database has locked.
 - AutoFill ignores late results from cancelled requests instead of applying them to a newer request.
 - Switching cloud accounts clears the previous account’s files. Closing creation or connection forms no longer lets late results reopen them.
+- Website icons refresh when an entry’s address changes, and selecting a key file no longer blocks the unlock screen while it loads.
 - Unsupported verification-code lengths show the correct explanation.
 - On Mac, the setup-link and AutoFill passkey forms show editable fields correctly.
 - The group editor stays open until a save conflict has been resolved, so you can finish saving without losing your place.
