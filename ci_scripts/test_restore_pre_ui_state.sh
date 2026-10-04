@@ -18,6 +18,23 @@ expect_failure() {
   echo "fixture=${name} result=failed-as-expected"
 }
 
+expect_failure_message() {
+  local name="$1" expected="$2" status
+  shift 2
+  if "$@" >"${TMP_ROOT}/refusal.out" 2>&1; then
+    echo "error: ${name} unexpectedly passed" >&2
+    exit 1
+  else
+    status=$?
+  fi
+  [[ "${status}" == 1 ]] && grep -Fq "${expected}" "${TMP_ROOT}/refusal.out" || {
+    echo "error: ${name} failed outside its intended guard (exit=${status})" >&2
+    cat "${TMP_ROOT}/refusal.out" >&2
+    exit 1
+  }
+  echo "fixture=${name} result=failed-as-expected"
+}
+
 make_backup() {
   local root="$1"
   mkdir -p "${root}/app-group/databases" "${root}/app-group/Library/Application Scripts"
@@ -40,10 +57,13 @@ cat >"${TMP_ROOT}/current-defaults.plist" <<'PLIST'
 PLIST
 
 "${SCRIPT_DIR}/restore_pre_ui_state.sh" --self-test-processes
-expect_failure outside-release-session-root \
-  "${SCRIPT_DIR}/restore_pre_ui_state.sh" --state-root "${TMP_ROOT}/outside" --backup
-expect_failure parent-traversal-state-root \
-  "${SCRIPT_DIR}/restore_pre_ui_state.sh" --state-root "${REPO_ROOT}/scratch/release-session/.." --backup
+PATH_REPO="${TMP_ROOT}/path-repo"
+mkdir -p "${PATH_REPO}/ci_scripts" "${PATH_REPO}/scratch/release-session"
+cp "${SCRIPT_DIR}/restore_pre_ui_state.sh" "${PATH_REPO}/ci_scripts/restore_pre_ui_state.sh"
+expect_failure_message outside-release-session-root 'state root must be directly under' \
+  "${PATH_REPO}/ci_scripts/restore_pre_ui_state.sh" --state-root "${TMP_ROOT}/outside" --backup
+expect_failure_message parent-traversal-state-root 'state root must name a directory under' \
+  "${PATH_REPO}/ci_scripts/restore_pre_ui_state.sh" --state-root "${PATH_REPO}/scratch/release-session/.." --backup
 expect_failure foreign-defaults-domain \
   /usr/bin/swift "${HELPER}" snapshot-defaults --domain example.invalid --output "${TMP_ROOT}/foreign.plist"
 
@@ -124,6 +144,40 @@ rm "${TMP_ROOT}/fixture-live/Library/Application Scripts/group.com.keevault.shar
 /usr/bin/swift "${HELPER}" compare-groups \
   --backup "${TMP_ROOT}/backup/app-group" --live "${TMP_ROOT}/fixture-live" | grep -Fq 'live_extra=0 backup_missing=0'
 echo 'fixture=proven-cache-and-original-restore result=passed'
+
+cp -R "${TMP_ROOT}/backup/app-group" "${TMP_ROOT}/fixture-extra-only"
+cp "${FIXTURE}" "${TMP_ROOT}/fixture-extra-only/databases/test.kdbx"
+/usr/bin/swift "${HELPER}" remove-proven-fixture-extra \
+  --backup "${TMP_ROOT}/backup/app-group" --live "${TMP_ROOT}/fixture-extra-only" --fixture "${FIXTURE}"
+/usr/bin/swift "${HELPER}" verify-restored-group \
+  --root "${TMP_ROOT}/backup" --group "${TMP_ROOT}/fixture-extra-only"
+/usr/bin/swift "${HELPER}" compare-groups \
+  --backup "${TMP_ROOT}/backup/app-group" --live "${TMP_ROOT}/fixture-extra-only" | grep -Fq 'live_extra=0 backup_missing=0'
+echo 'fixture=proven-cache-with-originals-intact result=passed'
+
+cp -R "${TMP_ROOT}/backup/app-group" "${TMP_ROOT}/unknown-cache-extra"
+printf 'unknown database bytes\n' >"${TMP_ROOT}/unknown-cache-extra/databases/unknown.kdbx"
+expect_failure_message unknown-cache-extra 'restore-helper failed: verificationFailed' \
+  /usr/bin/swift "${HELPER}" remove-proven-fixture-extra \
+  --backup "${TMP_ROOT}/backup/app-group" --live "${TMP_ROOT}/unknown-cache-extra" --fixture "${FIXTURE}"
+grep -Fxq 'unknown database bytes' "${TMP_ROOT}/unknown-cache-extra/databases/unknown.kdbx"
+
+cp -R "${TMP_ROOT}/backup/app-group" "${TMP_ROOT}/multiple-cache-extras"
+cp "${FIXTURE}" "${TMP_ROOT}/multiple-cache-extras/databases/first.kdbx"
+cp "${FIXTURE}" "${TMP_ROOT}/multiple-cache-extras/databases/second.kdbx"
+expect_failure_message multiple-cache-extras 'restore-helper failed: verificationFailed' \
+  /usr/bin/swift "${HELPER}" remove-proven-fixture-extra \
+  --backup "${TMP_ROOT}/backup/app-group" --live "${TMP_ROOT}/multiple-cache-extras" --fixture "${FIXTURE}"
+cmp "${FIXTURE}" "${TMP_ROOT}/multiple-cache-extras/databases/first.kdbx"
+cmp "${FIXTURE}" "${TMP_ROOT}/multiple-cache-extras/databases/second.kdbx"
+
+cp -R "${TMP_ROOT}/backup/app-group" "${TMP_ROOT}/multiple-originals-missing"
+rm "${TMP_ROOT}/multiple-originals-missing/databases/original.kdbx" "${TMP_ROOT}/multiple-originals-missing/database-list.json"
+cp "${FIXTURE}" "${TMP_ROOT}/multiple-originals-missing/databases/test.kdbx"
+expect_failure_message multiple-originals-missing 'restore-helper failed: verificationFailed' \
+  /usr/bin/swift "${HELPER}" remove-proven-fixture-extra \
+  --backup "${TMP_ROOT}/backup/app-group" --live "${TMP_ROOT}/multiple-originals-missing" --fixture "${FIXTURE}"
+cmp "${FIXTURE}" "${TMP_ROOT}/multiple-originals-missing/databases/test.kdbx"
 
 /usr/bin/swift "${HELPER}" restore-defaults-file \
   --original "${TMP_ROOT}/original-defaults.plist" \
