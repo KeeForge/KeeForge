@@ -50,7 +50,9 @@ Diagnosing this on a Mac: launch with `-autofill-store-inspector` (DEBUG only) a
 
 Apple's documented behavior is to withdraw the iPad-on-Mac version once the native
 macOS version is approved; there is no separate product decision. v1.16.0 shipped the
-transition notice before approval. The remaining platform constraints are:
+transition notice before approval. The iOS build still installed on a Mac points at the
+native app from its database list (`MacAppSuggestionService`). The remaining platform
+constraints are:
 
 - **Local databases** already live at a user-chosen filesystem location and are reached
   through a security-scoped bookmark. The native app asks the user to add that same

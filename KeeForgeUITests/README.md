@@ -71,6 +71,7 @@ macOS UI tests: see `../KeeForgeMacUITests/AGENTS.md`; the accessibility identif
 - `BackoffUITests` — failed-unlock backoff behavior
 - `AppSettingsUITests` — app settings / tip jar coverage from the database list
 - `AutoFillTipUITests` — "Turn On AutoFill" banner on the database list (forced via `UI_TEST_SHOW_AUTOFILL_TIP=1`; the banner is suppressed in all other UI test classes and screenshots)
+- `MacAppSuggestionUITests` — "Using KeeForge on a Mac?" banner on the database list (forced via `UI_TEST_SHOW_MAC_APP_SUGGESTION=1`; no simulator is the iOS app on a Mac, so nothing else shows it)
 - `WhatsNewUITests` — feature-sheet structure and dismissal (forced via `UI_TEST_SHOW_WHATS_NEW=1`; the release sheet is suppressed in all other UI test classes and screenshots)
 - `EntryEditEdgeUITests` — password generation (captures the displayed `password-generator.password` suggestion before Use, checks the editor receives it, then checks the exact password after saving and reopening), conflict handling, discard prompts, and read-only editing affordances
 - `SaveConflictMergeUITests` — end-to-end "Merge Changes" on a real save conflict: a local title edit conflicts with a genuinely divergent on-disk copy, Merge reports the counted-changes "Changes Merged" summary (`merge-summary.ok`), and both the remote-only entry and the local edit survive with the unsaved-changes banner cleared
