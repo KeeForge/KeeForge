@@ -116,6 +116,81 @@ final class SecretAccessGateTests: XCTestCase {
         XCTAssertTrue(harness.gate.requiresAuthentication)
     }
 
+    /// The grant is gone, not hidden: picking the old period again in the
+    /// same visit to Settings, with no reveal or copy in between, must not
+    /// bring it back.
+    func testSwitchingToAlwaysAskAndBackTakesANewAuthentication() async throws {
+        let harness = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
+        harness.gate.noteSuccessfulAuthentication()
+
+        harness.gracePeriod = .alwaysAsk
+        harness.gracePeriod = .fiveMinutes
+
+        XCTAssertTrue(harness.gate.requiresAuthentication)
+        try await harness.gate.authenticate(reason: "View password")
+        XCTAssertFalse(harness.gate.requiresAuthentication)
+    }
+
+    /// 45 seconds in, 30 Seconds has already run out. Going back to
+    /// 5 Minutes must not revive the rest of the original grant.
+    func testShorteningPastTheElapsedTimeAndLengtheningAgainTakesANewAuthentication() {
+        let harness = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
+        harness.gate.noteSuccessfulAuthentication()
+        harness.advance(by: .seconds(45))
+
+        harness.gracePeriod = .thirtySeconds
+        harness.gracePeriod = .fiveMinutes
+
+        XCTAssertTrue(harness.gate.requiresAuthentication)
+    }
+
+    /// A shorter period that has not run out yet keeps counting from the
+    /// original authentication, and stays the limit after lengthening.
+    func testAShortenedGrantKeepsTheShorterLimitAfterLengtheningAgain() {
+        let harness = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
+        harness.gate.noteSuccessfulAuthentication()
+        harness.advance(by: .seconds(20))
+
+        harness.gracePeriod = .oneMinute
+        harness.gracePeriod = .fiveMinutes
+
+        harness.advance(by: .seconds(39))
+        XCTAssertFalse(harness.gate.requiresAuthentication, "One minute had not run out")
+        harness.advance(by: .seconds(1))
+        XCTAssertTrue(harness.gate.requiresAuthentication, "The grant outlived the one minute it was cut to")
+    }
+
+    /// The gate also tightens when it is asked, for a setting written
+    /// without telling it.
+    func testAnUnannouncedTighteningStillSticksOnceTheGateWasAsked() {
+        let harness = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
+        harness.announcesSettingChanges = false
+        harness.gate.noteSuccessfulAuthentication()
+
+        harness.gracePeriod = .alwaysAsk
+        XCTAssertTrue(harness.gate.requiresAuthentication)
+        harness.gracePeriod = .fiveMinutes
+
+        XCTAssertTrue(harness.gate.requiresAuthentication)
+    }
+
+    /// One gate per session: a changed setting has to reach all of them.
+    func testAChangedSettingReachesEveryLiveGate() {
+        let first = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
+        let second = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
+        first.gate.noteSuccessfulAuthentication()
+        second.gate.noteSuccessfulAuthentication()
+        first.announcesSettingChanges = false
+        first.gracePeriod = .alwaysAsk
+
+        second.gracePeriod = .alwaysAsk
+        first.gracePeriod = .fiveMinutes
+        second.gracePeriod = .fiveMinutes
+
+        XCTAssertTrue(first.gate.requiresAuthentication)
+        XCTAssertTrue(second.gate.requiresAuthentication)
+    }
+
     /// Otherwise whoever holds an unlocked app could pick a longer period in
     /// Settings and skip the prompt it was about to get.
     func testLengtheningTheGracePeriodTakesANewAuthentication() async throws {
@@ -350,6 +425,27 @@ final class SecretAccessSessionTests: XCTestCase {
         XCTAssertFalse(second.secretAccess.isWithinGracePeriod)
         first.lockRequest(force: true)
         XCTAssertFalse(first.secretAccess.isWithinGracePeriod)
+    }
+
+    /// The path the Settings picker takes, against the gate a session builds
+    /// for itself: Always Ask and back, with no reveal or copy in between.
+    func testPickingAlwaysAskAndBackInSettingsEndsAnOpenSessionsGracePeriod() async throws {
+        SettingsService.authenticationGracePeriod = .fiveMinutes
+        let vm = DatabaseViewModel(databaseReference: try makeReference())
+        addTeardownBlock { @MainActor in
+            vm.lockRequest(force: true)
+        }
+        await vm.unlock(password: fixturePassword)
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected unlocked, got \(vm.state)")
+        }
+        let settings = AppSettingsViewModel()
+
+        settings.authenticationGracePeriod = .alwaysAsk
+        settings.authenticationGracePeriod = .fiveMinutes
+
+        XCTAssertEqual(SettingsService.authenticationGracePeriod, .fiveMinutes)
+        XCTAssertFalse(vm.secretAccess.isWithinGracePeriod)
     }
 
     func testTheShippedDefaultOpensNoGracePeriod() async throws {

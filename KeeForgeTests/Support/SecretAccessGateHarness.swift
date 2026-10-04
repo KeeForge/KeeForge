@@ -7,7 +7,16 @@ import Foundation
 final class SecretAccessGateHarness {
     struct PromptDeclined: Error {}
 
-    var gracePeriod: SettingsService.AuthenticationGracePeriod
+    /// Setting it tells the live gates, the way Settings does. Turn
+    /// `announcesSettingChanges` off to stand in for a bare write.
+    var gracePeriod: SettingsService.AuthenticationGracePeriod {
+        didSet {
+            if announcesSettingChanges {
+                SecretAccessGate.gracePeriodSettingDidChange()
+            }
+        }
+    }
+    var announcesSettingChanges = true
     var isAuthenticationAvailable = true
     /// False makes the next prompts fail the way a cancelled one does.
     var promptSucceeds = true

@@ -7,7 +7,9 @@ import Foundation
 /// nothing further.
 ///
 /// The grant lives in memory only, and on a monotonic clock, so neither a
-/// relaunch nor a changed system time can extend it.
+/// relaunch nor a changed system time can extend it. It never outlives the
+/// shortest period selected since it was earned: a tighter setting shortens
+/// or revokes it for good, and a longer one takes a new authentication.
 @MainActor
 final class SecretAccessGate {
     typealias GracePeriodProvider = @MainActor () -> SettingsService.AuthenticationGracePeriod
@@ -19,6 +21,10 @@ final class SecretAccessGate {
         let start: ContinuousClock.Instant
         let duration: Duration
     }
+
+    /// Every live gate, held weakly, so a changed setting reaches the grants
+    /// that no reveal or copy has asked about since.
+    private static let liveGates = NSHashTable<SecretAccessGate>.weakObjects()
 
     private let gracePeriod: GracePeriodProvider
     private let now: Clock
@@ -39,6 +45,17 @@ final class SecretAccessGate {
         self.now = now
         self.isAuthenticationAvailable = isAuthenticationAvailable
         self.prompt = prompt
+        Self.liveGates.add(self)
+    }
+
+    /// Whoever writes the grace-period setting calls this once the new value
+    /// is stored. Without it a grant that Always Ask or a shorter period
+    /// should have ended would come back as soon as the old period is
+    /// selected again, provided no reveal or copy fell in between.
+    static func gracePeriodSettingDidChange() {
+        for gate in liveGates.allObjects {
+            gate.tightenGrantToSelectedGracePeriod()
+        }
     }
 
     /// Whether a reveal or copy has to call `authenticate(reason:)` first.
@@ -48,13 +65,14 @@ final class SecretAccessGate {
         isWithinGracePeriod == false && isAuthenticationAvailable()
     }
 
-    /// The grant keeps the duration that was selected when it was earned, and
-    /// is capped by the current one: shortening the setting applies at once,
-    /// while lengthening it takes a new authentication, so an unlocked app in
-    /// someone else's hands cannot be switched to a longer period.
+    /// Shortening the setting applies at once, while lengthening it takes a
+    /// new authentication, so an unlocked app in someone else's hands cannot
+    /// be switched to a longer period.
     var isWithinGracePeriod: Bool {
-        guard let grant, let selected = gracePeriod().duration else { return false }
-        return now() - grant.start < min(grant.duration, selected)
+        // Also here, for a setting written without the announcement above.
+        tightenGrantToSelectedGracePeriod()
+        guard let grant else { return false }
+        return now() - grant.start < grant.duration
     }
 
     /// Prompts for device-owner authentication. Success starts or refreshes
@@ -79,5 +97,17 @@ final class SecretAccessGate {
     func invalidate() {
         grant = nil
         invalidationCount += 1
+    }
+
+    /// Caps the grant at the period selected now and keeps the cap, so the
+    /// grant cannot grow back when a longer period is selected afterwards.
+    /// Always Ask revokes it.
+    private func tightenGrantToSelectedGracePeriod() {
+        guard let earned = grant else { return }
+        guard let selected = gracePeriod().duration else {
+            grant = nil
+            return
+        }
+        grant = Grant(start: earned.start, duration: min(earned.duration, selected))
     }
 }

@@ -26,6 +26,7 @@ final class AppSettingsViewModel {
         didSet {
             guard !isReloading, oldValue != authenticationGracePeriod else { return }
             SettingsService.authenticationGracePeriod = authenticationGracePeriod
+            authenticationGracePeriodDidChange()
         }
     }
     var autoUnlockWithFaceID = SettingsService.autoUnlockWithFaceID {
@@ -112,6 +113,7 @@ final class AppSettingsViewModel {
     @ObservationIgnored private let clearCredentialStore: () -> Void
     @ObservationIgnored private let clearFaviconCacheOperation: () -> Void
     @ObservationIgnored private let capturePolicyDidChange: () -> Void
+    @ObservationIgnored private let authenticationGracePeriodDidChange: () -> Void
     @ObservationIgnored private let loadCloudAccounts: () -> [CloudAccount]
     @ObservationIgnored private let signOutOperation: (CloudAccount) -> Void
 
@@ -130,6 +132,11 @@ final class AppSettingsViewModel {
             )
             #endif
         },
+        authenticationGracePeriodDidChange: @escaping () -> Void = {
+            // Open sessions drop or shorten the grace period they already
+            // granted, so selecting the old period again cannot bring it back.
+            SecretAccessGate.gracePeriodSettingDidChange()
+        },
         loadCloudAccounts: @escaping () -> [CloudAccount] = { CloudAccountStore.accounts },
         signOut: @escaping (CloudAccount) -> Void = {
             CloudProviderRegistry.provider(for: $0.provider)?.signOut(accountId: $0.id)
@@ -142,6 +149,7 @@ final class AppSettingsViewModel {
         self.clearCredentialStore = clearCredentialStore
         self.clearFaviconCacheOperation = clearFaviconCache
         self.capturePolicyDidChange = capturePolicyDidChange
+        self.authenticationGracePeriodDidChange = authenticationGracePeriodDidChange
         self.loadCloudAccounts = loadCloudAccounts
         self.signOutOperation = signOut
         cloudAccounts = loadCloudAccounts()
