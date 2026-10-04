@@ -106,7 +106,8 @@ private struct EditableAttachmentRow: View {
 /// the compiler type-checks in reasonable time.
 struct EntryAttachmentImporter: ViewModifier {
     @Binding var isPresented: Bool
-    @Binding var isImporting: Bool
+    let databaseViewModel: DatabaseViewModel
+    let loadCoordinator: AttachmentLoadCoordinator
     @Binding var errorMessage: String?
     let onLoad: (EntryAttachmentFileLoader.LoadedFile) -> Void
 
@@ -123,6 +124,11 @@ struct EntryAttachmentImporter: ViewModifier {
             } message: {
                 Text(errorMessage ?? "")
             }
+            .onAppear { loadCoordinator.activate() }
+            .onDisappear { loadCoordinator.deactivate() }
+            .onChange(of: databaseViewModel.lockCycleID) { _, _ in
+                loadCoordinator.invalidate()
+            }
     }
 
     private var isShowingError: Binding<Bool> {
@@ -137,6 +143,7 @@ struct EntryAttachmentImporter: ViewModifier {
     }
 
     private func importFiles(_ result: Result<[URL], Error>) {
+        guard loadCoordinator.isActive else { return }
         let urls: [URL]
         switch result {
         case .success(let picked):
@@ -147,14 +154,15 @@ struct EntryAttachmentImporter: ViewModifier {
         }
         guard urls.isEmpty == false else { return }
 
-        isImporting = true
-        Task { @MainActor in
-            let loaded = await EntryAttachmentFileLoader.load(urls)
+        let lockCycle = databaseViewModel.lockCycleID
+        loadCoordinator.load(
+            operation: { await EntryAttachmentFileLoader.load(urls) },
+            isCurrent: { databaseViewModel.lockCycleID == lockCycle && databaseViewModel.sessionKey != nil }
+        ) { loaded in
             loaded.files.forEach(onLoad)
             if let error = loaded.error {
                 errorMessage = error.localizedDescription
             }
-            isImporting = false
         }
     }
 }

@@ -139,6 +139,53 @@ final class WebDAVConnectViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.errorMessage, CloudProviderError.fileNotFound.localizedDescription)
         XCTAssertFalse(viewModel.isConnecting)
     }
+    func testDismissedConnectionDropsLateSuccessAndError() async {
+        let results: [Result<CloudAccount, Error>] = [
+            .success(CloudAccount(id: "webdav-test", displayName: "Test", provider: "webDAV")),
+            .failure(CloudProviderError.notAuthenticated),
+        ]
+        for result in results {
+            let connector = SuspendedWebDAVConnector()
+            let viewModel = WebDAVConnectViewModel(connector: connector)
+            viewModel.serverURL = "https://cloud.example.com/"
+            viewModel.username = "alex"
+            viewModel.password = "secret"
+            let connection = Task { await viewModel.connect() }
+            await connector.waitUntilStarted()
+
+            viewModel.cancelPendingConnection()
+            await connector.finish(result)
+            let account = await connection.value
+
+            XCTAssertNil(account)
+            XCTAssertNil(viewModel.errorMessage)
+            XCTAssertFalse(viewModel.isConnecting)
+            XCTAssertEqual(viewModel.password, "")
+        }
+    }
+}
+
+private actor SuspendedWebDAVConnector: WebDAVConnecting {
+    private var continuation: CheckedContinuation<CloudAccount, Error>?
+    private var startedContinuation: CheckedContinuation<Void, Never>?
+
+    func connect(_ configuration: WebDAVConnectionConfiguration) async throws -> CloudAccount {
+        try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+            startedContinuation?.resume()
+            startedContinuation = nil
+        }
+    }
+
+    func waitUntilStarted() async {
+        if continuation != nil { return }
+        await withCheckedContinuation { startedContinuation = $0 }
+    }
+
+    func finish(_ result: Result<CloudAccount, Error>) {
+        continuation?.resume(with: result)
+        continuation = nil
+    }
 }
 
 private final class MockWebDAVConnector: WebDAVConnecting, @unchecked Sendable {

@@ -90,7 +90,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         )
         await vm.unlock(password: fixturePassword)
         let titlesBefore = entryTitles(in: vm)
-        vm.selectEntry(vm.rootGroup?.allEntries.first?.id)
+        vm.workspace.selectedEntryID = vm.rootGroup?.allEntries.first?.id
         let newerTitles = try Self.entryTitles(in: newerData, password: fixturePassword)
         let republished = expectation(description: "AutoFill republished from the newer tree")
         republished.assertForOverFulfill = false
@@ -122,7 +122,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertFalse(vm.isCloudRefreshPending)
         XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(newerData))
         XCTAssertNotEqual(entryTitles(in: vm), titlesBefore)
-        XCTAssertNil(vm.selectedEntryID, "Selection must not point into the replaced tree")
+        XCTAssertNil(vm.workspace.selectedEntryID, "Selection must not point into the replaced tree")
         XCTAssertEqual(vm.state, .unlocked)
     }
 
@@ -442,6 +442,38 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
 
         XCTAssertTrue(didTrigger, "The lock request must land while the copy is parsed")
         assertLockedAfterSync(vm)
+    }
+
+    func testDatabaseTransitionDuringSyncReloadHonorsUnsavedEditorBeforeLocking() async throws {
+        let vm = try await makeViewModelParsingANewerCopy()
+        let routing = AppRoutingCoordinator()
+        let editorID = UUID()
+        let lockTrigger = triggerWhenParsing(vm) {
+            vm.setEditorHasUnsavedChanges(true, editorID: editorID)
+
+            routing.requestDatabaseTransition(to: .close, from: vm)
+
+            XCTAssertEqual(vm.state, .unlocking, "A reload is still an open session for editor decisions")
+            XCTAssertEqual(vm.pendingLockRequest?.reason, .openEditor)
+            XCTAssertNil(routing.completeDatabaseTransition(from: vm))
+            let request = vm.pendingLockRequest
+            vm.setEditorHasUnsavedChanges(false, editorID: editorID)
+            if let request { vm.resumeLockRequest(request) }
+        }
+        defer {
+            lockTrigger.cancel()
+            vm.lock()
+        }
+
+        await vm.syncCloudNow()
+        lockTrigger.cancel()
+        let didTrigger = await lockTrigger.value
+
+        XCTAssertTrue(didTrigger, "The transition must arrive while the newer copy is parsed")
+        assertLockedAfterSync(vm)
+        guard case .close? = routing.completeDatabaseTransition(from: vm) else {
+            return XCTFail("Resolving the editor should resume the close during reload")
+        }
     }
 
     /// A YubiKey session's composite key holds the response to the opened

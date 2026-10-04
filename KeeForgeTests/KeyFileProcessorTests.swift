@@ -43,8 +43,7 @@ final class KeyFileProcessorTests: XCTestCase {
         let hex = "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F"
         let data = Data(hex.utf8)
         let result = KeyFileProcessor.tryHexFormat(data)
-        XCTAssertNotNil(result)
-        XCTAssertEqual(result?.count, 32)
+        XCTAssertEqual(result, expectedKey)
     }
 
     func testHexFormatRejectsInvalidChars() {

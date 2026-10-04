@@ -18,6 +18,145 @@ final class PendingUploadDrainerTests: XCTestCase {
         super.tearDown()
     }
 
+    func test_drain_provisionalMarkerKeepsItsCoverUntilFinalized() async throws {
+        let reference = makeCloudReference()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("provisional-drain-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cacheURL = directory.appendingPathComponent("cache.kdbx")
+        let base = Data("pre-autofill-base".utf8)
+        let payload = Data("saved-autofill-payload".utf8)
+        try base.write(to: cacheURL)
+        var queueEnvironment = PendingUploadQueue.Environment.live
+        queueEnvironment.appGroupContainerURL = { directory }
+        queueEnvironment.postDarwinNotification = {}
+        let queue = queueEnvironment
+        let provisional = try PendingUploadQueue.enqueue(
+            PendingUploadQueue.Marker(
+                databaseId: reference.id,
+                encryptedBytesCacheURL: "cache.kdbx",
+                openTimeSHA512: KDBXCrypto.sha512(base),
+                expectedRev: reference.expectedCloudRevision,
+                createdAt: Date(timeIntervalSince1970: 1_000),
+                baseRev: reference.expectedCloudRevision,
+                isPayloadFinalized: false
+            ),
+            notifying: false,
+            environment: queue
+        )
+        let recorder = Recorder()
+        var environment = makeEnvironment(
+            markers: [],
+            reference: reference,
+            recorder: recorder,
+            readBytes: { path in try Data(contentsOf: directory.appendingPathComponent(path)) },
+            sha512: { KDBXCrypto.sha512($0) },
+            pushPendingUpload: { _, bytes, expectedRev in
+                recorder.pushedBytes.append(bytes)
+                recorder.pushedExpectedRevisions.append(expectedRev)
+                return .saved(updatedReference: reference)
+            }
+        )
+        environment.listMarkers = { PendingUploadQueue.listMarkers(for: $0, environment: queue) }
+        environment.dropMarker = { _ = try PendingUploadQueue.dropIfUnchanged($0, environment: queue) }
+        environment.updateMarker = { try PendingUploadQueue.update($0, environment: queue) }
+        let drainer = PendingUploadDrainer(environment: environment)
+
+        let beforeSave = await drainer.drainAll()
+
+        XCTAssertTrue(beforeSave.drainedDatabaseIDs.isEmpty)
+        XCTAssertTrue(recorder.pushedBytes.isEmpty, "The base is not the AutoFill payload")
+        let covered = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id, environment: queue).first)
+        XCTAssertEqual(covered.id, provisional.id)
+        XCTAssertEqual(covered.marker, provisional.marker)
+
+        try payload.write(to: cacheURL, options: .atomic)
+        let interruptedAfterSave = await drainer.drainAll()
+
+        XCTAssertEqual(interruptedAfterSave.conflictDatabaseIDs, [reference.id])
+        XCTAssertTrue(recorder.pushedBytes.isEmpty)
+        let interrupted = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id, environment: queue).first)
+        XCTAssertTrue(interrupted.marker.isConflicted)
+        XCTAssertEqual(interrupted.marker.isPayloadFinalized, false)
+        let recovery = PendingUploadRecovery.Environment(
+            listMarkers: { PendingUploadQueue.listMarkers(for: $0, environment: queue) },
+            cacheURL: { directory.appendingPathComponent($0.encryptedBytesCacheURL) },
+            backupURLs: { _ in [] },
+            readData: { try Data(contentsOf: $0) },
+            dropMarker: { _ = try PendingUploadQueue.dropIfUnchanged($0, environment: queue) }
+        )
+        guard case .unidentified = PendingUploadRecovery.lookUpPayloads(for: reference, environment: recovery) else {
+            return XCTFail("Interrupted finalization must remain visible to recovery")
+        }
+
+        var saved = provisional
+        saved.marker.openTimeSHA512 = KDBXCrypto.sha512(payload)
+        let finalized = try PendingUploadQueue.finalize(saved, environment: queue)
+        XCTAssertFalse(finalized.marker.isConflicted)
+        XCTAssertEqual(finalized.marker.isPayloadFinalized, true)
+
+        let afterSave = await drainer.drainAll()
+
+        XCTAssertEqual(afterSave.drainedDatabaseIDs, [reference.id])
+        XCTAssertEqual(recorder.pushedBytes, [payload])
+        XCTAssertEqual(recorder.pushedExpectedRevisions, [reference.expectedCloudRevision])
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: reference.id, environment: queue).isEmpty)
+    }
+
+    func test_drain_provisionalMarkerIsNotDroppedAsAlreadyUploaded() async {
+        let reference = makeCloudReference()
+        var finalized = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
+        finalized.marker.isPayloadFinalized = true
+        var provisional = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
+        provisional.marker.isPayloadFinalized = false
+        let recorder = Recorder()
+        let drainer = PendingUploadDrainer(
+            environment: makeEnvironment(
+                markers: [finalized, provisional],
+                reference: reference,
+                recorder: recorder,
+                pushPendingUpload: { _, bytes, expectedRev in
+                    recorder.pushedBytes.append(bytes)
+                    recorder.pushedExpectedRevisions.append(expectedRev)
+                    return .saved(updatedReference: reference)
+                }
+            )
+        )
+
+        let outcome = await drainer.drainAll()
+
+        XCTAssertEqual(outcome.drainedDatabaseIDs, [reference.id])
+        XCTAssertEqual(recorder.pushedBytes, [Data("encrypted-bytes".utf8)])
+        XCTAssertEqual(recorder.droppedMarkerIDs, [finalized.id])
+        XCTAssertTrue(recorder.updatedMarkers.isEmpty)
+    }
+
+    func test_drain_legacyMarkerWithMatchingCacheStillUploads() async {
+        let reference = makeCloudReference()
+        var storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
+        storedMarker.marker.isPayloadFinalized = nil
+        let recorder = Recorder()
+        let drainer = PendingUploadDrainer(
+            environment: makeEnvironment(
+                markers: [storedMarker],
+                reference: reference,
+                recorder: recorder,
+                pushPendingUpload: { _, bytes, expectedRev in
+                    recorder.pushedBytes.append(bytes)
+                    recorder.pushedExpectedRevisions.append(expectedRev)
+                    return .saved(updatedReference: reference)
+                }
+            )
+        )
+
+        let outcome = await drainer.drainAll()
+
+        XCTAssertEqual(outcome.drainedDatabaseIDs, [reference.id])
+        XCTAssertEqual(recorder.pushedBytes, [Data("encrypted-bytes".utf8)])
+        XCTAssertEqual(recorder.droppedMarkerIDs, [storedMarker.id])
+    }
+
     func test_drain_happyPath_uploadsAndDropsMarker() async {
         let reference = makeCloudReference()
         let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)

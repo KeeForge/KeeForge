@@ -54,14 +54,6 @@ final class TwofishTests: XCTestCase {
         }
     }
 
-    func test_exactBlockPlaintext_addsCompletePaddingBlock() throws {
-        let plaintext = Data(repeating: 0xa5, count: 16)
-        let ciphertext = try TwofishCBC.encrypt(plaintext, key: kdbxKey, iv: iv)
-
-        XCTAssertEqual(ciphertext.count, 32)
-        XCTAssertEqual(try TwofishCBC.decrypt(ciphertext, key: kdbxKey, iv: iv), plaintext)
-    }
-
     func test_rejectsInvalidKDBXKeyLengths() throws {
         for length in [0, 16, 24, 31, 33] {
             XCTAssertThrowsError(

@@ -5,6 +5,33 @@ import XCTest
 final class LocalDatabaseSaverTests: XCTestCase {
     private let fixturePassword = "testpassword123"
 
+    func testSaveRejectsInvalidXMLWithoutReplacingFileCacheOrBackups() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let context = try makeDirtySaveContext(databaseURL: databaseURL, entryTitle: "Pending Valid Entry")
+        let original = try Data(contentsOf: databaseURL)
+        try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
+        let root = context.draft.rootGroup
+        root.entries.append(KPEntry(notes: "Example heading\u{0}\r\nExample body"))
+        let invalidDraft = DatabaseDraft(rootGroup: root, meta: context.draft.meta, sessionKey: context.draft.writerSessionKey)
+
+        do {
+            _ = try await LocalDatabaseSaver.save(
+                draft: invalidDraft, reference: reference, compositeKey: context.compositeKey,
+                openTimeSHA512: context.openTimeSHA512
+            )
+            XCTFail("Invalid XML must not reach storage")
+        } catch {
+            XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+        }
+
+        XCTAssertEqual(try Data(contentsOf: databaseURL), original)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), original)
+        XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
+        XCTAssertEqual(invalidDraft.rootGroup.entries.last?.notes, "Example heading\u{0}\r\nExample body")
+        _ = try KDBXParser.parse(data: original, password: fixturePassword, sessionKey: SymmetricKey(size: .bits256))
+    }
+
     override func setUp() {
         super.setUp()
         DatabaseListStore.clearAll()
@@ -33,17 +60,25 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let reparsed = try KDBXParser.parseWithMeta(
             data: try Data(contentsOf: databaseURL),
             password: fixturePassword,
-            sessionKey: SymmetricKey(size: .bits256)
+            sessionKey: context.draft.writerSessionKey
         )
 
-        let savedTitles = reparsed.rootGroup.allEntries.map(\.title)
-        let originalTitles = context.originalRootGroup.allEntries.map(\.title)
-
-        XCTAssertTrue(savedTitles.contains("Slice 04 Added Entry"))
-        XCTAssertEqual(savedTitles.count, originalTitles.count + 1)
-        for title in originalTitles {
-            XCTAssertTrue(savedTitles.contains(title))
-        }
+        let expectedRoot = context.draft.rootGroup
+        let expectedParent = TestDatabaseSupport.visibleRootGroupID(in: expectedRoot) == expectedRoot.id
+            ? expectedRoot
+            : expectedRoot.groups[0]
+        let createdIndex = try XCTUnwrap(expectedParent.entries.firstIndex { $0.title == "Slice 04 Added Entry" })
+        let createdAt = try XCTUnwrap(expectedParent.entries[createdIndex].creationTime)
+        // KDBX timestamps store whole seconds.
+        let storedTimestamp = Date(timeIntervalSince1970: floor(createdAt.timeIntervalSince1970))
+        expectedParent.entries[createdIndex].creationTime = storedTimestamp
+        expectedParent.entries[createdIndex].lastModificationTime = storedTimestamp
+        expectedParent.entries[createdIndex].locationChanged = storedTimestamp
+        try KDBXTreeAssertions.assertTreesEqual(
+            (rootGroup: reparsed.rootGroup, meta: reparsed.meta),
+            (rootGroup: expectedRoot, meta: context.draft.meta),
+            sessionKey: context.draft.writerSessionKey
+        )
     }
 
     func testSaveTwofishDatabasePreservesCipherAndRefreshesCache() async throws {

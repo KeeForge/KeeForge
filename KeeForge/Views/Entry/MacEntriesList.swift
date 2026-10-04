@@ -2,7 +2,7 @@
 import SwiftUI
 
 /// A macOS entry list backed by a native `List(selection:)` bound to
-/// `DatabaseViewModel.selectedEntryID`, so arrow keys, type-select, and the
+/// `DatabaseViewModel.workspace.selectedEntryID`, so arrow keys, type-select, and the
 /// focus ring come from AppKit rather than being hand-rolled.
 ///
 /// Search results and the tag browser use this instead of the shared
@@ -38,7 +38,8 @@ struct MacEntriesList: View {
     @State private var duplicateEditor: EntryEditViewModel?
 
     var body: some View {
-        List(entries, selection: $viewModel.selectedEntryID) { entry in
+        @Bindable var workspace = viewModel.workspace
+        List(entries, selection: $workspace.selectedEntryID) { entry in
             MacEntryRow(
                 entry: entry,
                 viewModel: viewModel,
@@ -54,7 +55,7 @@ struct MacEntriesList: View {
         .listStyle(.inset)
         .focused($isListFocused)
         .onKeyPress(.return) {
-            guard let entryID = viewModel.selectedEntryID else { return .ignored }
+            guard let entryID = viewModel.workspace.selectedEntryID else { return .ignored }
             openEntry(entryID)
             return .handled
         }
@@ -99,7 +100,7 @@ struct MacEntriesList: View {
     /// sheet, so Return and double-click land on the one editor the workspace
     /// hosts — the same one ⌘E opens.
     private func openEntry(_ entryID: UUID) {
-        viewModel.selectedEntryID = entryID
+        viewModel.workspace.selectedEntryID = entryID
         viewModel.requestEntryEdit()
     }
 }
@@ -142,7 +143,7 @@ struct MacEntryRow: View {
         // `NSEvent.doubleClickInterval` (0.5s by default). Measured on this
         // row's shape: 353ms exclusive, 3ms simultaneous.
         .onTapGesture {
-            viewModel.selectedEntryID = entry.id
+            viewModel.workspace.selectedEntryID = entry.id
             isListFocused = true
         }
         .simultaneousGesture(

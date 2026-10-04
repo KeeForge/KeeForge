@@ -22,9 +22,8 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertEqual(CredentialMatcher.hostFromURLString("https://accounts.google.com"), "accounts.google.com")
     }
 
-    func testHostFromEmptyString() {
-        // Empty string may or may not parse; just ensure no crash
-        _ = CredentialMatcher.hostFromURLString("")
+    func testHostFromEmptyStringProducesNoUsableHost() {
+        XCTAssertTrue(CredentialMatcher.hostFromURLString("")?.isEmpty ?? true)
     }
 
     func testHostFromHTTPURL() {
@@ -157,18 +156,9 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertEqual(matches.count, 1)
     }
 
-    func testSubdomainMatch() {
+    func testParentDomainDoesNotMatchChildDomainRequest() {
         let entries = [makeEntry(title: "Google", url: "https://google.com", username: "user", password: "pass")]
         let ids = [ASCredentialServiceIdentifier(identifier: "https://accounts.google.com/signin", type: .URL)]
-        // The search term is "accounts.google.com". Entry host is "google.com".
-        // Entry host doesn't have suffix ".accounts.google.com", so host match fails.
-        // But entryURL contains "google.com" which contains... let's check: term is "accounts.google.com", entryURL is "https://google.com"
-        // entryURL.contains("accounts.google.com") = false. entryTitle.contains("accounts.google.com") = false.
-        // So this won't match with current logic. Let me re-read the matching logic...
-        // The logic checks if entryHost hasSuffix ".\(term)" — so entry "google.com" hasSuffix ".accounts.google.com"? No.
-        // Actually the subdomain matching goes the OTHER way: if the ENTRY has a subdomain of the search term.
-        // e.g., entry "accounts.google.com" matches search "google.com" because entryHost.hasSuffix(".google.com")
-        // So let's test that direction instead.
         let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
         XCTAssertEqual(matches.count, 0) // google.com entry does NOT match accounts.google.com search
     }

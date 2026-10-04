@@ -52,7 +52,13 @@ final class AppGroupIsolationTests: XCTestCase {
     }
 
     func testEveryGroupContainerWriterResolvesInsideTheRedirectedContainer() throws {
-        let container = AppGroupContainer.url.resolvingSymlinksInPath().path
+        func normalizedComponents(of url: URL) -> [String] {
+            let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+            let normalized = path.hasPrefix("/private/var/") ? String(path.dropFirst("/private".count)) : path
+            return URL(fileURLWithPath: normalized).pathComponents
+        }
+
+        let container = normalizedComponents(of: AppGroupContainer.url)
         let url = try makeTemporaryFileURL(name: "isolation.kdbx")
         let reference = try DatabaseListStore.add(url: url)
         defer { DatabaseListStore.clearAll() }
@@ -67,7 +73,7 @@ final class AppGroupIsolationTests: XCTestCase {
 
         for (name, writerURL) in writers {
             XCTAssertTrue(
-                writerURL.resolvingSymlinksInPath().path.hasPrefix(container),
+                normalizedComponents(of: writerURL).starts(with: container),
                 "\(name) writes to \(writerURL.path), outside the redirected container \(container)"
             )
         }

@@ -183,6 +183,31 @@ final class CredentialProviderPickerCreationTests: XCTestCase {
         XCTAssertNotNil(coordinator.sessionKey, "The vault must stay open so the user can correct the draft")
     }
 
+    func test_saveFromOldCreator_doesNotValidateOrCompleteReplacementRequest() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        seedPickerState(coordinator, reference: makeLocalReference())
+        coordinator.presentPasswordMatchesOrFinish()
+        try XCTUnwrap(presenter.searchView?.onCreateEntry)()
+        let oldCreator = try XCTUnwrap(presenter.entryCreator)
+        coordinator.cancelRequest(code: .userCanceled)
+        presenter.isPresentationActive = false
+        coordinator.prepareCredentialList(for: [])
+        seedPickerState(coordinator, reference: makeLocalReference())
+        let replacementRootID = coordinator.parsedRootGroup?.id
+
+        let outcome = await oldCreator.onSave(EntryDraftPayload())
+
+        guard case .completed = outcome else {
+            return XCTFail("An obsolete creator must not present validation errors, got \(outcome)")
+        }
+        XCTAssertNil(presenter.completedCredential)
+        XCTAssertFalse(presenter.didCompleteSavePassword)
+        XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
+        XCTAssertEqual(coordinator.parsedRootGroup?.id, replacementRootID)
+        XCTAssertNotNil(coordinator.sessionKey)
+        coordinator.cancelRequest(code: .userCanceled)
+    }
+
     func test_saveFromCreator_missingVaultState_showsErrorWithoutCompleting() async throws {
         let (coordinator, presenter) = makeCoordinator()
         seedPickerState(coordinator, reference: makeLocalReference())
@@ -198,9 +223,10 @@ final class CredentialProviderPickerCreationTests: XCTestCase {
             EntryDraftPayload(title: "GitHub", username: "octocat", password: "secret", url: "github.com")
         )
 
-        guard case .showError = outcome else {
+        guard case .showError(let message) = outcome else {
             return XCTFail("Expected an error outcome, got \(outcome)")
         }
+        XCTAssertEqual(message, SaveError.saveContextUnavailable.localizedDescription)
         XCTAssertNil(presenter.completedCredential)
     }
 #endif

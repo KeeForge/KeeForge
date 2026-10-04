@@ -10,6 +10,7 @@ final class CloudFolderBrowserViewModel {
     private(set) var errorMessage: String?
 
     @ObservationIgnored private var loadGeneration = 0
+    @ObservationIgnored private var listingAccountID: String?
 
     init(path: String?) {
         self.path = path
@@ -22,6 +23,11 @@ final class CloudFolderBrowserViewModel {
     func load(provider: CloudProvider, accountID: String, includesAllFiles: Bool) async {
         loadGeneration &+= 1
         let generation = loadGeneration
+        if listingAccountID != accountID {
+            listingAccountID = accountID
+            files = []
+            errorMessage = nil
+        }
         isLoading = true
 
         let result: Result<[CloudFile], Error>

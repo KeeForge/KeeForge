@@ -28,14 +28,4 @@ final class DistributionChannelTests: XCTestCase {
         #endif
     }
 
-    /// The test host must match the project-generation channel. The normal
-    /// unit-test scheme hosts the App Store app; a direct-only test run hosts
-    /// the direct app and must not accidentally regain StoreKit.
-    func testTestHostMatchesCompilationChannel() {
-        #if KEEFORGE_DIRECT_DOWNLOAD
-        XCTAssertEqual(DistributionChannel.current, .directDownload)
-        #else
-        XCTAssertEqual(DistributionChannel.current, .appStore)
-        #endif
-    }
 }

@@ -99,7 +99,7 @@ struct EntryListView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("search.entry.navlink")
             } else {
-                NavigationLink(value: entry) {
+                NavigationLink(value: DatabaseRoute.entry(entry.id)) {
                     EntryRow(
                         entry: entry,
                         username: viewModel.resolvingFieldReferences(entry.username),

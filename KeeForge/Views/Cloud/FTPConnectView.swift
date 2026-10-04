@@ -96,8 +96,10 @@ struct FTPConnectView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        viewModel.cancelPendingConnection()
                         onCancel()
                     }
+                    .disabled(viewModel.isConnecting)
                     .accessibilityIdentifier("ftp.connect.cancel")
                 }
 
@@ -112,6 +114,10 @@ struct FTPConnectView: View {
                     }
                 }
             }
+        }
+        .interactiveDismissDisabled(viewModel.isConnecting)
+        .onDisappear {
+            viewModel.cancelPendingConnection()
         }
         .macSheetFrame(minWidth: 480, minHeight: 380)
     }

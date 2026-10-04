@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prepare KeeForge Release"
+  short_description: "Prepare a new version or patch candidate"
+  default_prompt: "Use $prepare-release to prepare the first candidate for KeeForge version {version}."

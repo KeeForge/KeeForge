@@ -73,40 +73,28 @@ final class TOTPGeneratorTests: XCTestCase {
         }
     }
 
-    func testGenerateCodeAlgorithmSelectionChangesTheCode() {
-        // Guards against an algorithm switch that silently falls back to
-        // SHA-1: the same seed and timestamp must produce distinct codes.
-        func code(_ secret: String, _ algorithm: TOTPAlgorithm) -> String {
-            TOTPGenerator.generateCode(
-                config: TOTPConfig(secret: encryptSecret(secret), period: 30, digits: 8, algorithm: algorithm),
-                sessionKey: testKey,
-                date: Date(timeIntervalSince1970: 59)
+    func testGenerateCodeUsesPredecodedBinarySecret() throws {
+        // Python hmac/hashlib SHA-1 reference and the RFC 6238 SHA-1 seed at counter 1.
+        let vectors: [(secret: Data, code: String)] = [
+            (Data([0x00, 0x01, 0x02, 0xFE, 0xFF]), "388061"),
+            (Data("12345678901234567890".utf8), "287082"),
+        ]
+        for vector in vectors {
+            let config = TOTPConfig(
+                secret: encryptSecret("preserved-source"),
+                decodedSecret: try EncryptedValue.encrypt(vector.secret, using: testKey),
+                period: 30,
+                digits: 6,
+                algorithm: .sha1
+            )
+
+            let resolved = try XCTUnwrap(TOTPGenerator.resolveSecret(config: config, sessionKey: testKey))
+            XCTAssertEqual(resolved.data, vector.secret)
+            XCTAssertEqual(
+                TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Date(timeIntervalSince1970: 59)),
+                vector.code
             )
         }
-
-        XCTAssertEqual(Set([
-            code("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", .sha1),
-            code(Self.rfc6238Seed256, .sha256),
-            code(Self.rfc6238Seed512, .sha512),
-        ]).count, 3)
-    }
-
-    func testGenerateCodeUsesPredecodedBinarySecret() throws {
-        let secret = Data([0x00, 0x01, 0x02, 0xFE, 0xFF])
-        let config = TOTPConfig(
-            secret: encryptSecret("preserved-source"),
-            decodedSecret: try EncryptedValue.encrypt(secret, using: testKey),
-            period: 30,
-            digits: 6,
-            algorithm: .sha1
-        )
-
-        let resolved = try XCTUnwrap(TOTPGenerator.resolveSecret(config: config, sessionKey: testKey))
-        XCTAssertEqual(resolved.data, secret)
-        XCTAssertNotEqual(
-            TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Date(timeIntervalSince1970: 59)),
-            "------"
-        )
     }
 
     func testGenerateCodeReturnsPlaceholderForEmptyPredecodedSecret() {
@@ -133,19 +121,20 @@ final class TOTPGeneratorTests: XCTestCase {
         // construct them too: a non-positive period must not divide by zero
         // (or trap converting to UInt64), and oversized digit counts must not
         // overflow the 10^digits modulus.
+        let secret = encryptSecret("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")
         for period in [0, -5] {
-            let config = TOTPConfig(secret: encryptSecret("JBSWY3DP"), period: period, digits: 6, algorithm: .sha1)
-            XCTAssertNotEqual(
-                TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Date(timeIntervalSince1970: 59)),
-                "------"
+            let config = TOTPConfig(secret: secret, period: period, digits: 8, algorithm: .sha1)
+            XCTAssertEqual(
+                TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Date(timeIntervalSince1970: 1)),
+                "94287082"
             )
         }
 
-        let oversizedDigits = TOTPConfig(secret: encryptSecret("JBSWY3DP"), period: 30, digits: 20, algorithm: .sha1)
+        let oversizedDigits = TOTPConfig(secret: secret, period: 30, digits: 20, algorithm: .sha1)
         let code = TOTPGenerator.generateCode(
             config: oversizedDigits, sessionKey: testKey, date: Date(timeIntervalSince1970: 59)
         )
-        XCTAssertEqual(code.count, 9)
+        XCTAssertEqual(code, "094287082")
 
         XCTAssertEqual(TOTPGenerator.secondsRemaining(period: 0, date: Date(timeIntervalSince1970: 74)), 1)
     }

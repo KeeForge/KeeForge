@@ -152,9 +152,8 @@ enum AutoFillSaveCoordinator {
         //   2. saveDraft: SHA-check, backup, atomic cache replace
         //   3. finalize: write the payload SHA onto the marker as it is on
         //      disk (a drain may have touched it meanwhile), then wake the drainer
-        // A crash before the replace leaves cache == marker SHA, so a drain
-        // re-pushes identical bytes; after it, the mismatch surfaces as a
-        // conflict rather than a silent wrong push.
+        // A crash before replacement leaves the provisional marker deferred;
+        // after replacement, the SHA mismatch surfaces a visible conflict.
         var provisionalMarker: PendingUploadQueue.StoredMarker?
         if reference.isCloudBacked {
             let cacheURL = DatabaseListStore.cacheLocation(for: reference)

@@ -24,6 +24,7 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     private var _supportsIncrementalUpdatesValue = true
     private var _stored: [any ASCredentialIdentity] = []
     private var _calls: [String] = []
+    private var _removedIdentityBatches: [[any ASCredentialIdentity]] = []
     private var _onMutation: (@Sendable () -> Void)?
     private var _onEnumerate: (@Sendable () -> Void)?
     private var _enumerationError: CredentialIdentityStoreReadError?
@@ -61,6 +62,10 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     /// sequences of mutations can be asserted exactly.)
     var calls: [String] {
         lock.withLock { _calls }
+    }
+
+    var removedIdentityBatches: [[any ASCredentialIdentity]] {
+        lock.withLock { _removedIdentityBatches }
     }
 
     /// Invoked after every mutating call (replace/save/remove/removeAll),
@@ -137,6 +142,7 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
         defer { endMutation() }
         let hook = lock.withLock {
             _calls.append("removeCredentialIdentities")
+            _removedIdentityBatches.append(identities)
             // Drop stored identities carrying any of the removed identities'
             // record identifiers (all of the manager's removal paths key on
             // the record identifier).

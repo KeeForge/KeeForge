@@ -20614,6 +20614,46 @@
         }
       }
     },
+    "KeeForge supports 6-, 7-, or 8-digit verification codes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge unterstützt Bestätigungscodes mit 6, 7 oder 8 Ziffern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge admite códigos de verificación de 6, 7 u 8 dígitos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge prend en charge les codes de vérification à 6, 7 ou 8 chiffres."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForgeは6桁、7桁、8桁の確認コードに対応しています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 支持 6、7 或 8 位数的验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 支援 6、7 或 8 位數的驗證碼。"
+          }
+        }
+      }
+    },
     "KeeForge supports YubiKeys only for KDBX 4 databases. Turn off Hardware Key to open this database." : {
       "localizations" : {
         "de" : {
@@ -26852,6 +26892,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Public Suffix List"
+          }
+        }
+      }
+    },
+    "Purchase Failed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kauf fehlgeschlagen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error en la compra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Échec de l’achat"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購入に失敗しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "购买失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購買失敗"
+          }
+        }
+      }
+    },
+    "Purchase Pending" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kauf ausstehend"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compra pendiente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Achat en attente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購入保留中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "购买待批准"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購買待核准"
           }
         }
       }
@@ -34018,6 +34138,52 @@
         }
       }
     },
+    "The database contains an unsupported character (%@). Remove it from your text before saving." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbank enthält ein nicht unterstütztes Zeichen (%@). Entferne es vor dem Speichern aus deinem Text."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The database contains an unsupported character (%@). Remove it from your text before saving."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos contiene un carácter no compatible (%@). Elimínalo del texto antes de guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données contient un caractère non pris en charge (%@). Supprimez-le de votre texte avant d’enregistrer."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースにサポートされていない文字（%@）が含まれています。保存する前にテキストから削除してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库包含不支持的字符（%@）。请在保存前从文本中删除该字符。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫包含不支援的字元（%@）。請在儲存前從文字中刪除該字元。"
+          }
+        }
+      }
+    },
     "The database file changed since it was opened. Reload the database and try again." : {
       "localizations" : {
         "de" : {
@@ -39586,6 +39752,46 @@
         }
       }
     },
+    "Transaction could not be verified." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Transaktion konnte nicht verifiziert werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo verificar la transacción."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La transaction n’a pas pu être vérifiée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取引を確認できませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法验证交易。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法驗證交易。"
+          }
+        }
+      }
+    },
     "Try Again" : {
       "localizations" : {
         "de" : {
@@ -40106,6 +40312,46 @@
         }
       }
     },
+    "Unknown purchase result." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbekanntes Kaufergebnis."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resultado de compra desconocido."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Résultat d’achat inconnu."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明な購入結果です。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知的购买结果。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知的購買結果。"
+          }
+        }
+      }
+    },
     "Unlock" : {
       "localizations" : {
         "de" : {
@@ -40622,6 +40868,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 Apple Watch 解鎖"
+          }
+        }
+      }
+    },
+    "Unlock with Face ID" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Face ID entsperren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquear con Face ID"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouiller avec Face ID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Face IDでロック解除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Face ID 解锁"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Face ID 解鎖"
+          }
+        }
+      }
+    },
+    "Unlock with Touch ID" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Touch ID entsperren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquear con Touch ID"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouiller avec Touch ID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch IDでロック解除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Touch ID 解锁"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Touch ID 解鎖"
           }
         }
       }
@@ -43502,6 +43828,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的支持對我們意義重大。感謝你讓 KeeForge 得以持續發展！"
+          }
+        }
+      }
+    },
+    "Your tip needs approval before it completes (for example, via Ask to Buy). It'll finish automatically once approved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Trinkgeld muss vor dem Abschluss genehmigt werden (zum Beispiel über eine Kaufanfrage). Nach der Genehmigung wird es automatisch abgeschlossen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu propina necesita aprobación para completarse (por ejemplo, mediante Solicitar la compra). Se completará automáticamente cuando se apruebe."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre pourboire doit être approuvé avant d’être finalisé (par exemple, via Demander l’autorisation d’achat). Il sera finalisé automatiquement après approbation."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チップの購入を完了するには承認が必要です（「承認と購入のリクエスト」など）。承認されると自動的に完了します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您的打赏需要批准才能完成（例如通过“购买前询问”）。批准后会自动完成。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您的打賞需要核准才能完成（例如透過「購買前詢問」）。核准後會自動完成。"
           }
         }
       }

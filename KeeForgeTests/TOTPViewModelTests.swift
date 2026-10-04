@@ -39,4 +39,48 @@ final class TOTPViewModelTests: XCTestCase {
         XCTAssertEqual(TOTPViewModel.grouped("1234567"), "1234567", "Seven digits have no middle to split at")
         XCTAssertEqual(TOTPViewModel.grouped("------"), "--- ---")
     }
+
+    func testUpdatingConfigurationReplacesCodeAndCountdown() {
+        let vm = TOTPViewModel(config: TOTPConfig(secret: encryptSecret("JBSWY3DPEHPK3PXP")), sessionKey: testKey)
+        vm.start()
+        defer { vm.stop() }
+        let updated = TOTPConfig(
+            secret: encryptSecret("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"),
+            period: 60,
+            digits: 8,
+            algorithm: .sha256
+        )
+        let date = Date(timeIntervalSince1970: 1234)
+
+        vm.update(config: updated, sessionKey: testKey, date: date)
+
+        XCTAssertEqual(vm.code, TOTPGenerator.generateCode(config: updated, sessionKey: testKey, date: date))
+        XCTAssertEqual(vm.code.count, 8)
+        XCTAssertEqual(vm.period, 60)
+        XCTAssertEqual(vm.secondsRemaining, 26)
+        XCTAssertEqual(vm.progress, 26.0 / 60.0)
+    }
+
+    func testUpdatingDecodedSecretAndSessionKeyUsesReplacementKey() throws {
+        let vm = TOTPViewModel(config: TOTPConfig(secret: encryptSecret("JBSWY3DPEHPK3PXP")), sessionKey: testKey)
+        let replacementKey = SymmetricKey(size: .bits256)
+        let updated = TOTPConfig(
+            secret: .empty,
+            decodedSecret: try EncryptedValue.encrypt(Data("replacement secret".utf8), using: replacementKey)
+        )
+        let date = Date(timeIntervalSince1970: 1234)
+
+        vm.update(config: updated, sessionKey: replacementKey, date: date)
+
+        XCTAssertEqual(vm.code, TOTPGenerator.generateCode(config: updated, sessionKey: replacementKey, date: date))
+        XCTAssertNotEqual(vm.code, "------")
+    }
+
+    func testUpdatingToUnreadableSecretDoesNotKeepPreviousCode() {
+        let vm = TOTPViewModel(config: TOTPConfig(secret: encryptSecret("JBSWY3DPEHPK3PXP")), sessionKey: testKey)
+
+        vm.update(config: TOTPConfig(secret: encryptSecret("not a valid secret!")), sessionKey: testKey)
+
+        XCTAssertEqual(vm.code, "------")
+    }
 }

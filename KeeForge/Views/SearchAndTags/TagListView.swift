@@ -1,17 +1,5 @@
 import SwiftUI
 
-/// A tag-browser screen reachable by pushing onto a database navigation stack.
-///
-/// Tags need their own destination type: `UUID` already means "group" and
-/// `KPEntry` already means "entry" in both stack shells, and a bare `String`
-/// would collide with any future string-valued destination. Both shells
-/// register this one type, so a tag pushed from the Tags view or from an
-/// entry-detail chip lands on the same screen.
-enum TagDestination: Hashable {
-    /// The entries carrying `tag`, matched exact-string.
-    case entries(tag: String)
-}
-
 /// Per-tag accessibility identifier suffixes. Tag names are arbitrary user text,
 /// so they are normalized the same way `EntryEditViewModel` normalizes custom
 /// field keys — lowercased, spaces and slashes hyphenated — with an index
@@ -63,7 +51,7 @@ struct TagListRows: View {
 
     @ViewBuilder
     private func tagRow(for tag: String, fallbackIndex: Int) -> some View {
-        NavigationLink(value: TagDestination.entries(tag: tag)) {
+        NavigationLink(value: DatabaseRoute.tag(tag)) {
             TagRow(tag: tag, entryCount: viewModel.entryCount(forTag: tag))
         }
         .accessibilityIdentifier(

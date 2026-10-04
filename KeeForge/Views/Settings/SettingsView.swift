@@ -8,22 +8,8 @@ struct SettingsView: View {
     let listViewModel: DatabaseListViewModel
     @Environment(\.dismiss) private var dismiss
 
-    @State private var autoLockTimeout = SettingsService.autoLockTimeout
-    @State private var lockOnBackground = SettingsService.lockOnBackground
-    @State private var clipboardTimeout = SettingsService.clipboardTimeout
-    @State private var autoUnlockWithFaceID = SettingsService.autoUnlockWithFaceID
-    @State private var showWebsiteIcons = SettingsService.showWebsiteIcons
-    @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
-    @State private var appearanceMode = SettingsService.appearanceMode
-    @State private var appAccentColor = SettingsService.appAccentColor
-    @State private var quickAutoFillEnabled = SettingsService.quickAutoFillEnabled
-    @State private var autoFillCopyTOTP = SettingsService.autoFillCopyTOTP
-    @State private var sortOrder = DatabaseViewModel.savedSortOrder()
-    @State private var sortAscending = DatabaseViewModel.savedSortAscending()
-    @State private var cloudAccounts = CloudAccountStore.accounts
+    @State private var settings = AppSettingsViewModel()
     @State private var feedbackContext: FeedbackComposerContext?
-    @State private var macLockPolicy = SettingsService.macLockPolicy
-    @State private var blockScreenCapture = SettingsService.blockScreenCapture
     #if os(macOS)
     @State private var selectedMacTab: MacSettingsTab = .security
     @Environment(MacQuickAccessController.self) private var quickAccess: MacQuickAccessController?
@@ -40,6 +26,13 @@ struct SettingsView: View {
         }
         .tint(resolvedAppAccentColor)
         .preferredColorScheme(preferredColorScheme)
+        .onAppear {
+            settings.connect(to: viewModel)
+            settings.reload()
+        }
+        .onChange(of: viewModel.map(ObjectIdentifier.init)) { _, _ in
+            settings.connect(to: viewModel)
+        }
         .sheet(item: $feedbackContext) { context in
             FeedbackComposerView(context: context)
         }
@@ -49,19 +42,20 @@ struct SettingsView: View {
     /// Settings-window layout: the standard macOS tabbed settings shape,
     /// shown by the `Settings { }` scene (⌘,) and by in-app settings sheets.
     private var macSettingsLayout: some View {
-        applyingChangeHandlers(macSettingsTabs)
+        macSettingsTabs
     }
 
     private var macSettingsTabs: some View {
+        @Bindable var settings = settings
         // An explicit selection defaulting to Security keeps the window landing
         // on the first tab rather than restoring a previously selected one.
-        TabView(selection: $selectedMacTab) {
+        return TabView(selection: $selectedMacTab) {
             MacSecuritySettingsTab(
-                autoLockTimeout: $autoLockTimeout,
-                macLockPolicy: $macLockPolicy,
-                clipboardTimeout: $clipboardTimeout,
-                autoUnlockWithBiometrics: $autoUnlockWithFaceID,
-                blockScreenCapture: $blockScreenCapture
+                autoLockTimeout: $settings.autoLockTimeout,
+                macLockPolicy: $settings.macLockPolicy,
+                clipboardTimeout: $settings.clipboardTimeout,
+                autoUnlockWithBiometrics: $settings.autoUnlockWithFaceID,
+                blockScreenCapture: $settings.blockScreenCapture
             )
             .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
             .tabItem {
@@ -71,9 +65,10 @@ struct SettingsView: View {
             .tag(MacSettingsTab.security)
 
             AutoFillSettingsView(
-                quickAutoFillEnabled: $quickAutoFillEnabled,
-                autoFillCopyTOTP: $autoFillCopyTOTP,
-                listViewModel: listViewModel
+                quickAutoFillEnabled: $settings.quickAutoFillEnabled,
+                autoFillCopyTOTP: $settings.autoFillCopyTOTP,
+                listViewModel: listViewModel,
+                clearEntries: settings.clearAutoFillEntries
             )
             .formStyle(.grouped)
             .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
@@ -94,12 +89,13 @@ struct SettingsView: View {
             }
 
             MacDisplaySettingsTab(
-                showWebsiteIcons: $showWebsiteIcons,
-                showDatabaseUsageStats: $showDatabaseUsageStats,
-                appearanceMode: $appearanceMode,
-                appAccentColor: $appAccentColor,
-                sortOrder: $sortOrder,
-                sortAscending: $sortAscending
+                showWebsiteIcons: $settings.showWebsiteIcons,
+                showDatabaseUsageStats: $settings.showDatabaseUsageStats,
+                appearanceMode: $settings.appearanceMode,
+                appAccentColor: $settings.appAccentColor,
+                sortOrder: $settings.sortOrder,
+                sortAscending: $settings.sortAscending,
+                clearFaviconCache: settings.clearFaviconCache
             )
             .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
             .tabItem {
@@ -108,7 +104,7 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings.tab.display")
             .tag(MacSettingsTab.display)
 
-            CloudAccountsSettingsView(cloudAccounts: $cloudAccounts)
+            CloudAccountsSettingsView(settings: settings)
                 .formStyle(.grouped)
                 .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
                 .tabItem {
@@ -136,14 +132,12 @@ struct SettingsView: View {
     #else
     private var iosSettingsLayout: some View {
         NavigationStack {
-            applyingChangeHandlers(
-                Form {
-                    settingsNavigationSection
-                    feedbackSection
-                    SupportKeeForgeSection()
-                    aboutNavigationSection
-                }
-            )
+            Form {
+                settingsNavigationSection
+                feedbackSection
+                SupportKeeForgeSection()
+                aboutNavigationSection
+            }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -158,78 +152,8 @@ struct SettingsView: View {
     }
     #endif
 
-    /// Shared persistence handlers applied to both the iOS and macOS layouts.
-    private func applyingChangeHandlers(_ content: some View) -> some View {
-        content
-            .onChange(of: autoLockTimeout) { _, newValue in
-                SettingsService.autoLockTimeout = newValue
-                viewModel?.resetInactivityTimer()
-            }
-            .onChange(of: lockOnBackground) { _, newValue in
-                SettingsService.lockOnBackground = newValue
-            }
-            .onChange(of: macLockPolicy) { _, newValue in
-                SettingsService.macLockPolicy = newValue
-            }
-            .onChange(of: blockScreenCapture) { _, newValue in
-                SettingsService.blockScreenCapture = newValue
-                #if os(macOS)
-                // Tell the live screen-protection service to re-apply the
-                // capture policy to already-open windows immediately.
-                NotificationCenter.default.post(
-                    name: ScreenProtectionService.captureBlockingDidChangeNotification,
-                    object: nil
-                )
-                #endif
-            }
-            .onChange(of: clipboardTimeout) { _, newValue in
-                SettingsService.clipboardTimeout = newValue
-            }
-            .onChange(of: autoUnlockWithFaceID) { _, newValue in
-                SettingsService.autoUnlockWithFaceID = newValue
-            }
-            .onChange(of: autoFillCopyTOTP) { _, newValue in
-                SettingsService.autoFillCopyTOTP = newValue
-            }
-            .onChange(of: showWebsiteIcons) { _, newValue in
-                SettingsService.showWebsiteIcons = newValue
-            }
-            .onChange(of: showDatabaseUsageStats) { _, newValue in
-                SettingsService.showDatabaseUsageStats = newValue
-            }
-            .onChange(of: appearanceMode) { _, newValue in
-                SettingsService.appearanceMode = newValue
-            }
-            .onChange(of: appAccentColor) { _, newValue in
-                SettingsService.appAccentColor = newValue
-            }
-            .onChange(of: quickAutoFillEnabled) { _, newValue in
-                SettingsService.quickAutoFillEnabled = newValue
-                if newValue {
-                    // No per-database gate needed —
-                    // `populateCredentialStoreIfUnlocked` re-reads the registry
-                    // and no-ops for a database with AutoFill disabled. Other
-                    // databases repopulate on their next unlock.
-                    viewModel?.populateCredentialStoreIfUnlocked()
-                } else {
-                    CredentialIdentityStoreManager.clearStore()
-                }
-            }
-            .onChange(of: sortOrder) { _, newValue in
-                DatabaseViewModel.persistSortOrder(newValue)
-                viewModel?.sortOrder = newValue
-            }
-            .onChange(of: sortAscending) { _, newValue in
-                DatabaseViewModel.persistSortAscending(newValue)
-                viewModel?.sortAscending = newValue
-            }
-            .onAppear {
-                cloudAccounts = CloudAccountStore.accounts
-            }
-    }
-
     private var preferredColorScheme: ColorScheme? {
-        switch appearanceMode {
+        switch settings.appearanceMode {
         case .system:
             return nil
         case .light:
@@ -240,17 +164,18 @@ struct SettingsView: View {
     }
 
     private var resolvedAppAccentColor: Color {
-        appAccentColor?.color ?? Color("AccentColor")
+        settings.appAccentColor?.color ?? Color("AccentColor")
     }
 
     private var settingsNavigationSection: some View {
-        Section {
+        @Bindable var settings = settings
+        return Section {
             NavigationLink {
                 SecuritySettingsView(
-                    autoLockTimeout: $autoLockTimeout,
-                    lockOnBackground: $lockOnBackground,
-                    clipboardTimeout: $clipboardTimeout,
-                    autoUnlockWithFaceID: $autoUnlockWithFaceID
+                    autoLockTimeout: $settings.autoLockTimeout,
+                    lockOnBackground: $settings.lockOnBackground,
+                    clipboardTimeout: $settings.clipboardTimeout,
+                    autoUnlockWithFaceID: $settings.autoUnlockWithFaceID
                 )
             } label: {
                 SettingsSummaryRow(
@@ -258,8 +183,8 @@ struct SettingsView: View {
                     systemImage: "lock.shield",
                     summary: AppSettingsSummary.security(
                         autoUnlockBiometric: autoUnlockBiometric,
-                        autoLockTimeout: autoLockTimeout,
-                        lockOnBackground: lockOnBackground
+                        autoLockTimeout: settings.autoLockTimeout,
+                        lockOnBackground: settings.lockOnBackground
                     )
                 )
             }
@@ -267,9 +192,10 @@ struct SettingsView: View {
 
             NavigationLink {
                 AutoFillSettingsView(
-                    quickAutoFillEnabled: $quickAutoFillEnabled,
-                    autoFillCopyTOTP: $autoFillCopyTOTP,
-                    listViewModel: listViewModel
+                    quickAutoFillEnabled: $settings.quickAutoFillEnabled,
+                    autoFillCopyTOTP: $settings.autoFillCopyTOTP,
+                    listViewModel: listViewModel,
+                    clearEntries: settings.clearAutoFillEntries
                 )
             } label: {
                 SettingsSummaryRow(
@@ -285,34 +211,35 @@ struct SettingsView: View {
 
             NavigationLink {
                 DisplaySettingsView(
-                    showWebsiteIcons: $showWebsiteIcons,
-                    showDatabaseUsageStats: $showDatabaseUsageStats,
-                    appearanceMode: $appearanceMode,
-                    appAccentColor: $appAccentColor,
-                    sortOrder: $sortOrder,
-                    sortAscending: $sortAscending
+                    showWebsiteIcons: $settings.showWebsiteIcons,
+                    showDatabaseUsageStats: $settings.showDatabaseUsageStats,
+                    appearanceMode: $settings.appearanceMode,
+                    appAccentColor: $settings.appAccentColor,
+                    sortOrder: $settings.sortOrder,
+                    sortAscending: $settings.sortAscending,
+                    clearFaviconCache: settings.clearFaviconCache
                 )
             } label: {
                 SettingsSummaryRow(
                     title: "Display",
                     systemImage: "eye",
                     summary: AppSettingsSummary.display(
-                        appearanceMode: appearanceMode,
-                        showWebsiteIcons: showWebsiteIcons
+                        appearanceMode: settings.appearanceMode,
+                        showWebsiteIcons: settings.showWebsiteIcons
                     )
                 )
             }
             .accessibilityIdentifier("settings.display.link")
 
             NavigationLink {
-                CloudAccountsSettingsView(cloudAccounts: $cloudAccounts)
+                CloudAccountsSettingsView(settings: settings)
                     .navigationTitle("Cloud Accounts")
                     .navigationBarTitleDisplayMode(.inline)
             } label: {
                 SettingsSummaryRow(
                     title: "Cloud Accounts",
                     systemImage: "cloud",
-                    summary: AppSettingsSummary.cloudAccounts(cloudAccounts)
+                    summary: AppSettingsSummary.cloudAccounts(settings.cloudAccounts)
                 )
             }
             .accessibilityIdentifier("settings.cloud.link")
@@ -322,7 +249,7 @@ struct SettingsView: View {
     /// The biometric the Security row names: only the one that actually
     /// unlocks on its own, so the row never claims a switch that is off.
     private var autoUnlockBiometric: BiometricService.BiometricType {
-        guard BiometricAutoUnlockPolicy.allowsAutomaticUnlock, autoUnlockWithFaceID else { return .none }
+        guard BiometricAutoUnlockPolicy.allowsAutomaticUnlock, settings.autoUnlockWithFaceID else { return .none }
         return biometricType
     }
 
@@ -406,6 +333,7 @@ private struct AutoFillSettingsView: View {
     /// It also owns the system-provider state, so this screen and the database
     /// list's tip banner cannot disagree about whether AutoFill is authorized.
     let listViewModel: DatabaseListViewModel
+    let clearEntries: () -> Void
     @State private var isClearEntriesConfirmationPresented = false
     @Environment(\.scenePhase) private var scenePhase
 
@@ -515,7 +443,7 @@ private struct AutoFillSettingsView: View {
                 // after clearing: the user asked for an empty store now.
                 // Suggestions rebuild as enabled databases are next unlocked.
                 Button("Clear Entries", role: .destructive) {
-                    CredentialIdentityStoreManager.clearStore()
+                    clearEntries()
                 }
                 .accessibilityIdentifier("settings.autofill.clear-entries.confirm")
 
@@ -601,6 +529,7 @@ private struct DisplaySettingsView: View {
     @Binding var appAccentColor: SettingsService.AppAccentColor?
     @Binding var sortOrder: DatabaseViewModel.SortOrder
     @Binding var sortAscending: Bool
+    let clearFaviconCache: () -> Void
 
     var body: some View {
         Form {
@@ -612,7 +541,7 @@ private struct DisplaySettingsView: View {
             if showWebsiteIcons {
                 Section {
                     Button("Clear Favicon Cache", role: .destructive) {
-                        FaviconService.clearCache()
+                        clearFaviconCache()
                     }
                     .accessibilityIdentifier("settings.display.clear-favicon-cache")
                 }
@@ -691,17 +620,17 @@ private struct DisplaySettingsView: View {
 }
 
 private struct CloudAccountsSettingsView: View {
-    @Binding var cloudAccounts: [CloudAccount]
+    let settings: AppSettingsViewModel
     @State private var pendingCloudAccountSignOut: CloudAccount?
 
     var body: some View {
         Form {
             Section {
-                if cloudAccounts.isEmpty {
+                if settings.cloudAccounts.isEmpty {
                     Text("No cloud accounts connected")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(cloudAccounts) { account in
+                    ForEach(settings.cloudAccounts) { account in
                         HStack {
                             Label {
                                 Text(account.displayName)
@@ -727,8 +656,7 @@ private struct CloudAccountsSettingsView: View {
                                 )
                             ) {
                                 Button("Disconnect", role: .destructive) {
-                                    CloudProviderRegistry.provider(for: account.provider)?.signOut(accountId: account.id)
-                                    cloudAccounts = CloudAccountStore.accounts
+                                    settings.signOut(account)
                                     pendingCloudAccountSignOut = nil
                                 }
 
@@ -745,7 +673,7 @@ private struct CloudAccountsSettingsView: View {
             } header: {
                 Text("Cloud Accounts")
             } footer: {
-                if cloudAccounts.isEmpty {
+                if settings.cloudAccounts.isEmpty {
                     Text("Add a cloud database from the database list to connect an account.")
                 } else {
                     Text("Signing out disconnects future syncs but keeps cached cloud databases available until you remove them.")
@@ -922,6 +850,7 @@ private struct MacDisplaySettingsTab: View {
     @Binding var appAccentColor: SettingsService.AppAccentColor?
     @Binding var sortOrder: DatabaseViewModel.SortOrder
     @Binding var sortAscending: Bool
+    let clearFaviconCache: () -> Void
 
     var body: some View {
         Form {
@@ -979,7 +908,7 @@ private struct MacDisplaySettingsTab: View {
             if showWebsiteIcons {
                 Section {
                     Button("Clear Favicon Cache", role: .destructive) {
-                        FaviconService.clearCache()
+                        clearFaviconCache()
                     }
                     .accessibilityIdentifier("settings.display.clear-favicon-cache")
                 }

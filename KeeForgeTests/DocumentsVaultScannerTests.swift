@@ -123,14 +123,17 @@ final class DocumentsVaultScannerTests: XCTestCase {
     func testScanRebindsReferenceWhoseBookmarkResolvesIntoTrash() throws {
         let url = try writeDatabaseFile(named: "vault.kdbx", payload: "original")
         DocumentsVaultScanner.scan(directory: documentsDirectory)
-        let reference = try XCTUnwrap(DatabaseListStore.databases.first)
+        var reference = try XCTUnwrap(DatabaseListStore.databases.first)
 
-        // Files-app Delete: the bookmark keeps following the old copy into
-        // .Trash while a fresh file appears at the original path.
         let trashDirectory = documentsDirectory.appendingPathComponent(".Trash", isDirectory: true)
         try FileManager.default.createDirectory(at: trashDirectory, withIntermediateDirectories: true)
-        try FileManager.default.moveItem(at: url, to: trashDirectory.appendingPathComponent("vault.kdbx"))
+        let trashedURL = trashDirectory.appendingPathComponent("vault.kdbx")
+        try FileManager.default.moveItem(at: url, to: trashedURL)
         let replacedContents = try writeDatabaseFile(named: "vault.kdbx", payload: "replaced")
+        reference.bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: trashedURL)
+        DatabaseListStore.update(reference)
+        let resolvedBeforeScan = try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: try XCTUnwrap(reference.bookmarkData)))
+        XCTAssertEqualFilePaths(resolvedBeforeScan.url, trashedURL)
 
         DocumentsVaultScanner.scan(directory: documentsDirectory)
 

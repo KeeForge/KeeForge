@@ -14,7 +14,7 @@ Review changed behavior and its surrounding contracts before the release process
 Produce evidence-backed findings and a focused manual test plan. Invocation authorizes
 necessary verification, including tests, and writing review artifacts. Source fixes,
 website edits, issue mutations, commits, and release operations are separate work unless
-the user also requests them. Do not invoke the release skill automatically.
+the user also requests them. Do not invoke release preparation, respinning, or shipping skills automatically.
 
 ## Establish the scope
 
@@ -91,6 +91,10 @@ or a finished What's New sheet before release preparation. Historical `docs/spec
 context, not maintained contracts; do not propose synchronizing them by default.
 
 ### Coverage and test quality
+
+Use [test-audit](../test-audit/SKILL.md)'s authoring and retention criteria when judging
+test quality. Keep this review scoped to changed behavior; an exhaustive subsystem
+campaign is separate work, and findings belong in this review's existing report.
 
 Map changed behavior to actual test assertions and execution destinations. Assess:
 
