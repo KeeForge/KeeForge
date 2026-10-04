@@ -52,6 +52,7 @@ struct DatabaseListView: View {
     @State private var isDatabaseCreationPresented = false
     @State private var exportRequest: DatabaseExportRequest?
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
     #if os(iOS)
     @State private var editMode: EditMode = .inactive
     #endif
@@ -253,11 +254,23 @@ struct DatabaseListView: View {
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            if viewModel.shouldShowAutoFillTip {
-                AutoFillTipBanner(
-                    onEnable: { Task { await viewModel.requestEnableAutoFill() } },
-                    onDismiss: { viewModel.dismissAutoFillTip() }
-                )
+            VStack(spacing: 0) {
+                if viewModel.shouldShowMacAppSuggestion {
+                    MacAppSuggestionBanner(
+                        onOpen: {
+                            if let url = MacAppSuggestionService.appStoreURL {
+                                openURL(url)
+                            }
+                        },
+                        onDismiss: { viewModel.dismissMacAppSuggestion() }
+                    )
+                }
+                if viewModel.shouldShowAutoFillTip {
+                    AutoFillTipBanner(
+                        onEnable: { Task { await viewModel.requestEnableAutoFill() } },
+                        onDismiss: { viewModel.dismissAutoFillTip() }
+                    )
+                }
             }
         }
         .navigationTitle("KeeForge")
