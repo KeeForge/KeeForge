@@ -271,10 +271,11 @@ struct KeeForgeCommands: Commands {
         Task { @MainActor in
             // Same device-owner gate as reveal/copy in the entry detail view:
             // biometrics when available, login password / Apple Watch
-            // otherwise. Only skipped when the device has no protection at all.
-            if BiometricService.canAuthenticateDeviceOwner {
+            // otherwise. Only skipped inside the authentication grace period,
+            // or when the device has no protection at all.
+            if viewModel.secretAccess.requiresAuthentication {
                 do {
-                    _ = try await BiometricService.authenticateDeviceOwner(reason: String(localized: "Copy password"))
+                    try await viewModel.secretAccess.authenticate(reason: String(localized: "Copy password"))
                 } catch {
                     return
                 }

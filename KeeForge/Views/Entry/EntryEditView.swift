@@ -412,7 +412,7 @@ struct EntryEditView: View {
 
         guard isAuthenticatingReveal == false else { return }
         guard formViewModel.requiresAuthenticationToRevealPassword,
-              BiometricService.canAuthenticateDeviceOwner else {
+              databaseViewModel.secretAccess.requiresAuthentication else {
             HapticService.tap()
             isVisible.wrappedValue = true
             return
@@ -421,7 +421,7 @@ struct EntryEditView: View {
         isAuthenticatingReveal = true
         Task {
             do {
-                _ = try await BiometricService.authenticateDeviceOwner(reason: reason)
+                try await databaseViewModel.secretAccess.authenticate(reason: reason)
                 await MainActor.run {
                     HapticService.success()
                     isVisible.wrappedValue = true

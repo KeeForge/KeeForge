@@ -274,6 +274,36 @@ final class HardwareKeyUnlockTests: XCTestCase {
         assertLocked(vm, "an immediate auto-lock must apply to a session opened in the background")
     }
 
+    // Backgrounding ends the grace period, so an unlock that finishes while
+    // the app is still away must not open one for the return.
+    func testUnlockFinishingInTheBackgroundOpensNoAuthenticationGracePeriod() async throws {
+        let savedLockOnBackground = SettingsService.lockOnBackground
+        let savedAutoLockTimeout = SettingsService.autoLockTimeout
+        let savedGracePeriod = SettingsService.authenticationGracePeriod
+        defer {
+            SettingsService.lockOnBackground = savedLockOnBackground
+            SettingsService.autoLockTimeout = savedAutoLockTimeout
+            SettingsService.authenticationGracePeriod = savedGracePeriod
+        }
+        SettingsService.lockOnBackground = false
+        SettingsService.autoLockTimeout = .never
+        SettingsService.authenticationGracePeriod = .fiveMinutes
+        let key = HeldYubiKey()
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC, respond: key.respond)
+
+        let unlock = Task { await vm.unlock(password: fixture.password) }
+        try await waitUntil { key.isHolding }
+        vm.handleSceneDidEnterBackground()
+        key.answer()
+        await unlock.value
+        vm.handleSceneDidBecomeActive()
+
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected unlocked, got \(vm.state)")
+        }
+        XCTAssertFalse(vm.secretAccess.isWithinGracePeriod)
+    }
+
     func testUnlockFinishingAfterTheReturnIsNotTreatedAsBackgrounded() async throws {
         let savedLockOnBackground = SettingsService.lockOnBackground
         let savedAutoLockTimeout = SettingsService.autoLockTimeout
