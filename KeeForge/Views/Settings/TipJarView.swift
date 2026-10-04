@@ -47,12 +47,12 @@ struct TipJarView: View {
                 showThankYou = true
             case .pending:
                 purchaseNotice = PurchaseNotice(
-                    title: "Purchase Pending",
-                    message: "Your tip needs approval before it completes (for example, via Ask to Buy). It'll finish automatically once approved."
+                    title: String(localized: "Purchase Pending"),
+                    message: String(localized: "Your tip needs approval before it completes (for example, via Ask to Buy). It'll finish automatically once approved.")
                 )
             case .error(let message):
                 purchaseNotice = PurchaseNotice(
-                    title: "Purchase Failed",
+                    title: String(localized: "Purchase Failed"),
                     message: message
                 )
             case .cancelled, nil:

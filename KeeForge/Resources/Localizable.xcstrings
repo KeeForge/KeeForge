@@ -26896,6 +26896,86 @@
         }
       }
     },
+    "Purchase Failed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kauf fehlgeschlagen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error en la compra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Échec de l’achat"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購入に失敗しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "购买失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購買失敗"
+          }
+        }
+      }
+    },
+    "Purchase Pending" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kauf ausstehend"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compra pendiente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Achat en attente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購入保留中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "购买待批准"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購買待核准"
+          }
+        }
+      }
+    },
     "Push pending changes" : {
       "localizations" : {
         "de" : {
@@ -39672,6 +39752,46 @@
         }
       }
     },
+    "Transaction could not be verified." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Transaktion konnte nicht verifiziert werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo verificar la transacción."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La transaction n’a pas pu être vérifiée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取引を確認できませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法验证交易。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法驗證交易。"
+          }
+        }
+      }
+    },
     "Try Again" : {
       "localizations" : {
         "de" : {
@@ -40188,6 +40308,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存此項目時會保留未知的 KeePass XML。"
+          }
+        }
+      }
+    },
+    "Unknown purchase result." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbekanntes Kaufergebnis."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resultado de compra desconocido."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Résultat d’achat inconnu."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明な購入結果です。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知的购买结果。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知的購買結果。"
           }
         }
       }
@@ -43588,6 +43748,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的支持對我們意義重大。感謝你讓 KeeForge 得以持續發展！"
+          }
+        }
+      }
+    },
+    "Your tip needs approval before it completes (for example, via Ask to Buy). It'll finish automatically once approved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Trinkgeld muss vor dem Abschluss genehmigt werden (zum Beispiel über eine Kaufanfrage). Nach der Genehmigung wird es automatisch abgeschlossen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu propina necesita aprobación para completarse (por ejemplo, mediante Solicitar la compra). Se completará automáticamente cuando se apruebe."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre pourboire doit être approuvé avant d’être finalisé (par exemple, via Demander l’autorisation d’achat). Il sera finalisé automatiquement après approbation."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チップの購入を完了するには承認が必要です（「承認と購入のリクエスト」など）。承認されると自動的に完了します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您的打赏需要批准才能完成（例如通过“购买前询问”）。批准后会自动完成。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您的打賞需要核准才能完成（例如透過「購買前詢問」）。核准後會自動完成。"
           }
         }
       }

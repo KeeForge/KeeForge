@@ -18,7 +18,7 @@
 - AutoFill ignores late results from cancelled requests instead of applying them to a newer request.
 - Switching cloud accounts clears the previous account’s files. Closing creation or connection forms no longer lets late results reopen them.
 - Website icons refresh when an entry’s address changes, and selecting a key file no longer blocks the unlock screen while it loads.
-- Unsupported verification-code lengths show the correct explanation.
+- Tip jar purchase notices are translated, and unsupported verification-code lengths show the correct explanation.
 - On Mac, the setup-link and AutoFill passkey forms show editable fields correctly, and disabling the menu bar stops shortcut recording.
 - The direct-download Mac app keeps Check for Updates available in step with the updater.
 - The group editor stays open until a save conflict has been resolved, so you can finish saving without losing your place.
