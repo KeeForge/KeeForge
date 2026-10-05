@@ -4246,6 +4246,12 @@
             "value" : "Après avoir déverrouillé une base de données ou vous être authentifié, les mots de passe et les champs protégés peuvent être affichés et copiés pendant cette durée sans nouvelle demande. Verrouiller la base de données y met fin. Le remplissage automatique n'est pas concerné."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dopo aver sbloccato un database o esserti autenticato, le password e i campi protetti possono essere mostrati e copiati per questo intervallo di tempo senza che venga chiesto di nuovo. Il blocco del database lo termina. L'inserimento automatico non è interessato."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4290,6 +4296,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Après avoir déverrouillé une base de données ou vous être authentifié, les mots de passe et les champs protégés peuvent être affichés et copiés pendant cette durée sans nouvelle demande. Verrouiller la base de données ou quitter KeeForge y met fin. Le remplissage automatique n'est pas concerné."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dopo aver sbloccato un database o esserti autenticato, le password e i campi protetti possono essere mostrati e copiati per questo intervallo di tempo senza che venga chiesto di nuovo. Il blocco del database o l'uscita da KeeForge lo termina. L'inserimento automatico non è interessato."
           }
         },
         "ja" : {
@@ -4648,6 +4660,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Toujours demander"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiedi sempre"
           }
         },
         "ja" : {
@@ -5942,6 +5960,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Délai de grâce d'authentification"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Periodo di tolleranza per l'autenticazione"
           }
         },
         "ja" : {
@@ -20298,6 +20322,12 @@
             "value" : "Expiration"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scadenza"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20446,6 +20476,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Date d'expiration"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data di scadenza"
           }
         },
         "ja" : {
@@ -24290,6 +24326,12 @@
             "value" : "Dans 1 mois"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tra 1 mese"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -24334,6 +24376,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dans 1 an"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tra 1 anno"
           }
         },
         "ja" : {
@@ -24382,6 +24430,12 @@
             "value" : "Dans 3 mois"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tra 3 mesi"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -24426,6 +24480,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dans 6 mois"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tra 6 mesi"
           }
         },
         "ja" : {
@@ -35342,6 +35402,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Préréglages"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preimpostazioni"
           }
         },
         "ja" : {
@@ -49808,6 +49874,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette date est passée, l'entrée sera donc affichée comme expirée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa data è già passata, quindi la voce verrà mostrata come scaduta."
           }
         },
         "ja" : {
