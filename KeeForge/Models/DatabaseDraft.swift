@@ -1075,7 +1075,7 @@ struct DatabaseDraft: Sendable {
             )
         )
         try validateText(in: draft, protectedStringKeys: entry.protectedStringKeys)
-        return entry
+        return draft.expiry.map { EntryExpiryXML.entry(entry, expiring: $0) } ?? entry
     }
 
     private func makeUpdatedEntry(
@@ -1126,7 +1126,7 @@ struct DatabaseDraft: Sendable {
             attachments: originalEntry.attachments
         )
         try validateText(in: draft, protectedStringKeys: entry.protectedStringKeys)
-        return entry
+        return draft.expiry.map { EntryExpiryXML.entry(entry, expiring: $0) } ?? entry
     }
 
     private func validateText(in draft: EntryDraftPayload, protectedStringKeys: Set<String>) throws {

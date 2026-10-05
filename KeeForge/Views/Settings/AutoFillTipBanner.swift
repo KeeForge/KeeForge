@@ -43,19 +43,6 @@ struct AutoFillTipBanner: View {
                 .accessibilityIdentifier("autofill-tip.enable")
             #endif
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color(.separator), lineWidth: 0.5)
-        )
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
-        // No container-level accessibilityIdentifier: SwiftUI propagates it to
-        // every child element, clobbering the enable/dismiss button ids.
+        .tipBannerCard()
     }
 }

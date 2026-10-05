@@ -165,9 +165,10 @@ invoke `gh`, `curl`, `xcodebuild`, `notarytool`, tags, pushes, or ASC.
    - `attachment-export` plus a SHA-256 comparison for every `expectedAttachments` entry (the `kitchen-sink.kdbx`- and `unknown-inner-header.kdbx`-derived artifacts).
    - `show -s -a Password` for every `expectedPasswords` entry. This checks protected password decryption: searching and listing only read plaintext XML, so without it a protected-value stream that is self-consistent but non-conforming would pass the whole gate. Every fixture-smoke artifact verifies both a password KeeForge just wrote and one the fixture already carried (authored by another KeePass implementation), covering AES, ChaCha20, Twofish, key-file, KDBX 4.1, unknown-XML, unknown-inner-header, high-iteration Argon2 (1500 x 1 MiB), and attachment databases; the rich `create-entry`/`update-entry` artifacts cover a created and an edited password.
    - `export -f xml` for `expectedCustomFields`: the `custom-field-edits` artifact must retain edited/added values (including Unicode, XML metacharacters, newlines, and empty strings), renamed and reused protected names, removal of plain/protected fields, and the original fields in history. KeePassXC decrypts the values and exports protection as `ProtectInMemory`; both are checked, with exact history count and explicit absent-field assertions. For fields containing carriage returns, parsing KeePassXC's XML export normalizes them to line feeds, so the gate also checks the raw `show -a` output byte-for-byte. The gate fails if no custom-field checks run.
+   - `export -f xml` for `expectedExpiries`: the `set-entry-expiry` and `change-entry-expiry` artifacts must read back with `Expires` true and the expected `ExpiryTime` (base64 or ISO 8601 accepted). The gate fails if no expiry checks run.
    - `show -t` (TOTP) for every `expectedTOTPs` entry, proving real KeePassXC *generates a code* from what KeeForge enrolled — `update-entry` carries the fresh-enrollment verbatim `otp` URI (the entry editor's primary output) and `create-entry` the `TimeOtp-*` authoring path. The expected code is recomputed by an independent RFC 6238 reference implementation inside the gate script for the time windows in effect just before and just after the CLI call, and either is accepted — the call takes well under one period, so a 30-second window rollover mid-check can never flake the gate.
    Entry paths are resolved by exact-title `search` hit (and cached), so entries that moved into the Recycle Bin or were renamed by the edit still resolve.
-5. On success the script prints the artifact count, attachment-check count, protected-password-check count, and TOTP-check count; zero TOTP checks fails the gate even if everything else passed.
+5. On success the script prints the artifact count and the attachment, protected-password, TOTP, custom-field, and expiry check counts; zero TOTP, custom-field, or expiry checks fails the gate even if everything else passed.
 
 The artifact set includes a Twofish-256-CBC database, providing an external KeePassXC opener check for KeeForge's cipher-preserving output. It also includes `merge-remote-divergence`, the output of a record-level merge (`KDBXMerger`): real KeePassXC must open it, list the group the merge grafted in from the other side, and decrypt the protected values it carried across. The KeeOTP artifact retains all raw source variants for the XCTest compatibility matrix, but probes a standard entry externally because KeePassXC 2.7.12 does not expose those KeeOTP fields through its XML reader/search path.
 
@@ -187,6 +188,16 @@ The artifact set itself is declared in `KeeForgeTests/KDBXCompatibilitySupport.s
 ## macOS Distribution Channels
 
 ### Direct-build safety contract
+
+For local signing with installed Developer ID profiles, save private export
+settings as `Configs/ExportOptions-DeveloperID.local.plist`. The direct-build
+script selects this gitignored file when present. Set `method` to `developer-id`,
+`signingStyle` to `manual`, `signingCertificate` to the certificate's SHA-1,
+`teamID` to its team, and `provisioningProfiles` to a dictionary mapping
+`com.keevault.app` and `com.keevault.app.autofill` to their installed profile
+UUIDs. Refresh both mappings when replacing the certificate. Copy this file
+alongside `BuildConfig.local.xcconfig` into a release worktree before building.
+Without local export settings, the committed options use Xcode automatic signing.
 
 Each phase defaults to `build/mac-direct-{version}-b{repoBuild}`. An explicit
 output must be an absolute path naming a safe basename exactly one level below

@@ -262,6 +262,7 @@ enum KDBXCompatibilitySupport {
         /// the same `EncryptionSettingsChange` the savers apply.
         var encryptionSettings: ((LoadedFixture) throws -> EncryptionSettingsChange)?
         var expectedCustomFields: [ArtifactManifest.ExpectedCustomFields] = []
+        var expectedExpiries: [ArtifactManifest.ExpectedExpiry] = []
         /// Set by scenarios that attach a file: the pool may then only grow,
         /// keeping every entry it had byte for byte at the same index.
         var appendsToBinaryPool = false
@@ -419,6 +420,15 @@ enum KDBXCompatibilitySupport {
             let history: [ExpectedFieldSet]
         }
 
+        /// An entry's `<Times>` expiration as the external opener must read
+        /// it back from an XML export.
+        struct ExpectedExpiry: Codable {
+            let entryTitle: String
+            let expires: Bool
+            /// UTC ISO 8601 at whole seconds, e.g. `2031-06-15T08:30:00Z`.
+            let expiryTime: String
+        }
+
         struct Artifact: Codable {
             let id: String
             let fileName: String
@@ -430,6 +440,7 @@ enum KDBXCompatibilitySupport {
             var expectedPasswords: [ExpectedPassword] = []
             var expectedTOTPs: [ExpectedTOTP] = []
             var expectedCustomFields: [ExpectedCustomFields] = []
+            var expectedExpiries: [ExpectedExpiry] = []
         }
 
         /// Every artifact id the suite is expected to emit, repeated in every
@@ -505,6 +516,8 @@ enum KDBXCompatibilitySupport {
         "import-apple-passwords",
         "update-entry",
         "custom-field-edits",
+        "set-entry-expiry",
+        "change-entry-expiry",
         "create-group",
         "hide-group-from-autofill",
         "change-group-icon",
@@ -641,6 +654,8 @@ enum KDBXCompatibilitySupport {
     /// password, and the KeeOTP artifact's external probe is deliberately a
     /// plain search (KeePassXC 2.7.12 skips its raw KeeOTP fields).
     static let scenarioIDsWithoutPasswordExpectations: Set<String> = [
+        "set-entry-expiry",
+        "change-entry-expiry",
         "create-group",
         "hide-group-from-autofill",
         "change-group-icon",
@@ -723,6 +738,8 @@ enum KDBXCompatibilitySupport {
     static let scenarioIDsWithoutTOTPExpectations: Set<String> = {
         var ids: Set<String> = [
             "custom-field-edits",
+            "set-entry-expiry",
+            "change-entry-expiry",
             "create-group",
             "hide-group-from-autofill",
             "change-group-icon",
@@ -813,6 +830,7 @@ enum KDBXCompatibilitySupport {
             createEntryScenario(),
             updateEntryScenario(),
             customFieldEditsScenario(),
+            setEntryExpiryScenario(),
             createGroupScenario(),
             hideGroupFromAutoFillScenario(),
             changeGroupIconScenario(),
@@ -1406,6 +1424,63 @@ enum KDBXCompatibilitySupport {
     /// Same external-proof limitation as `groupTagsFixtureUpdateEntryScenario`:
     /// the gate can only prove the rewritten database still opens, lists, and
     /// decrypts; the tag proof is the in-process assertions below.
+    /// pykeepass writes every `<Times>` child, `<ExpiryTime>` and `<Expires>`
+    /// included, the way KeePass and KeePassXC do. Changing the expiry has to
+    /// rewrite those two elements where they stand and leave
+    /// `<LastAccessTime>`, `<UsageCount>`, and the rest byte-identical.
+    static func changeEntryExpiryScenario() -> Scenario {
+        Scenario(
+            id: "change-entry-expiry",
+            title: "Change a foreign entry's expiry in place",
+            artifactFileName: "kitchen-sink-change-entry-expiry.kdbx",
+            expectedSearchTerms: ["No Attachment Entry"],
+            expectedGroupPaths: [],
+            makeEdit: { loaded in
+                let entry = try XCTUnwrap(findEntry(titled: "No Attachment Entry", in: loaded.rootGroup))
+                return .updateEntry(
+                    entryID: entry.id,
+                    draft: try expiryOnlyPayload(for: entry, sessionKey: loaded.sessionKey, expiry: .at(entryExpiryDate))
+                )
+            },
+            expectedExpiries: [.init(entryTitle: "No Attachment Entry", expires: true, expiryTime: entryExpiryISO8601)],
+            assertChange: { before, after, _ in
+                let entryID = try XCTUnwrap(before.entryID(titled: "No Attachment Entry"))
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+
+                let original = try XCTUnwrap(before.entries[entryID])
+                let updated = try XCTUnwrap(after.entries[entryID])
+                XCTAssertFalse(original.expires, "Fixture precondition: the entry does not expire")
+                XCTAssertEqual(
+                    expiryFragments(of: original).map(\.elementName),
+                    ["ExpiryTime", "Expires"],
+                    "Fixture precondition: pykeepass wrote both elements"
+                )
+
+                XCTAssertTrue(updated.expires)
+                XCTAssertEqual(updated.expiryTime, entryExpiryDate)
+                XCTAssertEqual(updated.unknownXML.nodes.count, original.unknownXML.nodes.count)
+                for (updatedNode, originalNode) in zip(updated.unknownXML.nodes, original.unknownXML.nodes) {
+                    XCTAssertEqual(updatedNode.path, originalNode.path)
+                    XCTAssertEqual(updatedNode.insertionIndex, originalNode.insertionIndex)
+                    switch (updatedNode.path, updatedNode.elementName) {
+                    case (["Times"], "ExpiryTime"):
+                        XCTAssertEqual(updatedNode.xml, "<ExpiryTime>\(entryExpiryDate.kdbxBase64String)</ExpiryTime>")
+                    case (["Times"], "Expires"):
+                        XCTAssertEqual(updatedNode.xml, "<Expires>True</Expires>")
+                    default:
+                        XCTAssertEqual(updatedNode.xml, originalNode.xml, "only the expiration elements may change")
+                    }
+                }
+                XCTAssertEqual(updated.password, original.password)
+                XCTAssertEqual(updated.attachments, original.attachments)
+                var expectedHistory = original
+                expectedHistory.history = []
+                XCTAssertEqual(updated.history.first, expectedHistory, "the stored version keeps the old expiration")
+            }
+        )
+    }
+
     static func groupTagsFixtureUpdateGroupScenario() -> Scenario {
         let authoredTag = "keeforge-authored"
         let authoredNotes = "Group notes authored by KeeForge on a file that already had group tags."
@@ -1855,6 +1930,9 @@ enum KDBXCompatibilitySupport {
             ArtifactDescriptor(fixture: .kitchenSink, scenario: groupTagsFixtureUpdateGroupScenario())
         )
         descriptors.append(
+            ArtifactDescriptor(fixture: .kitchenSink, scenario: changeEntryExpiryScenario())
+        )
+        descriptors.append(
             ArtifactDescriptor(fixture: .syntheticRich, scenario: keeOTPArtifactScenario())
         )
         descriptors.append(
@@ -2065,7 +2143,8 @@ enum KDBXCompatibilitySupport {
                     expectedAttachments: try KDBXCompatibilitySupport.expectedAttachments(forScenarioID: scenario.id),
                     expectedPasswords: try KDBXCompatibilitySupport.expectedPasswords(forScenarioID: scenario.id),
                     expectedTOTPs: try KDBXCompatibilitySupport.expectedTOTPs(forScenarioID: scenario.id),
-                    expectedCustomFields: scenario.expectedCustomFields
+                    expectedCustomFields: scenario.expectedCustomFields,
+                    expectedExpiries: scenario.expectedExpiries
                 )
             )
         }
@@ -2626,6 +2705,100 @@ private extension KDBXCompatibilitySupport {
                 var expectedHistory = original
                 expectedHistory.history = []
                 XCTAssertEqual(updated.history, [expectedHistory])
+            }
+        )
+    }
+
+    /// When the expiration scenarios make their entries expire. Whole seconds,
+    /// because that is all KDBX stores.
+    static let entryExpiryDate = Date(timeIntervalSince1970: 1_939_278_600)
+    static let entryExpiryISO8601 = "2031-06-15T08:30:00Z"
+
+    /// The `<Times>` expiration fragments of an entry, in document order.
+    static func expiryFragments(of entry: CompatibilitySnapshot.Entry) -> [OpaqueXMLNodes.Node] {
+        entry.unknownXML.nodes.filter { $0.path == ["Times"] && ["ExpiryTime", "Expires"].contains($0.elementName) }
+    }
+
+    /// An editor payload that only changes when the entry expires.
+    static func expiryOnlyPayload(
+        for entry: KPEntry,
+        sessionKey: SymmetricKey,
+        expiry: EntryExpiry
+    ) throws -> EntryDraftPayload {
+        EntryDraftPayload(
+            title: entry.title,
+            username: entry.username,
+            password: try entry.password.decrypt(using: sessionKey),
+            url: entry.url,
+            notes: entry.notes,
+            customFields: entry.customFields,
+            tags: entry.tags,
+            totpConfig: try entry.totpConfig.map {
+                .init(
+                    secret: try $0.secret.decrypt(using: sessionKey),
+                    decodedSecret: try $0.decodedSecret?.decryptData(using: sessionKey),
+                    keeOTPSource: $0.keeOTPSource,
+                    period: $0.period,
+                    digits: $0.digits,
+                    algorithm: $0.algorithm
+                )
+            },
+            expiry: expiry,
+            lastModificationTime: entry.lastModificationTime
+        )
+    }
+
+    /// An entry KeeForge created carries no `<ExpiryTime>`/`<Expires>`, so
+    /// setting an expiry has to add both at KeePass's position in `<Times>`.
+    static func setEntryExpiryScenario() -> Scenario {
+        Scenario(
+            id: "set-entry-expiry",
+            title: "Set an expiry on an entry without expiration elements",
+            artifactFileName: "synthetic-rich-set-entry-expiry.kdbx",
+            expectedSearchTerms: ["Compat Soft Delete Target"],
+            expectedGroupPaths: [],
+            makeEdit: { loaded in
+                let entry = try XCTUnwrap(findEntry(titled: "Compat Soft Delete Target", in: loaded.rootGroup))
+                return .updateEntry(
+                    entryID: entry.id,
+                    draft: try expiryOnlyPayload(for: entry, sessionKey: loaded.sessionKey, expiry: .at(entryExpiryDate))
+                )
+            },
+            expectedExpiries: [.init(entryTitle: "Compat Soft Delete Target", expires: true, expiryTime: entryExpiryISO8601)],
+            assertChange: { before, after, _ in
+                let entryID = try XCTUnwrap(before.entryID(titled: "Compat Soft Delete Target"))
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+                assertMetaUnchanged(before: before, after: after)
+
+                let original = try XCTUnwrap(before.entries[entryID])
+                let updated = try XCTUnwrap(after.entries[entryID])
+                XCTAssertFalse(original.expires, "Fixture precondition: the entry does not expire")
+                XCTAssertTrue(expiryFragments(of: original).isEmpty, "Fixture precondition: no expiration elements")
+
+                XCTAssertTrue(updated.expires)
+                XCTAssertEqual(updated.expiryTime, entryExpiryDate)
+                XCTAssertEqual(
+                    expiryFragments(of: updated).map(\.xml),
+                    ["<ExpiryTime>\(entryExpiryDate.kdbxBase64String)</ExpiryTime>", "<Expires>True</Expires>"]
+                )
+                XCTAssertEqual(
+                    expiryFragments(of: updated).map(\.insertionIndex),
+                    [2, 2],
+                    "after <CreationTime> and <LastModificationTime>, before <LocationChanged>"
+                )
+                XCTAssertEqual(
+                    updated.unknownXML.nodes.filter { !expiryFragments(of: updated).contains($0) },
+                    original.unknownXML.nodes
+                )
+                XCTAssertEqual(updated.password, original.password)
+                XCTAssertEqual(updated.customFields, original.customFields)
+                XCTAssertEqual(updated.totp, original.totp)
+                XCTAssertEqual(updated.passkeyPrivateKeyPEM, original.passkeyPrivateKeyPEM)
+                var expectedHistory = original
+                expectedHistory.history = []
+                XCTAssertEqual(updated.history.first, expectedHistory, "the stored version keeps the old expiration")
+                XCTAssertEqual(updated.history.count, original.history.count + 1)
             }
         )
     }

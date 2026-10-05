@@ -22,8 +22,8 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
     private func alphaMetadata(databaseID: String) -> [String] {
         let record = "v2:\(databaseID):11111111-1111-4111-8111-111111111111"
         return [
-            "password|alpha-store-fixture.net|alpha-user|\(record)",
-            "oneTimeCode|alpha-store-fixture.net|alpha-user|\(record)",
+            "password|https://alpha-store-fixture.net|alpha-user|\(record)",
+            "oneTimeCode|alpha-store-fixture.net|Alpha Login (alpha-user)|\(record)",
         ]
     }
 
@@ -31,9 +31,9 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         let login = "v2:\(databaseID):22222222-2222-4222-8222-222222222222"
         let password = "v2:\(databaseID):33333333-3333-4333-8333-333333333333"
         return [
-            "password|bravo-store-fixture.org|bravo-user|\(login)",
-            "oneTimeCode|bravo-store-fixture.org|bravo-user|\(login)",
-            "password|bravo-password-fixture.com|bravo-password-user|\(password)",
+            "password|https://bravo-store-fixture.org|bravo-user|\(login)",
+            "oneTimeCode|bravo-store-fixture.org|Bravo Login (bravo-user)|\(login)",
+            "password|https://bravo-password-fixture.com|bravo-password-user|\(password)",
         ]
     }
 

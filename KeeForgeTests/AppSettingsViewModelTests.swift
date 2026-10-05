@@ -4,7 +4,8 @@ import XCTest
 @MainActor
 final class AppSettingsViewModelTests: XCTestCase {
     private let keys = [
-        "autoLockTimeout", "lockOnBackground", "clipboardTimeout", "autoUnlockWithFaceID",
+        "autoLockTimeout", "lockOnBackground", "clipboardTimeout", "authenticationGracePeriod",
+        "autoUnlockWithFaceID",
         "showWebsiteIcons", "showDatabaseUsageStats", "appearanceMode", "appAccentColor",
         "quickAutoFillEnabled", "autoFillCopyTOTP", "sortOrder", "sortAscending",
         "macLockPolicy", "blockScreenCapture",
@@ -72,9 +73,11 @@ final class AppSettingsViewModelTests: XCTestCase {
             sortDirectionChanged: { _ in effects += 1 },
             clearCredentialStore: { effects += 1 },
             capturePolicyDidChange: { effects += 1 },
+            authenticationGracePeriodDidChange: { effects += 1 },
             loadCloudAccounts: { accounts }
         )
         SettingsService.autoLockTimeout = .oneMinute
+        SettingsService.authenticationGracePeriod = .oneMinute
         SettingsService.quickAutoFillEnabled = !model.quickAutoFillEnabled
         SettingsService.blockScreenCapture = !model.blockScreenCapture
         SettingsService.appearanceMode = .dark
@@ -85,6 +88,7 @@ final class AppSettingsViewModelTests: XCTestCase {
         model.reload()
 
         XCTAssertEqual(model.autoLockTimeout, .oneMinute)
+        XCTAssertEqual(model.authenticationGracePeriod, .oneMinute)
         XCTAssertEqual(model.quickAutoFillEnabled, SettingsService.quickAutoFillEnabled)
         XCTAssertEqual(model.blockScreenCapture, SettingsService.blockScreenCapture)
         XCTAssertEqual(model.appearanceMode, .dark)
@@ -105,6 +109,19 @@ final class AppSettingsViewModelTests: XCTestCase {
         model.blockScreenCapture = newValue
 
         XCTAssertEqual(observedPolicies, [newValue])
+    }
+
+    func testGracePeriodPersistsBeforeTellingTheLiveGatesAndUnchangedValuesDoNothing() {
+        var observedPeriods: [SettingsService.AuthenticationGracePeriod] = []
+        let model = AppSettingsViewModel(authenticationGracePeriodDidChange: {
+            observedPeriods.append(SettingsService.authenticationGracePeriod)
+        })
+
+        model.authenticationGracePeriod = .oneMinute
+        model.authenticationGracePeriod = .oneMinute
+        model.authenticationGracePeriod = .alwaysAsk
+
+        XCTAssertEqual(observedPeriods, [.oneMinute, .alwaysAsk])
     }
 
     func testSortPreferencesPersistBeforeUpdatingTheOpenSession() {

@@ -72,6 +72,7 @@ final class EntryEditViewModel {
         var totpDigits: Int
         var totpAlgorithm: TOTPAlgorithm
         var enrolledOTPAuthURI: String?
+        var expiry: Date?
         var attachments: [Attachment]
     }
 
@@ -109,6 +110,10 @@ final class EntryEditViewModel {
     /// otherwise. Whether it reaches the payload is decided at payload time,
     /// so later field edits need no invalidation bookkeeping.
     private var enrolledOTPAuthURI: String?
+    var expires: Bool
+    /// Kept while `expires` is off, so switching it back on returns the date
+    /// the user had picked.
+    var expiryDate: Date
 
     private let preservedCustomFields: [String: String]
     private let seededCustomFieldKeys: Set<String>
@@ -150,6 +155,7 @@ final class EntryEditViewModel {
         totpPeriod: Int = 30,
         totpDigits: Int = 6,
         totpAlgorithm: TOTPAlgorithm = .sha1,
+        expiryTime: Date? = nil,
         attachments: [KPAttachment] = [],
         passkeyCredential: PasskeyCredential? = nil,
         unknownXMLNodeCount: Int = 0,
@@ -174,6 +180,8 @@ final class EntryEditViewModel {
         self.totpPeriod = totpPeriod
         self.totpDigits = totpDigits
         self.totpAlgorithm = totpAlgorithm
+        self.expires = expiryTime != nil
+        self.expiryDate = expiryTime ?? Self.date(months: Self.defaultExpiryMonths, after: .now)
         let seededAttachments = attachments.map { Attachment(name: $0.name, source: .existing($0)) }
         self.attachments = seededAttachments
         self.passkeyCredential = passkeyCredential
@@ -198,6 +206,7 @@ final class EntryEditViewModel {
                 totpDigits: 6,
                 totpAlgorithm: .sha1,
                 enrolledOTPAuthURI: nil,
+                expiry: nil,
                 attachments: []
             )
         case .edit:
@@ -214,6 +223,7 @@ final class EntryEditViewModel {
                 totpDigits: totpDigits,
                 totpAlgorithm: totpAlgorithm,
                 enrolledOTPAuthURI: nil,
+                expiry: expiryTime,
                 attachments: seededAttachments
             )
         }
@@ -269,6 +279,7 @@ final class EntryEditViewModel {
             totpPeriod: entry.totpConfig?.period ?? 30,
             totpDigits: entry.totpConfig?.digits ?? 6,
             totpAlgorithm: entry.totpConfig?.algorithm ?? .sha1,
+            expiryTime: entry.enabledExpiryTime,
             attachments: entry.attachments,
             passkeyCredential: entry.passkeyCredential,
             unknownXMLNodeCount: entry.unknownXML.nodes.count
@@ -435,8 +446,21 @@ final class EntryEditViewModel {
             protectedCustomFieldKeys: protectedCustomFieldKeys(),
             tags: normalizedTags(),
             totpConfig: normalizedTOTPConfiguration(),
+            expiry: expires ? .at(expiryDate) : .never,
             attachments: attachmentPayloads()
         )
+    }
+
+    /// Whether the picked date has already passed, so saving would show the
+    /// entry as expired.
+    var isExpiryDateInPast: Bool {
+        expires && expiryDate <= .now
+    }
+
+    /// Turns expiration on, `months` calendar months from `now`.
+    func applyExpiryPreset(months: Int, from now: Date = .now) {
+        expires = true
+        expiryDate = Self.date(months: months, after: now)
     }
 
     /// The known tags worth offering for this entry: `knownTags` minus the tags
@@ -657,8 +681,17 @@ final class EntryEditViewModel {
             totpDigits: totpDigits,
             totpAlgorithm: totpAlgorithm,
             enrolledOTPAuthURI: enrolledOTPAuthURI,
+            expiry: expires ? expiryDate : nil,
             attachments: attachments
         )
+    }
+
+    /// Where the date picker starts when an entry that never expired is
+    /// switched to expiring.
+    private static let defaultExpiryMonths = 1
+
+    private static func date(months: Int, after date: Date) -> Date {
+        Calendar.current.date(byAdding: .month, value: months, to: date) ?? date
     }
 
     private func isReservedCustomFieldKey(_ key: String) -> Bool {

@@ -7,6 +7,7 @@ enum SettingsService {
         static let autoLockTimeout = "KeeForge.autoLockTimeout"
         static let lockOnBackground = "KeeForge.lockOnBackground"
         static let clipboardTimeout = "KeeForge.clipboardTimeout"
+        static let authenticationGracePeriod = "KeeForge.authenticationGracePeriod"
         static let autoUnlockWithFaceID = "KeeForge.autoUnlockWithFaceID"
         static let showWebsiteIcons = "KeeForge.showWebsiteIcons"
         static let showDatabaseUsageStats = "KeeForge.showDatabaseUsageStats"
@@ -79,6 +80,36 @@ enum SettingsService {
             case .tenSeconds: String(localized: "10 Seconds")
             case .thirtySeconds: String(localized: "30 Seconds")
             case .oneMinute: String(localized: "1 Minute")
+            }
+        }
+    }
+
+    // MARK: - Authentication Grace Period
+
+    /// How long after an unlock or a device-owner authentication a protected
+    /// value can be revealed or copied without another prompt. Deliberately
+    /// bounded: there is no "never ask" case.
+    enum AuthenticationGracePeriod: String, CaseIterable, Sendable {
+        case alwaysAsk
+        case thirtySeconds
+        case oneMinute
+        case fiveMinutes
+
+        var duration: Duration? {
+            switch self {
+            case .alwaysAsk: nil
+            case .thirtySeconds: .seconds(30)
+            case .oneMinute: .seconds(60)
+            case .fiveMinutes: .seconds(300)
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .alwaysAsk: String(localized: "Always Ask")
+            case .thirtySeconds: String(localized: "30 Seconds")
+            case .oneMinute: String(localized: "1 Minute")
+            case .fiveMinutes: String(localized: "5 Minutes")
             }
         }
     }
@@ -208,6 +239,18 @@ enum SettingsService {
         }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: Key.autoLockTimeout)
+        }
+    }
+
+    static var authenticationGracePeriod: AuthenticationGracePeriod {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: Key.authenticationGracePeriod) else {
+                return .alwaysAsk
+            }
+            return AuthenticationGracePeriod(rawValue: raw) ?? .alwaysAsk
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: Key.authenticationGracePeriod)
         }
     }
 

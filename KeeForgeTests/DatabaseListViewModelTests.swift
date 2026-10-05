@@ -4,6 +4,7 @@ import XCTest
 @MainActor
 final class DatabaseListViewModelTests: XCTestCase {
     private let autoFillSuiteName = "DatabaseListViewModelTests.AutoFill"
+    private let macAppSuggestionSuiteName = "DatabaseListViewModelTests.MacAppSuggestion"
 
     override func setUp() async throws {
         try await super.setUp()
@@ -14,6 +15,8 @@ final class DatabaseListViewModelTests: XCTestCase {
         SettingsService.showDatabaseUsageStats = true
         AutoFillStatusService.defaults = UserDefaults(suiteName: autoFillSuiteName)!
         AutoFillStatusService.resetForTesting()
+        MacAppSuggestionService.defaults = UserDefaults(suiteName: macAppSuggestionSuiteName)!
+        MacAppSuggestionService.resetForTesting()
         await resetCredentialIdentityStoreState()
     }
 
@@ -26,6 +29,9 @@ final class DatabaseListViewModelTests: XCTestCase {
         AutoFillStatusService.resetForTesting()
         AutoFillStatusService.defaults = .standard
         UserDefaults.standard.removePersistentDomain(forName: autoFillSuiteName)
+        MacAppSuggestionService.resetForTesting()
+        MacAppSuggestionService.defaults = .standard
+        UserDefaults.standard.removePersistentDomain(forName: macAppSuggestionSuiteName)
         await resetCredentialIdentityStoreState()
         try await super.tearDown()
     }
@@ -413,6 +419,56 @@ final class DatabaseListViewModelTests: XCTestCase {
         let freshViewModel = DatabaseListViewModel()
         await freshViewModel.refreshAutoFillStatus()
         XCTAssertFalse(freshViewModel.shouldShowAutoFillTip)
+    }
+
+    // MARK: - Native Mac app suggestion
+
+    func testMacAppSuggestionHiddenOffTheiOSAppOnMac() throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        MacAppSuggestionService.isiOSAppOnMac = { false }
+        let viewModel = DatabaseListViewModel()
+
+        XCTAssertFalse(viewModel.shouldShowMacAppSuggestion)
+    }
+
+    func testMacAppSuggestionShownForTheiOSAppOnMac() throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        MacAppSuggestionService.isiOSAppOnMac = { true }
+        let viewModel = DatabaseListViewModel()
+
+        XCTAssertTrue(viewModel.shouldShowMacAppSuggestion)
+    }
+
+    func testMacAppSuggestionShownWhenDatabaseListIsEmpty() {
+        MacAppSuggestionService.isiOSAppOnMac = { true }
+        let viewModel = DatabaseListViewModel()
+
+        XCTAssertTrue(viewModel.shouldShowMacAppSuggestion)
+    }
+
+    func testDismissMacAppSuggestionHidesAndPersists() {
+        MacAppSuggestionService.isiOSAppOnMac = { true }
+        let viewModel = DatabaseListViewModel()
+        XCTAssertTrue(viewModel.shouldShowMacAppSuggestion)
+
+        viewModel.dismissMacAppSuggestion()
+
+        XCTAssertFalse(viewModel.shouldShowMacAppSuggestion)
+        XCTAssertTrue(MacAppSuggestionService.isDismissed)
+        XCTAssertFalse(DatabaseListViewModel().shouldShowMacAppSuggestion)
+    }
+
+    func testDismissingOneBannerLeavesTheOtherUp() async throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        MacAppSuggestionService.isiOSAppOnMac = { true }
+        AutoFillStatusService.enabledProvider = { false }
+        let viewModel = DatabaseListViewModel()
+        await viewModel.refreshAutoFillStatus()
+
+        viewModel.dismissMacAppSuggestion()
+
+        XCTAssertFalse(viewModel.shouldShowMacAppSuggestion)
+        XCTAssertTrue(viewModel.shouldShowAutoFillTip)
     }
 
     // MARK: - Declined provider-enable requests

@@ -8,6 +8,7 @@ final class SettingsServiceTests: XCTestCase {
     private let autoLockKey = "KeeForge.autoLockTimeout"
     private let lockOnBackgroundKey = "KeeForge.lockOnBackground"
     private let clipboardKey = "KeeForge.clipboardTimeout"
+    private let authenticationGraceKey = "KeeForge.authenticationGracePeriod"
     private let autoUnlockWithFaceIDKey = "KeeForge.autoUnlockWithFaceID"
     private let showDatabaseUsageStatsKey = "KeeForge.showDatabaseUsageStats"
     private let quickAutoFillEnabledKey = "KeeForge.quickAutoFillEnabled"
@@ -41,6 +42,7 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: autoLockKey)
         UserDefaults.standard.removeObject(forKey: lockOnBackgroundKey)
         UserDefaults.standard.removeObject(forKey: clipboardKey)
+        UserDefaults.standard.removeObject(forKey: authenticationGraceKey)
         UserDefaults.standard.removeObject(forKey: autoUnlockWithFaceIDKey)
         UserDefaults.standard.removeObject(forKey: showDatabaseUsageStatsKey)
         UserDefaults.standard.removeObject(forKey: appearanceModeKey)
@@ -63,6 +65,11 @@ final class SettingsServiceTests: XCTestCase {
     func testAutoLockTimeoutDefaultsToImmediately() {
         UserDefaults.standard.removeObject(forKey: autoLockKey)
         XCTAssertEqual(SettingsService.autoLockTimeout, .immediately)
+    }
+
+    func testAuthenticationGracePeriodDefaultsToAlwaysAsk() {
+        UserDefaults.standard.removeObject(forKey: authenticationGraceKey)
+        XCTAssertEqual(SettingsService.authenticationGracePeriod, .alwaysAsk)
     }
 
     func testClipboardTimeoutDefaultsToThirtySeconds() {
@@ -106,6 +113,13 @@ final class SettingsServiceTests: XCTestCase {
         for value in SettingsService.AutoLockTimeout.allCases {
             SettingsService.autoLockTimeout = value
             XCTAssertEqual(SettingsService.autoLockTimeout, value, "Failed for \(value.rawValue)")
+        }
+    }
+
+    func testAuthenticationGracePeriodPersists() {
+        for value in SettingsService.AuthenticationGracePeriod.allCases {
+            SettingsService.authenticationGracePeriod = value
+            XCTAssertEqual(SettingsService.authenticationGracePeriod, value, "Failed for \(value.rawValue)")
         }
     }
 
@@ -177,6 +191,18 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertNil(SettingsService.AutoLockTimeout.never.seconds)
     }
 
+    /// The longest period is five minutes: no case may skip the prompt for good.
+    func testAuthenticationGracePeriodDurations() {
+        XCTAssertNil(SettingsService.AuthenticationGracePeriod.alwaysAsk.duration)
+        XCTAssertEqual(SettingsService.AuthenticationGracePeriod.thirtySeconds.duration, .seconds(30))
+        XCTAssertEqual(SettingsService.AuthenticationGracePeriod.oneMinute.duration, .seconds(60))
+        XCTAssertEqual(SettingsService.AuthenticationGracePeriod.fiveMinutes.duration, .seconds(300))
+        XCTAssertEqual(
+            SettingsService.AuthenticationGracePeriod.allCases,
+            [.alwaysAsk, .thirtySeconds, .oneMinute, .fiveMinutes]
+        )
+    }
+
     func testClipboardTimeoutSeconds() {
         XCTAssertEqual(SettingsService.ClipboardTimeout.tenSeconds.seconds, 10)
         XCTAssertEqual(SettingsService.ClipboardTimeout.thirtySeconds.seconds, 30)
@@ -188,6 +214,11 @@ final class SettingsServiceTests: XCTestCase {
     func testAutoLockTimeoutFallsBackOnInvalidValue() {
         UserDefaults.standard.set("bogus", forKey: autoLockKey)
         XCTAssertEqual(SettingsService.autoLockTimeout, .immediately)
+    }
+
+    func testAuthenticationGracePeriodFallsBackToAlwaysAskOnInvalidValue() {
+        UserDefaults.standard.set("forever", forKey: authenticationGraceKey)
+        XCTAssertEqual(SettingsService.authenticationGracePeriod, .alwaysAsk)
     }
 
     func testClipboardTimeoutFallsBackOnInvalidValue() {

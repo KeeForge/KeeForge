@@ -623,6 +623,9 @@ DERIVED_DATA="${OUT_DIR}/DerivedData"
 ARCHIVE_PATH="${OUT_DIR}/KeeForge.xcarchive"
 EXPORT_PATH="${OUT_DIR}/export"
 EXPORT_OPTIONS="${REPO_ROOT}/Configs/ExportOptions-DeveloperID.plist"
+if [[ -f "${REPO_ROOT}/Configs/ExportOptions-DeveloperID.local.plist" ]]; then
+  EXPORT_OPTIONS="${REPO_ROOT}/Configs/ExportOptions-DeveloperID.local.plist"
+fi
 
 if [[ ! -f "${EXPORT_OPTIONS}" ]]; then
   echo "error: missing ${EXPORT_OPTIONS}" >&2
