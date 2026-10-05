@@ -199,6 +199,40 @@ starts while another app is active, the panel closes when it loses key status
 and does not rely on that cover. It applies the Block Screen Capture setting to
 itself when shown, with the same best-effort limits as the other windows.
 
+## SSH agent
+
+The optional SSH agent
+([MacSSHAgentController](../KeeForge/Services/SSHAgent/MacSSHAgentController.swift))
+is off by default. While it is on, it listens on `ssh-agent.sock` in the app's
+container home. The socket is created mode 0600 inside a container directory only
+the user can enter, and every connection is checked with `getpeereid` against the
+app's own user. It needs no extra entitlement and adds no network access. Turning
+the agent off or quitting removes the socket; a file left by a crash is replaced on
+the next start, and anything at that path that is not a socket is left alone and
+reported.
+
+The agent stores no keys. Which entries it serves is a per-database list of entry
+UUIDs in the app's own defaults, chosen in Settings ▸ SSH Agent. Every request
+reads those entries from the one active session at that moment, so nothing is
+offered while that session is locked, closed, or has a lock waiting on unsaved work.
+The private key is parsed from the decrypted attachment pool for each request, off
+the main thread, and dropped afterwards. After signing, the agent reads the session
+again and withholds the signature if the session's lock cycle or the selection has
+changed. No key file is written to disk and no key is exported.
+
+Supported keys are unencrypted OpenSSH private keys (`openssh-key-v1`) for Ed25519,
+ECDSA P-256/P-384/P-521, and RSA. RSA signs only with `rsa-sha2-256` or
+`rsa-sha2-512`; SHA-1 `ssh-rsa` requests fail. Passphrase-protected keys, PEM and
+PKCS #8 files, and PuTTY keys are listed as unsupported and never served. The agent
+answers only identity listing and signing; requests to add, remove, or lock keys,
+and protocol extensions, fail.
+
+Like `ssh-agent`, the agent cannot tell one local process from another. Any process
+running as the user that can reach the socket can list the chosen public keys and
+obtain signatures while the database is unlocked, and there is no per-signature
+confirmation. Forwarding the agent to a remote host extends the same ability to that
+host for the length of the connection.
+
 ## Plaintext attachment files and disk encryption
 
 [AttachmentPreviewFileStore](../KeeForge/Services/AppSupport/AttachmentPreviewFileStore.swift)

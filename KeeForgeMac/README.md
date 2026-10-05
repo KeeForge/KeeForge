@@ -82,6 +82,50 @@ These are conservative design rules for transition edge cases. Record new verifi
 behavior here or in focused tests rather than rebuilding a release checklist in
 `CHANGELOG.md`.
 
+## SSH Agent
+
+Settings ▸ SSH Agent turns on an agent that lets `ssh`, `git`, and other OpenSSH
+clients sign in with private keys stored in an unlocked database (#163). The code
+lives in `../KeeForge/Services/SSHAgent/`; the security boundary is in
+[SECURITY.md](SECURITY.md#ssh-agent).
+
+Setup:
+
+1. Turn on Enable SSH Agent.
+2. Click Copy SSH Configuration and paste it into `~/.ssh/config`. It points
+   every host at the socket, `~/Library/Containers/com.keevault.app/Data/ssh-agent.sock`
+   for both release channels:
+
+   ```text
+   Host *
+     IdentityAgent "/Users/<you>/Library/Containers/com.keevault.app/Data/ssh-agent.sock"
+   ```
+
+   Setting `SSH_AUTH_SOCK` to the same path works too.
+3. Unlock the database and turn on each key under Keys. The choice is stored per
+   database on this Mac only; it is not written into the database.
+
+Key entries: KeeForge looks at an entry's attachments. If the entry has a
+`KeeAgent.settings` attachment (written by KeeAgent, KeePassXC, and Strongbox)
+whose location is an attachment, that attachment is the key; otherwise the first
+attachment that looks like a private key file is. The key must be an unencrypted
+OpenSSH private key, the format `ssh-keygen` has written by default since OpenSSH
+7.8: Ed25519, ECDSA P-256/P-384/P-521, or RSA. Passphrase-protected keys, PEM and
+PKCS #8 files, and PuTTY `.ppk` files show as unsupported, and a key that KeePassXC
+reads from a file outside the database is not offered. The agent uses the key's comment, or the entry title when the key has
+none, as the comment `ssh-add -l` prints.
+
+Verifying on a Mac, with one key turned on and the database unlocked:
+
+```bash
+SSH_AUTH_SOCK=~/Library/Containers/com.keevault.app/Data/ssh-agent.sock ssh-add -l
+ssh -T git@github.com   # or any host that trusts the key
+```
+
+`ssh-add -l` lists the key with the fingerprint Settings shows. Lock the database and
+both commands find no key; quit KeeForge or turn the agent off and they cannot reach
+the agent at all.
+
 ## Target Map
 
 - `KeeForgeMac` (app target in `project.yml`): requires macOS 15 and compiles the shared `KeeForge/` tree (minus `LaunchScreen.storyboard`) plus selected `AutoFillExtension/` shells (sharing rules: `KeeForge/README.md`). `MARKETING_VERSION` tracks iOS in lockstep — all four product targets carry the same version and build number, and one release bump covers them together. `PRODUCT_NAME` is `KeeForge`, so the bundle on disk is `KeeForge.app` (it was `KeeForgeMac.app` while the target was internal-only).
