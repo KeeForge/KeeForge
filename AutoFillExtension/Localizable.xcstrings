@@ -2986,6 +2986,12 @@
             "value" : "KeeForge ajoutera cette clé d'accès au fichier de la base de données la prochaine fois que vous déverrouillerez la base de données dans l’app."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge aggiunge questa passkey al file del database la prossima volta che sblocchi il database nell'app."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",

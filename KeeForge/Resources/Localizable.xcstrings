@@ -22022,6 +22022,12 @@
             "value" : "KeeForge ajoutera cette clé d'accès au fichier de la base de données la prochaine fois que vous déverrouillerez la base de données dans l’app."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge aggiunge questa passkey al file del database la prossima volta che sblocchi il database nell'app."
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -39268,6 +39274,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La modification enregistrée via le remplissage automatique et cette base de données stockent leurs pièces jointes différemment : les fusionner pourrait faire pointer une pièce jointe vers le mauvais fichier. Elle est conservée dans la sauvegarde du %@ dans les détails de la base de données. Exportez cette sauvegarde pour la fusionner dans une autre app KeePass."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modifica salvata tramite l'inserimento automatico e questo database archiviano gli allegati in modo diverso, quindi unirli potrebbe far puntare un allegato al file sbagliato. La modifica è conservata nel backup del %@ in Dettagli del database. Esporta quel backup per unirlo in un'altra app KeePass."
           }
         },
         "ja" : {
