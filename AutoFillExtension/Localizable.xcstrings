@@ -726,6 +726,12 @@
             "value" : "Toujours demander"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiedi sempre"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
