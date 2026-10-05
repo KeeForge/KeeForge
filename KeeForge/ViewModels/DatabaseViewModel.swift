@@ -1606,6 +1606,31 @@ final class DatabaseViewModel {
         try applyEntryEdit(.moveEntry(entryID: entryID, destinationGroupID: toGroupID))
     }
 
+    /// Moves several entries into one group as a single staged change, so the
+    /// tree is rebuilt once and one save writes them all. Entries that are
+    /// gone, in the recycle bin, or already in the destination are skipped,
+    /// and a destination that is gone or in the recycle bin drops the request;
+    /// a draft-level refusal stages nothing.
+    func moveEntries(entryIDs: Set<UUID>, toGroupID: UUID) throws {
+        // `recycleBinGroupIDs` holds the groups inside the bin, not the bin itself.
+        guard groupIndex[toGroupID] != nil,
+              toGroupID != currentRootGroup?.recycleBinUUID,
+              recycleBinGroupIDs.contains(toGroupID) == false else { return }
+        // Tree order, so the entries arrive in the order they were listed in.
+        let movableEntryIDs = (currentRootGroup?.allEntries ?? []).map(\.id).filter { entryID in
+            entryIDs.contains(entryID)
+                && recycleBinEntryIDs.contains(entryID) == false
+                && entryParentGroupIDs[entryID] != toGroupID
+        }
+        guard movableEntryIDs.isEmpty == false else { return }
+
+        var staged = try makeWorkingDraft()
+        for entryID in movableEntryIDs {
+            staged = try staged.apply(.moveEntry(entryID: entryID, destinationGroupID: toGroupID))
+        }
+        stageDraft(staged)
+    }
+
     /// Reparents a group under another group. No-ops mirror `moveEntry`'s
     /// (vanished IDs, the current parent, the group itself); draft-level
     /// refusals — a cycle, a protected group, a sibling name collision in the
@@ -1630,6 +1655,20 @@ final class DatabaseViewModel {
         return moveDestinationOptions(
             prunedSubtreeID: nil,
             currentParentID: entryParentGroupIDs[entryID]
+        )
+    }
+
+    /// The groups these entries could move into together. The current parent
+    /// is flagged only when every entry shares it: entries picked from several
+    /// groups have no single place they already are. Empty when none of the
+    /// entries is known.
+    func moveDestinationOptions(forEntryIDs entryIDs: Set<UUID>) -> [MoveDestinationOption] {
+        _ = contentRevision
+        let parentGroupIDs = Set(entryIDs.compactMap { entryParentGroupIDs[$0] })
+        guard let parentGroupID = parentGroupIDs.first else { return [] }
+        return moveDestinationOptions(
+            prunedSubtreeID: nil,
+            currentParentID: parentGroupIDs.count == 1 ? parentGroupID : nil
         )
     }
 
@@ -3714,7 +3753,8 @@ final class DatabaseViewModel {
         workspace.reconcileSelection(
             visibleRootGroupID: visibleRootGroupID,
             groupExists: { groupIndex[$0] != nil },
-            tagExists: { tagEntryIDs[$0] != nil }
+            tagExists: { tagEntryIDs[$0] != nil },
+            entryIsSelectable: { entryIndex[$0] != nil && recycleBinEntryIDs.contains($0) == false }
         )
     }
 

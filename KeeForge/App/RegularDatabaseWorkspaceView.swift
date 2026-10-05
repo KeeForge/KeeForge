@@ -355,6 +355,7 @@ struct RegularDatabaseWorkspaceView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 340)
         } content: {
             macContentColumn
+                .entrySelectionBar(viewModel: viewModel) { pendingMove = $0 }
                 .navigationSplitViewColumnWidth(min: 260, ideal: 320, max: 460)
         } detail: {
             detailColumn

@@ -899,6 +899,289 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isDirty)
     }
 
+    // MARK: - Moving several entries together (#186)
+
+    func testMoveEntriesMovesEntriesFromSeveralGroupsAndSavesThemOnce() async throws {
+        let recorder = SavedDraftRecorder()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                await recorder.record(editCount: draft.pendingEdits.count)
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+
+        let workGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Work" }))
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let emptyGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Empty" }))
+        let moved = Array(socialGroup.entries.prefix(2)) + Array(workGroup.entries.prefix(1))
+        XCTAssertEqual(moved.count, 3)
+        let contentRevision = vm.contentRevision
+
+        try vm.moveEntries(entryIDs: Set(moved.map(\.id)), toGroupID: emptyGroup.id)
+
+        XCTAssertEqual(vm.contentRevision, contentRevision + 1, "the tree must be rebuilt once, not per entry")
+        XCTAssertEqual(vm.group(withID: emptyGroup.id)?.entries.map(\.id), moved.map(\.id))
+        XCTAssertEqual(vm.group(withID: socialGroup.id)?.entries.count, socialGroup.entries.count - 2)
+        XCTAssertEqual(vm.group(withID: workGroup.id)?.entries.count, workGroup.entries.count - 1)
+        XCTAssertTrue(moved.allSatisfy { vm.folderPath(forEntryID: $0.id) == "Empty" })
+        XCTAssertTrue(vm.isDirty)
+
+        await vm.saveHandlingError()
+
+        let editCounts = await recorder.editCounts
+        XCTAssertEqual(editCounts, [3], "one save must write all three moves")
+        XCTAssertFalse(vm.isDirty)
+        XCTAssertNil(vm.saveError)
+    }
+
+    func testMoveEntriesKeepsTheTreeOrderWhateverOrderTheyWerePickedIn() async throws {
+        let first = KPEntry(title: "First")
+        let second = KPEntry(title: "Second")
+        let third = KPEntry(title: "Third")
+        let resident = KPEntry(title: "Resident")
+        let destination = KPGroup(name: "Destination", entries: [resident])
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Source", entries: [first, second, third]),
+            destination,
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        try vm.moveEntries(entryIDs: [third.id, first.id], toGroupID: destination.id)
+
+        XCTAssertEqual(
+            vm.group(withID: destination.id)?.entries.map(\.title),
+            ["Resident", "First", "Third"]
+        )
+    }
+
+    func testMoveEntriesSkipsWhatCannotMoveAndMovesTheRest() async throws {
+        let movable = KPEntry(title: "Movable")
+        let recycled = KPEntry(title: "Recycled")
+        let resident = KPEntry(title: "Resident")
+        let destination = KPGroup(name: "Destination", entries: [resident])
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Source", entries: [movable, recycled]),
+            destination,
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+        try vm.deleteEntry(recycled.id, sendToRecycleBin: true)
+
+        try vm.moveEntries(
+            entryIDs: [movable.id, recycled.id, resident.id, UUID()],
+            toGroupID: destination.id
+        )
+
+        XCTAssertEqual(vm.group(withID: destination.id)?.entries.map(\.title), ["Resident", "Movable"])
+        XCTAssertTrue(vm.isEntryInRecycleBin(entryID: recycled.id), "a recycled entry comes back through restore")
+    }
+
+    func testMoveEntriesWithNothingToMoveLeavesTheDatabaseUnchanged() async throws {
+        let resident = KPEntry(title: "Resident")
+        let recycled = KPEntry(title: "Recycled")
+        let destination = KPGroup(name: "Destination", entries: [resident])
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Source", entries: [recycled]),
+            destination,
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+        try vm.deleteEntry(recycled.id, sendToRecycleBin: true)
+        let pendingEdits = vm.draft?.pendingEdits
+        let contentRevision = vm.contentRevision
+
+        try vm.moveEntries(entryIDs: [], toGroupID: destination.id)
+        try vm.moveEntries(entryIDs: [resident.id, recycled.id, UUID()], toGroupID: destination.id)
+        try vm.moveEntries(entryIDs: [resident.id], toGroupID: UUID())
+
+        XCTAssertEqual(vm.draft?.pendingEdits, pendingEdits)
+        XCTAssertEqual(vm.contentRevision, contentRevision)
+    }
+
+    func testMoveEntriesNeverMovesIntoTheRecycleBin() async throws {
+        let movable = KPEntry(title: "Movable")
+        let recycledGroup = KPGroup(name: "Recycled Group")
+        let source = KPGroup(name: "Source", entries: [movable])
+        let root = KPGroup(name: "Root", groups: [source, recycledGroup])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+        try vm.deleteGroup(recycledGroup.id, sendToRecycleBin: true)
+        let recycleBinID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
+        XCTAssertTrue(vm.isGroupInRecycleBin(groupID: recycledGroup.id))
+        let pendingEdits = vm.draft?.pendingEdits
+
+        try vm.moveEntries(entryIDs: [movable.id], toGroupID: recycleBinID)
+        try vm.moveEntries(entryIDs: [movable.id], toGroupID: recycledGroup.id)
+
+        XCTAssertEqual(vm.group(withID: source.id)?.entries.map(\.id), [movable.id])
+        XCTAssertEqual(vm.draft?.pendingEdits, pendingEdits)
+    }
+
+    func testMoveDestinationOptionsForSeveralEntriesFlagAParentOnlyWhenTheyShareIt() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let workGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Work" }))
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let recycledEntry = try XCTUnwrap(workGroup.entries.last)
+        try vm.deleteEntry(recycledEntry.id, sendToRecycleBin: true)
+        let recycleBinID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
+        let socialIDs = Set(socialGroup.entries.prefix(2).map(\.id))
+        let workEntry = try XCTUnwrap(workGroup.entries.first)
+
+        let shared = vm.moveDestinationOptions(forEntryIDs: socialIDs)
+        XCTAssertEqual(shared.filter(\.isCurrentParent).map(\.id), [socialGroup.id])
+        XCTAssertFalse(shared.contains(where: { $0.id == recycleBinID }))
+        XCTAssertEqual(shared.map(\.id), vm.moveDestinationOptions(forEntryID: workEntry.id).map(\.id))
+
+        let mixed = vm.moveDestinationOptions(forEntryIDs: socialIDs.union([workEntry.id]))
+        XCTAssertTrue(mixed.allSatisfy { $0.isCurrentParent == false })
+        XCTAssertEqual(mixed.map(\.id), shared.map(\.id))
+
+        XCTAssertEqual(vm.moveDestinationOptions(forEntryIDs: []), [])
+        XCTAssertEqual(vm.moveDestinationOptions(forEntryIDs: [UUID()]), [])
+    }
+
+    func testAnEntrySelectionFollowsTheTreeAndEndsWithTheSession() async throws {
+        let kept = KPEntry(title: "Kept")
+        let recycled = KPEntry(title: "Recycled")
+        let deleted = KPEntry(title: "Deleted")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Source", entries: [kept, recycled, deleted]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+        vm.workspace.beginEntrySelection(with: kept.id)
+        vm.workspace.toggleEntrySelection(recycled.id)
+        vm.workspace.toggleEntrySelection(deleted.id)
+
+        try vm.deleteEntry(recycled.id, sendToRecycleBin: true)
+        try vm.deleteEntry(deleted.id, sendToRecycleBin: false)
+
+        XCTAssertEqual(vm.workspace.entrySelection, [kept.id])
+
+        vm.lock()
+
+        XCTAssertNil(vm.workspace.entrySelection)
+    }
+
+    func testThePickedDestinationMovesAndSavesTheSelectionAndLeavesSelectionMode() async throws {
+        let saved = expectation(description: "the move is saved")
+        let recorder = SavedDraftRecorder()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                await recorder.record(editCount: draft.pendingEdits.count)
+                saved.fulfill()
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let emptyGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Empty" }))
+        let picked = Array(socialGroup.entries.prefix(2))
+        vm.workspace.beginEntrySelection(with: picked[0].id)
+        vm.workspace.toggleEntrySelection(picked[1].id)
+        let pending = PendingMove.entries(try XCTUnwrap(vm.workspace.entrySelection))
+
+        XCTAssertEqual(
+            pending.destinationOptions(viewModel: vm),
+            vm.moveDestinationOptions(forEntryIDs: Set(picked.map(\.id)))
+        )
+        pending.apply(destinationGroupID: emptyGroup.id, viewModel: vm)
+
+        XCTAssertEqual(vm.group(withID: emptyGroup.id)?.entries.map(\.id), picked.map(\.id))
+        XCTAssertNil(vm.workspace.entrySelection)
+        await fulfillment(of: [saved], timeout: 30)
+        let editCounts = await recorder.editCounts
+        XCTAssertEqual(editCounts, [2])
+        XCTAssertNil(vm.saveError)
+    }
+
+    func testAConflictedSaveKeepsTheMovedEntriesInTheDraft() async throws {
+        let remoteData = Data("remote".utf8)
+        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                .conflict(remoteSHA512: remoteHash, remoteData: remoteData)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let emptyGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Empty" }))
+        let movedIDs = Set(socialGroup.entries.prefix(2).map(\.id))
+
+        try vm.moveEntries(entryIDs: movedIDs, toGroupID: emptyGroup.id)
+        await vm.saveHandlingError()
+
+        XCTAssertEqual(vm.saveConflict, SaveConflict(remoteSHA512: remoteHash, remoteData: remoteData))
+        XCTAssertTrue(vm.isDirty)
+        XCTAssertEqual(Set(vm.group(withID: emptyGroup.id)?.entries.map(\.id) ?? []), movedIDs)
+    }
+
+    func testAFailedSaveKeepsTheMovedEntriesInTheDraftAndReportsTheError() async throws {
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                throw SaveError.databaseLocationUnavailable
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let emptyGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Empty" }))
+        let movedIDs = Set(socialGroup.entries.prefix(2).map(\.id))
+
+        try vm.moveEntries(entryIDs: movedIDs, toGroupID: emptyGroup.id)
+        await vm.saveHandlingError()
+
+        XCTAssertNotNil(vm.saveError)
+        XCTAssertTrue(vm.isDirty)
+        XCTAssertEqual(Set(vm.group(withID: emptyGroup.id)?.entries.map(\.id) ?? []), movedIDs)
+    }
+
+    /// The moves through the real save path, read back from the encrypted file.
+    func testMovedEntriesSurviveSaveAndReopen() async throws {
+        let password = "multi move save password"
+        let created = try await DatabaseCreationService.create(
+            request: DatabaseCreationRequest(
+                displayName: "Multi Move Persistence",
+                destination: .appOnlyAcknowledged,
+                password: password
+            )
+        )
+        let vm = DatabaseViewModel(createdDatabase: created)
+        let rootGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.createGroup(named: "Source", in: rootGroupID)
+        try vm.createGroup(named: "Destination", in: rootGroupID)
+        let sourceID = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Source" })?.id)
+        let destinationID = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Destination" })?.id)
+        let titles = ["Moved One", "Moved Two", "Stays Behind"]
+        for title in titles {
+            _ = try vm.createEntry(
+                parentGroupID: sourceID,
+                draft: EntryDraftPayload(title: title, username: "user", password: "secret", url: "")
+            )
+        }
+        try await vm.save()
+        let movedIDs = Set(try XCTUnwrap(vm.group(withID: sourceID)).entries.prefix(2).map(\.id))
+
+        try vm.moveEntries(entryIDs: movedIDs, toGroupID: destinationID)
+        try await vm.save()
+
+        let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: created.reference))
+        let parsed = try KDBXParser.parse(
+            data: Data(contentsOf: cachedURL),
+            password: password,
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+        // The parser wraps the file's root group in a synthetic one.
+        let savedRoot = try XCTUnwrap(parsed.groups.first)
+        XCTAssertEqual(
+            savedRoot.groups.first(where: { $0.name == "Destination" })?.entries.map(\.title),
+            ["Moved One", "Moved Two"]
+        )
+        XCTAssertEqual(
+            savedRoot.groups.first(where: { $0.name == "Source" })?.entries.map(\.title),
+            ["Stays Behind"]
+        )
+        XCTAssertFalse(vm.isDirty)
+    }
+
     func testMoveGroupReparentsAndDerivedStateFollows() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)

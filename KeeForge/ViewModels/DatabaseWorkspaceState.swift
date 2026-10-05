@@ -90,6 +90,12 @@ final class DatabaseWorkspaceState {
     var selectedEntryID: UUID? {
         didSet { onInteraction?() }
     }
+    /// The entries picked while the lists are in selection mode, or `nil`
+    /// outside it. One selection per session, so it survives walking from
+    /// group to group and into the search results.
+    private(set) var entrySelection: Set<UUID>? {
+        didSet { onInteraction?() }
+    }
     var isSearchActive = false {
         didSet { onInteraction?() }
     }
@@ -112,10 +118,27 @@ final class DatabaseWorkspaceState {
         }
     }
 
+    func beginEntrySelection(with entryID: UUID) {
+        entrySelection = [entryID]
+    }
+
+    func toggleEntrySelection(_ entryID: UUID) {
+        guard var selection = entrySelection else { return }
+        if selection.remove(entryID) == nil {
+            selection.insert(entryID)
+        }
+        entrySelection = selection
+    }
+
+    func endEntrySelection() {
+        entrySelection = nil
+    }
+
     func clearSelection() {
         selectedGroupID = nil
         selectedTag = nil
         selectedEntryID = nil
+        entrySelection = nil
     }
 
     func resetNavigation() {
@@ -132,11 +155,16 @@ final class DatabaseWorkspaceState {
     func reconcileSelection(
         visibleRootGroupID: UUID?,
         groupExists: (UUID) -> Bool,
-        tagExists: (String) -> Bool
+        tagExists: (String) -> Bool,
+        entryIsSelectable: (UUID) -> Bool
     ) {
         guard let visibleRootGroupID else {
             clearSelection()
             return
+        }
+        // An emptied selection keeps the mode: the user is still choosing.
+        if let entrySelection, entrySelection.allSatisfy(entryIsSelectable) == false {
+            self.entrySelection = entrySelection.filter(entryIsSelectable)
         }
         if let selectedTag, tagExists(selectedTag) == false {
             self.selectedTag = nil
