@@ -14,6 +14,11 @@ import Foundation
 /// - app deactivation (`NSApplication.didResignActiveNotification`) — only
 ///   under the strict `SettingsService.MacLockPolicy.appDeactivates` option;
 ///   the default policy ignores it because it fires on every window switch.
+///   The app's own authentication prompt is the exception: the system shows
+///   it from a separate process, so asking to reveal a password deactivates
+///   the app the same way leaving it does. That deactivation is held instead,
+///   and locks only if another application takes over before KeeForge is
+///   active again (`NSWorkspace.didActivateApplicationNotification`).
 /// - the last window closing (`NSWindow.willCloseNotification`). ⌘W closes the
 ///   only window without quitting, and the session lives in app-level state,
 ///   so without this an unlocked vault would sit decrypted in memory with no
@@ -52,6 +57,9 @@ final class MacLockMonitor {
     /// one that is closing. Injected so tests can drive the trigger without
     /// real windows.
     typealias RemainingWindowCounter = @MainActor (_ excluding: NSWindow?) -> Int
+    /// Whether one of the app's own system authentication prompts is up.
+    typealias AuthenticationPromptProvider = @MainActor () -> Bool
+    typealias FrontmostApplicationProvider = @MainActor () -> pid_t?
 
     var onLockTriggered: ((Trigger) -> Void)?
     var onDidBecomeActive: (() -> Void)?
@@ -65,11 +73,22 @@ final class MacLockMonitor {
     private let distributedNotificationCenter: NotificationCenter
     private let lockPolicyProvider: LockPolicyProvider
     private let remainingWindowCounter: RemainingWindowCounter
+    private let isAuthenticationPromptUp: AuthenticationPromptProvider
+    private let frontmostApplication: FrontmostApplicationProvider
+    private let ownProcessIdentifier = ProcessInfo.processInfo.processIdentifier
     private let now: @MainActor () -> Date
     private let activityThrottle: TimeInterval
     private var observers: [(center: NotificationCenter, token: NSObjectProtocol)] = []
     private var activityMonitor: Any?
     private var lastActivityForwardedAt: Date?
+    /// Set while the strict policy holds a deactivation the app's own
+    /// authentication prompt caused.
+    private var authenticationPromptDeactivation: AuthenticationPromptDeactivation?
+
+    private struct AuthenticationPromptDeactivation {
+        /// The process showing the prompt; nil until it is known.
+        var host: pid_t?
+    }
 
     init(
         notificationCenter: NotificationCenter = .default,
@@ -77,6 +96,12 @@ final class MacLockMonitor {
         distributedNotificationCenter: NotificationCenter = DistributedNotificationCenter.default(),
         lockPolicyProvider: @escaping LockPolicyProvider = { SettingsService.macLockPolicy },
         remainingWindowCounter: @escaping RemainingWindowCounter = MacLockMonitor.countRemainingHostWindows,
+        authenticationPromptProvider: @escaping AuthenticationPromptProvider = {
+            BiometricService.isBiometricAuthInProgress
+        },
+        frontmostApplicationProvider: @escaping FrontmostApplicationProvider = {
+            NSWorkspace.shared.frontmostApplication?.processIdentifier
+        },
         now: @escaping @MainActor () -> Date = { Date() },
         activityThrottle: TimeInterval = 2
     ) {
@@ -85,6 +110,8 @@ final class MacLockMonitor {
         self.distributedNotificationCenter = distributedNotificationCenter
         self.lockPolicyProvider = lockPolicyProvider
         self.remainingWindowCounter = remainingWindowCounter
+        self.isAuthenticationPromptUp = authenticationPromptProvider
+        self.frontmostApplication = frontmostApplicationProvider
         self.now = now
         self.activityThrottle = activityThrottle
     }
@@ -108,9 +135,11 @@ final class MacLockMonitor {
             monitor.handleLockTrigger(.appResignedActive)
         }
         observe(notificationCenter, NSApplication.didBecomeActiveNotification) { monitor in
+            monitor.authenticationPromptDeactivation = nil
             monitor.onDidBecomeActive?()
         }
         observeWindowClose()
+        observeApplicationActivation()
 
         startActivityMonitor()
     }
@@ -159,6 +188,7 @@ final class MacLockMonitor {
         }
         activityMonitor = nil
         lastActivityForwardedAt = nil
+        authenticationPromptDeactivation = nil
     }
 
     /// Sheets, panels (the About panel, open/save panels) and closed-but-alive
@@ -202,10 +232,65 @@ final class MacLockMonitor {
         observers.append((center: notificationCenter, token: token))
     }
 
+    /// Another application came to the front. Only matters while a
+    /// deactivation is held for the app's own authentication prompt: the
+    /// process showing that prompt is expected, anything else means the user
+    /// left KeeForge behind it. Exposed for tests, which cannot activate real
+    /// applications.
+    func handleApplicationDidActivate(processIdentifier: pid_t) {
+        guard let held = authenticationPromptDeactivation else { return }
+        guard processIdentifier != ownProcessIdentifier else { return }
+
+        if let host = held.host {
+            guard processIdentifier != host else { return }
+        } else if isAuthenticationPromptUp() {
+            // The deactivation was delivered before the prompt's process was
+            // reported frontmost, so the first application to come forward
+            // while the prompt is still up is the one showing it.
+            authenticationPromptDeactivation?.host = processIdentifier
+            return
+        }
+
+        authenticationPromptDeactivation = nil
+        onLockTriggered?(.appResignedActive)
+    }
+
+    /// Registered on its own for the same reason as `observeWindowClose`: the
+    /// activated application is in the notification's `userInfo`. Only its
+    /// process identifier leaves the posting thread.
+    private func observeApplicationActivation() {
+        let token = workspaceNotificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] notification in
+            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            guard let processIdentifier = application?.processIdentifier else { return }
+            if Thread.isMainThread {
+                MainActor.assumeIsolated {
+                    self?.handleApplicationDidActivate(processIdentifier: processIdentifier)
+                }
+            } else {
+                Task { @MainActor [weak self] in
+                    self?.handleApplicationDidActivate(processIdentifier: processIdentifier)
+                }
+            }
+        }
+        observers.append((center: workspaceNotificationCenter, token: token))
+    }
+
     private func handleLockTrigger(_ trigger: Trigger) {
         if trigger == .appResignedActive {
             guard lockPolicyProvider() == .appDeactivates else { return }
+            if isAuthenticationPromptUp() {
+                let frontmost = frontmostApplication()
+                authenticationPromptDeactivation = AuthenticationPromptDeactivation(
+                    host: frontmost == ownProcessIdentifier ? nil : frontmost
+                )
+                return
+            }
         }
+        authenticationPromptDeactivation = nil
         onLockTriggered?(trigger)
     }
 

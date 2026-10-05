@@ -15,6 +15,12 @@ final class MacLockMonitorTests: XCTestCase {
     private var receivedTriggers: [MacLockMonitor.Trigger] = []
     private var becameActiveCount = 0
     private var remainingHostWindows = 0
+    private var isAuthenticationPromptUp = false
+    private var frontmostApplication: pid_t?
+
+    private let ownApp = ProcessInfo.processInfo.processIdentifier
+    private let promptHost: pid_t = 70_001
+    private let otherApp: pid_t = 70_002
 
     override func setUp() async throws {
         try await super.setUp()
@@ -25,13 +31,17 @@ final class MacLockMonitorTests: XCTestCase {
         receivedTriggers = []
         becameActiveCount = 0
         remainingHostWindows = 0
+        isAuthenticationPromptUp = false
+        frontmostApplication = nil
 
         monitor = MacLockMonitor(
             notificationCenter: appCenter,
             workspaceNotificationCenter: workspaceCenter,
             distributedNotificationCenter: distributedCenter,
             lockPolicyProvider: { [weak self] in self?.policy ?? .screenLockOrSleep },
-            remainingWindowCounter: { [weak self] _ in self?.remainingHostWindows ?? 0 }
+            remainingWindowCounter: { [weak self] _ in self?.remainingHostWindows ?? 0 },
+            authenticationPromptProvider: { [weak self] in self?.isAuthenticationPromptUp ?? false },
+            frontmostApplicationProvider: { [weak self] in self?.frontmostApplication }
         )
         monitor.onLockTriggered = { [weak self] trigger in
             self?.receivedTriggers.append(trigger)
@@ -94,6 +104,150 @@ final class MacLockMonitorTests: XCTestCase {
         XCTAssertEqual(receivedTriggers, [.appResignedActive])
     }
 
+    // MARK: - The app's own authentication prompt (#203)
+
+    /// The system shows the prompt from its own process, so revealing a
+    /// password deactivates the app. Under the strict policy that locked the
+    /// vault the prompt was asked for.
+    func testAppResignActiveBehindOwnAuthenticationPromptDoesNotFireLock() {
+        resignActiveBehindAuthenticationPrompt()
+
+        XCTAssertTrue(receivedTriggers.isEmpty)
+    }
+
+    func testAnsweringTheAuthenticationPromptDoesNotFireLock() {
+        resignActiveBehindAuthenticationPrompt()
+
+        isAuthenticationPromptUp = false
+        appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+
+        XCTAssertTrue(receivedTriggers.isEmpty)
+        XCTAssertEqual(becameActiveCount, 1)
+    }
+
+    func testAnotherAppTakingOverWhileThePromptIsUpFiresLock() {
+        resignActiveBehindAuthenticationPrompt()
+
+        monitor.handleApplicationDidActivate(processIdentifier: otherApp)
+
+        XCTAssertEqual(receivedTriggers, [.appResignedActive])
+    }
+
+    /// The prompt can end with another app in front, and then nothing
+    /// reactivates KeeForge.
+    func testAnotherAppTakingOverAfterThePromptEndedFiresLock() {
+        resignActiveBehindAuthenticationPrompt()
+
+        isAuthenticationPromptUp = false
+        monitor.handleApplicationDidActivate(processIdentifier: otherApp)
+
+        XCTAssertEqual(receivedTriggers, [.appResignedActive])
+    }
+
+    func testThePromptHostAndTheAppItselfComingForwardDoNotFireLock() {
+        resignActiveBehindAuthenticationPrompt()
+
+        monitor.handleApplicationDidActivate(processIdentifier: promptHost)
+        monitor.handleApplicationDidActivate(processIdentifier: ownApp)
+
+        XCTAssertTrue(receivedTriggers.isEmpty)
+    }
+
+    /// The deactivation can arrive before the prompt's process is reported
+    /// frontmost; the first application to come forward is then the host.
+    func testThePromptHostIsLearnedFromTheFirstActivationWhenNotYetFrontmost() {
+        resignActiveBehindAuthenticationPrompt(frontmost: ownApp)
+
+        monitor.handleApplicationDidActivate(processIdentifier: promptHost)
+        XCTAssertTrue(receivedTriggers.isEmpty)
+
+        monitor.handleApplicationDidActivate(processIdentifier: otherApp)
+        XCTAssertEqual(receivedTriggers, [.appResignedActive])
+    }
+
+    /// Once the prompt is gone, an unknown application cannot be its host.
+    func testAnUnknownHostIsNotLearnedAfterThePromptEnded() {
+        resignActiveBehindAuthenticationPrompt(frontmost: nil)
+
+        isAuthenticationPromptUp = false
+        monitor.handleApplicationDidActivate(processIdentifier: otherApp)
+
+        XCTAssertEqual(receivedTriggers, [.appResignedActive])
+    }
+
+    func testAHeldDeactivationFiresLockOnlyOnce() {
+        resignActiveBehindAuthenticationPrompt()
+
+        monitor.handleApplicationDidActivate(processIdentifier: otherApp)
+        monitor.handleApplicationDidActivate(processIdentifier: otherApp)
+
+        XCTAssertEqual(receivedTriggers, [.appResignedActive])
+    }
+
+    func testBecomingActiveEndsTheHeldDeactivation() {
+        resignActiveBehindAuthenticationPrompt()
+        isAuthenticationPromptUp = false
+        appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+
+        monitor.handleApplicationDidActivate(processIdentifier: otherApp)
+        XCTAssertTrue(receivedTriggers.isEmpty, "A switch from the active app arrives as its own deactivation")
+
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        XCTAssertEqual(receivedTriggers, [.appResignedActive])
+    }
+
+    func testApplicationActivationWithoutAHeldDeactivationDoesNotFireLock() {
+        policy = .appDeactivates
+
+        monitor.handleApplicationDidActivate(processIdentifier: otherApp)
+
+        XCTAssertTrue(receivedTriggers.isEmpty)
+    }
+
+    func testDeterministicTriggersStillFireLockWhileThePromptIsUp() {
+        resignActiveBehindAuthenticationPrompt()
+
+        distributedCenter.post(name: MacLockMonitor.screenIsLockedNotification, object: nil)
+        monitor.handleApplicationDidActivate(processIdentifier: otherApp)
+
+        XCTAssertEqual(receivedTriggers, [.screenLocked])
+    }
+
+    func testAuthenticationPromptDoesNotMatterUnderDefaultPolicy() {
+        resignActiveBehindAuthenticationPrompt(policy: .screenLockOrSleep)
+
+        monitor.handleApplicationDidActivate(processIdentifier: otherApp)
+
+        XCTAssertTrue(receivedTriggers.isEmpty)
+    }
+
+    /// The observer reads the activated application out of the notification,
+    /// which only a real running application can stand in for.
+    func testWorkspaceActivationNotificationReachesTheHeldDeactivation() throws {
+        let runningApp = try XCTUnwrap(
+            NSWorkspace.shared.runningApplications.first { $0.processIdentifier != ownApp }
+        )
+        resignActiveBehindAuthenticationPrompt()
+
+        workspaceCenter.post(
+            name: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            userInfo: [NSWorkspace.applicationUserInfoKey: runningApp]
+        )
+
+        XCTAssertEqual(receivedTriggers, [.appResignedActive])
+    }
+
+    private func resignActiveBehindAuthenticationPrompt(
+        policy: SettingsService.MacLockPolicy = .appDeactivates,
+        frontmost: pid_t? = 70_001
+    ) {
+        self.policy = policy
+        isAuthenticationPromptUp = true
+        frontmostApplication = frontmost
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+    }
+
     // MARK: - Became active
 
     // MARK: - Window close
@@ -139,6 +293,15 @@ final class MacLockMonitorTests: XCTestCase {
 
         XCTAssertTrue(receivedTriggers.isEmpty)
         XCTAssertEqual(becameActiveCount, 0)
+    }
+
+    func testStopDropsAHeldDeactivation() {
+        resignActiveBehindAuthenticationPrompt()
+
+        monitor.stop()
+        monitor.handleApplicationDidActivate(processIdentifier: otherApp)
+
+        XCTAssertTrue(receivedTriggers.isEmpty)
     }
 
     func testStartIsIdempotent() {

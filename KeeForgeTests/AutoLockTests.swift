@@ -34,6 +34,7 @@ final class AutoLockTests: XCTestCase {
         SettingsService.lockOnBackground = savedLockOnBackground
         SettingsService.macLockPolicy = savedMacLockPolicy
         SettingsService.clipboardTimeout = savedClipboardTimeout
+        BiometricService.isBiometricAuthInProgress = false
         // These tests write to the real system pasteboard; do not leave a probe
         // value behind for the rest of the suite (or the simulator).
         clearPasteboard()
@@ -365,17 +366,24 @@ final class AutoLockTests: XCTestCase {
 
     #if os(macOS)
     private struct MacTriggerHarness {
-        let appCenter = NotificationCenter()
+        /// Stands in for the system process that shows an authentication
+        /// prompt, and for any other application.
+        static let authenticationPromptHost: pid_t = 70_001
+        static let otherApplication: pid_t = 70_002
+
+        let appCenter: NotificationCenter
         let workspaceCenter = NotificationCenter()
         let distributedCenter = NotificationCenter()
         let monitor: MacLockMonitor
 
         @MainActor
-        init(viewModel: DatabaseViewModel) {
+        init(viewModel: DatabaseViewModel, appCenter: NotificationCenter = NotificationCenter()) {
+            self.appCenter = appCenter
             monitor = MacLockMonitor(
                 notificationCenter: appCenter,
                 workspaceNotificationCenter: workspaceCenter,
-                distributedNotificationCenter: distributedCenter
+                distributedNotificationCenter: distributedCenter,
+                frontmostApplicationProvider: { Self.authenticationPromptHost }
             )
             monitor.onLockTriggered = { _ in
                 viewModel.handleSceneDidEnterBackground()
@@ -531,6 +539,76 @@ final class AutoLockTests: XCTestCase {
         harness.appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
 
         assertLocked(vm, "Expected .locked after app deactivation under the strict policy")
+    }
+
+    /// #203: the system shows the device-owner prompt from its own process, so
+    /// asking to reveal a password deactivates the app. Under the strict
+    /// policy that locked the vault before the prompt was answered.
+    func testMacAuthenticationPromptDoesNotLockUnderStrictPolicy() async throws {
+        SettingsService.macLockPolicy = .appDeactivates
+        let vm = try await makeUnlockedViewModel()
+        let harness = MacTriggerHarness(viewModel: vm)
+        defer { harness.monitor.stop() }
+
+        Self.deactivateBehindAuthenticationPrompt(harness.appCenter)
+        harness.appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+
+        guard case .unlocked = vm.state else {
+            XCTFail("The app's own authentication prompt must not lock the vault")
+            return
+        }
+    }
+
+    /// The prompt is no cover for leaving: another application coming forward
+    /// while it is up is what the strict policy locks on.
+    func testMacLeavingDuringAuthenticationPromptLocksUnderStrictPolicy() async throws {
+        SettingsService.macLockPolicy = .appDeactivates
+        let vm = try await makeUnlockedViewModel()
+        let harness = MacTriggerHarness(viewModel: vm)
+        defer { harness.monitor.stop() }
+
+        Self.deactivateBehindAuthenticationPrompt(harness.appCenter, promptStaysUp: true)
+        harness.monitor.handleApplicationDidActivate(processIdentifier: MacTriggerHarness.otherApplication)
+
+        assertLocked(vm, "Expected .locked after another app took over during the prompt")
+    }
+
+    /// A deactivation behind the quick-unlock prompt used to lock too, which
+    /// ended the unlock the prompt belonged to.
+    func testMacBiometricUnlockPromptDoesNotEndTheUnlockUnderStrictPolicy() async throws {
+        SettingsService.macLockPolicy = .appDeactivates
+        let appCenter = NotificationCenter()
+        let vm = DatabaseViewModel(
+            databaseReference: try TestDatabaseSupport.makeReference(for: fixtureURL()),
+            biometricCompositeKeyOperation: { [fixturePassword] _, _ in
+                await MainActor.run {
+                    Self.deactivateBehindAuthenticationPrompt(appCenter)
+                    appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+                }
+                return try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
+            }
+        )
+        let harness = MacTriggerHarness(viewModel: vm, appCenter: appCenter)
+        defer { harness.monitor.stop() }
+
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .unlocked)
+        guard case .unlocked = vm.state else {
+            XCTFail("The unlock prompt must not end its own unlock attempt")
+            return
+        }
+    }
+
+    /// What `BiometricService` and AppKit do around a system prompt: the flag
+    /// is up before the prompt takes the foreground from the app.
+    private static func deactivateBehindAuthenticationPrompt(
+        _ appCenter: NotificationCenter,
+        promptStaysUp: Bool = false
+    ) {
+        BiometricService.isBiometricAuthInProgress = true
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        BiometricService.isBiometricAuthInProgress = promptStaysUp
     }
     #endif
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- On Mac, with Lock Automatically set to "When KeeForge Is Not the Active App", the Touch ID or password prompt for viewing or copying a password no longer locks the database (#203).
+
 ## v1.17.0 (2026-09-27)
 
 ### New Features
