@@ -1388,6 +1388,12 @@ final class DatabaseViewModel {
         }.value
     }
 
+    /// The attachment's bytes without the off-main decode `attachmentData`
+    /// does, for callers that move them off the main actor themselves.
+    func attachmentBytes(for attachment: KPAttachment) -> Data? {
+        currentBinaryPool?[attachment.ref]?.data
+    }
+
     /// The attachment's size in bytes, or `nil` for a dangling ref.
     func attachmentByteCount(for attachment: KPAttachment) -> Int? {
         currentBinaryPool?[attachment.ref]?.data.count
