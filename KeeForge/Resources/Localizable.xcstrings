@@ -35668,48 +35668,48 @@
         }
       }
     },
-    "Searched KeeForge’s copy of this database from %@. To find credentials added since then, open KeeForge to refresh it." : {
+    "Searched KeeForge’s copy of this database from %@. To find newer credentials, unlock this database in KeeForge. For cloud databases, use Sync Now in Database Details." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Durchsucht wurde die Kopie dieser Datenbank in KeeForge vom %@. Öffnen Sie KeeForge, um sie zu aktualisieren und seitdem hinzugefügte Zugangsdaten zu finden."
+            "value" : "Durchsucht wurde die Kopie dieser Datenbank in KeeForge vom %@. Entsperren Sie diese Datenbank in KeeForge, um neuere Zugangsdaten zu finden. Wählen Sie bei Cloud-Datenbanken „Jetzt synchronisieren“ in den Datenbankdetails."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se buscó en la copia de esta base de datos de KeeForge del %@. Para encontrar credenciales añadidas desde entonces, abra KeeForge para actualizarla."
+            "value" : "Se buscó en la copia de esta base de datos de KeeForge del %@. Para encontrar credenciales más recientes, desbloquee esta base de datos en KeeForge. Para las bases de datos en la nube, use «Sincronizar ahora» en «Detalles de la base de datos»."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Recherche effectuée dans la copie de cette base de données enregistrée par KeeForge le %@. Pour trouver les identifiants ajoutés depuis, ouvrez KeeForge afin de l’actualiser."
+            "value" : "Recherche effectuée dans la copie de cette base de données enregistrée par KeeForge le %@. Pour trouver des identifiants plus récents, déverrouillez cette base de données dans KeeForge. Pour les bases de données cloud, utilisez « Synchroniser maintenant » dans « Détails de la base de données »."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La ricerca è stata eseguita nella copia di KeeForge di questo database, risalente al %@. Per trovare le credenziali aggiunte da allora, apri KeeForge per aggiornarla."
+            "value" : "La ricerca è stata eseguita nella copia di KeeForge di questo database, risalente al %@. Per trovare credenziali più recenti, sblocca questo database in KeeForge. Per i database nel cloud, usa «Sincronizza ora» in «Dettagli del database»."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 時点の KeeForge のデータベースのコピーを検索しました。それ以降に追加された認証情報を見つけるには、KeeForge を開いて更新してください。"
+            "value" : "%@ 時点の KeeForge のデータベースのコピーを検索しました。新しい認証情報を見つけるには、KeeForge でこのデータベースのロックを解除してください。クラウドデータベースの場合は、「データベースの詳細」で「今すぐ同期」を選択してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已搜索 KeeForge 保存的此数据库副本（%@）。要查找此后添加的凭据，请打开 KeeForge 进行刷新。"
+            "value" : "已搜索 KeeForge 保存的此数据库副本（%@）。要查找更新的凭据，请在 KeeForge 中解锁此数据库。对于云端数据库，请在“数据库详细信息”中选择“立即同步”。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已搜尋 KeeForge 儲存的此資料庫副本（%@）。若要尋找此後新增的憑證，請開啟 KeeForge 進行重新整理。"
+            "value" : "已搜尋 KeeForge 儲存的此資料庫副本（%@）。若要尋找較新的憑證，請在 KeeForge 中解鎖此資料庫。雲端資料庫請在「資料庫詳細資訊」中選擇「立即同步」。"
           }
         }
       }

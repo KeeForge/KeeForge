@@ -34,7 +34,7 @@
 - Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
 - When the saved Face ID, Touch ID or Apple Watch key can no longer be used, for example after enrolled fingerprints change, the unlock screen now says so and asks for your master password, which saves a new key.
 - After a cancelled or failed Face ID or Touch ID unlock, the error screen now also shows the password field, so you can unlock with your master password right away.
-- AutoFill on iPhone and iPad now searches a database opened from the Files app in its current state, so credentials another app or device added since KeeForge last opened it are found (#167). Cloud databases, and every database in Mac AutoFill, still search the copy KeeForge last saved; when a search there finds nothing, AutoFill now says when that copy was last updated and to open KeeForge to refresh it.
+- AutoFill on iPhone and iPad now searches a database opened from the Files app in its current state, so credentials another app or device added since KeeForge last opened it are found (#167). Cloud databases, and every database in Mac AutoFill, still search the copy KeeForge last saved; when a search there finds nothing, AutoFill now says when that copy was last updated and directs you to unlock the database in KeeForge. For cloud databases, use Sync Now in Database Details to refresh it.
 
 ### New Features
 
