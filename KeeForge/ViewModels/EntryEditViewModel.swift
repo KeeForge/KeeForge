@@ -576,6 +576,13 @@ final class EntryEditViewModel {
         attachments.removeAll { $0.id == id }
     }
 
+    func attachmentImportByteBudget(availableByteCount: Int) -> Int {
+        attachments.reduce(max(0, availableByteCount)) { remaining, attachment in
+            guard case .new(let data) = attachment.source else { return remaining }
+            return max(0, remaining - data.count)
+        }
+    }
+
     private static func uniqueAttachmentName(_ name: String, avoiding takenNames: Set<String>) -> String {
         guard takenNames.contains(name) else { return name }
         let pathExtension = (name as NSString).pathExtension
