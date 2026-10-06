@@ -42,8 +42,9 @@ struct MacSSHAgentCandidate: Identifiable, Sendable, Equatable {
 ///
 /// The agent holds no keys. Every request reads the chosen entries from the
 /// one active session at that moment, so it offers nothing while that session
-/// is locked, closed, or has a lock waiting on unsaved work, and a lock that
-/// lands mid-signature withholds the signature (`SSHAgentRequestHandler`).
+/// is locked, closed, or has a lock pending (`DatabaseViewModel.isLockPending`),
+/// and a lock that lands mid-signature withholds the signature
+/// (`SSHAgentRequestHandler`).
 @MainActor
 @Observable
 final class MacSSHAgentController {
@@ -140,7 +141,7 @@ final class MacSSHAgentController {
         guard isEnabled,
               let session = sessionProvider(),
               session.state == .unlocked,
-              session.pendingLockRequest == nil,
+              session.isLockPending == false,
               let entryIDs = selectedEntryIDs[session.databaseReference.id]
         else { return [] }
         let lease = SSHAgentLease(session: ObjectIdentifier(session), lockCycleID: session.lockCycleID)

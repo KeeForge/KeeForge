@@ -149,6 +149,24 @@ final class SSHAgentRequestHandlerTests: XCTestCase {
         XCTAssertEqual(reads.withLock { $0 }, 2)
     }
 
+    /// Replacing the entry's key attachment keeps its entry ID and lease, so
+    /// only the key material shows the signing key was withdrawn.
+    func testKeyReplacedWhileSigningGetsNoSignature() {
+        let entryID = UUID()
+        let original = source("Server", ["id_ed25519": Keys.ed25519.fileData], id: entryID)
+        let replaced = source("Server", ["id_ecdsa": Keys.ecdsaP256.fileData], id: entryID)
+        let reads = OSAllocatedUnfairLock(initialState: 0)
+        let handler = SSHAgentRequestHandler {
+            reads.withLock { count in
+                count += 1
+                return count == 1 ? [original] : [replaced]
+            }
+        }
+
+        XCTAssertEqual(handler.response(to: Self.signRequest(for: Keys.ed25519.publicKeyData, flags: 0)), Self.failure)
+        XCTAssertEqual(reads.withLock { $0 }, 2)
+    }
+
     func testKeyFromAnEarlierLockCycleGetsNoSignature() {
         let entryID = UUID()
         let before = source("Ed25519", ["id_ed25519": Keys.ed25519.fileData], id: entryID)

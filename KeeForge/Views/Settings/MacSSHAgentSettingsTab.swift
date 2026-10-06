@@ -50,11 +50,13 @@ struct MacSSHAgentSettingsTab: View {
         }
         .formStyle(.grouped)
         .task(id: RefreshID(session: session)) {
-            guard let session else {
-                candidates = []
-                return
-            }
-            candidates = await controller.candidates(in: session)
+            // Rows from the previous refresh may name another database's
+            // entries; the toggles would bind them to this one.
+            candidates = []
+            guard let session else { return }
+            let refreshed = await controller.candidates(in: session)
+            guard Task.isCancelled == false else { return }
+            candidates = refreshed
         }
     }
 

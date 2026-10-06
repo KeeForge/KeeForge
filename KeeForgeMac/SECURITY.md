@@ -214,11 +214,13 @@ reported.
 The agent stores no keys. Which entries it serves is a per-database list of entry
 UUIDs in the app's own defaults, chosen in Settings ▸ SSH Agent. Every request
 reads those entries from the one active session at that moment, so nothing is
-offered while that session is locked, closed, or has a lock waiting on unsaved work.
+offered while that session is locked, closed, or has a lock pending: one waiting
+on unsaved work or a window-close prompt, or Retry Save and Lock writing before it
+locks.
 The private key is parsed from the decrypted attachment pool for each request, off
 the main thread, and dropped afterwards. After signing, the agent reads the session
-again and withholds the signature if the session's lock cycle or the selection has
-changed. No key file is written to disk and no key is exported.
+again and withholds the signature if the session's lock cycle, the selection, or the
+entry's key attachment has changed. No key file is written to disk and no key is exported.
 
 Supported keys are unencrypted OpenSSH private keys (`openssh-key-v1`) for Ed25519,
 ECDSA P-256/P-384/P-521, and RSA. RSA signs only with `rsa-sha2-256` or

@@ -145,10 +145,12 @@ struct SSHAgentRequestHandler: Sendable {
             return Self.failure
         }
         let signature = try available.key.signature(for: data, flags: flags)
-        // A lock or deselection that lands while signing withdraws the key
-        // before the signature leaves the process.
+        // A lock, deselection, or replaced key attachment that lands while
+        // signing withdraws the key before the signature leaves the process.
         let source = available.source
-        guard keySources().contains(where: { $0.entryID == source.entryID && $0.lease == source.lease }) else {
+        guard keySources().contains(where: {
+            $0.entryID == source.entryID && $0.lease == source.lease && $0.privateKeyFile == available.privateKeyFile
+        }) else {
             return Self.failure
         }
         var writer = SSHWireWriter()
@@ -166,12 +168,13 @@ struct SSHAgentRequestHandler: Sendable {
                   let key = try? SSHAgentKey(privateKeyFile: file),
                   seen.insert(key.publicKeyBlob).inserted
             else { return nil }
-            return AvailableKey(source: source, key: key)
+            return AvailableKey(source: source, privateKeyFile: file, key: key)
         }
     }
 
     private struct AvailableKey {
         let source: SSHAgentKeySource
+        let privateKeyFile: Data
         let key: SSHAgentKey
     }
 }
