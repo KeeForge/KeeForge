@@ -29,6 +29,20 @@ committed snapshots; distinguish uncommitted changes and preserve the user's che
 Read affected folder docs on demand. Include iPhone, iPad, Mac App Store, direct Mac,
 and both AutoFill extensions where relevant.
 
+## Parallel review
+
+Use sub-agents for independent areas when fanout improves coverage or speed, such as
+behavior risks, test coverage, i18n, and documentation/website consistency. Keep small
+or tightly coupled reviews in one agent. Establish one baseline and target first;
+give each agent those exact revisions, any relevant website revision, a bounded scope,
+and applicable local guidance. All agents follow the same static-only boundary:
+no tests, builds, manual checks, edits, or saved reports. Ask for actionable findings
+with source links and material limitations.
+
+The coordinating agent checks findings, resolves contradictions, deduplicates overlap,
+and reviews contracts spanning assignments. Wait for delegated work or disclose
+unfinished coverage, then return one consolidated action list in chat.
+
 ## Review changed behavior and coverage
 
 For each affected behavior, assess concrete risks and the assertions that cover it:
