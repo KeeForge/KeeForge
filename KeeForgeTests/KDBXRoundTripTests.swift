@@ -263,6 +263,62 @@ final class KDBXRoundTripTests: XCTestCase {
     }
 
     @MainActor
+    func test_nativeTOTPAlgorithm_isSavedUnderKeePassNames() throws {
+        // KeePass 2.x matches `TimeOtp-Algorithm` against these three names
+        // exactly and generates no code for anything else. The short tokens
+        // are what earlier KeeForge versions wrote there.
+        let cases: [(stored: String?, saved: String, algorithm: TOTPAlgorithm)] = [
+            ("HMAC-SHA-1", "HMAC-SHA-1", .sha1),
+            ("HMAC-SHA-256", "HMAC-SHA-256", .sha256),
+            ("HMAC-SHA-512", "HMAC-SHA-512", .sha512),
+            ("SHA1", "HMAC-SHA-1", .sha1),
+            ("SHA256", "HMAC-SHA-256", .sha256),
+            ("SHA512", "HMAC-SHA-512", .sha512),
+            (nil, "HMAC-SHA-1", .sha1),
+        ]
+        for testCase in cases {
+            let label = testCase.stored ?? "no TimeOtp-Algorithm"
+            let algorithmField = testCase.stored.map {
+                "<String><Key>TimeOtp-Algorithm</Key><Value>\($0)</Value></String>"
+            } ?? ""
+            let xml = "<KeePassFile><Root><Group><Name>Root</Name><Entry>"
+                + "<String><Key>Title</Key><Value>Native TOTP</Value></String>"
+                + "<String><Key>TimeOtp-Secret-Base32</Key><Value>JBSWY3DPEHPK3PXP</Value></String>"
+                + "<String><Key>TimeOtp-Length</Key><Value>8</Value></String>"
+                + "<String><Key>TimeOtp-Period</Key><Value>45</Value></String>"
+                + algorithmField
+                + "</Entry></Group></Root></KeePassFile>"
+            let parsed = try parseXML(Data(xml.utf8))
+            let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+
+            // One save that never touched the entry, and one after an edit in
+            // the editor that left its one-time code alone.
+            let viewModel = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
+            viewModel.notes = "Edited"
+            let edited = try DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: roundTripSessionKey)
+                .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+
+            for (save, tree) in [("untouched", parsed), ("edited", (rootGroup: edited.rootGroup, meta: edited.meta))] {
+                let savedXML = try XCTUnwrap(String(data: try serializedXML(of: tree), encoding: .utf8))
+                let live = try XCTUnwrap(savedXML.components(separatedBy: "<History>").first)
+                XCTAssertTrue(
+                    live.contains("<String><Key>TimeOtp-Algorithm</Key><Value>\(testCase.saved)</Value></String>"),
+                    "\(label), \(save)"
+                )
+
+                let reloaded = try XCTUnwrap(parseXML(Data(savedXML.utf8)).rootGroup.allEntries.first)
+                let config = try XCTUnwrap(reloaded.totpConfig, "\(label), \(save)")
+                XCTAssertEqual(config.algorithm, testCase.algorithm, "\(label), \(save)")
+                XCTAssertEqual(config.period, 45, "\(label), \(save)")
+                XCTAssertEqual(config.digits, 8, "\(label), \(save)")
+                XCTAssertEqual(
+                    try config.secret.decrypt(using: roundTripSessionKey), "JBSWY3DPEHPK3PXP", "\(label), \(save)"
+                )
+            }
+        }
+    }
+
+    @MainActor
     func test_createSaveReload_enrollmentFromOTPAuthURIStoresProtectedVerbatimURI() throws {
         let raw = "otpauth://totp/Example:alice@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example&period=45&digits=8&algorithm=SHA256"
         let rootGroup = KPGroup(id: UUID(), name: "Root")

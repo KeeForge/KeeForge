@@ -328,6 +328,44 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertNil(unsupportedOTPURI.totpConfig, "otp:// has no existing parser path to preserve")
     }
 
+    func testNativeTOTPAlgorithmReadsKeePassNames() throws {
+        // RFC 6238 Appendix B: each algorithm's seed (Base32) and its 8-digit
+        // code at T=59, so a name read as the wrong algorithm shows up as a
+        // wrong code.
+        let seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+        let vectors: [(name: String, algorithm: TOTPAlgorithm, secret: String, code: String)] = [
+            ("HMAC-SHA-1", .sha1, seed, "94287082"),
+            ("HMAC-SHA-256", .sha256, seed + "GEZDGNBVGY3TQOJQGEZA====", "46119246"),
+            ("HMAC-SHA-512", .sha512, seed + seed + seed + "GEZDGNA=", "90693936"),
+        ]
+        for vector in vectors {
+            let entry = try parseSingleEntry(fields: [
+                "TimeOtp-Secret-Base32": vector.secret, "TimeOtp-Length": "8", "TimeOtp-Algorithm": vector.name,
+            ])
+            let config = try XCTUnwrap(entry.totpConfig, vector.name)
+            XCTAssertEqual(config.algorithm, vector.algorithm, vector.name)
+            XCTAssertEqual(
+                TOTPGenerator.generateCode(
+                    config: config, sessionKey: testSessionKey, date: Date(timeIntervalSince1970: 59)
+                ),
+                vector.code,
+                vector.name
+            )
+        }
+
+        let withoutAlgorithm = try parseSingleEntry(fields: ["TimeOtp-Secret-Base32": seed])
+        XCTAssertEqual(withoutAlgorithm.totpConfig?.algorithm, .sha1, "KeePass defaults to HMAC-SHA-1")
+    }
+
+    func testNativeTOTPAlgorithmStillReadsTokensEarlierVersionsWrote() throws {
+        for (token, algorithm) in [("SHA1", TOTPAlgorithm.sha1), ("SHA256", .sha256), ("SHA512", .sha512)] {
+            let entry = try parseSingleEntry(fields: [
+                "TimeOtp-Secret-Base32": "JBSWY3DP", "TimeOtp-Algorithm": token,
+            ])
+            XCTAssertEqual(entry.totpConfig?.algorithm, algorithm, token)
+        }
+    }
+
     func testOTPAuthURIDuplicateQueryNamesDoNotTrapFirstWins() throws {
         // Duplicate query names (including case-folded duplicates) previously
         // fed `Dictionary(uniqueKeysWithValues:)` and crashed the unlock parse.

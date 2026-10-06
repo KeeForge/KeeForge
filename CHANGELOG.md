@@ -22,6 +22,7 @@
 - Retrying a failed new-entry save no longer creates duplicate entries, and Save and Lock keeps edits made after a failed save.
 - Opening or closing a database now preserves unsaved editor changes until you choose to save or discard them.
 - Switching entries conceals revealed fields, and verification codes refresh when their setup changes. Authentication that finishes after a lock or selection change cannot reveal or copy stale secrets.
+- Verification codes that KeePass stores in its own fields with SHA-256 or SHA-512 now show the correct code, and saving keeps their algorithm (#205). KeeForge also writes the algorithm under the name KeePass documents, including for codes added by typing a setup key. If an earlier version already saved such a SHA-256 or SHA-512 entry, choose its algorithm again in the entry editor.
 - Attachment previews and imports no longer reopen or change an editor after it has closed or the database has locked.
 - AutoFill ignores late results from cancelled requests instead of applying them to a newer request.
 - Switching cloud accounts clears the previous account’s files. Closing creation or connection forms no longer lets late results reopen them.

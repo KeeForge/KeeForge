@@ -1799,12 +1799,12 @@ private class EntryBuilder {
             return parseTOTPFromURI(otpURL, sessionKey: sessionKey)
         }
 
-        // KeePassXC TimeOtp fields
+        // KeePass 2.x TimeOtp fields
         if let secret = customFields["TimeOtp-Secret-Base32"], !secret.isEmpty {
             let encryptedSecret = (try? EncryptedValue.encrypt(secret, using: sessionKey)) ?? .empty
             let period = Self.sanitizedTOTPPeriod(Int(customFields["TimeOtp-Period"] ?? "30"))
             let digits = Self.sanitizedTOTPDigits(Int(customFields["TimeOtp-Length"] ?? "6"))
-            let algo = TOTPAlgorithm(rawValue: customFields["TimeOtp-Algorithm"] ?? "SHA1") ?? .sha1
+            let algo = customFields["TimeOtp-Algorithm"].flatMap(TOTPAlgorithm.init(keePassName:)) ?? .sha1
             return TOTPConfig(secret: encryptedSecret, period: period, digits: digits, algorithm: algo)
         }
 

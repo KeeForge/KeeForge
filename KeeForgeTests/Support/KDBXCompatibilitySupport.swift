@@ -2534,7 +2534,15 @@ private extension KDBXCompatibilitySupport {
             },
             expectedCustomFields: [.init(
                 entryTitle: "Compat Created Entry",
-                current: .init(fields: [.init(name: "Notes", value: createdEntryUnicodeNotes, isProtected: false)], absentFields: []),
+                current: .init(
+                    fields: [
+                        .init(name: "Notes", value: createdEntryUnicodeNotes, isProtected: false),
+                        // KeePass 2.x generates no code unless the stored
+                        // name is one of its own.
+                        .init(name: "TimeOtp-Algorithm", value: "HMAC-SHA-256", isProtected: false),
+                    ],
+                    absentFields: []
+                ),
                 history: []
             )],
             assertChange: { before, after, _ in

@@ -349,7 +349,7 @@ struct KDBXXMLSerializer {
                 ("TimeOtp-Secret-Base32", secret, true),
                 ("TimeOtp-Period", String(totpConfig.period), false),
                 ("TimeOtp-Length", String(totpConfig.digits), false),
-                ("TimeOtp-Algorithm", totpConfig.algorithm.rawValue, false),
+                ("TimeOtp-Algorithm", totpConfig.algorithm.keePassName, false),
             ]
 
             for (key, value, isProtected) in totpFields {
