@@ -27,9 +27,9 @@ Apply existing user authorization rather than asking again. An audit alone does 
 authorize source/test fixes, issue mutations, commits, or pushing.
 
 Use [pre-release-review](../pre-release-review/SKILL.md) for change-driven release
-readiness. When working within that review, contribute findings to its report instead
-of starting a second audit or repeating verification. For ordinary test changes, apply
-the checklist below without producing a separate audit report.
+readiness. When working within that static review, contribute coverage gaps to its
+action list without running tests or creating a separate report. For ordinary test
+changes, apply the checklist below without producing a separate audit report.
 
 ## Authoring checklist
 
