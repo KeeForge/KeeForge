@@ -366,24 +366,53 @@ final class AutoLockTests: XCTestCase {
 
     #if os(macOS)
     private struct MacTriggerHarness {
-        /// Stands in for the system process that shows an authentication
-        /// prompt, and for any other application.
-        static let authenticationPromptHost: pid_t = 70_001
-        static let otherApplication: pid_t = 70_002
+        /// The system's authentication UI as the workspace reports it while a
+        /// prompt is up, and any other application.
+        static let authenticationPrompt = MacLockMonitor.ForegroundApplication(
+            processIdentifier: 70_001,
+            bundleIdentifier: MacLockMonitor.ForegroundApplication.systemAuthenticationPromptBundleIdentifier,
+            bundleURL: URL(fileURLWithPath: "/System/Library/Frameworks/LocalAuthentication.framework/Support/coreautha.bundle")
+        )
+        static let otherApplication = MacLockMonitor.ForegroundApplication(
+            processIdentifier: 70_002,
+            bundleIdentifier: "com.apple.finder",
+            bundleURL: URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app")
+        )
+
+        @MainActor
+        final class Deadlines {
+            private var pending: [@MainActor @Sendable () -> Void] = []
+
+            func schedule(_ work: @escaping @MainActor @Sendable () -> Void) {
+                pending.append(work)
+            }
+
+            func pass() {
+                let due = pending
+                pending = []
+                for work in due {
+                    work()
+                }
+            }
+        }
 
         let appCenter: NotificationCenter
         let workspaceCenter = NotificationCenter()
         let distributedCenter = NotificationCenter()
+        let deadlines: Deadlines
         let monitor: MacLockMonitor
 
         @MainActor
         init(viewModel: DatabaseViewModel, appCenter: NotificationCenter = NotificationCenter()) {
             self.appCenter = appCenter
+            let deadlines = Deadlines()
+            self.deadlines = deadlines
             monitor = MacLockMonitor(
                 notificationCenter: appCenter,
                 workspaceNotificationCenter: workspaceCenter,
                 distributedNotificationCenter: distributedCenter,
-                frontmostApplicationProvider: { Self.authenticationPromptHost }
+                frontmostApplicationProvider: { Self.authenticationPrompt },
+                deadlineScheduler: { _, work in deadlines.schedule(work) }
             )
             monitor.onLockTriggered = { _ in
                 viewModel.handleSceneDidEnterBackground()
@@ -551,7 +580,9 @@ final class AutoLockTests: XCTestCase {
         defer { harness.monitor.stop() }
 
         Self.deactivateBehindAuthenticationPrompt(harness.appCenter)
+        Self.endAuthenticationPrompt(harness.appCenter)
         harness.appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+        harness.deadlines.pass()
 
         guard case .unlocked = vm.state else {
             XCTFail("The app's own authentication prompt must not lock the vault")
@@ -567,10 +598,29 @@ final class AutoLockTests: XCTestCase {
         let harness = MacTriggerHarness(viewModel: vm)
         defer { harness.monitor.stop() }
 
-        Self.deactivateBehindAuthenticationPrompt(harness.appCenter, promptStaysUp: true)
-        harness.monitor.handleApplicationDidActivate(processIdentifier: MacTriggerHarness.otherApplication)
+        Self.deactivateBehindAuthenticationPrompt(harness.appCenter)
+        harness.monitor.handleApplicationDidActivate(MacTriggerHarness.otherApplication)
 
         assertLocked(vm, "Expected .locked after another app took over during the prompt")
+    }
+
+    /// The hold ends with its prompt: a vault KeeForge does not come back to
+    /// is locked, whatever ended the prompt.
+    func testMacAuthenticationPromptEndingWithoutReactivationLocksUnderStrictPolicy() async throws {
+        SettingsService.macLockPolicy = .appDeactivates
+        let vm = try await makeUnlockedViewModel()
+        let harness = MacTriggerHarness(viewModel: vm)
+        defer { harness.monitor.stop() }
+
+        Self.deactivateBehindAuthenticationPrompt(harness.appCenter)
+        Self.endAuthenticationPrompt(harness.appCenter)
+        guard case .unlocked = vm.state else {
+            XCTFail("The reply can arrive just before the reactivation, so it must not lock by itself")
+            return
+        }
+        harness.deadlines.pass()
+
+        assertLocked(vm, "Expected .locked once the prompt ended and KeeForge was not active again")
     }
 
     /// A deactivation behind the quick-unlock prompt used to lock too, which
@@ -583,6 +633,7 @@ final class AutoLockTests: XCTestCase {
             biometricCompositeKeyOperation: { [fixturePassword] _, _ in
                 await MainActor.run {
                     Self.deactivateBehindAuthenticationPrompt(appCenter)
+                    Self.endAuthenticationPrompt(appCenter)
                     appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
                 }
                 return try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
@@ -592,6 +643,7 @@ final class AutoLockTests: XCTestCase {
         defer { harness.monitor.stop() }
 
         let outcome = await vm.unlockWithBiometrics()
+        harness.deadlines.pass()
 
         XCTAssertEqual(outcome, .unlocked)
         guard case .unlocked = vm.state else {
@@ -600,17 +652,48 @@ final class AutoLockTests: XCTestCase {
         }
     }
 
-    /// What `BiometricService` and AppKit do around a system prompt: the flag
-    /// is up before the prompt takes the foreground from the app.
-    private static func deactivateBehindAuthenticationPrompt(
-        _ appCenter: NotificationCenter,
-        promptStaysUp: Bool = false
-    ) {
+    /// What `BiometricService` and AppKit do around a system prompt: the
+    /// request is marked before the prompt takes the foreground from the app.
+    /// The harness listens on its own center, so the change the service posts
+    /// on the default one is repeated there.
+    private static func deactivateBehindAuthenticationPrompt(_ appCenter: NotificationCenter) {
         BiometricService.isBiometricAuthInProgress = true
+        appCenter.post(name: BiometricService.authenticationInProgressDidChangeNotification, object: nil)
         appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
-        BiometricService.isBiometricAuthInProgress = promptStaysUp
+    }
+
+    private static func endAuthenticationPrompt(_ appCenter: NotificationCenter) {
+        BiometricService.isBiometricAuthInProgress = false
+        appCenter.post(name: BiometricService.authenticationInProgressDidChangeNotification, object: nil)
     }
     #endif
+
+    /// `BiometricService` posts every change of its flag on the default
+    /// center, which is where the Mac app's lock monitor listens for the end
+    /// of a request.
+    func testAuthenticationRequestPostsItsBeginningAndEnd() {
+        let recorder = AuthenticationRequestRecorder()
+        let token = NotificationCenter.default.addObserver(
+            forName: BiometricService.authenticationInProgressDidChangeNotification,
+            object: nil,
+            queue: nil
+        ) { _ in
+            MainActor.assumeIsolated { recorder.changes.append(BiometricService.isBiometricAuthInProgress) }
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        BiometricService.isBiometricAuthInProgress = true
+        BiometricService.isBiometricAuthInProgress = true
+        BiometricService.isBiometricAuthInProgress = false
+        BiometricService.isBiometricAuthInProgress = false
+
+        XCTAssertEqual(recorder.changes, [true, false])
+    }
+
+    @MainActor
+    private final class AuthenticationRequestRecorder {
+        var changes: [Bool] = []
+    }
 
     private func makeUnlockedViewModel() async throws -> DatabaseViewModel {
         let vm = try makeViewModel()

@@ -16,9 +16,12 @@ import Foundation
 ///   the default policy ignores it because it fires on every window switch.
 ///   The app's own authentication prompt is the exception: the system shows
 ///   it from a separate process, so asking to reveal a password deactivates
-///   the app the same way leaving it does. That deactivation is held instead,
-///   and locks only if another application takes over before KeeForge is
-///   active again (`NSWorkspace.didActivateApplicationNotification`).
+///   the app the same way leaving it does. That deactivation is held instead
+///   of locking, but only for the system's authentication UI itself
+///   (`ForegroundApplication.isSystemAuthenticationPrompt`); a prompt being
+///   requested does not excuse any other application coming forward
+///   (`NSWorkspace.didActivateApplicationNotification`). When the prompt ends
+///   the hold is settled: KeeForge is active again shortly after, or it locks.
 /// - the last window closing (`NSWindow.willCloseNotification`). ⌘W closes the
 ///   only window without quitting, and the session lives in app-level state,
 ///   so without this an unlocked vault would sit decrypted in memory with no
@@ -57,9 +60,61 @@ final class MacLockMonitor {
     /// one that is closing. Injected so tests can drive the trigger without
     /// real windows.
     typealias RemainingWindowCounter = @MainActor (_ excluding: NSWindow?) -> Int
-    /// Whether one of the app's own system authentication prompts is up.
+    /// Whether the app has asked the system for an authentication prompt that
+    /// has not ended yet. True from before the prompt appears, so on its own
+    /// it does not say what a deactivation was caused by.
     typealias AuthenticationPromptProvider = @MainActor () -> Bool
-    typealias FrontmostApplicationProvider = @MainActor () -> pid_t?
+    typealias FrontmostApplicationProvider = @MainActor () -> ForegroundApplication?
+    /// Runs `work` on the main actor after `delay` seconds. Injected so tests
+    /// can let the reactivation deadline pass without waiting for it.
+    typealias DeadlineScheduler = @MainActor (
+        _ delay: TimeInterval,
+        _ work: @escaping @MainActor @Sendable () -> Void
+    ) -> Void
+
+    /// What the monitor needs to know about an application that is, or just
+    /// came, in front. A value rather than an `NSRunningApplication` so it can
+    /// leave the thread a notification was posted on, and so tests can stand
+    /// in for applications that are not running.
+    struct ForegroundApplication: Equatable, Sendable {
+        var processIdentifier: pid_t
+        var bundleIdentifier: String?
+        var bundleURL: URL?
+
+        init(processIdentifier: pid_t, bundleIdentifier: String?, bundleURL: URL?) {
+            self.processIdentifier = processIdentifier
+            self.bundleIdentifier = bundleIdentifier
+            self.bundleURL = bundleURL
+        }
+
+        init(_ application: NSRunningApplication) {
+            self.init(
+                processIdentifier: application.processIdentifier,
+                bundleIdentifier: application.bundleIdentifier,
+                bundleURL: application.bundleURL
+            )
+        }
+
+        /// `coreautha`, the agent macOS shows the Touch ID, Apple Watch and
+        /// login-password prompt from.
+        static let systemAuthenticationPromptBundleIdentifier = "com.apple.LocalAuthentication.UIAgent"
+
+        /// Whether this is the system's authentication UI. The bundle
+        /// identifier alone is whatever an application declares about itself,
+        /// so the bundle must also sit on the signed system volume, where
+        /// nothing but the system can put one.
+        var isSystemAuthenticationPrompt: Bool {
+            guard bundleIdentifier == Self.systemAuthenticationPromptBundleIdentifier,
+                  let bundleURL, bundleURL.isFileURL else { return false }
+            return bundleURL.standardizedFileURL.path.hasPrefix("/System/Library/")
+        }
+    }
+
+    /// How long KeeForge may take to be active again once its prompt has
+    /// ended. The system hands the foreground back within a few hundredths of
+    /// a second; the reply can still arrive just before the reactivation, so
+    /// locking on the reply itself would lock an answered prompt.
+    nonisolated static let defaultReactivationGracePeriod: TimeInterval = 2
 
     var onLockTriggered: ((Trigger) -> Void)?
     var onDidBecomeActive: (() -> Void)?
@@ -73,22 +128,22 @@ final class MacLockMonitor {
     private let distributedNotificationCenter: NotificationCenter
     private let lockPolicyProvider: LockPolicyProvider
     private let remainingWindowCounter: RemainingWindowCounter
-    private let isAuthenticationPromptUp: AuthenticationPromptProvider
+    private let isAuthenticationPromptPending: AuthenticationPromptProvider
     private let frontmostApplication: FrontmostApplicationProvider
+    private let reactivationGracePeriod: TimeInterval
+    private let scheduleDeadline: DeadlineScheduler
     private let ownProcessIdentifier = ProcessInfo.processInfo.processIdentifier
     private let now: @MainActor () -> Date
     private let activityThrottle: TimeInterval
     private var observers: [(center: NotificationCenter, token: NSObjectProtocol)] = []
     private var activityMonitor: Any?
     private var lastActivityForwardedAt: Date?
-    /// Set while the strict policy holds a deactivation the app's own
-    /// authentication prompt caused.
-    private var authenticationPromptDeactivation: AuthenticationPromptDeactivation?
-
-    private struct AuthenticationPromptDeactivation {
-        /// The process showing the prompt; nil until it is known.
-        var host: pid_t?
-    }
+    /// True while the strict policy holds a deactivation behind the app's own
+    /// authentication prompt instead of locking on it.
+    private var isHoldingDeactivation = false
+    /// Identifies the reactivation deadline that may still lock; one that was
+    /// scheduled before the hold ended or a new prompt began no longer counts.
+    private var reactivationDeadline = 0
 
     init(
         notificationCenter: NotificationCenter = .default,
@@ -100,8 +155,10 @@ final class MacLockMonitor {
             BiometricService.isBiometricAuthInProgress
         },
         frontmostApplicationProvider: @escaping FrontmostApplicationProvider = {
-            NSWorkspace.shared.frontmostApplication?.processIdentifier
+            NSWorkspace.shared.frontmostApplication.map { ForegroundApplication($0) }
         },
+        reactivationGracePeriod: TimeInterval = MacLockMonitor.defaultReactivationGracePeriod,
+        deadlineScheduler: @escaping DeadlineScheduler = MacLockMonitor.scheduleOnMainQueue,
         now: @escaping @MainActor () -> Date = { Date() },
         activityThrottle: TimeInterval = 2
     ) {
@@ -110,8 +167,10 @@ final class MacLockMonitor {
         self.distributedNotificationCenter = distributedNotificationCenter
         self.lockPolicyProvider = lockPolicyProvider
         self.remainingWindowCounter = remainingWindowCounter
-        self.isAuthenticationPromptUp = authenticationPromptProvider
+        self.isAuthenticationPromptPending = authenticationPromptProvider
         self.frontmostApplication = frontmostApplicationProvider
+        self.reactivationGracePeriod = reactivationGracePeriod
+        self.scheduleDeadline = deadlineScheduler
         self.now = now
         self.activityThrottle = activityThrottle
     }
@@ -135,8 +194,11 @@ final class MacLockMonitor {
             monitor.handleLockTrigger(.appResignedActive)
         }
         observe(notificationCenter, NSApplication.didBecomeActiveNotification) { monitor in
-            monitor.authenticationPromptDeactivation = nil
+            monitor.endHeldDeactivation()
             monitor.onDidBecomeActive?()
+        }
+        observe(notificationCenter, BiometricService.authenticationInProgressDidChangeNotification) { monitor in
+            monitor.handleAuthenticationPromptStateChange()
         }
         observeWindowClose()
         observeApplicationActivation()
@@ -188,7 +250,7 @@ final class MacLockMonitor {
         }
         activityMonitor = nil
         lastActivityForwardedAt = nil
-        authenticationPromptDeactivation = nil
+        endHeldDeactivation()
     }
 
     /// Sheets, panels (the About panel, open/save panels) and closed-but-alive
@@ -232,47 +294,100 @@ final class MacLockMonitor {
         observers.append((center: notificationCenter, token: token))
     }
 
-    /// Another application came to the front. Only matters while a
-    /// deactivation is held for the app's own authentication prompt: the
-    /// process showing that prompt is expected, anything else means the user
-    /// left KeeForge behind it. Exposed for tests, which cannot activate real
-    /// applications.
-    func handleApplicationDidActivate(processIdentifier: pid_t) {
-        guard let held = authenticationPromptDeactivation else { return }
-        guard processIdentifier != ownProcessIdentifier else { return }
+    /// An application came to the front. Only matters while a deactivation is
+    /// held: the system's authentication UI is the one application expected
+    /// there, and KeeForge itself reports back through
+    /// `didBecomeActiveNotification`. Anything else means the user left
+    /// KeeForge, whether the prompt is still up or not. Exposed for tests,
+    /// which cannot activate real applications.
+    func handleApplicationDidActivate(_ application: ForegroundApplication) {
+        guard isHoldingDeactivation else { return }
+        guard application.processIdentifier != ownProcessIdentifier else { return }
+        guard application.isSystemAuthenticationPrompt == false else { return }
+        lockOnHeldDeactivation()
+    }
 
-        if let host = held.host {
-            guard processIdentifier != host else { return }
-        } else if isAuthenticationPromptUp() {
-            // The deactivation was delivered before the prompt's process was
-            // reported frontmost, so the first application to come forward
-            // while the prompt is still up is the one showing it.
-            authenticationPromptDeactivation?.host = processIdentifier
+    /// The app's request for an authentication prompt began or ended.
+    /// `BiometricService` posts the change; exposed for tests, which have no
+    /// system prompt to end.
+    ///
+    /// The end of the request settles a held deactivation, so that the hold
+    /// never outlives the prompt it was made for: an application other than
+    /// the prompt's in front locks at once, and otherwise KeeForge has
+    /// `reactivationGracePeriod` to become active again.
+    func handleAuthenticationPromptStateChange() {
+        guard isHoldingDeactivation else { return }
+        reactivationDeadline += 1
+        // A new request while the last one is still being settled: its prompt
+        // takes over the hold.
+        guard isAuthenticationPromptPending() == false else { return }
+
+        guard Self.isExpectedBehindAuthenticationPrompt(frontmostApplication(), own: ownProcessIdentifier) else {
+            lockOnHeldDeactivation()
             return
         }
+        let deadline = reactivationDeadline
+        scheduleDeadline(reactivationGracePeriod) { [weak self] in
+            guard let self, self.isHoldingDeactivation, self.reactivationDeadline == deadline else { return }
+            self.lockOnHeldDeactivation()
+        }
+    }
 
-        authenticationPromptDeactivation = nil
+    /// Whether the application in front fits a deactivation the app's own
+    /// prompt caused: the system's authentication UI, or nothing else yet —
+    /// the deactivation can be delivered before the workspace reports who took
+    /// the foreground, and that application's activation is then judged when
+    /// it arrives.
+    private static func isExpectedBehindAuthenticationPrompt(
+        _ frontmost: ForegroundApplication?,
+        own ownProcessIdentifier: pid_t
+    ) -> Bool {
+        guard let frontmost, frontmost.processIdentifier != ownProcessIdentifier else { return true }
+        return frontmost.isSystemAuthenticationPrompt
+    }
+
+    private func endHeldDeactivation() {
+        isHoldingDeactivation = false
+        reactivationDeadline += 1
+    }
+
+    /// Requests the lock a held deactivation stood for. The policy is read
+    /// again: the hold was made under the strict one, and the lock must not
+    /// outlast a change away from it.
+    private func lockOnHeldDeactivation() {
+        endHeldDeactivation()
+        guard lockPolicyProvider() == .appDeactivates else { return }
         onLockTriggered?(.appResignedActive)
     }
 
+    nonisolated static func scheduleOnMainQueue(
+        after delay: TimeInterval,
+        _ work: @escaping @MainActor @Sendable () -> Void
+    ) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            MainActor.assumeIsolated { work() }
+        }
+    }
+
     /// Registered on its own for the same reason as `observeWindowClose`: the
-    /// activated application is in the notification's `userInfo`. Only its
-    /// process identifier leaves the posting thread.
+    /// activated application is in the notification's `userInfo`. Only a
+    /// value describing it leaves the posting thread.
     private func observeApplicationActivation() {
         let token = workspaceNotificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: nil
         ) { [weak self] notification in
-            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            guard let processIdentifier = application?.processIdentifier else { return }
+            guard let running = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            else { return }
+            let application = ForegroundApplication(running)
             if Thread.isMainThread {
                 MainActor.assumeIsolated {
-                    self?.handleApplicationDidActivate(processIdentifier: processIdentifier)
+                    self?.handleApplicationDidActivate(application)
                 }
             } else {
                 Task { @MainActor [weak self] in
-                    self?.handleApplicationDidActivate(processIdentifier: processIdentifier)
+                    self?.handleApplicationDidActivate(application)
                 }
             }
         }
@@ -282,15 +397,18 @@ final class MacLockMonitor {
     private func handleLockTrigger(_ trigger: Trigger) {
         if trigger == .appResignedActive {
             guard lockPolicyProvider() == .appDeactivates else { return }
-            if isAuthenticationPromptUp() {
-                let frontmost = frontmostApplication()
-                authenticationPromptDeactivation = AuthenticationPromptDeactivation(
-                    host: frontmost == ownProcessIdentifier ? nil : frontmost
-                )
+            // A pending prompt is not enough to hold the lock: the request is
+            // marked before the prompt appears, so the user can still be
+            // leaving for another application. That application in front
+            // locks as it always did.
+            if isAuthenticationPromptPending(),
+               Self.isExpectedBehindAuthenticationPrompt(frontmostApplication(), own: ownProcessIdentifier) {
+                isHoldingDeactivation = true
+                reactivationDeadline += 1
                 return
             }
         }
-        authenticationPromptDeactivation = nil
+        endHeldDeactivation()
         onLockTriggered?(trigger)
     }
 
