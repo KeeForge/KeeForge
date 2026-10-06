@@ -366,6 +366,54 @@ final class KDBXParserTests: XCTestCase {
         }
     }
 
+    func testNativeTOTPSecretReadsEveryKeePassEncoding() throws {
+        // The RFC 6238 SHA-1 seed "12345678901234567890" in each field
+        // KeePass 2.x can keep it in, and its 8-digit code at T=59.
+        let fields = [
+            "TimeOtp-Secret": "12345678901234567890",
+            "TimeOtp-Secret-Hex": "3132333435363738393031323334353637383930",
+            "TimeOtp-Secret-Base32": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            "TimeOtp-Secret-Base64": "MTIzNDU2Nzg5MDEyMzQ1Njc4OTA=",
+        ]
+        for (field, value) in fields {
+            let entry = try parseSingleEntry(fields: [field: value, "TimeOtp-Length": "8"])
+            let config = try XCTUnwrap(entry.totpConfig, field)
+            XCTAssertEqual(try config.secret.decrypt(using: testSessionKey), value, field)
+            XCTAssertEqual(
+                TOTPGenerator.generateCode(
+                    config: config, sessionKey: testSessionKey, date: Date(timeIntervalSince1970: 59)
+                ),
+                "94287082",
+                field
+            )
+            XCTAssertTrue(entry.displayCustomFields.isEmpty, field)
+        }
+    }
+
+    func testNativeTOTPSecretFollowsKeePassFieldOrder() throws {
+        // KeePass takes the first of these that is not empty.
+        let order = ["TimeOtp-Secret", "TimeOtp-Secret-Hex", "TimeOtp-Secret-Base32", "TimeOtp-Secret-Base64"]
+        for (index, field) in order.enumerated() {
+            var fields = Dictionary(uniqueKeysWithValues: order[..<index].map { ($0, "") })
+            for later in order[index...] { fields[later] = "later" }
+            fields[field] = "first"
+            let entry = try parseSingleEntry(fields: fields)
+            XCTAssertEqual(try entry.totpConfig?.secret.decrypt(using: testSessionKey), "first", field)
+        }
+    }
+
+    func testNativeTOTPSecretThatDoesNotDecodeGeneratesNoCode() throws {
+        // The last value is valid Base32, but KeePass reads that field as
+        // hexadecimal.
+        for (field, value) in [
+            ("TimeOtp-Secret-Hex", "313"), ("TimeOtp-Secret-Base64", "not base64"), ("TimeOtp-Secret-Hex", "MFRGGZDF"),
+        ] {
+            let config = try XCTUnwrap(parseSingleEntry(fields: [field: value]).totpConfig, value)
+            XCTAssertEqual(try config.secret.decrypt(using: testSessionKey), value)
+            XCTAssertNil(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey), value)
+        }
+    }
+
     func testOTPAuthURIDuplicateQueryNamesDoNotTrapFirstWins() throws {
         // Duplicate query names (including case-folded duplicates) previously
         // fed `Dictionary(uniqueKeysWithValues:)` and crashed the unlock parse.

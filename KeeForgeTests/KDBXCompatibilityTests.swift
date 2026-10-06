@@ -1048,6 +1048,40 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     @MainActor
+    func test_keePassTOTPSecretInAnotherEncoding_keepsItsFieldUntilTheSecretChanges() throws {
+        let xml = "<KeePassFile><Root><Group><Name>Root</Name><Entry>"
+            + "<String><Key>Title</Key><Value>KeePass Hex</Value></String>"
+            + "<String><Key>TimeOtp-Secret-Hex</Key><Value>3132333435363738393031323334353637383930</Value></String>"
+            + "</Entry></Group></Root></KeePassFile>"
+        let parsed = try KDBXParser.parseXML(
+            xmlData: Data(xml.utf8), innerStreamKey: Data(), innerStreamID: 0, sessionKey: entrySessionKey
+        )
+        let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
+        viewModel.notes = "Edited"
+
+        var updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [entry]), meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        var reloaded = try writeAndReload(updated)
+        var config = try XCTUnwrap(reloaded.totpConfig)
+        XCTAssertEqual(config.keePassSecretField, .hex)
+        XCTAssertEqual(try config.secret.decrypt(using: entrySessionKey), "3132333435363738393031323334353637383930")
+        XCTAssertEqual(resolvedSecret(config), Data("12345678901234567890".utf8))
+        XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
+
+        // A new secret is typed as Base32 and replaces the hexadecimal field.
+        let secretEdit = EntryEditViewModel(editing: reloaded, sessionKey: entrySessionKey)
+        secretEdit.totpSecret = "JBSWY3DPEHPK3PXP"
+        updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [reloaded]), meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: reloaded.id, draft: secretEdit.entryDraftPayload))
+        reloaded = try writeAndReload(updated)
+        config = try XCTUnwrap(reloaded.totpConfig)
+        XCTAssertEqual(config.keePassSecretField, .base32)
+        XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
+        XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
+    }
+
+    @MainActor
     func test_freshOTPAuthURIEnrollment_storesProtectedVerbatimURIAndLaterEditsDropIt() throws {
         let raw = "otpauth://totp/Compat:enroll@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Compat&period=45&digits=8&algorithm=SHA256"
         let entry = KPEntry(

@@ -309,6 +309,7 @@ enum KDBXTreeAssertions {
             XCTAssertEqual(lhs.period, rhs.period, file: file, line: line)
             XCTAssertEqual(lhs.digits, rhs.digits, file: file, line: line)
             XCTAssertEqual(lhs.algorithm.rawValue, rhs.algorithm.rawValue, file: file, line: line)
+            XCTAssertEqual(lhs.keePassSecretField, rhs.keePassSecretField, file: file, line: line)
             XCTAssertEqual(
                 try lhs.secret.decrypt(using: sessionKey),
                 try rhs.secret.decrypt(using: sessionKey),

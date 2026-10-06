@@ -1106,7 +1106,7 @@ struct DatabaseDraft: Sendable {
             hasTagsElement: originalEntry.hasTagsElement || !draft.tags.isEmpty,
             customFields: customFields,
             passkeyPrivateKey: passkeyPrivateKey,
-            totpConfig: try makeTOTPConfig(from: draft.totpConfig),
+            totpConfig: try makeTOTPConfig(from: draft.totpConfig, originalEntry: originalEntry),
             otpURL: updatedOtpURL(draft: draft, originalEntry: originalEntry),
             creationTime: originalEntry.creationTime,
             lastModificationTime: timestamp,
@@ -1197,7 +1197,8 @@ struct DatabaseDraft: Sendable {
     }
 
     private func makeTOTPConfig(
-        from draft: EntryDraftPayload.TOTPConfiguration?
+        from draft: EntryDraftPayload.TOTPConfiguration?,
+        originalEntry: KPEntry? = nil
     ) throws -> TOTPConfig? {
         guard let draft, !draft.secret.isEmpty else {
             return nil
@@ -1207,10 +1208,29 @@ struct DatabaseDraft: Sendable {
             secret: try EncryptedValue.encrypt(draft.secret, using: sessionKey),
             decodedSecret: try draft.decodedSecret.map { try EncryptedValue.encrypt($0, using: sessionKey) },
             keeOTPSource: draft.keeOTPSource,
+            keePassSecretField: preservedKeePassSecretField(draft: draft, originalEntry: originalEntry),
             period: draft.period,
             digits: draft.digits,
             algorithm: draft.algorithm
         )
+    }
+
+    /// A draft does not say which KeePass field holds its secret. An
+    /// unchanged secret stays in the field the entry keeps it in; a new or
+    /// changed one is Base32.
+    private func preservedKeePassSecretField(
+        draft: EntryDraftPayload.TOTPConfiguration,
+        originalEntry: KPEntry?
+    ) -> KeePassTOTPSecretField {
+        guard let originalConfig = originalEntry?.totpConfig,
+              draft.keeOTPSource == nil,
+              draft.decodedSecret != nil,
+              let originalSecret = try? originalConfig.secret.decrypt(using: sessionKey),
+              draft.secret == originalSecret
+        else {
+            return .base32
+        }
+        return originalConfig.keePassSecretField
     }
 
     private func activeCustomFields(from draft: EntryDraftPayload) -> [String: String] {

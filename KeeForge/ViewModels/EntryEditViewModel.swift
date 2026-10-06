@@ -303,7 +303,7 @@ final class EntryEditViewModel {
     ) {
         let editableCustomFields = Self.editableCustomFields(of: entry)
         let password = (try? entry.password.decrypt(using: sessionKey)) ?? ""
-        let totpSecret = (try? entry.totpConfig?.secret.decrypt(using: sessionKey)) ?? ""
+        let totpSecret = Self.base32TOTPSecret(of: entry, sessionKey: sessionKey)
 
         self.init(
             mode: .create(parentGroupID: parentGroupID),
@@ -322,6 +322,17 @@ final class EntryEditViewModel {
             totpAlgorithm: entry.totpConfig?.algorithm ?? .sha1,
             isSeededFromExistingEntry: true
         )
+    }
+
+    /// A copy stores its secret as Base32, so one the entry keeps in another
+    /// encoding is converted; one that does not decode is left out.
+    private static func base32TOTPSecret(of entry: KPEntry, sessionKey: SymmetricKey) -> String {
+        guard let config = entry.totpConfig else { return "" }
+        guard config.decodedSecret != nil else {
+            return (try? config.secret.decrypt(using: sessionKey)) ?? ""
+        }
+        return TOTPGenerator.resolveSecret(config: config, sessionKey: sessionKey)
+            .map { TOTPGenerator.base32Encode($0.data) } ?? ""
     }
 
     private static func editableCustomFields(of entry: KPEntry) -> [CustomField] {

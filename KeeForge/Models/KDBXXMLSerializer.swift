@@ -346,7 +346,7 @@ struct KDBXXMLSerializer {
         if keeOTPSource == nil, entry.otpURL == nil, let totpConfig = entry.totpConfig {
             let secret = try totpConfig.secret.decrypt(using: sessionKey)
             let totpFields = [
-                ("TimeOtp-Secret-Base32", secret, true),
+                (totpConfig.keePassSecretField.rawValue, secret, true),
                 ("TimeOtp-Period", String(totpConfig.period), false),
                 ("TimeOtp-Length", String(totpConfig.digits), false),
                 ("TimeOtp-Algorithm", totpConfig.algorithm.keePassName, false),
