@@ -86,7 +86,7 @@ final class SecretAccessGate {
             throw error
         }
         // The session locked or left the foreground while the prompt was up.
-        guard invalidationCount == invalidationCountAtPrompt else { return }
+        guard invalidationCount == invalidationCountAtPrompt else { throw CancellationError() }
         noteSuccessfulAuthentication()
     }
 
