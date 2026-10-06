@@ -2330,6 +2330,53 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNotNil(searchView.sharedCopyDate)
     }
 
+    /// A save that could not refresh the shared copy leaves none behind, so
+    /// the picker cannot list the database as it was before that save (#207).
+    /// This test host can read the bookmarked file on both platforms; the Mac
+    /// extension cannot, and fails the unlock there instead.
+    func test_unlockBookmarkedDatabase_afterASaveThatCouldNotRefreshTheSharedCopy_searchesTheSavedFile() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedResolvableDefaultDatabase()
+        let originalData = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        try seedDatabaseBytes(originalData, for: database)
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try KDBXParser.parseWithMeta(
+            data: originalData,
+            password: "testpassword123",
+            sessionKey: sessionKey
+        )
+        let draft = try DatabaseDraft(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            sessionKey: sessionKey
+        ).apply(
+            .createEntry(
+                parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: parsed.rootGroup),
+                draft: EntryDraftPayload(title: "Saved After Copy", password: "saved-after-copy")
+            )
+        )
+        var environment = LocalDatabaseSaver.Environment.live
+        environment.cacheDatabaseCopy = { _, _ in
+            throw CocoaError(.fileWriteOutOfSpace)
+        }
+        _ = try await LocalDatabaseSaver.save(
+            draft: draft,
+            reference: database,
+            compositeKey: KDBXCrypto.compositeKey(password: "testpassword123"),
+            openTimeSHA512: KDBXCrypto.sha512(originalData),
+            kdfPolicy: .mainApp,
+            environment: environment
+        )
+
+        let searchView = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
+
+        XCTAssertTrue(
+            searchView.searchEntries.map(\.title).contains("Saved After Copy"),
+            "The copy from before the save must not be what AutoFill searches"
+        )
+        XCTAssertNil(searchView.sharedCopyDate)
+    }
+
     /// The extension cannot sync a cloud database, so its copy is only as
     /// current as the app's last sync, and the picker is told when that was.
     func test_unlockCloudDatabase_datesTheSharedCopyByTheLastSync() async throws {
