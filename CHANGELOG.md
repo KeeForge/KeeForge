@@ -57,8 +57,8 @@
 
 ## v1.17.0 (2026-10-06)
 
-- iOS: officially released on 2026-10-06, build 60.
-- macOS: released on 2026-10-03.
+- iOS: officially released on 2026-10-06, App Store build 67 ([source tag](https://github.com/KeeForge/KeeForge/tree/v1.17.0-ios)).
+- macOS: released on 2026-10-03, build 60 ([source tag](https://github.com/KeeForge/KeeForge/tree/v1.17.0-mac)).
 
 ### New Features
 
