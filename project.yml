@@ -114,7 +114,7 @@ targets:
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
         MARKETING_VERSION: "1.18.0"
-        CURRENT_PROJECT_VERSION: "66"
+        CURRENT_PROJECT_VERSION: "68"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
@@ -185,7 +185,7 @@ targets:
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
         MARKETING_VERSION: "1.18.0"
-        CURRENT_PROJECT_VERSION: "66"
+        CURRENT_PROJECT_VERSION: "68"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
         # Sparkle authenticates the direct-download channel only. Both values
@@ -258,7 +258,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtension.entitlements
         MARKETING_VERSION: "1.18.0"
-        CURRENT_PROJECT_VERSION: "66"
+        CURRENT_PROJECT_VERSION: "68"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
@@ -327,7 +327,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtensionMac.entitlements
         MARKETING_VERSION: "1.18.0"
-        CURRENT_PROJECT_VERSION: "66"
+        CURRENT_PROJECT_VERSION: "68"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
