@@ -70,6 +70,26 @@ resign, and closure of the last UI-hosting window. App deactivation also request
 a lock under the strict `SettingsService.macLockPolicy` option. These requests
 do not depend on the iOS-only `lockOnBackground` setting.
 
+Under the strict option, one deactivation does not lock at once: the one caused
+by KeeForge's own Touch ID, Apple Watch, or login-password prompt. macOS shows
+that prompt from a separate process, which takes the foreground from the app, so
+locking there would lock the vault the prompt was asked for (#203). The exemption
+is tied to that process, not to a prompt having been requested: the application
+in front must be the system's authentication UI, recognized by its bundle
+identifier (`com.apple.LocalAuthentication.UIAgent`) in a bundle on the signed
+system volume. A deactivation with any other application in front locks as
+before, also while a request is pending and its prompt has not appeared yet.
+
+While the deactivation is held, the session stays open behind the prompt. Any
+other application coming forward locks at once. When the request ends, however
+it ends, KeeForge must be the active app again within two seconds, or the
+session locks; the reply can arrive just before the reactivation, so it does not
+lock by itself. The other lock requests above are not held back by a prompt.
+
+This leaves the session open for as long as the prompt stays unanswered with
+nothing else brought forward, the same exposure as leaving KeeForge itself in
+front. Auto-Lock Timeout and the other lock requests still apply then.
+
 The separate Auto-Lock Timeout controls inactivity. The monitor resets that timer
 on deliberate keyboard, click, and scroll activity inside KeeForge; mouse movement
 and activity in other apps do not count.
