@@ -26,6 +26,9 @@ final class AutoFillStoreInspectorViewModel {
     func refresh() {
         guard !isRefreshing else { return }
         isRefreshing = true
+        snapshot = nil
+        enumerationError = nil
+        capabilities = nil
 
         // Resolve database display names on the main actor (DatabaseListStore
         // reads shared defaults) and capture the Sendable lookup for off-actor
@@ -37,9 +40,10 @@ final class AutoFillStoreInspectorViewModel {
         let store = self.store
 
         Task {
-            self.capabilities = await store.capabilities()
+            let capabilities = await store.capabilities()
+            self.capabilities = capabilities
             do {
-                self.snapshot = try await Self.buildSnapshot(store: store) { namesByID[$0] }
+                self.snapshot = try await Self.buildSnapshot(store: store, capabilities: capabilities) { namesByID[$0] }
                 self.enumerationError = nil
             } catch {
                 self.snapshot = nil
@@ -55,9 +59,9 @@ final class AutoFillStoreInspectorViewModel {
     /// back to the caller.
     nonisolated static func buildSnapshot(
         store: any CredentialIdentityStoreProviding,
+        capabilities: CredentialIdentityStoreCapabilities,
         databaseName: @Sendable (UUID) -> String?
     ) async throws -> InspectorStoreSnapshot {
-        let capabilities = await store.capabilities()
         return AutoFillStoreInspectorGrouping.makeSnapshot(
             isEnabled: capabilities.isEnabled,
             supportsIncrementalUpdates: capabilities.supportsIncrementalUpdates,
@@ -108,12 +112,38 @@ struct AutoFillStoreInspectorView: View {
         }
     }
 
-    @ViewBuilder
     private var content: some View {
-        if let snapshot = viewModel.snapshot {
-            List {
-                stateSection(snapshot)
+        List {
+            Section {
+                if let capabilities = viewModel.capabilities {
+                    valueRow(
+                        field: "Enabled",
+                        value: capabilities.isEnabled ? "enabled" : "disabled",
+                        identifier: "autofill-inspector.enabled-state"
+                    )
+                    valueRow(
+                        field: "Incremental updates",
+                        value: capabilities.supportsIncrementalUpdates ? "supported" : "unsupported",
+                        identifier: "autofill-inspector.incremental-updates"
+                    )
+                }
+                if let snapshot = viewModel.snapshot {
+                    valueRow(
+                        field: "Total identities",
+                        value: "\(snapshot.totalCount)",
+                        identifier: "autofill-inspector.total-count"
+                    )
+                }
+                valueRow(
+                    field: "Read status",
+                    value: readStatus,
+                    identifier: "autofill-inspector.read-status"
+                )
+            } header: {
+                Text(verbatim: "Store State")
+            }
 
+            if let snapshot = viewModel.snapshot {
                 ForEach(snapshot.databaseBuckets) { bucket in
                     databaseSection(bucket)
                 }
@@ -133,48 +163,26 @@ struct AutoFillStoreInspectorView: View {
                         rows: snapshot.unrecognizedRows
                     )
                 }
-            }
-        } else if let error = viewModel.enumerationError {
-            List {
-                if let capabilities = viewModel.capabilities {
-                    valueRow(field: "Enabled", value: capabilities.isEnabled ? "enabled" : "disabled",
-                             identifier: "autofill-inspector.enabled-state")
-                }
+            } else if let error = viewModel.enumerationError {
                 Text(verbatim: error)
                     .accessibilityIdentifier("autofill-inspector.enumeration-error")
                     .accessibilityValue(error)
+            } else {
+                ProgressView {
+                    Text(verbatim: viewModel.capabilities == nil
+                         ? "Reading provider state…" : "Reading credential identities…")
+                }
             }
-        } else {
-            ProgressView {
-                Text(verbatim: "Reading credential identity store…")
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private var readStatus: String {
+        if viewModel.enumerationError != nil { return "failed" }
+        if viewModel.snapshot != nil { return "complete" }
+        return viewModel.capabilities == nil ? "reading-provider-state" : "reading-identities"
     }
 
     // MARK: Sections
-
-    private func stateSection(_ snapshot: InspectorStoreSnapshot) -> some View {
-        Section {
-            valueRow(
-                field: "Enabled",
-                value: snapshot.isEnabled ? "enabled" : "disabled",
-                identifier: "autofill-inspector.enabled-state"
-            )
-            valueRow(
-                field: "Incremental updates",
-                value: snapshot.supportsIncrementalUpdates ? "supported" : "unsupported",
-                identifier: "autofill-inspector.incremental-updates"
-            )
-            valueRow(
-                field: "Total identities",
-                value: "\(snapshot.totalCount)",
-                identifier: "autofill-inspector.total-count"
-            )
-        } header: {
-            Text(verbatim: "Store State")
-        }
-    }
 
     private func databaseSection(_ bucket: InspectorDatabaseBucket) -> some View {
         Section {

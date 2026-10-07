@@ -93,9 +93,14 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
             guard enabledState.waitForExistence(timeout: 30),
                   let value = enabledState.value as? String,
                   ["enabled", "disabled"].contains(value) else {
+                let evidence = XCTAttachment(string: inspector.debugDescription)
+                evidence.name = "Inspector readiness failure"
+                evidence.lifetime = .keepAlways
+                add(evidence)
+                let readStatus = inspector.staticTexts["autofill-inspector.read-status"].value ?? "<missing>"
                 inspector.terminate()
                 throw NSError(domain: "AutoFillStoreUITests", code: 1,
-                              userInfo: [NSLocalizedDescriptionKey: "Store inspector did not report provider readiness"])
+                              userInfo: [NSLocalizedDescriptionKey: "Store inspector did not report provider readiness; read status: \(readStatus)"])
             }
             let result = StoreProbe(isEnabled: value == "enabled")
             inspector.terminate()
@@ -311,7 +316,7 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
     }
 
     /// Relaunches into the store inspector root and waits for the first
-    /// snapshot.
+    /// provider state; count assertions independently wait for enumeration.
     private func launchInspector(file: StaticString = #filePath, line: UInt = #line) {
         relaunch(arguments: [Self.inspectorArgument])
         XCTAssertTrue(
