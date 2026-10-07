@@ -106,9 +106,13 @@ If `keepassxc-cli` is not installed, stop and ask the user to install KeePassXC 
 `KEEPASSXC_CLI` at the binary). Do not skip this gate or proceed past a failure.
 
 Do **not** run the full unit or UI suites locally here — the cloud systems run them in [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke). The
-required local Mac smoke is the only UI exception.
+required local Mac smoke and the focused pre-commit What's New preview are the UI exceptions.
 
 ## Commit, push, and tag the candidate
+
+Verify that the [release-content preview](shared.md#release-content-preview-before-commit)
+copy approval and screenshot confirmation cover all release content in this candidate. Any changed
+copy or rendering must be re-approved before this commit; unchanged approved content can be reused.
 
 1. Stage the changed files. For a new minor/major release, the changelog and What's New content already landed on `main`;
    its first candidate normally only carries the build bump and regenerated project.
