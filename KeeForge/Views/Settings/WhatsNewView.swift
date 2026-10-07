@@ -78,11 +78,20 @@ struct WhatsNewView: View {
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let link = feature.link {
+                    Link(destination: link.url) {
+                        Text(link.title)
+                    }
+                    .font(.body)
+                    .padding(.vertical, 6)
+                    .accessibilityIdentifier("whats-new.link.\(feature.id)")
+                }
             }
 
             Spacer(minLength: 0)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: feature.link == nil ? .combine : .contain)
         .accessibilityIdentifier("whats-new.feature.\(feature.id)")
     }
 }

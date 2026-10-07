@@ -19,6 +19,25 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testVersion118LeadsWithRecoveryGuidanceAndFiltersPlatformFeatures() throws {
+        for platform in [WhatsNewPlatform.iOS, .macOS] {
+            let release = try XCTUnwrap(WhatsNewCatalog.release(version: "1.18.0", platform: platform))
+            let first = try XCTUnwrap(release.features.first)
+            XCTAssertEqual(first.id, "prevent-database-corruption")
+            let detail = String(localized: first.detail)
+            XCTAssertTrue(detail.contains("does not repair already damaged files"))
+            XCTAssertTrue(detail.contains("saving entry notes"))
+            XCTAssertTrue(detail.contains("readable backup"))
+            XCTAssertEqual(first.link?.url.absoluteString, "https://github.com/KeeForge/kdbx-recovery")
+
+            let ids = release.features.map(\.id)
+            XCTAssertEqual(ids.count, platform == .iOS ? 6 : 7)
+            XCTAssertEqual(ids.contains("database-view-menu"), platform == .iOS)
+            XCTAssertEqual(ids.contains("mac-menu-bar-search"), platform == .macOS)
+            XCTAssertEqual(ids.contains("mac-apple-watch-unlock"), platform == .macOS)
+        }
+    }
+
     func testReleaseIsPresentedOnlyOnceForTheSameVersion() {
         let firstPresentation = WhatsNewPresentationService.releaseToPresent(
             currentVersion: "1.10.1",

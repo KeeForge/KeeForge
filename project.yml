@@ -113,7 +113,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: KeeForge/KeeForge.entitlements
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
-        MARKETING_VERSION: "1.17.0"
+        MARKETING_VERSION: "1.18.0"
         CURRENT_PROJECT_VERSION: "66"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
@@ -184,7 +184,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: KeeForgeMac/KeeForgeMac.entitlements
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
-        MARKETING_VERSION: "1.17.0"
+        MARKETING_VERSION: "1.18.0"
         CURRENT_PROJECT_VERSION: "66"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
@@ -257,7 +257,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.autofill
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtension.entitlements
-        MARKETING_VERSION: "1.17.0"
+        MARKETING_VERSION: "1.18.0"
         CURRENT_PROJECT_VERSION: "66"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
@@ -326,7 +326,7 @@ targets:
         ENABLE_HARDENED_RUNTIME: "YES"
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtensionMac.entitlements
-        MARKETING_VERSION: "1.17.0"
+        MARKETING_VERSION: "1.18.0"
         CURRENT_PROJECT_VERSION: "66"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
