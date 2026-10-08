@@ -118,6 +118,13 @@ final class DatabaseWorkspaceState {
         }
     }
 
+    /// The entry the single-entry commands act on (Edit, Delete, the copy
+    /// shortcuts, Return). None while entries are being picked: the detail
+    /// selection is then left over from before and need not be checked.
+    var commandEntryID: UUID? {
+        entrySelection == nil ? selectedEntryID : nil
+    }
+
     func beginEntrySelection(with entryID: UUID) {
         entrySelection = [entryID]
     }

@@ -1618,6 +1618,9 @@ final class DatabaseViewModel {
     /// and a destination that is gone or in the recycle bin drops the request;
     /// a draft-level refusal stages nothing.
     func moveEntries(entryIDs: Set<UUID>, toGroupID: UUID) throws {
+        // The selection outlives the screens that gate it, so a database
+        // switched to read-only in between is refused here.
+        guard isReadOnly == false else { throw SaveError.databaseIsReadOnly }
         // `recycleBinGroupIDs` holds the groups inside the bin, not the bin itself.
         guard groupIndex[toGroupID] != nil,
               toGroupID != currentRootGroup?.recycleBinUUID,
@@ -1999,7 +2002,7 @@ final class DatabaseViewModel {
     /// Whether the macOS Edit Entry command applies right now.
     var canEditSelectedEntry: Bool {
         guard case .unlocked = state, isReadOnly == false, sessionKey != nil else { return false }
-        guard let selectedEntryID = workspace.selectedEntryID else { return false }
+        guard let selectedEntryID = workspace.commandEntryID else { return false }
         return entry(withID: selectedEntryID) != nil
     }
 
@@ -2014,7 +2017,10 @@ final class DatabaseViewModel {
     }
 
     var deletableSelection: SelectionDeletionTarget? {
-        guard case .unlocked = state, isReadOnly == false else { return nil }
+        // While entries are being picked nothing is deletable: the command
+        // would hit the entry or group left selected underneath, not the
+        // checked ones.
+        guard case .unlocked = state, isReadOnly == false, workspace.entrySelection == nil else { return nil }
         if let selectedEntryID = workspace.selectedEntryID, entry(withID: selectedEntryID) != nil {
             return .entry(selectedEntryID)
         }
@@ -3215,6 +3221,9 @@ final class DatabaseViewModel {
     func setReadOnly(_ isReadOnly: Bool) {
         DatabaseListStore.setReadOnly(isReadOnly, for: databaseReference)
         refreshDatabaseReference()
+        if self.isReadOnly {
+            workspace.endEntrySelection()
+        }
         refreshPendingUploadConflict()
     }
 

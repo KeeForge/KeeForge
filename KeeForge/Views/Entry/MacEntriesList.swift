@@ -55,7 +55,7 @@ struct MacEntriesList: View {
         .listStyle(.inset)
         .focused($isListFocused)
         .onKeyPress(.return) {
-            guard let entryID = viewModel.workspace.selectedEntryID else { return .ignored }
+            guard let entryID = viewModel.workspace.commandEntryID else { return .ignored }
             openEntry(entryID)
             return .handled
         }

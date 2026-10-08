@@ -1062,6 +1062,70 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.workspace.entrySelection)
     }
 
+    func testMoveEntriesIsRefusedAndSelectionEndsOnceTheDatabaseIsReadOnly() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let emptyGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Empty" }))
+        let picked = Array(socialGroup.entries.prefix(2))
+        vm.workspace.beginEntrySelection(with: picked[0].id)
+        vm.workspace.toggleEntrySelection(picked[1].id)
+
+        DatabaseListStore.update(vm.databaseReference)
+        vm.setReadOnly(true)
+
+        XCTAssertNil(vm.workspace.entrySelection, "a selection only exists to move entries")
+        XCTAssertThrowsError(
+            try vm.moveEntries(entryIDs: Set(picked.map(\.id)), toGroupID: emptyGroup.id)
+        ) { error in
+            XCTAssertEqual(error as? SaveError, .databaseIsReadOnly)
+        }
+        XCTAssertNil(vm.draft, "a refused move must not leave a staged change behind")
+        XCTAssertFalse(vm.isDirty)
+        XCTAssertEqual(vm.group(withID: socialGroup.id)?.entries.map(\.id), socialGroup.entries.map(\.id))
+        XCTAssertEqual(vm.group(withID: emptyGroup.id)?.entries.count, 0)
+    }
+
+    func testSingleSelectionCommandsAreWithheldWhileEntriesAreBeingPicked() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let opened = socialGroup.entries[0]
+        let checked = socialGroup.entries[1]
+        vm.workspace.selectedGroupID = socialGroup.id
+        vm.workspace.selectedEntryID = opened.id
+        XCTAssertTrue(vm.canEditSelectedEntry)
+        XCTAssertEqual(vm.deletableSelection, .entry(opened.id))
+
+        // Open one entry, start picking, check another, uncheck the first:
+        // the commands must not fall back on the entry still shown in detail.
+        vm.workspace.beginEntrySelection(with: opened.id)
+        vm.workspace.toggleEntrySelection(checked.id)
+        vm.workspace.toggleEntrySelection(opened.id)
+        XCTAssertEqual(vm.workspace.entrySelection, [checked.id])
+        XCTAssertEqual(vm.workspace.selectedEntryID, opened.id)
+
+        XCTAssertNil(vm.workspace.commandEntryID)
+        XCTAssertFalse(vm.canEditSelectedEntry)
+        XCTAssertNil(vm.deletableSelection)
+        vm.requestEntryEdit()
+        vm.requestDeleteSelection()
+        XCTAssertEqual(vm.workspace.editEntryRequestID, 0)
+        XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 0)
+
+        // With no entry open, Delete must not reach for the selected group.
+        vm.workspace.selectedEntryID = nil
+        XCTAssertEqual(vm.workspace.selectedGroupID, socialGroup.id)
+        XCTAssertNil(vm.deletableSelection)
+
+        vm.workspace.endEntrySelection()
+        XCTAssertEqual(vm.deletableSelection, .group(socialGroup.id))
+        vm.workspace.selectedEntryID = opened.id
+        XCTAssertEqual(vm.workspace.commandEntryID, opened.id)
+        XCTAssertTrue(vm.canEditSelectedEntry)
+        XCTAssertEqual(vm.deletableSelection, .entry(opened.id))
+    }
+
     func testThePickedDestinationMovesAndSavesTheSelectionAndLeavesSelectionMode() async throws {
         let saved = expectation(description: "the move is saved")
         let recorder = SavedDraftRecorder()

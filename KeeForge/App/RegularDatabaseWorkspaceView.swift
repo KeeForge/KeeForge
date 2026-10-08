@@ -727,7 +727,7 @@ struct RegularDatabaseWorkspaceView: View {
 
     @MainActor
     private func beginSelectedEntryEdit() {
-        guard let entryID = viewModel.workspace.selectedEntryID else { return }
+        guard let entryID = viewModel.workspace.commandEntryID else { return }
         beginEntryEdit(entryID: entryID)
     }
 
@@ -857,7 +857,7 @@ private struct MacEntriesColumn: View {
                     .listStyle(.inset)
                     .focused($isListFocused)
                     .onKeyPress(.return) {
-                        guard let entryID = viewModel.workspace.selectedEntryID else { return .ignored }
+                        guard let entryID = viewModel.workspace.commandEntryID else { return .ignored }
                         onOpenEntry(entryID)
                         return .handled
                     }

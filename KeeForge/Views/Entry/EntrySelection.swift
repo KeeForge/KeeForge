@@ -120,7 +120,7 @@ struct EntrySelectionBar: View {
             onMove(.entries(selection))
         }
         .fontWeight(.semibold)
-        .disabled(selection.isEmpty)
+        .disabled(selection.isEmpty || viewModel.isReadOnly)
         .accessibilityIdentifier("entry-selection.move")
     }
 }
