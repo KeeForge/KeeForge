@@ -36,6 +36,12 @@
             "value" : "「%@」はこのグループにすでに存在します。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«%@» уже есть в этой группе."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -80,6 +86,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "「%@」はすでにデータベース一覧にあります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«%@» уже есть в вашем списке баз данных."
           }
         },
         "zh-Hans" : {
@@ -128,6 +140,12 @@
             "value" : "「%@」は KeeForge 専用のデータベースですでに使用されています。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«%@» уже используется базой данных, доступной только в KeeForge."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -172,6 +190,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "（名称未設定）"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(без названия)"
           }
         },
         "zh-Hans" : {
@@ -226,6 +250,12 @@
             "value" : "%1$@ · %2$@ 回の反復 · %3$@ スレッド"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · итераций: %2$@ · потоков: %3$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -278,6 +308,12 @@
             "value" : "%1$@（約 %2$lld ビット）"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (~%2$lld бит)"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -322,6 +358,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ ラウンド"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Раундов: %@"
           }
         },
         "zh-Hans" : {
@@ -370,6 +412,12 @@
             "value" : "1 分"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 минута"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -414,6 +462,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "5 分"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 минут"
           }
         },
         "zh-Hans" : {
@@ -462,6 +516,12 @@
             "value" : "10 秒"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 секунд"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -506,6 +566,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "30 秒"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30 секунд"
           }
         },
         "zh-Hans" : {
@@ -554,6 +620,12 @@
             "value" : "グループを自分自身やそのサブグループの中へ移動することはできません。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Группу нельзя переместить в неё саму или в одну из её подгрупп."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -598,6 +670,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このエントリに元の URL を追加"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить исходный URL к этой записи"
           }
         },
         "zh-Hans" : {
@@ -646,6 +724,12 @@
             "value" : "元の URL を追加しますか？"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить исходный URL?"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -690,6 +774,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "URL を追加"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить URL"
           }
         },
         "zh-Hans" : {
@@ -738,6 +828,12 @@
             "value" : "常に確認"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Всегда спрашивать"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -782,6 +878,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ここでは添付ファイルを追加できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Здесь нельзя добавлять вложения."
           }
         },
         "zh-Hans" : {
@@ -830,6 +932,12 @@
             "value" : "認証がキャンセルされました。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аутентификация отменена."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -874,6 +982,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge で自動入力"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автозаполнение с KeeForge"
           }
         },
         "zh-Hans" : {
@@ -922,6 +1036,12 @@
             "value" : "基本情報"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Основное"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -966,6 +1086,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ブロックの HMAC が無効です。パスワードが違うか、ファイルが破損しています"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неверный HMAC блока — неправильный пароль или повреждённый файл"
           }
         },
         "zh-Hans" : {
@@ -1014,6 +1140,12 @@
             "value" : "キャンセル"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отменить"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1058,6 +1190,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "認証情報を選択"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать учётные данные"
           }
         },
         "zh-Hans" : {
@@ -1106,6 +1244,12 @@
             "value" : "このビルドではクラウド同期が構成されていません。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Облачная синхронизация не настроена для этой сборки."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1152,6 +1296,12 @@
             "value" : "圧縮に失敗しました"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ошибка сжатия"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1196,6 +1346,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "EC P-256 のキーデータを取り出せませんでした"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось извлечь данные ключа EC P-256"
           }
         },
         "zh-Hans" : {
@@ -1250,6 +1406,12 @@
             "value" : "パスキーを作成できませんでした"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось создать ключ входа"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1294,6 +1456,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ファイルを開けませんでした"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось открыть файл"
           }
         },
         "zh-Hans" : {
@@ -1342,6 +1510,12 @@
             "value" : "保存できませんでした"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1386,6 +1560,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "パスキーを保存できませんでした"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить ключ входа"
           }
         },
         "zh-Hans" : {
@@ -1434,6 +1614,12 @@
             "value" : "新規認証情報を作成"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создать новые учётные данные"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1478,6 +1664,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ダーク"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тёмное"
           }
         },
         "zh-Hans" : {
@@ -1526,6 +1718,12 @@
             "value" : "データベース"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1570,6 +1768,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "データベースが変更されました"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных изменена"
           }
         },
         "zh-Hans" : {
@@ -1618,6 +1822,12 @@
             "value" : "データベースが変更されました。保存するには KeeForge を開いてください"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных изменена — откройте KeeForge, чтобы сохранить"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1662,6 +1872,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "展開に失敗しました"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ошибка распаковки"
           }
         },
         "zh-Hans" : {
@@ -1710,6 +1926,12 @@
             "value" : "復号に失敗しました。パスワードが違う可能性があります"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ошибка расшифровки — неверный пароль?"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1754,6 +1976,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未接続"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отключено"
           }
         },
         "zh-Hans" : {
@@ -1802,6 +2030,12 @@
             "value" : "暗号化に失敗しました"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ошибка шифрования"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1846,6 +2080,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この認証情報のパスワードを入力してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите пароль для этих учётных данных."
           }
         },
         "zh-Hans" : {
@@ -1894,6 +2134,12 @@
             "value" : "この認証情報のタイトルまたはユーザ名を入力してください。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите название или имя пользователя для этих учётных данных."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1938,6 +2184,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "マスターパスワードを入力するか、生体認証をご利用ください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите мастер-пароль или используйте биометрию."
           }
         },
         "zh-Hans" : {
@@ -1986,6 +2238,12 @@
             "value" : "エントリが見つかりません：%@"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись не найдена: %@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2030,6 +2288,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有効期限切れ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Истёк"
           }
         },
         "zh-Hans" : {
@@ -2078,6 +2342,12 @@
             "value" : "生体認証のアクセス制御を作成できませんでした"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось создать биометрический контроль доступа"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2122,6 +2392,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "署名キーを作成できませんでした"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось создать ключ подписи"
           }
         },
         "zh-Hans" : {
@@ -2170,6 +2446,12 @@
             "value" : "データベースの XML を解析できませんでした"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось разобрать XML базы данных"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2214,6 +2496,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アサーションに署名できませんでした"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось подписать утверждение"
           }
         },
         "zh-Hans" : {
@@ -2262,6 +2550,12 @@
             "value" : "ファイルが途中で切れています"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл обрезан"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2306,6 +2600,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "パスワードを生成"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создать пароль"
           }
         },
         "zh-Hans" : {
@@ -2354,6 +2654,12 @@
             "value" : "パスワードを生成"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создать пароль"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2398,6 +2704,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "良好"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Хороший"
           }
         },
         "zh-Hans" : {
@@ -2446,6 +2758,12 @@
             "value" : "グループ"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Группа"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2490,6 +2808,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "グループ名を空にすることはできません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имя группы не может быть пустым."
           }
         },
         "zh-Hans" : {
@@ -2538,6 +2862,12 @@
             "value" : "グループが見つかりません：%@"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Группа не найдена: %@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2582,6 +2912,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "非表示のパスワード"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрытый пароль"
           }
         },
         "zh-Hans" : {
@@ -2630,6 +2966,12 @@
             "value" : "%@を非表示"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрыть %@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2674,6 +3016,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "HMAC の検証に失敗しました。ファイルが破損しているか、パスワードが違います"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ошибка проверки HMAC — файл повреждён или пароль неверный"
           }
         },
         "zh-Hans" : {
@@ -2722,6 +3070,12 @@
             "value" : "すぐに"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сразу"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2766,6 +3120,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無効なファイル"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недопустимый файл"
           }
         },
         "zh-Hans" : {
@@ -2814,6 +3174,12 @@
             "value" : "内部ヘッダが無効です"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недопустимый внутренний заголовок"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2858,6 +3224,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "マスターキーが無効です"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недопустимый мастер-ключ"
           }
         },
         "zh-Hans" : {
@@ -2906,6 +3278,12 @@
             "value" : "PEM 形式の秘密鍵が無効です"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недопустимый закрытый ключ в формате PEM"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2950,6 +3328,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KDF のパラメータが範囲外です：%@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Параметр KDF вне допустимого диапазона: %@"
           }
         },
         "zh-Hans" : {
@@ -2998,6 +3382,12 @@
             "value" : "キーファイルのハッシュ検証に失敗しました。ファイルが破損している可能性があります"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ошибка проверки хеша файла ключа — возможно, файл повреждён"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3042,6 +3432,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キーファイルが空です"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл ключа пуст"
           }
         },
         "zh-Hans" : {
@@ -3090,6 +3486,12 @@
             "value" : "キーファイルの XML に無効なキーデータが含まれています"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XML файла ключа содержит недопустимые данные ключа"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3134,6 +3536,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キーチェーンからの読み出しに失敗しました（ステータス %d）"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ошибка чтения из связки ключей (статус %d)"
           }
         },
         "zh-Hans" : {
@@ -3182,6 +3590,12 @@
             "value" : "キーチェーンへの保存に失敗しました（ステータス %d）"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ошибка сохранения в связку ключей (статус %d)"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3226,6 +3640,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "従来の KDBX 3.1 データベースも開けますが、KeeForge では読み取り専用でのみ利用できます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Устаревшие базы данных KDBX 3.1 можно открыть, но KeeForge разрешает работать с ними только в режиме чтения."
           }
         },
         "zh-Hans" : {
@@ -3274,6 +3694,12 @@
             "value" : "ライト"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Светлое"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3318,6 +3744,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ヘッダ内のバリアントマップの形式が正しくありません"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повреждённый словарь вариантов в заголовке"
           }
         },
         "zh-Hans" : {
@@ -3366,6 +3798,12 @@
             "value" : "マスターパスワード"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мастер-пароль"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3410,6 +3848,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "一致する項目"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Совпадения"
           }
         },
         "zh-Hans" : {
@@ -3458,6 +3902,12 @@
             "value" : "ヘッダフィールドがありません：%@"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отсутствует поле заголовка: %@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3502,6 +3952,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "しない"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Никогда"
           }
         },
         "zh-Hans" : {
@@ -3550,6 +4006,12 @@
             "value" : "新規認証情報"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новые учётные данные"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3594,6 +4056,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新規パスキー"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новый ключ входа"
           }
         },
         "zh-Hans" : {
@@ -3642,6 +4110,12 @@
             "value" : "認証情報が見つかりません"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Учётные данные не найдены"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3686,6 +4160,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この検索に一致する認証情報はありません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет учётных данных, соответствующих запросу."
           }
         },
         "zh-Hans" : {
@@ -3734,6 +4214,12 @@
             "value" : "自動入力に使えるデータベースがありません"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет баз данных для автозаполнения"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3778,6 +4264,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完全に一致する項目は見つかりませんでした。これらは一致する可能性のある認証情報です。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Точных совпадений не найдено. Эти учётные данные — лишь возможные совпадения."
           }
         },
         "zh-Hans" : {
@@ -3826,6 +4318,12 @@
             "value" : "ネットワークに接続していません。利用できる場合はキャッシュされたコピーを使用します。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет подключения к сети. Используется кэшированная копия, если она есть."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3870,6 +4368,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "なし"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет"
           }
         },
         "zh-Hans" : {
@@ -3918,6 +4422,12 @@
             "value" : "有効な KDBX ファイルではありません"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недопустимый файл KDBX"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3962,6 +4472,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "メモ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заметки"
           }
         },
         "zh-Hans" : {
@@ -4010,6 +4526,12 @@
             "value" : "OK"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ОК"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4054,6 +4576,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "パスキーの認証情報が見つかりません"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Учётные данные ключа входа не найдены"
           }
         },
         "zh-Hans" : {
@@ -4102,6 +4630,12 @@
             "value" : "パスキーのエントリに秘密鍵がありません"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В записи ключа входа отсутствует закрытый ключ"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4146,6 +4680,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge でパスキーサインイン"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вход с ключом входа через KeeForge"
           }
         },
         "zh-Hans" : {
@@ -4194,6 +4734,12 @@
             "value" : "パスワード"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пароль"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4238,6 +4784,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "パスワードの強度：%@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Надёжность пароля: %@"
           }
         },
         "zh-Hans" : {
@@ -4286,6 +4838,12 @@
             "value" : "このクラウドアカウントに再接続してください。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключите эту облачную учётную запись заново."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4330,6 +4888,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeePass の .kdbx データベースを選択してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите базу данных KeePass .kdbx."
           }
         },
         "zh-Hans" : {
@@ -4378,6 +4942,12 @@
             "value" : "一致する可能性のある項目"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Возможные совпадения"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4422,6 +4992,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "読み取り専用データベース"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных только для чтения"
           }
         },
         "zh-Hans" : {
@@ -4470,6 +5046,12 @@
             "value" : "変更を保存するには、このクラウドアカウントに再接続してください。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключите эту облачную учётную запись заново, чтобы сохранить изменения."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4514,6 +5096,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ごみ箱"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Корзина"
           }
         },
         "zh-Hans" : {
@@ -4562,6 +5150,12 @@
             "value" : "再生成"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создать заново"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4606,6 +5200,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存して入力"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить и заполнить"
           }
         },
         "zh-Hans" : {
@@ -4654,6 +5254,12 @@
             "value" : "パスキーを保存"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить ключ входа"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4698,6 +5304,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "従来の KDBX 3.1 データベースへの保存には、まだ対応していません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранение устаревших баз данных KDBX 3.1 пока не поддерживается."
           }
         },
         "zh-Hans" : {
@@ -4746,6 +5358,12 @@
             "value" : "エントリを検索"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск записей"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4790,6 +5408,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 時点の KeeForge のデータベースのコピーを検索しました。新しい認証情報を見つけるには、KeeForge でこのデータベースのロックを解除してください。クラウドデータベースの場合は、「データベースの詳細」で「今すぐ同期」を選択してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск выполнен в копии этой базы данных в KeeForge от %@. Чтобы найти более новые учётные данные, разблокируйте эту базу данных в KeeForge. Для облачных баз данных используйте «Синхронизировать» в разделе «Сведения о базе данных»."
           }
         },
         "zh-Hans" : {
@@ -4838,6 +5462,12 @@
             "value" : "安全な乱数を生成できませんでした。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось создать надёжные случайные данные."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4882,6 +5512,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@を表示"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать %@"
           }
         },
         "zh-Hans" : {
@@ -4930,6 +5566,12 @@
             "value" : "すべての認証情報を表示"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать все учётные данные"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4974,6 +5616,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "データベースを切り替える"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сменить базу данных"
           }
         },
         "zh-Hans" : {
@@ -5022,6 +5670,12 @@
             "value" : "最終同期から 24 時間以上経過"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Синхронизация старше 24 ч"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5066,6 +5720,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "システム設定に従う"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Системное"
           }
         },
         "zh-Hans" : {
@@ -5114,6 +5774,12 @@
             "value" : "そのバージョンはすでに利用できません。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта прежняя версия больше недоступна."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5158,6 +5824,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "添付ファイル「%@」はこのエントリにもうありません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вложение «%@» больше не относится к этой записи."
           }
         },
         "zh-Hans" : {
@@ -5206,6 +5878,12 @@
             "value" : "クラウドサービスが混み合っています。しばらくしてからもう一度お試しください。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Облачная служба сейчас занята. Повторите попытку через мгновение."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5250,6 +5928,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "クラウドサービスを一時的に利用できません。しばらくしてからもう一度お試しください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Облачная служба временно недоступна. Повторите попытку позже."
           }
         },
         "zh-Hans" : {
@@ -5298,6 +5982,12 @@
             "value" : "クラウドサービスがこのファイル名を受け付けませんでした。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Облачная служба отклонила это имя файла."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5342,6 +6032,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "データベースが破損しているか、内容が不完全なようです。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных повреждена или неполна."
           }
         },
         "zh-Hans" : {
@@ -5396,6 +6092,12 @@
             "value" : "データベースにサポートされていない文字（%@）が含まれています。保存する前にテキストから削除してください。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных содержит неподдерживаемый символ (%@). Удалите его из текста перед сохранением."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5440,6 +6142,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "データベースファイルの場所を特定できませんでした。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось найти файл базы данных."
           }
         },
         "zh-Hans" : {
@@ -5488,6 +6196,12 @@
             "value" : "データベースファイルから時間内に応答がありませんでした。サーバやネットワーク接続が利用できるか確認してください。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл базы данных не ответил вовремя. Убедитесь, что его сервер или сетевое подключение доступны."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5532,6 +6246,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "データベースファイルは「ファイル」App の「最近削除した項目」にあります。「ファイル」で復元するか、KeeForge の「データベースファイルを探す」で現在のファイルを選択してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл базы данных находится в «Недавно удалённых» в приложении «Файлы». Восстановите его в «Файлах» или выберите актуальный файл с помощью «Найти файл базы данных» в KeeForge."
           }
         },
         "zh-Hans" : {
@@ -5580,6 +6300,12 @@
             "value" : "データベースに鍵導出のメタデータがありません。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В базе данных отсутствуют метаданные формирования ключа."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5624,6 +6350,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "データベースに鍵導出のソルトデータがありません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В базе данных отсутствует соль формирования ключа."
           }
         },
         "zh-Hans" : {
@@ -5672,6 +6404,12 @@
             "value" : "データベースを保存できる状態ではありません。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных не готова к сохранению."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5716,6 +6454,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "データベースが大きくなりすぎて KeeForge で開けなくなるため、保存されませんでした。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных стала бы слишком большой, чтобы KeeForge смог открыть её снова, поэтому она не сохранена."
           }
         },
         "zh-Hans" : {
@@ -5765,6 +6509,12 @@
             "value" : "新しいデータベースを暗号化後に検証できませんでした。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проверить новую базу данных после шифрования."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5810,6 +6560,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新しいマスターキーはアップロードされましたが、ローカルコピーを更新できませんでした。クラウド上のファイルを開くには、新しいマスターキーが必要です。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новый мастер-ключ отправлен, но локальную копию обновить не удалось. Облачному файлу теперь нужен новый мастер-ключ."
           }
         },
         "zh-Hans" : {
@@ -5858,6 +6614,12 @@
             "value" : "リモートのデータベースが見つかりませんでした。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалённая база данных не найдена."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5902,6 +6664,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このリクエストは利用できなくなりました。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запрос больше недоступен."
           }
         },
         "zh-Hans" : {
@@ -5950,6 +6718,12 @@
             "value" : "このクラウドアカウントの保存容量が足りません。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В этой облачной учётной записи недостаточно места."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5994,6 +6768,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択した認証情報に、元のリクエスト URL を追加します。データベースが変更されるのは、確認した場合のみです。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "К выбранным учётным данным будет добавлен исходный URL запроса. База данных изменится, только если вы подтвердите."
           }
         },
         "zh-Hans" : {
@@ -6042,6 +6822,12 @@
             "value" : "このデータベースはクラウド上で変更されています。もう一度保存する前に再読み込みしてください。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта база данных изменилась в облаке. Перезагрузите её перед повторным сохранением."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6086,6 +6872,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このデータベースには、データが見つからない添付ファイルがあります。新しいファイルがその代わりになってしまうため、追加できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В этой базе данных есть вложения, данные которых отсутствуют. Новый файл занял бы их место, поэтому его нельзя добавить."
           }
         },
         "zh-Hans" : {
@@ -6134,6 +6926,12 @@
             "value" : "このデータベースは読み取り専用です。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта база данных доступна только для чтения."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6180,6 +6978,12 @@
             "value" : "このデータベースは読み取り専用です。編集するには KeeForge を開いてください。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта база данных доступна только для чтения. Откройте KeeForge, чтобы включить редактирование."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6224,6 +7028,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このデータベースには YubiKey が必要ですが、自動入力ではまだ使用できません。代わりに KeeForge App で開いてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этой базе данных нужен YubiKey, который автозаполнение пока не может использовать. Откройте её в приложении KeeForge."
           }
         },
         "zh-Hans" : {
@@ -6278,6 +7088,12 @@
             "value" : "このデータベースのロック解除には約 %1$@ のメモリが必要で、自動入力に許可された %2$@ を超えています。KeeForge App でエントリを開くか、デスクトップ版の KeePass App でデータベースの Argon2 のメモリ設定を下げてください。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для разблокировки этой базе данных нужно около %1$@ памяти — больше, чем %2$@, доступные автозаполнению. Откройте запись в приложении KeeForge или уменьшите параметр памяти Argon2 базы данных в настольном приложении KeePass."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6322,6 +7138,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このデータベースは、KeeForge がまだ対応していない古い KeePass 形式を使用しています。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта база данных использует более старый формат KeePass, который KeeForge пока не поддерживает."
           }
         },
         "zh-Hans" : {
@@ -6370,6 +7192,12 @@
             "value" : "このデータベースは、サポートされていない保護フィールドのストリームを使用しています。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта база данных использует неподдерживаемый поток защищённых полей."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6414,6 +7242,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このデータベースのアイコンは、既存のアイコンを損なわずに新しいアイコンを追加できない形式で保存されています。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Значки этой базы данных хранятся в таком виде, что KeeForge не может добавить к ним новые, не рискуя уже существующими."
           }
         },
         "zh-Hans" : {
@@ -6462,6 +7296,12 @@
             "value" : "このデータベースの鍵導出の設定（メモリ %1$@ × 反復 %2$@ 回、%3$@ スレッド）は、この App が安全に実行できる範囲を超えています。デスクトップ版の KeePass App でデータベースの Argon2 の設定を下げて保存してから、もう一度お試しください。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Параметры формирования ключа этой базы данных (память: %@ × итераций: %@, потоков: %@) превышают то, что это приложение может безопасно выполнить. Уменьшите параметры Argon2 базы данных в настольном приложении KeePass, сохраните её и повторите попытку."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6506,6 +7346,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このファイルを追加すると添付ファイルが大きくなりすぎ、KeeForge でデータベースを開けなくなります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "С этим файлом вложения станут слишком большими, и KeeForge не сможет снова открыть базу данных."
           }
         },
         "zh-Hans" : {
@@ -6554,6 +7400,12 @@
             "value" : "このグループは削除できません。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эту группу нельзя удалить."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6598,6 +7450,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このパスキーリクエストはサポートされていません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот запрос ключа входа не поддерживается."
           }
         },
         "zh-Hans" : {
@@ -6646,6 +7504,12 @@
             "value" : "タイトル"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Название"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6690,6 +7554,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再試行"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить"
           }
         },
         "zh-Hans" : {
@@ -6738,6 +7608,12 @@
             "value" : "KeeForge の設定でデータベースの自動入力をオンにすると、ここで使用できます。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включите автозаполнение для базы данных в настройках KeeForge, чтобы использовать её здесь."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6782,6 +7658,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不明"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестно"
           }
         },
         "zh-Hans" : {
@@ -6830,6 +7712,12 @@
             "value" : "ロック解除"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разблокировать"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6874,6 +7762,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ロック解除に失敗しました"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось разблокировать"
           }
         },
         "zh-Hans" : {
@@ -6922,6 +7816,12 @@
             "value" : "KeeForge のロックを解除"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разблокировать KeeForge"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6966,6 +7866,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自動入力のために KeeForge のロックを解除"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разблокировать KeeForge для автозаполнения"
           }
         },
         "zh-Hans" : {
@@ -7014,6 +7920,12 @@
             "value" : "サポートされていない暗号方式です：%@"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неподдерживаемый шифр: %@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7058,6 +7970,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "サポートされていない圧縮モードです：%u"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неподдерживаемый режим сжатия: %u"
           }
         },
         "zh-Hans" : {
@@ -7106,6 +8024,12 @@
             "value" : "サポートされていない内部乱数ストリームです：%u"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неподдерживаемый внутренний случайный поток: %u"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7150,6 +8074,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "サポートされていない鍵導出関数です：%@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неподдерживаемая функция формирования ключа: %@"
           }
         },
         "zh-Hans" : {
@@ -7198,6 +8128,12 @@
             "value" : "バリアントマップの値がサポートされていません。キー：%@"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неподдерживаемое значение словаря вариантов для ключа: %@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7239,6 +8175,12 @@
           }
         },
         "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL"
+          }
+        },
+        "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "URL"
@@ -7290,6 +8232,12 @@
             "value" : "生体認証を使用"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать биометрию"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7334,6 +8282,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Face ID を使用"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать Face ID"
           }
         },
         "zh-Hans" : {
@@ -7382,6 +8336,12 @@
             "value" : "パスワードを使用"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать пароль"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7426,6 +8386,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Touch ID を使用"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать Touch ID"
           }
         },
         "zh-Hans" : {
@@ -7474,6 +8440,12 @@
             "value" : "ユーザ名"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имя пользователя"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7518,6 +8490,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "非常に良好"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очень хороший"
           }
         },
         "zh-Hans" : {
@@ -7566,6 +8544,12 @@
             "value" : "非常に弱い"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очень слабый"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7610,6 +8594,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "弱い"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слабый"
           }
         },
         "zh-Hans" : {
@@ -7658,6 +8648,12 @@
             "value" : "Web サイト"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сайт"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7702,6 +8698,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge が使用中でないとき"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Когда KeeForge не является активным приложением"
           }
         },
         "zh-Hans" : {
@@ -7750,6 +8752,12 @@
             "value" : "画面がロックまたはスリープしたとき"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "При блокировке экрана или переходе в режим сна"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7794,6 +8802,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このファイルを変更する権限がありません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У вас нет разрешения на изменение этого файла."
           }
         },
         "zh-Hans" : {

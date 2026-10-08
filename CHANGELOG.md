@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New Features
+
+- KeeForge now speaks Russian: a full Russian (Русский) localization across the app and the AutoFill extension, plus translated README and contributor docs (#180).
+
 ## v1.18.0 (2026-10-07)
 
 ### Changes

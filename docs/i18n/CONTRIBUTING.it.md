@@ -1,6 +1,6 @@
 # Contribuire a KeeForge
 
-<a href="../../CONTRIBUTING.md">English</a> | <a href="CONTRIBUTING.de.md">Deutsch</a> | <a href="CONTRIBUTING.fr.md">Français</a> | <a href="CONTRIBUTING.es.md">Español</a> | <a href="CONTRIBUTING.zh-Hans.md">简体中文</a> | <a href="CONTRIBUTING.zh-Hant.md">繁體中文</a> | <a href="CONTRIBUTING.ja.md">日本語</a> | Italiano
+<a href="../../CONTRIBUTING.md">English</a> | <a href="CONTRIBUTING.de.md">Deutsch</a> | <a href="CONTRIBUTING.fr.md">Français</a> | <a href="CONTRIBUTING.es.md">Español</a> | <a href="CONTRIBUTING.zh-Hans.md">简体中文</a> | <a href="CONTRIBUTING.zh-Hant.md">繁體中文</a> | <a href="CONTRIBUTING.ja.md">日本語</a> | Italiano | <a href="CONTRIBUTING.ru.md">Русский</a>
 
 Grazie per l'aiuto nel migliorare KeeForge.
 

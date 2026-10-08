@@ -2309,6 +2309,7 @@
 				fr,
 				it,
 				ja,
+				ru,
 				"zh-Hans",
 				"zh-Hant",
 			);
