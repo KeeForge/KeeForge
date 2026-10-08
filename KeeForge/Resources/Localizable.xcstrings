@@ -22278,6 +22278,52 @@
         }
       }
     },
+    "KeeForge adds this passkey to the database file the next time you unlock the database in the app." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge fügt diesen Passkey der Datenbankdatei hinzu, sobald Sie die Datenbank das nächste Mal in der App entsperren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge añadirá esta llave de acceso al archivo de la base de datos la próxima vez que desbloquee la base de datos en la app."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ajoutera cette clé d'accès au fichier de la base de données la prochaine fois que vous déverrouillerez la base de données dans l’app."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge aggiunge questa passkey al file del database la prossima volta che sblocchi il database nell'app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次回 App でこのデータベースのロックを解除すると、KeeForge がこのパスキーをデータベースファイルに追加します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下次在 App 中解锁此数据库时，KeeForge 会将此通行密钥添加到数据库文件中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下次在 App 中解鎖此資料庫時，KeeForge 會將此通行金鑰加入資料庫檔案。"
+          }
+        }
+      }
+    },
     "KeeForge always locks on screen lock, screensaver, system sleep, and user switching. The stricter option also locks whenever another app becomes active." : {
       "localizations" : {
         "de" : {
@@ -39804,6 +39850,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "透過自動填寫儲存的變更與雲端副本儲存附件的方式不同，合併後可能導致附件指向錯誤的檔案。如需在其他 KeePass App 中合併，請在資料庫列表中使用「匯出副本」。"
+          }
+        }
+      }
+    },
+    "The change saved through AutoFill and this database store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from %@ in Database Details. Export that backup to merge it in another KeePass app." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die über AutoFill gespeicherte Änderung und diese Datenbank speichern ihre Anhänge unterschiedlich. Beim Zusammenführen könnte ein Anhang daher auf die falsche Datei verweisen. Sie ist in der Sicherungskopie vom %@ in den Datenbankdetails gespeichert. Exportieren Sie diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio guardado mediante el autorrelleno y esta base de datos almacenan sus archivos adjuntos de forma distinta, así que combinarlos podría hacer que un adjunto apunte al archivo equivocado. Se conserva en la copia de seguridad del %@ en los detalles de la base de datos. Exporte esa copia de seguridad para combinarlo en otra app de KeePass."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification enregistrée via le remplissage automatique et cette base de données stockent leurs pièces jointes différemment : les fusionner pourrait faire pointer une pièce jointe vers le mauvais fichier. Elle est conservée dans la sauvegarde du %@ dans les détails de la base de données. Exportez cette sauvegarde pour la fusionner dans une autre app KeePass."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modifica salvata tramite l'inserimento automatico e questo database archiviano gli allegati in modo diverso, quindi unirli potrebbe far puntare un allegato al file sbagliato. La modifica è conservata nel backup del %@ in Dettagli del database. Esporta quel backup per unirlo in un'altra app KeePass."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更とこのデータベースでは添付ファイルの保存方法が異なるため、マージすると添付ファイルが誤ったファイルを参照する可能性があります。この変更は、データベースの詳細にある %@ のバックアップに保持されています。そのバックアップを書き出して、他の KeePass App でマージしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过自动填充保存的更改与此数据库存储附件的方式不同，合并后可能导致附件指向错误的文件。该更改保存在数据库详细信息中 %@ 的备份里。请导出该备份，并在其他 KeePass App 中合并。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過自動填寫儲存的變更與此資料庫儲存附件的方式不同，合併後可能導致附件指向錯誤的檔案。該變更保存在資料庫詳細資訊中 %@ 的備份裡。請匯出該備份，並在其他 KeePass App 中合併。"
           }
         }
       }

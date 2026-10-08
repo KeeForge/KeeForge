@@ -2966,6 +2966,52 @@
         }
       }
     },
+    "KeeForge adds this passkey to the database file the next time you unlock the database in the app." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge fügt diesen Passkey der Datenbankdatei hinzu, sobald Sie die Datenbank das nächste Mal in der App entsperren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge añadirá esta llave de acceso al archivo de la base de datos la próxima vez que desbloquee la base de datos en la app."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ajoutera cette clé d'accès au fichier de la base de données la prochaine fois que vous déverrouillerez la base de données dans l’app."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge aggiunge questa passkey al file del database la prossima volta che sblocchi il database nell'app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次回 App でこのデータベースのロックを解除すると、KeeForge がこのパスキーをデータベースファイルに追加します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下次在 App 中解锁此数据库时，KeeForge 会将此通行密钥添加到数据库文件中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下次在 App 中解鎖此資料庫時，KeeForge 會將此通行金鑰加入資料庫檔案。"
+          }
+        }
+      }
+    },
     "Key file hash verification failed — file may be corrupted" : {
       "localizations" : {
         "de" : {

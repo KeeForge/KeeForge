@@ -121,8 +121,9 @@ enum DatabaseMergeFailure: String, Error, Identifiable, Equatable, Sendable {
     }
 }
 
-/// Why merging a conflicted AutoFill upload wrote nothing. Every case leaves
-/// the pending upload and its bytes in place.
+/// Why merging an AutoFill save wrote nothing. Every pending-upload case
+/// leaves the upload and its bytes in place; a pending local save that cannot
+/// be merged has been moved into the backups by the time it is reported.
 enum PendingUploadMergeFailure: Error, Equatable, Sendable {
     /// The change's bytes are gone from this device, or were saved under a
     /// master key the database no longer uses.
@@ -134,6 +135,9 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
     case changeUnreadable(PendingUploadRecovery.Location)
     /// See `DatabaseMergeFailure.attachmentsDiverged`.
     case attachmentsDiverged(PendingUploadRecovery.Location)
+    /// A pending local save and the database file store their attachments
+    /// differently; the save is in the backup at this URL.
+    case attachmentsDivergedFromFile(backup: URL)
     /// The cloud copy moved on since the session's copy was synced: between
     /// opening and uploading the merge, or before a manual-policy open that
     /// did not check. Reopening is no way out under the manual policy, so the
@@ -160,6 +164,8 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
             String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. To merge it in another KeePass app, use Export Copy in the database list.")
         case .attachmentsDiverged(.backup(let url)):
             String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
+        case .attachmentsDivergedFromFile(let url):
+            String(localized: "The change saved through AutoFill and this database store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
         case .cloudChanged:
             String(localized: "The cloud copy has changed since this database was last synced. Nothing was lost. Use Sync Now in Database Details to get the latest copy, then choose Merge Changes again.")
         case .sessionUnavailable:
@@ -317,6 +323,17 @@ final class DatabaseViewModel {
 
     /// Typed rejection reasons for `changeMasterKey`. Presentation strings are
     /// the caller's responsibility.
+    /// How an attempt to merge pending AutoFill saves into the file ended.
+    enum PendingLocalSaveMergeResult: Equatable, Sendable {
+        /// Nothing was pending, the saves were merged or set aside, or the
+        /// merge is waiting for something that will let it run again.
+        case settledOrDeferred
+        /// The file changed since this session opened it, so the merged tree
+        /// could not be saved. Waiting does not help: only a reload gives the
+        /// session a baseline the merge can save against.
+        case fileChangedSinceOpen
+    }
+
     enum RekeyError: Error, Equatable, Sendable {
         case sessionUnavailable
         case databaseIsReadOnly
@@ -1071,6 +1088,7 @@ final class DatabaseViewModel {
                 sessionKey: sessionKey
             )
             sessionKeyFileData = keyFileData
+            await mergePendingLocalSaves()
         } catch {
             guard finishUnlockAttempt(attempt) else { return }
             let diagnostics = makeUnlockDiagnostics(
@@ -1142,6 +1160,7 @@ final class DatabaseViewModel {
                 usesHardwareKey: hardwareKey != nil,
                 sessionKey: sessionKey
             )
+            await mergePendingLocalSaves()
             return .unlocked
         } catch {
             guard finishUnlockAttempt(attempt) else { return .failed }
@@ -2229,6 +2248,13 @@ final class DatabaseViewModel {
     }
 
     func save() async throws {
+        try await saveDraft()
+        // An unsaved edit makes `mergePendingLocalSaves` wait; this save is
+        // what it was waiting for.
+        await mergePendingLocalSaves()
+    }
+
+    private func saveDraft() async throws {
         if isReadOnly {
             throw SaveError.databaseIsReadOnly
         }
@@ -2347,6 +2373,9 @@ final class DatabaseViewModel {
         newKeyFileBookmarkData: Data?,
         newKeyFileFilename: String?
     ) async throws {
+        // A pending local save is ciphertext under the old key: it has to be
+        // in the file before the key changes, or it can never be merged.
+        let pendingMerge = await mergePendingLocalSaves()
         guard case .unlocked = state, let compositeKey, let openTimeSHA512 else {
             throw RekeyError.sessionUnavailable
         }
@@ -2366,6 +2395,11 @@ final class DatabaseViewModel {
         // draining them after a rekey would resurrect it on the remote.
         if databaseReference.isCloudBacked, pendingUploadMarkerCheck(databaseReference) {
             throw RekeyError.pendingUploadsExist
+        }
+        guard PendingLocalSaveStore.hasSaves(for: databaseReference.id) == false else {
+            // A save the changed file is holding up is a conflict to reload
+            // out of, not something to wait for.
+            throw pendingMerge == .fileChangedSinceOpen ? RekeyError.conflict : RekeyError.pendingUploadsExist
         }
 
         let newCompositeKey = try KDBXCrypto.compositeKey(
@@ -2853,6 +2887,138 @@ final class DatabaseViewModel {
         pendingUploadMergeFailure = nil
     }
 
+    /// Merges the AutoFill saves the Mac extension could only write to the
+    /// shared copy into the session's tree and saves the result to the
+    /// database file. A pending save is removed only once that save has
+    /// succeeded; one that cannot be merged moves into the backups instead.
+    ///
+    /// Runs on its own after an unlock, after a save, before a master-key
+    /// change, and when the app becomes active. A session that cannot save
+    /// right now leaves everything in place for the next run, and so does a
+    /// save that fails or conflicts: the pending saves are still on disk, and
+    /// the user's own next save reports the cause.
+    @discardableResult
+    func mergePendingLocalSaves() async -> PendingLocalSaveMergeResult {
+        guard case .unlocked = state,
+              databaseReference.isCloudBacked == false,
+              isReadOnly == false,
+              isSaving == false,
+              saveConflict == nil,
+              draft?.isDirty != true,
+              let compositeKey,
+              let sessionKey,
+              let openTimeSHA512
+        else {
+            return .settledOrDeferred
+        }
+
+        let reference = databaseReference
+        let pendingSaves = PendingLocalSaveStore.saves(for: reference.id)
+        guard pendingSaves.isEmpty == false,
+              let localDraft = try? makeWorkingDraft() else {
+            return .settledOrDeferred
+        }
+        let localBinaryPoolFields = localDraft.binaryPoolFields
+        let expectedLockCycleID = lockCycleID
+
+        isSaving = true
+        defer {
+            isSaving = false
+        }
+
+        var mergedRootGroup = localDraft.rootGroup
+        var mergedMeta = localDraft.meta
+        var mergedSaves: [PendingLocalSaveStore.PendingSave] = []
+        var unmergeableSaves: [(save: PendingLocalSaveStore.PendingSave, failure: DatabaseMergeFailure)] = []
+        for pendingSave in pendingSaves {
+            guard let data = try? await Task.detached(priority: .userInitiated, operation: {
+                try CoordinatedFileReader.readData(from: pendingSave.fileURL)
+            }).value else {
+                continue
+            }
+            do {
+                let merged = try await Self.mergeRemoteOffMain(
+                    remoteData: data,
+                    compositeKey: compositeKey,
+                    sessionKey: sessionKey,
+                    localRootGroup: mergedRootGroup,
+                    localMeta: mergedMeta,
+                    localBinaryPoolFields: localBinaryPoolFields ?? []
+                )
+                mergedRootGroup = merged.rootGroup
+                mergedMeta = merged.meta
+                mergedSaves.append(pendingSave)
+            } catch let failure as DatabaseMergeFailure where failure != .sessionUnavailable {
+                unmergeableSaves.append((pendingSave, failure))
+            } catch {
+                return .settledOrDeferred
+            }
+        }
+
+        guard expectedLockCycleID == lockCycleID else { return .settledOrDeferred }
+
+        if mergedSaves.isEmpty == false {
+            let mergedDraft = DatabaseDraft(
+                rootGroup: mergedRootGroup,
+                meta: mergedMeta,
+                sessionKey: sessionKey,
+                binaryPoolFields: localBinaryPoolFields
+            )
+            let saveResult = try? await localSaveOperation(
+                mergedDraft,
+                reference,
+                compositeKey,
+                openTimeSHA512,
+                nil,
+                nil,
+                nil
+            )
+            guard case .saved(let newSHA512)? = saveResult else {
+                if case .conflict? = saveResult {
+                    return .fileChangedSinceOpen
+                }
+                return .settledOrDeferred
+            }
+
+            // Not gated on the lock cycle: the file holds these saves now.
+            let resolvedSaves = mergedSaves
+            await Task.detached(priority: .userInitiated) {
+                resolvedSaves.forEach(PendingLocalSaveStore.remove)
+            }.value
+            guard expectedLockCycleID == lockCycleID else { return .settledOrDeferred }
+
+            rootGroup = mergedDraft.rootGroup
+            unlockedMeta = mergedDraft.meta
+            binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
+            self.openTimeSHA512 = newSHA512
+            draft = draftReplayingEditsArriving(after: localDraft, onto: mergedDraft)
+            refreshDatabaseReference()
+            populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
+        }
+
+        for unmergeable in unmergeableSaves {
+            guard let backupURL = try? PendingLocalSaveStore.moveToBackups(unmergeable.save, for: reference) else {
+                continue
+            }
+            pendingUploadMergeFailure = unmergeable.failure == .attachmentsDiverged
+                ? .attachmentsDivergedFromFile(backup: backupURL)
+                : .changeUnreadable(.backup(backupURL))
+        }
+
+        // The unlock and the saver left the shared copy alone while saves were
+        // pending. Bring it up to the file, unless another AutoFill save has
+        // arrived in the meantime.
+        await Task.detached(priority: .userInitiated) {
+            guard PendingLocalSaveStore.hasSaves(for: reference.id) == false,
+                  let url = DatabaseListStore.resolveDatabaseURL(for: reference),
+                  let data = try? Self.readSecurityScopedData(from: url) else {
+                return
+            }
+            try? DatabaseListStore.cacheDatabaseCopy(data, for: reference)
+        }.value
+        return .settledOrDeferred
+    }
+
     private func refreshPendingUploadConflict() {
         hasPendingUploadConflict = databaseReference.isCloudBacked
             && isReadOnly == false
@@ -3332,6 +3498,14 @@ final class DatabaseViewModel {
         let expectedLockCycleID = lockCycleID
         let databaseReference = self.databaseReference
         if databaseReference.isCloudBacked, databaseReference.cloudSyncPolicy == .manual {
+            return
+        }
+        // See `cacheDatabaseCopyForLocalDatabase`.
+        if databaseReference.isCloudBacked == false,
+           PendingLocalSaveStore.hasSaves(for: databaseReference.id) {
+            Task {
+                await mergePendingLocalSaves()
+            }
             return
         }
         let compositeKeyForStoreRefresh: SymmetricKey?
@@ -4104,8 +4278,16 @@ final class DatabaseViewModel {
     /// the coordinator's read and this write would be reverted with no backup,
     /// since only the coordinator's paths honor the pending-marker gate. Local
     /// databases never have markers, so the plain rewrite is safe there.
+    ///
+    /// A pending local save is the exception: the shared copy holds an
+    /// AutoFill save the file does not, and replacing it would hide that save
+    /// from AutoFill until it is merged. `mergePendingLocalSaves` refreshes it
+    /// once the file holds the save.
     private func cacheDatabaseCopyForLocalDatabase(_ data: Data) throws {
-        guard databaseReference.isCloudBacked == false else { return }
+        guard databaseReference.isCloudBacked == false,
+              PendingLocalSaveStore.hasSaves(for: databaseReference.id) == false else {
+            return
+        }
         try DatabaseListStore.cacheDatabaseCopy(data, for: databaseReference)
     }
 

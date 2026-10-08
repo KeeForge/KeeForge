@@ -110,6 +110,11 @@ struct AutoFillPasskeyCreatorView: View {
                     .accessibilityIdentifier("autofill-passkey-creator.database")
                 LabeledContent("Group", value: context.destinationGroupName)
                     .accessibilityIdentifier("autofill-passkey-creator.group")
+            } footer: {
+                if context.awaitsWriteBack {
+                    Text("KeeForge adds this passkey to the database file the next time you unlock the database in the app.")
+                        .accessibilityIdentifier("autofill-passkey-creator.write-back-note")
+                }
             }
 
             Section {

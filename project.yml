@@ -301,6 +301,7 @@ targets:
       - path: KeeForge/Services/Persistence/CoordinatedFileReader.swift
       - path: KeeForge/Services/Persistence/KeyFileProcessor.swift
       - path: KeeForge/Services/Persistence/LocalDatabaseSaver.swift
+      - path: KeeForge/Services/Persistence/PendingLocalSaveStore.swift
       - path: KeeForge/Services/Security/PasskeyCrypto.swift
       - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
       - path: KeeForge/Services/Cloud/CloudSyncModels.swift
@@ -370,6 +371,7 @@ targets:
       - path: KeeForge/Services/Persistence/CoordinatedFileReader.swift
       - path: KeeForge/Services/Persistence/KeyFileProcessor.swift
       - path: KeeForge/Services/Persistence/LocalDatabaseSaver.swift
+      - path: KeeForge/Services/Persistence/PendingLocalSaveStore.swift
       - path: KeeForge/Services/Security/PasskeyCrypto.swift
       - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
       - path: KeeForge/Services/Cloud/CloudSyncModels.swift

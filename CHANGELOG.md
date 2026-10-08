@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- Mac AutoFill can save a new passkey into a database opened from a file (#182). Registration used to stop with a permission error, because the AutoFill extension cannot open that file itself. The passkey is now kept by KeeForge and offered for sign-in on this Mac, and it is written to the database file the next time you unlock that database in KeeForge; the passkey form says so. Until then other apps and devices do not see it. Changes another app made to the file in the meantime are kept. If the passkey cannot be combined with the file, KeeForge says so and keeps it as a backup in Database Details that is never rotated out.
+
 ## v1.18.0 (2026-10-07)
 
 ### Changes
