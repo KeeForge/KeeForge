@@ -2,15 +2,16 @@
 
 ## Unreleased
 
-### Distribution
+## v1.18.0 (2026-10-07)
+
+### Changes
 
 - Direct Mac release exports can select locally installed signing profiles after a Developer ID certificate replacement.
-
-> **Next release requirement:** This database-corruption fix (#181) must be item **#1** in the next release’s “What’s New”, including the in-app sheet on iPhone, iPad, and Mac and the App Store release notes. Include a link to the [KeeForge KDBX recovery tool](https://github.com/KeeForge/kdbx-recovery). Explicitly say that updating prevents new corruption but does not repair already damaged files; affected users should restore a readable backup or use the offline recovery tool to create a recovered copy. Keep this item ahead of every new feature.
 
 ### Fixes
 
 - Prevents database corruption when notes or other text contain unsupported characters such as NUL (#181). Saving stops with an error and keeps the previous database readable. Already affected databases are not repaired by updating: restore a readable backup or use the [KeeForge KDBX recovery tool](https://github.com/KeeForge/kdbx-recovery) to create a recovered copy.
+- On Mac, with Lock Automatically set to "When KeeForge Is Not the Active App", the Touch ID or password prompt for viewing or copying a password no longer locks the database (#203).
 - The Face ID and Touch ID unlock buttons now use the selected app language (#183).
 - Group deletion actions now use the selected app language on iPhone, iPad, and Mac (#184).
 - Restoring an earlier entry version keeps that version's expiration settings after saving and reopening the database.
@@ -55,7 +56,10 @@
 - On Mac, search your open database from the menu bar (#156). Turn on Settings → Menu Bar → "Show KeeForge in the Menu Bar", then click the key icon, or record a quick search shortcut there that works from any app. Pick an entry to copy its user name, password, or verification code, or open it in the main window. Entries show only while the database is unlocked, and copying a password asks for Touch ID or your login password, as in the main window. The menu bar item and the shortcut are off until you turn them on. Quick search covers the database open in the main window, and closing that window still locks it.
 - The iPhone and iPad app running on a Mac now suggests the native Mac app (#174). A banner on the database list offers "Open Mac Version", which opens KeeForge's App Store page; dismiss it and it stays hidden. It does not appear on iPhone, iPad, or in the native Mac app.
 
-## v1.17.0 (2026-09-27)
+## v1.17.0 (2026-10-06)
+
+- iOS: officially released on 2026-10-06, App Store build 67 ([source tag](https://github.com/KeeForge/KeeForge/tree/v1.17.0-ios)).
+- macOS: released on 2026-10-03, build 60 ([source tag](https://github.com/KeeForge/KeeForge/tree/v1.17.0-mac)).
 
 ### New Features
 

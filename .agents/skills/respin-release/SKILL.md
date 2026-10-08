@@ -33,6 +33,9 @@ RC commit.
 
 If the fix warrants a user-visible changelog line, add it to the version's section in
 `CHANGELOG.md` (not `## Unreleased` — this version is no longer unreleased on this branch).
+Before committing changed release copy or rendering, repeat the affected
+[release-content preview](../prepare-release/references/shared.md#release-content-preview-before-commit)
+reviews. Reuse the previous copy approval and screenshot confirmation when that content is unchanged.
 
 ## Regenerate, gate, tag
 

@@ -17,6 +17,11 @@ release branch, and existing shipped/RC tags before changing files.
 
 If the requested version or starting point is ambiguous, resolve it before mutation.
 
+Before committing release content, obtain approval of the exact headings and paragraphs, then
+confirmation of the rendered What's New screenshots. Follow the shared
+[release-content preview](references/shared.md#release-content-preview-before-commit) requirement;
+an approved feature outline alone is insufficient.
+
 Both preparation paths use the same [candidate procedure](references/candidate.md): build-number
 preflight, both local KDBX gates, immutable RC tag/manifest, hosted gates and local Mac smoke,
 exact artifact verification, and authorized beta distribution. Follow those steps in order;

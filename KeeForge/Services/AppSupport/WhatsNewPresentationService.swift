@@ -13,25 +13,33 @@ enum WhatsNewPlatform: Hashable, Sendable {
     }
 }
 
+struct WhatsNewFeatureLink: Sendable {
+    let title: LocalizedStringResource
+    let url: URL
+}
+
 struct WhatsNewFeature: Identifiable, Sendable {
     let id: String
     let title: LocalizedStringResource
     let detail: LocalizedStringResource
     let systemImage: String
     let platforms: Set<WhatsNewPlatform>
+    let link: WhatsNewFeatureLink?
 
     init(
         id: String,
         title: LocalizedStringResource,
         detail: LocalizedStringResource,
         systemImage: String,
-        platforms: Set<WhatsNewPlatform> = [.iOS, .macOS]
+        platforms: Set<WhatsNewPlatform> = [.iOS, .macOS],
+        link: WhatsNewFeatureLink? = nil
     ) {
         self.id = id
         self.title = title
         self.detail = detail
         self.systemImage = systemImage
         self.platforms = platforms
+        self.link = link
     }
 }
 
@@ -42,22 +50,69 @@ struct WhatsNewRelease: Identifiable, Sendable {
     var id: String { version }
 }
 
-/// Curated, user-facing release notes shown by `WhatsNewView`.
-///
-/// Before each release that adds features, add a case matching the target's
-/// `MARKETING_VERSION`. Use only the changelog's New Features section as input,
-/// then rewrite those bullets as short, benefit-led copy. Bug fixes and
-/// internal changes do not belong in this catalog.
-///
-/// The same entry is read on iPhone, iPad, and Mac, so copy must be true on all
-/// of them: never name a gesture (a Mac has no long-press) and never point at a
-/// platform-specific destination. A feature one platform does not have belongs
-/// behind `platforms:`, or needs a second entry carrying that platform's wording.
+/// User-facing release highlights, filtered for the current platform.
 enum WhatsNewCatalog {
     static func release(version: String, platform: WhatsNewPlatform) -> WhatsNewRelease? {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.18.0":
+            features = [
+                WhatsNewFeature(
+                    id: "prevent-database-corruption",
+                    title: "Update entry notes safely",
+                    detail: "Updating KeeForge prevents new corruption when saving entry notes but does not repair already damaged files. Restore a readable backup or create a recovered copy with the offline tool.",
+                    systemImage: "checkmark.shield",
+                    link: URL(string: "https://github.com/KeeForge/kdbx-recovery").map {
+                        WhatsNewFeatureLink(title: "KeeForge KDBX recovery tool", url: $0)
+                    }
+                ),
+                WhatsNewFeature(
+                    id: "import-apple-passwords",
+                    title: "Bring your Apple passwords into KeeForge",
+                    detail: "Import passwords, notes, and verification codes from Apple’s Passwords app. Preview the import before adding entries.",
+                    systemImage: "square.and.arrow.down"
+                ),
+                WhatsNewFeature(
+                    id: "entry-editor-upgrades",
+                    title: "Do more in the entry editor",
+                    detail: "Manage attachments, set expiration dates, and preview verification codes before saving.",
+                    systemImage: "square.and.pencil"
+                ),
+                WhatsNewFeature(
+                    id: "cloud-sync-when-ready",
+                    title: "Open cloud databases without waiting",
+                    detail: "Open the copy on your device right away, then sync when ready. Saving still checks for cloud conflicts.",
+                    systemImage: "icloud"
+                ),
+                WhatsNewFeature(
+                    id: "authentication-grace-period",
+                    title: "Choose when to authenticate again",
+                    detail: "Choose when KeeForge asks again to reveal or copy protected fields. Locking always ends the grace period.",
+                    systemImage: "lock.shield"
+                ),
+                WhatsNewFeature(
+                    id: "database-view-menu",
+                    title: "Find entries and verification codes your way",
+                    detail: "Switch between entries, groups, verification codes, tags, and the Recycle Bin from the database view menu.",
+                    systemImage: "list.bullet.rectangle",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "mac-menu-bar-search",
+                    title: "Search from the Mac menu bar",
+                    detail: "Search your unlocked database from any app with an optional shortcut. Copy credentials or open entries in KeeForge.",
+                    systemImage: "magnifyingglass",
+                    platforms: [.macOS]
+                ),
+                WhatsNewFeature(
+                    id: "mac-apple-watch-unlock",
+                    title: "Unlock with Touch ID or Apple Watch",
+                    detail: "Unlock the Mac app with Touch ID or Apple Watch after one master-password unlock. AutoFill uses Touch ID only.",
+                    systemImage: "applewatch",
+                    platforms: [.macOS]
+                ),
+            ]
         case "1.17.0":
             features = [
                 WhatsNewFeature(

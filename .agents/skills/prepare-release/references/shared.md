@@ -10,8 +10,42 @@ skip steps or proceed past a failure.
 
 Test execution model: the full unit suites and hosted UI suites run on **Xcode Cloud** and
 **GitHub Actions**. `KeeForgeMacUITests/MacSmokeUITests` is the required local UI smoke because it
-needs an unlocked active login session. Do not run the full hosted suites locally up front. Run
-focused local XCTest reproductions only when a cloud test fails — see [gate-adjudication.md](gate-adjudication.md).
+needs an unlocked active login session. Do not run the full hosted suites locally up front. The
+focused What's New preview capture below is allowed before committing release content. Run other
+focused local
+XCTest reproductions only when a cloud test fails — see [gate-adjudication.md](gate-adjudication.md).
+
+## Release-content preview before commit
+
+Before committing new or changed release content, complete both owner reviews:
+
+1. **Exact copy:** Show the final release-content headings and paragraphs in chat, including the
+   versioned changelog section and every What's New highlight's title and complete body in order.
+   Include link labels and destinations, recovery instructions, and any platform-specific wording.
+   Identify which items each platform will show. Preview any App Store release notes drafted in
+   this step too. Obtain explicit approval of this exact copy; approval of a feature list or
+   summarized proposal does not approve paragraphs written afterward.
+2. **Rendered sheet:** Implement the approved copy locally, finish the shipped-locale translations,
+   and set the marketing version for the preview without advancing the candidate build number.
+   Capture the actual What's New sheet, including enough scrolling views to show every item and
+   link. Default to an iPhone capture; honor the owner's requested device and screenshot scope.
+   Label the device, OS, and physical/simulator source. Show the screenshots inline in chat and
+   obtain explicit confirmation of the rendered result before committing, pushing release content,
+   cutting the release branch, or tagging a candidate. A successful capture or test is not owner
+   confirmation.
+
+Local edits, project generation, focused localization/content checks, and the focused
+`WhatsNewUITests` flow with screenshot attachments or native app capture are authorized preparation
+for this review. Follow the repository's Xcode lock, device preference, and saved-log rules; do not
+run a full UI suite just to capture this sheet. Preserve the screenshots and the approved exact
+copy in the main checkout's `scratch/` so the eventual commit can be checked against them.
+
+If displayed copy, order, links, or layout changes after approval, repeat the affected text and
+screenshot reviews. Reuse prior approval only for unchanged content and rendering; an ordinary
+build-number-only respin does not require another content review. If the release has no What's New
+sheet, explicitly confirm that omission alongside the exact release copy rather than creating an
+empty sheet or requiring nonexistent screenshots. These approvals cover release content only;
+beta distribution and production publication retain their separate authorization boundaries.
 
 ## Candidate owner readiness
 
