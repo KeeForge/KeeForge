@@ -323,6 +323,17 @@ final class DatabaseViewModel {
 
     /// Typed rejection reasons for `changeMasterKey`. Presentation strings are
     /// the caller's responsibility.
+    /// How an attempt to merge pending AutoFill saves into the file ended.
+    enum PendingLocalSaveMergeResult: Equatable, Sendable {
+        /// Nothing was pending, the saves were merged or set aside, or the
+        /// merge is waiting for something that will let it run again.
+        case settledOrDeferred
+        /// The file changed since this session opened it, so the merged tree
+        /// could not be saved. Waiting does not help: only a reload gives the
+        /// session a baseline the merge can save against.
+        case fileChangedSinceOpen
+    }
+
     enum RekeyError: Error, Equatable, Sendable {
         case sessionUnavailable
         case databaseIsReadOnly
@@ -2364,7 +2375,7 @@ final class DatabaseViewModel {
     ) async throws {
         // A pending local save is ciphertext under the old key: it has to be
         // in the file before the key changes, or it can never be merged.
-        await mergePendingLocalSaves()
+        let pendingMerge = await mergePendingLocalSaves()
         guard case .unlocked = state, let compositeKey, let openTimeSHA512 else {
             throw RekeyError.sessionUnavailable
         }
@@ -2386,7 +2397,9 @@ final class DatabaseViewModel {
             throw RekeyError.pendingUploadsExist
         }
         guard PendingLocalSaveStore.hasSaves(for: databaseReference.id) == false else {
-            throw RekeyError.pendingUploadsExist
+            // A save the changed file is holding up is a conflict to reload
+            // out of, not something to wait for.
+            throw pendingMerge == .fileChangedSinceOpen ? RekeyError.conflict : RekeyError.pendingUploadsExist
         }
 
         let newCompositeKey = try KDBXCrypto.compositeKey(
@@ -2884,7 +2897,8 @@ final class DatabaseViewModel {
     /// right now leaves everything in place for the next run, and so does a
     /// save that fails or conflicts: the pending saves are still on disk, and
     /// the user's own next save reports the cause.
-    func mergePendingLocalSaves() async {
+    @discardableResult
+    func mergePendingLocalSaves() async -> PendingLocalSaveMergeResult {
         guard case .unlocked = state,
               databaseReference.isCloudBacked == false,
               isReadOnly == false,
@@ -2895,14 +2909,14 @@ final class DatabaseViewModel {
               let sessionKey,
               let openTimeSHA512
         else {
-            return
+            return .settledOrDeferred
         }
 
         let reference = databaseReference
         let pendingSaves = PendingLocalSaveStore.saves(for: reference.id)
         guard pendingSaves.isEmpty == false,
               let localDraft = try? makeWorkingDraft() else {
-            return
+            return .settledOrDeferred
         }
         let localBinaryPoolFields = localDraft.binaryPoolFields
         let expectedLockCycleID = lockCycleID
@@ -2937,11 +2951,11 @@ final class DatabaseViewModel {
             } catch let failure as DatabaseMergeFailure where failure != .sessionUnavailable {
                 unmergeableSaves.append((pendingSave, failure))
             } catch {
-                return
+                return .settledOrDeferred
             }
         }
 
-        guard expectedLockCycleID == lockCycleID else { return }
+        guard expectedLockCycleID == lockCycleID else { return .settledOrDeferred }
 
         if mergedSaves.isEmpty == false {
             let mergedDraft = DatabaseDraft(
@@ -2950,7 +2964,7 @@ final class DatabaseViewModel {
                 sessionKey: sessionKey,
                 binaryPoolFields: localBinaryPoolFields
             )
-            guard case .saved(let newSHA512)? = try? await localSaveOperation(
+            let saveResult = try? await localSaveOperation(
                 mergedDraft,
                 reference,
                 compositeKey,
@@ -2958,8 +2972,12 @@ final class DatabaseViewModel {
                 nil,
                 nil,
                 nil
-            ) else {
-                return
+            )
+            guard case .saved(let newSHA512)? = saveResult else {
+                if case .conflict? = saveResult {
+                    return .fileChangedSinceOpen
+                }
+                return .settledOrDeferred
             }
 
             // Not gated on the lock cycle: the file holds these saves now.
@@ -2967,7 +2985,7 @@ final class DatabaseViewModel {
             await Task.detached(priority: .userInitiated) {
                 resolvedSaves.forEach(PendingLocalSaveStore.remove)
             }.value
-            guard expectedLockCycleID == lockCycleID else { return }
+            guard expectedLockCycleID == lockCycleID else { return .settledOrDeferred }
 
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
@@ -2998,6 +3016,7 @@ final class DatabaseViewModel {
             }
             try? DatabaseListStore.cacheDatabaseCopy(data, for: reference)
         }.value
+        return .settledOrDeferred
     }
 
     private func refreshPendingUploadConflict() {

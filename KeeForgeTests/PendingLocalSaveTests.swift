@@ -571,10 +571,64 @@ final class PendingLocalSaveTests: XCTestCase {
             )
             XCTFail("The pending save is still under the old key")
         } catch {
-            XCTAssertEqual(error as? DatabaseViewModel.RekeyError, .pendingUploadsExist)
+            // Not `pendingUploadsExist`: its message tells the user to wait
+            // for syncing, and no amount of waiting moves this session's
+            // baseline past the change another app made.
+            XCTAssertEqual(error as? DatabaseViewModel.RekeyError, .conflict)
+            XCTAssertEqual(
+                MasterKeyChangeViewModel.message(for: error),
+                String(localized: "The database file changed since it was opened. Reload the database and try again.")
+            )
         }
 
         XCTAssertEqual(try Data(contentsOf: databaseURL), changedElsewhere)
+        XCTAssertEqual(PendingLocalSaveStore.saves(for: reference.id).count, 1)
+
+        // Following that message works: the reload takes the other app's
+        // change as the baseline, and the retry merges the save and rekeys.
+        try await vm.reloadDiscardingDraft()
+        try await vm.changeMasterKey(
+            newPassword: "rotated-master",
+            newKeyFileData: nil,
+            newKeyFileBookmarkData: nil,
+            newKeyFileFilename: nil
+        )
+
+        let reopened = try KDBXParser.parse(
+            data: try Data(contentsOf: databaseURL), password: "rotated-master", sessionKey: SymmetricKey(size: .bits256)
+        )
+        let titles = allEntryTitles(in: reopened)
+        XCTAssertTrue(titles.contains("New Passkey"))
+        XCTAssertTrue(titles.contains("Added In Another App"))
+        XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
+    }
+
+    func testChangingTheMasterKeyStillAsksToWaitWhenAPendingSaveIsNotHeldUpByTheFile() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let original = try Data(contentsOf: databaseURL)
+        // A save that fails for another reason than a changed file leaves the
+        // pending save in place without a conflict to reload out of.
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            localSaveOperation: { _, _, _, _, _, _, _ in throw SaveError.saveContextUnavailable }
+        )
+        await vm.unlock(password: fixturePassword)
+        let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
+        try seedPendingSave(pending, for: reference)
+
+        do {
+            try await vm.changeMasterKey(
+                newPassword: "rotated-master",
+                newKeyFileData: nil,
+                newKeyFileBookmarkData: nil,
+                newKeyFileFilename: nil
+            )
+            XCTFail("The pending save is still under the old key")
+        } catch {
+            XCTAssertEqual(error as? DatabaseViewModel.RekeyError, .pendingUploadsExist)
+        }
+        XCTAssertEqual(try Data(contentsOf: databaseURL), original)
         XCTAssertEqual(PendingLocalSaveStore.saves(for: reference.id).count, 1)
     }
 
@@ -589,8 +643,9 @@ final class PendingLocalSaveTests: XCTestCase {
         let changedElsewhere = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "Added In Another App")) }
         try changedElsewhere.write(to: databaseURL, options: .atomic)
 
-        await vm.mergePendingLocalSaves()
+        let result = await vm.mergePendingLocalSaves()
 
+        XCTAssertEqual(result, .fileChangedSinceOpen)
         XCTAssertEqual(try Data(contentsOf: databaseURL), changedElsewhere, "The file moved on since this session opened it")
         XCTAssertEqual(PendingLocalSaveStore.saves(for: reference.id).count, 1)
         XCTAssertNil(vm.pendingUploadMergeFailure)
