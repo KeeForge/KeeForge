@@ -77,6 +77,34 @@ final class SSHAgentKeyTests: XCTestCase {
         }
     }
 
+    /// OpenSSH refuses RSA keys under 1024 and over 16384 bits. The upper
+    /// bound matters here beyond compatibility: signing derives two exponents
+    /// with arithmetic whose cost grows with the square of the key size.
+    func testRSAKeysOutsideOpenSSHsSizeLimitsAreRejected() throws {
+        func number(bytes: Int) -> Data { Data([0x7F]) + Data(repeating: 0xFF, count: bytes - 1) }
+        let usable = try Self.rsaKeyFile(modulusBytes: 256, number: number)
+        XCTAssertEqual(try SSHAgentKey(privateKeyFile: usable).algorithm, .rsa(bits: 2047))
+
+        for modulusBytes in [64, 2049, 100_000] {
+            let file = try Self.rsaKeyFile(modulusBytes: modulusBytes, number: number)
+            XCTAssertThrowsError(try SSHAgentKey(privateKeyFile: file), "\(modulusBytes) bytes") {
+                XCTAssertEqual($0 as? SSHAgentKeyError, .malformed)
+            }
+        }
+    }
+
+    /// A private exponent or prime longer than the modulus belongs to no RSA
+    /// key, and is what would make deriving the CRT exponents expensive.
+    func testRSAKeyWithAComponentLongerThanItsModulusIsRejected() throws {
+        func number(bytes: Int) -> Data { Data([0x7F]) + Data(repeating: 0xFF, count: bytes - 1) }
+        for oversized in ["privateExponent", "prime1"] {
+            let file = try Self.rsaKeyFile(modulusBytes: 256, oversized: oversized, number: number)
+            XCTAssertThrowsError(try SSHAgentKey(privateKeyFile: file), oversized) {
+                XCTAssertEqual($0 as? SSHAgentKeyError, .malformed)
+            }
+        }
+    }
+
     func testRecognizesPrivateKeyFilesOfAnyFormat() {
         XCTAssertTrue(SSHAgentKey.looksLikePrivateKey(Keys.ed25519.fileData))
         XCTAssertTrue(SSHAgentKey.looksLikePrivateKey(Keys.ed25519PassphraseProtected.fileData))
@@ -174,6 +202,53 @@ final class SSHAgentKeyTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// An `openssh-key-v1` file around RSA numbers of the given size. The
+    /// numbers are not a working key; the parser reads sizes before anything
+    /// signs with them.
+    private static func rsaKeyFile(
+        modulusBytes: Int,
+        oversized: String? = nil,
+        number: (Int) -> Data
+    ) throws -> Data {
+        func component(_ name: String, bytes: Int) -> Data {
+            number(name == oversized ? modulusBytes + 1 : bytes)
+        }
+        let modulus = number(modulusBytes)
+        let publicExponent = Data([0x01, 0x00, 0x01])
+
+        var publicKey = SSHWireWriter()
+        publicKey.writeString("ssh-rsa")
+        publicKey.writeMPInt(publicExponent)
+        publicKey.writeMPInt(modulus)
+
+        var section = SSHWireWriter()
+        section.writeUInt32(0x4B46_4B46)
+        section.writeUInt32(0x4B46_4B46)
+        section.writeString("ssh-rsa")
+        section.writeMPInt(modulus)
+        section.writeMPInt(publicExponent)
+        section.writeMPInt(component("privateExponent", bytes: modulusBytes))
+        section.writeMPInt(component("coefficient", bytes: modulusBytes / 2))
+        section.writeMPInt(component("prime1", bytes: modulusBytes / 2))
+        section.writeMPInt(component("prime2", bytes: modulusBytes / 2))
+        section.writeString("crafted")
+        var privateSection = section.data
+        var pad: UInt8 = 1
+        while privateSection.count % 8 != 0 {
+            privateSection.append(pad)
+            pad += 1
+        }
+
+        var body = SSHWireWriter()
+        body.writeString("none")
+        body.writeString("none")
+        body.writeString(Data())
+        body.writeUInt32(1)
+        body.writeString(publicKey.data)
+        body.writeString(privateSection)
+        return armored(Data("openssh-key-v1\0".utf8) + body.data)
+    }
 
     private static func armoredBody(of file: String) -> Data? {
         let base64 = file.split(separator: "\n").filter { $0.hasPrefix("-----") == false }.joined()

@@ -226,7 +226,9 @@ The optional SSH agent
 is off by default. While it is on, it listens on `ssh-agent.sock` in the app's
 container home. The socket is created mode 0600 inside a container directory only
 the user can enter, and every connection is checked with `getpeereid` against the
-app's own user. It needs no extra entitlement and adds no network access. Turning
+app's own user. At most 64 connections are open at once, since each one costs the
+app a thread; a further one is closed unanswered. It needs no extra entitlement and
+adds no network access. Turning
 the agent off or quitting removes the socket; a file left by a crash is replaced on
 the next start, and anything at that path that is not a socket is left alone and
 reported.
@@ -244,7 +246,9 @@ entry's key attachment has changed. No key file is written to disk and no key is
 
 Supported keys are unencrypted OpenSSH private keys (`openssh-key-v1`) for Ed25519,
 ECDSA P-256/P-384/P-521, and RSA. RSA signs only with `rsa-sha2-256` or
-`rsa-sha2-512`; SHA-1 `ssh-rsa` requests fail. Passphrase-protected keys, PEM and
+`rsa-sha2-512`; SHA-1 `ssh-rsa` requests fail. RSA keys outside OpenSSH's own
+1024 to 16384 bit range are rejected when parsed, which also bounds the arithmetic a
+crafted attachment can make a request do. Passphrase-protected keys, PEM and
 PKCS #8 files, and PuTTY keys are listed as unsupported and never served. The agent
 answers only identity listing and signing; requests to add, remove, or lock keys,
 and protocol extensions, fail.
@@ -252,7 +256,9 @@ and protocol extensions, fail.
 Like `ssh-agent`, the agent cannot tell one local process from another. Any process
 running as the user that can reach the socket can list the chosen public keys and
 obtain signatures while the database is unlocked, and there is no per-signature
-confirmation. Forwarding the agent to a remote host extends the same ability to that
+confirmation. That also holds for an entry whose `KeeAgent.settings` asks for a
+confirmation or a lifetime in KeeAgent or KeePassXC: KeeForge reads only the key's
+attachment name from that file, and choosing the entry in Settings is the consent. Forwarding the agent to a remote host extends the same ability to that
 host for the length of the connection.
 
 ## Plaintext attachment files and disk encryption

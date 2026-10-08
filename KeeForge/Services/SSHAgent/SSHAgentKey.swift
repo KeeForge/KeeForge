@@ -204,7 +204,7 @@ struct SSHAgentKey {
                 prime1: try section.readMPInt(),
                 prime2: try section.readMPInt()
             )
-            guard components.isComplete else { throw SSHAgentKeyError.malformed }
+            guard components.isUsable else { throw SSHAgentKeyError.malformed }
             publicKey.writeMPInt(components.publicExponent)
             publicKey.writeMPInt(components.modulus)
             return (.rsa(bits: components.modulusBitCount), .rsa(components), publicKey.data)
@@ -254,9 +254,17 @@ private struct RSAComponents: Sendable {
     let prime1: Data
     let prime2: Data
 
-    var isComplete: Bool {
-        [modulus, publicExponent, privateExponent, coefficient, prime1, prime2].allSatisfy { $0.isEmpty == false }
+    /// OpenSSH's own limits (`SSH_RSA_MINIMUM_MODULUS_SIZE`,
+    /// `SSHBUF_MAX_BIGNUM`). The upper one also bounds the arithmetic below:
+    /// a crafted attachment must not be able to pin a socket thread.
+    static let modulusBitRange = 1024 ... 16384
+
+    var isUsable: Bool {
+        [modulus, publicExponent, privateExponent, coefficient, prime1, prime2].allSatisfy {
+            $0.isEmpty == false && $0.count <= modulus.count
+        }
             && prime1 != Data([1]) && prime2 != Data([1])
+            && Self.modulusBitRange.contains(modulusBitCount)
     }
 
     var modulusBitCount: Int {

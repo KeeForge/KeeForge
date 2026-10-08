@@ -213,6 +213,62 @@ final class MacSSHAgentControllerTests: XCTestCase {
         XCTAssertEqual(locked[1], Self.failure)
     }
 
+    /// The agent against OpenSSH's own tools instead of this suite's client:
+    /// `ssh-add -L` lists the chosen keys, and `ssh-keygen -Y sign` gets a
+    /// signature for each that `ssh-keygen` itself accepts. RSA goes through
+    /// the SHA-2 flags the real client sets.
+    func testOpenSSHToolsListAndSignThroughTheAgent() async throws {
+        // A sandboxed test host cannot hand its container socket to a tool.
+        try XCTSkipIf(ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil)
+        let tools = ["/usr/bin/ssh-add", "/usr/bin/ssh-keygen"]
+        try XCTSkipUnless(tools.allSatisfy(FileManager.default.isExecutableFile(atPath:)))
+
+        let session = try await makeUnlockedSession()
+        let controller = try makeController()
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: session.databaseReference.id)
+        controller.setSelected(true, entryID: rsaEntryID, inDatabase: session.databaseReference.id)
+        controller.isEnabled = true
+        controller.start()
+        let socketPath = controller.socketPath
+        let directory = try XCTUnwrap(socketDirectory)
+
+        let listed = try await Self.runTool("/usr/bin/ssh-add", ["-L"], socketPath: socketPath)
+        XCTAssertEqual(listed.status, 0, listed.output)
+        XCTAssertTrue(listed.output.contains("ssh-ed25519 \(Keys.ed25519.publicKeyBlob)"), listed.output)
+        XCTAssertTrue(listed.output.contains("ssh-rsa \(Keys.rsa.publicKeyBlob)"), listed.output)
+
+        for (name, publicKey) in [
+            ("ed25519", "ssh-ed25519 \(Keys.ed25519.publicKeyBlob)"),
+            ("rsa", "ssh-rsa \(Keys.rsa.publicKeyBlob)"),
+        ] {
+            let publicKeyFile = directory.appendingPathComponent("\(name).pub")
+            let message = directory.appendingPathComponent("\(name).txt")
+            try Data("\(publicKey)\n".utf8).write(to: publicKeyFile)
+            try Keys.message.write(to: message)
+
+            let signed = try await Self.runTool(
+                "/usr/bin/ssh-keygen",
+                ["-Y", "sign", "-U", "-f", publicKeyFile.path, "-n", "keeforge-test", message.path],
+                socketPath: socketPath
+            )
+            XCTAssertEqual(signed.status, 0, "\(name): \(signed.output)")
+
+            let checked = try await Self.runTool(
+                "/usr/bin/ssh-keygen",
+                ["-Y", "check-novalidate", "-n", "keeforge-test", "-s", message.path + ".sig"],
+                socketPath: socketPath,
+                input: Keys.message
+            )
+            XCTAssertEqual(checked.status, 0, "\(name): \(checked.output)")
+        }
+
+        session.lockRequest(force: true)
+
+        let locked = try await Self.runTool("/usr/bin/ssh-add", ["-L"], socketPath: socketPath)
+        XCTAssertFalse(locked.output.contains(Keys.ed25519.publicKeyBlob), locked.output)
+        XCTAssertFalse(locked.output.contains(Keys.rsa.publicKeyBlob), locked.output)
+    }
+
     func testTurningTheAgentOffRemovesTheSocket() async throws {
         let controller = try makeController()
         controller.isEnabled = true
@@ -238,6 +294,38 @@ final class MacSSHAgentControllerTests: XCTestCase {
         XCTAssertFalse(controller.isUnavailable)
         let answer = try await Self.exchange([Self.requestIdentities], at: controller.socketPath)
         XCTAssertEqual(try Self.identities(in: answer[0]), [])
+    }
+
+    /// Every connection costs the app a thread. Past the limit a new one is
+    /// closed unanswered, and closing an old one makes room again.
+    func testConnectionsBeyondTheLimitAreRefusedUntilOneCloses() async throws {
+        let controller = try makeController()
+        let path = controller.socketPath
+        let server = SSHAgentSocketServer(path: path, handler: SSHAgentRequestHandler { [] }, maximumConnections: 2)
+        try server.start()
+        defer { server.stop() }
+
+        let request = Self.requestIdentities
+        try await Task.detached {
+            let first = try SSHAgentTestClient.connect(at: path)
+            let second = try SSHAgentTestClient.connect(at: path)
+            defer { close(second) }
+            // An answer on each proves both hold one of the two places.
+            XCTAssertEqual(try SSHAgentTestClient.exchange([request], on: first).count, 1)
+            XCTAssertEqual(try SSHAgentTestClient.exchange([request], on: second).count, 1)
+
+            XCTAssertThrowsError(try SSHAgentTestClient.exchange([request], at: path))
+
+            close(first)
+            var answered = false
+            for _ in 0 ..< 50 where answered == false {
+                answered = (try? SSHAgentTestClient.exchange([request], at: path)) != nil
+                if answered == false {
+                    usleep(20_000)
+                }
+            }
+            XCTAssertTrue(answered, "Closing a connection must free its place")
+        }.value
     }
 
     func testSomethingElseAtTheSocketPathIsLeftAlone() throws {
@@ -343,6 +431,35 @@ final class MacSSHAgentControllerTests: XCTestCase {
             .isValidSignature(bytes, for: Keys.message)
     }
 
+    /// Runs an OpenSSH tool pointed at the agent, off the main actor, which
+    /// the agent needs to read the session.
+    private static func runTool(
+        _ path: String,
+        _ arguments: [String],
+        socketPath: String,
+        input: Data? = nil
+    ) async throws -> (status: Int32, output: String) {
+        try await Task.detached {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: path)
+            process.arguments = arguments
+            process.environment = ["SSH_AUTH_SOCK": socketPath, "PATH": "/usr/bin:/bin"]
+            let output = Pipe()
+            process.standardOutput = output
+            process.standardError = output
+            let stdin = Pipe()
+            process.standardInput = stdin
+            try process.run()
+            if let input {
+                stdin.fileHandleForWriting.write(input)
+            }
+            try stdin.fileHandleForWriting.close()
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            return (process.terminationStatus, String(decoding: data, as: UTF8.self))
+        }.value
+    }
+
     /// Sends each request over one connection, the way `ssh` talks to an
     /// agent. Runs off the main actor, which the agent needs to read the session.
     private static func exchange(_ requests: [Data], at path: String) async throws -> [Data] {
@@ -359,22 +476,36 @@ private enum SSHAgentTestClient {
     }
 
     static func exchange(_ requests: [Data], at path: String) throws -> [Data] {
+        let descriptor = try connect(at: path)
+        defer { close(descriptor) }
+        return try exchange(requests, on: descriptor)
+    }
+
+    /// An open connection the caller closes.
+    static func connect(at path: String) throws -> Int32 {
         let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
         guard descriptor >= 0 else { throw Failure(errno: errno) }
-        defer { close(descriptor) }
-
         var address = Self.address(path)
         let connected = withUnsafePointer(to: &address) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                connect(descriptor, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+                Darwin.connect(descriptor, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
-        guard connected == 0 else { throw Failure(errno: errno) }
+        guard connected == 0 else {
+            let failure = Failure(errno: errno)
+            close(descriptor)
+            throw failure
+        }
         // Fail the test rather than hang it if the agent never answers.
         var timeout = timeval(tv_sec: 10, tv_usec: 0)
         setsockopt(descriptor, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+        var noSIGPIPE: Int32 = 1
+        setsockopt(descriptor, SOL_SOCKET, SO_NOSIGPIPE, &noSIGPIPE, socklen_t(MemoryLayout<Int32>.size))
+        return descriptor
+    }
 
-        return try requests.map { request in
+    static func exchange(_ requests: [Data], on descriptor: Int32) throws -> [Data] {
+        try requests.map { request in
             var framed = SSHWireWriter()
             framed.writeString(request)
             try write(framed.data, to: descriptor)

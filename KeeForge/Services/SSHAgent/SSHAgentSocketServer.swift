@@ -15,8 +15,14 @@ enum SSHAgentSocketError: Error, Equatable {
 /// requests are tiny, but a client may hold its connection open for as long
 /// as its SSH session runs.
 final class SSHAgentSocketServer: Sendable {
+    /// Far more than SSH clients hold open at once. Each connection costs a
+    /// thread, so a process that keeps opening them must run out of
+    /// connections before the app runs out of threads.
+    static let defaultMaximumConnections = 64
+
     let path: String
     private let handler: SSHAgentRequestHandler
+    private let maximumConnections: Int
     private let acceptQueue = DispatchQueue(label: "com.keevault.app.ssh-agent")
     private let state = OSAllocatedUnfairLock(uncheckedState: State())
 
@@ -25,9 +31,14 @@ final class SSHAgentSocketServer: Sendable {
         var connections: Set<Int32> = []
     }
 
-    init(path: String, handler: SSHAgentRequestHandler) {
+    init(
+        path: String,
+        handler: SSHAgentRequestHandler,
+        maximumConnections: Int = SSHAgentSocketServer.defaultMaximumConnections
+    ) {
         self.path = path
         self.handler = handler
+        self.maximumConnections = maximumConnections
     }
 
     deinit {
@@ -128,12 +139,12 @@ final class SSHAgentSocketServer: Sendable {
             setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, &noSIGPIPE, socklen_t(MemoryLayout<Int32>.size))
             // Accepted sockets inherit the listener's non-blocking mode.
             _ = fcntl(connection, F_SETFL, fcntl(connection, F_GETFL) & ~O_NONBLOCK)
-            let isListening = state.withLockUnchecked { state -> Bool in
-                guard state.listener != nil else { return false }
+            let isAccepted = state.withLockUnchecked { state -> Bool in
+                guard state.listener != nil, state.connections.count < maximumConnections else { return false }
                 state.connections.insert(connection)
                 return true
             }
-            guard isListening else {
+            guard isAccepted else {
                 close(connection)
                 continue
             }
