@@ -1152,6 +1152,37 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertEqual(payload.totpConfig?.algorithm, .sha256)
     }
 
+    func testDuplicatingEntryCopiesASecretStoredInAnotherEncodingAsBase32() throws {
+        // A copy is written with a Base32 secret, so a secret the original
+        // keeps as hexadecimal has to be converted, not copied as text.
+        let entry = KPEntry(
+            title: "Bank",
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("3132333435363738393031323334353637383930", using: sessionKey),
+                decodedSecret: try EncryptedValue.encrypt(Data("12345678901234567890".utf8), using: sessionKey)
+            )
+        )
+
+        let viewModel = EntryEditViewModel(duplicating: entry, sessionKey: sessionKey, into: UUID())
+
+        XCTAssertEqual(viewModel.entryDraftPayload.totpConfig?.secret, "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")
+        XCTAssertNil(viewModel.entryDraftPayload.totpConfig?.decodedSecret)
+    }
+
+    func testDuplicatingEntryLeavesOutASecretThatDoesNotDecode() throws {
+        let entry = KPEntry(
+            title: "Bank",
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("313", using: sessionKey),
+                decodedSecret: .empty
+            )
+        )
+
+        let viewModel = EntryEditViewModel(duplicating: entry, sessionKey: sessionKey, into: UUID())
+
+        XCTAssertNil(viewModel.entryDraftPayload.totpConfig)
+    }
+
     func testDuplicatingEntryKeepsProtectedCustomFieldsProtected() {
         let entry = KPEntry(
             title: "Bank",

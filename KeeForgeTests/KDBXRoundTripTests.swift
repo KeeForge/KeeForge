@@ -263,6 +263,247 @@ final class KDBXRoundTripTests: XCTestCase {
     }
 
     @MainActor
+    func test_nativeTOTPAlgorithm_isSavedUnderKeePassNames() throws {
+        // KeePass 2.x matches `TimeOtp-Algorithm` against these three names
+        // exactly and generates no code for anything else. The short tokens
+        // are what earlier KeeForge versions wrote there.
+        let cases: [(stored: String?, saved: String, algorithm: TOTPAlgorithm)] = [
+            ("HMAC-SHA-1", "HMAC-SHA-1", .sha1),
+            ("HMAC-SHA-256", "HMAC-SHA-256", .sha256),
+            ("HMAC-SHA-512", "HMAC-SHA-512", .sha512),
+            ("SHA1", "HMAC-SHA-1", .sha1),
+            ("SHA256", "HMAC-SHA-256", .sha256),
+            ("SHA512", "HMAC-SHA-512", .sha512),
+            (nil, "HMAC-SHA-1", .sha1),
+        ]
+        for testCase in cases {
+            let label = testCase.stored ?? "no TimeOtp-Algorithm"
+            let algorithmField = testCase.stored.map {
+                "<String><Key>TimeOtp-Algorithm</Key><Value>\($0)</Value></String>"
+            } ?? ""
+            let xml = "<KeePassFile><Root><Group><Name>Root</Name><Entry>"
+                + "<String><Key>Title</Key><Value>Native TOTP</Value></String>"
+                + "<String><Key>TimeOtp-Secret-Base32</Key><Value>JBSWY3DPEHPK3PXP</Value></String>"
+                + "<String><Key>TimeOtp-Length</Key><Value>8</Value></String>"
+                + "<String><Key>TimeOtp-Period</Key><Value>45</Value></String>"
+                + algorithmField
+                + "</Entry></Group></Root></KeePassFile>"
+            let parsed = try parseXML(Data(xml.utf8))
+            let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+
+            // One save that never touched the entry, and one after an edit in
+            // the editor that left its one-time code alone.
+            let viewModel = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
+            viewModel.notes = "Edited"
+            let edited = try DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: roundTripSessionKey)
+                .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+
+            for (save, tree) in [("untouched", parsed), ("edited", (rootGroup: edited.rootGroup, meta: edited.meta))] {
+                let savedXML = try XCTUnwrap(String(data: try serializedXML(of: tree), encoding: .utf8))
+                let live = try XCTUnwrap(savedXML.components(separatedBy: "<History>").first)
+                XCTAssertTrue(
+                    live.contains("<String><Key>TimeOtp-Algorithm</Key><Value>\(testCase.saved)</Value></String>"),
+                    "\(label), \(save)"
+                )
+
+                let reloaded = try XCTUnwrap(parseXML(Data(savedXML.utf8)).rootGroup.allEntries.first)
+                let config = try XCTUnwrap(reloaded.totpConfig, "\(label), \(save)")
+                XCTAssertEqual(config.algorithm, testCase.algorithm, "\(label), \(save)")
+                XCTAssertEqual(config.period, 45, "\(label), \(save)")
+                XCTAssertEqual(config.digits, 8, "\(label), \(save)")
+                XCTAssertEqual(
+                    try config.secret.decrypt(using: roundTripSessionKey), "JBSWY3DPEHPK3PXP", "\(label), \(save)"
+                )
+            }
+        }
+    }
+
+    @MainActor
+    func test_nativeTOTPSecret_staysInTheFieldKeePassKeptItIn() throws {
+        // The RFC 6238 SHA-1 seed in each encoding, and one value KeePass
+        // cannot decode: it generates no code, but must not be lost either.
+        let cases: [(field: String, value: String, code: String)] = [
+            ("TimeOtp-Secret", "12345678901234567890", "94287082"),
+            ("TimeOtp-Secret-Hex", "3132333435363738393031323334353637383930", "94287082"),
+            ("TimeOtp-Secret-Base64", "MTIzNDU2Nzg5MDEyMzQ1Njc4OTA=", "94287082"),
+            ("TimeOtp-Secret-Hex", "313", "------"),
+        ]
+        for testCase in cases {
+            let label = "\(testCase.field) = \(testCase.value)"
+            let parsed = try parseNativeTOTPEntry(secretField: testCase.field, secret: testCase.value)
+            let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+
+            // One save that never touched the entry, one after an edit that
+            // left the one-time code alone, and one that changed its period.
+            let notesEdit = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
+            notesEdit.notes = "Edited"
+            let periodEdit = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
+            periodEdit.totpPeriod = 60
+            let draft = DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: roundTripSessionKey)
+            let edited = try draft.apply(.updateEntry(entryID: entry.id, draft: notesEdit.entryDraftPayload))
+            let retimed = try draft.apply(.updateEntry(entryID: entry.id, draft: periodEdit.entryDraftPayload))
+
+            for (save, tree, period) in [
+                ("untouched", parsed, 30),
+                ("edited", (rootGroup: edited.rootGroup, meta: edited.meta), 30),
+                ("retimed", (rootGroup: retimed.rootGroup, meta: retimed.meta), 60),
+            ] {
+                let savedXML = try XCTUnwrap(String(data: try serializedXML(of: tree), encoding: .utf8))
+                let live = try XCTUnwrap(savedXML.components(separatedBy: "<History>").first)
+                XCTAssertEqual(
+                    nativeTOTPSecretKeys(in: live), [testCase.field], "\(label), \(save)"
+                )
+
+                let reloaded = try XCTUnwrap(parseXML(Data(savedXML.utf8)).rootGroup.allEntries.first)
+                let config = try XCTUnwrap(reloaded.totpConfig, "\(label), \(save)")
+                XCTAssertEqual(try config.secret.decrypt(using: roundTripSessionKey), testCase.value, "\(label), \(save)")
+                XCTAssertEqual(config.period, period, "\(label), \(save)")
+                XCTAssertEqual(config.digits, 8, "\(label), \(save)")
+                XCTAssertEqual(
+                    TOTPGenerator.generateCode(
+                        config: TOTPConfig(
+                            secret: config.secret, decodedSecret: config.decodedSecret, period: 30, digits: 8
+                        ),
+                        sessionKey: roundTripSessionKey,
+                        date: Date(timeIntervalSince1970: 59)
+                    ),
+                    testCase.code,
+                    "\(label), \(save)"
+                )
+            }
+        }
+    }
+
+    @MainActor
+    func test_nativeTOTPSecret_changedInTheEditorIsSavedAsBase32Alone() throws {
+        let parsed = try parseNativeTOTPEntry(
+            secretField: "TimeOtp-Secret-Hex", secret: "3132333435363738393031323334353637383930"
+        )
+        let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
+        viewModel.totpSecret = "JBSWY3DPEHPK3PXP"
+
+        let updated = try DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: roundTripSessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let savedXML = try XCTUnwrap(
+            String(data: try serializedXML(of: (rootGroup: updated.rootGroup, meta: updated.meta)), encoding: .utf8)
+        )
+        let live = try XCTUnwrap(savedXML.components(separatedBy: "<History>").first)
+        XCTAssertEqual(nativeTOTPSecretKeys(in: live), ["TimeOtp-Secret-Base32"])
+
+        let reloaded = try XCTUnwrap(parseXML(Data(savedXML.utf8)).rootGroup.allEntries.first)
+        let config = try XCTUnwrap(reloaded.totpConfig)
+        XCTAssertEqual(try config.secret.decrypt(using: roundTripSessionKey), "JBSWY3DPEHPK3PXP")
+        XCTAssertEqual(
+            TOTPGenerator.resolveSecret(config: config, sessionKey: roundTripSessionKey)?.data,
+            TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP")
+        )
+        let previous = try XCTUnwrap(reloaded.history.first?.totpConfig, "The replaced secret stays in history")
+        XCTAssertEqual(
+            try previous.secret.decrypt(using: roundTripSessionKey), "3132333435363738393031323334353637383930"
+        )
+        XCTAssertEqual(
+            TOTPGenerator.resolveSecret(config: previous, sessionKey: roundTripSessionKey)?.data,
+            Data("12345678901234567890".utf8)
+        )
+    }
+
+    @MainActor
+    func test_nativeTOTPSecret_madeOfWhitespaceSurvivesAnEditThatLeavesItAlone() throws {
+        // A UTF-8 secret's whitespace is key material, not padding around a
+        // Base32 string the user typed.
+        let parsed = try parseNativeTOTPEntry(secretField: "TimeOtp-Secret", secret: " \t ")
+        let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+        let code = try nativeTOTPCode(of: entry)
+        XCTAssertEqual(code, "59921068")
+
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
+        XCTAssertTrue(viewModel.hasTOTPSecret)
+        viewModel.notes = "Edited"
+        XCTAssertEqual(viewModel.totpPreview?.code(at: Date(timeIntervalSince1970: 59)), code)
+
+        let updated = try DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: roundTripSessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let savedXML = try XCTUnwrap(
+            String(data: try serializedXML(of: (rootGroup: updated.rootGroup, meta: updated.meta)), encoding: .utf8)
+        )
+        let live = try XCTUnwrap(savedXML.components(separatedBy: "<History>").first)
+        XCTAssertEqual(nativeTOTPSecretKeys(in: live), ["TimeOtp-Secret"])
+
+        let reloaded = try XCTUnwrap(parseXML(Data(savedXML.utf8)).rootGroup.allEntries.first)
+        XCTAssertEqual(reloaded.notes, "Edited")
+        XCTAssertEqual(try reloaded.totpConfig?.secret.decrypt(using: roundTripSessionKey), " \t ")
+        XCTAssertEqual(try nativeTOTPCode(of: reloaded), code)
+
+        // Clearing the field still removes the code.
+        let removal = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
+        removal.removeTOTP()
+        XCTAssertFalse(removal.hasTOTPSecret)
+        XCTAssertNil(removal.entryDraftPayload.totpConfig)
+    }
+
+    @MainActor
+    func test_nativeTOTPSecret_reEnrolledFromALinkWithTheSameTextBecomesBase32() throws {
+        // "DEADBEEF" is valid hexadecimal and valid Base32, with different
+        // bytes. Enrolling the link replaces the stored hexadecimal secret
+        // although the text in the field does not change.
+        let parsed = try parseNativeTOTPEntry(secretField: "TimeOtp-Secret-Hex", secret: "DEADBEEF")
+        let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+        XCTAssertEqual(try nativeTOTPCode(of: entry), "05617013")
+
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
+        XCTAssertNil(viewModel.applySetupLink("otpauth://totp/Review?secret=DEADBEEF&digits=8"))
+        XCTAssertEqual(viewModel.totpPreview?.code(at: Date(timeIntervalSince1970: 59)), "06060638")
+        XCTAssertNil(viewModel.entryDraftPayload.totpConfig?.decodedSecret)
+
+        let updated = try DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: roundTripSessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let saved = try XCTUnwrap(updated.rootGroup.allEntries.first)
+        XCTAssertEqual(saved.totpConfig?.keePassSecretField, .base32)
+        XCTAssertEqual(try nativeTOTPCode(of: saved), "06060638")
+
+        let reloaded = try XCTUnwrap(
+            serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta)).rootGroup.allEntries.first
+        )
+        XCTAssertEqual(try nativeTOTPCode(of: reloaded), "06060638", "The saved entry and the reopened file must agree")
+    }
+
+    /// A draft that carries both an enrollment link and bytes decoded from
+    /// the entry's old field is an enrollment: the link decides the secret.
+    func test_updateEntry_enrollmentLinkOutranksDecodedBytesOfTheOldSecretField() throws {
+        let parsed = try parseNativeTOTPEntry(secretField: "TimeOtp-Secret-Hex", secret: "DEADBEEF")
+        let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+        let payload = EntryDraftPayload(
+            title: entry.title,
+            username: "",
+            password: "",
+            url: "",
+            notes: "",
+            customFields: [:],
+            tags: [],
+            totpConfig: EntryDraftPayload.TOTPConfiguration(
+                secret: "DEADBEEF",
+                decodedSecret: Data([0xDE, 0xAD, 0xBE, 0xEF]),
+                period: 30,
+                digits: 8,
+                algorithm: .sha1,
+                otpauthURI: "otpauth://totp/Review?secret=DEADBEEF&digits=8"
+            )
+        )
+
+        let updated = try DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: roundTripSessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: payload))
+        let saved = try XCTUnwrap(updated.rootGroup.allEntries.first)
+        XCTAssertEqual(saved.totpConfig?.keePassSecretField, .base32)
+        XCTAssertEqual(try nativeTOTPCode(of: saved), "06060638")
+
+        let reloaded = try XCTUnwrap(
+            serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta)).rootGroup.allEntries.first
+        )
+        XCTAssertEqual(try nativeTOTPCode(of: reloaded), "06060638")
+    }
+
+    @MainActor
     func test_createSaveReload_enrollmentFromOTPAuthURIStoresProtectedVerbatimURI() throws {
         let raw = "otpauth://totp/Example:alice@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example&period=45&digits=8&algorithm=SHA256"
         let rootGroup = KPGroup(id: UUID(), name: "Root")
@@ -1863,6 +2104,35 @@ final class KDBXRoundTripTests: XCTestCase {
             remainder = remainder.dropFirst(name.count)
         }
         return names
+    }
+
+    private func parseNativeTOTPEntry(
+        secretField: String,
+        secret: String
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        let xml = "<KeePassFile><Root><Group><Name>Root</Name><Entry>"
+            + "<String><Key>Title</Key><Value>Native TOTP</Value></String>"
+            + "<String><Key>\(secretField)</Key><Value>\(secret)</Value></String>"
+            + "<String><Key>TimeOtp-Length</Key><Value>8</Value></String>"
+            + "</Entry></Group></Root></KeePassFile>"
+        return try parseXML(Data(xml.utf8))
+    }
+
+    /// The entry's eight-digit code at T = 59, the RFC 6238 test instant.
+    private func nativeTOTPCode(of entry: KPEntry) throws -> String {
+        let config = try XCTUnwrap(entry.totpConfig)
+        return TOTPGenerator.generateCode(
+            config: config,
+            sessionKey: roundTripSessionKey,
+            date: Date(timeIntervalSince1970: 59)
+        )
+    }
+
+    /// The `TimeOtp-Secret*` keys in `xml`, in document order.
+    private func nativeTOTPSecretKeys(in xml: String) -> [String] {
+        xml.components(separatedBy: "<Key>TimeOtp-Secret").dropFirst().map {
+            "TimeOtp-Secret" + ($0.components(separatedBy: "</Key>").first ?? "")
+        }
     }
 
     private func serializedXML(of parsed: (rootGroup: KPGroup, meta: KPMeta)) throws -> Data {

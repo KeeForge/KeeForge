@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixes
+
+- Verification codes that KeePass stores in its own fields with SHA-256 or SHA-512 now show the correct code, and saving keeps their algorithm (#205). KeeForge also writes the algorithm under the name KeePass documents, including for codes added by typing a setup key. If an earlier version already saved such a SHA-256 or SHA-512 entry, choose its algorithm again in the entry editor.
+- Verification codes that KeePass stores with a UTF-8, hexadecimal, or Base64 secret now show their code, and saving no longer removes them from the database.
+
 ## v1.18.0 (2026-10-07)
 
 ### Changes

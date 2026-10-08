@@ -303,7 +303,7 @@ final class EntryEditViewModel {
     ) {
         let editableCustomFields = Self.editableCustomFields(of: entry)
         let password = (try? entry.password.decrypt(using: sessionKey)) ?? ""
-        let totpSecret = (try? entry.totpConfig?.secret.decrypt(using: sessionKey)) ?? ""
+        let totpSecret = Self.base32TOTPSecret(of: entry, sessionKey: sessionKey)
 
         self.init(
             mode: .create(parentGroupID: parentGroupID),
@@ -322,6 +322,17 @@ final class EntryEditViewModel {
             totpAlgorithm: entry.totpConfig?.algorithm ?? .sha1,
             isSeededFromExistingEntry: true
         )
+    }
+
+    /// A copy stores its secret as Base32, so one the entry keeps in another
+    /// encoding is converted; one that does not decode is left out.
+    private static func base32TOTPSecret(of entry: KPEntry, sessionKey: SymmetricKey) -> String {
+        guard let config = entry.totpConfig else { return "" }
+        guard config.decodedSecret != nil else {
+            return (try? config.secret.decrypt(using: sessionKey)) ?? ""
+        }
+        return TOTPGenerator.resolveSecret(config: config, sessionKey: sessionKey)
+            .map { TOTPGenerator.base32Encode($0.data) } ?? ""
     }
 
     private static func editableCustomFields(of entry: KPEntry) -> [CustomField] {
@@ -735,11 +746,24 @@ final class EntryEditViewModel {
         TagNormalizer.tags(from: tags + [pendingTagText])
     }
 
-    private func normalizedTOTPConfiguration() -> EntryDraftPayload.TOTPConfiguration? {
-        let trimmedSecret = totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedSecret.isEmpty == false else { return nil }
+    /// Whether the form holds a one-time-code secret. Whitespace is not a
+    /// secret anyone types, but a stored KeePass UTF-8 secret can consist of
+    /// it, so one the user has not touched still counts.
+    var hasTOTPSecret: Bool {
+        totpSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            || (totpSecret.isEmpty == false && totpSecret == originalSnapshot.totpSecret)
+    }
 
-        let secretChanged = trimmedSecret != originalSnapshot.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func normalizedTOTPConfiguration() -> EntryDraftPayload.TOTPConfiguration? {
+        guard hasTOTPSecret else { return nil }
+        let trimmedSecret = totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // An enrolled link replaces the stored secret even when the text
+        // reads the same: behind a hexadecimal or Base64 field it stands for
+        // other bytes than it does as the link's Base32.
+        let enrolledURI = payloadOTPAuthURI(currentSecret: trimmedSecret)
+        let secretChanged = enrolledURI != nil
+            || trimmedSecret != originalSnapshot.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
         // A KeeOTP query the parser would reject on reload (non-canonical
         // secret, or a size outside its {6, 8} whitelist) must never be
         // written: revert to the original snapshot instead.
@@ -775,7 +799,7 @@ final class EntryEditViewModel {
             period: totpPeriod,
             digits: totpDigits,
             algorithm: totpAlgorithm,
-            otpauthURI: payloadOTPAuthURI(currentSecret: trimmedSecret)
+            otpauthURI: enrolledURI
         )
     }
 

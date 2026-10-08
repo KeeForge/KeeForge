@@ -238,6 +238,10 @@ struct TOTPConfig: Sendable {
     /// Pre-decoded secret bytes for formats whose declared encoding is not Base32.
     let decodedSecret: EncryptedValue?
     let keeOTPSource: KeeOTPSource?
+    /// Where KeePass's own `TimeOtp-*` fields keep `secret`. Any field but
+    /// `.base32` comes with a `decodedSecret`, empty when the value does not
+    /// decode.
+    let keePassSecretField: KeePassTOTPSecretField
     let period: Int
     let digits: Int
     let algorithm: TOTPAlgorithm
@@ -246,6 +250,7 @@ struct TOTPConfig: Sendable {
         secret: EncryptedValue,
         decodedSecret: EncryptedValue? = nil,
         keeOTPSource: KeeOTPSource? = nil,
+        keePassSecretField: KeePassTOTPSecretField = .base32,
         period: Int = 30,
         digits: Int = 6,
         algorithm: TOTPAlgorithm = .sha1
@@ -253,10 +258,20 @@ struct TOTPConfig: Sendable {
         self.secret = secret
         self.decodedSecret = decodedSecret
         self.keeOTPSource = keeOTPSource
+        self.keePassSecretField = keePassSecretField
         self.period = period
         self.digits = digits
         self.algorithm = algorithm
     }
+}
+
+/// The fields KeePass 2.x keeps a TOTP secret in, one per encoding, in the
+/// order it looks for them: the first that is not empty is the secret.
+enum KeePassTOTPSecretField: String, CaseIterable, Sendable {
+    case utf8 = "TimeOtp-Secret"
+    case hex = "TimeOtp-Secret-Hex"
+    case base32 = "TimeOtp-Secret-Base32"
+    case base64 = "TimeOtp-Secret-Base64"
 }
 
 struct KeeOTPSource: Codable, Equatable, Sendable {
@@ -297,4 +312,24 @@ enum TOTPAlgorithm: String, Codable, Sendable {
     case sha1 = "SHA1"
     case sha256 = "SHA256"
     case sha512 = "SHA512"
+
+    /// KeePass 2.x's `TimeOtp-Algorithm` value. KeePass matches these names
+    /// exactly and generates no code for anything else.
+    var keePassName: String {
+        switch self {
+        case .sha1: "HMAC-SHA-1"
+        case .sha256: "HMAC-SHA-256"
+        case .sha512: "HMAC-SHA-512"
+        }
+    }
+
+    /// Also reads the `otpauth` tokens earlier versions wrote to that field.
+    init?(keePassName: String) {
+        switch keePassName {
+        case "HMAC-SHA-1", "SHA1": self = .sha1
+        case "HMAC-SHA-256", "SHA256": self = .sha256
+        case "HMAC-SHA-512", "SHA512": self = .sha512
+        default: return nil
+        }
+    }
 }
