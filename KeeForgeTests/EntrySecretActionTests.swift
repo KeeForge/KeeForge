@@ -62,6 +62,56 @@ final class EntrySecretActionTests: XCTestCase {
         XCTAssertFalse(action.isAuthenticating)
     }
 
+    func testDeferredLockRejectsPendingGateDisclosureAndAllowsAFreshRequest() async throws {
+        let authentication = SuspendedAuthentication()
+        let gate = SecretAccessGate(
+            gracePeriod: { .fiveMinutes },
+            isAuthenticationAvailable: { true },
+            prompt: { _ in await authentication.authenticate() }
+        )
+        let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        let session = DatabaseViewModel(
+            databaseReference: try TestDatabaseSupport.makeReference(for: url),
+            secretAccess: gate
+        )
+        await session.unlock(password: "testpassword123")
+        defer { session.lockRequest(force: true) }
+        gate.invalidate()
+        let isCurrent = EntrySecretAction.currentSession(session)
+        let action = EntrySecretAction()
+        var disclosures = 0
+        let task = try XCTUnwrap(action.perform(
+            authenticate: { try await gate.authenticate(reason: "Copy password") },
+            isCurrent: isCurrent,
+            disclose: { disclosures += 1 }
+        ))
+        await authentication.waitUntilRequested()
+
+        session.setEditorHasUnsavedChanges(true, editorID: UUID())
+        session.lockRequest()
+        XCTAssertEqual(session.state, .unlocked)
+        XCTAssertNotNil(session.pendingLockRequest)
+        XCTAssertTrue(isCurrent(), "The unchanged session must not mask the gate's rejection")
+        authentication.complete()
+        await task.value
+
+        XCTAssertEqual(disclosures, 0)
+        XCTAssertFalse(action.isAuthenticating)
+        XCTAssertTrue(gate.requiresAuthentication)
+        let retry = try XCTUnwrap(action.perform(
+            authenticate: { try await gate.authenticate(reason: "Copy password") },
+            isCurrent: isCurrent,
+            disclose: { disclosures += 1 }
+        ))
+        await authentication.waitUntilRequested()
+        authentication.complete()
+        await retry.value
+
+        XCTAssertEqual(disclosures, 1)
+        XCTAssertFalse(action.isAuthenticating)
+        XCTAssertFalse(gate.requiresAuthentication)
+    }
+
     func testOldCompletionDoesNotFinishReplacementAuthentication() async throws {
         let action = EntrySecretAction()
         let first = SuspendedAuthentication()

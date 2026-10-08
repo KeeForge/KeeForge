@@ -2,8 +2,23 @@ import Foundation
 import LocalAuthentication
 
 enum BiometricService {
+    /// True from just before the app asks the system for an authentication
+    /// prompt until that request has ended. Some callers raise it earlier,
+    /// around their own work, so it does not mean a prompt is on screen.
     @MainActor
-    static var isBiometricAuthInProgress = false
+    static var isBiometricAuthInProgress = false {
+        didSet {
+            guard isBiometricAuthInProgress != oldValue else { return }
+            NotificationCenter.default.post(name: authenticationInProgressDidChangeNotification, object: nil)
+        }
+    }
+
+    /// Posted on the main thread when `isBiometricAuthInProgress` changes.
+    /// `MacLockMonitor` settles a deactivation it held for the prompt when the
+    /// request ends.
+    static let authenticationInProgressDidChangeNotification = Notification.Name(
+        "BiometricService.authenticationInProgressDidChange"
+    )
 
     enum BiometricType {
         case none

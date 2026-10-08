@@ -1401,6 +1401,12 @@ final class DatabaseViewModel {
         currentBinaryPool?[attachment.ref]?.data.count
     }
 
+    /// Import memory is bounded independently of the writer's exact framing/XML limit.
+    var attachmentImportByteBudget: Int {
+        guard let pool = currentBinaryPool else { return 0 }
+        return pool.rawFields.reduce(KDBXCrypto.maxDecompressedSize) { max(0, $0 - $1.count) }
+    }
+
     /// The pool the UI resolves attachments against, the draft's taking
     /// precedence for the same reason as `currentMeta`: an attachment added in
     /// an edit that has not saved yet must still open.

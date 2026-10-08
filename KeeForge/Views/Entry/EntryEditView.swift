@@ -283,9 +283,9 @@ struct EntryEditView: View {
         .modifier(EntryAttachmentImporter(
             isPresented: $showAttachmentImporter,
             databaseViewModel: databaseViewModel,
+            formViewModel: formViewModel,
             loadCoordinator: attachmentLoadCoordinator,
-            errorMessage: $attachmentErrorMessage,
-            onLoad: { formViewModel.addAttachment(named: $0.name, data: $0.data) }
+            errorMessage: $attachmentErrorMessage
         ))
         .sheet(isPresented: $showTOTPSetupLink) {
             TOTPSetupLinkSheet { link in
