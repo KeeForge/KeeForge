@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changes
+
+- On iPhone, and on iPad in a narrow window, an open entry no longer shows the Lock button next to Edit, so the entry's title has more room. Go back to the list to lock the database; the Lock button there is unchanged.
+
 ## v1.18.0 (2026-10-07)
 
 ### Changes
