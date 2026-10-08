@@ -355,6 +355,7 @@ struct RegularDatabaseWorkspaceView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 340)
         } content: {
             macContentColumn
+                .entrySelectionBar(viewModel: viewModel) { pendingMove = $0 }
                 .navigationSplitViewColumnWidth(min: 260, ideal: 320, max: 460)
         } detail: {
             detailColumn
@@ -726,7 +727,7 @@ struct RegularDatabaseWorkspaceView: View {
 
     @MainActor
     private func beginSelectedEntryEdit() {
-        guard let entryID = viewModel.workspace.selectedEntryID else { return }
+        guard let entryID = viewModel.workspace.commandEntryID else { return }
         beginEntryEdit(entryID: entryID)
     }
 
@@ -856,7 +857,7 @@ private struct MacEntriesColumn: View {
                     .listStyle(.inset)
                     .focused($isListFocused)
                     .onKeyPress(.return) {
-                        guard let entryID = viewModel.workspace.selectedEntryID else { return .ignored }
+                        guard let entryID = viewModel.workspace.commandEntryID else { return .ignored }
                         onOpenEntry(entryID)
                         return .handled
                     }

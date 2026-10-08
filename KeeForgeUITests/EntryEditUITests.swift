@@ -283,6 +283,17 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         ).firstMatch
     }
 
+    /// The picker's rows carry a UUID-keyed identifier, so they are matched by
+    /// that prefix plus the group's name rather than by identifier alone.
+    func moveDestination(named name: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'move-picker.group.' AND label CONTAINS[c] %@",
+                name
+            )
+        ).firstMatch
+    }
+
     func group(named name: String) -> XCUIElement {
         app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier == 'group.navlink' AND label CONTAINS[c] %@", name)
@@ -1079,16 +1090,76 @@ final class SearchResultsMoveUITests: EntryEditUITestCase {
             "Entry moved from the search results is still in its old group"
         )
     }
+}
 
-    /// The picker's rows carry a UUID-keyed identifier, so they are matched by
-    /// that prefix plus the group's name rather than by identifier alone.
-    private func moveDestination(named name: String) -> XCUIElement {
-        app.descendants(matching: .any).matching(
-            NSPredicate(
-                format: "identifier BEGINSWITH 'move-picker.group.' AND label CONTAINS[c] %@",
-                name
-            )
-        ).firstMatch
+/// Selection mode (#186): Select Entries on an entry's long-press menu turns
+/// the rows into toggles and shows the selection bar, whose Move to Group
+/// sends everything picked to one destination. Cancel comes first in the same
+/// launch, since leaving the mode must change nothing.
+@MainActor
+final class EntrySelectionMoveUITests: EntryEditUITestCase {
+    func testSelectedEntriesMoveTogetherAndCancelLeavesThemInPlace() {
+        unlockSuccessfully()
+        openGroup(named: socialGroupName)
+
+        let cancelButton = app.buttons["entry-selection.cancel"]
+        let selectionCount = app.staticTexts["entry-selection.count"]
+
+        beginSelection(onRowNamed: twitterEntryTitle)
+        XCTAssertEqual(selectionCount.label, "1 entry")
+        cancelButton.tap()
+        XCTAssertTrue(
+            cancelButton.waitForNonExistence(timeout: Self.ciElementTimeout),
+            "Cancel did not leave selection mode"
+        )
+        XCTAssertTrue(entry(named: twitterEntryTitle).exists, "Cancelling the selection moved an entry")
+
+        beginSelection(onRowNamed: twitterEntryTitle)
+        tapElement(entry(named: discordEntryTitle))
+        XCTAssertEqual(selectionCount.label, "2 entries", "Tapping a row in selection mode did not select it")
+
+        app.buttons["entry-selection.move"].tap()
+        let destination = moveDestination(named: workGroupName)
+        XCTAssertTrue(
+            destination.waitForExistence(timeout: Self.ciElementTimeout),
+            "Move destination picker did not present for the selection"
+        )
+        destination.tap()
+        waitForAutosaveAttempt()
+
+        XCTAssertTrue(
+            cancelButton.waitForNonExistence(timeout: Self.ciElementTimeout),
+            "Moving the selection did not leave selection mode"
+        )
+        // Anchored on a sibling that stays put, so a group that simply has not
+        // rendered yet cannot read as a successful move.
+        XCTAssertTrue(
+            revealElement(entry(named: "Offline Key")),
+            "Old group did not render, so its contents could not be checked"
+        )
+        XCTAssertFalse(entry(named: twitterEntryTitle).exists, "A moved entry is still in its old group")
+        XCTAssertFalse(entry(named: discordEntryTitle).exists, "A moved entry is still in its old group")
+
+        tapBackButton()
+        openGroup(named: workGroupName)
+        XCTAssertTrue(revealElement(entry(named: twitterEntryTitle)), "A selected entry did not land in the chosen group")
+        XCTAssertTrue(revealElement(entry(named: discordEntryTitle)), "A selected entry did not land in the chosen group")
+    }
+
+    private func beginSelection(onRowNamed name: String, file: StaticString = #filePath, line: UInt = #line) {
+        revealContextMenuButton(
+            rowNamed: name,
+            identifier: "entry-row.select-context",
+            preferredIdentifier: "entry.navlink",
+            file: file,
+            line: line
+        ).tap()
+        XCTAssertTrue(
+            app.buttons["entry-selection.cancel"].waitForExistence(timeout: Self.ciElementTimeout),
+            "Select Entries did not start selection mode",
+            file: file,
+            line: line
+        )
     }
 }
 

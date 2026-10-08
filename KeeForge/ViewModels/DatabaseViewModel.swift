@@ -1612,6 +1612,34 @@ final class DatabaseViewModel {
         try applyEntryEdit(.moveEntry(entryID: entryID, destinationGroupID: toGroupID))
     }
 
+    /// Moves several entries into one group as a single staged change, so the
+    /// tree is rebuilt once and one save writes them all. Entries that are
+    /// gone, in the recycle bin, or already in the destination are skipped,
+    /// and a destination that is gone or in the recycle bin drops the request;
+    /// a draft-level refusal stages nothing.
+    func moveEntries(entryIDs: Set<UUID>, toGroupID: UUID) throws {
+        // The selection outlives the screens that gate it, so a database
+        // switched to read-only in between is refused here.
+        guard isReadOnly == false else { throw SaveError.databaseIsReadOnly }
+        // `recycleBinGroupIDs` holds the groups inside the bin, not the bin itself.
+        guard groupIndex[toGroupID] != nil,
+              toGroupID != currentRootGroup?.recycleBinUUID,
+              recycleBinGroupIDs.contains(toGroupID) == false else { return }
+        // Tree order, so the entries arrive in the order they were listed in.
+        let movableEntryIDs = (currentRootGroup?.allEntries ?? []).map(\.id).filter { entryID in
+            entryIDs.contains(entryID)
+                && recycleBinEntryIDs.contains(entryID) == false
+                && entryParentGroupIDs[entryID] != toGroupID
+        }
+        guard movableEntryIDs.isEmpty == false else { return }
+
+        var staged = try makeWorkingDraft()
+        for entryID in movableEntryIDs {
+            staged = try staged.apply(.moveEntry(entryID: entryID, destinationGroupID: toGroupID))
+        }
+        stageDraft(staged)
+    }
+
     /// Reparents a group under another group. No-ops mirror `moveEntry`'s
     /// (vanished IDs, the current parent, the group itself); draft-level
     /// refusals — a cycle, a protected group, a sibling name collision in the
@@ -1636,6 +1664,20 @@ final class DatabaseViewModel {
         return moveDestinationOptions(
             prunedSubtreeID: nil,
             currentParentID: entryParentGroupIDs[entryID]
+        )
+    }
+
+    /// The groups these entries could move into together. The current parent
+    /// is flagged only when every entry shares it: entries picked from several
+    /// groups have no single place they already are. Empty when none of the
+    /// entries is known.
+    func moveDestinationOptions(forEntryIDs entryIDs: Set<UUID>) -> [MoveDestinationOption] {
+        _ = contentRevision
+        let parentGroupIDs = Set(entryIDs.compactMap { entryParentGroupIDs[$0] })
+        guard let parentGroupID = parentGroupIDs.first else { return [] }
+        return moveDestinationOptions(
+            prunedSubtreeID: nil,
+            currentParentID: parentGroupIDs.count == 1 ? parentGroupID : nil
         )
     }
 
@@ -1960,7 +2002,7 @@ final class DatabaseViewModel {
     /// Whether the macOS Edit Entry command applies right now.
     var canEditSelectedEntry: Bool {
         guard case .unlocked = state, isReadOnly == false, sessionKey != nil else { return false }
-        guard let selectedEntryID = workspace.selectedEntryID else { return false }
+        guard let selectedEntryID = workspace.commandEntryID else { return false }
         return entry(withID: selectedEntryID) != nil
     }
 
@@ -1975,7 +2017,10 @@ final class DatabaseViewModel {
     }
 
     var deletableSelection: SelectionDeletionTarget? {
-        guard case .unlocked = state, isReadOnly == false else { return nil }
+        // While entries are being picked nothing is deletable: the command
+        // would hit the entry or group left selected underneath, not the
+        // checked ones.
+        guard case .unlocked = state, isReadOnly == false, workspace.entrySelection == nil else { return nil }
         if let selectedEntryID = workspace.selectedEntryID, entry(withID: selectedEntryID) != nil {
             return .entry(selectedEntryID)
         }
@@ -3176,6 +3221,9 @@ final class DatabaseViewModel {
     func setReadOnly(_ isReadOnly: Bool) {
         DatabaseListStore.setReadOnly(isReadOnly, for: databaseReference)
         refreshDatabaseReference()
+        if self.isReadOnly {
+            workspace.endEntrySelection()
+        }
         refreshPendingUploadConflict()
     }
 
@@ -3720,7 +3768,8 @@ final class DatabaseViewModel {
         workspace.reconcileSelection(
             visibleRootGroupID: visibleRootGroupID,
             groupExists: { groupIndex[$0] != nil },
-            tagExists: { tagEntryIDs[$0] != nil }
+            tagExists: { tagEntryIDs[$0] != nil },
+            entryIsSelectable: { entryIndex[$0] != nil && recycleBinEntryIDs.contains($0) == false }
         )
     }
 

@@ -39,7 +39,7 @@ struct KeeForgeCommands: Commands {
     }
 
     private var selectedEntry: KPEntry? {
-        guard isUnlocked, let viewModel, let entryID = viewModel.workspace.selectedEntryID else { return nil }
+        guard isUnlocked, let viewModel, let entryID = viewModel.workspace.commandEntryID else { return nil }
         return viewModel.entry(withID: entryID)
     }
 
@@ -270,7 +270,7 @@ struct KeeForgeCommands: Commands {
         authenticate: (@MainActor () async throws -> Void)? = nil,
         copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
     ) -> Task<Void, Never>? {
-        guard let entryID = viewModel.workspace.selectedEntryID,
+        guard let entryID = viewModel.workspace.commandEntryID,
               viewModel.entry(withID: entryID)?.hasPassword == true else { return nil }
         let isCurrentSession = EntrySecretAction.currentSession(viewModel)
         let secretAccess = viewModel.secretAccess
