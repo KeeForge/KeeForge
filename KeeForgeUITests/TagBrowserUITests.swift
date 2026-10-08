@@ -159,11 +159,45 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
         XCTAssertFalse(searchResult(named: taggedEntryName).exists, "Hidden group entry remained in search")
 
         dismissSearch()
+        // Clearing the query leaves search focused; iOS 27 labels its dismiss control "close".
+        let endSearch = app.buttons.matching(
+            NSPredicate(format: "label ==[c] 'Close' OR label ==[c] 'Cancel'")
+        ).firstMatch
+        XCTAssertTrue(endSearch.waitForExistence(timeout: Self.ciElementTimeout), "Search dismiss control was not visible")
+        XCTAssertTrue(endSearch.isHittable, "Search dismiss control was not tappable")
+        endSearch.tap()
+        XCTAssertTrue(
+            app.keyboards.firstMatch.waitForNonExistence(timeout: Self.ciElementTimeout),
+            "Search keyboard did not dismiss before switching to Tags"
+        )
         selectDatabaseView(.tags)
 
         let sharedRow = app.descendants(matching: .any).matching(identifier: "tag-list.row.\(sharedTag)").firstMatch
         XCTAssertTrue(sharedRow.waitForExistence(timeout: 5), "Shared tag disappeared with the hidden group")
-        tapElement(sharedRow)
+        XCTAssertTrue(revealElement(sharedRow, in: scrollableContainer()), "Shared tag row was not reachable")
+        if searchField.exists, sharedRow.frame.intersects(searchField.frame) {
+            scrollableContainer()?.swipeUp()
+        }
+        let rowIsExposed = NSPredicate { [self] _, _ in
+            guard sharedRow.exists, hasOnScreenFrame(sharedRow), sharedRow.isHittable else { return false }
+            let frame = sharedRow.frame
+            return app.windows.firstMatch.frame.contains(frame)
+                && (!searchField.exists || !frame.intersects(searchField.frame))
+                && !frame.intersects(app.navigationBars.firstMatch.frame)
+        }
+        XCTAssertEqual(
+            XCTWaiter.wait(
+                for: [XCTNSPredicateExpectation(predicate: rowIsExposed, object: nil)],
+                timeout: Self.ciElementTimeout
+            ),
+            .completed,
+            "Shared tag row did not settle clear of the search field and navigation bar"
+        )
+        sharedRow.tap()
+        XCTAssertTrue(
+            app.navigationBars[sharedTag].waitForExistence(timeout: Self.ciElementTimeout),
+            "Shared tag row did not open its entries"
+        )
         XCTAssertTrue(
             searchResult(named: taggedEntryName).waitForExistence(timeout: Self.ciElementTimeout),
             "Hidden group entry should remain available through the tag browser"

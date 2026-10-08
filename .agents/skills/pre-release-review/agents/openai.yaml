@@ -1,4 +1,4 @@
 interface:
   display_name: "KeeForge Pre-release Review"
-  short_description: "Review release changes and plan manual verification"
-  default_prompt: "Use $pre-release-review to review KeeForge changes since the last shipped release, run useful verification, and save the report and manual test plan."
+  short_description: "Review release changes and i18n gaps without running tests"
+  default_prompt: "Use $pre-release-review to statically review KeeForge changes since the last shipped release, including i18n gaps, and return prioritized action items in chat without running tests or saving a report."

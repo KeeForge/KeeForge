@@ -36,7 +36,7 @@ enum CoordinatedFileReader {
         return try await firstResult.value()
     }
 
-    static func readData(from url: URL) throws -> Data {
+    static func readData(from url: URL, maximumByteCount: Int? = nil) throws -> Data {
         var coordinatorError: NSError?
         var result: Result<Data, Error>?
 
@@ -46,7 +46,31 @@ enum CoordinatedFileReader {
             options: [],
             error: &coordinatorError
         ) { coordinatedURL in
-            result = Result { try Data(contentsOf: coordinatedURL) }
+            result = Result {
+                guard let maximumByteCount else {
+                    return try Data(contentsOf: coordinatedURL)
+                }
+                let byteLimit = max(0, maximumByteCount)
+                if let size = try coordinatedURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+                   size > byteLimit {
+                    throw CocoaError(.fileReadTooLarge)
+                }
+                let handle = try FileHandle(forReadingFrom: coordinatedURL)
+                defer { try? handle.close() }
+                var data = Data()
+                while true {
+                    try Task.checkCancellation()
+                    // Probe past the limit so a file that grew after preflight is rejected.
+                    let readCount = max(1, min(64 * 1024, byteLimit - data.count))
+                    guard let chunk = try handle.read(upToCount: readCount), chunk.isEmpty == false else {
+                        return data
+                    }
+                    guard chunk.count <= byteLimit - data.count else {
+                        throw CocoaError(.fileReadTooLarge)
+                    }
+                    data.append(chunk)
+                }
+            }
         }
 
         if let coordinatorError {

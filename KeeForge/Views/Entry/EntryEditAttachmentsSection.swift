@@ -107,9 +107,9 @@ private struct EditableAttachmentRow: View {
 struct EntryAttachmentImporter: ViewModifier {
     @Binding var isPresented: Bool
     let databaseViewModel: DatabaseViewModel
+    let formViewModel: EntryEditViewModel
     let loadCoordinator: AttachmentLoadCoordinator
     @Binding var errorMessage: String?
-    let onLoad: (EntryAttachmentFileLoader.LoadedFile) -> Void
 
     func body(content: Content) -> some View {
         content
@@ -155,11 +155,14 @@ struct EntryAttachmentImporter: ViewModifier {
         guard urls.isEmpty == false else { return }
 
         let lockCycle = databaseViewModel.lockCycleID
+        let byteBudget = formViewModel.attachmentImportByteBudget(
+            availableByteCount: databaseViewModel.attachmentImportByteBudget
+        )
         loadCoordinator.load(
-            operation: { await EntryAttachmentFileLoader.load(urls) },
+            operation: { await EntryAttachmentFileLoader.load(urls, maximumByteCount: byteBudget) },
             isCurrent: { databaseViewModel.lockCycleID == lockCycle && databaseViewModel.sessionKey != nil }
         ) { loaded in
-            loaded.files.forEach(onLoad)
+            loaded.files.forEach { formViewModel.addAttachment(named: $0.name, data: $0.data) }
             if let error = loaded.error {
                 errorMessage = error.localizedDescription
             }
@@ -176,9 +179,13 @@ enum EntryAttachmentFileLoader {
     /// Reads the picked files off the main actor. Stops at the first file
     /// that cannot be read and returns what was read before it with the error,
     /// so one unreadable pick does not throw away the others.
-    static func load(_ urls: [URL]) async -> (files: [LoadedFile], error: Error?) {
-        await Task.detached(priority: .userInitiated) {
+    static func load(
+        _ urls: [URL],
+        maximumByteCount: Int = KDBXCrypto.maxDecompressedSize
+    ) async -> (files: [LoadedFile], error: Error?) {
+        let task = Task.detached(priority: .userInitiated) {
             var files: [LoadedFile] = []
+            var remainingByteCount = max(0, maximumByteCount)
             for url in urls {
                 let hasSecurityScope = url.startAccessingSecurityScopedResource()
                 defer {
@@ -187,13 +194,22 @@ enum EntryAttachmentFileLoader {
                     }
                 }
                 do {
-                    let data = try CoordinatedFileReader.readData(from: url)
+                    try Task.checkCancellation()
+                    let data = try CoordinatedFileReader.readData(from: url, maximumByteCount: remainingByteCount)
                     files.append(LoadedFile(name: url.lastPathComponent, data: data))
+                    remainingByteCount -= data.count
+                } catch let error as CocoaError where error.code == .fileReadTooLarge {
+                    return (files: files, error: DatabaseDraft.DraftError.attachmentsTooLarge as Error?)
                 } catch {
-                    return (files, error)
+                    return (files: files, error: error as Error?)
                 }
             }
-            return (files, nil)
-        }.value
+            return (files: files, error: nil as Error?)
+        }
+        return await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 }
