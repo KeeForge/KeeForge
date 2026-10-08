@@ -215,9 +215,10 @@ struct EntryDetailView: View {
                         }
                     }
 
-                    if !entry.displayCustomFields.isEmpty {
+                    let customFields = EntryEditViewModel.customFieldsOutsideURLRows(of: entry)
+                    if !customFields.isEmpty {
                         Section("Custom Fields") {
-                            ForEach(entry.displayCustomFields.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+                            ForEach(customFields.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
                                 if entry.protectedStringKeys.contains(key) {
                                     ProtectedFieldRow(
                                         label: key,

@@ -367,6 +367,170 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.requiresAuthenticationToRevealPassword)
     }
 
+    // MARK: - Additional URLs
+
+    func testAddedURLIsSavedAsAnUnprotectedKP2AURLField() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.title = "Two Sites"
+        viewModel.url = "https://first.example"
+
+        viewModel.addAdditionalURL()
+        viewModel.additionalURLs[0].value = "https://second.example"
+        viewModel.addAdditionalURL()
+        viewModel.additionalURLs[1].value = "https://third.example"
+
+        XCTAssertTrue(viewModel.canSave)
+        let payload = viewModel.entryDraftPayload
+        XCTAssertEqual(payload.url, "https://first.example")
+        XCTAssertEqual(
+            payload.customFields,
+            ["KP2A_URL_1": "https://second.example", "KP2A_URL_2": "https://third.example"]
+        )
+        XCTAssertEqual(payload.protectedCustomFieldKeys, [])
+        XCTAssertTrue(viewModel.customFields.isEmpty, "A URL row is not also a custom-field row")
+    }
+
+    func testEditingEntrySeedsAdditionalURLsInDetailOrderAndKeepsThemOutOfCustomFields() {
+        let entry = KPEntry(
+            title: "Sites",
+            url: "https://first.example",
+            customFields: [
+                "KP2A_URL_2": "https://third.example",
+                "KP2A_URL_1": "https://second.example",
+                "Region": "EU",
+            ]
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        XCTAssertEqual(viewModel.additionalURLs.map(\.value), entry.additionalURLs)
+        XCTAssertEqual(viewModel.customFields.map(\.key), ["Region"])
+        XCTAssertEqual(EntryEditViewModel.customFieldsOutsideURLRows(of: entry), ["Region": "EU"])
+        XCTAssertFalse(viewModel.isDirty)
+        XCTAssertEqual(viewModel.entryDraftPayload.customFields, entry.customFields)
+    }
+
+    func testAnAdditionalURLLeftEmptyIsNotAnEditAndIsNotWritten() {
+        let entry = KPEntry(title: "Sites", customFields: ["KP2A_URL_1": "https://second.example"])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        viewModel.addAdditionalURL()
+
+        XCTAssertEqual(viewModel.additionalURLs.count, 2)
+        XCTAssertFalse(viewModel.isDirty)
+        XCTAssertFalse(viewModel.canSave)
+        XCTAssertEqual(viewModel.entryDraftPayload.customFields, ["KP2A_URL_1": "https://second.example"])
+    }
+
+    func testEditingAnAdditionalURLKeepsItsFieldName() {
+        let entry = KPEntry(
+            title: "Sites",
+            customFields: ["KP2A_URL_1": "https://second.example", "KP2A_URL_7": "https://eighth.example"]
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        viewModel.additionalURLs[1].value = "https://changed.example"
+
+        XCTAssertTrue(viewModel.canSave)
+        XCTAssertEqual(
+            viewModel.entryDraftPayload.customFields,
+            ["KP2A_URL_1": "https://second.example", "KP2A_URL_7": "https://changed.example"]
+        )
+    }
+
+    func testRemovingOrClearingAnAdditionalURLDropsOnlyItsField() {
+        let entry = KPEntry(
+            title: "Sites",
+            customFields: [
+                "KP2A_URL_1": "https://second.example",
+                "KP2A_URL_2": "https://third.example",
+                "KP2A_URL_3": "https://fourth.example",
+            ]
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        viewModel.removeAdditionalURL(id: viewModel.additionalURLs[0].id)
+        XCTAssertTrue(viewModel.canSave)
+        XCTAssertEqual(
+            viewModel.entryDraftPayload.customFields,
+            ["KP2A_URL_2": "https://third.example", "KP2A_URL_3": "https://fourth.example"]
+        )
+
+        viewModel.additionalURLs[0].value = ""
+        XCTAssertEqual(viewModel.entryDraftPayload.customFields, ["KP2A_URL_3": "https://fourth.example"])
+
+        viewModel.removeAdditionalURL(id: UUID())
+        XCTAssertEqual(viewModel.additionalURLs.count, 2)
+    }
+
+    func testAddedURLTakesTheFirstFieldNameNothingElseUses() throws {
+        let entry = KPEntry(
+            title: "Sites",
+            customFields: [
+                "KP2A_URL_1": "https://second.example",
+                "KP2A_URL_2": "",
+                "KP2A_URL_3": "https://concealed.example",
+            ],
+            protectedStringKeys: ["KP2A_URL_3"]
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        // An empty field and a protected one are left to the Custom Fields
+        // section: neither is dropped or revealed by opening the editor.
+        XCTAssertEqual(viewModel.additionalURLs.map(\.key), ["KP2A_URL_1"])
+        XCTAssertEqual(viewModel.customFields.map(\.key), ["KP2A_URL_2", "KP2A_URL_3"])
+        XCTAssertEqual(viewModel.customFields.map(\.isProtected), [false, true])
+        XCTAssertEqual(
+            EntryEditViewModel.customFieldsOutsideURLRows(of: entry),
+            ["KP2A_URL_2": "", "KP2A_URL_3": "https://concealed.example"]
+        )
+
+        viewModel.addAdditionalURL()
+        XCTAssertEqual(viewModel.additionalURLs.last?.key, "KP2A_URL_4")
+
+        // The protected name stays off limits once its field is removed:
+        // the saved entry would still protect whatever is written under it.
+        let concealed = try XCTUnwrap(viewModel.customFields.first { $0.key == "KP2A_URL_3" })
+        viewModel.removeCustomField(id: concealed.id)
+        viewModel.addAdditionalURL()
+        XCTAssertEqual(viewModel.additionalURLs.last?.key, "KP2A_URL_5")
+
+        viewModel.additionalURLs[1].value = "https://fifth.example"
+        XCTAssertEqual(
+            viewModel.entryDraftPayload.customFields,
+            ["KP2A_URL_1": "https://second.example", "KP2A_URL_2": "", "KP2A_URL_4": "https://fifth.example"]
+        )
+    }
+
+    func testACustomFieldNamedLikeAWrittenAdditionalURLBlocksSaving() {
+        let entry = KPEntry(title: "Sites", customFields: ["KP2A_URL_1": "https://second.example"])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        viewModel.addCustomField()
+        viewModel.customFields[0].key = "KP2A_URL_1"
+        viewModel.customFields[0].value = "https://other.example"
+
+        XCTAssertNotNil(viewModel.customFieldValidationMessage(for: viewModel.customFields[0]))
+        XCTAssertFalse(viewModel.canSave, "Saving would write one of the two values over the other")
+
+        viewModel.additionalURLs[0].value = ""
+        XCTAssertNil(viewModel.customFieldValidationMessage(for: viewModel.customFields[0]))
+        XCTAssertTrue(viewModel.canSave)
+        XCTAssertEqual(viewModel.entryDraftPayload.customFields, ["KP2A_URL_1": "https://other.example"])
+    }
+
+    func testDuplicatingEntryCarriesItsAdditionalURLs() {
+        let entry = KPEntry(
+            title: "Sites",
+            url: "https://first.example",
+            customFields: ["KP2A_URL_1": "https://second.example"]
+        )
+
+        let viewModel = EntryEditViewModel(duplicating: entry, sessionKey: sessionKey, into: UUID())
+
+        XCTAssertEqual(viewModel.additionalURLs.map(\.value), ["https://second.example"])
+        XCTAssertTrue(viewModel.canSave)
+        XCTAssertEqual(viewModel.entryDraftPayload.customFields, ["KP2A_URL_1": "https://second.example"])
+    }
+
     // MARK: - Custom fields
 
     func testAddCustomFieldAppendsABlankFieldAndRemoveCustomFieldDeletesByID() {

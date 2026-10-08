@@ -107,6 +107,8 @@ struct EntryEditView: View {
                         .accessibilityIdentifier("entry-edit.url-field")
                 }
 
+                additionalURLRows
+
                 basicFieldRow("Tags") {
                     appliedTagStrip
 
@@ -463,6 +465,50 @@ struct EntryEditView: View {
                 isVisible.wrappedValue = true
             }
         )
+    }
+
+    @ViewBuilder
+    private var additionalURLRows: some View {
+        ForEach($formViewModel.additionalURLs) { $additionalURL in
+            additionalURLRow($additionalURL)
+        }
+
+        Button {
+            formViewModel.addAdditionalURL()
+        } label: {
+            Label("Add Another URL", systemImage: "plus")
+        }
+        .accessibilityIdentifier("entry-edit.additional-url.add")
+    }
+
+    private func additionalURLRow(_ additionalURL: Binding<EntryEditViewModel.AdditionalURL>) -> some View {
+        let id = additionalURL.wrappedValue.id
+        let index = formViewModel.additionalURLs.firstIndex { $0.id == id } ?? 0
+        // Numbered like the detail screen, where the first further URL is "URL 2".
+        let title = String(localized: "URL \(index + 2)")
+        let removeLabel = String(localized: "Remove URL \(index + 2)")
+
+        return basicFieldRow(title) {
+            HStack {
+                TextField(title, text: additionalURL.value)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                    .textContentType(.URL)
+                    .accessibilityIdentifier("entry-edit.additional-url.field.\(index)")
+
+                // Borderless so a tap elsewhere in the row does not trigger it.
+                Button(role: .destructive) {
+                    formViewModel.removeAdditionalURL(id: id)
+                } label: {
+                    Image(systemName: "minus.circle.fill")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(removeLabel)
+                .accessibilityIdentifier("entry-edit.additional-url.remove.\(index)")
+                .macHelp(removeLabel)
+            }
+        }
     }
 
     private func customFieldRow(_ field: Binding<EntryEditViewModel.CustomField>) -> some View {

@@ -586,6 +586,43 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         XCTAssertTrue(revealElement(copyButton), "The saved custom field was not shown on the entry")
     }
 
+    func testAddedURLIsSavedAndShownOnTheEntry() {
+        unlockSuccessfully()
+        openEntry(named: discordEntryTitle, inGroup: socialGroupName)
+
+        let editButton = app.buttons["entry-detail.edit"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 5))
+        tapElement(editButton)
+
+        let addURLButton = app.buttons["entry-edit.additional-url.add"]
+        XCTAssertTrue(revealElement(addURLButton), "Add Another URL was not reachable")
+        tapElement(addURLButton)
+
+        let saveButton = app.buttons["entry-edit.save"]
+        XCTAssertFalse(saveButton.isEnabled, "An empty URL row is not a change")
+
+        let urlField = app.textFields["entry-edit.additional-url.field.0"]
+        XCTAssertTrue(revealElement(urlField), "The new URL field was not reachable")
+        replaceText(in: urlField, with: "https://second.example")
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "additional-url-editor"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        tapElement(saveButton)
+        XCTAssertTrue(waitForSaveCompletion(saveButton: saveButton, timeout: 10))
+
+        XCTAssertTrue(
+            revealElement(app.staticTexts["https://second.example"]),
+            "The saved URL was not shown on the entry"
+        )
+        XCTAssertFalse(
+            revealElement(app.buttons["entry.copy.kp2a_url_1"]),
+            "The saved URL was listed a second time under Custom Fields"
+        )
+    }
+
     func testExpiryIsSetFromAPresetShownOnTheEntryAndTurnedOff() {
         unlockSuccessfully()
         openEntry(named: discordEntryTitle, inGroup: socialGroupName)
