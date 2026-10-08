@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- AutoFill no longer keeps an outdated copy of a database when a save could not update that copy (#207). The copy is removed instead, so AutoFill reads the saved file where it can and otherwise stays unavailable for that database until KeeForge opens or saves it again.
+
 ## v1.18.0 (2026-10-07)
 
 ### Changes
@@ -25,7 +29,6 @@
 - Switching entries conceals revealed fields, and verification codes refresh when their setup changes. Authentication that finishes after a lock or selection change cannot reveal or copy stale secrets.
 - Attachment previews and imports no longer reopen or change an editor after it has closed or the database has locked.
 - AutoFill ignores late results from cancelled requests instead of applying them to a newer request.
-- AutoFill no longer keeps an outdated copy of a database when a save could not update that copy (#207). The copy is removed instead, so AutoFill reads the saved file where it can and otherwise stays unavailable for that database until KeeForge opens or saves it again.
 - Switching cloud accounts clears the previous account’s files. Closing creation or connection forms no longer lets late results reopen them.
 - Website icons refresh when an entry’s address changes, and selecting a key file no longer blocks the unlock screen while it loads.
 - Tip jar purchase notices are translated, and unsupported verification-code lengths show the correct explanation.
