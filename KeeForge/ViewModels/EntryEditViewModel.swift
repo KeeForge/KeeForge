@@ -746,11 +746,24 @@ final class EntryEditViewModel {
         TagNormalizer.tags(from: tags + [pendingTagText])
     }
 
-    private func normalizedTOTPConfiguration() -> EntryDraftPayload.TOTPConfiguration? {
-        let trimmedSecret = totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedSecret.isEmpty == false else { return nil }
+    /// Whether the form holds a one-time-code secret. Whitespace is not a
+    /// secret anyone types, but a stored KeePass UTF-8 secret can consist of
+    /// it, so one the user has not touched still counts.
+    var hasTOTPSecret: Bool {
+        totpSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            || (totpSecret.isEmpty == false && totpSecret == originalSnapshot.totpSecret)
+    }
 
-        let secretChanged = trimmedSecret != originalSnapshot.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func normalizedTOTPConfiguration() -> EntryDraftPayload.TOTPConfiguration? {
+        guard hasTOTPSecret else { return nil }
+        let trimmedSecret = totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // An enrolled link replaces the stored secret even when the text
+        // reads the same: behind a hexadecimal or Base64 field it stands for
+        // other bytes than it does as the link's Base32.
+        let enrolledURI = payloadOTPAuthURI(currentSecret: trimmedSecret)
+        let secretChanged = enrolledURI != nil
+            || trimmedSecret != originalSnapshot.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
         // A KeeOTP query the parser would reject on reload (non-canonical
         // secret, or a size outside its {6, 8} whitelist) must never be
         // written: revert to the original snapshot instead.
@@ -786,7 +799,7 @@ final class EntryEditViewModel {
             period: totpPeriod,
             digits: totpDigits,
             algorithm: totpAlgorithm,
-            otpauthURI: payloadOTPAuthURI(currentSecret: trimmedSecret)
+            otpauthURI: enrolledURI
         )
     }
 

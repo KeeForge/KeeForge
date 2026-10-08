@@ -1204,11 +1204,19 @@ struct DatabaseDraft: Sendable {
             return nil
         }
 
+        // The serializer writes an enrollment link in place of the secret
+        // field, so the link's Base32 secret is the entry's secret from here
+        // on, whatever bytes the draft still carries for the old field.
+        let isEnrollment = draft.otpauthURI != nil && draft.keeOTPSource == nil
+        let decodedSecret = isEnrollment ? nil : draft.decodedSecret
+
         return TOTPConfig(
             secret: try EncryptedValue.encrypt(draft.secret, using: sessionKey),
-            decodedSecret: try draft.decodedSecret.map { try EncryptedValue.encrypt($0, using: sessionKey) },
+            decodedSecret: try decodedSecret.map { try EncryptedValue.encrypt($0, using: sessionKey) },
             keeOTPSource: draft.keeOTPSource,
-            keePassSecretField: preservedKeePassSecretField(draft: draft, originalEntry: originalEntry),
+            keePassSecretField: isEnrollment
+                ? .base32
+                : preservedKeePassSecretField(draft: draft, originalEntry: originalEntry),
             period: draft.period,
             digits: draft.digits,
             algorithm: draft.algorithm
