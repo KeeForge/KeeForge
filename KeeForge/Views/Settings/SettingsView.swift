@@ -13,6 +13,7 @@ struct SettingsView: View {
     #if os(macOS)
     @State private var selectedMacTab: MacSettingsTab = .security
     @Environment(MacQuickAccessController.self) private var quickAccess: MacQuickAccessController?
+    @Environment(MacSSHAgentController.self) private var sshAgent: MacSSHAgentController?
     #endif
     @State private var biometricType = BiometricService.availableType
 
@@ -87,6 +88,16 @@ struct SettingsView: View {
                     }
                     .accessibilityIdentifier("settings.tab.menu-bar")
                     .tag(MacSettingsTab.menuBar)
+            }
+
+            if let sshAgent {
+                MacSSHAgentSettingsTab(controller: sshAgent, session: viewModel)
+                    .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
+                    .tabItem {
+                        Label("SSH Agent", systemImage: "terminal")
+                    }
+                    .accessibilityIdentifier("settings.tab.ssh-agent")
+                    .tag(MacSettingsTab.sshAgent)
             }
 
             MacDisplaySettingsTab(
@@ -780,7 +791,7 @@ private enum AppVersion {
 /// Identifies each settings tab so the window can default to Security instead
 /// of restoring whichever tab was open last.
 private enum MacSettingsTab: Hashable {
-    case security, autofill, menuBar, display, cloud, about
+    case security, autofill, menuBar, sshAgent, display, cloud, about
 }
 
 /// The size every settings tab is pinned to.

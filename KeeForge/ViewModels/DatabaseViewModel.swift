@@ -528,6 +528,9 @@ final class DatabaseViewModel {
     /// Sync Now waiting out a save that is still in flight (`waitForInFlightSave`).
     @ObservationIgnored private var saveCompletionWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var pendingLockRequest: PendingLockRequest?
+    /// Retry Save and Lock is writing before it locks. `pendingLockRequest`
+    /// is already cleared, but the lock is still what the user asked for.
+    private(set) var isSavingBeforeLock = false
     private(set) var lockRequestCancellationID = 0
     /// Open editors holding fields the draft has not seen. Without this a lock
     /// trigger tears the editor down and drops the typing with no prompt.
@@ -1388,6 +1391,12 @@ final class DatabaseViewModel {
         }.value
     }
 
+    /// The attachment's bytes without the off-main decode `attachmentData`
+    /// does, for callers that move them off the main actor themselves.
+    func attachmentBytes(for attachment: KPAttachment) -> Data? {
+        currentBinaryPool?[attachment.ref]?.data
+    }
+
     /// The attachment's size in bytes, or `nil` for a dangling ref.
     func attachmentByteCount(for attachment: KPAttachment) -> Int? {
         currentBinaryPool?[attachment.ref]?.data.count
@@ -2116,8 +2125,24 @@ final class DatabaseViewModel {
     func saveAndLockAfterLockRequest() async {
         guard let request = pendingLockRequest, request.reason == .draft else { return }
         pendingLockRequest = nil
+        isSavingBeforeLock = true
+        defer { isSavingBeforeLock = false }
         await saveHandlingError()
         lockRequest(manuallyTriggered: request.manuallyTriggered)
+    }
+
+    /// A lock was asked for and has neither completed nor been cancelled: it
+    /// waits on unsaved work, on a window-close prompt, or on the save that
+    /// precedes it.
+    var isLockPending: Bool {
+        if pendingLockRequest != nil || isSavingBeforeLock {
+            return true
+        }
+        #if os(macOS)
+        return isWindowClosePending
+        #else
+        return false
+        #endif
     }
 
     #if os(macOS)

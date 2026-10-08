@@ -10910,6 +10910,52 @@
         }
       }
     },
+    "Copy SSH Configuration" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH-Konfiguration kopieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar configuración SSH"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copier la configuration SSH"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copia configurazione SSH"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH 設定をコピー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷贝 SSH 配置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝 SSH 設定"
+          }
+        }
+      }
+    },
     "Copy URL" : {
       "localizations" : {
         "de" : {
@@ -16570,6 +16616,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請在「系統設定」的「一般」>「自動填寫與密碼」中啟用 KeeForge，以便在 Safari 和其他 App 中填寫密碼。"
+          }
+        }
+      }
+    },
+    "Enable SSH Agent" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH-Agent aktivieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activar agente SSH"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activer l'agent SSH"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attiva l'agente SSH"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH エージェントを有効にする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用 SSH 代理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟用 SSH 代理程式"
           }
         }
       }
@@ -24256,6 +24348,52 @@
         }
       }
     },
+    "KeeForge offers an entry's OpenSSH private key attachment, the format ssh-keygen creates. Ed25519, ECDSA, and RSA keys without a passphrase are supported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge stellt den privaten OpenSSH-Schlüssel bereit, der an einen Eintrag angehängt ist, im Format, das ssh-keygen erstellt. Unterstützt werden Ed25519-, ECDSA- und RSA-Schlüssel ohne Passphrase."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ofrece la clave privada OpenSSH adjunta a una entrada, en el formato que crea ssh-keygen. Se admiten claves Ed25519, ECDSA y RSA sin frase de contraseña."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge propose la clé privée OpenSSH jointe à une entrée, au format créé par ssh-keygen. Les clés Ed25519, ECDSA et RSA sans phrase de passe sont prises en charge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge offre la chiave privata OpenSSH allegata a una voce, nel formato creato da ssh-keygen. Sono supportate le chiavi Ed25519, ECDSA e RSA senza passphrase."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge は、エントリに添付された OpenSSH 秘密鍵（ssh-keygen が作成する形式）を提供します。パスフレーズのない Ed25519、ECDSA、RSA 鍵に対応しています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 会提供条目附件中的 OpenSSH 私钥，即 ssh-keygen 创建的格式。支持不带密码短语的 Ed25519、ECDSA 和 RSA 密钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 會提供項目附件中的 OpenSSH 私密金鑰，即 ssh-keygen 建立的格式。支援不含密碼片語的 Ed25519、ECDSA 和 RSA 金鑰。"
+          }
+        }
+      }
+    },
     "KeeForge opens the copy saved on this device without checking the cloud. Use Sync Now in the unlocked database to get newer changes. Saving still checks the cloud copy first and stops if it changed. AutoFill uses the cached copy only." : {
       "localizations" : {
         "de" : {
@@ -25173,6 +25311,98 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "鑰匙圈儲存失敗（狀態 %d）"
+          }
+        }
+      }
+    },
+    "Keys" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüssel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claves"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clés"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiavi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "金鑰"
+          }
+        }
+      }
+    },
+    "Keys protected by a passphrase are not supported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit einer Passphrase geschützte Schlüssel werden nicht unterstützt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se admiten claves protegidas con una frase de contraseña."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les clés protégées par une phrase de passe ne sont pas prises en charge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le chiavi protette da passphrase non sono supportate."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスフレーズで保護された鍵には対応していません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支持受密码短语保护的密钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援受密碼片語保護的金鑰。"
           }
         }
       }
@@ -31246,6 +31476,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編輯項目時，可貼上設定連結或手動輸入金鑰來新增驗證碼。驗證碼儲存在您的資料庫中，因此在其他 KeePass App 中同樣可用。"
+          }
+        }
+      }
+    },
+    "Paste the copied lines into ~/.ssh/config to use the agent for every host, or set SSH_AUTH_SOCK to the socket path." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füge die kopierten Zeilen in ~/.ssh/config ein, um den Agenten für alle Hosts zu verwenden, oder setze SSH_AUTH_SOCK auf den Socket-Pfad."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pega las líneas copiadas en ~/.ssh/config para usar el agente con todos los hosts, o define SSH_AUTH_SOCK con la ruta del socket."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collez les lignes copiées dans ~/.ssh/config pour utiliser l'agent avec tous les hôtes, ou définissez SSH_AUTH_SOCK sur le chemin du socket."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incolla le righe copiate in ~/.ssh/config per usare l'agente con tutti gli host, oppure imposta SSH_AUTH_SOCK sul percorso del socket."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピーした行を ~/.ssh/config に貼り付けると、すべてのホストでこのエージェントを使用できます。または、SSH_AUTH_SOCK にソケットのパスを設定してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将拷贝的内容粘贴到 ~/.ssh/config 中，即可让所有主机使用此代理；也可以将 SSH_AUTH_SOCK 设为套接字路径。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將拷貝的內容貼到 ~/.ssh/config 中，即可讓所有主機使用此代理程式；也可以將 SSH_AUTH_SOCK 設為通訊端路徑。"
           }
         }
       }
@@ -37370,6 +37646,52 @@
         }
       }
     },
+    "Setup" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einrichtung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuración"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuration"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configurazione"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定方法"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置方法"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定方式"
+          }
+        }
+      }
+    },
     "Setup Link" : {
       "localizations" : {
         "de" : {
@@ -38198,6 +38520,52 @@
         }
       }
     },
+    "Socket" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Socket"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Socket"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Socket"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Socket"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソケット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "套接字"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通訊端"
+          }
+        }
+      }
+    },
     "Sort" : {
       "localizations" : {
         "de" : {
@@ -38424,6 +38792,98 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "贊助 KeeForge"
+          }
+        }
+      }
+    },
+    "SSH Agent" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH-Agent"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agente SSH"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent SSH"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agente SSH"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH エージェント"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH 代理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH 代理程式"
+          }
+        }
+      }
+    },
+    "SSH clients can sign in with the keys you choose below while their database is unlocked in KeeForge. Locking or closing the database makes its keys unavailable right away." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH-Clients können sich mit den unten ausgewählten Schlüsseln anmelden, solange deren Datenbank in KeeForge entsperrt ist. Wenn du die Datenbank sperrst oder schließt, sind ihre Schlüssel sofort nicht mehr verfügbar."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los clientes SSH pueden iniciar sesión con las claves que elijas abajo mientras su base de datos esté desbloqueada en KeeForge. Al bloquear o cerrar la base de datos, sus claves dejan de estar disponibles al instante."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les clients SSH peuvent se connecter avec les clés choisies ci-dessous tant que leur base de données est déverrouillée dans KeeForge. Verrouiller ou fermer la base de données rend ses clés indisponibles immédiatement."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I client SSH possono accedere con le chiavi che scegli qui sotto finché il loro database è sbloccato in KeeForge. Se blocchi o chiudi il database, le sue chiavi non sono più disponibili da subito."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以下で選択した鍵は、その鍵を含むデータベースが KeeForge でロック解除されている間、SSH クライアントのサインインに使用できます。データベースをロックするか閉じると、その鍵はすぐに使用できなくなります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当密钥所在的数据库在 KeeForge 中处于解锁状态时，SSH 客户端可以使用你在下方选择的密钥登录。锁定或关闭数据库后，其密钥会立即不可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當金鑰所在的資料庫在 KeeForge 中處於解鎖狀態時，SSH 用戶端可以使用你在下方選擇的金鑰登入。鎖定或關閉資料庫後，其金鑰會立即無法使用。"
           }
         }
       }
@@ -42760,6 +43220,52 @@
         }
       }
     },
+    "The SSH agent could not start." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der SSH-Agent konnte nicht gestartet werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo iniciar el agente SSH."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'agent SSH n'a pas pu démarrer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile avviare l'agente SSH."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH エージェントを開始できませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法启动 SSH 代理。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法啟動 SSH 代理程式。"
+          }
+        }
+      }
+    },
     "The two copies store their attachments differently, so merging them could point an attachment at the wrong file. Reload the database or save your changes as a conflict copy instead." : {
       "localizations" : {
         "de" : {
@@ -43722,6 +44228,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此資料庫中有資料遺失的附件。新檔案會佔用它們的位置，因此無法新增。"
+          }
+        }
+      }
+    },
+    "This database has no entries with a private key attachment." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank enthält keine Einträge mit einem privaten Schlüssel als Anhang."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos no tiene entradas con una clave privada adjunta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données ne contient aucune entrée avec une clé privée en pièce jointe."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database non contiene voci con una chiave privata allegata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースには、秘密鍵が添付されたエントリがありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库中没有附带私钥的条目。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫中沒有附帶私密金鑰的項目。"
           }
         }
       }
@@ -47780,6 +48332,52 @@
         }
       }
     },
+    "Unlock a database to choose which of its SSH keys the agent offers." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entsperre eine Datenbank, um auszuwählen, welche ihrer SSH-Schlüssel der Agent anbietet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquea una base de datos para elegir qué claves SSH ofrece el agente."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillez une base de données pour choisir les clés SSH que l'agent propose."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sblocca un database per scegliere quali delle sue chiavi SSH offre l'agente."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースのロックを解除すると、エージェントが提供する SSH 鍵を選択できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁数据库后，即可选择代理提供其中的哪些 SSH 密钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖資料庫後，即可選擇代理程式提供其中的哪些 SSH 金鑰。"
+          }
+        }
+      }
+    },
     "Unlock a database to view groups and entries." : {
       "localizations" : {
         "de" : {
@@ -48742,6 +49340,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不支援的金鑰衍生函數：%@"
+          }
+        }
+      }
+    },
+    "Unsupported key format. Use an OpenSSH private key without a passphrase." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht unterstütztes Schlüsselformat. Verwende einen privaten OpenSSH-Schlüssel ohne Passphrase."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formato de clave no compatible. Usa una clave privada OpenSSH sin frase de contraseña."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format de clé non pris en charge. Utilisez une clé privée OpenSSH sans phrase de passe."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formato della chiave non supportato. Usa una chiave privata OpenSSH senza passphrase."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この鍵の形式には対応していません。パスフレーズのない OpenSSH 秘密鍵を使用してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支持的密钥格式。请使用不带密码短语的 OpenSSH 私钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援的金鑰格式。請使用不含密碼片語的 OpenSSH 私密金鑰。"
           }
         }
       }

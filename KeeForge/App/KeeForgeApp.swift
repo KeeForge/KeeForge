@@ -17,6 +17,7 @@ struct KeeForgeApp: App {
     @State private var macLockMonitor = MacLockMonitor()
     @State private var macWindowCloseGuard = MacWindowCloseGuard()
     @State private var macQuickAccess = MacQuickAccessController()
+    @State private var macSSHAgent = MacSSHAgentController()
     #else
     @State private var appSettingsPresentation = AppSettingsPresentation()
     #endif
@@ -39,6 +40,7 @@ struct KeeForgeApp: App {
         Settings {
             SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
                 .environment(macQuickAccess)
+                .environment(macSSHAgent)
                 .tint(appAccentColor)
                 .preferredColorScheme(appearanceMode.preferredColorScheme)
         }
@@ -89,6 +91,7 @@ struct KeeForgeApp: App {
         .frame(minWidth: 900, minHeight: 620)
         .focusedSceneValue(\.databaseViewModel, activeDatabaseViewModel)
         .environment(macQuickAccess)
+        .environment(macSSHAgent)
         .modifier(MacQuickAccessMainWindowHookup(controller: macQuickAccess))
         #else
         // App-owned Settings sheet (⌘, / the Mac-compat toolbar gear),
@@ -220,6 +223,9 @@ struct KeeForgeApp: App {
 
         macQuickAccess.searchModel.sessionProvider = { activeViewModel.wrappedValue }
         macQuickAccess.start()
+
+        macSSHAgent.sessionProvider = { activeViewModel.wrappedValue }
+        macSSHAgent.start()
         #endif
     }
 

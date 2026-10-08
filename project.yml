@@ -134,9 +134,10 @@ targets:
       - package: YubiKit
     sources:
       # KeeForgeCommands.swift (menu bar), MacLockMonitor.swift (lock
-      # lifecycle), MacWindowCloseGuard.swift (window close), and the menu bar
-      # quick access pair MacQuickAccessController.swift / MacGlobalHotKey.swift
-      # are macOS-only: members of KeeForgeMac, excluded here.
+      # lifecycle), MacWindowCloseGuard.swift (window close), the menu bar
+      # quick access pair MacQuickAccessController.swift / MacGlobalHotKey.swift,
+      # and the SSH agent (Services/SSHAgent) are macOS-only: members of
+      # KeeForgeMac, excluded here.
       - path: KeeForge/App
         excludes: ["README.md", "AGENTS.md", "KeeForgeCommands.swift"]
       - path: KeeForge/Models
@@ -151,6 +152,7 @@ targets:
           - "AppSupport/MacWindowCloseGuard.swift"
           - "AppSupport/MacQuickAccessController.swift"
           - "AppSupport/MacGlobalHotKey.swift"
+          - "SSHAgent/*.swift"
       - path: KeeForge/ViewModels
         excludes: ["README.md", "AGENTS.md"]
       - path: KeeForge/Views

@@ -21,6 +21,8 @@ enum SettingsService {
         static let passwordGeneratorOptions = "KeeForge.passwordGeneratorOptions"
         static let macMenuBarQuickAccess = "KeeForge.macMenuBarQuickAccess"
         static let macQuickSearchShortcut = "KeeForge.macQuickSearchShortcut"
+        static let macSSHAgentEnabled = "KeeForge.macSSHAgentEnabled"
+        static let macSSHAgentSelectedEntryIDs = "KeeForge.macSSHAgentSelectedEntryIDs"
     }
 
     static let appearanceModeDefaultsKey = Key.appearanceMode
@@ -427,6 +429,46 @@ enum SettingsService {
                 UserDefaults.standard.set(data, forKey: Key.macQuickSearchShortcut)
             } else {
                 UserDefaults.standard.removeObject(forKey: Key.macQuickSearchShortcut)
+            }
+        }
+    }
+
+    // MARK: - SSH Agent (macOS)
+    //
+    // App-local: only the Mac app runs the agent, and which entries it serves
+    // is a choice about this Mac, not something the database carries.
+
+    /// Off by default: serving keys to every SSH client the user runs is the
+    /// user's choice to make.
+    static var macSSHAgentEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.macSSHAgentEnabled) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.macSSHAgentEnabled) }
+    }
+
+    /// Entry IDs the agent serves, keyed by `DatabaseReference.id`.
+    static var macSSHAgentSelectedEntryIDs: [UUID: Set<UUID>] {
+        get {
+            guard let stored = UserDefaults.standard.dictionary(forKey: Key.macSSHAgentSelectedEntryIDs) else {
+                return [:]
+            }
+            var selection: [UUID: Set<UUID>] = [:]
+            for (databaseID, entryIDs) in stored {
+                guard let databaseID = UUID(uuidString: databaseID), let entryIDs = entryIDs as? [String] else { continue }
+                let parsed = Set(entryIDs.compactMap(UUID.init(uuidString:)))
+                if parsed.isEmpty == false {
+                    selection[databaseID] = parsed
+                }
+            }
+            return selection
+        }
+        set {
+            let stored = Dictionary(uniqueKeysWithValues: newValue.map { databaseID, entryIDs in
+                (databaseID.uuidString, entryIDs.map(\.uuidString).sorted())
+            })
+            if stored.isEmpty {
+                UserDefaults.standard.removeObject(forKey: Key.macSSHAgentSelectedEntryIDs)
+            } else {
+                UserDefaults.standard.set(stored, forKey: Key.macSSHAgentSelectedEntryIDs)
             }
         }
     }

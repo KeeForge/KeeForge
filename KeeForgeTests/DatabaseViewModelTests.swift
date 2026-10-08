@@ -5312,6 +5312,30 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.draft)
     }
 
+    /// The request is cleared before the retry writes, but the lock it asked
+    /// for still counts as pending until the save returns.
+    func testSaveAndLockAfterLockRequestKeepsTheLockPendingWhileItSaves() async throws {
+        let probe = LockPendingProbe()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                await probe.record()
+                return .saved(newSHA512: Data("retried-save".utf8))
+            }
+        )
+        probe.viewModel = vm
+        await vm.unlock(password: fixturePassword)
+        XCTAssertFalse(vm.isLockPending)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Retry Me")
+        vm.lockRequest()
+        XCTAssertTrue(vm.isLockPending)
+
+        await vm.saveAndLockAfterLockRequest()
+
+        XCTAssertEqual(probe.observations, [true])
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertFalse(vm.isLockPending)
+    }
+
     func testSaveAndLockAfterLockRequestKeepsThePromptWhenTheRetryFails() async throws {
         let vm = try makeViewModel(
             localSaveOperation: { _, _, _, _, _, _, _ in
@@ -7213,6 +7237,16 @@ private final class CallTracker: @unchecked Sendable {
         lock.lock()
         callCount += 1
         lock.unlock()
+    }
+}
+
+@MainActor
+private final class LockPendingProbe {
+    weak var viewModel: DatabaseViewModel?
+    private(set) var observations: [Bool] = []
+
+    func record() {
+        observations.append(viewModel?.isLockPending ?? false)
     }
 }
 
