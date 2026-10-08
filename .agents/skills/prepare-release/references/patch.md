@@ -27,6 +27,9 @@ If that version already has an RC, continue with `respin-release` instead.
 3. Add a `## v{version} ({date})` section to `CHANGELOG.md` above the previous version's section.
 4. Run [What's New review](new-release.md#review-and-fix-whats-new-content) only if the patch has a user-visible highlight worth a What's New sheet. Most patches do
    not; confirm `WhatsNewCatalog` has no case rather than shipping an empty sheet.
+5. Complete [release-content preview](shared.md#release-content-preview-before-commit) before
+   committing the patch release content. Preview its exact headings and paragraphs even when no
+   What's New sheet is included; when it has a sheet, obtain rendered-screenshot confirmation too.
 
 ## Gate, tag, distribute
 

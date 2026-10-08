@@ -596,13 +596,17 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         XCTAssertTrue(editButton.waitForExistence(timeout: 5))
         tapElement(editButton)
 
+        XCTAssertTrue(app.textFields["entry-edit.title-field"].waitForExistence(timeout: Self.ciElementTimeout))
+        XCTAssertTrue(editButton.waitForNonExistence(timeout: Self.ciElementTimeout))
+
         let expiryToggle = app.switches["entry-edit.expiry.toggle"]
-        XCTAssertTrue(revealElement(expiryToggle, in: scrollableContainer()), "The Expires switch was not reachable")
+        XCTAssertTrue(revealElement(expiryToggle), "The Expires switch was not reachable")
         setSwitch(expiryToggle, isOn: true)
 
         let presets = app.buttons["entry-edit.expiry.presets"]
-        XCTAssertTrue(revealElement(presets, in: scrollableContainer()), "The expiry presets were not reachable")
-        tapElement(presets)
+        XCTAssertTrue(revealElement(presets), "The expiry presets were not reachable")
+        // XCTest chooses a hit point above the nested menu button on iOS 18.
+        presets.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         let oneYear = menuButton(identifier: "entry-edit.expiry.preset.12", label: "In 1 Year")
         XCTAssertTrue(oneYear.waitForExistence(timeout: 5), "The one-year preset was not offered")
         tapElement(oneYear)
@@ -628,7 +632,9 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
 
         XCTAssertTrue(revealElement(editButton, direction: .down), "Edit button was not reachable")
         tapElement(editButton)
-        XCTAssertTrue(revealElement(expiryToggle, in: scrollableContainer()), "The Expires switch was not reachable")
+        XCTAssertTrue(app.textFields["entry-edit.title-field"].waitForExistence(timeout: Self.ciElementTimeout))
+        XCTAssertTrue(editButton.waitForNonExistence(timeout: Self.ciElementTimeout))
+        XCTAssertTrue(revealElement(expiryToggle), "The Expires switch was not reachable")
         XCTAssertEqual(expiryToggle.value as? String, "1", "The editor did not open on the saved expiry")
         setSwitch(expiryToggle, isOn: false)
         tapElement(saveButton)

@@ -3709,7 +3709,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dopo aver sbloccato un database o esserti autenticato, le password e i campi protetti possono essere mostrati e copiati per questo intervallo di tempo senza che venga chiesto di nuovo. Il blocco del database lo termina. L'inserimento automatico non è interessato."
+            "value" : "Dopo aver sbloccato un database o completato l'autenticazione, puoi visualizzare e copiare password e campi protetti per questo intervallo senza una nuova richiesta. Il blocco del database termina questo intervallo. L'inserimento automatico non è interessato."
           }
         },
         "ja" : {
@@ -3755,7 +3755,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dopo aver sbloccato un database o esserti autenticato, le password e i campi protetti possono essere mostrati e copiati per questo intervallo di tempo senza che venga chiesto di nuovo. Il blocco del database o l'uscita da KeeForge lo termina. L'inserimento automatico non è interessato."
+            "value" : "Dopo aver sbloccato un database o completato l'autenticazione, puoi visualizzare e copiare password e campi protetti per questo intervallo senza una nuova richiesta. Il blocco del database o l'uscita da KeeForge termina questo intervallo. L'inserimento automatico non è interessato."
           }
         },
         "ja" : {
@@ -5227,7 +5227,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Periodo di tolleranza per l'autenticazione"
+            "value" : "Periodo di tolleranza dell'autenticazione"
           }
         },
         "ja" : {
@@ -6305,6 +6305,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "阻擋螢幕擷取"
+          }
+        }
+      }
+    },
+    "Bring your Apple passwords into KeeForge" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple-Passwörter in KeeForge übernehmen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importa tus contraseñas de Apple a KeeForge"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importez vos mots de passe Apple dans KeeForge"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importa le password Apple in KeeForge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple のパスワードを KeeForge に取り込む"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 Apple 密码导入 KeeForge"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將 Apple 密碼匯入 KeeForge"
           }
         }
       }
@@ -8514,6 +8560,98 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "為每個資料庫選擇儲存 AutoFill 新密碼和通行密鑰的群組。儲存畫面會顯示將使用的群組。"
+          }
+        }
+      }
+    },
+    "Choose when KeeForge asks again to reveal or copy protected fields. Locking always ends the grace period." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle, wann KeeForge erneut nachfragt, um geschützte Felder anzuzeigen oder zu kopieren. Das Sperren beendet die Kulanzzeit immer."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige cuándo KeeForge vuelve a pedir autenticación para mostrar o copiar campos protegidos. El bloqueo siempre finaliza el periodo de gracia."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez quand KeeForge redemande une authentification pour afficher ou copier les champs protégés. Le verrouillage met toujours fin au délai."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scegli quando KeeForge richiede di nuovo l’autenticazione per mostrare o copiare campi protetti. Il blocco termina sempre il periodo di tolleranza."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保護されたフィールドの表示やコピー時に再認証を求めるタイミングを選べます。ロックすると猶予期間は必ず終了します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择 KeeForge 显示或复制受保护字段前何时再次要求验证身份。锁定始终会结束宽限期。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇 KeeForge 顯示或複製受保護欄位前何時再次要求驗證身分。鎖定一律會結束寬限期。"
+          }
+        }
+      }
+    },
+    "Choose when to authenticate again" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wählen, wann du dich erneut authentifizierst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige cuándo volver a autenticarte"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez quand vous authentifier à nouveau"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scegli quando autenticarti di nuovo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再認証までの時間を選ぶ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择何时再次验证身份"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇何時再次驗證身分"
           }
         }
       }
@@ -15286,6 +15424,52 @@
         }
       }
     },
+    "Do more in the entry editor" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehr Möglichkeiten beim Bearbeiten von Einträgen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Más opciones al editar entradas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus de possibilités dans l’éditeur d’entrées"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Più possibilità nell’editor delle voci"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリ編集でできることが増えました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在条目编辑器中完成更多操作"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在項目編輯器中完成更多操作"
+          }
+        }
+      }
+    },
     "Don’t Save" : {
       "localizations" : {
         "de" : {
@@ -19242,6 +19426,52 @@
         }
       }
     },
+    "Find entries and verification codes your way" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einträge und Bestätigungscodes nach Wunsch finden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encuentra entradas y códigos a tu manera"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retrouvez entrées et codes à votre façon"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trova voci e codici come preferisci"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリや確認コードを見つけやすく"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按自己的方式查找条目和验证码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以自己的方式尋找項目和驗證碼"
+          }
+        }
+      }
+    },
     "Find entries by the tags you already use, including tags inherited from their group. Search by tag, and pick from suggestions while editing." : {
       "localizations" : {
         "de" : {
@@ -21354,6 +21584,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "匯入密碼"
+          }
+        }
+      }
+    },
+    "Import passwords, notes, and verification codes from Apple’s Passwords app. Preview the import before adding entries." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importiere Passwörter, Notizen und Bestätigungscodes aus Apples App „Passwörter“. Prüfe die Importvorschau, bevor Einträge hinzugefügt werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importa contraseñas, notas y códigos de verificación desde la app Contraseñas de Apple. Revisa la vista previa antes de añadir entradas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importez mots de passe, notes et codes de vérification depuis l’app Mots de passe d’Apple. Consultez l’aperçu avant d’ajouter les entrées."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importa password, note e codici di verifica dall’app Password di Apple. Controlla l’anteprima prima di aggiungere le voci."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple の「パスワード」アプリからパスワード、メモ、確認コードを読み込めます。追加前に内容をプレビューできます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从 Apple「密码」App 导入密码、备注和验证码。添加条目前可预览导入内容。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從 Apple「密碼」App 匯入密碼、備註和驗證碼。加入項目前可預覽匯入內容。"
           }
         }
       }
@@ -23792,6 +24068,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 尚未啟用為自動填寫提供者。請在「一般」>「自動填寫與密碼」中開啟，即可在 Safari 和其他 App 中填寫密碼。"
+          }
+        }
+      }
+    },
+    "KeeForge KDBX recovery tool" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge KDBX-Wiederherstellungstool"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herramienta de recuperación KDBX de KeeForge"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Outil de récupération KDBX de KeeForge"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strumento di recupero KDBX di KeeForge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge KDBX 復旧ツール"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge KDBX 恢复工具"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge KDBX 復原工具"
           }
         }
       }
@@ -26277,6 +26599,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "標頭中的變體對應格式錯誤"
+          }
+        }
+      }
+    },
+    "Manage attachments, set expiration dates, and preview verification codes before saving." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verwalte Anhänge, lege Ablaufdaten fest und sieh dir Bestätigungscodes vor dem Speichern an."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestiona adjuntos, establece fechas de caducidad y previsualiza códigos de verificación antes de guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gérez les pièces jointes, définissez des dates d’expiration et prévisualisez les codes de vérification avant d’enregistrer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestisci allegati, imposta date di scadenza e visualizza l’anteprima dei codici di verifica prima di salvare."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイルの管理、有効期限の設定、保存前の確認コードのプレビューができます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理附件、设置到期日期，并在保存前预览验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理附件、設定到期日期，並在儲存前預覽驗證碼。"
           }
         }
       }
@@ -29916,6 +30284,52 @@
         }
       }
     },
+    "Open cloud databases without waiting" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud-Datenbanken ohne Wartezeit öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre bases de datos en la nube sin esperar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez vos bases cloud sans attendre"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri i database cloud senza aspettare"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウドのデータベースを待たずに開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无需等待即可打开云端数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無需等待即可開啟雲端資料庫"
+          }
+        }
+      }
+    },
     "Open Database" : {
       "localizations" : {
         "de" : {
@@ -30234,6 +30648,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打開「設定」"
+          }
+        }
+      }
+    },
+    "Open the copy on your device right away, then sync when ready. Saving still checks for cloud conflicts." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffne die Kopie auf deinem Gerät sofort und synchronisiere, wenn du bereit bist. Beim Speichern werden Cloud-Konflikte weiterhin geprüft."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre la copia de tu dispositivo al instante y sincroniza cuando quieras. El guardado sigue comprobando conflictos con la nube."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez immédiatement la copie sur votre appareil, puis synchronisez quand vous le souhaitez. L’enregistrement vérifie toujours les conflits avec le cloud."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri subito la copia sul dispositivo e sincronizza quando vuoi. Il salvataggio continua a verificare i conflitti con il cloud."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デバイス上のコピーをすぐに開き、好きなときに同期できます。保存時には引き続きクラウドとの競合を確認します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即打开设备上的副本，准备好后再同步。保存时仍会检查云端冲突。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即開啟裝置上的副本，準備好後再同步。儲存時仍會檢查雲端衝突。"
           }
         }
       }
@@ -35806,6 +36266,52 @@
         }
       }
     },
+    "Search from the Mac menu bar" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Über die Mac-Menüleiste suchen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Busca desde la barra de menús del Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recherchez depuis la barre des menus du Mac"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cerca dalla barra dei menu del Mac"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac のメニューバーから検索"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从 Mac 菜单栏搜索"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從 Mac 選單列搜尋"
+          }
+        }
+      }
+    },
     "Search Results" : {
       "localizations" : {
         "de" : {
@@ -35944,48 +36450,94 @@
         }
       }
     },
-    "Searched KeeForge’s copy of this database from %@. To find credentials added since then, open KeeForge to refresh it." : {
+    "Search your unlocked database from any app with an optional shortcut. Copy credentials or open entries in KeeForge." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Durchsucht wurde die Kopie dieser Datenbank in KeeForge vom %@. Öffnen Sie KeeForge, um sie zu aktualisieren und seitdem hinzugefügte Zugangsdaten zu finden."
+            "value" : "Durchsuche deine entsperrte Datenbank aus jeder App mit einem optionalen Tastenkürzel. Kopiere Zugangsdaten oder öffne Einträge in KeeForge."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se buscó en la copia de esta base de datos de KeeForge del %@. Para encontrar credenciales añadidas desde entonces, abra KeeForge para actualizarla."
+            "value" : "Busca en tu base de datos desbloqueada desde cualquier app con un atajo opcional. Copia credenciales o abre entradas en KeeForge."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Recherche effectuée dans la copie de cette base de données enregistrée par KeeForge le %@. Pour trouver les identifiants ajoutés depuis, ouvrez KeeForge afin de l’actualiser."
+            "value" : "Recherchez dans votre base déverrouillée depuis n’importe quelle app avec un raccourci facultatif. Copiez des identifiants ou ouvrez des entrées dans KeeForge."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La ricerca è stata eseguita nella copia di KeeForge di questo database, risalente al %@. Per trovare le credenziali aggiunte da allora, apri KeeForge per aggiornarla."
+            "value" : "Cerca nel database sbloccato da qualsiasi app con una scorciatoia facoltativa. Copia credenziali o apri voci in KeeForge."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 時点の KeeForge のデータベースのコピーを検索しました。それ以降に追加された認証情報を見つけるには、KeeForge を開いて更新してください。"
+            "value" : "任意のアプリからロック解除済みのデータベースを検索できます。ショートカットも設定でき、認証情報のコピーや KeeForge でのエントリ表示ができます。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已搜索 KeeForge 保存的此数据库副本（%@）。要查找此后添加的凭据，请打开 KeeForge 进行刷新。"
+            "value" : "从任何 App 搜索已解锁的数据库，并可设置快捷键。复制凭据或在 KeeForge 中打开条目。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已搜尋 KeeForge 儲存的此資料庫副本（%@）。若要尋找此後新增的憑證，請開啟 KeeForge 進行重新整理。"
+            "value" : "從任何 App 搜尋已解鎖的資料庫，並可設定快速鍵。複製憑證或在 KeeForge 中開啟項目。"
+          }
+        }
+      }
+    },
+    "Searched KeeForge’s copy of this database from %@. To find newer credentials, unlock this database in KeeForge. For cloud databases, use Sync Now in Database Details." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Durchsucht wurde die Kopie dieser Datenbank in KeeForge vom %@. Entsperren Sie diese Datenbank in KeeForge, um neuere Zugangsdaten zu finden. Wählen Sie bei Cloud-Datenbanken „Jetzt synchronisieren“ in den Datenbankdetails."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se buscó en la copia de esta base de datos de KeeForge del %@. Para encontrar credenciales más recientes, desbloquee esta base de datos en KeeForge. Para las bases de datos en la nube, use «Sincronizar ahora» en «Detalles de la base de datos»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recherche effectuée dans la copie de cette base de données enregistrée par KeeForge le %@. Pour trouver des identifiants plus récents, déverrouillez cette base de données dans KeeForge. Pour les bases de données cloud, utilisez « Synchroniser maintenant » dans « Détails de la base de données »."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La ricerca è stata eseguita nella copia di KeeForge di questo database, risalente al %@. Per trovare credenziali più recenti, sblocca questo database in KeeForge. Per i database nel cloud, usa «Sincronizza ora» in «Dettagli del database»."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 時点の KeeForge のデータベースのコピーを検索しました。新しい認証情報を見つけるには、KeeForge でこのデータベースのロックを解除してください。クラウドデータベースの場合は、「データベースの詳細」で「今すぐ同期」を選択してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已搜索 KeeForge 保存的此数据库副本（%@）。要查找更新的凭据，请在 KeeForge 中解锁此数据库。对于云端数据库，请在“数据库详细信息”中选择“立即同步”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已搜尋 KeeForge 儲存的此資料庫副本（%@）。若要尋找較新的憑證，請在 KeeForge 中解鎖此資料庫。雲端資料庫請在「資料庫詳細資訊」中選擇「立即同步」。"
           }
         }
       }
@@ -38746,6 +39298,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SwiftyDropbox"
+          }
+        }
+      }
+    },
+    "Switch between entries, groups, verification codes, tags, and the Recycle Bin from the database view menu." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wechsle über das Ansichtsmenü der Datenbank zwischen Einträgen, Gruppen, Bestätigungscodes, Tags und dem Papierkorb."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambia entre entradas, grupos, códigos de verificación, etiquetas y papelera desde el menú de vistas de la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passez entre entrées, groupes, codes de vérification, tags et corbeille depuis le menu d’affichage de la base."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passa tra voci, gruppi, codici di verifica, tag e cestino dal menu delle viste del database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースの表示メニューからエントリ、グループ、確認コード、タグ、ゴミ箱を切り替えられます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过数据库视图菜单切换条目、群组、验证码、标签和回收站。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過資料庫檢視選單切換項目、群組、驗證碼、標籤和回收桶。"
           }
         }
       }
@@ -44629,7 +45227,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Questa data è già passata, quindi la voce verrà mostrata come scaduta."
+            "value" : "Questa data è passata, quindi la voce verrà mostrata come scaduta."
           }
         },
         "ja" : {
@@ -48102,6 +48700,52 @@
         }
       }
     },
+    "Unlock the Mac app with Touch ID or Apple Watch after one master-password unlock. AutoFill uses Touch ID only." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entsperre die Mac-App nach einmaligem Entsperren mit dem Master-Passwort per Touch ID oder Apple Watch. AutoFill verwendet nur Touch ID."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tras desbloquear una vez con la contraseña maestra, desbloquea la app del Mac con Touch ID o el Apple Watch. AutoFill usa solo Touch ID."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après un premier déverrouillage avec le mot de passe maître, déverrouillez l’app Mac avec Touch ID ou l’Apple Watch. AutoFill utilise uniquement Touch ID."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dopo un primo sblocco con la password principale, sblocca l’app Mac con Touch ID o Apple Watch. AutoFill usa solo Touch ID."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一度マスターパスワードでロック解除すると、Touch ID や Apple Watch で Mac アプリをロック解除できます。自動入力は Touch ID のみです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用主密码解锁一次后，即可通过 Touch ID 或 Apple Watch 解锁 Mac App。自动填充仅使用 Touch ID。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用主密碼解鎖一次後，即可透過 Touch ID 或 Apple Watch 解鎖 Mac App。自動填寫僅使用 Touch ID。"
+          }
+        }
+      }
+    },
     "Unlock this database in KeeForge to search it from here." : {
       "localizations" : {
         "de" : {
@@ -48343,13 +48987,13 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Desbloquear con Touch ID o Apple Watch"
+            "value" : "Desbloquea con Touch ID o el Apple Watch"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Déverrouiller avec Touch ID ou l’Apple Watch"
+            "value" : "Déverrouillez avec Touch ID ou l’Apple Watch"
           }
         },
         "it" : {
@@ -48361,7 +49005,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Touch ID または Apple Watchでロック解除"
+            "value" : "Touch ID や Apple Watch でロック解除"
           }
         },
         "zh-Hans" : {
@@ -48838,6 +49482,52 @@
         }
       }
     },
+    "Update entry notes safely" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eintragsnotizen sicher bearbeiten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edita las notas de las entradas con seguridad"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifiez les notes des entrées en toute sécurité"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifica le note delle voci in sicurezza"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリのメモを安全に編集"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安全更新条目备注"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安全更新項目備註"
+          }
+        }
+      }
+    },
     "Updated with the latest changes from the cloud." : {
       "localizations" : {
         "de" : {
@@ -48880,6 +49570,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已使用雲端的最新變更進行更新。"
+          }
+        }
+      }
+    },
+    "Updating KeeForge prevents new corruption when saving entry notes but does not repair already damaged files. Restore a readable backup or create a recovered copy with the offline tool." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das KeeForge-Update verhindert neue Beschädigungen beim Speichern von Eintragsnotizen, repariert aber keine bereits beschädigten Dateien. Stelle ein lesbares Backup wieder her oder erstelle mit dem Offline-Tool eine wiederhergestellte Kopie."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizar KeeForge evita nuevos daños al guardar las notas de las entradas, pero no repara archivos ya dañados. Restaura una copia de seguridad legible o crea una copia recuperada con la herramienta sin conexión."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La mise à jour de KeeForge empêche de nouvelles corruptions lors de l’enregistrement des notes des entrées, mais ne répare pas les fichiers déjà endommagés. Restaurez une sauvegarde lisible ou créez une copie récupérée avec l’outil hors ligne."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiornare KeeForge previene nuovi danni durante il salvataggio delle note delle voci, ma non ripara i file già danneggiati. Ripristina un backup leggibile o crea una copia recuperata con lo strumento offline."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge のアップデートはエントリのメモ保存時の新たな破損を防ぎますが、すでに破損したファイルは修復しません。読み取り可能なバックアップを復元するか、オフラインツールで復旧したコピーを作成してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新 KeeForge 可防止保存条目备注时造成新的损坏，但不会修复已损坏的文件。请恢复可读取的备份，或使用离线工具创建恢复后的副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新 KeeForge 可防止儲存項目備註時造成新的損毀，但不會修復已損毀的檔案。請還原可讀取的備份，或使用離線工具建立復原後的副本。"
           }
         }
       }

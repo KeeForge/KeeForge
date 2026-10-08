@@ -54,12 +54,13 @@ date in the user's timezone — do not guess. If the soak runs past that date, c
 Perform this review for every release, even if the content already looks complete.
 
 1. Review the new version's `### New Features` and `### Fixes` bullets as source material. Keep
-   the sheet to at most three items: prioritize the most important user-facing features, then use
-   remaining slots for notable bug fixes. A fix is notable when it materially improves a common
+   the sheet to at most three items by default, honoring an owner-requested larger count. Prioritize
+   the most important user-facing features, then use remaining slots for notable bug fixes. A fix is notable when it materially improves a common
    workflow, prevents a crash or data-loss risk, or delivers a broad reliability improvement.
    Exclude routine polish, security hardening, known issues, and internal changes. If there are no
    eligible items, confirm `WhatsNewCatalog` has no case for this version and continue without an
-   empty sheet. Confirm the proposal with the user before proceeding.
+   empty sheet. A feature proposal is preliminary; the exact-copy and rendered-sheet approvals
+   below are required before committing.
 2. Inspect the matching version case in
    `KeeForge/Services/AppSupport/WhatsNewPresentationService.swift`. Add it if needed, or fix it
    when stale, incomplete, overly technical, or inaccurate.
@@ -73,6 +74,9 @@ Perform this review for every release, even if the content already looks complet
    `KeeForge/Resources/Localizable.xcstrings`. The localization tests in the RC run are the gate.
 6. Re-read the completed sheet as a user. Fix unclear titles, repetitive descriptions, missing
    major features, or claims the release does not support.
+7. Complete both [release-content preview](shared.md#release-content-preview-before-commit)
+   approvals: show the exact final headings and paragraphs, then the actual rendered screenshots.
+   Finish the local preview and obtain screenshot confirmation before the commit/branch-cut step.
 
 ## Commit the release content to main, then cut the branch
 
@@ -85,6 +89,10 @@ Set `MARKETING_VERSION` to the new version string (e.g. `"1.11.0"`) on **all fou
 targets in `project.yml` — `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`.
 The Mac targets ship in lockstep with iOS (same marketing version and repo build). Leave
 `CURRENT_PROJECT_VERSION` alone here; [build-number selection](candidate.md#set-the-candidate-build-number) advances it globally for the first candidate.
+
+Generate the project and capture the preview before committing. Continue only after both
+[release-content preview](shared.md#release-content-preview-before-commit) approvals cover the
+exact files being committed.
 
 ```bash
 xcodegen generate
