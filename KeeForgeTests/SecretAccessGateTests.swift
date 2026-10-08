@@ -87,14 +87,23 @@ final class SecretAccessGateTests: XCTestCase {
         XCTAssertTrue(harness.gate.requiresAuthentication)
     }
 
-    /// A lock that lands while the prompt is still up wins over its answer.
-    func testAnInvalidationDuringThePromptLeavesNoGracePeriod() async throws {
+    func testAnInvalidationDuringThePromptCancelsAuthenticationAndAllowsAFreshPrompt() async throws {
         let harness = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
         harness.duringPrompt = { [unowned harness] in harness.gate.invalidate() }
 
-        try await harness.gate.authenticate(reason: "Copy password")
+        do {
+            try await harness.gate.authenticate(reason: "Copy password")
+            XCTFail("An invalidated prompt must not authorize disclosure")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
 
         XCTAssertTrue(harness.gate.requiresAuthentication)
+        harness.duringPrompt = nil
+        try await harness.gate.authenticate(reason: "Copy password")
+
+        XCTAssertEqual(harness.promptReasons, ["Copy password", "Copy password"])
+        XCTAssertFalse(harness.gate.requiresAuthentication)
     }
 
     func testSwitchingToAlwaysAskAppliesImmediately() {

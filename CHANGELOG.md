@@ -2,15 +2,20 @@
 
 ## Unreleased
 
-### Distribution
+### New Features
+
+- Move several entries to another group at once (#186). Long-press an entry (right-click on Mac) and choose "Select Entries", tap the other entries you want, including ones in other groups or in search results, then choose "Move to Group" and pick the destination. The selected entries are moved and saved together.
+
+## v1.18.0 (2026-10-07)
+
+### Changes
 
 - Direct Mac release exports can select locally installed signing profiles after a Developer ID certificate replacement.
-
-> **Next release requirement:** This database-corruption fix (#181) must be item **#1** in the next release’s “What’s New”, including the in-app sheet on iPhone, iPad, and Mac and the App Store release notes. Include a link to the [KeeForge KDBX recovery tool](https://github.com/KeeForge/kdbx-recovery). Explicitly say that updating prevents new corruption but does not repair already damaged files; affected users should restore a readable backup or use the offline recovery tool to create a recovered copy. Keep this item ahead of every new feature.
 
 ### Fixes
 
 - Prevents database corruption when notes or other text contain unsupported characters such as NUL (#181). Saving stops with an error and keeps the previous database readable. Already affected databases are not repaired by updating: restore a readable backup or use the [KeeForge KDBX recovery tool](https://github.com/KeeForge/kdbx-recovery) to create a recovered copy.
+- On Mac, with Lock Automatically set to "When KeeForge Is Not the Active App", the Touch ID or password prompt for viewing or copying a password no longer locks the database (#203).
 - The Face ID and Touch ID unlock buttons now use the selected app language (#183).
 - Group deletion actions now use the selected app language on iPhone, iPad, and Mac (#184).
 - Restoring an earlier entry version keeps that version's expiration settings after saving and reopening the database.
@@ -34,12 +39,11 @@
 - Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
 - When the saved Face ID, Touch ID or Apple Watch key can no longer be used, for example after enrolled fingerprints change, the unlock screen now says so and asks for your master password, which saves a new key.
 - After a cancelled or failed Face ID or Touch ID unlock, the error screen now also shows the password field, so you can unlock with your master password right away.
-- AutoFill on iPhone and iPad now searches a database opened from the Files app in its current state, so credentials another app or device added since KeeForge last opened it are found (#167). Cloud databases, and every database in Mac AutoFill, still search the copy KeeForge last saved; when a search there finds nothing, AutoFill now says when that copy was last updated and to open KeeForge to refresh it.
+- AutoFill on iPhone and iPad now searches a database opened from the Files app in its current state, so credentials another app or device added since KeeForge last opened it are found (#167). Cloud databases, and every database in Mac AutoFill, still search the copy KeeForge last saved; when a search there finds nothing, AutoFill now says when that copy was last updated and directs you to unlock the database in KeeForge. For cloud databases, use Sync Now in Database Details to refresh it.
 
 ### New Features
 
 - AutoFill suggestions in Safari and other apps now show an entry's own website, such as "wiki.example.com" instead of "example.com", so logins on different subdomains of one site can be told apart (#173). Verification code suggestions now show the user name next to the entry's title, so two accounts on the same site can be told apart too. Both take effect the next time you unlock the database in KeeForge.
-- Move several entries to another group at once (#186). Long-press an entry (right-click on Mac) and choose "Select Entries", tap the other entries you want, including ones in other groups or in search results, then choose "Move to Group" and pick the destination. The selected entries are moved and saved together.
 - Settings are easier to scan on iPhone and iPad. Each row in Settings now shows what is currently set — the auto-lock timeout, whether AutoFill is on and for how many databases, the theme, the connected cloud accounts — and Cloud Accounts has its own screen. Database Details is now a short list instead of one long form: a header with the file name, format, and size, then General, AutoFill, Master Key, Encryption, Cloud Sync, and Backups & Export, each showing its current state and opening its own screen. Nothing was removed; the Mac settings window keeps its tabs, and Database Details on Mac uses the same list. In the tip jar and on the About screen, descriptions, prices, and link titles now use the regular text color, so they stay readable with any accent color.
 - iPhone and iPad: choose what an open database shows (#100, #108). Tap the title to switch between All Entries, Groups, Verification Codes, Tags, and the Recycle Bin. On iOS 26 and later the search field moves to the bottom of the screen; earlier versions keep it under the title and get the menu as a toolbar button. A database now opens on All Entries, which lists every entry with its group. Verification Codes shows the current code of every entry that has one, with its countdown and a copy button. The Recycle Bin and Tags are opened from this menu instead of the group list.
 - Add and remove an entry's attachments in the entry editor, on iPhone, iPad, and Mac (#162). Under Attachments, tap "Add Attachment" to pick one or more files, or the remove button next to an attachment to take it off the entry; the changes are saved with the entry. A file whose name is already taken on the entry gets a number, such as "scan (2).pdf". A removed attachment stays in the entry's history, as in other KeePass apps. Attachments you don't change stay exactly as they were.
@@ -55,7 +59,10 @@
 - On Mac, search your open database from the menu bar (#156). Turn on Settings → Menu Bar → "Show KeeForge in the Menu Bar", then click the key icon, or record a quick search shortcut there that works from any app. Pick an entry to copy its user name, password, or verification code, or open it in the main window. Entries show only while the database is unlocked, and copying a password asks for Touch ID or your login password, as in the main window. The menu bar item and the shortcut are off until you turn them on. Quick search covers the database open in the main window, and closing that window still locks it.
 - The iPhone and iPad app running on a Mac now suggests the native Mac app (#174). A banner on the database list offers "Open Mac Version", which opens KeeForge's App Store page; dismiss it and it stays hidden. It does not appear on iPhone, iPad, or in the native Mac app.
 
-## v1.17.0 (2026-09-27)
+## v1.17.0 (2026-10-06)
+
+- iOS: officially released on 2026-10-06, App Store build 67 ([source tag](https://github.com/KeeForge/KeeForge/tree/v1.17.0-ios)).
+- macOS: released on 2026-10-03, build 60 ([source tag](https://github.com/KeeForge/KeeForge/tree/v1.17.0-mac)).
 
 ### New Features
 

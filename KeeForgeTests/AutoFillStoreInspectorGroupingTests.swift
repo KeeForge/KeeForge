@@ -173,7 +173,7 @@ final class AutoFillStoreInspectorGroupingTests: XCTestCase {
         let fake = FakeCredentialIdentityStore()
         fake.enumerationError = .nonConformingIdentities(count: 2)
         do {
-            _ = try await AutoFillStoreInspectorViewModel.buildSnapshot(store: fake) { _ in nil }
+            _ = try await AutoFillStoreInspectorViewModel.buildSnapshot(store: fake, capabilities: await fake.capabilities()) { _ in nil }
             XCTFail("An unreadable store must not produce an empty snapshot")
         } catch {
             XCTAssertEqual(error as? CredentialIdentityStoreReadError, .nonConformingIdentities(count: 2))
@@ -181,8 +181,71 @@ final class AutoFillStoreInspectorGroupingTests: XCTestCase {
     }
 
     func testInspectorReadAcceptsGenuinelyEmptyStore() async throws {
-        let snapshot = try await AutoFillStoreInspectorViewModel.buildSnapshot(store: FakeCredentialIdentityStore()) { _ in nil }
+        let fake = FakeCredentialIdentityStore()
+        let snapshot = try await AutoFillStoreInspectorViewModel.buildSnapshot(
+            store: fake, capabilities: await fake.capabilities()
+        ) { _ in nil }
         XCTAssertEqual(snapshot.totalCount, 0)
+    }
+
+    func testRefreshExposesProviderStateWhileEnumerationIsPending() async {
+        let fake = FakeCredentialIdentityStore()
+        fake.isEnabledValue = false
+        fake.supportsIncrementalUpdatesValue = false
+        let enumerationStarted = expectation(description: "Enumeration started")
+        let releaseEnumeration = DispatchSemaphore(value: 0)
+        fake.onEnumerate = {
+            enumerationStarted.fulfill()
+            _ = releaseEnumeration.wait(timeout: .now() + 5)
+        }
+        let model = AutoFillStoreInspectorViewModel(store: fake)
+        model.refresh()
+        await fulfillment(of: [enumerationStarted], timeout: 2)
+
+        XCTAssertEqual(model.capabilities?.isEnabled, false)
+        XCTAssertEqual(model.capabilities?.supportsIncrementalUpdates, false)
+        XCTAssertTrue(model.isRefreshing)
+        XCTAssertNil(model.snapshot, "Pending enumeration must not report a zero count")
+        XCTAssertNil(model.enumerationError)
+        model.refresh()
+
+        releaseEnumeration.signal()
+        await waitForRefresh(model)
+        XCTAssertFalse(model.isRefreshing)
+        XCTAssertEqual(model.snapshot?.totalCount, 0)
+        XCTAssertEqual(model.snapshot?.isEnabled, false)
+        XCTAssertTrue(fake.calls.isEmpty, "Inspector must never mutate the real store")
+    }
+
+    func testRefreshPreservesProviderStateOnReadErrorAndRecovers() async {
+        let fake = FakeCredentialIdentityStore()
+        fake.enumerationError = .nonConformingIdentities(count: 2)
+        let model = AutoFillStoreInspectorViewModel(store: fake)
+        model.refresh()
+        await waitForRefresh(model)
+
+        XCTAssertEqual(model.capabilities?.isEnabled, true)
+        XCTAssertNil(model.snapshot)
+        XCTAssertTrue(model.enumerationError?.contains("2 identities") == true)
+
+        fake.enumerationError = nil
+        fake.isEnabledValue = false
+        model.refresh()
+        XCTAssertNil(model.enumerationError)
+        await waitForRefresh(model)
+        XCTAssertNil(model.enumerationError)
+        XCTAssertEqual(model.capabilities?.isEnabled, false)
+        XCTAssertEqual(model.snapshot?.totalCount, 0)
+        XCTAssertEqual(model.snapshot?.isEnabled, false)
+        XCTAssertTrue(fake.calls.isEmpty)
+    }
+
+    private func waitForRefresh(_ model: AutoFillStoreInspectorViewModel) async {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while model.isRefreshing, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertFalse(model.isRefreshing, "Inspector refresh did not finish")
     }
 
     func testIdentityMetadataIncludesKindServiceLabelAndRecordIdentifier() {
