@@ -41,6 +41,12 @@
             "value" : "KeeForge"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -85,6 +91,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeePass データベース (kdbx)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных KeePass (kdbx)"
           }
         },
         "zh-Hans" : {
@@ -140,6 +152,12 @@
             "value" : "KeeForge は、パスワードデータベースのロックを解除する YubiKey を NFC で読み取ります。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge использует NFC, чтобы прочитать YubiKey, который разблокирует вашу базу данных паролей."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -191,6 +209,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge は、確認コードの QR コードをスキャンするためにカメラを使用します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge использует камеру, чтобы сканировать QR-коды кодов проверки."
           }
         },
         "zh-Hans" : {
@@ -246,6 +270,12 @@
             "value" : "KeeForge は、パスワードデータベースをすばやくロック解除するために Face ID を使用します。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge использует Face ID, чтобы быстро разблокировать вашу базу данных паролей."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -297,6 +327,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge は、追加された WebDAV サーバと FTP サーバに接続するためにローカルネットワークを使用します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge использует вашу локальную сеть для подключения к добавленным вами серверам WebDAV и FTP."
           }
         },
         "zh-Hans" : {

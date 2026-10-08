@@ -18,7 +18,7 @@ final class LocalizationTests: XCTestCase {
     /// Every locale KeeForge ships a translation for, beyond the source
     /// language `en`. Add a locale here once its catalogs are fully
     /// translated to bring it under every check in this file.
-    private static let shippedTranslationLocales = ["de", "fr", "es", "zh-Hans", "zh-Hant", "ja", "it"]
+    private static let shippedTranslationLocales = ["de", "fr", "es", "zh-Hans", "zh-Hant", "ja", "it", "ru"]
 
     // MARK: - String catalog decoding
 
@@ -133,6 +133,7 @@ final class LocalizationTests: XCTestCase {
             (locale: "fr", faceID: "Déverrouiller avec Face ID", touchID: "Déverrouiller avec Touch ID"),
             (locale: "it", faceID: "Sblocca con Face ID", touchID: "Sblocca con Touch ID"),
             (locale: "ja", faceID: "Face IDでロック解除", touchID: "Touch IDでロック解除"),
+            (locale: "ru", faceID: "Разблокировать с Face ID", touchID: "Разблокировать с Touch ID"),
             (locale: "zh-Hans", faceID: "使用 Face ID 解锁", touchID: "使用 Touch ID 解锁"),
             (locale: "zh-Hant", faceID: "使用 Face ID 解鎖", touchID: "使用 Touch ID 解鎖"),
         ]

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New Features
+
+- KeeForge now speaks Russian: a full Russian (Русский) localization across the app and the AutoFill extension, plus translated README and contributor docs (#180).
+
 ### Fixes
 
 - AutoFill no longer keeps an outdated copy of a database when a save could not update that copy (#207). The copy is removed instead, so AutoFill reads the saved file where it can and otherwise stays unavailable for that database until KeeForge opens or saves it again.
