@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New Features
+
+- Add more URLs to an entry while editing it on iPhone, iPad, and Mac: Add Another URL below the URL field adds one, and each extra URL has its own remove button (#209). They are saved as `KP2A_URL` fields, so KeePass2Android and KeePassXC read them too, and AutoFill matches them like the main URL. Extra URLs already stored in an entry now appear as URL rows in the editor, and an entry no longer lists them a second time under Custom Fields.
+
 ## v1.18.0 (2026-10-07)
 
 ### Changes
