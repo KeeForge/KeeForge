@@ -53,7 +53,7 @@ final class MacSSHAgentController {
     var isEnabled: Bool {
         didSet {
             guard oldValue != isEnabled else { return }
-            SettingsService.macSSHAgentEnabled = isEnabled
+            SettingsService.setMacSSHAgentEnabled(isEnabled, in: defaults)
             apply()
         }
     }
@@ -64,12 +64,19 @@ final class MacSSHAgentController {
     /// The entries served per database, keyed by `DatabaseReference.id`.
     private(set) var selectedEntryIDs: [UUID: Set<UUID>]
 
+    /// True while another app is frontmost. The key list names entries and
+    /// key fingerprints, and the Settings window gets no privacy cover
+    /// (`ScreenProtectionService`), so the list redacts its rows instead.
+    private(set) var concealsKeyList = false
+
     let socketPath: String
 
     @ObservationIgnored var sessionProvider: SessionProvider
+    private let defaults: UserDefaults
+    private let notificationCenter: NotificationCenter
     @ObservationIgnored private var server: SSHAgentSocketServer?
     @ObservationIgnored private var isStarted = false
-    @ObservationIgnored private var terminationObserver: (any NSObjectProtocol)?
+    @ObservationIgnored private var observers: [any NSObjectProtocol] = []
 
     /// Inside the App Sandbox the home directory is the app's container, which
     /// only this user can enter, and its path has no spaces to quote.
@@ -81,12 +88,16 @@ final class MacSSHAgentController {
 
     init(
         socketPath: String = MacSSHAgentController.defaultSocketPath,
+        defaults: UserDefaults = .standard,
+        notificationCenter: NotificationCenter = .default,
         sessionProvider: @escaping SessionProvider = { nil }
     ) {
         self.socketPath = socketPath
+        self.defaults = defaults
+        self.notificationCenter = notificationCenter
         self.sessionProvider = sessionProvider
-        isEnabled = SettingsService.macSSHAgentEnabled
-        selectedEntryIDs = SettingsService.macSSHAgentSelectedEntryIDs
+        isEnabled = SettingsService.macSSHAgentEnabled(in: defaults)
+        selectedEntryIDs = SettingsService.macSSHAgentSelectedEntryIDs(in: defaults)
     }
 
     /// The `~/.ssh/config` lines that point every host at this agent.
@@ -97,25 +108,20 @@ final class MacSSHAgentController {
     func start() {
         guard isStarted == false else { return }
         isStarted = true
-        terminationObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.willTerminateNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.stopServer()
-            }
-        }
+        concealsKeyList = NSApplication.shared.isActive == false
+        observe(NSApplication.willTerminateNotification) { $0.stopServer() }
+        observe(NSApplication.didResignActiveNotification) { $0.concealsKeyList = true }
+        observe(NSApplication.didBecomeActiveNotification) { $0.concealsKeyList = false }
         apply()
     }
 
     func stop() {
         guard isStarted else { return }
         isStarted = false
-        if let terminationObserver {
-            NotificationCenter.default.removeObserver(terminationObserver)
+        for observer in observers {
+            notificationCenter.removeObserver(observer)
         }
-        terminationObserver = nil
+        observers = []
         stopServer()
     }
 
@@ -131,7 +137,7 @@ final class MacSSHAgentController {
             entryIDs.remove(entryID)
         }
         selectedEntryIDs[databaseID] = entryIDs.isEmpty ? nil : entryIDs
-        SettingsService.macSSHAgentSelectedEntryIDs = selectedEntryIDs
+        SettingsService.setMacSSHAgentSelectedEntryIDs(selectedEntryIDs, in: defaults)
     }
 
     /// The chosen entries of the active session, read at the moment of a
@@ -188,6 +194,18 @@ final class MacSSHAgentController {
         server?.stop()
         server = nil
         isUnavailable = false
+    }
+
+    /// `queue: nil` runs the handler inside the post, on the main thread
+    /// AppKit posts these from, so `concealsKeyList` is set before the app
+    /// has finished resigning.
+    private func observe(_ name: Notification.Name, handler: @escaping @MainActor (MacSSHAgentController) -> Void) {
+        observers.append(notificationCenter.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                handler(self)
+            }
+        })
     }
 
     private static func keySource(

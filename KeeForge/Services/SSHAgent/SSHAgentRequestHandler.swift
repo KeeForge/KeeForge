@@ -42,8 +42,12 @@ struct SSHAgentKeySource: Sendable {
 /// attachment location is honored; a file path on disk is outside the sandbox.
 enum KeeAgentSettings {
     static let attachmentName = "KeeAgent.settings"
+    /// KeeAgent and KeePassXC write about a kilobyte. A larger attachment of
+    /// that name is not parsed, on any request.
+    static let maximumLength = 64 * 1024
 
     static func keyAttachmentName(in settings: Data) -> String? {
+        guard settings.count <= maximumLength else { return nil }
         let reader = Reader()
         let parser = XMLParser(data: settings)
         parser.delegate = reader
@@ -125,14 +129,25 @@ struct SSHAgentRequestHandler: Sendable {
 
     private static var failure: Data { Data([MessageType.failure.rawValue]) }
 
+    /// An SSH client drops an answer longer than the message limit, so a key
+    /// that no longer fits is left out. It can still sign when asked for.
     private func identitiesAnswer() -> Data {
-        let keys = availableKeys()
+        var identities: [(publicKeyBlob: Data, comment: Data)] = []
+        var length = 1 + 4
+        for available in availableKeys() {
+            let comment = available.key.comment.isEmpty ? available.source.entryTitle : available.key.comment
+            let identity = (publicKeyBlob: available.key.publicKeyBlob, comment: Data(comment.utf8))
+            let identityLength = 4 + identity.publicKeyBlob.count + 4 + identity.comment.count
+            guard length + identityLength <= Self.maximumMessageLength else { continue }
+            length += identityLength
+            identities.append(identity)
+        }
         var writer = SSHWireWriter()
         writer.writeByte(MessageType.identitiesAnswer.rawValue)
-        writer.writeUInt32(UInt32(keys.count))
-        for available in keys {
-            writer.writeString(available.key.publicKeyBlob)
-            writer.writeString(available.key.comment.isEmpty ? available.source.entryTitle : available.key.comment)
+        writer.writeUInt32(UInt32(identities.count))
+        for identity in identities {
+            writer.writeString(identity.publicKeyBlob)
+            writer.writeString(identity.comment)
         }
         return writer.data
     }
@@ -141,7 +156,10 @@ struct SSHAgentRequestHandler: Sendable {
         let publicKeyBlob = try reader.readString()
         let data = try reader.readString()
         let flags = try reader.readUInt32()
-        guard let available = availableKeys().first(where: { $0.key.publicKeyBlob == publicKeyBlob }) else {
+        // Lazy: parsing stops at the entry that holds the requested key.
+        guard let available = keySources().lazy.compactMap(AvailableKey.init(source:))
+            .first(where: { $0.key.publicKeyBlob == publicKeyBlob })
+        else {
             return Self.failure
         }
         let signature = try available.key.signature(for: data, flags: flags)
@@ -163,12 +181,8 @@ struct SSHAgentRequestHandler: Sendable {
     /// offered by the first.
     private func availableKeys() -> [AvailableKey] {
         var seen = Set<Data>()
-        return keySources().compactMap { source in
-            guard let file = source.privateKeyFile,
-                  let key = try? SSHAgentKey(privateKeyFile: file),
-                  seen.insert(key.publicKeyBlob).inserted
-            else { return nil }
-            return AvailableKey(source: source, privateKeyFile: file, key: key)
+        return keySources().compactMap(AvailableKey.init(source:)).filter {
+            seen.insert($0.key.publicKeyBlob).inserted
         }
     }
 
@@ -176,6 +190,15 @@ struct SSHAgentRequestHandler: Sendable {
         let source: SSHAgentKeySource
         let privateKeyFile: Data
         let key: SSHAgentKey
+
+        init?(source: SSHAgentKeySource) {
+            guard let file = source.privateKeyFile, let key = try? SSHAgentKey(privateKeyFile: file) else {
+                return nil
+            }
+            self.source = source
+            privateKeyFile = file
+            self.key = key
+        }
     }
 }
 #endif

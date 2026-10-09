@@ -62,6 +62,11 @@ struct SSHAgentKey {
     private static let footer = "-----END OPENSSH PRIVATE KEY-----"
     private static let magic = Data("openssh-key-v1\0".utf8)
 
+    /// Several times the largest key the agent takes, an armored RSA 16384
+    /// one of about 13 KiB. Checked before anything is decoded, so what a
+    /// file that merely starts like a key can make a request do stays small.
+    static let maximumFileLength = 64 * 1024
+
     /// `SHA256:` plus the unpadded base64 digest, matching `ssh-add -l`.
     var fingerprint: String {
         let digest = Data(SHA256.hash(data: publicKeyBlob)).base64EncodedString()
@@ -83,6 +88,9 @@ struct SSHAgentKey {
     }
 
     init(privateKeyFile: Data) throws {
+        guard privateKeyFile.count <= Self.maximumFileLength else {
+            throw SSHAgentKeyError.unsupportedFormat
+        }
         var outer = SSHWireReader(try Self.decodeArmor(privateKeyFile))
         guard try outer.readBytes(Self.magic.count) == Self.magic else {
             throw SSHAgentKeyError.malformed

@@ -17,7 +17,9 @@ enum SSHAgentSocketError: Error, Equatable {
 final class SSHAgentSocketServer: Sendable {
     /// Far more than SSH clients hold open at once. Each connection costs a
     /// thread, so a process that keeps opening them must run out of
-    /// connections before the app runs out of threads.
+    /// connections before the app runs out of threads. A connection past the
+    /// limit takes the place of the one that has gone longest without sending
+    /// a request, so clients that stall cannot keep new ones out.
     static let defaultMaximumConnections = 64
 
     let path: String
@@ -28,7 +30,9 @@ final class SSHAgentSocketServer: Sendable {
 
     private struct State {
         var listener: (any DispatchSourceRead)?
-        var connections: Set<Int32> = []
+        /// Each open connection and when it last sent a complete request, or
+        /// was accepted if it has sent none.
+        var connections: [Int32: ContinuousClock.Instant] = [:]
     }
 
     init(
@@ -77,7 +81,7 @@ final class SSHAgentSocketServer: Sendable {
             // Shut down under the lock: `serve` deregisters a descriptor under
             // the same lock before closing it, so none of these can have been
             // closed and reused for another file.
-            for connection in state.connections {
+            for connection in state.connections.keys {
                 shutdown(connection, SHUT_RDWR)
             }
             defer { state.listener = nil }
@@ -140,8 +144,15 @@ final class SSHAgentSocketServer: Sendable {
             // Accepted sockets inherit the listener's non-blocking mode.
             _ = fcntl(connection, F_SETFL, fcntl(connection, F_GETFL) & ~O_NONBLOCK)
             let isAccepted = state.withLockUnchecked { state -> Bool in
-                guard state.listener != nil, state.connections.count < maximumConnections else { return false }
-                state.connections.insert(connection)
+                guard state.listener != nil else { return false }
+                if state.connections.count >= maximumConnections {
+                    guard let stalled = state.connections.min(by: { $0.value < $1.value })?.key else { return false }
+                    // Its thread wakes from the read or write it is blocked
+                    // in and closes the descriptor.
+                    shutdown(stalled, SHUT_RDWR)
+                    state.connections[stalled] = nil
+                }
+                state.connections[connection] = .now
                 return true
             }
             guard isAccepted else {
@@ -156,10 +167,16 @@ final class SSHAgentSocketServer: Sendable {
 
     private func serve(_ connection: Int32) {
         defer {
-            state.withLockUnchecked { _ = $0.connections.remove(connection) }
+            state.withLockUnchecked { $0.connections[connection] = nil }
             close(connection)
         }
         while let request = Self.readMessage(from: connection) {
+            state.withLockUnchecked { state in
+                // Absent once the connection gave up its place to a new one.
+                if state.connections[connection] != nil {
+                    state.connections[connection] = .now
+                }
+            }
             guard Self.writeMessage(handler.response(to: request), to: connection) else { return }
         }
     }

@@ -1,4 +1,5 @@
 #if os(macOS)
+import AppKit
 import CryptoKit
 import Darwin
 import XCTest
@@ -14,6 +15,9 @@ final class MacSSHAgentControllerTests: XCTestCase {
     private let fixturePassword = "testpassword123"
     private let enabledDefaultsKey = "KeeForge.macSSHAgentEnabled"
     private let selectionDefaultsKey = "KeeForge.macSSHAgentSelectedEntryIDs"
+    /// The agent's settings go to a suite of this run's own, so the tests
+    /// leave the agent a developer set up in the hosting app alone.
+    private let defaultsSuiteName = "MacSSHAgentControllerTests.\(UUID().uuidString)"
 
     private let ed25519EntryID = UUID()
     private let rsaEntryID = UUID()
@@ -23,11 +27,12 @@ final class MacSSHAgentControllerTests: XCTestCase {
     private var session: DatabaseViewModel?
     private var controller: MacSSHAgentController?
     private var socketDirectory: URL?
+    private var defaults: UserDefaults?
+    private let notificationCenter = NotificationCenter()
 
     override func setUp() async throws {
         try await super.setUp()
-        UserDefaults.standard.removeObject(forKey: enabledDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: selectionDefaultsKey)
+        defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
     }
 
     override func tearDown() async throws {
@@ -38,8 +43,8 @@ final class MacSSHAgentControllerTests: XCTestCase {
         if let socketDirectory {
             try? FileManager.default.removeItem(at: socketDirectory)
         }
-        UserDefaults.standard.removeObject(forKey: enabledDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: selectionDefaultsKey)
+        defaults?.removePersistentDomain(forName: defaultsSuiteName)
+        defaults = nil
         try await super.tearDown()
     }
 
@@ -168,23 +173,45 @@ final class MacSSHAgentControllerTests: XCTestCase {
     }
 
     func testChoicesAreKeptPerDatabaseAndPersist() throws {
+        let defaults = try XCTUnwrap(defaults)
+        let appEnabled = UserDefaults.standard.object(forKey: enabledDefaultsKey) as? NSObject
+        let appSelection = UserDefaults.standard.object(forKey: selectionDefaultsKey) as? NSObject
         let controller = try makeController()
         let databaseA = UUID()
         let databaseB = UUID()
         let entryID = UUID()
 
         controller.setSelected(true, entryID: entryID, inDatabase: databaseA)
+        controller.isEnabled = true
 
         XCTAssertTrue(controller.isSelected(entryID: entryID, inDatabase: databaseA))
         XCTAssertFalse(controller.isSelected(entryID: entryID, inDatabase: databaseB))
-        let relaunched = MacSSHAgentController(socketPath: controller.socketPath)
+        let relaunched = MacSSHAgentController(socketPath: controller.socketPath, defaults: defaults)
         XCTAssertTrue(relaunched.isSelected(entryID: entryID, inDatabase: databaseA))
-        XCTAssertFalse(relaunched.isEnabled)
+        XCTAssertTrue(relaunched.isEnabled)
 
         controller.setSelected(false, entryID: entryID, inDatabase: databaseA)
 
-        XCTAssertTrue(SettingsService.macSSHAgentSelectedEntryIDs.isEmpty)
-        XCTAssertNil(UserDefaults.standard.object(forKey: selectionDefaultsKey))
+        XCTAssertTrue(SettingsService.macSSHAgentSelectedEntryIDs(in: defaults).isEmpty)
+        XCTAssertNil(defaults.object(forKey: selectionDefaultsKey))
+        XCTAssertEqual(UserDefaults.standard.object(forKey: enabledDefaultsKey) as? NSObject, appEnabled)
+        XCTAssertEqual(UserDefaults.standard.object(forKey: selectionDefaultsKey) as? NSObject, appSelection)
+    }
+
+    /// The key list names entries and fingerprints in a window that gets no
+    /// privacy cover, so it is concealed for as long as another app is in front.
+    func testKeyListIsConcealedWhileAnotherAppIsFrontmost() throws {
+        let controller = try makeController()
+        controller.start()
+
+        notificationCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+        XCTAssertFalse(controller.concealsKeyList)
+
+        notificationCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        XCTAssertTrue(controller.concealsKeyList)
+
+        notificationCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+        XCTAssertFalse(controller.concealsKeyList)
     }
 
     // MARK: - Socket
@@ -296,9 +323,37 @@ final class MacSSHAgentControllerTests: XCTestCase {
         XCTAssertEqual(try Self.identities(in: answer[0]), [])
     }
 
-    /// Every connection costs the app a thread. Past the limit a new one is
-    /// closed unanswered, and closing an old one makes room again.
-    func testConnectionsBeyondTheLimitAreRefusedUntilOneCloses() async throws {
+    /// Every connection costs the app a thread, so only so many are open at
+    /// once. A client that holds its place without using it, whichever way
+    /// it stalls, gives the place up as soon as another client needs it.
+    func testAStalledConnectionGivesItsPlaceToANewOne() async throws {
+        let controller = try makeController()
+        let path = controller.socketPath
+        let server = SSHAgentSocketServer(path: path, handler: SSHAgentRequestHandler { [] }, maximumConnections: 1)
+        try server.start()
+        defer { server.stop() }
+
+        let request = Self.requestIdentities
+        try await Task.detached {
+            let stalls: [(name: String, stall: (Int32) throws -> Void)] = [
+                ("sends nothing", { _ in }),
+                ("stops inside a message", { try SSHAgentTestClient.send(Data([0, 0, 0]), on: $0) }),
+                ("never reads its answers", { try SSHAgentTestClient.sendWithoutReading(request, count: 4000, on: $0) }),
+            ]
+            for (name, stall) in stalls {
+                let stalled = try SSHAgentTestClient.connect(at: path)
+                defer { close(stalled) }
+                try stall(stalled)
+
+                XCTAssertEqual(try SSHAgentTestClient.exchange([request], at: path).count, 1, name)
+                XCTAssertTrue(SSHAgentTestClient.isClosedByTheAgent(stalled), name)
+            }
+        }.value
+    }
+
+    /// Past the limit, the connection that has gone longest without a
+    /// request is the one that makes room.
+    func testTheConnectionIdleLongestMakesRoomPastTheLimit() async throws {
         let controller = try makeController()
         let path = controller.socketPath
         let server = SSHAgentSocketServer(path: path, handler: SSHAgentRequestHandler { [] }, maximumConnections: 2)
@@ -309,22 +364,17 @@ final class MacSSHAgentControllerTests: XCTestCase {
         try await Task.detached {
             let first = try SSHAgentTestClient.connect(at: path)
             let second = try SSHAgentTestClient.connect(at: path)
-            defer { close(second) }
-            // An answer on each proves both hold one of the two places.
+            defer { close(first); close(second) }
             XCTAssertEqual(try SSHAgentTestClient.exchange([request], on: first).count, 1)
             XCTAssertEqual(try SSHAgentTestClient.exchange([request], on: second).count, 1)
+            XCTAssertEqual(try SSHAgentTestClient.exchange([request], on: first).count, 1)
 
-            XCTAssertThrowsError(try SSHAgentTestClient.exchange([request], at: path))
+            let third = try SSHAgentTestClient.connect(at: path)
+            defer { close(third) }
+            XCTAssertEqual(try SSHAgentTestClient.exchange([request], on: third).count, 1)
 
-            close(first)
-            var answered = false
-            for _ in 0 ..< 50 where answered == false {
-                answered = (try? SSHAgentTestClient.exchange([request], at: path)) != nil
-                if answered == false {
-                    usleep(20_000)
-                }
-            }
-            XCTAssertTrue(answered, "Closing a connection must free its place")
+            XCTAssertTrue(SSHAgentTestClient.isClosedByTheAgent(second))
+            XCTAssertEqual(try SSHAgentTestClient.exchange([request], on: first).count, 1)
         }.value
     }
 
@@ -390,6 +440,8 @@ final class MacSSHAgentControllerTests: XCTestCase {
         socketDirectory = directory
         let controller = MacSSHAgentController(
             socketPath: directory.appendingPathComponent("agent.sock").path,
+            defaults: try XCTUnwrap(defaults),
+            notificationCenter: notificationCenter,
             sessionProvider: { [weak self] in self?.session }
         )
         self.controller = controller
@@ -536,6 +588,46 @@ private enum SSHAgentTestClient {
             pathBytes.withUnsafeBytes { destination.copyMemory(from: $0) }
         }
         return address
+    }
+
+    /// Bytes that are not a whole message, with no answer to wait for.
+    static func send(_ data: Data, on descriptor: Int32) throws {
+        try write(data, to: descriptor)
+    }
+
+    /// Sends `request` until the socket takes no more, reading no answer, so
+    /// the agent ends up blocked writing to a client that does not listen.
+    static func sendWithoutReading(_ request: Data, count: Int, on descriptor: Int32) throws {
+        var receiveBuffer: Int32 = 4096
+        setsockopt(descriptor, SOL_SOCKET, SO_RCVBUF, &receiveBuffer, socklen_t(MemoryLayout<Int32>.size))
+        let flags = fcntl(descriptor, F_GETFL)
+        _ = fcntl(descriptor, F_SETFL, flags | O_NONBLOCK)
+        defer { _ = fcntl(descriptor, F_SETFL, flags) }
+        var framed = SSHWireWriter()
+        framed.writeString(request)
+        let bytes = [UInt8](framed.data)
+        for _ in 0 ..< count {
+            let result = bytes.withUnsafeBytes { Darwin.write(descriptor, $0.baseAddress, $0.count) }
+            guard result == bytes.count else {
+                if result < 0, errno == EAGAIN { return }
+                throw Failure(errno: errno)
+            }
+        }
+    }
+
+    /// Whether the agent ended the connection: end of stream once whatever
+    /// it had already sent is read. False when the read times out instead.
+    static func isClosedByTheAgent(_ descriptor: Int32) -> Bool {
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while true {
+            let result = buffer.withUnsafeMutableBytes { Darwin.read(descriptor, $0.baseAddress, $0.count) }
+            if result == 0 || (result < 0 && errno == ECONNRESET) {
+                return true
+            }
+            if result < 0, errno != EINTR {
+                return false
+            }
+        }
     }
 
     private static func write(_ data: Data, to descriptor: Int32) throws {

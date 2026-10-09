@@ -85,7 +85,7 @@ final class SSHAgentKeyTests: XCTestCase {
         let usable = try Self.rsaKeyFile(modulusBytes: 256, number: number)
         XCTAssertEqual(try SSHAgentKey(privateKeyFile: usable).algorithm, .rsa(bits: 2047))
 
-        for modulusBytes in [64, 2049, 100_000] {
+        for modulusBytes in [64, 2049] {
             let file = try Self.rsaKeyFile(modulusBytes: modulusBytes, number: number)
             XCTAssertThrowsError(try SSHAgentKey(privateKeyFile: file), "\(modulusBytes) bytes") {
                 XCTAssertEqual($0 as? SSHAgentKeyError, .malformed)
@@ -102,6 +102,22 @@ final class SSHAgentKeyTests: XCTestCase {
             XCTAssertThrowsError(try SSHAgentKey(privateKeyFile: file), oversized) {
                 XCTAssertEqual($0 as? SSHAgentKeyError, .malformed)
             }
+        }
+    }
+
+    /// No supported key comes near the limit, so a larger file is refused
+    /// before its text is split, joined, or decoded.
+    func testKeyFileBeyondTheSizeLimitIsRefusedWhateverItHolds() throws {
+        let key = Keys.ed25519.fileData
+        let filler = Data(repeating: UInt8(ascii: "\n"), count: SSHAgentKey.maximumFileLength - key.count)
+
+        XCTAssertEqual(try SSHAgentKey(privateKeyFile: key + filler).publicKeyBlob, Keys.ed25519.publicKeyData)
+        XCTAssertThrowsError(try SSHAgentKey(privateKeyFile: key + filler + Data([UInt8(ascii: "\n")]))) {
+            XCTAssertEqual($0 as? SSHAgentKeyError, .unsupportedFormat)
+        }
+        let crafted = try Self.rsaKeyFile(modulusBytes: 100_000) { Data([0x7F]) + Data(repeating: 0xFF, count: $0 - 1) }
+        XCTAssertThrowsError(try SSHAgentKey(privateKeyFile: crafted)) {
+            XCTAssertEqual($0 as? SSHAgentKeyError, .unsupportedFormat)
         }
     }
 

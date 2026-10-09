@@ -75,6 +75,7 @@ struct MacSSHAgentSettingsTab: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                        .redacted(reason: controller.concealsKeyList ? .placeholder : [])
                     }
                     .disabled(candidate.isSupported == false)
                     .accessibilityIdentifier("settings.ssh-agent.key-toggle.\(candidate.id.uuidString)")

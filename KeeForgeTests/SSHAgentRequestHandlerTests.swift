@@ -49,6 +49,26 @@ final class SSHAgentRequestHandlerTests: XCTestCase {
         XCTAssertEqual(try Self.identities(in: handler.response(to: Self.requestIdentities)).count, 0)
     }
 
+    /// An SSH client refuses an answer over the message limit. A key whose
+    /// comment no longer fits is left out of the list and can still sign.
+    func testIdentitiesAnswerStaysWithinTheMessageLimit() throws {
+        let handler = makeHandler([
+            source(String(repeating: "a", count: 200_000), ["id_ed25519": Keys.ed25519WrittenByCryptography.fileData]),
+            source(String(repeating: "b", count: 100_000), ["id_rsa": Keys.rsaWrittenByCryptography.fileData]),
+            source("Laptop", ["id_ecdsa": Keys.ecdsaP256.fileData]),
+        ])
+
+        let response = handler.response(to: Self.requestIdentities)
+
+        XCTAssertLessThanOrEqual(response.count, SSHAgentRequestHandler.maximumMessageLength)
+        XCTAssertEqual(
+            try Self.identities(in: response).map(\.blob),
+            [Keys.ed25519.publicKeyData, Keys.ecdsaP256.publicKeyData]
+        )
+        let signed = handler.response(to: Self.signRequest(for: Keys.rsa.publicKeyData, flags: SSHAgentKey.rsaSHA256Flag))
+        XCTAssertEqual(signed.first, SSHAgentRequestHandler.MessageType.signResponse.rawValue)
+    }
+
     func testOffersNothingWithoutKeySources() throws {
         let handler = makeHandler([])
 
@@ -77,6 +97,26 @@ final class SSHAgentRequestHandlerTests: XCTestCase {
                 "backup.pem": Keys.rsa.fileData,
                 "id_ed25519": Keys.ed25519.fileData,
                 KeeAgentSettings.attachmentName: Self.keeAgentSettings(selectedType: "file", attachmentName: "id_ed25519"),
+            ]),
+        ])
+
+        let identities = try Self.identities(in: handler.response(to: Self.requestIdentities))
+
+        XCTAssertEqual(identities.map(\.blob), [Keys.rsa.publicKeyData])
+    }
+
+    /// A `KeeAgent.settings` far larger than any KeeAgent writes is not
+    /// parsed; the entry is served as if it had none.
+    func testOversizedKeeAgentSettingsAreNotRead() throws {
+        var settings = Self.keeAgentSettings(selectedType: "attachment", attachmentName: "id_ed25519")
+        settings.append(Data(repeating: 0, count: KeeAgentSettings.maximumLength))
+        XCTAssertNil(KeeAgentSettings.keyAttachmentName(in: settings))
+
+        let handler = makeHandler([
+            source("Server", [
+                "backup.pem": Keys.rsa.fileData,
+                "id_ed25519": Keys.ed25519.fileData,
+                KeeAgentSettings.attachmentName: settings,
             ]),
         ])
 
