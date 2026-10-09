@@ -462,7 +462,8 @@ final class SettingsServiceTests: XCTestCase {
     }
 
     func testPrivacyCoverExcludesSettingsWindow() {
-        // The Settings window shows no secrets and must not get the blur cover.
+        // The Settings window gets no blur cover; what it shows of a vault
+        // conceals itself (MacSSHAgentControllerTests).
         XCTAssertFalse(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "com_apple_SwiftUI_Settings_window"))
         XCTAssertFalse(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "SettingsWindow"))
     }

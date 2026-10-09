@@ -116,11 +116,14 @@ import AppKit
 ///    through the key-window observer, so there are no per-window call sites.
 ///    This is best-effort: on macOS 15+ ScreenCaptureKit ignores `sharingType`.
 ///
-/// The **Settings window** shows no secrets. Capture blocking is applied to it
-/// uniformly (harmless, and keeps the choke point a single unconditional
-/// sweep), but the resign-active blur cover deliberately skips it — there is
-/// nothing to hide, and covering a secret-free preferences window would only
-/// be visual noise. `shouldPrivacyCover(windowIdentifier:)` encodes that split.
+/// The **Settings window** shows no secrets while the app is inactive. Capture
+/// blocking is applied to it uniformly (harmless, and keeps the choke point a
+/// single unconditional sweep), but the resign-active blur cover deliberately
+/// skips it: covering a preferences window would only be visual noise.
+/// `shouldPrivacyCover(windowIdentifier:)` encodes that split. Its one
+/// vault-derived surface, the SSH agent's key list, redacts itself on
+/// resign-active instead (`MacSSHAgentController.concealsKeyList`); anything
+/// else Settings comes to show from a vault has to do the same.
 ///
 /// Window covering is exercised manually (see `KeeForgeMac/SECURITY.md`);
 /// the pure policy decisions (`windowSharingType`, `shouldPrivacyCover`) are
@@ -174,9 +177,9 @@ final class ScreenProtectionService {
     }
 
     /// Whether a window with the given identifier should get the resign-active
-    /// blur cover. The SwiftUI Settings window shows no secrets and is excluded;
-    /// if Apple changes its identifier the fallback is to cover it, which is
-    /// harmless.
+    /// blur cover. The SwiftUI Settings window conceals its own vault-derived
+    /// rows and is excluded; if Apple changes its identifier the fallback is
+    /// to cover it, which is harmless.
     nonisolated static func shouldPrivacyCover(windowIdentifier: String?) -> Bool {
         guard let windowIdentifier else { return true }
         return windowIdentifier.range(of: "settings", options: .caseInsensitive) == nil

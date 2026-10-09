@@ -164,8 +164,12 @@ conceals its fields. A successful prompt does not authorize a later session.
 
 [ScreenProtectionService](../KeeForge/Services/Security/ScreenProtectionService.swift)
 places a blur cover over vault-content windows when the app resigns active and
-removes it on activation. Settings is excluded from the cover because it contains
-no vault secrets. This cover is independent of the capture-blocking toggle.
+removes it on activation. Settings is excluded from the cover. Its only
+vault-derived content, the entry titles and key fingerprints under Settings ▸ SSH
+Agent, is redacted from the resign-active notification until the app is active
+again
+([MacSSHAgentController](../KeeForge/Services/SSHAgent/MacSSHAgentController.swift)
+`concealsKeyList`). This cover is independent of the capture-blocking toggle.
 
 The default-on Block Screen Capture setting applies `NSWindow.sharingType = .none`
 to existing and newly observed windows, including Settings. Treat this as
@@ -227,8 +231,11 @@ is off by default. While it is on, it listens on `ssh-agent.sock` in the app's
 container home. The socket is created mode 0600 inside a container directory only
 the user can enter, and every connection is checked with `getpeereid` against the
 app's own user. At most 64 connections are open at once, since each one costs the
-app a thread; a further one is closed unanswered. It needs no extra entitlement and
-adds no network access. Turning
+app a thread; a further one takes the place of the connection that has gone longest
+without a complete request, so clients that connect and then stall, stop inside a
+message, or never read their answer cannot keep new ones out. No connection has a
+time limit of its own: below 64, an idle one stays open. It needs no extra
+entitlement and adds no network access. Turning
 the agent off or quitting removes the socket; a file left by a crash is replaced on
 the next start, and anything at that path that is not a socket is left alone and
 reported.
@@ -240,7 +247,11 @@ offered while that session is locked, closed, or has a lock pending: one waiting
 on unsaved work or a window-close prompt, or Retry Save and Lock writing before it
 locks.
 The private key is parsed from the decrypted attachment pool for each request, off
-the main thread, and dropped afterwards. After signing, the agent reads the session
+the main thread, and dropped afterwards. A key file over 64 KiB, several times the
+largest supported key, is refused before it is decoded, a `KeeAgent.settings` over
+the same size is not parsed, and the list of identities is cut to the 256 KiB
+message limit, so what an attachment can make one request do is bounded without
+keeping parsed keys between requests. After signing, the agent reads the session
 again and withholds the signature if the session's lock cycle, the selection, or the
 entry's key attachment has changed. No key file is written to disk and no key is exported.
 
@@ -259,7 +270,16 @@ obtain signatures while the database is unlocked, and there is no per-signature
 confirmation. That also holds for an entry whose `KeeAgent.settings` asks for a
 confirmation or a lifetime in KeeAgent or KeePassXC: KeeForge reads only the key's
 attachment name from that file, and choosing the entry in Settings is the consent. Forwarding the agent to a remote host extends the same ability to that
-host for the length of the connection.
+host for the length of the connection. A signature is not bound to a destination
+either: `session-bind@openssh.com` is refused like every other extension.
+
+Not validated on a signed, sandboxed build: whether a client outside the container
+reaches the socket without a prompt, how the redacted key list and the capture
+block behave in Mission Control and under ScreenCaptureKit, and `ssh`, `git`, and
+a forwarded agent end to end. Not measured: lock latency while many clients send
+requests (each one reads the session on the main thread), and the time a
+16384-bit RSA signature takes. The same-user peer check has no test with a peer of
+another user.
 
 ## Plaintext attachment files and disk encryption
 
