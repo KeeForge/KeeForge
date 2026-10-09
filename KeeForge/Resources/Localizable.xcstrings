@@ -12424,6 +12424,12 @@
             "value" : "SSH 設定をコピー"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скопировать конфигурацию SSH"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18870,6 +18876,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SSH エージェントを有効にする"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включить SSH-агент"
           }
         },
         "zh-Hans" : {
@@ -27602,6 +27614,12 @@
             "value" : "KeeForge は、エントリに添付された OpenSSH 秘密鍵（ssh-keygen が作成する形式）を提供します。パスフレーズのない Ed25519、ECDSA、RSA 鍵に対応しています。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge предлагает закрытый ключ OpenSSH, вложенный в запись, в формате, который создаёт ssh-keygen. Поддерживаются ключи Ed25519, ECDSA и RSA без парольной фразы."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -28689,6 +28707,12 @@
             "value" : "鍵"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ключи"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -28733,6 +28757,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "パスフレーズで保護された鍵には対応していません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ключи, защищённые парольной фразой, не поддерживаются."
           }
         },
         "zh-Hans" : {
@@ -35644,6 +35674,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "コピーした行を ~/.ssh/config に貼り付けると、すべてのホストでこのエージェントを使用できます。または、SSH_AUTH_SOCK にソケットのパスを設定してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вставьте скопированные строки в ~/.ssh/config, чтобы использовать агент для всех хостов, или укажите путь к сокету в SSH_AUTH_SOCK."
           }
         },
         "zh-Hans" : {
@@ -42610,6 +42646,12 @@
             "value" : "設定方法"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Настройка"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -43592,6 +43634,12 @@
             "value" : "ソケット"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сокет"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -43898,6 +43946,12 @@
             "value" : "SSH エージェント"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH-агент"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -43942,6 +43996,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "以下で選択した鍵は、その鍵を含むデータベースが KeeForge でロック解除されている間、SSH クライアントのサインインに使用できます。データベースをロックするか閉じると、その鍵はすぐに使用できなくなります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH-клиенты могут выполнять вход с ключами, выбранными ниже, пока их база данных разблокирована в KeeForge. При блокировке или закрытии базы данных её ключи сразу становятся недоступны."
           }
         },
         "zh-Hans" : {
@@ -48886,6 +48946,12 @@
             "value" : "SSH エージェントを開始できませんでした。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось запустить SSH-агент."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -50022,6 +50088,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このデータベースには、秘密鍵が添付されたエントリがありません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В этой базе данных нет записей с вложенным закрытым ключом."
           }
         },
         "zh-Hans" : {
@@ -54652,6 +54724,12 @@
             "value" : "データベースのロックを解除すると、エージェントが提供する SSH 鍵を選択できます。"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разблокируйте базу данных, чтобы выбрать, какие из её SSH-ключей предлагает агент."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -55788,6 +55866,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この鍵の形式には対応していません。パスフレーズのない OpenSSH 秘密鍵を使用してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неподдерживаемый формат ключа. Используйте закрытый ключ OpenSSH без парольной фразы."
           }
         },
         "zh-Hans" : {
