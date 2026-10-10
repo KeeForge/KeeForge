@@ -914,14 +914,23 @@ private struct TOTPSetupLinkSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField(text: $linkText, prompt: Text(verbatim: "otpauth://totp/…")) {
+                #if os(macOS)
+                // A labelled field shares its row with the label until the
+                // text outgrows it, then drops beneath; a caption keeps both
+                // in one place.
+                VStack(alignment: .leading, spacing: 6) {
                     Text("Setup Link")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    linkField
+                        .labelsHidden()
                 }
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .keyboardType(.URL)
-                .macFormFieldStyle()
-                .accessibilityIdentifier("entry-edit.totp.link-field")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 2)
+                #else
+                linkField
+                #endif
 
                 if let errorMessage {
                     Text(errorMessage)
@@ -954,6 +963,17 @@ private struct TOTPSetupLinkSheet: View {
         .presentationDetents([.medium])
         #endif
         .macSheetFrame(minWidth: 460, minHeight: 220)
+    }
+
+    private var linkField: some View {
+        TextField(text: $linkText, prompt: Text(verbatim: "otpauth://totp/…")) {
+            Text("Setup Link")
+        }
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        .keyboardType(.URL)
+        .macFormFieldStyle()
+        .accessibilityIdentifier("entry-edit.totp.link-field")
     }
 
     private func applyTapped() {

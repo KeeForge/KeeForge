@@ -476,7 +476,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         settle(0.6)
         let captured = await captureTOTPSetupLink()
         attachCaptureReport()
-        XCTAssertTrue(captured, "The TOTP setup-link error form was not captured")
+        XCTAssertTrue(captured, "The TOTP setup-link form was not captured in both states")
         if let editor = surface(hosting: "entry-edit.title-field"),
            let cancel = visibleControl(editor.buttons.matching(identifier: "entry-edit.cancel"), in: editor) {
             cancel.click()
@@ -523,12 +523,19 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         guard let setupLink else { return fail("the setup-link button was not visible after scrolling") }
         setupLink.click()
         guard app.textFields["entry-edit.totp.link-field"].waitForExistence(timeout: 5),
-              let linkSheet = surface(hosting: "entry-edit.totp.link-field"),
-              let linkField = visibleControl(linkSheet.textFields.matching(identifier: "entry-edit.totp.link-field"), in: linkSheet) else {
+              surface(hosting: "entry-edit.totp.link-field") != nil else {
             return fail("the setup-link sheet never opened")
         }
+        settle(0.3)
+        await snapSurface(hosting: "entry-edit.totp.link-field", "\(name)-empty")
+        guard let linkSheet = surface(hosting: "entry-edit.totp.link-field"),
+              let linkField = visibleControl(linkSheet.textFields.matching(identifier: "entry-edit.totp.link-field"), in: linkSheet) else {
+            return fail("the setup-link field was not visible")
+        }
         linkField.click()
-        linkField.typeText("invalid-setup-link")
+        // Long enough to outgrow the row, so the pair of captures shows whether
+        // the field keeps its place once it has a pasted-length value.
+        linkField.typeText("otpauth://totp/Example:alice@example.com?issuer=Example&algorithm=SHA1&digits=6&period=30")
         guard let apply = visibleControl(linkSheet.buttons.matching(identifier: "entry-edit.totp.link-apply"), in: linkSheet),
               apply.isEnabled else { return fail("the setup-link Apply button was unavailable") }
         apply.click()
@@ -542,7 +549,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         }
         cancel.click()
         settle(0.3)
-        return skippedCaptures.contains(where: { $0.hasPrefix("\(name):") }) == false
+        return skippedCaptures.contains(where: { $0.hasPrefix(name) }) == false
     }
 
     /// Drags the main window's bottom-right corner far up and left; AppKit

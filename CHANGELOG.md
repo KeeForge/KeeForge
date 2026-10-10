@@ -13,6 +13,7 @@
 - The AutoFill screens for saving a new credential or passkey on iPhone and iPad show their full title in every language. The save button moved from the navigation bar to the bottom of the screen.
 - On the unlock screen, the Key File and Hardware Key rows no longer squeeze their value at large text sizes: the value moves onto its own line instead of breaking inside a word or shrinking to an ellipsis.
 - Settings and Database Details show each row's full summary at accessibility text sizes instead of cutting it off after two lines.
+- On Mac, the Enter Setup Link field stays full width under its label, instead of sitting narrow beside the label until a link is pasted.
 
 ## v1.18.0 (2026-10-07)
 
