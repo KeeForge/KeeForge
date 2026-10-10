@@ -698,6 +698,7 @@
 		D2ACB8FC0A5B75F3D41837FD /* FTPCloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 695FD416F0002BB9CAE9F2C8 /* FTPCloudProviderTests.swift */; };
 		D3447A0ACAD09A6446CFBC59 /* DatabaseSettingsSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757B2A2645F632F8803B7868 /* DatabaseSettingsSummary.swift */; };
 		D35163EA0AB065790419CDA6 /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3FF6C98ADE49FE6BDB7B6D /* SecurityScopedBookmarkManager.swift */; };
+		D3A68B4240B0B4713B53CE77 /* MacQuickSearchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C10AD743E647EBE58A18AC3 /* MacQuickSearchUITests.swift */; };
 		D3AC8E44FEAF73EE72DAE66F /* KDBXCompatibilitySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28FEA49976804F3FF18A0352 /* KDBXCompatibilitySupport.swift */; };
 		D3BDD7DF149782D73B192297 /* KDBXFileSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A733BA9590643828A645C9D /* KDBXFileSummary.swift */; };
 		D3F732A288B7441798FBDE6B /* WebDAVConnectViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CF73F233BAC9141F9575CEC /* WebDAVConnectViewModelTests.swift */; };
@@ -979,6 +980,7 @@
 		08894081A7C651DBFB58FDD9 /* EntryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryDetailView.swift; sourceTree = "<group>"; };
 		08D6B0EFE0AE801AED5298E9 /* MacAppSuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAppSuggestionService.swift; sourceTree = "<group>"; };
 		0B85CAF10E8CFC72802590A3 /* PendingUploadDrainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUploadDrainer.swift; sourceTree = "<group>"; };
+		0C10AD743E647EBE58A18AC3 /* MacQuickSearchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacQuickSearchUITests.swift; sourceTree = "<group>"; };
 		0D001F4E2BE143507B559C46 /* EntrySecretAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntrySecretAction.swift; sourceTree = "<group>"; };
 		0D58D7BAED64CD891E644E14 /* CloudFileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudFileBrowserView.swift; sourceTree = "<group>"; };
 		0E198D4342D9F76BF5F90831 /* WhatsNewPresentationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewPresentationService.swift; sourceTree = "<group>"; };
@@ -1680,6 +1682,7 @@
 			isa = PBXGroup;
 			children = (
 				455FD53F5742BDF61762E71D /* MacListKeyboardNavigationUITests.swift */,
+				0C10AD743E647EBE58A18AC3 /* MacQuickSearchUITests.swift */,
 				6CB88CC16B6EF72B737A8030 /* MacScreenshotAuditUITests.swift */,
 				2AA6343D62E6D446EC5AD832 /* MacSmokeUITests.swift */,
 				BE3F7365E8B09C1E10D9EEBA /* MacUITestCase.swift */,
@@ -3292,6 +3295,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				194088D1E95D2D23636FD257 /* MacListKeyboardNavigationUITests.swift in Sources */,
+				D3A68B4240B0B4713B53CE77 /* MacQuickSearchUITests.swift in Sources */,
 				6B84A04EB2748B6AA14D6603 /* MacScreenshotAuditUITests.swift in Sources */,
 				1FA75E9BF4CCDE4BB34A5EE1 /* MacSmokeUITests.swift in Sources */,
 				FDD8325D11F3007AF254C73A /* MacUITestCase.swift in Sources */,
