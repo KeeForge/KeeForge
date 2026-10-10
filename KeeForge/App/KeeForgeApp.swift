@@ -89,7 +89,7 @@ struct KeeForgeApp: App {
         .frame(minWidth: 900, minHeight: 620)
         .focusedSceneValue(\.databaseViewModel, activeDatabaseViewModel)
         .environment(macQuickAccess)
-        .modifier(MacQuickAccessMainWindowHookup(controller: macQuickAccess))
+        .modifier(MacQuickAccessMainWindowHookup(controller: macQuickAccess, activeSession: activeDatabaseViewModel))
         #else
         // App-owned Settings sheet (⌘, / the Mac-compat toolbar gear),
         // above the root so it survives the lock/unlock root swap.
@@ -189,8 +189,10 @@ struct KeeForgeApp: App {
 
     private func startMacLockMonitoringIfNeeded() {
         #if os(macOS)
-        // Bindings read live @State storage, so these closures always see the
-        // currently active database session.
+        // A captured binding reads live @State everywhere except inside a
+        // view update, where it returns the value it was created with (nil,
+        // here). These closures run from notifications, event monitors and
+        // timers, never from a view body.
         let activeViewModel = $activeDatabaseViewModel
         let listViewModel = self.listViewModel
 
@@ -218,7 +220,6 @@ struct KeeForgeApp: App {
         macWindowCloseGuard.vaultProvider = { activeViewModel.wrappedValue }
         macWindowCloseGuard.start()
 
-        macQuickAccess.searchModel.sessionProvider = { activeViewModel.wrappedValue }
         macQuickAccess.start()
         #endif
     }
@@ -233,10 +234,12 @@ struct KeeForgeApp: App {
 }
 
 #if os(macOS)
-/// Lets the menu bar quick search front this window, or open a new one once
-/// it has been closed: `openWindow` only exists inside a scene.
+/// Keeps the menu bar quick search on the app's active session, and lets it
+/// front this window, or open a new one once it has been closed: `openWindow`
+/// only exists inside a scene.
 private struct MacQuickAccessMainWindowHookup: ViewModifier {
     let controller: MacQuickAccessController
+    let activeSession: DatabaseViewModel?
     @Environment(\.openWindow) private var openWindow
 
     func body(content: Content) -> some View {
@@ -246,6 +249,9 @@ private struct MacQuickAccessMainWindowHookup: ViewModifier {
             })
             .onAppear {
                 controller.openMainWindow = { openWindow(id: KeeForgeApp.mainWindowID) }
+            }
+            .onChange(of: activeSession.map(ObjectIdentifier.init), initial: true) {
+                controller.activeSession = activeSession
             }
     }
 }
@@ -289,9 +295,10 @@ private struct AppRootView: View {
         }
         .task {
             // The list view model owns the AutoFill toggle but only this root
-            // knows the active session, so it installs the bridge. The binding
-            // reads live @State, so the closure always sees the current
-            // session (same pattern as startMacLockMonitoringIfNeeded).
+            // knows the active session, so it installs the bridge. The handler
+            // runs from a toggle's action, not a view body, so the captured
+            // binding reads the current session (see
+            // startMacLockMonitoringIfNeeded).
             let activeViewModel = $activeDatabaseViewModel
             listViewModel.autoFillEnabledRefreshHandler = { databaseID in
                 guard let databaseViewModel = activeViewModel.wrappedValue,
