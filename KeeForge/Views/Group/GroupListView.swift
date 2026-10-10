@@ -701,6 +701,7 @@ struct GroupListView: View {
                 Button(groupDeleteButtonTitle(for: groupID), role: .destructive) {
                     preparePendingGroupDeletion(groupID)
                 }
+                .tint(.red)
                 .accessibilityIdentifier("group-row.delete-swipe")
             }
         }
@@ -783,6 +784,7 @@ struct GroupListView: View {
                         )
                     )
                 }
+                .tint(.red)
                 .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }
