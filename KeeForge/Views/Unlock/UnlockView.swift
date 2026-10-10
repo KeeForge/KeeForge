@@ -21,6 +21,7 @@ struct UnlockView: View {
     /// list shows a settled lock rather than a gratuitous animation.
     @State private var isSealed = true
     @FocusState private var passwordFocused: Bool
+    @ScaledMetric(relativeTo: .body) private var keyFileNameMinimumWidth: CGFloat = 100
 
     /// Plays the shackle closing on the screen the user actually lands on after
     /// pressing Lock. The lock itself already happened — this rides the arrival
@@ -380,49 +381,84 @@ struct UnlockView: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 12) {
-                Label {
-                    if let keyFileName {
-                        Text(keyFileName)
+            // Stacks once the value and its controls cannot share a line, so
+            // large text is never squeezed into breaking inside a word.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    Label {
+                        keyFileValue
                             .lineLimit(1)
-                            .truncationMode(.middle)
-                    } else {
-                        Text("None selected")
-                            .foregroundStyle(.secondary)
+                            // A file name truncates, so it only has to fit a legible part.
+                            .frame(idealWidth: keyFileName == nil ? nil : keyFileNameMinimumWidth)
+                    } icon: {
+                        Image(systemName: "key.fill")
                     }
-                } icon: {
-                    Image(systemName: "key.fill")
+
+                    Spacer()
+
+                    keyFileClearButton
+                    keyFileSelectControls
                 }
 
-                Spacer()
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        keyFileValue
 
-                if keyFileData != nil {
-                    Button {
-                        cancelPendingKeyFileSelection()
-                        keyFileData = nil
-                        keyFileName = nil
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+
+                        keyFileClearButton
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Clear key file")
-                    .accessibilityIdentifier("unlock.keyfile.clear")
-                    .macHelp(String(localized: "Clear key file"))
-                }
 
-                Button("Select") {
-                    selectionAlert = nil
-                    filePickerState.present(.keyFile)
-                }
-                .font(.subheadline)
-                .accessibilityIdentifier("unlock.keyfile.select")
-
-                if keyFileSelection.isLoading {
-                    ProgressView()
+                    HStack(spacing: 12) {
+                        keyFileSelectControls
+                    }
                 }
             }
             .modifier(UnlockInputContainer())
+        }
+    }
+
+    @ViewBuilder
+    private var keyFileValue: some View {
+        if let keyFileName {
+            Text(keyFileName)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        } else {
+            Text("None selected")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var keyFileClearButton: some View {
+        if keyFileData != nil {
+            Button {
+                cancelPendingKeyFileSelection()
+                keyFileData = nil
+                keyFileName = nil
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Clear key file")
+            .accessibilityIdentifier("unlock.keyfile.clear")
+            .macHelp(String(localized: "Clear key file"))
+        }
+    }
+
+    @ViewBuilder
+    private var keyFileSelectControls: some View {
+        Button("Select") {
+            selectionAlert = nil
+            filePickerState.present(.keyFile)
+        }
+        .font(.subheadline)
+        .accessibilityIdentifier("unlock.keyfile.select")
+
+        if keyFileSelection.isLoading {
+            ProgressView()
         }
     }
 
@@ -455,19 +491,27 @@ struct UnlockView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "key.radiowaves.forward")
-                        .foregroundStyle(.primary)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "key.radiowaves.forward")
+                            .foregroundStyle(.primary)
 
-                    Text(viewModel.hardwareKey.map(hardwareKeyTitle) ?? String(localized: "None"))
-                        .foregroundStyle(viewModel.hardwareKey == nil ? .secondary : .primary)
-                        .lineLimit(1)
+                        hardwareKeyValue
+                            .lineLimit(1)
 
-                    Spacer(minLength: 8)
+                        Spacer(minLength: 8)
 
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.subheadline)
-                        .foregroundStyle(.tint)
+                        hardwareKeyChevron
+                    }
+
+                    HStack(spacing: 12) {
+                        hardwareKeyValue
+                            .multilineTextAlignment(.leading)
+
+                        Spacer(minLength: 8)
+
+                        hardwareKeyChevron
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -476,6 +520,17 @@ struct UnlockView: View {
             .accessibilityIdentifier("unlock.hardware-key.picker")
             .modifier(UnlockInputContainer())
         }
+    }
+
+    private var hardwareKeyValue: some View {
+        Text(viewModel.hardwareKey.map(hardwareKeyTitle) ?? String(localized: "None"))
+            .foregroundStyle(viewModel.hardwareKey == nil ? .secondary : .primary)
+    }
+
+    private var hardwareKeyChevron: some View {
+        Image(systemName: "chevron.up.chevron.down")
+            .font(.subheadline)
+            .foregroundStyle(.tint)
     }
 
     /// Every slot on each transport this device has, plus the stored choice
