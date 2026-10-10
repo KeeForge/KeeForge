@@ -1,14 +1,30 @@
 # SearchAndTags Views
 
-Search results and the tag browser.
+**Scope:** search results, the tag browser, and the content of the macOS menu-bar quick-search panel. Folder-wide UI rules are in `../AGENTS.md`.
 
-## Screen Map
+## Ownership
 
-- `MacQuickSearchView.swift` (`#if os(macOS)`) is the content of the menu bar quick-search panel (`../../Services/AppSupport/MacQuickAccessController.swift`) over `../../ViewModels/MacQuickSearchViewModel.swift`: a hand-off card for no database / locked (button → main window), or a search field plus `EntryRow` results whose selected row shows copy and Open in KeeForge buttons. Keys are handled by the panel's key monitor, not here, so the field keeps focus while the arrows move the selection. Identifiers: `quick-search.{field,results,row,open-main-window,copy-username,copy-password,copy-code,open-entry}`; `quick-search.panel` is on the panel window itself (`MacQuickSearchPanel.makePanel`), because an identifier on this view's root replaces the identifier of every element inside it.
-- `TagListView.swift` and `TagEntriesView.swift` own the tag browser. `TagListView.swift` holds `TagListRows` — the tag rows (or the "No Tags" empty state that teaches how to add one) that `GroupListView.swift` draws inside its own `List` while the root shows the Tags view — plus `TagAccessibility`, the shared per-tag identifier-suffix normalizer. Entry points: "Tags" in the view menu on the database root's title (`view.menu`, see `../Group/AGENTS.md`), the macOS sidebar's Tags section in `../../App/RegularDatabaseWorkspaceView.swift` (`MacTagRow`, selection through `DatabaseViewModel.workspace.selectedTag`), and the entry-detail tag chips. Those chips are `Button`s in every shell, never `NavigationLink`s: several `NavigationLink`s in one `List` row let the row own the link, so a tap opens the wrong tag or several at once and the whole row highlights (`TagBrowserUITests` asserts which tag opens); the compact shell appends to `DatabaseViewModel.workspace.navigationPath`. `TagEntriesView` re-derives its entries from the view model on every render, never from a push-time snapshot, so a tag whose last carrier is edited away shows its empty state instead of crashing or popping; its rows carry `search.entry.navlink` in both shells (see below for which list draws them). Identifiers: `tag-list.row.<normalized-tag>` (iOS list and macOS sidebar alike), `tag-entries.list`, `entry-detail.tag.<normalized-tag>`, `entry-detail.inherited-tag.<normalized-tag>`. macOS renders the tag name as a `navigationSubtitle` where iOS uses the navigation title.
+- `SearchView` and `TagEntriesView` choose their list per shell: `../Entry/EntryListView.swift` on iOS, `../Entry/MacEntriesList.swift` on macOS. The Mac content column opens an entry by selection, and `EntryListView`'s button rows swallow the click a `List(selection:)` needs.
+- Search never has a screen of its own: it is a branch of `GroupListView` on iOS and of the workspace content column on macOS. The tag browser is a pushed screen on iOS and an inline branch on macOS.
+- `TagListRows` is drawn inside `GroupListView`'s own `List` on iOS; macOS lists tags in its sidebar (`MacTagRow`). `TagAccessibility` is the shared per-tag identifier suffix for every tag control in the app.
+- `MacQuickSearchView` renders over `MacQuickSearchViewModel`. Arrow keys and Return are handled by the panel's key monitor in `../../Services/AppSupport/MacQuickAccessController.swift`, so the field keeps focus while the selection moves.
 
-Both screens split their list per shell rather than per screen: iOS keeps the shared `../Entry/EntryListView.swift`, and macOS renders `MacEntriesList` (`../Entry/MacEntriesList.swift`), whose native `List(selection:)` gives the content column arrow keys and type-select. `EntryListView`'s button rows swallow the click such a list needs to move its selection, which is why the swap exists at all. The identifiers on the container (`search.results`, `tag-entries.list`) and on the rows (`search.entry.navlink`) are the same on both platforms.
+## Invariants
 
-Both screens also pass an `onRequestDeletion` closure straight through to whichever list they draw. Neither gets a presentation context of its own wherever it renders inline — search is a branch of `GroupListView.swift` on iOS/iPadOS, and both are branches of the macOS workspace's content column — so their delete confirmation has to be raised to the container that already hosts one rather than added beside it (#118; the one-alert-host rule in `../Entry/AGENTS.md`). Both stack shells register the shared `DatabaseRoute` from `../../ViewModels/DatabaseWorkspaceState.swift`, with `.tag(String)`, `.group(UUID)`, and `.entry(UUID)` cases. The stack shells push `TagEntriesView` as its own screen and leave the closure nil, which is why the tag browser kept working on iOS while search did not.
+- Wherever one of these screens renders inline, it passes `onRequestDeletion` through to its list so the confirmation is raised to the container's host (the one-alert rule in `../AGENTS.md`). Where it is pushed (the iOS tag browser), the closure stays nil and the list hosts its own alert.
+- `TagEntriesView` derives its entries from the view model on every render, never from a push-time snapshot. A tag whose last carrier is edited away shows the empty state instead of crashing or popping.
+- Tag chips on entry detail are `Button`s in every shell, never `NavigationLink`s (the one-link-per-row rule in `../AGENTS.md`). `TagBrowserUITests` asserts which tag opens.
+- Container and row identifiers (`search.results`, `tag-entries.list`, `search.entry.navlink`) are the same on both platforms although the lists differ.
+- Case-variant tags (`Work`, `work`) share one identifier suffix. A test that must tell them apart enumerates matches instead of taking `firstMatch`.
+- `quick-search.panel` is set on the panel window, not on this view's root, where it would replace every inner identifier.
+- macOS shows the search or tag context as a `navigationSubtitle`; the window title belongs to the database.
 
-Shared UI shells and the folder-wide UI rules live in `../AGENTS.md`.
+## Tests
+
+- `TagBrowserUITests`, `InheritedTagsUITests`; search-results row actions in `SearchResultsDeleteUITests` / `SearchResultsMoveUITests` (`EntryEditUITests.swift`).
+- `MacQuickSearchViewModelTests`; Mac list selection in `MacListKeyboardNavigationUITests`.
+
+## See also
+
+- `../AGENTS.md`, `../Entry/AGENTS.md`, `../Group/AGENTS.md`
+- `../../ViewModels/AGENTS.md`: search corpus, tag index, `DatabaseRoute`
