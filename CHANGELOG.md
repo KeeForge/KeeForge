@@ -19,7 +19,7 @@
 - The Face ID and Touch ID unlock buttons now use the selected app language (#183).
 - Group deletion actions now use the selected app language on iPhone, iPad, and Mac (#184).
 - Restoring an earlier entry version keeps that version's expiration settings after saving and reopening the database.
-- WebDAV folders and newly created databases with percent sequences in their names now keep the correct path.
+- WebDAV folders with percent sequences such as "%20" in their names now open correctly, and databases opened from or created in them keep the correct path.
 - AutoFill changes in cloud databases stay queued if KeeForge opens while AutoFill is still saving, preventing an interrupted save from losing its pending upload.
 - Entries and groups with matching names or dates keep a stable order when sorted descending.
 - Notes keep their original line endings after saving. Imported group names, custom field names, and attachment names keep their whitespace.
