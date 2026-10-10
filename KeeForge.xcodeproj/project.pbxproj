@@ -89,6 +89,7 @@
 		15DF17582DB69A0D67E214D1 /* HardwareKeyUnlockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78F02B60D6E7C4712F4D4769 /* HardwareKeyUnlockTests.swift */; };
 		160886E235CE66F6FA4C91D1 /* KDBXWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4817DCDBE10FCB59D878033 /* KDBXWriterTests.swift */; };
 		1609B0A92A9000260793CE71 /* DatabaseReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1036AABC590833FFFA1B8A2 /* DatabaseReference.swift */; };
+		165EB517D4C1E1662721FDFF /* AutoFillCreatorSaveBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E02399604E8057E7BC84FF8 /* AutoFillCreatorSaveBar.swift */; };
 		168CC74285D5A4DE4043056F /* CredentialIdentityStoreManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF40C9649E6870C49081C9C0 /* CredentialIdentityStoreManagerTests.swift */; };
 		16A9D6A7C4CAA92D6491803D /* CredentialProviderPickerCreationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F97E4DEBF17DC23B5695A4A /* CredentialProviderPickerCreationTests.swift */; };
 		175271DB3D4B017FD4044CB2 /* EntryHistoryTrimmer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B23EE0FFF365E0E5F1E571E /* EntryHistoryTrimmer.swift */; };
@@ -346,6 +347,7 @@
 		63966E9ABEBF25B9CD783C48 /* GroupListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7365B5931361E3699E11A929 /* GroupListView.swift */; };
 		6466D8E7CF1DFDDAAE33ED59 /* TOTPEnrollmentUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D2F5605A0DFC0F10AAF87E /* TOTPEnrollmentUITests.swift */; };
 		64D2DD54B905A9B1FD8F840D /* TOTPSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61951932997F9667EC4417A3 /* TOTPSmokeUITests.swift */; };
+		64F844C2F66BA3F61A7FE55B /* AutoFillCreatorSaveBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E02399604E8057E7BC84FF8 /* AutoFillCreatorSaveBar.swift */; };
 		65150CEF897121752B259164 /* FaviconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D07D803277E1C8581E2FB51 /* FaviconView.swift */; };
 		653F8DDF8ABAA18262605EFC /* SoftwareUpdateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0409DC837ACE58EA7530139 /* SoftwareUpdateService.swift */; };
 		6560E50E8DAC0256CE4FD7D6 /* WebDAVClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16B7DC25FE8C1CEE117E7FD /* WebDAVClientTests.swift */; };
@@ -1173,6 +1175,7 @@
 		8C0418ADF1FDFF66CD471789 /* KeyFileProcessorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyFileProcessorTests.swift; sourceTree = "<group>"; };
 		8CA9912B84B19D308EAEDF9F /* DatabaseListUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseListUITests.swift; sourceTree = "<group>"; };
 		8D643ABF20BB5081268D1CFD /* CredentialProviderCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderCoordinatorTests.swift; sourceTree = "<group>"; };
+		8E02399604E8057E7BC84FF8 /* AutoFillCreatorSaveBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillCreatorSaveBar.swift; sourceTree = "<group>"; };
 		8E58AED27B2CFC27BC007533 /* MacLockMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLockMonitor.swift; sourceTree = "<group>"; };
 		8EABC573B9DDDD74E1987F94 /* TOTPEnrollmentViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPEnrollmentViewModelTests.swift; sourceTree = "<group>"; };
 		8EEAD48EE61A06762FE713A4 /* DatabaseExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseExportService.swift; sourceTree = "<group>"; };
@@ -1699,6 +1702,7 @@
 		A376BB645DDF43A121708494 /* AutoFillExtension */ = {
 			isa = PBXGroup;
 			children = (
+				8E02399604E8057E7BC84FF8 /* AutoFillCreatorSaveBar.swift */,
 				EA6878B6041AE23174ADDCE6 /* AutoFillEntryCreatorView.swift */,
 				37FCB8A14A23CD5B7A7C8350 /* AutoFillExtension.entitlements */,
 				7B911E75B7F5823E57680434 /* AutoFillExtensionMac.entitlements */,
@@ -2529,6 +2533,7 @@
 			files = (
 				92C434D5BF71E63A14E13169 /* AppGroupContainer.swift in Sources */,
 				76030E2242827E28EB898A0B /* Attachment.swift in Sources */,
+				64F844C2F66BA3F61A7FE55B /* AutoFillCreatorSaveBar.swift in Sources */,
 				E3BA655D6DE1EBD3D16E605F /* AutoFillDiagnostics.swift in Sources */,
 				BDA2F1A9970A30F3D6E05AB6 /* AutoFillEntryCreatorView.swift in Sources */,
 				A744EE21ECE7EE2131A2EE04 /* AutoFillMacChrome.swift in Sources */,
@@ -3301,6 +3306,7 @@
 			files = (
 				8FA0019B0584A2AD0E31D45F /* AppGroupContainer.swift in Sources */,
 				9D4573ED84B3C93122BFD4BA /* Attachment.swift in Sources */,
+				165EB517D4C1E1662721FDFF /* AutoFillCreatorSaveBar.swift in Sources */,
 				E10F753A67DA366022EA43B4 /* AutoFillDiagnostics.swift in Sources */,
 				5824A096CA626030F971EC2C /* AutoFillEntryCreatorView.swift in Sources */,
 				9F51E66DDB49D3CF250764B5 /* AutoFillMacChrome.swift in Sources */,
