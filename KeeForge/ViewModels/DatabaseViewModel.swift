@@ -1883,9 +1883,11 @@ final class DatabaseViewModel {
 
     /// Whether restoring would keep the state it replaces, so the confirmation does not
     /// promise an undo the database's history caps cannot honour.
+    ///
+    /// Asks a working draft rather than `draft`, which is nil until the first edit.
     func restoreKeepsReplacedState(entryID: UUID) -> Bool {
         _ = contentRevision
-        return draft?.restoreKeepsReplacedState(entryID: entryID) ?? false
+        return (try? makeWorkingDraft())?.restoreKeepsReplacedState(entryID: entryID) ?? false
     }
 
     /// Makes the entry's `historyIndex`-th stored version current again.
