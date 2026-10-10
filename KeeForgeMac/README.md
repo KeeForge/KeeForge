@@ -30,7 +30,7 @@ Keep `Info.plist` in sync with `KeeForge/Info.plist` and `AutoFillExtension/Info
 
 ## Security Posture
 
-The [macOS security model](SECURITY.md) covers secrets, shared storage, lock behavior, platform limits, extension entitlements, and update trust. Keep it current when Mac-relevant security behavior changes. Release procedures live in [CI Scripts](../ci_scripts/AGENTS.md#manual-sparkle-rehearsal-test-feed-only).
+The [macOS security model](SECURITY.md) covers secrets, shared storage, lock behavior, platform limits, extension entitlements, and update trust. Keep it current when Mac-relevant security behavior changes. Release procedures live in [the direct-distribution release reference](../.agents/skills/prepare-release/references/direct-distribution.md).
 
 ## Build And Test
 

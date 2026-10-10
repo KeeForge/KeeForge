@@ -122,7 +122,8 @@ Fix any real drift with a single `-s` commit on `main`, then push.
 
 After `v{version}` exists and both platform records are approved, manually release iOS and native
 macOS at the coordinated time. Publish the verified GitHub Release/direct zip, then publish the
-production Sparkle appcast last. Verify live installs, migration, AutoFill, WebDAV, channel
+production Sparkle appcast last, using the exact handoff and publish commands in
+[direct-distribution.md](../prepare-release/references/direct-distribution.md#direct-artifact-handoff). Verify live installs, migration, AutoFill, WebDAV, channel
 boundaries, and both App Store version/build numbers; preserve the completed non-secret manifest.
 
 Keep the release branch. It is where `{version}.1` will come from.

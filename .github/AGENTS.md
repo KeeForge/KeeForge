@@ -1,38 +1,48 @@
 # GitHub CI And Templates
 
-GitHub Actions workflows, issue/PR templates, funding config, and repo assets. Actions is one leg of CI; Xcode Cloud and a local release gate cover the rest.
+**Scope:** GitHub Actions workflows, branch rulesets, issue/PR templates, `CODEOWNERS`, funding config, and repo assets. Actions is one leg of CI; Xcode Cloud and local release gates cover the rest.
 
-## Workflows
+## What gates what
 
-- `workflows/ios18-ui-regression.yml` — manual diagnosis of the five b60 UI failures on pinned Xcode 26.3, iOS 18.6, and iPhone SE (3rd generation). Select an immutable source ref, the five methods or their four complete classes, and one, three, or five repetitions. Optional `test_helpers_ref` overlays `EntryEditUITests.swift` and `KeeForgeUITestCase.swift` to compare save-wait and search-focus fixes against the same app source; both revisions are recorded. Runs the four classes on independent runners, building once per class; canonical results and every attempt must pass. Uploads environment, build/test logs, and result bundles. This supplements the full RC gate.
-- `workflows/pr-tests.yml` — required PR gate (jobs `unit-tests` and `macos-unit-tests`, both required status checks alongside DCO on `main` and `release/**`). Runs on every PR regardless of base branch, so stacked PRs (which target the branch below them) get the same gate: `iPhone 17 Pro, OS=latest`, `-only-testing:KeeForgeTests`. Verdict comes from the fresh canonical `.xcresult` summary: `result=Passed`, zero failures, and at least one executed test are required. Exit 65 is tolerated only after that validation because runners intermittently return it during post-run teardown; other nonzero exits fail. Logs and bundles upload as artifacts.
-- `workflows/ci.yml` — manual `workflow_dispatch` only; demoted from push/PR because it judges on the raw exit code, too flaky on GitHub runners. Jobs: `build-and-test` (iOS, `-only-testing:KeeForgeTests`) and `macos-build-and-test` (scheme `KeeForgeMac`, `-only-testing:KeeForgeMacTests`, ad-hoc signed with no entitlements — runners have no signing account). The Mac job runs on `macos-26` for the same `actool` reason as the gates below; the iOS job stays on `macos-15`.
-- `workflows/pr-tests.yml` job `macos-unit-tests` — the Mac counterpart of the iOS gate: scheme `KeeForgeMac`, `platform=macOS`, `-only-testing:KeeForgeMacTests`, ad-hoc signed with entitlements stripped (runners have no signing account). Added when the Mac app moved from on-hold to shipping; before that the Mac suite ran only on manual dispatch, which is how a red `CredentialProviderShellMacTests` went unnoticed. Same canonical-`.xcresult` verdict harness as the iOS job. Runs on a `macos-26` runner (`macos-15` tops out at Xcode 26.3, whose `actool` crashes compiling `KeeForge.icon` for macOS); the iOS `unit-tests` job stays on `macos-15`, where the same `.icon` compiles fine.
-- `workflows/macos-rc-tests.yml` — fires on `rc/*` tag pushes (plus manual dispatch), the Mac counterpart to `ios18-rc-tests.yml`. Runs the full `KeeForgeMacTests` suite on a `macos-26` runner (`macos-15` images top out at an Xcode too old to compile the Mac app icon; the app's deployment target stays macOS 15). `KeeForgeMacUITests` is deliberately excluded: it drives real windows and needs an unlocked, active login session a headless runner does not have (`KeeForgeMacUITests/AGENTS.md`), so it stays a local pre-release step.
-- `workflows/ios18-rc-tests.yml` — fires on `rc/*` tag pushes (plus manual dispatch); ignores tag-deletion events. One `rc/{version}-b{build}` tag is pushed per candidate build from a `release/{major}.{minor}` branch. Creates an iPhone SE (3rd generation) simulator on the newest installed iOS 18.x runtime (compact width — the layout that surfaced the iOS 17 editor-navigation hang) and runs the full unit + UI suites, then swaps to an iPad (10th generation) simulator for a regular-width lane running `DatabaseCreationRegularWidthUITests` + `RegularWidthWorkspaceUITests` (those classes `XCTSkip` on every compact-width device, so this lane is the only CI place they execute). The whole job takes about two hours on a single runner, so it has a 180-minute timeout. Minimum-OS coverage Xcode Cloud cannot provide: its RC test action pins only the latest runtime or iOS 16.4. Same canonical-`.xcresult` verdict harness as `pr-tests.yml`.
+| When | Where | What runs |
+| --- | --- | --- |
+| Every pull request, any base branch | `workflows/pr-tests.yml` | Jobs `unit-tests` (`KeeForgeTests`, iOS simulator) and `macos-unit-tests` (`KeeForgeMacTests`). Both are required status checks. No UI tests. |
+| `rc/*` tag push | `workflows/ios18-rc-tests.yml` | Full unit and UI suites on an iPhone SE (3rd generation) at the newest iOS 18.x runtime on the runner, then the two regular-width UI classes on an iPad. |
+| `rc/*` tag push | `workflows/macos-rc-tests.yml` | Full `KeeForgeMacTests`. |
+| `rc/*` tag push | Xcode Cloud **Tests (RC)** | `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, `KeeForgeCloudUIB` on the latest runtime, plus the iOS and Mac App Store archives. |
+| Each release candidate, locally | `ci_scripts/run_kdbx_compatibility_gate.sh` | KeePassXC cross-validation, once per platform. |
+| Each release candidate, locally | `KeeForgeMacUITests/MacSmokeUITests` | Mac UI smoke. |
+| Manual only | `workflows/ci.yml`, `workflows/ios18-ui-regression.yml` | Diagnostics, not gates. |
 
-## Division Of Labor
+- **Nothing triggers on `v*`.** That tag records which soaked build shipped; the App Store build is selected from TestFlight, never re-archived.
+- **`KeeForgeMacUITests` never runs in CI.** It drives real windows and needs an unlocked, active login session that no runner has (`../KeeForgeMacUITests/AGENTS.md`). Behavior covered only by a Mac UI test is uncovered in CI.
+- **No CI runs the KDBX gate.** It needs `keepassxc-cli`, which neither GitHub runners nor Xcode Cloud install. See `../ci_scripts/AGENTS.md`.
+- **UI tests are release-gated, not PR-gated.** They first run on the `rc/*` tag.
+- The iPad lane in `ios18-rc-tests.yml` is the only CI place `DatabaseCreationRegularWidthUITests` and `RegularWidthWorkspaceUITests` execute; they `XCTSkip` on every compact-width device.
+- `ios18-rc-tests.yml` exists because Xcode Cloud has no iOS 18.x runtime to pin. It is the minimum-OS gate.
+- External TestFlight distribution is a manual App Store Connect step after every gate is accepted; no post-action distributes. See `../.agents/skills/prepare-release/references/xcode-cloud-setup.md`.
+- The separate Xcode Cloud **Contributor Testing** workflow produces internal-only TestFlight builds for contributor hardware testing. It runs no tests and is not release evidence (`../ci_scripts/contributor-testing.md`).
 
-- Contributor hardware testing: the separate **Contributor Testing** Xcode Cloud
-  workflow archives both platforms as internal-only TestFlight builds, then
-  distributes to **KeeForge Contributors**. Manual starts accept repository
-  branches; automatic starts use `contributor/miquno/*`. It does not run RC gates
-  or distribute externally. See `ci_scripts/contributor-testing.md`.
+## Verdict rule
 
-- GitHub Actions: PR unit-test gating for both platforms (`pr-tests.yml`, all PRs including stacked), iOS 18 minimum-OS RC coverage (`ios18-rc-tests.yml`), and macOS RC coverage (`macos-rc-tests.yml`).
-- Xcode Cloud: the **Tests (RC)** workflow on `rc/*` tags — test on the latest runtime and archive/upload eligible TestFlight builds. Three Required-to-Pass test actions use `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`. The UI schemes partition coverage, with a post-XcodeGen guard in `ci_scripts/validate_cloud_test_schemes.py`. External distribution is a deliberate manual App Store Connect step after all required cloud and local gates and exact Mac artifact checks; no external-testing post-action is configured. **Nothing triggers on `v*`**: that tag records which soaked build shipped, and the App Store build is selected from TestFlight rather than re-archived. See `.agents/skills/prepare-release/references/xcode-cloud-setup.md`.
-- `ci_scripts/run_kdbx_compatibility_gate.sh`: the required **local** gate, run once per candidate build — no CI runs it; it needs `keepassxc-cli`, which neither GitHub runners nor Xcode Cloud install. It runs per platform: the iOS scheme by default, and `KDBX_COMPAT_SCHEME=KeeForgeMac` for the Mac scheme (which switches the test target to `KeeForgeMacTests` and the destination to `platform=macOS`).
+`pr-tests.yml`, both RC workflows, and `ios18-ui-regression.yml` judge on `ci_scripts/validate_xcresult_summary.py`, not the `xcodebuild` exit code: the fresh `.xcresult` summary must report `result=Passed`, zero failures, and at least one executed test. Exit 65 is tolerated only after that check, because runners return it intermittently during teardown; any other nonzero exit fails. `ci.yml` judges on the raw exit code, which is why it is manual only.
 
-## Branch Rulesets
+## Branch rulesets
 
-Three repository rulesets, all with admin bypass. Collaborators with the Write role merge PRs on green checks but cannot push `main`, touch `release/**`, or create tags:
+Three repository rulesets, all with admin bypass. They live in GitHub settings, not in this repo. Collaborators with the Write role merge PRs on green checks but cannot push `main`, touch `release/**`, or create tags.
 
-- `main` (`~DEFAULT_BRANCH`): deletion protection, no force-push, required `unit-tests` + `macos-unit-tests` + `DCO` status checks, and a PR rule with zero required approvals but required code-owner review. `CODEOWNERS` owns `.github/` and `ci_scripts/`, so a PR cannot rewrite its own required gate (a skipped job counts as passing) or the Xcode Cloud scripts without owner approval. Linear history is deliberately **not** required — release-branch backports land as real merge commits, which makes "does `main` have every release fix?" answerable with `git merge-base --is-ancestor` instead of patch-id guesswork. Contributor PRs still squash-merge.
-- `release branches` (`refs/heads/release/**`): the same status checks, deletion and force-push protection, plus required linear history (nothing is ever merged *into* a release branch) and restricted creation and updates.
-- `tags` (`~ALL`): restricted creation, updates, and deletion, so only admins push `rc/*` and `v*`.
+- `main` (`~DEFAULT_BRANCH`): no deletion, no force-push, required `unit-tests` + `macos-unit-tests` + `DCO`, and a PR rule with zero required approvals but required code-owner review. Linear history is deliberately **not** required: release-branch backports land as real merge commits, so "does `main` have every release fix?" is answerable with `git merge-base --is-ancestor`.
+- `release branches` (`refs/heads/release/**`): the same status checks, no deletion or force-push, required linear history (nothing is merged *into* a release branch), and restricted creation and updates.
+- `tags` (`~ALL`): restricted creation, update, and deletion, so only admins push `rc/*` and `v*`.
+
+`CODEOWNERS` owns `/.github/` and `/ci_scripts/`. A PR therefore cannot rewrite its own required gate or the Xcode Cloud scripts without owner approval. This matters because a skipped required job counts as passing.
 
 ## Gotchas
 
-- All workflows bootstrap `BuildConfig.local.xcconfig` via `BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh` with placeholder `DROPBOX_APP_KEY=ciplaceholderdropboxappkey` (alphanumerics only — it lands in a `CFBundleURLScheme`; see `ci_scripts/AGENTS.md`). The app treats the placeholder as cloud sign-in disabled.
-- Workflows select the newest `Xcode_*.app` on the runner and regenerate the project with XcodeGen; the checked-in `.xcodeproj` is never assumed current. Every `KeeForgeMac` job additionally floors that selection at Xcode 26.4 and fails with an `::error::` below it — 26.3's `actool` segfaults on the `KeeForge.icon` Icon Composer bundle for macOS, which is why those jobs run on `macos-26`.
-- Issue templates: `ISSUE_TEMPLATE/` (bug report, feature request, config). PR template: `PULL_REQUEST_TEMPLATE.md`. `CODEOWNERS` backs the code-owner rule on `main`. `assets/` holds the app icon used in repo pages.
+- Renaming the `unit-tests` or `macos-unit-tests` job breaks the rulesets, which match the check by job name.
+- Every `KeeForgeMac` job runs on `macos-26` and fails below Xcode 26.4: Xcode 26.3's `actool` crashes compiling `KeeForge.icon` for macOS. iOS jobs stay on `macos-15`, which carries the iOS 18 simulator runtimes.
+- Mac jobs sign ad hoc with entitlements stripped (`CODE_SIGN_IDENTITY=-`, `CODE_SIGN_ENTITLEMENTS=`), because runners have no signing account.
+- Workflows regenerate the project with XcodeGen; the checked-in `.xcodeproj` is never assumed current. All but `ios18-ui-regression.yml`, which pins Xcode 26.3, select the newest Xcode on the runner.
+- Workflows bootstrap `BuildConfig.local.xcconfig` with the placeholder `DROPBOX_APP_KEY=ciplaceholderdropboxappkey`. It must stay alphanumeric and the app treats it as cloud sign-in disabled; the rule is in `../ci_scripts/AGENTS.md`.
+- `ios18-rc-tests.yml` takes about two hours on one runner and has a 180-minute timeout. It fails loudly if the runner image drops its iOS 18 runtimes.
+- This file is named `AGENTS.md` because GitHub renders a `.github/README.md` as the repository front page.

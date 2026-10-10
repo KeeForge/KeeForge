@@ -34,6 +34,8 @@ Reference files, read on demand:
   distinction to the macOS workflow and never override a non-test failure with a local pass.
 - [xcode-cloud-setup.md](xcode-cloud-setup.md) — the one-time App Store Connect workflow configuration this process
   depends on. Read it if archives or TestFlight uploads are not appearing as expected.
+- [direct-distribution.md](direct-distribution.md) — the direct Mac build's safety contract, expected artifact-verifier
+  output, appcast stage/handoff/publish commands, and the manual Sparkle rehearsal.
 
 ## Set the candidate build number
 
