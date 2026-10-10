@@ -11,4 +11,4 @@ Unlocking a single database: password and key-file entry, biometric affordances.
 
 The Hardware Key row (`unlock.hardware-key.picker`) appears only when the device offers a YubiKey transport (`DatabaseViewModel.availableHardwareKeyTransports`) or the database already has one set. It writes straight to the database reference, so the choice persists. A YubiKey alone counts as a key component, so Unlock is enabled with no password or key file. While a challenge is outstanding, `DatabaseOpeningView` shows Cancel (`unlock.hardware-key.cancel`), which cancels only the YubiKey request.
 
-Shared UI shells and the folder-wide UI rules live in `../README.md`.
+Shared UI shells and the folder-wide UI rules live in `../AGENTS.md`.

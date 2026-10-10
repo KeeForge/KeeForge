@@ -76,7 +76,7 @@ KeeForge takes data safety very seriously: a password manager must never corrupt
 
 With FTP, the final conflict check and file replacement cannot happen as one operation. A simultaneous save from another app or device may still be overwritten, so avoid editing an FTP database in two places at once.
 
-For the technically curious, the test suite is mapped in [`KeeForgeTests/AGENTS.md`](KeeForgeTests/AGENTS.md) and the pre-release verification gate in [`ci_scripts/README.md`](ci_scripts/README.md).
+For the technically curious, the test suite is mapped in [`KeeForgeTests/AGENTS.md`](KeeForgeTests/AGENTS.md) and the pre-release verification gate in [`ci_scripts/AGENTS.md`](ci_scripts/AGENTS.md).
 
 ## Project Map
 

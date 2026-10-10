@@ -73,7 +73,7 @@ KeeForge はデータの安全性を非常に重視しています。パスワ�
 
 FTP では、最後の競合確認とファイルの置き換えを一つの操作として実行できません。他のアプリや端末から同時に保存された変更が上書きされる可能性があるため、同じ FTP データベースを複数の場所で同時に編集しないでください。
 
-技術的な詳細に関心のある方向けに、テストスイートの構成は [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) に、リリース前の検証ゲートは [`ci_scripts/README.md`](../../ci_scripts/README.md) にまとめられています。
+技術的な詳細に関心のある方向けに、テストスイートの構成は [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) に、リリース前の検証ゲートは [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md) にまとめられています。
 
 ## プロジェクトの構成
 

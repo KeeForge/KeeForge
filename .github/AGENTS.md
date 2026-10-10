@@ -33,6 +33,6 @@ Three repository rulesets, all with admin bypass. Collaborators with the Write r
 
 ## Gotchas
 
-- All workflows bootstrap `BuildConfig.local.xcconfig` via `BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh` with placeholder `DROPBOX_APP_KEY=ciplaceholderdropboxappkey` (alphanumerics only — it lands in a `CFBundleURLScheme`; see `ci_scripts/README.md`). The app treats the placeholder as cloud sign-in disabled.
+- All workflows bootstrap `BuildConfig.local.xcconfig` via `BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh` with placeholder `DROPBOX_APP_KEY=ciplaceholderdropboxappkey` (alphanumerics only — it lands in a `CFBundleURLScheme`; see `ci_scripts/AGENTS.md`). The app treats the placeholder as cloud sign-in disabled.
 - Workflows select the newest `Xcode_*.app` on the runner and regenerate the project with XcodeGen; the checked-in `.xcodeproj` is never assumed current. Every `KeeForgeMac` job additionally floors that selection at Xcode 26.4 and fails with an `::error::` below it — 26.3's `actool` segfaults on the `KeeForge.icon` Icon Composer bundle for macOS, which is why those jobs run on `macos-26`.
 - Issue templates: `ISSUE_TEMPLATE/` (bug report, feature request, config). PR template: `PULL_REQUEST_TEMPLATE.md`. `CODEOWNERS` backs the code-owner rule on `main`. `assets/` holds the app icon used in repo pages.

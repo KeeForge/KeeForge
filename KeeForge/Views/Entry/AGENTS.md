@@ -23,6 +23,6 @@ Entry detail, editing, history, attachments, icon selection, and the shared row-
 
 Secret reveal and authenticated copy use `../../ViewModels/EntrySecretAction.swift`: controls cancel pending disclosure on disappearance or source changes and re-check the current vault session before publishing. An already completed password reveal persists for the same mounted entry across its editor: disappearance clears plaintext, reappearance refreshes it, and same-entry password edits refresh it without another prompt. Session-key changes conceal it; entry selection replaces the detail identity. Pending authentication remains cancelled or rejected when those inputs change. Context-menu copy is intentionally allowed to outlive menu dismissal, while still rejecting changed session/draft/selection state. `TOTPSection` updates its model for same-entry configuration changes.
 
-Shared UI shells and the folder-wide UI rules live in `../README.md`.
+Shared UI shells and the folder-wide UI rules live in `../AGENTS.md`.
 
 Editor workflow ownership: `EntryEditViewModel` owns fields and payloads; `DatabaseEditorCoordinator` owns dirty registration, submission, completion, and Save and Lock. `EntryEditView` forwards appearance/disappearance and observed dirty/conflict changes, and translates completion into dismissal. Keep new workflow decisions out of the view.

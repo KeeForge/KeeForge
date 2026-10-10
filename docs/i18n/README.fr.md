@@ -73,7 +73,7 @@ KeeForge prend la sécurité des données très au sérieux : un gestionnaire d
 
 Avec FTP, la dernière vérification des conflits et le remplacement du fichier ne peuvent pas se faire en une seule opération. Un enregistrement simultané depuis une autre application ou un autre appareil peut donc être écrasé. Évitez de modifier une base de données FTP à deux endroits en même temps.
 
-Pour les personnes curieuses sur le plan technique : la suite de tests est décrite dans [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md), et l’étape de vérification avant chaque publication dans [`ci_scripts/README.md`](../../ci_scripts/README.md) (les deux en anglais).
+Pour les personnes curieuses sur le plan technique : la suite de tests est décrite dans [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md), et l’étape de vérification avant chaque publication dans [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md) (les deux en anglais).
 
 ## Plan du projet
 

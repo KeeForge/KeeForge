@@ -73,7 +73,7 @@ KeeForge se toma muy en serio la seguridad de los datos: un gestor de contraseñ
 
 Con FTP, la última comprobación de conflictos y la sustitución del archivo no pueden realizarse como una sola operación. Un guardado simultáneo desde otra app u otro dispositivo puede sobrescribirse; evite editar una base de datos FTP en dos lugares a la vez.
 
-Para quien tenga curiosidad técnica, la batería de pruebas está descrita en [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) y la prueba de control previa a cada versión en [`ci_scripts/README.md`](../../ci_scripts/README.md) (ambas en inglés).
+Para quien tenga curiosidad técnica, la batería de pruebas está descrita en [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) y la prueba de control previa a cada versión en [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md) (ambas en inglés).
 
 ## Mapa del proyecto
 

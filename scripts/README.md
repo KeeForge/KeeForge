@@ -1,6 +1,6 @@
 # Scripts
 
-Local developer tooling. Folder rule: hand-run scripts live here; anything CI or Xcode Cloud invokes lives in `ci_scripts/` (see `ci_scripts/README.md`).
+Local developer tooling. Folder rule: hand-run scripts live here; anything CI or Xcode Cloud invokes lives in `ci_scripts/` (see `ci_scripts/AGENTS.md`).
 
 ## Current Scripts
 

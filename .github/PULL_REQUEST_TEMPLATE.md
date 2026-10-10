@@ -17,7 +17,7 @@
 
 - [ ] Updated `CHANGELOG.md` under `## Unreleased` when the change is user-facing
 - [ ] Ran `xcodegen generate` after adding/removing/moving source files
-- [ ] Updated the nearest folder-local `README.md` if the folder's map changed
+- [ ] Updated the nearest folder-local `AGENTS.md` or `README.md` if the folder's map changed
 - [ ] Localized new UI strings in all shipped locales listed in AGENTS.md and ran `LocalizationTests`
 - [ ] Kept AutoFill extension target membership/imports in sync for shared code
 - [ ] Updated `KDBXCompatibilityTests` if parser/writer/save behavior changed

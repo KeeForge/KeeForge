@@ -27,6 +27,6 @@ This folder owns app startup, scene transitions, and the adaptive root shell tha
 
 ## Change Carefully
 
-- Root navigation changes here usually ripple into `../Views/DatabaseList/DatabaseListView.swift`, `../Views/Unlock/UnlockView.swift`, `RegularDatabaseWorkspaceView.swift`, `../../KeeForgeUITests/README.md`, and `../../KeeForgeMacUITests/` (its tests drive `macSplitView` via the `group.navlink` / `entry.navlink` identifiers).
+- Root navigation changes here usually ripple into `../Views/DatabaseList/DatabaseListView.swift`, `../Views/Unlock/UnlockView.swift`, `RegularDatabaseWorkspaceView.swift`, `../../KeeForgeUITests/AGENTS.md`, and `../../KeeForgeMacUITests/` (its tests drive `macSplitView` via the `group.navlink` / `entry.navlink` identifiers).
 - Keep scene and platform adapters here, with lifecycle decisions in the relevant services/view models; do not hide app-wide state transitions inside individual views.
 - If the app should behave differently on background/foreground, verify both compact and regular-width unlocked flows, AutoFill cache refresh behavior, and pending-upload drain timing together.

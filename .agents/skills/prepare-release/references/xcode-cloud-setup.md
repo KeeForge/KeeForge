@@ -58,7 +58,7 @@ App Review submission, or legal declarations.
 
 The RC workflow uses `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`.
 They separate unit coverage from two serial UI groups to reduce the work repeated by a Cloud
-task retry. `ci_scripts/README.md` documents the coverage guard and timeouts.
+task retry. `ci_scripts/AGENTS.md` documents the coverage guard and timeouts.
 
 Activated on 2026-09-28 through Xcode's workflow editor. App Store Connect's scheme picker
 continued to show only older schemes after a source push and full page reload; Xcode exposed

@@ -19,4 +19,4 @@ App settings, release education, support surfaces, and DEBUG-only developer tool
   - **Simulators cannot enumerate the store.** On simulator runtimes (verified iOS 18.5 and 26.5) `ASCredentialIdentityStore.credentialIdentities(forService:credentialIdentityTypes:)` always returns an empty array even though writes succeed and persist, so the inspector's counts — and the app's own enumerate-then-mutate store maintenance — are only meaningful on a physical device (`KeeForgeUITests/AutoFillStoreUITests` runs on a provisioned device for this reason).
   - **macOS cannot enumerate the store either, and reports no incremental updates.** A real enabled provider on macOS 26.5 returns `supportsIncrementalUpdates == false` and an empty (or unattributable) enumeration, so the inspector's per-database sections stay empty there and every store write is a whole-store replace. That is why suggestions cannot aggregate across databases on macOS — reasoning in `../../../KeeForgeMac/README.md`.
 
-Shared UI shells and the folder-wide UI rules live in `../README.md`.
+Shared UI shells and the folder-wide UI rules live in `../AGENTS.md`.

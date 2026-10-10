@@ -17,7 +17,7 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 - Native iPhone, iPad, and Mac KeePass manager for KDBX 4.x databases; also reads KDBX 3.1 (read-only)
 - Swift 6, SwiftUI, iOS 18+ / macOS 15+, `@Observable`, strict concurrency
 - XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`; target-membership rules live in `KeeForge/AGENTS.md`
-- Xcode Cloud uses `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`; the ordinary `KeeForge` scheme retains both full suites. UI B is the complement of A, so new UI classes stay covered. XcodeGen validates this partition automatically; details live in `ci_scripts/README.md`.
+- Xcode Cloud uses `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`; the ordinary `KeeForge` scheme retains both full suites. UI B is the complement of A, so new UI classes stay covered. XcodeGen validates this partition automatically; details live in `ci_scripts/AGENTS.md`.
 - Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`. The native macOS app shipped in v1.16.0; macOS work now follows the ordinary changelog flow under `## Unreleased`.
 
 ## Open The Local Doc First
@@ -29,17 +29,16 @@ and `KeeForgeMacUITests`. Maintain instructions directly in `AGENTS.md`.
 The docs below are read on demand:
 
 - `KeeForge/AGENTS.md` — shared-source changes, workflow ownership, and KDBX compatibility requirements
-- `.agents/AGENTS.md` — repository agent workflow selection
 - `KeeForge/README.md` — app-target map and cross-cutting flows that span folders
-- `KeeForge/Services/README.md` — save-path split, App Group and Keychain boundaries, shared AutoFill allow-list rules
-- `KeeForge/Views/README.md` — UI rules every shell shares: the macOS grouped-form requirement, the `ForEach`/`.onMove` single-row-type rule, and the identifier surface
+- `KeeForge/Services/AGENTS.md` — save-path split, App Group and Keychain boundaries, shared AutoFill allow-list rules
+- `KeeForge/Views/AGENTS.md` — UI rules every shell shares: the macOS grouped-form requirement, the `ForEach`/`.onMove` single-row-type rule, and the identifier surface
 - `KeeForge/Resources/README.md` — string catalogs, assets, and resource conventions
 - `KeeForgeMac/README.md` — macOS target constraints and "What Mac Work Has To Test"
 - `KeeForgeMac/SECURITY.md` — maintained Mac security boundaries and platform limitations
-- `KeeForgeUITests/README.md` — XCUITest workflow and flake-avoidance guidance
+- `KeeForgeUITests/AGENTS.md` — XCUITest workflow and flake-avoidance guidance
 - `TestFixtures/README.md` — bundled databases, passwords, and key files
 - `Vendor/KeeForgeTwofish/README.md` — vendored Twofish cipher package
-- `ci_scripts/README.md` — Xcode Cloud bootstrap and `run_kdbx_compatibility_gate.sh`, the required local release gate
+- `ci_scripts/AGENTS.md` — Xcode Cloud bootstrap and `run_kdbx_compatibility_gate.sh`, the required local release gate
 - `scripts/README.md` — local dev tooling
 - `.github/AGENTS.md` — CI workflow gating map (named `AGENTS.md` because GitHub renders a `.github/README.md` as the repo front-page README)
 - `docs/threat-model.md` — living, high-level threat model; required review for major product or architecture changes

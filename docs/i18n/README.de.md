@@ -73,7 +73,7 @@ KeeForge nimmt Datensicherheit sehr ernst: Ein Passwort-Manager darf deinen Tres
 
 Bei FTP können die letzte Konfliktprüfung und das Ersetzen der Datei nicht als ein Vorgang erfolgen. Eine gleichzeitige Änderung aus einer anderen App oder von einem anderen Gerät kann daher überschrieben werden. Bearbeite eine FTP-Datenbank nicht an zwei Stellen gleichzeitig.
 
-Für technisch Interessierte: Die Test-Suite ist in [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) beschrieben, das Prüf-Gate vor jedem Release in [`ci_scripts/README.md`](../../ci_scripts/README.md) (beide auf Englisch).
+Für technisch Interessierte: Die Test-Suite ist in [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) beschrieben, das Prüf-Gate vor jedem Release in [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md) (beide auf Englisch).
 
 ## Projektübersicht
 

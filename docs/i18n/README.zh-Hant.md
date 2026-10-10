@@ -73,7 +73,7 @@ KeeForge 非常重視資料安全：密碼管理工具絕不能損毀你的保�
 
 使用 FTP 時，最後一次衝突檢查與取代檔案無法當作同一項操作完成。其他 App 或裝置同時儲存的變更仍可能被覆寫，因此請勿在多個地方同時編輯同一個 FTP 資料庫。
 
-想深入了解技術細節的話，測試套件的說明在 [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md)，發佈前的驗證關卡則在 [`ci_scripts/README.md`](../../ci_scripts/README.md)（皆為英文）。
+想深入了解技術細節的話，測試套件的說明在 [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md)，發佈前的驗證關卡則在 [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md)（皆為英文）。
 
 ## 專案地圖
 

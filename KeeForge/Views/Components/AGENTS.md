@@ -12,4 +12,4 @@ Reusable controls shared across the feature folders.
 - `TipBannerCard.swift` is `tipBannerCard()`, the rounded card behind the dismissible tips on the database list (`../Settings/AutoFillTipBanner.swift`, `../Settings/MacAppSuggestionBanner.swift`). It carries no accessibility identifier, because a container identifier is copied onto the buttons inside it.
 - `ReadOnlyIndicator.swift` is the toolbar status for a database that cannot be edited, shared by the compact group list, the entry detail (iOS only — macOS states it once in the window toolbar the workspace owns), and the macOS workspace toolbar. Identifier `database.read-only-indicator`.
 
-Shared UI shells and the folder-wide UI rules live in `../README.md`.
+Shared UI shells and the folder-wide UI rules live in `../AGENTS.md`.

@@ -76,7 +76,7 @@ KeeForge prende molto sul serio la sicurezza dei dati: un gestore di password no
 
 Con FTP, il controllo finale dei conflitti e la sostituzione del file non possono avvenire come un'unica operazione. Un salvataggio simultaneo da un'altra app o da un altro dispositivo può comunque essere sovrascritto, quindi evita di modificare un database FTP in due posti contemporaneamente.
 
-Per chi è curioso degli aspetti tecnici, la suite di test è descritta in [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) e la verifica che precede ogni rilascio in [`ci_scripts/README.md`](../../ci_scripts/README.md).
+Per chi è curioso degli aspetti tecnici, la suite di test è descritta in [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) e la verifica che precede ogni rilascio in [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md).
 
 ## Mappa del progetto
 

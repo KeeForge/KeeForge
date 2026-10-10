@@ -11,4 +11,4 @@ Both screens split their list per shell rather than per screen: iOS keeps the sh
 
 Both screens also pass an `onRequestDeletion` closure straight through to whichever list they draw. Neither gets a presentation context of its own wherever it renders inline — search is a branch of `GroupListView.swift` on iOS/iPadOS, and both are branches of the macOS workspace's content column — so their delete confirmation has to be raised to the container that already hosts one rather than added beside it (#118; the one-alert-host rule in `../Entry/AGENTS.md`). Both stack shells register the shared `DatabaseRoute` from `../../ViewModels/DatabaseWorkspaceState.swift`, with `.tag(String)`, `.group(UUID)`, and `.entry(UUID)` cases. The stack shells push `TagEntriesView` as its own screen and leave the closure nil, which is why the tag browser kept working on iOS while search did not.
 
-Shared UI shells and the folder-wide UI rules live in `../README.md`.
+Shared UI shells and the folder-wide UI rules live in `../AGENTS.md`.

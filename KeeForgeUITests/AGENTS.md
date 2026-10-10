@@ -11,7 +11,7 @@ and `KeeForgeCloudUIB`, alongside a separate unit-only scheme. All three are act
 RC workflow; see `../.agents/skills/prepare-release/references/xcode-cloud-setup.md`. Group A selects whole classes
 in `project.yml`; B runs the complement, including new classes automatically. XcodeGen's
 post-generation check verifies the partition. Rebalance using measured cloud durations;
-see `../ci_scripts/README.md`. The ordinary `KeeForge` scheme still runs the full target.
+see `../ci_scripts/AGENTS.md`. The ordinary `KeeForge` scheme still runs the full target.
 `KeeForgeUITestCase` sets a five-minute per-test execution allowance. Local runs must use
 `-test-timeouts-enabled YES` to enforce it, as Cloud already does.
 The standalone AutoFill inspector uses the same allowance; opt-in screenshot capture keeps

@@ -73,7 +73,7 @@ KeeForge 非常重视数据安全：密码管理器绝不能损坏你的保险�
 
 使用 FTP 时，最后一次冲突检查与替换文件无法作为同一操作完成。其他应用或设备同时保存的更改仍可能被覆盖，因此请勿在多个地方同时编辑同一个 FTP 数据库。
 
-对技术细节感兴趣的话，测试套件的说明见 [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md)，发布前验证关卡的说明见 [`ci_scripts/README.md`](../../ci_scripts/README.md)（均为英文）。
+对技术细节感兴趣的话，测试套件的说明见 [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md)，发布前验证关卡的说明见 [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md)（均为英文）。
 
 ## 项目结构
 

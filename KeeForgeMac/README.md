@@ -87,7 +87,7 @@ behavior here or in focused tests rather than rebuilding a release checklist in
 - `KeeForgeMac` (app target in `project.yml`): requires macOS 15 and compiles the shared `KeeForge/` tree (minus `LaunchScreen.storyboard`) plus selected `AutoFillExtension/` shells (sharing rules: `KeeForge/README.md`). `MARKETING_VERSION` tracks iOS in lockstep — all four product targets carry the same version and build number, and one release bump covers them together. `PRODUCT_NAME` is `KeeForge`, so the bundle on disk is `KeeForge.app` (it was `KeeForgeMac.app` while the target was internal-only).
 - `KeeForgeMacAutoFill` (extension): uses `AutoFillExtension/InfoMac.plist` and `AutoFillExtension/AutoFillExtensionMac.entitlements`; its shared-source list must stay literally identical to the iOS `KeeForgeAutoFill` allow-list (marked invariant in `project.yml`).
 - `KeeForgeMacTests`: **no folder of its own** — compiles the shared `KeeForgeTests/` sources, hosted in `KeeForge.app` (`TEST_HOST`/`BUNDLE_LOADER`).
-- `KeeForgeMacUITests`: has its own folder and README (`KeeForgeMacUITests/`).
+- `KeeForgeMacUITests`: has its own folder and `AGENTS.md` (`KeeForgeMacUITests/`).
 
 ## Entitlements Gotchas
 
@@ -100,7 +100,7 @@ Keep `Info.plist` in sync with `KeeForge/Info.plist` and `AutoFillExtension/Info
 
 ## Security Posture
 
-The [macOS security model](SECURITY.md) covers secrets, shared storage, lock behavior, platform limits, extension entitlements, and update trust. Keep it current when Mac-relevant security behavior changes. Release procedures live in [CI Scripts](../ci_scripts/README.md#manual-sparkle-rehearsal-test-feed-only).
+The [macOS security model](SECURITY.md) covers secrets, shared storage, lock behavior, platform limits, extension entitlements, and update trust. Keep it current when Mac-relevant security behavior changes. Release procedures live in [CI Scripts](../ci_scripts/AGENTS.md#manual-sparkle-rehearsal-test-feed-only).
 
 ## Build And Test
 
@@ -124,7 +124,7 @@ The rule of thumb from `../AGENTS.md` ("macOS Test Strategy") in the form a chan
 | Layout or visual polish (sizing, spacing, hover, empty states) | No new assertions. Re-run `MacScreenshotAuditUITests` and look at the captures; add a screen to that walk if the change introduced one. |
 | A SwiftUI view the macOS AutoFill shell hosts (`AutoFillExtension/`) | A manual pass in a real AutoFill panel — nothing automated reaches these views. Check first that every action is drawn *inside* the view: `.toolbar` and `.searchable` go to the window's `NSToolbar` on macOS, and the system credential-provider window has none, so a toolbar-only Cancel compiles, tests green, and ships a panel with no exit. See `../AutoFillExtension/AGENTS.md`. |
 | An accessibility identifier | Update every suite that names it, in the same change — `../KeeForgeUITests/` and `../KeeForgeMacUITests/` share identifiers by convention. |
-| User-facing text | Translations for all six translated locales plus a `LocalizationTests` run; the Mac targets use the same four catalogs the iOS ones do. |
+| User-facing text | Translations for every shipped locale plus a `LocalizationTests` run; the Mac targets use the same four catalogs the iOS ones do. |
 | Parser, writer, protected fields, unknown XML, or any save path | `../KeeForgeTests/KDBXCompatibilityTests.swift`, plus the compatibility gate per platform: `KDBX_COMPAT_SCHEME=KeeForgeMac ci_scripts/run_kdbx_compatibility_gate.sh`. |
 | Anything writing to the system credential identity store | A `KeeForgeTests/CredentialIdentityStoreManagerTests.swift` case against `FakeCredentialIdentityStore` with `supportsIncrementalUpdatesValue = false`, alongside the incremental one. macOS takes that branch for every write. |
 | Entitlements, the App Group container, the AutoFill extension boundary, or Sparkle | [`SECURITY.md`](SECURITY.md) refreshed against what actually shipped, and `AppGroupGuardrailTests` re-run if the container's write surface moved. |

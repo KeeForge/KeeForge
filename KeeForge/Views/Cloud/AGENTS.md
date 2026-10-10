@@ -11,4 +11,4 @@ Both manual connect forms block Cancel and interactive dismissal while connectin
 
 `CloudFileBrowserView.swift` owns file picking and creation-folder picking. Each navigation stack is keyed by selected account, so switching accounts drops pushed folder IDs. Selection callbacks capture the listing's account ID and validate it through `CloudFileBrowserSession.selectionAccount(matching:)`; the folder view model also clears old files when a new account starts loading and rejects superseded results.
 
-Shared UI shells and the folder-wide UI rules live in `../README.md`.
+Shared UI shells and the folder-wide UI rules live in `../AGENTS.md`.
