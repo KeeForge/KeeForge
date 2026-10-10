@@ -22,10 +22,7 @@
     <img alt="Загрузить KeeForge для Mac напрямую" src="https://img.shields.io/badge/Mac-Direct%20Download-24292F?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="Присоединиться к бета-версии для iPhone и iPad в TestFlight" src="https://img.shields.io/badge/TestFlight-iPhone%20%26%20iPad-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
-  </a>
-  <a href="https://testflight.apple.com/join/ZKQRwPaa">
-    <img alt="Присоединиться к бета-версии для Mac в TestFlight" src="https://img.shields.io/badge/TestFlight-Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="Присоединиться к бета-версии для iPhone, iPad и Mac в TestFlight" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="Требуется iOS 18.0 или новее" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="Требуется macOS 15.0 или новее" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -41,11 +38,9 @@ KeeForge — нативный клиент KeePass для iPhone, iPad и Mac д
 
 ## Публичная бета-версия
 
-- iPhone и iPad: [Присоединиться к бета-версии KeeForge в TestFlight](https://testflight.apple.com/join/mPAT4f1a)
-- Mac: [Присоединиться к бета-версии KeeForge в TestFlight](https://testflight.apple.com/join/ZKQRwPaa)
+**[Присоединиться к бета-версии KeeForge для iPhone, iPad и Mac в TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
 
-Доступность бета-версий для iPhone, iPad и Mac может различаться, пока Apple
-проверяет сборку для каждой платформы.
+Доступность бета-версий для iPhone, iPad и Mac может различаться, пока Apple проверяет сборку для каждой платформы.
 
 ## Основные возможности
 

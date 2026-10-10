@@ -19,7 +19,7 @@
     <img alt="App Store でダウンロード" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="TestFlight の公開ベータに参加" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="TestFlight で iPhone、iPad、Mac 向けベータに参加" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="iOS 18.0 以降が必要" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="macOS 15.0 以降が必要" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -35,7 +35,9 @@ KeeForge は iPhone、iPad、Mac のためのネイティブ KeePass クライ�
 
 ## 公開ベータ
 
-**[TestFlight で KeeForge のベータに参加する](https://testflight.apple.com/join/mPAT4f1a)**
+**[TestFlight で iPhone、iPad、Mac 向け KeeForge ベータに参加する](https://testflight.apple.com/join/mPAT4f1a)**
+
+Apple が各プラットフォームのビルドを審査している間、iPhone、iPad、Mac でベータ版の提供状況が異なる場合があります。
 
 ## 主な特長
 

@@ -19,7 +19,7 @@
     <img alt="Im App Store laden" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="Der öffentlichen Beta über TestFlight beitreten" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="Der Beta für iPhone, iPad und Mac über TestFlight beitreten" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="Erfordert iOS 18.0 oder neuer" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="Erfordert macOS 15.0 oder neuer" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -35,7 +35,9 @@ KeeForge ist ein nativer KeePass-Client für iPhone, iPad und Mac. Lokale Dateie
 
 ## Öffentliche Beta
 
-**[Der KeeForge-Beta über TestFlight beitreten](https://testflight.apple.com/join/mPAT4f1a)**
+**[Der KeeForge-Beta für iPhone, iPad und Mac über TestFlight beitreten](https://testflight.apple.com/join/mPAT4f1a)**
+
+Die Verfügbarkeit der Beta kann sich zwischen iPhone, iPad und Mac unterscheiden, während Apple den jeweiligen Build prüft.
 
 ## Highlights
 

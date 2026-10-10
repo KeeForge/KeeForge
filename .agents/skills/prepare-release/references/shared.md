@@ -3,7 +3,7 @@
 Releases run on one dedicated `release/{major}.{minor}` branch. Each candidate produces three
 artifacts from one commit: an iOS App Store/TestFlight build, a Mac App Store/TestFlight build,
 and a notarized direct-download Mac build. Archives/uploads may be automatic, but the two App Store
-builds are moved manually to their respective external TestFlight groups only after every required
+builds are moved manually to the shared **KeeForge Test** external TestFlight group only after every required
 gate is accepted; the direct build is staged and soaked separately. Ship only those exact artifacts.
 This is a sequential, high-stakes workflow: each step depends on the previous one succeeding. Do not
 skip steps or proceed past a failure.

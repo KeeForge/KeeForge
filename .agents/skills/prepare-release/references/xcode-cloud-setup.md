@@ -36,11 +36,16 @@ relying on this; Apple can change the UI and the account can drift):
   record or expose their values.
 - **Restrict Editing is on.** Preserve it when editing the workflow. The editor presents a
   plain **Save** control; restriction is a separate checkbox.
-- External groups are **KeeForge Test** (the iOS public-link group, documented below) and
-  **KeeForge Mac Test** (the native Mac group, public link
-  `https://testflight.apple.com/join/ZKQRwPaa`, 300-tester cap). Do not send the MAS build to the
-  iOS group. As of 2026-09-14, iOS TestFlight build 56 is in Testing and Mac TestFlight build 56 is
-  in Beta App Review; check live state rather than relying on this snapshot.
+- **KeeForge Test** is the shared external group for both iOS and native macOS builds, using
+  `https://testflight.apple.com/join/mPAT4f1a` with a 300-tester cap. Add both exact platform build
+  IDs to this group after the candidate gates are accepted. Platform build records, Beta App
+  Review, distribution timestamps, and soak evidence remain separate. Verify live group membership
+  and public-link recruitment criteria before distribution; criteria must admit both platforms.
+- On 2026-10-09, all four externally available Mac builds were added to **KeeForge Test**.
+  The former **KeeForge Mac Test** public link was disabled. Its five existing testers and build
+  assignments remain intact because the API rejected transferring those testers to the shared group.
+  Keep this group as a closed legacy cohort and assign the same gated Mac candidate there too,
+  so its existing testers continue receiving updates. All new public signups use the shared link.
 
 External TestFlight distribution stays manual:
 after Xcode Cloud, both GitHub Actions workflows, both local KDBX gates, and local Mac smoke are
@@ -147,8 +152,8 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
 - Do **not** configure a TestFlight External Testing post-action. Xcode Cloud may archive and
   upload automatically, but a processed build is moved to external testing manually in App Store
   Connect only after Xcode Cloud, both GitHub Actions workflows, both local KDBX gates, and local
-  Mac smoke are accepted. The iOS public-link group is **KeeForge Test**; the native Mac build has
-  its own public-link group, **KeeForge Mac Test**. Do not send the MAS build to the iOS group.
+  Mac smoke are accepted. Add both the iOS and native Mac builds to the same **KeeForge Test**
+  public-link group; keep their platform build identities and review states distinct.
 - After editing, verify that no external-testing post-action is present and save the workflow using
   the control App Store Connect presents. This account presents a plain **Save**; the separate
   **Restrict Editing** checkbox is on, so only the Account Holder, Admins, and App Managers
@@ -189,6 +194,8 @@ gate, or change the direct Mac artifact procedure.
 
 ## Public link settings
 
+- One group and public link serve iPhone, iPad, and native Mac builds. A group is app-wide,
+  not platform-specific; do not create a separate public group for each platform.
 - The link stays **enabled permanently** and is published on `README.md`, its `docs/i18n/`
   translations, and keeforge.com: `https://testflight.apple.com/join/mPAT4f1a`. Do not disable it
   between releases. Enabled is not the same as open — Apple closes joining on its own during Beta

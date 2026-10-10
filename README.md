@@ -22,10 +22,7 @@
     <img alt="Download KeeForge directly for Mac" src="https://img.shields.io/badge/Mac-Direct%20Download-24292F?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="Join the iPhone and iPad beta on TestFlight" src="https://img.shields.io/badge/TestFlight-iPhone%20%26%20iPad-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
-  </a>
-  <a href="https://testflight.apple.com/join/ZKQRwPaa">
-    <img alt="Join the Mac beta on TestFlight" src="https://img.shields.io/badge/TestFlight-Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="Join the iPhone, iPad, and Mac beta on TestFlight" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="Requires iOS 18.0 or later" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="Requires macOS 15.0 or later" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -41,11 +38,9 @@ KeeForge is a native KeePass client for iPhone, iPad, and Mac, built for people 
 
 ## Public Beta
 
-- iPhone and iPad: [Join the KeeForge beta on TestFlight](https://testflight.apple.com/join/mPAT4f1a)
-- Mac: [Join the KeeForge beta on TestFlight](https://testflight.apple.com/join/ZKQRwPaa)
+**[Join the KeeForge beta for iPhone, iPad, and Mac on TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
 
-Beta availability can differ between iPhone, iPad, and Mac while Apple reviews
-each platform build.
+Beta availability can differ between iPhone, iPad, and Mac while Apple reviews each platform build.
 
 ## Highlights
 

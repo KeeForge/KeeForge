@@ -19,7 +19,7 @@
     <img alt="在 App Store 下載" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="透過 TestFlight 加入公開測試版" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="透過 TestFlight 加入 iPhone、iPad 和 Mac 測試版" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="需要 iOS 18.0 或以上版本" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="需要 macOS 15.0 或以上版本" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -35,7 +35,9 @@ KeeForge 是適用於 iPhone、iPad 與 Mac 的原生 KeePass 用戶端。本機
 
 ## 公開測試版
 
-**[透過 TestFlight 加入 KeeForge 測試版](https://testflight.apple.com/join/mPAT4f1a)**
+**[透過 TestFlight 加入適用於 iPhone、iPad 和 Mac 的 KeeForge 測試版](https://testflight.apple.com/join/mPAT4f1a)**
+
+Apple 審核各平台的建置版本期間，iPhone、iPad 和 Mac 測試版的可用性可能有所不同。
 
 ## 功能亮點
 
