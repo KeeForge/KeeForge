@@ -1,5 +1,15 @@
+import SwiftUI
 import XCTest
 @testable import KeeForge
+
+final class SettingsSummaryRowTests: XCTestCase {
+    func testSummaryIsCappedAtTwoLinesOnlyBelowAccessibilitySizes() {
+        XCTAssertEqual(SettingsSummaryRow.summaryLineLimit(for: .large), 2)
+        XCTAssertEqual(SettingsSummaryRow.summaryLineLimit(for: .xxxLarge), 2)
+        XCTAssertNil(SettingsSummaryRow.summaryLineLimit(for: .accessibility1))
+        XCTAssertNil(SettingsSummaryRow.summaryLineLimit(for: .accessibility5))
+    }
+}
 
 final class AppSettingsSummaryTests: XCTestCase {
     func testSecurityNamesTheBiometricOnlyWhenOneIsPassedIn() {
