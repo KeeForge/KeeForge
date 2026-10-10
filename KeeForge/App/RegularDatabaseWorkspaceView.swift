@@ -486,6 +486,8 @@ struct RegularDatabaseWorkspaceView: View {
                 return nil
             },
             set: { newValue in
+                // An accessibility click can change the selection without making
+                // the list first responder, so each write takes focus as well.
                 switch newValue {
                 case .group(let groupID):
                     viewModel.workspace.selectedGroupID = groupID

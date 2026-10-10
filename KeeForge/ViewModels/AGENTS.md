@@ -12,7 +12,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `AppSettingsViewModel`: preference persistence and its live effects on open sessions.
 - `AppRoutingCoordinator`: launch order, queued database routes, incoming-URL classification, pending TOTP enrollment, Open/Close Database transitions.
 - `EntrySecretAction`: every reveal/copy disclosure that follows device-owner authentication.
-- `DatabaseListViewModel`: the database list and the app's only `PendingUploadDrainer`.
+- `DatabaseListViewModel`: the database list and all pending-upload draining (`drainPendingUploadsOnAppActive()`); a session never drains.
 
 ## Invariants
 
