@@ -6,15 +6,6 @@
 
 - KeeForge now speaks Russian: a full Russian (Русский) localization across the app and the AutoFill extension, plus translated README and contributor docs (#180).
 
-### Fixes
-
-- Restoring an earlier version of an entry no longer warns that the current contents will be lost when the database keeps history. The confirmation gave that warning whenever there were no unsaved changes, even though the replaced contents were kept as a new history version.
-- The Delete and Remove swipe actions on entries, groups, and databases stay red when a custom accent color is selected.
-- The AutoFill screens for saving a new credential or passkey on iPhone and iPad show their full title in every language. The save button moved from the navigation bar to the bottom of the screen.
-- On the unlock screen, the Key File and Hardware Key rows no longer squeeze their value at large text sizes: the value moves onto its own line instead of breaking inside a word or shrinking to an ellipsis.
-- Settings and Database Details show each row's full summary at accessibility text sizes instead of cutting it off after two lines.
-- On Mac, the Enter Setup Link field stays full width under its label, instead of sitting narrow beside the label until a link is pasted.
-
 ## v1.18.0 (2026-10-07)
 
 ### Changes
@@ -49,6 +40,10 @@
 - When the saved Face ID, Touch ID or Apple Watch key can no longer be used, for example after enrolled fingerprints change, the unlock screen now says so and asks for your master password, which saves a new key.
 - After a cancelled or failed Face ID or Touch ID unlock, the error screen now also shows the password field, so you can unlock with your master password right away.
 - AutoFill on iPhone and iPad now searches a database opened from the Files app in its current state, so credentials another app or device added since KeeForge last opened it are found (#167). Cloud databases, and every database in Mac AutoFill, still search the copy KeeForge last saved; when a search there finds nothing, AutoFill now says when that copy was last updated and directs you to unlock the database in KeeForge. For cloud databases, use Sync Now in Database Details to refresh it.
+- Restoring an earlier version of an entry no longer warns that the current contents will be lost when the database keeps history. The confirmation gave that warning whenever there were no unsaved changes, even though the replaced contents were kept as a new history version.
+- The Delete and Remove swipe actions on entries, groups, and databases stay red when a custom accent color is selected.
+- The AutoFill screens for saving a new credential or passkey on iPhone and iPad show their full title in every language. The save button moved from the navigation bar to the bottom of the screen.
+- On the unlock screen, the Key File and Hardware Key rows no longer squeeze their value at large text sizes: the value moves onto its own line instead of breaking inside a word or shrinking to an ellipsis.
 
 ### New Features
 
