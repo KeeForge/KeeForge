@@ -138,6 +138,7 @@ struct EntryListView: View {
                 Button(deletionTitle(for: entry), role: .destructive) {
                     requestDeletion(for: entry)
                 }
+                .tint(.red)
                 .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }

@@ -395,6 +395,7 @@ struct DatabaseListView: View {
                     pendingRemoval = target
                 }
             }
+            .tint(.red)
         }
         // Both dialogs are attached to the row (not the List) so iOS anchors
         // them to the database they act on instead of an arbitrary popover in
