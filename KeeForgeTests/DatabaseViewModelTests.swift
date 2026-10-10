@@ -1607,6 +1607,22 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(localSaverCalls.didCall, "nothing may be written")
     }
 
+    /// The confirmation is usually read with nothing staged — straight after an unlock or
+    /// a save — and must not report the history as capped just because no draft exists yet.
+    func testRestoreKeepsReplacedStateIsReportedWithoutPendingEdits() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let entry = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first { !$0.history.isEmpty })
+        XCTAssertNil(vm.draft, "precondition: nothing is staged after a fresh unlock")
+
+        XCTAssertTrue(vm.restoreKeepsReplacedState(entryID: entry.id))
+
+        XCTAssertNil(vm.draft, "asking must not stage a draft")
+        XCTAssertFalse(vm.isDirty)
+        XCTAssertFalse(vm.restoreKeepsReplacedState(entryID: UUID()), "an unknown entry keeps nothing")
+    }
+
     func testRestoringAnEarlierVersionBringsBackItsValues() async throws {
         let (vm, entryID, originalUsername, _) = try await makeViewModelWithEditedEntry()
 

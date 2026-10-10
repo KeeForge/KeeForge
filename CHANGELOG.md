@@ -6,6 +6,10 @@
 
 - KeeForge now speaks Russian: a full Russian (Русский) localization across the app and the AutoFill extension, plus translated README and contributor docs (#180).
 
+### Fixes
+
+- Restoring an earlier version of an entry no longer warns that the current contents will be lost when the database keeps history. The confirmation gave that warning whenever there were no unsaved changes, even though the replaced contents were kept as a new history version.
+
 ## v1.18.0 (2026-10-07)
 
 ### Changes
