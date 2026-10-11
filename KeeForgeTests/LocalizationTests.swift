@@ -62,7 +62,7 @@ final class LocalizationTests: XCTestCase {
 
     /// A raw catalog bundled into the test bundle. `name` is the catalog's
     /// logical repo-relative path (preserved for assertions and messages);
-    /// `bundleResource` is the disambiguated filename the `postBuildScripts`
+    /// `bundleResource` is the disambiguated filename the `postCompileScripts`
     /// phase copies it to inside the `.xctest` bundle.
     private struct CatalogSource {
         let name: String

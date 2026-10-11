@@ -7,7 +7,7 @@ enum CloudProviderRegistry {
     /// openable even when the provider is hidden from the add/import UI.
     ///
     /// macOS is the exception: the Mac app does not compile the Dropbox or
-    /// OneDrive providers at all (WebDAV-only release — see the KeeForgeMac
+    /// OneDrive providers at all (WebDAV and FTP only — see the KeeForgeMac
     /// source excludes in project.yml), so `provider(for:)` returns nil for
     /// them there. Nothing can have connected one, because neither has ever
     /// been reachable from the Mac UI.

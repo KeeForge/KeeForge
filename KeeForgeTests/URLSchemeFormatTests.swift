@@ -27,7 +27,7 @@ final class URLSchemeFormatTests: XCTestCase {
     }
 
     #if os(macOS)
-    /// The Mac app ships WebDAV only and links neither cloud SDK, so it must not
+    /// The Mac app offers only WebDAV and FTP and links neither cloud SDK, so it must not
     /// advertise OAuth callback schemes nothing can service.
     func testMacBundleDeclaresNoOAuthSchemes() throws {
         let schemes = try declaredURLSchemes()

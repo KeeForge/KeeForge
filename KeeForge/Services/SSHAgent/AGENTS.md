@@ -1,17 +1,26 @@
 # SSH Agent Services
 
-The macOS-only SSH agent (#163): an opt-in Unix-socket agent that signs with private keys stored as attachments in the unlocked database. Every file here is `#if os(macOS)` and excluded from the iOS target in `../../../project.yml`; none is on the AutoFill allow-lists. Setup and supported keys for users: `../../../KeeForgeMac/README.md#ssh-agent`. Security boundary: `../../../KeeForgeMac/SECURITY.md#ssh-agent`.
+**Scope:** the macOS-only SSH agent (#163): an opt-in Unix-socket agent that signs with private keys stored as attachments in the unlocked database. Every file here is `#if os(macOS)` and excluded from the iOS target in `../../../project.yml`; none is on the AutoFill allow-lists. Setup and supported keys for users: `../../../KeeForgeMac/README.md#ssh-agent`. Security boundary: `../../../KeeForgeMac/SECURITY.md#ssh-agent`.
 
-## Main Files
+## Ownership
 
 - `SSHAgentKey.swift` parses one unencrypted OpenSSH private key (`openssh-key-v1`, cipher and KDF `none`) and signs with it: Ed25519 and ECDSA P-256/P-384/P-521 through CryptoKit, RSA through `SecKeyCreateSignature` with `rsa-sha2-256` or `rsa-sha2-512` only. OpenSSH files carry no RSA CRT exponents, so the file derives them (`BigUnsigned`) to build the PKCS #1 key `SecKeyCreateWithData` needs. Parsing refuses a file over `maximumFileLength` (64 KiB, several times an armored RSA 16384 key) before it decodes anything, and rejects mismatched check integers, bad padding, a container public key that differs from the one the private key derives, and RSA keys outside OpenSSH's 1024 to 16384 bit range or with a component longer than the modulus; the RSA limit is also what keeps `BigUnsigned`'s quadratic arithmetic bounded for a crafted attachment. Errors distinguish `passphraseProtected` and `unsupportedFormat` for Settings. `SSHWireReader` and `SSHWireWriter` are the RFC 4251 encoding shared by the folder and its tests.
 - `SSHAgentRequestHandler.swift` answers agent messages (draft-miller-ssh-agent): `REQUEST_IDENTITIES` and `SIGN_REQUEST`; everything else, including add/remove/lock requests and extensions such as `session-bind@openssh.com`, gets `SSH_AGENT_FAILURE`. It reads `keySources` on every request and again after signing, and withholds the signature unless the same entry is still offered under the same `SSHAgentLease` (session identity plus `lockCycleID`) with the same key file, so a lock, deselection, or replaced key attachment mid-signature releases nothing. `SSHAgentKeySource.privateKeyFile` picks the attachment a `KeeAgent.settings` attachment names when its location is an attachment, otherwise the first attachment `SSHAgentKey.looksLikePrivateKey` accepts; a settings attachment over `KeeAgentSettings.maximumLength` is not parsed. A key on two entries is listed once; an empty key comment falls back to the entry title. The identities answer stays within `maximumMessageLength`, leaving out a key that no longer fits, and a sign request parses entries only up to the one holding the requested key.
 - `SSHAgentSocketServer.swift` owns the POSIX socket: bind with a 0600 mode, replace a stale socket but refuse any other file at the path, accept only peers whose `getpeereid` user matches, one thread per connection and at most `defaultMaximumConnections` (64) of them, a further connection taking the place of the one that has gone longest without a complete request (idle, stopped inside a message, or not reading its answer), OpenSSH's 256 KiB message limit, and `stop()` shutting every open connection down before removing the socket.
 - `MacSSHAgentController.swift` is the `@MainActor @Observable` owner the app creates next to `MacQuickAccessController`: `isEnabled` and the per-database entry choice persist through `SettingsService` into the `UserDefaults` it is created with (the app's own, off and empty by default; tests pass a suite of their own), `keySources()` reads the active `DatabaseViewModel` (empty unless the agent is on, the session is unlocked, and `isLockPending` is false: no deferred lock, window-close prompt, or Retry Save and Lock write in progress), and `candidates(in:)` builds the Settings list off the main actor; the tab clears its rows when a refresh starts and drops the result of a refresh that was superseded. `concealsKeyList` is true from the app's resign-active notification until it is active again, and the tab redacts the rows' entry titles and fingerprints while it is, because `ScreenProtectionService` leaves the Settings window uncovered. Socket threads reach the session through `DispatchQueue.main.sync`, so nothing on the main actor may wait for a socket thread. `../../Views/Settings/MacSSHAgentSettingsTab.swift` is its view.
 
-## Change Carefully
+## Invariants
 
 - Keep the agent stateless about keys: no caching of parsed keys, no key export, no writing key files. A lock must withdraw keys by the next read, and that only holds while every request reads the session afresh. What bounds the repeated parsing is the size limits above, not a cache: checking a cached key against the attachment it came from would cost about what parsing a file of that size does, and would keep key material between requests.
 - A new vault-derived value in Settings ▸ SSH Agent has to honor `concealsKeyList` too.
 - Keep the default socket path stable; users paste it into `~/.ssh/config`.
-- Tests: `../../../KeeForgeTests/SSHAgentKeyTests.swift`, `SSHAgentRequestHandlerTests.swift`, and `MacSSHAgentControllerTests.swift`, all macOS-only, over the throwaway keys in `../../../KeeForgeTests/Support/SSHAgentTestKeys.swift`.
+
+## Tests
+
+- `SSHAgentKeyTests`, `SSHAgentRequestHandlerTests`, and `MacSSHAgentControllerTests`, all `KeeForgeMacTests` only, over the throwaway keys in `../../../KeeForgeTests/Support/SSHAgentTestKeys.swift`.
+
+## See also
+
+- `../AGENTS.md`, `../AppSupport/AGENTS.md` (where the agent's settings are stored), `../Security/AGENTS.md`
+- `../../Views/Settings/AGENTS.md`: the Settings tab
+- `../../../KeeForgeMac/README.md`, `../../../KeeForgeMac/SECURITY.md`, `../../../docs/threat-model.md`

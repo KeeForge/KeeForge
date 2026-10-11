@@ -10,7 +10,7 @@ Apply this skill to the requested views or diff. Review requests are read-only u
 
 ## Start with the local contract
 
-Read the applicable folder guidance and [shared UI rules](../../../KeeForge/Views/README.md). Repository and local instructions take precedence over this skill. Read [Mac guidance](../../../KeeForgeMac/README.md) or [AutoFill guidance](../../../AutoFillExtension/AGENTS.md) when those surfaces are affected.
+Read the applicable folder guidance and [shared UI rules](../../../KeeForge/Views/AGENTS.md). Repository and local instructions take precedence over this skill. Read [Mac guidance](../../../KeeForgeMac/README.md) or [AutoFill guidance](../../../AutoFillExtension/AGENTS.md) when those surfaces are affected.
 
 Check the actual target settings in [project.yml](../../../project.yml). The adoption baseline is iOS 18, macOS 15, Swift 6 language mode, and complete concurrency checking. Language mode does not identify the compiler version. Verify SDK and runtime availability before recommending newer APIs; do not raise deployment targets as cleanup.
 

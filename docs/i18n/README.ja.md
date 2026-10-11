@@ -19,7 +19,7 @@
     <img alt="App Store でダウンロード" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="TestFlight の公開ベータに参加" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="TestFlight で iPhone、iPad、Mac 向けベータに参加" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="iOS 18.0 以降が必要" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="macOS 15.0 以降が必要" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -35,7 +35,9 @@ KeeForge は iPhone、iPad、Mac のためのネイティブ KeePass クライ�
 
 ## 公開ベータ
 
-**[TestFlight で KeeForge のベータに参加する](https://testflight.apple.com/join/mPAT4f1a)**
+**[TestFlight で iPhone、iPad、Mac 向け KeeForge ベータに参加する](https://testflight.apple.com/join/mPAT4f1a)**
+
+Apple が各プラットフォームのビルドを審査している間、iPhone、iPad、Mac でベータ版の提供状況が異なる場合があります。
 
 ## 主な特長
 
@@ -71,7 +73,7 @@ KeeForge はデータの安全性を非常に重視しています。パスワ�
 
 FTP では、最後の競合確認とファイルの置き換えを一つの操作として実行できません。他のアプリや端末から同時に保存された変更が上書きされる可能性があるため、同じ FTP データベースを複数の場所で同時に編集しないでください。
 
-技術的な詳細に関心のある方向けに、テストスイートの構成は [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) に、リリース前の検証ゲートは [`ci_scripts/README.md`](../../ci_scripts/README.md) にまとめられています。
+技術的な詳細に関心のある方向けに、テストスイートの構成は [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) に、リリース前の検証ゲートは [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md) にまとめられています。
 
 ## プロジェクトの構成
 
@@ -100,7 +102,7 @@ scripts/              # ローカル開発用ツール
 - [`CHANGELOG.md`](../../CHANGELOG.md) - バージョン履歴
 - [`ROADMAP.md`](../../ROADMAP.md) - 予定している開発内容と現在の優先事項
 - [`AGENTS.md`](../../AGENTS.md) - コーディングエージェント向けのコンテキスト
-- [`KeeForge/README.md`](../../KeeForge/README.md) - App ターゲットのアーキテクチャ図
+- [`KeeForge/AGENTS.md`](../../KeeForge/AGENTS.md) - App ターゲットのアーキテクチャ図
 - [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) - 拡張機能の制約と共有ソースに関する注記
 - [`SECURITY.md`](../../SECURITY.md) - 脆弱性の開示方針
 - [`docs/`](../../docs/) - 実装仕様、監査結果、詳細な設計ドキュメント

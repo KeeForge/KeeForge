@@ -34,6 +34,8 @@ Reference files, read on demand:
   distinction to the macOS workflow and never override a non-test failure with a local pass.
 - [xcode-cloud-setup.md](xcode-cloud-setup.md) — the one-time App Store Connect workflow configuration this process
   depends on. Read it if archives or TestFlight uploads are not appearing as expected.
+- [direct-distribution.md](direct-distribution.md) — the direct Mac build's safety contract, expected artifact-verifier
+  output, appcast stage/handoff/publish commands, and the manual Sparkle rehearsal.
 
 ## Set the candidate build number
 
@@ -282,7 +284,7 @@ in App Store Connect, independently for iOS and Mac.
      the production bundle ID and container, so testers are running an unreviewed candidate
      against their real KDBX files.
    - Any area you specifically want exercised.
-   The current macOS public TestFlight link is `https://testflight.apple.com/join/ZKQRwPaa`; record
+   The shared iOS/macOS public TestFlight link is `https://testflight.apple.com/join/mPAT4f1a`; record
    its enabled state in the manifest instead of treating the link itself as distribution evidence.
 5. If this is the **first build of this marketing version/platform**, submit it for Beta App Review
    when the user has already authorized that named candidate submission; otherwise obtain a
@@ -290,22 +292,25 @@ in App Store Connect, independently for iOS and Mac.
    date until this clears. Until it does, the published public link shows
    *"This beta isn't accepting any new testers right now"* to everyone arriving from `README.md`
    or keeforge.com — expected, and another reason not to announce early.
-6. Assign **both** App Store builds to their platform-specific external TestFlight groups immediately
+6. Assign **both** App Store builds to the shared **KeeForge Test** external TestFlight group immediately
    after step 5 — or immediately after the notes for a later build that skips Beta App Review. Do
    this even when the review state is `READY_FOR_BETA_SUBMISSION`, `WAITING_FOR_REVIEW`, or
-   `IN_REVIEW`; do not wait for `APPROVED`. Assign the exact iOS build ID to the iOS external group
-   and the exact macOS build ID to the Mac external group; never cross-assign them just because the
-   visible version/build numbers match. This early association is intentional: App Store Connect
+   `IN_REVIEW`; do not wait for `APPROVED`. Assign the exact iOS and macOS build IDs to that same
+   group; verify each build’s platform and RC identity rather than relying on matching visible
+   version/build numbers. This early association is intentional: App Store Connect
    keeps an unapproved build unavailable to external testers, then makes the already-associated
    build available after approval without a later manual add that can be forgotten.
 
    When the user has already authorized distribution of that named candidate, the authorization
-   covers these two group assignments; otherwise obtain confirmation immediately before the first
+   covers these group assignments; otherwise obtain confirmation immediately before the first
    group mutation. Do not treat beta authorization as production go or a legal declaration. Read
-   both group relationships back and record each `groupID`, `buildID`, review state, and
-   `groupAssignmentTimestamp` in the manifest. The iOS public link is permanently enabled, so once
-   approved, distribution reaches every tester accumulated from earlier releases, not just people
-   who opted into this one.
+   the shared group’s build relationship back and record the same `groupID` with each platform’s
+   distinct `buildID`, review state, and `groupAssignmentTimestamp` in the manifest. The shared public
+   link is permanently enabled, so once approved, distribution reaches every tester accumulated from
+   earlier releases, not just people
+   who opted into this one. Also assign the same exact Mac build to the closed **KeeForge Mac Test**
+   legacy cohort while it has existing testers; preserve its disabled public link and record that
+   additional group assignment. See [configured groups](xcode-cloud-setup.md#configured-state).
 7. Track group assignment separately from actual distribution. A pending build's
    `groupAssignmentTimestamp` is **not** its soak start: leave `distributionTimestamp` unset until
    App Store Connect reports that the exact associated build is externally available (for example,

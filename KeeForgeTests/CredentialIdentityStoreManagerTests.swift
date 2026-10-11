@@ -15,10 +15,12 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         await resetCredentialIdentityStoreState()
+        DatabaseListStore.clearAll()
     }
 
     override func tearDown() async throws {
         await resetCredentialIdentityStoreState()
+        DatabaseListStore.clearAll()
         try await super.tearDown()
     }
 
@@ -1750,30 +1752,129 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertTrue(try SystemCredentialIdentityStore.validatedIdentities([]).isEmpty)
     }
 
-    func testUnreadableEnumerationStopsAllEnumerationDependentMutations() async {
+    // MARK: - Incremental stores that cannot be enumerated (iOS and macOS 27.0.1)
+
+    /// With no other AutoFill-enabled database registered nothing else belongs
+    /// in the store, so the refresh replaces it and stale identities go too.
+    func testUnreadableEnumerationReplacesStoreForTheOnlyAutoFillDatabase() async throws {
         let fake = installFake()
-        let existingDatabase = UUID()
-        let existing = makeEntry(title: "Existing", url: "https://existing-site.com", username: "existing", hasPassword: true)
-        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: existing, in: existingDatabase)
-        let before = storedRecordIdentifiers(fake)
+        let database = try registerDatabase(named: "only.kdbx")
+        let stale = makeEntry(title: "Stale", url: "https://stale-site.com", username: "stale", hasPassword: true)
+        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: stale, in: database)
         fake.enumerationError = .nonConformingIdentities(count: 1)
 
-        let incoming = makeEntry(title: "New", url: "https://new-site.com", username: "new", hasPassword: true)
-        CredentialIdentityStoreManager.populate(with: [incoming], for: UUID())
-        await CredentialIdentityStoreManager.waitForPendingMutations()
-        XCTAssertTrue(fake.calls.isEmpty, "Failed enumeration must not trigger a whole-store replacement")
-        XCTAssertEqual(storedRecordIdentifiers(fake), before)
+        let current = makeEntry(title: "Current", url: "https://current-site.com", username: "current", hasPassword: true)
+        let refresh = expectMutations(1, on: fake, description: "Whole-store replace")
+        CredentialIdentityStoreManager.populate(with: [current], for: database)
+        await fulfillment(of: [refresh], timeout: 1)
 
-        CredentialIdentityStoreManager.removeIdentities(forDatabase: existingDatabase)
-        await CredentialIdentityStoreManager.waitForPendingMutations()
-        XCTAssertTrue(fake.calls.isEmpty)
-        XCTAssertEqual(storedRecordIdentifiers(fake), before)
+        XCTAssertEqual(fake.calls, ["replaceCredentialIdentities"])
+        XCTAssertEqual(
+            storedRecordIdentifiers(fake),
+            [CredentialRecordIdentifier(databaseID: database, entryID: current.id).encoded]
+        )
+    }
 
-        let identifier = CredentialRecordIdentifier(databaseID: existingDatabase, entryID: existing.id).encoded
-        CredentialIdentityStoreManager.removeIdentity(withRecordIdentifier: identifier)
+    func testUnreadableEnumerationIgnoresDisabledDatabasesWhenChoosingReplace() async throws {
+        let fake = installFake()
+        let database = try registerDatabase(named: "enabled.kdbx")
+        _ = try registerDatabase(named: "disabled.kdbx", autoFillEnabled: false)
+        fake.enumerationError = .nonConformingIdentities(count: 1)
+
+        let entry = makeEntry(title: "Site", url: "https://site.example.com", username: "user", hasPassword: true)
+        let refresh = expectMutations(1, on: fake, description: "Whole-store replace")
+        CredentialIdentityStoreManager.populate(with: [entry], for: database)
+        await fulfillment(of: [refresh], timeout: 1)
+
+        XCTAssertEqual(fake.calls, ["replaceCredentialIdentities"])
+    }
+
+    func testUnreadableEnumerationClearsStoreWhenTheOnlyAutoFillDatabaseHasNoEligibleEntries() async throws {
+        let fake = installFake()
+        let database = try registerDatabase(named: "only.kdbx")
+        let stale = makeEntry(title: "Stale", url: "https://stale-site.com", username: "stale", hasPassword: true)
+        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: stale, in: database)
+        fake.enumerationError = .nonConformingIdentities(count: 1)
+
+        let refresh = expectMutations(1, on: fake, description: "Clear")
+        CredentialIdentityStoreManager.populate(with: [], for: database)
+        await fulfillment(of: [refresh], timeout: 1)
+
+        XCTAssertEqual(fake.calls, ["removeAllCredentialIdentities"])
+        XCTAssertTrue(fake.stored.isEmpty)
+    }
+
+    /// Another enabled database may own identities that cannot be seen, so
+    /// the refresh must add to the store and never replace it.
+    func testUnreadableEnumerationSavesAdditivelyWhenAnotherAutoFillDatabaseIsEnabled() async throws {
+        let fake = installFake()
+        let databaseA = try registerDatabase(named: "a.kdbx")
+        let databaseB = try registerDatabase(named: "b.kdbx")
+        let entryB = makeEntry(title: "B", url: "https://b-site.com", username: "b-user", hasPassword: true)
+        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: entryB, in: databaseB)
+        fake.enumerationError = .nonConformingIdentities(count: 1)
+
+        let entryA = makeEntry(title: "A", url: "https://a-site.com", username: "a-user", hasPassword: true)
+        let refresh = expectMutations(1, on: fake, description: "Additive save")
+        CredentialIdentityStoreManager.populate(with: [entryA], for: databaseA)
+        await fulfillment(of: [refresh], timeout: 1)
+
+        XCTAssertEqual(fake.calls, ["saveCredentialIdentities"])
+        XCTAssertEqual(
+            Set(storedRecordIdentifiers(fake)),
+            [
+                CredentialRecordIdentifier(databaseID: databaseA, entryID: entryA.id).encoded,
+                CredentialRecordIdentifier(databaseID: databaseB, entryID: entryB.id).encoded,
+            ]
+        )
+    }
+
+    func testUnreadableEnumerationLeavesStoreAloneWhenAnotherDatabaseIsEnabledAndNothingIsEligible() async throws {
+        let fake = installFake()
+        let databaseA = try registerDatabase(named: "a.kdbx")
+        let databaseB = try registerDatabase(named: "b.kdbx")
+        let entryB = makeEntry(title: "B", url: "https://b-site.com", username: "b-user", hasPassword: true)
+        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: entryB, in: databaseB)
+        fake.enumerationError = .nonConformingIdentities(count: 1)
+        fake.onMutation = { XCTFail("Another database's unseen identities must not be touched") }
+
+        CredentialIdentityStoreManager.populate(with: [], for: databaseA)
         await CredentialIdentityStoreManager.waitForPendingMutations()
+
         XCTAssertTrue(fake.calls.isEmpty)
-        XCTAssertEqual(storedRecordIdentifiers(fake), before)
+        XCTAssertEqual(fake.stored.count, 1)
+    }
+
+    func testUnreadableEnumerationTargetedDatabaseRemovalClearsStore() async {
+        let fake = installFake()
+        let databaseA = UUID()
+        let entryA = makeEntry(title: "A", url: "https://a-site.com", username: "a-user", hasPassword: true)
+        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: entryA, in: databaseA)
+        fake.enumerationError = .nonConformingIdentities(count: 1)
+
+        let removal = expectMutations(1, on: fake, description: "Clear in place of targeted removal")
+        CredentialIdentityStoreManager.removeIdentities(forDatabase: databaseA)
+        await fulfillment(of: [removal], timeout: 1)
+
+        XCTAssertEqual(fake.calls, ["removeAllCredentialIdentities"])
+        XCTAssertTrue(fake.stored.isEmpty)
+    }
+
+    func testUnreadableEnumerationSingleIdentityRemovalClearsStore() async {
+        let fake = installFake()
+        let databaseA = UUID()
+        let entryA = makeEntry(title: "A", url: "https://a-site.com", username: "a-user", hasPassword: true)
+        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: entryA, in: databaseA)
+        fake.enumerationError = .nonConformingIdentities(count: 1)
+
+        let removal = expectMutations(1, on: fake, description: "Clear in place of single-identity removal")
+        CredentialIdentityStoreManager.removeIdentity(
+            withRecordIdentifier: CredentialRecordIdentifier(databaseID: databaseA, entryID: entryA.id).encoded
+        )
+        await fulfillment(of: [removal], timeout: 1)
+
+        XCTAssertEqual(fake.calls, ["removeAllCredentialIdentities"])
+        XCTAssertTrue(fake.stored.isEmpty)
     }
 
     func testNonIncrementalRefreshDoesNotRequireEnumeration() async {
@@ -1888,6 +1989,19 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             user: user,
             recordIdentifier: recordIdentifier
         )
+    }
+
+    /// Adds a database to the registry the manager consults when the store
+    /// cannot be enumerated, and returns its id.
+    private func registerDatabase(named name: String, autoFillEnabled: Bool = true) throws -> UUID {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent(name)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("fixture".utf8).write(to: url)
+        let reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: autoFillEnabled)
+        DatabaseListStore.update(reference)
+        return reference.id
     }
 
     private func storedRecordIdentifiers(_ fake: FakeCredentialIdentityStore) -> [String] {
