@@ -94,6 +94,12 @@ struct KeeForgeApp: App {
         // App-owned Settings sheet (⌘, / the Mac-compat toolbar gear),
         // above the root so it survives the lock/unlock root swap.
         .environment(appSettingsPresentation)
+        .background {
+            let activeViewModel = $activeDatabaseViewModel
+            IOSUserActivityObserver {
+                activeViewModel.wrappedValue?.resetInactivityTimer()
+            }
+        }
         .sheet(isPresented: $appSettingsPresentation.isPresented) {
             SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
         }

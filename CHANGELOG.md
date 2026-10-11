@@ -6,6 +6,10 @@
 
 - KeeForge now speaks Russian: a full Russian (Русский) localization across the app and the AutoFill extension, plus translated README and contributor docs (#180).
 
+### Fixes
+
+- On iPhone and iPad, typing, scrolling, and tapping buttons now restart the auto-lock timeout, so a database stays unlocked while you use it.
+
 ## v1.18.0 (2026-10-07)
 
 ### Changes
