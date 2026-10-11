@@ -7,7 +7,6 @@ import XCTest
 /// navigation instead of swipe-based scrolling.
 @MainActor
 class MacUITestCase: XCTestCase {
-    private static let uiTestDBFilenameEnv = "UI_TEST_DB_FILENAME"
     private static let uiTestDatabasesJSONEnv = "UI_TEST_DATABASES_JSON"
     private static let uiTestKeyFileBase64Env = "UI_TEST_KEYFILE_BASE64"
     private static let uiTestKeyFileFilenameEnv = "UI_TEST_KEYFILE_FILENAME"
@@ -54,10 +53,6 @@ class MacUITestCase: XCTestCase {
         }
         let payloadData = try JSONSerialization.data(withJSONObject: payloads, options: [])
         app.launchEnvironment[Self.uiTestDatabasesJSONEnv] = String(decoding: payloadData, as: UTF8.self)
-
-        if let firstFixture = databaseFixtures.first {
-            app.launchEnvironment[Self.uiTestDBFilenameEnv] = firstFixture.injectedFilename
-        }
 
         try configureLaunch(app: app)
         app.launch()

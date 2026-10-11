@@ -20,7 +20,7 @@ Base commands and repo-wide policy (`-only-testing:` always, no full UI suite un
 | --- | --- |
 | `-ui-testing` | Reseeds the database list from the fixture payload on every launch, skips the device-owner prompt for reveal/copy, and hides the What's New sheet and AutoFill tip. |
 | `UI_TEST_VIEW_MODE` | Starting view of the database root. A database opens on All Entries, but the helpers browse from the group list, so `setUp` sets `groups`. A class testing the real default removes the key (`DefaultViewUITests`). |
-| `UI_TEST_DATABASES_JSON`, `UI_TEST_DB_FILENAME`, `UI_TEST_KEYFILE_*` | Written by `setUp`. Override `databaseFixtureName`, `databaseFixtures`, or `keyFileFixtureName` instead of setting them. |
+| `UI_TEST_DATABASES_JSON`, `UI_TEST_KEYFILE_*` | Written by `setUp`. Override `databaseFixtureName`, `databaseFixtures`, or `keyFileFixtureName` instead of setting them. |
 | `UI_TEST_DATABASE_READ_ONLY=1` | Opens the database read-only. |
 | `UI_TEST_DEVICE_OWNER_AUTH_PENDING=1` | Re-arms the reveal/copy gate with an authentication that never completes, to assert nothing is disclosed before it succeeds. |
 | `UI_TEST_ENABLE_QUICK_LAUNCH=1` | Turns Quick Launch on; never rely on the single-database default. |

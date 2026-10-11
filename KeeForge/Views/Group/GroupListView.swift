@@ -293,27 +293,11 @@ struct GroupListView: View {
         }
     }
 
-    /// Presents the entry editor. iOS pushes it onto the navigation stack;
-    /// macOS presents a sheet (the sidebar drill-down has no stack to push
-    /// onto, and pushed sidebar stacks render zero-height on macOS anyway).
+    /// Pushes the entry editor onto the navigation stack.
     private struct GroupListEditorPresentation: ViewModifier {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(macOS)
-            content
-                .sheet(item: view.$activeEditor) { formViewModel in
-                    NavigationStack {
-                        EntryEditView(
-                            formViewModel: formViewModel,
-                            databaseViewModel: view.viewModel
-                        ) { _ in
-                            view.activeEditor = nil
-                        }
-                    }
-                    .macSheetFrame()
-                }
-            #else
             content
                 .navigationDestination(item: view.$activeEditor) { formViewModel in
                     EntryEditView(
@@ -323,31 +307,16 @@ struct GroupListView: View {
                         view.activeEditor = nil
                     }
                 }
-            #endif
         }
     }
 
-    /// Presents the group editor, with the same iOS-push / macOS-sheet split as
-    /// the entry editor. Attached to the body's outer `Group` so a branch that
-    /// vanishes mid-edit cannot tear the host down under a presented editor.
+    /// Pushes the group editor. Attached to the body's outer `Group` so a
+    /// branch that vanishes mid-edit cannot tear the host down under a
+    /// presented editor.
     private struct GroupListGroupEditorPresentation: ViewModifier {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(macOS)
-            content
-                .sheet(item: view.$activeGroupEditor) { formViewModel in
-                    NavigationStack {
-                        GroupEditView(
-                            formViewModel: formViewModel,
-                            databaseViewModel: view.viewModel
-                        ) {
-                            view.activeGroupEditor = nil
-                        }
-                    }
-                    .macSheetFrame(minHeight: 520)
-                }
-            #else
             content
                 .navigationDestination(item: view.$activeGroupEditor) { formViewModel in
                     GroupEditView(
@@ -357,7 +326,6 @@ struct GroupListView: View {
                         view.activeGroupEditor = nil
                     }
                 }
-            #endif
         }
     }
 
