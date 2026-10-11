@@ -1,32 +1,56 @@
-# Services Folder
+# Services
 
-This folder is the integration layer between app logic and the outside world: App Group storage, file/bookmark access, cloud SDKs, Keychain, system APIs, AutoFill helpers, and app-level support services.
+**Scope:** the integration layer between app logic and the outside world: App Group storage, files and bookmarks, cloud providers, Keychain, system APIs, AutoFill helpers. This file holds the rules that span subfolders; read the subfolder's `AGENTS.md` before changing it.
 
-Read each subfolder's `AGENTS.md` before working in it.
+## Ownership
 
-## Start Here
+- `Persistence/DatabaseListStore`: the persisted database list (`DatabaseReference`), cache and backup locations, and the AutoFill database selection. Nothing else writes `database-list.json`.
+- `Persistence/LocalDatabaseSaver`: every save whose target is a file on this device, including the AutoFill extension's save into a cloud database's cached copy.
+- `Cloud/CloudDatabaseSaver`: the app's save of a cloud-backed database. `Cloud/CloudSyncCoordinator`: download-before-open and every replacement of a cloud cache file.
+- `AutoFill/AutoFillSaveCoordinator`: the extension-safe save of a new entry, and the pending-upload marker that covers it.
+- `Security/KeychainService`: the per-database quick-unlock key. `Cloud/CloudTokenStore`: provider credentials. They are separate items with different protection (see `Security/AGENTS.md`, `Cloud/AGENTS.md`).
 
-- `Persistence/DatabaseListStore.swift` is the persisted source of truth for known databases (`DatabaseReference`: read-only flag, per-database `autoFillEnabled`, `lastMasterKeyChangeAt`, cloud sync metadata), cached copies, backup directories, and the active AutoFill database selection.
-- `Persistence/LocalDatabaseSaver.swift` and `Cloud/CloudDatabaseSaver.swift` are the main save-path entry points.
-- `Cloud/CloudSyncCoordinator.swift` owns cloud download-before-open and post-save cache/reference refresh behavior.
-- `AutoFill/AutoFillSaveCoordinator.swift` owns the extension-safe save path for new credentials.
-- `Security/KeychainService.swift` owns composite-key storage with biometric access control (a pre-key instead for YubiKey databases; see `Security/AGENTS.md`).
+## Invariants
 
-Platform scope: macOS supports local files and WebDAV, not the
-iOS app's Dropbox or OneDrive connections. Mac AutoFill fills passwords,
-passkeys, and one-time codes and can save a passkey registration, but
-AuthenticationServices does not expose the iOS extension's password-save,
-password-generation, or picker-created password-entry flows. Shared source
-membership means code must compile on both platforms; it does not imply
-identical runtime capabilities.
+### Targets and platforms
 
-## Change Carefully
+- The AutoFill extensions compile only an explicit list of service and view files. `../../project.yml` holds it twice, between the `>>> SHARED AUTOFILL ALLOW-LIST` / `<<< SHARED AUTOFILL ALLOW-LIST` markers under `KeeForgeAutoFill` and `KeeForgeMacAutoFill`. The `- path:` lines must stay identical, in the same order; edit both together or one platform's extension silently diverges.
+- A file on that list, and everything it references, must be extension-safe on both platforms: no app-only types or APIs, no dependency on a file that is not also listed, and it must compile for iOS and macOS.
+- `KeeForgeMac` compiles the whole `Services` tree except `Cloud/DropboxCloudProvider.swift` and `Cloud/OneDriveCloudProvider.swift`, so every other service must compile on macOS. The iOS app excludes the four `AppSupport/Mac*` files that need AppKit window or hot-key APIs (`MacLockMonitor`, `MacWindowCloseGuard`, `MacQuickAccessController`, `MacGlobalHotKey`).
+- Shared membership means the code compiles on both platforms, not that the feature exists on both. Mac cloud sync offers WebDAV and FTP; Dropbox and OneDrive are iOS-only and not built into the Mac app. Mac AutoFill fills passwords, passkeys, and one-time codes and saves a passkey registration, but has no password save, generation, or picker-created entry (`../../AutoFillExtension/AGENTS.md`).
 
-- Several service files are compiled into both the app and the AutoFill extension; see `../../AutoFillExtension/AGENTS.md`. If you add dependencies, keep them extension-safe and update `../../project.yml`. The AutoFill shared source list is duplicated as two byte-identical allow-lists in `../../project.yml`, delimited by the `>>> SHARED AUTOFILL ALLOW-LIST` / `<<< SHARED AUTOFILL ALLOW-LIST` marker comments under the `KeeForgeAutoFill` and `KeeForgeMacAutoFill` targets; keep them literally identical (same paths, same order) and always edit both together. Separately, the `KeeForgeMac` app target compiles the *entire* `KeeForge/Services` tree (only `AppSupport/MacLockMonitor.swift` is excluded from the iOS app target), so every new service must compile on macOS.
-- `AppSupport/ClipboardService.swift` is on the shared AutoFill allow-list, but only its iOS branch is ever called from an extension (opt-in "Copy Verification Code on AutoFill"). The macOS branch clears through an in-process timer that would die with the extension, so the coordinator gates the behavior on `#if os(iOS)`; the Mac extension compiles the AppKit branch without calling it. `SettingsService.clipboardTimeout` therefore lives in the App Group defaults (with a one-time read-through migration from the legacy app-local value) so both processes agree on the expiry.
-- Favicon fetching (DuckDuckGo, opt-in, default off) has a platform-split plaintext disk cache — full statement in `AppSupport/AGENTS.md`; keep `FaviconService`'s mac branch extension-safe. `Security/ScreenProtectionService.swift` hosts both platforms' screen-privacy implementations — see `Security/AGENTS.md` and `../../KeeForgeMac/SECURITY.md`.
-- App Group identifiers, bookmark semantics, backup directory layout, and Keychain access group behavior are compatibility boundaries. Avoid casual renames or storage format changes. `KeeForgeTests/AppGroupGuardrailTests.swift` pins the App Group write surface — full statement in `Persistence/AGENTS.md`'s guardrail section. MSAL's token-cache keychain group is platform-split; see `Cloud/AGENTS.md`.
-- Keychain access-group ordering invariant: `com.keevault.sharedkeychain` must stay FIRST in every target's `keychain-access-groups` array or the shared composite keys are stranded — full statement in `Security/AGENTS.md`.
-- Keep SDK-specific cloud behavior behind `CloudProvider`-style abstractions so the rest of the app stays testable.
-- Local and cloud-backed save flows share the same backup/cache rules but differ on conflict checks: local files gate on the `SaveBaseline` hashes (open-time SHA512, plus the reconciled remote hash during a merge save); cloud save layers remote revision verification and typed write-scope failures on top. Timestamped backups are written in three places — `Persistence/LocalDatabaseSaver.swift` and `Cloud/CloudDatabaseSaver.swift` (both prune to keep the 5 newest via `DatabaseListStore.pruneBackups`), plus `Cloud/CloudSyncCoordinator.swift`, which backs up the shared cache before a sync-down overwrites a not-yet-uploaded AutoFill save.
-- Pending-upload marker invariants: see `Cloud/AGENTS.md`.
+### Compatibility with shipped installs
+
+- These are read by installs already on devices; do not rename or reshape them: the App Group `group.com.keevault.shared`, the Keychain group `com.keevault.sharedkeychain` and its item naming, stored bookmark data, `database-list.json`, the cache directories (`databases/`, `cloud-cache/`), the backup layout (`Library/Application Support/backups/<database id>/yyyyMMdd-HHmmss-uuuuuu.kdbx`, UTC), and `pending-uploads/<database id>/`.
+- All App Group access goes through `Persistence/AppGroupContainer`. What may be written there is in `Persistence/AGENTS.md`.
+- `com.keevault.sharedkeychain` stays first in every target's `keychain-access-groups`. Full statement in `Security/AGENTS.md`.
+- A persisted type that gains a non-optional field needs a hand-written decoder default. The database list decodes all-or-nothing (a throw shows an empty list) and an undecodable upload marker is skipped, leaving its save uncovered.
+
+### Save paths
+
+- Both savers share one sequence: read the stored bytes, gate on `SaveBaseline`, encrypt, write a timestamped backup of the bytes being replaced, replace, refresh the App Group cached copy, prune backups to the 5 newest (`DatabaseListStore.pruneBackups`). Keep the backup ahead of the replace.
+- `SaveBaseline` is the only overwrite gate: stored bytes must hash (SHA-512) to what the session opened, or to the diverged copy a merge already folded into the draft. Anything else returns `.conflict` with the stored bytes; never widen it.
+- A local save checks the file itself. A cloud save checks the cached copy the same way, then also verifies the remote revision (`CloudDatabaseSaver.remoteHasDiverged`) before uploading; the provider's conditional write is the last gate. Details in `Cloud/AGENTS.md`.
+- A rekey or encryption-settings change must reopen the produced bytes with the write key before anything is replaced or uploaded (`SaveError.reencryptionVerificationFailed`). After a rekey upload, a failed local apply is `SaveError.rekeyAppliedRemotely`, because the remote already needs the new key.
+- The extension never uploads. Its save of a cloud database goes through `LocalDatabaseSaver` into the cache and leaves a pending-upload marker for the app to drain. Until then the cache is the only copy of that save, so every path that replaces a cloud cache must back it up first when a marker is queued. Marker rules are in `Cloud/AGENTS.md`.
+- A third backup writer exists for that reason: `CloudSyncCoordinator` backs up the cache before a sync-down or a finished upload replaces not-yet-uploaded bytes. It uses the same directory and filename shape so the restore list sorts all three together.
+- A save that lands where the cache already is (cloud reference, or a database with no bookmark) must not rewrite the cache a second time; that reopens the window where the cache and its marker disagree.
+
+### Egress and logging
+
+- Network egress is limited to cloud sync, opt-in favicon fetching, and the user-submitted feedback form (root `AGENTS.md`). The extensions make no network requests.
+- `AutoFill/AutoFillDiagnostics` (DEBUG builds only) logs event names, flags, and counts, never entry data, URLs, or secrets.
+
+## Tests
+
+- Save paths: `LocalDatabaseSaverTests`, `CloudDatabaseSaverTests`, `CloudSyncCoordinatorTests`, `DatabaseListStoreTests`.
+- App Group surface: `AppGroupGuardrailTests`, `AppGroupIsolationTests`.
+- AutoFill save and upload markers: `CredentialProviderSaveTests`, `PendingUploadQueueTests`, `PendingUploadDrainerTests`, `PendingUploadRecoveryTests`.
+- A change to local, cloud, or AutoFill save behavior also updates `KDBXCompatibilityTests` (`../AGENTS.md`).
+
+## See also
+
+- `AppSupport/AGENTS.md`, `AutoFill/AGENTS.md`, `Cloud/AGENTS.md`, `Persistence/AGENTS.md`, `Security/AGENTS.md`
+- `../../AutoFillExtension/AGENTS.md`: the extension target and its platform limits
+- `../ViewModels/AGENTS.md`: session-side save, conflict, merge, and rekey rules
+- `../../KeeForgeMac/SECURITY.md`, `../../docs/threat-model.md`
