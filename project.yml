@@ -211,7 +211,7 @@ targets:
         excludes: ["README.md", "AGENTS.md"]
       - path: KeeForge/Models
         excludes: ["README.md", "AGENTS.md"]
-      # The Mac app is WebDAV-only, so the Dropbox and OneDrive
+      # The Mac app offers only WebDAV and FTP, so the Dropbox and OneDrive
       # providers are excluded rather than compiled and hidden. Excluding them
       # is what lets the SwiftyDropbox and MSAL packages come off the target:
       # MSAL is an embedded dynamic framework and ships whole whether or not a

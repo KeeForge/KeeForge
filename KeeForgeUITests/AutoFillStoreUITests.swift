@@ -517,7 +517,7 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
 
     /// Runs the confirmed Clear AutoFill Entries action from the AutoFill
     /// settings screen (the confirm identifier matches two nested buttons —
-    /// use `.firstMatch`, per the suite README).
+    /// use `.firstMatch`, per `KeeForgeUITests/AGENTS.md`).
     private func clearStoreFromAutoFillSettings(
         file: StaticString = #filePath,
         line: UInt = #line

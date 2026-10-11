@@ -3274,7 +3274,7 @@ final class DatabaseViewModel {
         // macOS reaches this only from `MacLockMonitor`, which has already
         // applied `SettingsService.macLockPolicy` and whose triggers all mean
         // the user walked away. Locking here is the macOS security guarantee
-        // (`KeeForgeMac/README.md`), so it must never depend on
+        // (`KeeForgeMac/SECURITY.md`), so it must never depend on
         // `lockOnBackground` — an iOS-only setting the Mac never renders and
         // cannot repair. The clipboard is scrubbed too: macOS has no expiring,
         // device-local copy (`KeeForgeMac/SECURITY.md`).

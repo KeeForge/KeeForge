@@ -384,7 +384,7 @@ enum CredentialIdentityStoreManager: Sendable {
     /// and macOS offers neither, so there every refresh is a whole-store
     /// replace and the store holds the most recently unlocked database alone.
     /// The reasoning and the user-visible consequence are in
-    /// `../../../AutoFillExtension/AGENTS.md` and `../../../KeeForgeMac/README.md`.
+    /// `../../../AutoFillExtension/AGENTS.md`.
     ///
     /// Refresh decision tree (incremental stores only):
     /// 1. Enumerate the store.

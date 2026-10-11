@@ -339,7 +339,7 @@ private struct SecuritySettingsView: View {
 private struct AutoFillSettingsView: View {
     @Binding var quickAutoFillEnabled: Bool
     @Binding var autoFillCopyTOTP: Bool
-    /// The app's shared list view model (or `SettingsView`'s fallback bridge).
+    /// The app's shared list view model (or `DatabaseDetailsView`'s fallback bridge).
     /// All per-database toggles must go through its `setAutoFillEnabled` —
     /// never `DatabaseListStore` directly — so disabling does targeted
     /// identity removal and enabling republishes the open session immediately
