@@ -6,6 +6,10 @@
 
 - KeeForge now speaks Russian: a full Russian (Русский) localization across the app and the AutoFill extension, plus translated README and contributor docs (#180).
 
+### Fixes
+
+- AutoFill suggestions update again on iOS 27 and macOS 27. After the first unlock, new and changed entries no longer reached the keyboard and Safari suggestions, and turning AutoFill off for a database or removing it left its suggestions behind. With more than one AutoFill database on these systems, turning one off or removing it now clears all suggestions until you next unlock the others, and a deleted entry's suggestion can remain until then or until you use Clear AutoFill Entries.
+
 ## v1.18.0 (2026-10-07)
 
 ### Changes

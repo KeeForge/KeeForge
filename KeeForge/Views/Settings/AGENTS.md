@@ -16,7 +16,7 @@
 - A declined enable request is persistent footer text (`isAutoFillEnableRequestRejected`), never an alert, and the manual route into system Settings stays visible while the provider is off. The system can refuse the one-tap prompt and tears this sheet down when it closes.
 - Copy Verification Code is iOS-only. The Mac extension supplies codes directly, and its timer-based clipboard clearing cannot outlive the extension process.
 - Clear AutoFill Entries does not republish the open database; the user asked for an empty store.
-- On macOS the store reports no incremental updates, so every write replaces the whole store and suggestions come from one database at a time. The Databases footer says so when more than one is selected (`../../Services/AutoFill/CredentialIdentityStoreManager.swift`).
+- The macOS Databases footer says suggestions come from one database at a time when more than one is selected. That holds where the store reports no incremental updates (recorded on macOS 26.5). macOS 27.0.1 reports them, so the manager saves additively there and the footer may understate; it is unconditional `#if os(macOS)` copy and has not been checked against a written-to 27.0.1 store (`../../Services/AutoFill/AGENTS.md`).
 - The iOS root's AutoFill row says nothing about the system provider until its state is known, and the root refreshes that state itself.
 - The macOS Security tab's biometric label describes the AutoFill extension only; the Mac app never auto-unlocks.
 
@@ -34,7 +34,7 @@
 
 - Both inspector files are wholly `#if DEBUG`, shown only for the `-autofill-store-inspector` launch argument. It reads store metadata only, never vault contents, and enumerates off the main actor.
 - A pending or failed enumeration renders its own status or error, never a zero count.
-- Enumeration is not readable everywhere. A simulator's was recorded as empty even though writes persist (not re-verified: a fresh iOS 27.0 simulator has the provider disabled and rejects writes). macOS 27.0.1 and a physical iPhone on iOS 27.0.1 return private objects without `ASCredentialIdentity` conformance, which the inspector shows as an enumeration error. Inspector counts and enumerate-then-mutate store maintenance are meaningful only on a physical device whose store returns readable identities, which is why `AutoFillStoreUITests` runs on one.
+- Enumeration is not readable everywhere. A simulator's was recorded as empty even though writes persist (not re-verified: a fresh iOS 27.0 simulator has the provider disabled and rejects writes). macOS 27.0.1 and a physical iPhone on iOS 27.0.1 return private objects without `ASCredentialIdentity` conformance once the store is non-empty, which the inspector shows as an enumeration error naming how many objects came back. Inspector counts and per-database attribution are meaningful only on a physical device whose store returns readable identities, which is why `AutoFillStoreUITests` runs on one.
 
 ## Tests
 

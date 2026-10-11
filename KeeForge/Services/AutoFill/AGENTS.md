@@ -22,9 +22,11 @@
 
 ### Credential identities
 
-- Every operation reads `CredentialIdentityStoreCapabilities` first. Per-database aggregation (enumerate, attribute by record identifier, remove then save) is reachable only when `supportsIncrementalUpdates` is true.
-- Where macOS reports it false (recorded on 26.5, not re-verified), every refresh is a whole-store replace and every targeted removal degrades to clearing the store, so the store holds one database's identities. The gate is the runtime flag, not `#if os(macOS)`. macOS 27.0.1 reports it true, so aggregation is attempted there and stops at enumeration (next bullet). Platform facts are in `../../../AutoFillExtension/AGENTS.md`.
-- Enumeration throws when any returned object lacks `ASCredentialIdentity` conformance, so an unreadable store is never mistaken for an empty one and never triggers a replacement. macOS 27.0.1 and a physical iPhone on iOS 27.0.1 return only such objects.
+- Every operation reads `CredentialIdentityStoreCapabilities` first. Per-database aggregation is reachable only when `supportsIncrementalUpdates` is true.
+- Where macOS reports it false (recorded on 26.5, not re-verified), every refresh is a whole-store replace and every targeted removal degrades to clearing the store, so the store holds one database's identities. The gate is the runtime flag, not `#if os(macOS)`. macOS 27.0.1 reports it true. Platform facts are in `../../../AutoFillExtension/AGENTS.md`.
+- Enumeration throws when any returned object lacks `ASCredentialIdentity` conformance. An unreadable store is a third state, never an empty one: nothing may be inferred from it. macOS 27.0.1 and a physical iPhone on iOS 27.0.1 return only such objects once the store is non-empty (an empty store still enumerates as empty).
+- With an unreadable store the database registry stands in for its contents, because only AutoFill-enabled databases publish. A refresh replaces the whole store when no other database is AutoFill-enabled, and otherwise only saves additively. Every targeted removal clears the whole store, as on a store without incremental updates.
+- The additive save cannot drop its own database's stale identities. With two or more AutoFill-enabled databases on such an OS, a deleted or changed entry's suggestion stays until a removal or Clear AutoFill Entries empties the store; tapping it in the extension is one such removal. Do not reach for private selectors on the returned objects to close this gap.
 - An enumerated identity without a readable `recordIdentifier` forces the additive path: unknown system identities are never deleted by a refresh. Clear AutoFill Entries removes them.
 - The mutation queue is per process. The app and extension can overlap, so a refresh must be idempotent; the worst case is a briefly stale suggestion until the database's next refresh.
 - A password identity is a `.URL` identifier `https://<host>`; a one-time-code identity is a `.domain` identifier with the exact host. Only the host is published: no path, port, query, or user info reaches the system store, and never the registrable domain, because the host is all the system list shows to tell subdomains apart.
@@ -49,6 +51,8 @@
 ## Tests
 
 - `CredentialIdentityStoreManagerTests` (fake store via the DEBUG `storeProviderOverride`), `CredentialMatcherTests`, `AutoFillMemoryLimitTests`, `PasswordGeneratorTests`, `PasswordStrengthEstimatorTests`.
+- A store change needs a case for each of the three shapes: incremental and readable, non-incremental (`supportsIncrementalUpdatesValue = false`), and incremental but unreadable (`enumerationError`).
+- In a unit-test host the manager mutates nothing unless a store override is installed: the host is the real signed app, and its system store is the developer's own.
 - `AutoFillSaveCoordinator` has no class of its own: `CredentialProviderSaveTests`, `CredentialProviderPickerCreationTests`, `CredentialProviderRegistrationTests`, and `KDBXCompatibilityTests` for the bytes it writes.
 - Which pages the system offers an identity on is undocumented and can only be checked with a signed build on a device; the simulator's identity store is not a substitute.
 
