@@ -8,6 +8,7 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
 
     // MARK: - Fixtures
 
+    // Disjoint services and usernames: the system store can dedup a shared pair across databases.
     override var databaseFixtures: [KeeForgeUITestCase.DatabaseFixture] {
         [
             .init(resourceName: "autofill-store-alpha", injectedFilename: "alpha.kdbx"),

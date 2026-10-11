@@ -1,484 +1,133 @@
-# KeeForge UI Tests
+# KeeForgeUITests
 
-This folder owns the iPhone and iPad UI suites. Native Mac UI coverage lives in
-`../KeeForgeMacUITests/`; both suites intentionally share accessibility
-identifiers where the product behavior is shared.
+**Scope:** XCUITest suites for iPhone and iPad. The Mac suite is in `../KeeForgeMacUITests/AGENTS.md`; both use the same accessibility identifiers and fixture-injection environment, so a change to either affects both.
 
-Detailed guidance for adding, running, and fixing XCUITests in `KeeForgeUITests/`.
+## Running
 
-The Cloud-specific schemes split this target into two serial groups, `KeeForgeCloudUIA`
-and `KeeForgeCloudUIB`, alongside a separate unit-only scheme. All three are active in the
-RC workflow; see `../.agents/skills/prepare-release/references/xcode-cloud-setup.md`. Group A selects whole classes
-in `project.yml`; B runs the complement, including new classes automatically. XcodeGen's
-post-generation check verifies the partition. Rebalance using measured cloud durations;
-see `../ci_scripts/AGENTS.md`. The ordinary `KeeForge` scheme still runs the full target.
-`KeeForgeUITestCase` sets a five-minute per-test execution allowance. Local runs must use
-`-test-timeouts-enabled YES` to enforce it, as Cloud already does.
-The standalone AutoFill inspector uses the same allowance; opt-in screenshot capture keeps
-the former ten-minute allowance. The database-details reopen test has a two-minute limit
-to catch the former four-minute stall caused by competing context-menu and reorder gestures.
+Base commands and repo-wide policy (`-only-testing:` always, no full UI suite unless asked, RC failures on the iOS 18 iPhone SE simulator) are in `../AGENTS.md`. Specific to this target:
 
-Use this document for UI test methodology. Repo-wide build and test policy stays in `AGENTS.md`, and fixture details live in `../TestFixtures/README.md`.
+- Run one class per invocation. `-only-testing:KeeForgeUITests/<Class>` takes the class name, not the file name, and several files hold many classes, so grep for the class.
+- Pass `-test-timeouts-enabled YES` locally. `KeeForgeUITestCase` sets a 300 s per-test allowance that is enforced only with it; Xcode Cloud already enables it.
+- Xcode Cloud splits this target into `KeeForgeCloudUIA` (a class list in `project.yml`) and `KeeForgeCloudUIB` (its complement, so a new class lands in B). Renaming or deleting a class in A needs the list updated; see `../ci_scripts/AGENTS.md`.
+- Layout-gated classes skip on the wrong destination: `DatabaseCreationRegularWidthUITests` and `RegularWidthWorkspaceUITests` need an iPad, `DatabaseCreationCompactUITests` an iPhone. A skip is not coverage.
+- `AutoFillStoreUITests` is the only device-only class; see below.
 
-macOS UI tests: see `../KeeForgeMacUITests/AGENTS.md`; the accessibility identifiers are shared — preserve them in both.
+### Launch arguments and environment
 
-## Current Test Classes
+`KeeForgeUITestCase.setUp` passes `-ui-testing` and seeds fixtures; a class adds the rest in `configureLaunch(app:)`. The app ignores every `UI_TEST_*` variable without `-ui-testing`.
 
-### Release-Smoke Oriented Classes
+| Setting | Effect |
+| --- | --- |
+| `-ui-testing` | Reseeds the database list from the fixture payload on every launch, skips the device-owner prompt for reveal/copy, and hides the What's New sheet and AutoFill tip. |
+| `UI_TEST_VIEW_MODE` | Starting view of the database root. A database opens on All Entries, but the helpers browse from the group list, so `setUp` sets `groups`. A class testing the real default removes the key (`DefaultViewUITests`). |
+| `UI_TEST_DATABASES_JSON`, `UI_TEST_DB_FILENAME`, `UI_TEST_KEYFILE_*` | Written by `setUp`. Override `databaseFixtureName`, `databaseFixtures`, or `keyFileFixtureName` instead of setting them. |
+| `UI_TEST_DATABASE_READ_ONLY=1` | Opens the database read-only. |
+| `UI_TEST_DEVICE_OWNER_AUTH_PENDING=1` | Re-arms the reveal/copy gate with an authentication that never completes, to assert nothing is disclosed before it succeeds. |
+| `UI_TEST_ENABLE_QUICK_LAUNCH=1` | Turns Quick Launch on; never rely on the single-database default. |
+| `UI_TEST_SHOW_WHATS_NEW=1`, `UI_TEST_SHOW_AUTOFILL_TIP=1`, `UI_TEST_SHOW_MAC_APP_SUGGESTION=1` | Force a surface that `-ui-testing` otherwise hides. |
+| `UI_TEST_LOCAL_SAVE_CONFLICT_COUNT=<n>`, `UI_TEST_LOCAL_SAVE_CONFLICT_DIVERGES_POOL=1` | Inject real save conflicts; see below. |
+| `UI_TEST_CLOUD_*_JSON`, `UI_TEST_DROPBOX_PAYLOAD_JSON`, `UI_TEST_WEBDAV_PAYLOAD_JSON` | Seed the mock cloud providers; `CloudSyncBaseUITests` and `WebDAVSyncBaseUITests` build the payloads. |
+| `-autofill-store-inspector` | DEBUG only: replaces the app root with the AutoFill store inspector. |
+| `-KeeForge.<defaultsKey> <value>` | Overrides a stored preference for one launch. Insert the pair before `-ui-testing`: a bare flag ahead of a pair consumes the pair's key as its own value. |
 
-- `DatabaseListUITests` — home-screen database list actions and management
-- `DatabaseCreationCompactUITests` — new local database happy path on compact / iPhone layout
-- `UnlockFlowUITests` — basic unlock success/failure coverage
-- `QuickLaunchSmokeUITests` — single-database quick-launch routing into unlock
-- `LockUnlockUITests` — lock cycle coverage (`testManualLockBehavior`) and a single wrong-then-correct-password unlock (`testWrongThenCorrectPasswordUnlocks`); repeated-failure/lockout behavior is `BackoffUITests`' responsibility, not this class'
-- `UnlockedDatabaseBrowseAndDetailUITests` — unlocked vault browse + entry-detail happy paths, the open-vault gear's complete Database Details surface (the hub rows and every control on each page behind them), and the disabled KDBX 3.1 read-only control
-- `UnlockedDatabaseSearchAndSortUITests` — unlocked search and sort happy paths, including folder captions on search results
-- `EntryCreateSmokeUITests` — create-entry and create-group happy paths using a known fixture group
-- `EntryEditSmokeUITests` — edit-entry happy path using a known fixture entry, including immediate title/username refresh in group lists, search, and title sorting (it picks Title + Ascending from `sort.menu` first, because the sort preference persists across tests) plus a screenshot-backed regression check that a long revealed password wraps without extra characters, and an expiry set from the editor's one-year preset (`entry-edit.expiry.toggle` → `entry-edit.expiry.presets` → `entry-edit.expiry.preset.12`) showing as `entry-detail.expiry` and disappearing again once Expires is turned off
-- `EntryDeleteSmokeUITests` — delete-entry happy paths using known fixture entries: row swipe/context-menu deletes, plus the entry editor's "Delete Entry" flow (`entry-edit.delete`) covering both dialog options and the already-recycled variant, asserting the editor dismisses back to a usable group list (regression cover for the permanent-delete wedge); plus group soft/permanent deletes and the Recycle Bin staying out of the group list. The bin is opened through `selectDatabaseView(.recycleBin)`
-- `SearchResultsDeleteUITests` — deleting from the search results, which render inline inside the group list rather than on a screen of their own (#118): context-menu and swipe deletes each assert the `Delete Entry?` confirmation actually presents before the entry reaches the recycle bin, plus the cancel path and the boundary case where the only match is deleted and the results flip to `search.no-results`. The regression it guards is silent — the confirmation was dropped, so the context-menu item did nothing and the swipe animated the row away without deleting it — which is why every case asserts on the alert rather than only on the end state. Extends `EntryEditUITestCase`
-- `SearchResultsMoveUITests` — moving an entry out of the search results (#124): the long-press menu offers `entry-row.move-context`, the destination picker presents (`move-picker.group.<uuid>`, matched by prefix plus group name), and the entry both lands in the chosen group and leaves its old one, the latter anchored on a sibling that stays put so an unrendered old group cannot read as a success. Why the item could go missing from one shell at all is in `../KeeForge/Views/Entry/AGENTS.md`. Two gaps this does **not** close: the group-row move (`group-row.move-context`) has no UI coverage on any surface, and the assertions read the in-memory list, so they prove the move reached the UI rather than that the KDBX location change survived a save and reopen
-- `EntryRowCopyUITests` — the Copy Username / Copy Password items a long press adds to an entry row (`entry-row.copy-username-context`, `entry-row.copy-password-context`), asserted as offered and tappable; the pasteboard itself is never read, because reading it from the runner process raises the system paste prompt
-- `EntryDuplicateUITests` — the Duplicate item on the same menu (`entry-row.duplicate-context`): it opens a New Entry form prefilled from the source, offering its destination group (`entry-edit.group`), and saving leaves both entries in the group
-- `EntryAttachmentsSmokeUITests` — entry-attachments list happy path (row name/size, QuickLook preview open/dismiss) and removing an attachment in the editor, using the `kitchen-sink` fixture
-- `EntryHistoryUITests` — entry history sheet happy path (`entry-detail.history` → version list → one version's fields) and the restore flow (`entry-history.restore` → `entry-history.restore.confirm`, asserting the replaced state is kept by reading the history row's accessibility **value**, not its localized label), using a fixture entry that ships stored `<History>`
-- `ProtectedCustomFieldUITests` — protected custom fields start masked and reveal on demand in entry detail, history, and the entry editor, while retaining the established copy-control identifiers
-- `ProtectedCustomFieldEditorAuthUITests` — launched with `UI_TEST_DEVICE_OWNER_AUTH_PENDING=1`: revealing a protected custom field in the editor waits on device-owner authentication and discloses nothing
-- `AuthenticationGracePeriodUITests` — launched with the same pending stub plus `-KeeForge.authenticationGracePeriod fiveMinutes` (and background locking off, so the session survives): the password reveals without a prompt right after unlock, and after the app is left and reopened the reveal waits on authentication again
-- `GroupIconPickerUITests` — group icon picker round-trip (`group-row.change-icon-context` → pick `group-icon-picker.icon.37` → reopen and assert the cell reports `isSelected`) plus the cancel path leaving the icon alone
-- `EntryIconPickerUITests` — entry icon picker round-trip from the entry-detail header (`entry-detail.icon-button` → pick `entry-icon-picker.standard.37` → reopen and assert the cell reports `isSelected`) plus the cancel path leaving the icon alone
-- `EntryCustomIconPickerUITests` — custom-icon and favicon-download picker coverage on the `kitchen-sink` fixture, the only bundled database whose `Meta/CustomIcons` carries an image: picking the custom cell (`entry-icon-picker.custom.<uuid>`) round-trips as selected, picking a standard icon clears the custom selection (`<CustomIconUUID>` outranks `<IconID>`), an icon change pushes exactly one history version (asserted by count — the history screens expose no icon to accessibility), a read-only database (`UI_TEST_DATABASE_READ_ONLY=1`) renders the entry header with no `entry-detail.icon-button` at all, and "Download Website Icon" (`entry-icon-picker.download-favicon`) is enabled for an entry with a URL and disabled without one — asserted, never tapped, so no network is reached
-- `GroupEditUITests` — group editor round-trip from the row context menu (`group-row.edit-context` → form → `group-edit.save`), covering rename, tags, notes, icon, Search & AutoFill visibility, cancel, duplicate-name errors, and the read-only entry-point restriction. Extends `EntryEditUITestCase`
-- `ViewMenuUITests` — the view menu on the database root's title (`view.menu`): All Entries (flat list, folder captions, the `group-list.summary` footer, no recycled entries), Verification Codes (only entries with a code, each row showing six digits with `verification-code-row.copy` and opening its entry), and the Recycle Bin (absent from the group list, opened from the menu, no + menu inside). Uses the `kitchen-sink` fixture for its nested group, TOTP entry, and real recycle bin. `DefaultViewUITests`, in the same file, clears `UI_TEST_VIEW_MODE` to assert that a database opens on All Entries, again after a lock
-- `TagBrowserUITests` — tag-browser happy path (view menu → Tags → `tag-list.row.shared` with its entry count → folder-captioned tag results → entry detail's `entry-detail.tag.shared` chip), plus the hidden-group contract: entries leave search but remain available through tags. Uses the `kitchen-sink` fixture; the only fixture with entry tags. `shared` reaches four entries — two carry it, two inherit it from `Projects` — so the row's count is real data
-- `InheritedTagsUITests` — entry detail draws the tags an entry gets from its groups (`entry-detail.inherited-tag.<tag>` under the `entry-detail.inherited-tags` strip), keeps them apart from the entry's own `entry-detail.tag.<tag>` chips, and navigates from an inherited chip into that tag's entries; uses the `kitchen-sink` fixture, the only bundled database with group `<Tags>`
-- `TOTPSmokeUITests` — TOTP code renders (6-digit, numeric-only) and the copy control is present/hittable in entry detail, using the `autofill-union` fixture's "Union News" entry; deliberately does not assert exact code values or countdown timing
-- `TOTPEnrollmentUITests` — entry-editor TOTP enrollment on the `autofill-union` fixture (base class `TOTPEnrollmentUITestCase`, shared with the deep-link class below): manual setup key on "Union Bank" (edit → `entry-edit.totp.enter-key` → reveal via `entry-edit.totp.secret-visibility-button` — the simulator has no passcode, so the device-owner gate falls through — → type a Base32 secret → save → `entry.totp.code` renders 6 numeric digits), pasted setup link on "Union Shop" (`entry-edit.totp.enter-link` → `entry-edit.totp.link-field`/`entry-edit.totp.link-apply`, non-default `digits=8&period=45` reflected in the form and an 8-digit code in detail), the invalid-link inline error (`entry-edit.totp.link-error`, sheet stays up, cancel leaves the entry pristine), and code removal on "Union News" (`entry-edit.totp.remove` → `entry-edit.totp.remove-confirm` → save → no `entry.totp.code` in detail). Two cases start from the search results instead (#111): adding a code to "Union Bank" and removing "Union News"'s, then going back, must flip the result row's `entry-row.totp` indicator without re-running the query. QR scanning is not covered — XCUITest cannot drive the simulator camera
-- `TOTPEnrollmentDeepLinkUITests` — incoming `otpauth://` deep links. XCUITest cannot hand a URL to a running unlocked session (`XCUIDevice.shared.system.open` routes to the simulator's default code-setup app, Apple Passwords, only changeable in the Settings app; `XCUIApplication.open(_:)` relaunches the app to deliver the URL, discarding the in-memory session), so every flow drives the launched-with-URL park path — "Unlock a Database" alert → unlock → the sheet auto-promotes — and the direct-present-while-unlocked branch plus system-default routing stay manual device checks. Covered from there: attach to "Union Bank" → save → code renders, the replace confirmation for an entry that already has a code (`totp-enroll.replace-confirm`, plus editor-cancel returning to the destination list), the New Entry path (`totp-enroll.new-entry` → group picker → issuer-prefilled title → save), the unsupported-type (`otpauth://hotp/…`) alert, and the read-only explanation (`UI_TEST_DATABASE_READ_ONLY=1`)
-- `KeyFileUnlockUITests` — unlocking with a key file
-- `CloudBrowserSmokeUITests` — add Dropbox and browse the mock cloud picker
-- `CloudUnlockSmokeUITests` — unlock a seeded cloud-backed database through the mock provider, and reach its Cloud Sync page (`database-details.sync-on-open-toggle`, `database-details.sync-now`) from Database Details
-- `WebDAVAddFlowUITests` — add WebDAV, fill the connect form, and browse the mock cloud picker (driven by `UITestWebDAVCloudProvider` via `UI_TEST_WEBDAV_PAYLOAD_JSON`)
-- `WebDAVShowAllFilesUITests` — a database stored without the `.kdbx` extension stays hidden in the cloud browser until the Show All Files switch at the top of the list (`cloud.browser.show-all-files.toggle`) is on, then opens and unlocks
-- `WebDAVConnectErrorUITests` — WebDAV connect failure surfaces `webdav.connect.error` and keeps the form up
-- `WebDAVSeededUnlockUITests` — unlock a seeded WebDAV cloud-backed database through the mock provider
-- `DatabaseCreationRegularWidthUITests` — new local database happy path on regular-width / iPad layout
-- `MasterKeyChangeUITests` — change-master-key happy path: create a local database, rotate its master password from Database Details (the Master Key page's `database-details.change-master-key` → the `master-key.*` form, through the `master-key.confirm-change` confirmation dialog), lock, and unlock with the new password; the device-owner confirmation is a no-op under `-ui-testing`. Extends `DatabaseCreationUITestCase`
-- `EncryptionSettingsUITests` — encryption-settings happy path: create a local database, open the Encryption page's `database-details.change-encryption-settings`, pick ChaCha20 from `encryption-settings.cipher-picker` and turn off `encryption-settings.compression-toggle`, save, check that Database Details now reads ChaCha20 and no compression from the rewritten file header, then lock and unlock with the unchanged password. A second test picks AES-KDF from `encryption-settings.kdf-preset-picker`, checks the default rounds in `encryption-settings.aes-kdf-rounds-field`, saves, checks Database Details reads AES-KDF with AES-256 kept, and unlocks again. Extends `DatabaseCreationUITestCase`, whose `createLocalDatabase(named:password:)` it shares with `MasterKeyChangeUITests`.
-- `RegularWidthWorkspaceUITests` — regular-width / iPad workspace smoke coverage
+Opt-in captures are gated on the runner environment: `TEST_RUNNER_APPSTORE_SCREENSHOTS=1` for `AppStoreScreenshots` (it skips otherwise) and `TEST_RUNNER_WHATS_NEW_SCREENSHOTS=1` for `WhatsNewUITests`. Set them as real environment variables on the `xcodebuild` process; a trailing `KEY=value` argument is a build-setting override that never reaches the runner, and the class skips silently.
 
-### Secondary / Edge Coverage
+## Rules for writing and fixing UI tests
 
-- `BackoffUITests` — failed-unlock backoff behavior
-- `AppSettingsUITests` — app settings / tip jar coverage from the database list
-- `AutoFillTipUITests` — "Turn On AutoFill" banner on the database list (forced via `UI_TEST_SHOW_AUTOFILL_TIP=1`; the banner is suppressed in all other UI test classes and screenshots)
-- `MacAppSuggestionUITests` — "Using KeeForge on a Mac?" banner on the database list (forced via `UI_TEST_SHOW_MAC_APP_SUGGESTION=1`; no simulator is the iOS app on a Mac, so nothing else shows it)
-- `WhatsNewUITests` — feature-sheet structure and dismissal (forced via `UI_TEST_SHOW_WHATS_NEW=1`; the release sheet is suppressed in all other UI test classes and screenshots). Set `TEST_RUNNER_WHATS_NEW_SCREENSHOTS=1` on `xcodebuild` to attach three scrolling captures in English and light appearance
-- `EntryEditEdgeUITests` — password generation (captures the displayed `password-generator.password` suggestion before Use, checks the editor receives it, then checks the exact password after saving and reopening), conflict handling, discard prompts, and read-only editing affordances
-- `SaveConflictMergeUITests` — end-to-end "Merge Changes" on a real save conflict: a local title edit conflicts with a genuinely divergent on-disk copy, Merge reports the counted-changes "Changes Merged" summary (`merge-summary.ok`), and both the remote-only entry and the local edit survive with the unsaved-changes banner cleared
-- `SaveConflictMergeDeclineUITests` — the declined-merge path on the `kitchen-sink` fixture: the divergent copy also grows a binary-pool field, so Merge reports "Couldn't Merge Changes" (`merge-failure.ok`), acknowledging it re-presents the conflict alert, and Cancel leaves the unsaved draft and its banner intact
-- `KeyFileUITests` — key file selection and picker flows plus visible rejection of malformed XML key data during unlock
-- `DocumentsVaultUITests` — Finder/iTunes File Sharing smoke coverage: a KDBX file seeded into Documents without a reference is auto-registered by the launch `DocumentsVaultScanner` scan and unlocks; a Documents-resident reference whose file is gone shows `database-row.documents-file-missing` and the unlock failure screen's `unlock.remove-missing` → confirm flow removes it from the list. Seeds via the `documents-*` `DatabaseFixture` dispositions (`documents`, `documents-unregistered`, `documents-missing`), which `DatabaseListStore`'s `-ui-testing` bootstrap materializes in the real Documents directory (scrubbing stale top-level `.kdbx` files from prior runs first). Finder replace/rebind edge cases stay unit-tested in `DocumentsVaultScannerTests`
-- `CloudAccountEdgeUITests` — sign-out / disconnected cloud account behavior
-- `AppStoreScreenshots` — screenshot capture flow using demo fixtures. **Opt-in only**: `setUp` `XCTSkip`s unless `APPSTORE_SCREENSHOTS=1` is set (mirrors `KeeForgeMacUITests/MacScreenshotAuditUITests`' `SCREENSHOT_AUDIT=1` gate):
-  ```bash
-  TEST_RUNNER_APPSTORE_SCREENSHOTS=1 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-    -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-    -only-testing:KeeForgeUITests/AppStoreScreenshots
-  ```
-  `TEST_RUNNER_APPSTORE_SCREENSHOTS` must be a real environment variable on the `xcodebuild` process itself (Xcode strips the `TEST_RUNNER_` prefix and forwards it into the test runner's environment) — verified empirically, passing it as a trailing bare `KEY=value` argument does not work and the test silently skips. Export the resulting attachments into `build/screenshots`, then run `ci_scripts/make_appstore_screenshots.py` to composite the final App Store images (see that script's header comment).
-- `AutoFillStoreInspectorSmokeUITests` — DEBUG-only AutoFill store inspector smoke test; launches with `-autofill-store-inspector`, asserts the inspector presents at the app root and `autofill-inspector.enabled-state` reads "disabled" (safe on unprovisioned simulators). Does not extend `KeeForgeUITestCase` — the inspector replaces the normal root, so no fixture/unlock applies.
+### Fix loop
 
-### Device-Only Classes
-
-- `AutoFillStoreUITests` — store-lifecycle assertions against the **real** `ASCredentialIdentityStore`; requires a physical iPhone with KeeForge enabled as its credential provider (see the "AutoFill Store Device Tests" section). An explicitly disabled provider skips; inspector or enumeration failures fail.
-
-Database-list and cloud UI tests are the current place to cover pending-upload badges / actions; the repo does not currently have automated coverage for the system AutoFill save sheet itself.
-
-## Running UI Tests
-
-Always run one UI test class at a time:
-
-```bash
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeUITests/UnlockedDatabaseBrowseAndDetailUITests -quiet
-```
-
-`-only-testing:` takes the **class** name, not the file name; run each class separately. Files hosting multiple classes:
-
-- `UnlockedDatabaseUITests.swift` — `UnlockedDatabaseUITestCase` + `AppSettingsUITestCase` (bases), `UnlockedDatabaseBrowseAndDetailUITests`, `UnlockedDatabaseSearchAndSortUITests`, `RegularWidthWorkspaceUITests`, `AppSettingsUITests`, `EntryIconPickerUITests`, `EntryCustomIconPickerUITests`, `GroupIconPickerUITests`, `EntryHistoryUITests`, `ProtectedCustomFieldUITests`, `ProtectedCustomFieldEditorAuthUITests`
-- `EntryEditUITests.swift` — `EntryEditUITestCase` (base), `EntryCreateSmokeUITests`, `EntryEditSmokeUITests`, `EntryDeleteSmokeUITests`, `EntryEditEdgeUITests`
-- `EntryDuplicateUITests.swift` — `EntryDuplicateUITests`
-- `CloudSyncUITests.swift` — `CloudSyncBaseUITests` (base), `CloudBrowserSmokeUITests`, `CloudUnlockSmokeUITests`, `CloudAccountEdgeUITests`
-- `WebDAVSyncUITests.swift` — `WebDAVSyncBaseUITests` (base), `WebDAVAddFlowUITests`, `WebDAVShowAllFilesUITests`, `WebDAVConnectErrorUITests`, `WebDAVSeededUnlockUITests`
-- `DatabaseCreationUITests.swift` — `DatabaseCreationUITestCase` (base), `DatabaseCreationCompactUITests`, `DatabaseCreationRegularWidthUITests`
-- `TOTPEnrollmentUITests.swift` — `TOTPEnrollmentUITestCase` (base), `TOTPEnrollmentUITests`, `TOTPEnrollmentDeepLinkUITests`
-- `SaveConflictMergeUITests.swift` — `SaveConflictMergeUITestCase` (base, extends `EntryEditUITestCase`), `SaveConflictMergeUITests`, `SaveConflictMergeDeclineUITests`
-- `ViewMenuUITests.swift` — `ViewMenuUITests`, `DefaultViewUITests`
-
-Examples:
-
-```bash
-# One release-smoke unlocked class
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeUITests/UnlockedDatabaseSearchAndSortUITests -quiet
-
-# Key file-specific class from a shared source file
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeUITests/KeyFileUnlockUITests -quiet
-
-# Entry creation smoke slice
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeUITests/EntryCreateSmokeUITests -quiet
-
-# New local database creation smoke slice
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeUITests/DatabaseCreationCompactUITests -quiet
-
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPad Air 13-inch (M4)' \
-  -only-testing:KeeForgeUITests/DatabaseCreationRegularWidthUITests -quiet
-
-# Cloud-backed smoke slice
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeUITests/CloudUnlockSmokeUITests -quiet
-
-```
-
-Run policy (one class per run, no full suite, reproduce RC failures on the iOS 18 iPhone SE (3rd generation) simulator — compact-width, where minimum-OS regressions have surfaced) is in `AGENTS.md`.
-
-### Regular-Width Sidebar Navigation
-
-iPadOS may start an adaptive `NavigationSplitView` with its sidebar collapsed even at regular width. Tests that need sidebar controls use the system `ToggleSidebar` control only when it is labeled `Show Sidebar` and has an on-screen frame (right after an unlock it can exist with no activation point, and hit-testing it then raises an uncatchable exception), then continue with the normal accessibility identifiers. Keep the product's automatic sidebar policy intact; a UI test must not force a column-visibility mode.
-
-## AutoFill Store Device Tests
-
-`AutoFillStoreUITests` checks the real `ASCredentialIdentityStore` on a disposable physical
-iPhone with KeeForge enabled as its AutoFill provider. Simulator enumeration cannot validate
-stored identities. Disabled providers skip; missing inspector readiness and unreadable
-system enumeration fail explicitly. These tests replace KeeForge's registered database list
-and clear its credential identities, so never run them on a device holding personal vaults.
-
-### Device preparation
-
-One-time per device (the state persists until the app is uninstalled):
-
-1. Connect the iPhone and pair it for development (it must appear under
-   `xcodebuild -showdestinations`).
-2. Install the Debug `KeeForge.app` (running the test target once does this).
-3. In the device's Settings app: General → AutoFill & Passwords → turn **KeeForge** on
-   (optionally turn Apple's "Passwords" provider off for a cleaner signal).
-
-To spot-check the state at any time, launch the installed build with the inspector argument
-(`-autofill-store-inspector`) and confirm `autofill-inspector.enabled-state` reads "enabled".
-
-### Device Suite: `AutoFillStoreUITests`
-
-The class uses `autofill-store-alpha.kdbx` and `autofill-store-bravo.kdbx`, generated by
-`TestFixtures/generators/autofill_store.py`. Alpha has one password and one code identity;
-bravo has two passwords and one code. Their entry UUIDs, service domains, and labels are
-fixed, and their domains are disjoint. Assertions check the exact kind/service/label/record
-identifier metadata as well as per-database and total counts.
-
-```bash
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS,name=<device name>' \
-  -only-testing:KeeForgeUITests/AutoFillStoreUITests \
-  -parallel-testing-enabled NO
-```
-
-Three independent scenarios seed once and preserve registry UUIDs on subsequent launches:
-
-1. `testPublicationUnionAndTargetedRemovalPreserveOtherDatabase` — unlock alpha (2 identities,
-   bravo absent), then bravo (5 total); disable bravo through Database Details (alpha's exact
-   identities survive), then alpha through Settings (zero total).
-2. `testClearAutoFillEntriesReachesZero` — verify alpha's exact identities, confirm Clear
-   AutoFill Entries, and verify zero without disabling the provider.
-3. `testReEnableStaysEmptyUntilNextUnlock` — disable and clear alpha while locked, re-enable,
-   verify zero across relaunch, then unlock the same reference and verify its exact identities.
-
-Each scenario verifies an empty baseline before unlocking. An inspector enumeration error
-fails immediately rather than being interpreted as zero or polled until timeout. A missing
-provider-state row is a harness failure; only an explicitly disabled provider skips.
-
-Keep this as a separate physical-device smoke selection. A release result needs all three
-methods passed, zero failures, and zero skips in the canonical `.xcresult`; simulator skips
-cannot satisfy it. Record the source SHA, device/OS, full log, and result bundle. On
-KeeForge-test, iOS 27.0.1 returns non-conforming objects without public record identifiers; that is a blocked
-system-store check, not successful lifecycle coverage. Do not bypass it with private API.
-
-**Still manual / Tier-3** (not covered by this class): filling via the owning database and
-every other QuickType/Safari-rendered check, extension flows (save, switcher, empty state),
-entry-deletion suggestion sweeps, database *removal* cleanup, immediate republish when
-re-enabling the currently open database, and the localized-UI (`de`/`fr`/`es`) and VoiceOver passes.
-
-## UI Test Fix Workflow
-
-Use this loop for every failing UI class:
-
-1. Reproduce with **one UI test class only**
-2. Read the failing assertion and the surrounding test helper code
-3. If needed, inspect the latest `.xcresult` summary
-4. Decide whether the failure is:
-   - a real app regression
-   - a brittle or outdated test
-   - stale project configuration
-5. Make the smallest fix that stabilizes the flow
-6. Rerun the **same UI test class**
-7. Move to the next class only after the current one passes
-
-If Xcode complains about missing or stale test-file references in `.xcodeproj`, regenerate the project:
-
-```bash
-xcodegen generate
-```
-
-## Inspecting Failures
-
-To inspect the latest test result bundle:
-
-```bash
-xcrun xcresulttool get test-results summary --path <path-to-latest.xcresult>
-```
-
-For a failed UI test, export attachments from the finalized result bundle into a
-fresh directory without filters, then use its `manifest.json` to map each
-attachment name. Screenshots, accessibility hierarchies, and recordings often
-show an adaptive control that is absent from the failed assertion; a filtered
-export can omit these diagnostic artifacts.
-
-```bash
-xcrun xcresulttool export attachments --path <path-to-latest.xcresult> \
-  --output-path <fresh-attachment-directory>
-```
-
-A useful way to locate the latest result bundle:
+1. Reproduce with the one failing class. Read the assertion and the helper it went through.
+2. Export the result bundle's attachments unfiltered; the hierarchy often shows a control the assertion never mentions.
+3. Decide: app regression, stale test, or stale project (`xcodegen generate` fixes missing test-file references).
+4. Fix the app when behavior or an identifier the product relies on is gone. Fix the test when labels, identifiers, or navigation moved and the app is right.
+5. Rerun the same class before moving on.
 
 ```bash
 ls -td ~/Library/Developer/Xcode/DerivedData/KeeForge-*/Logs/Test/*.xcresult | head -n 1
+xcrun xcresulttool get test-results summary --path <xcresult>
+xcrun xcresulttool export attachments --path <xcresult> --output-path <fresh-dir>   # then read manifest.json
 ```
 
-If `xcodebuild` cannot boot a simulator or reports missing destinations:
+### Shape
 
-```bash
-xcodebuild -showdestinations -project KeeForge.xcodeproj -scheme KeeForge
-```
+- One behavior per method, each from a clean launch. The database list is reseeded, but app defaults persist between tests: set what the test depends on (sort order, Quick Launch).
+- Assert on known fixture data through accessibility identifiers, and add an identifier with the feature rather than matching a label (`../KeeForge/Views/AGENTS.md`).
+- For a save path, reopen the group or lock and unlock before asserting persisted content.
+- Return to a known screen after search, sort, a sheet, or a menu; each replaces the toolbar and navigation controls the next step expects.
 
-If the simulator gets stuck with "preflight checks":
+### Waiting and hit-testing
 
-```bash
-xcrun simctl shutdown all && xcrun simctl erase <UDID>
-```
+- No fixed sleeps. Poll for the element that proves the state changed; use `ciElementTimeout` (15 s) where Cloud's parallel simulators are slow.
+- A lazy `List`/`Form` never materializes a row below the fold, so `waitForExistence` on it cannot succeed on a small screen. Anchor "did this screen open" on a navigation bar or toolbar item and `revealElement` anything lower.
+- `isHittable` on a zero-frame or off-screen element raises an Objective-C exception that ends the test. On anything mid-transition, check `hasUsableFrame` / `hasOnScreenFrame` first or go through `revealElement`.
+- `isHittable` is true for a last row whose center sits under the bottom search bar; `revealElement` then does not scroll and a long press hits the bar. Swipe the list up first and keep the assertion on the context action.
+- After a save the workspace is disabled behind `database.saving-overlay` and swallows the next tap. Use `EntryEditUITestCase.waitForAutosaveAttempt()` and its retrying `openAddMenu`, `revealContextMenuButton`, and `revealSwipeDeleteButton`.
 
-## Adding UI Tests
+### Typing
 
-- Prefer **small, focused test methods** over one giant end-to-end method
-- Keep each test independent; do not rely on state left behind by a previous test method
-- Start from a clean launch and use shared helpers like `unlockSuccessfully()`
-- Use stable, fixture-backed assertions whenever possible
-- Assert via accessibility identifiers first, visible labels second
-- Promote repeated setup or navigation code into `KeeForgeUITestCase`
-- Avoid assumptions based on incidental ordering like "first row" unless the fixture guarantees it
-- UI tests should prove behavior, not exact layout or animation timing
+- `typeText` on an unfocused field fails the test outright and cannot be retried. Use `replaceText(in:with:)`, which scrolls the field clear of the keyboard, re-taps until focus is confirmed, and verifies the value. `XCUIElement.hasFocus` is false for a focused SwiftUI field.
+- Database-creation and master-key password fields are typed through `revealPasswordTextField`, `replaceVisiblePasswordFixtureText`, and `dismissKeyboardAfterPasswordFixtureEntry`. Those helpers are for these forms only.
+- Unlock with `unlockSuccessfully()`. It retries a wrong-password result, which on parallel simulators usually means the password was typed before the field was ready.
+- A create flow that fills a password can raise the system Save Password sheet on a simulator.
 
-Good patterns:
+### Queries
 
-- one test method per behavior
-- helpers that return to a known stable screen before the next assertion
-- for save-path smoke assertions, reopen the target group before checking persisted list content
-- explicit waits for the element that proves state changed
-- tests that need Quick Launch should enable it explicitly in `configureLaunch(app:)` instead of relying on the single-database default
+- SwiftUI folds a row's captions into one label (title with username, a tag with its count). Match with `label CONTAINS` and name the row; "first row" is safe only when the fixture guarantees it.
+- Counts and states are accessibility values, not labels: switches (`"1"`/`"0"`; `setSwitch` taps the trailing edge because a switch can report the whole row as its frame), the `entry-detail.history` count, inspector rows. The TOTP code `entry.totp.code` is read from `label`.
+- A confirmation dialog's action carries its identifier on two nested buttons; resolve it with `.firstMatch`.
+- On iOS 27, buttons inside a `Section` of a SwiftUI `Menu` lose their identifiers while labels survive. Use `menuButton(identifier:label:)`; an identifier-only query never resolves.
+- Search results replace the group list in place, and a focused search field covers the root even when empty. Use `searchForEntries(matching:)` and `dismissSearch()`.
+- The database root has no navigation-bar title while its large title is on screen. Use `selectDatabaseView(_:)` / `waitForDatabaseView(_:)`, not `app.navigationBars[...]`.
+- Database Details is a hub: every control is one push below it and only the hub has Close. `openDatabaseDetailsPage(_:)` before querying, `returnToDatabaseDetailsHub()` before the next page.
+- iPadOS can start the split view with its sidebar collapsed. `revealSidebarIfNeeded()` taps the system control only when it offers Show Sidebar; never force a column visibility from a test.
+- On the database list a long press opens the context menu and rows move only in Edit mode, so drive a reorder through `database.edit.button`. `DatabaseListUITests` caps its details-reopen test at 120 s so a stall between the two gestures fails fast.
 
-Avoid:
+### Injected save conflicts
 
-- long tests that combine smoke-path coverage and edge-case coverage in the same class
-- long tests that combine search, sort, settings, navigation, and modal flows in one method
-- tests that depend on toolbar structure while search or sheets are still active
-- assertions that guess at content instead of using known fixture data
+`UI_TEST_LOCAL_SAVE_CONFLICT_COUNT=<n>` makes `LocalDatabaseSaver` rewrite the file on disk before its hash comparison for the first `n` saves, adding a `UI Test Conflict <n>` entry, so the conflict and any merge run against real divergent bytes. `..._DIVERGES_POOL=1` also grows the binary pool, which makes `KDBXMerger` decline on a fixture with attachments. Set the count to exactly the conflicts wanted: a merge saves again, and a leftover count injects another version into that save.
 
-## Fixing UI Tests
+### Not automatable
 
-Fix the **test** when:
+- The pasteboard: reading it from the runner raises the system paste prompt. Assert the copy control is offered and tappable.
+- QR scanning, and an `otpauth://` link delivered to an already unlocked session (`XCUIApplication.open` relaunches the app). `TOTPEnrollmentDeepLinkUITests` covers the launched-with-URL path only.
 
-- labels or accessibility identifiers changed but the app still behaves correctly
-- navigation assumptions are stale
-- the test is too brittle or combines too many independent behaviors
+## Device AutoFill store suite
 
-Fix the **app** when:
+`AutoFillStoreUITests` asserts against the real `ASCredentialIdentityStore`. Simulators return an empty enumeration despite persisted writes, so only a physical iPhone can run it. It replaces KeeForge's registered database list and clears its credential identities: never run it on a device holding personal vaults.
 
-- the intended user-visible behavior is actually broken
-- an accessibility identifier or control that the product relies on disappeared
-- the UI no longer exposes the expected feature
+Preparation, once per install: pair the iPhone for development, install the Debug app (running the class does this), then enable KeeForge under Settings > General > AutoFill & Passwords. To check, launch with `-autofill-store-inspector` and read `autofill-inspector.enabled-state`. Run it with `-destination 'platform=iOS,name=<device>'` and `-parallel-testing-enabled NO`.
 
-Common sources of UI test flakiness in this repo:
+- Its two fixtures have disjoint domains and usernames, because the system store can dedup identities that share `(service, user)` across databases regardless of `recordIdentifier`. With overlap the union count is not deterministic.
+- The first launch seeds with `-ui-testing`; every later launch in the test omits it so the registry UUIDs and per-database flags survive.
+- Store writes are fire-and-forget, so the test pauses briefly before terminating the app. That is the one deliberate sleep; every assertion still polls the inspector.
+- An explicitly disabled provider skips. A missing inspector state or an enumeration error fails; it is never read as zero.
+- A release result needs all three methods passed with zero skips. A simulator skip, or an enumeration the system cannot return, is a blocked check, not coverage. Do not work around it with private API.
+- Still manual: QuickType and Safari filling, the extension's own flows, suggestion cleanup after entry deletion or database removal, and republish when re-enabling the open database.
 
-- search changes the visible view structure and toolbar contents
-- sheets and menus replace the expected navigation controls
-- the root fixture group contains subgroups, not direct entries
-- document picker flows are asynchronous and require explicit waiting
-- password-filled create flows can trigger the system `Save Password?` sheet in the simulator
-- a row below the fold on a 375x667 screen (iPhone SE) is never materialized by a lazy `List`/`Form`, so `waitForExistence` on it can only time out however generous the timeout. Anchor "did this screen open" assertions on a navigation bar or toolbar item, and `revealElement` anything further down. Two tests failed this way on an iOS 26.5 iPhone SE: the AutoFill settings per-database toggles (pushed past the fold by the Copy Verification Code footer) and the entry-history version screen's Last Modified row
-- `isHittable` can be true for a partially exposed row whose center is covered by the bottom search toolbar. `revealElement` then returns without scrolling, but `press(forDuration:)` can hit the toolbar instead of opening the row's context menu. For a last-row context action, scroll the list to bring the row clear of the toolbar before pressing; `TagBrowserUITests.testHiddenGroupEntriesLeaveSearchButRemainInTheTagBrowser` does this for Tagged on the small physical iPhone. Keep the context-action assertion so a missed gesture still fails.
-- regular-width workspace and database-details smoke flows are much more stable when they target dedicated accessibility identifiers such as `regular-workspace.select-entry-placeholder` and `database-details.quick-launch-toggle`
-- on iOS 27, buttons inside a `Section` of a SwiftUI `Menu` lose their accessibility identifiers (labels survive; direct menu children are unaffected). Query them with `menuButton(identifier:label:)` instead of `app.buttons["the.identifier"]`
-
-When a test drives search, sorting, or modal UI, reset back to a known stable state before the next assertion. If a combined test keeps leaking state across sections, split it into multiple test methods.
-
-## Injected Save Conflicts
-
-Save-conflict flows are driven by a real divergent file, not a fabricated one. Under `-ui-testing`, `UI_TEST_LOCAL_SAVE_CONFLICT_COUNT=<n>` makes `LocalDatabaseSaver` rewrite the database on disk — before it compares hashes — for the first `n` local saves, adding a `UI Test Conflict <n>` entry to the visible root group (`DatabaseListStore.consumeUITestLocalSaveConflictSequence`). The open-time hash check then trips on its own, so the conflict, the remote bytes, and any merge against them are genuine. `UI_TEST_LOCAL_SAVE_CONFLICT_DIVERGES_POOL=1` additionally appends a binary-pool field to that rewritten copy, which is what makes `KDBXMerger` decline with the attachment-pool blocker on a fixture whose entries carry attachments.
-
-Set the count to exactly the number of conflicts a test wants: a merge writes again, and a leftover count would inject a third version into that write instead of letting it land.
+`AutoFillStoreInspectorSmokeUITests` only checks that the inspector presents; it is safe on any simulator.
 
 ## Fixtures
 
-### Default Fixture
+A test selects a bundled fixture by overriding `databaseFixtureName`, or `databaseFixtures` for several databases or a `documents*` disposition. Contents and regeneration are in `../TestFixtures/README.md`.
 
-`TestFixtures/test.kdbx`  
-Password: `testpassword123`
+| Fixture | Password | Used by |
+| --- | --- | --- |
+| `test.kdbx` | `testpassword123` | Default for every class not listed here |
+| `demo.kdbx` | `demo` | `AppStoreScreenshots` |
+| `demo-keyfile.kdbx` + `demo-keyfile.key` | `demo` | `KeyFileUnlockUITests` |
+| `invalid-xml.keyx` | none | `KeyFileUITests` malformed-key rejection |
+| `kitchen-sink.kdbx` | `testpassword123` | `TagBrowserUITests`, `InheritedTagsUITests`, `ViewMenuUITests`, `DefaultViewUITests`, `EntryAttachmentsSmokeUITests`, `SaveConflictMergeDeclineUITests`, `ProtectedCustomFieldUITests`, `ProtectedCustomFieldEditorAuthUITests`, `EntryCustomIconPickerUITests` |
+| `autofill-union.kdbx` | `testpassword123` | `TOTPSmokeUITests`, `TOTPEnrollmentUITests`, `TOTPEnrollmentDeepLinkUITests` |
+| `autofill-store-alpha.kdbx`, `autofill-store-bravo.kdbx` | `testpassword123` | `AutoFillStoreUITests` |
+| `compatibility/legacy-kdbx31.kdbx` | `testpassword123` | `UnlockedDatabaseBrowseAndDetailUITests` read-only KDBX 3.1 case |
 
-Contains:
+- Only these are bundled. `test`, `demo`, `demo-keyfile` (database and key), and `kitchen-sink` come from the `UITestFixtures` template in `project.yml`, shared with `KeeForgeMacUITests`; the rest are this target's extras. To use another fixture, add it to the fitting list and run `xcodegen generate`.
+- `test.kdbx` has only groups at its root, so a test enters `Social` or `Work` before opening an entry.
 
-- `Root` group (top-level, no entries directly)
-- `Empty` group (0 entries)
-- `Social` group: Twitter, Discord, Offline Key, Public Profile
-- `Work` group: Email, GitHub
+## Base-class helpers
 
-Important notes:
+Extend a base class instead of repeating launch or unlock code, and promote a repeated flow into it.
 
-- the root group has only subgroups, no direct entries
-- `openAnyEntry()` must navigate into a non-empty subgroup such as Social or Work
-- `test.kdbx` does **not** contain passkeys or key-file-protected databases
-
-### Demo Fixture
-
-`TestFixtures/demo.kdbx`  
-Password: `demo`
-
-Used by `AppStoreScreenshots` and richer screenshot-style flows.
-
-### Other Fixtures
-
-Contents, regeneration scripts, and hashes are in `../TestFixtures/README.md`; this list only maps fixture → password → UI class.
-
-- `TestFixtures/kitchen-sink.kdbx` (`testpassword123`) — `EntryAttachmentsSmokeUITests` and `SaveConflictMergeDeclineUITests` (the only UI-test fixture whose entries point into a binary pool), `TagBrowserUITests` (the only one with entry tags), `ViewMenuUITests`, `InheritedTagsUITests` (the only one with group `<Tags>`), `ProtectedCustomFieldUITests`, `ProtectedCustomFieldEditorAuthUITests`, and `EntryCustomIconPickerUITests` (the only one with a `Meta/CustomIcons` image). Shared with the KDBX compatibility gate and the unit suites — retargeting or removing it breaks all three
-- `TestFixtures/autofill-union.kdbx` (`testpassword123`) — `AutoFillStoreUITests` (second, "bravo" database, domain/username-disjoint from `test.kdbx`), `TOTPSmokeUITests`, `TOTPEnrollmentUITests`, `TOTPEnrollmentDeepLinkUITests`
-- `TestFixtures/compatibility/legacy-kdbx31.kdbx` (`testpassword123`) — `UnlockedDatabaseBrowseAndDetailUITests.testLegacyKDBX31DatabaseDetailsKeepsReadOnlyToggleDisabled` (read-only KDBX 3.1)
-
-### Key File Fixtures
-
-Use `demo-keyfile.kdbx` (password `demo`) with `demo-keyfile.key` for the valid key-file unlock flow (`KeyFileUnlockUITests`). `invalid-xml.keyx` is bundled solely for `KeyFileUITests`' malformed-XML rejection case. The other key-file fixtures in `TestFixtures/` (`test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key`) are bundled only into the unit-test targets and **not** available to UI tests.
-
-### What The UI-Test Target Bundles
-
-Exactly these fixtures ship in the UI-test bundle: `test.kdbx`, `demo.kdbx`, `demo-keyfile.kdbx`, `demo-keyfile.key`, and `kitchen-sink.kdbx` from the `UITestFixtures` target template in `project.yml` (shared with `KeeForgeMacUITests`, which bundles nothing else), plus this target's own extras — `invalid-xml.keyx`, `autofill-union.kdbx`, and `compatibility/legacy-kdbx31.kdbx`. To use another fixture from a UI test, add it to whichever of the two lists fits and run `xcodegen generate`.
-
-Loading mechanism: fixtures are injected through the launch environment by `KeeForgeUITestCase.setUp` (base64 of the bundled resource in `UI_TEST_DATABASES_JSON`), so a test only overrides `databaseFixtureName` — it never touches file paths. The name must match the resource added to `project.yml`.
-
-## Base Class Helpers
-
-`KeeForgeUITestCase` is the preferred base class for UI tests.
-
-Key helpers:
-
-- `EntryEditUITestCase.waitForAutosaveAttempt()` — waits for `database.saving-overlay` to disappear before interacting with the vault again. Allows a fast save or cancelled edit to finish without observing the overlay; a save still in progress after 30 seconds fails explicitly. A fixed sleep can leave the vault disabled on slower CI runners.
-- `app` — preconfigured `XCUIApplication` with fixture data injected through launch environment
-- `unlock(password:)` — type password and tap unlock
-- `unlockSuccessfully()` — unlock with the default fixture password and assert success; retries the whole unlock up to three times when the vault reports a wrong-password error (a race under CI's parallel simulators where the password is typed before the field/keyboard is ready), and only surfaces the real error on the final attempt
-- `waitForVaultToUnlock()` — poll until unlock succeeds or surface the last visible error
-- `replaceText(in:with:)` — clear a field and type into it; first scrolls the field clear of the software keyboard and re-taps it until a keyboard is up, because `typeText` on an unfocused field fails the test outright ("Neither element nor any descendant has keyboard focus") and cannot be caught and retried. `XCUIElement.hasFocus` is not usable as the readiness signal — SwiftUI text fields report `false` even while focused. After typing, wait up to `ciElementTimeout` for the field value to match; secure-field accessibility values can lag on CI
-- `revealPasswordTextField(in:revealingWith:)` and `replaceVisiblePasswordFixtureText(in:with:)` — use a password row's existing visibility button before fixture typing, then enter a public fixture through the returned `TextField` with exact verification. Creation and master-key fixture flows dismiss their keyboard with Return before moving to the next field; iOS 26.5's simulator XCTest injection into their `SecureField`s retains one character even though manual software-keyboard entry works. Keep secure-field coverage on the unlock path rather than using that broken injection route for fixture setup
-- `KeeForgeUITestCase.ciElementTimeout` (15s) — shared, generous element-appearance timeout for spots that are slow to settle on Xcode Cloud's slower, four-way-parallel simulators; prefer it (over per-line 5s literals) for waits on the known-flaky paths
-- `openDatabase(named:)` — open a known fixture-backed database row instead of whichever row appears first
-- `activateSearchField()` / `clearSearchField(_:)` / `searchForEntries(matching:)` / `dismissSearch()` — the group list's search field. It sits above the first row, so `activateSearchField` swipes a scrolled list back down before asserting; Both typing paths verify keyboard focus through the shared `focusFieldForTyping` helper before injecting text. `clearSearchField` prefers the clear button but re-reads the value and deletes key by key, because the button can be reported as existing while parked off screen and its tap can be swallowed while the list settles. `searchForEntries` waits on `search.results.count` and `dismissSearch` on a `group.navlink` row, since the results replace the group list in place rather than pushing a screen. These live here rather than on `EntryEditUITestCase` or `UnlockedDatabaseUITestCase` because both base classes and their subclasses search; four near-identical copies of the same dance had accumulated before they were collapsed
-- `openAnyEntry()` — navigate into a non-empty group and open an entry
-- `revealElement(_:in:direction:maxSwipes:)` — scroll until an element is visible and hittable
-- `hasUsableFrame(_:)` / `hasOnScreenFrame(_:)` — snapshot-based frame checks to run before `isHittable` on anything that may be mid-transition. `isHittable` on a zero-frame or off-screen element can raise an Objective-C exception that ends the test, so wait for screen readiness (for example, the TOTP `openEditor()` waits for the editor form) before scanning containers
-- `waitForDocumentPicker()` — wait for the system document picker to appear
-- `selectDatabaseView(_:)` / `waitForDatabaseView(_:)` — pick All Entries, Groups, Verification Codes, Tags, or Recycle Bin from the view menu on the database root's title (`view.menu`), and wait for that view. The helper leaves an active search first and falls back to the bar's own title, which carries the menu once the list has scrolled the big title away. Use `waitForDatabaseView` instead of `app.navigationBars[...]` for the root: while the big title is on screen the bar has none. A database opens on All Entries, but these helpers browse from the group list, so `setUp` sets `UI_TEST_VIEW_MODE=groups` and every test starts in Groups; a class that needs the real starting view removes the key in `configureLaunch`
-- `menuButton(identifier:label:)` — match a menu item by accessibility identifier *or* visible label. Required for items inside a `Section` of a SwiftUI `Menu` (the toolbar add-database menu): the iOS 27 runtime drops accessibility identifiers from Section-wrapped menu buttons entirely — verified empirically, identifier on the Button, on its Label, and headerless `Section` all lose it, while direct menu children keep theirs — so identifier-only queries hang forever on iOS 27
-- `openDatabaseDetails(rowContaining:)` / `closeDatabaseDetails()` — long-press a database row, open its Database Details context action, and wait for/dismiss the details sheet. `closeDatabaseDetails()` pops back to the hub first, since only the hub has the Close button
-- `openDatabaseDetailsPage(_:)` / `returnToDatabaseDetailsHub()` — Database Details is a hub, so every per-database control sits one push below it: open the page (`.general`, `.autoFill`, `.masterKey`, `.encryption`, `.cloudSync`, `.backups` → `database-details.<page>.link`) before querying a control, and pop back before opening another
-- `setSwitch(_:isOn:)` — tap a switch until its raw `"1"`/`"0"` value matches. `UnlockFlowUITests`' private `setUsageStatsSwitch` stays separate because it tolerates other value encodings
-
-Prefer extending this base class over duplicating launch-environment setup or unlock logic in individual test files.
-
-## Accessibility Hooks
-
-Use the app's accessibility identifiers whenever possible, including:
-
-- `unlock.password.field`
-- `unlock.button`
-- `unlock.error.label`
-- `lock.button`
-- `settings.button` (unlocked database)
-- `database.settings.button` (database list)
-- `sort.menu`
-- `group.navlink`
-- `entry.navlink`
-- `entry.password.reveal`
-- `entry.copy.password`
-- `entry.copy.url`
-- `entry.copy.totp`
-- `entry.totp.code` (entry detail, the rendered TOTP code `Text`; read `.label`, not `.value`)
-- Entry editor One-Time Password section (`EntryEditView`): `entry-edit.totp.scan-qr` (iOS only) / `entry-edit.totp.enter-link` / `entry-edit.totp.enter-key` (entry paths when no TOTP is configured), `entry-edit.totp.secret-field` + `entry-edit.totp.secret-visibility-button`, `entry-edit.totp.period-field`, `entry-edit.totp.digits-picker` + `entry-edit.totp.digits-error`, `entry-edit.totp.algorithm-picker`, `entry-edit.totp.remove` (confirmed destructive, confirm `entry-edit.totp.remove-confirm` — matches nested buttons, use `.firstMatch`), the setup-link sheet's `entry-edit.totp.link-field` / `entry-edit.totp.link-error` / `entry-edit.totp.link-apply` / `entry-edit.totp.link-cancel`, and the QR scanner sheet's `entry-edit.totp.scan-cancel` (scanner is not UI-testable — no simulator camera)
-- TOTP enrollment destination sheet (`TOTPEnrollmentDestinationView`, presented for an incoming `otpauth://` link): `totp-enroll.summary`, `totp-enroll.new-entry`, `totp-enroll.search-field`, `totp-enroll.entry-list`, `totp-enroll.entry.<entry-uuid>` (match with a BEGINSWITH predicate plus a label filter), `totp-enroll.group.<group-uuid>` (group-picker rows), `totp-enroll.replace-confirm` (matches nested buttons — use `.firstMatch`), `totp-enroll.cancel`. Anchor "did the sheet open" on the `Add Verification Code` navigation bar; the unlock-needed/invalid-link alerts are plain system alerts matched by title
-- `settings.security.link` (Settings → Security)
-- `settings.security.lock-on-background-toggle` (Settings → Security, "Lock When App Goes to Background" toggle — the closest real protective toggle on the iOS Security screen; iOS has no screen-capture-block toggle, that setting is macOS-only)
-- `settings.security.authentication-grace-picker` (Settings → Security, "Authentication Grace Period" picker; the same identifier on the macOS Security tab)
-- `database-row.read-only-toggle`
-- `database-row.read-only-badge`
-- `database-row.pending-uploads-badge`
-- `database-row.push-pending-action`
-- `search.results.count`
-- `search.no-results`
-- `view.menu` (the database root's title with the chevron; a toolbar button before iOS 26) and `view-menu.<groups|allEntries|verificationCodes|tags|recycleBin>` (its items; use `selectDatabaseView(_:)`)
-- `group-list.summary` (footer under All Entries and Verification Codes)
-- `verification-code-row.copy` (copy button on a Verification Codes row; the row's opening part is `entry.navlink`)
-- `tag-list.row.<normalized-tag>` (rows of the Tags view; the macOS sidebar's tag rows reuse the identifier)
-- `tag-entries.list` (a tag's filtered entry list; its rows keep `EntryListView`'s `search.entry.navlink`)
-- `entry-detail.tag.<normalized-tag>` (entry-detail tag chips)
-- `entry-row.copy-username-context` / `entry-row.copy-password-context` (the copy pair every entry row's context menu leads with, on all three shells; each is absent when its field is empty, and the password one also needs an unlocked session)
-- `group-row.edit-context` ("Edit Group", the first item of the group row context menu; the same identifier on the iOS/iPad row and the macOS sidebar row, and absent entirely on the Recycle Bin, inside it, and in a read-only database)
-- Group editor (`GroupEditView`, pushed on iOS / a sheet on macOS):
-  - `group-edit.name-field`
-  - `group-edit.icon-button` (opens the shared `group-icon-picker.*` sheet)
-  - `group-edit.tags` / `group-edit.tag.<normalized-tag>` (applied tag pills; the strip is an accessibility container, so the pills keep their own identifiers — same shape as `entry-edit.tags`, and it renders nothing when the group has no tags)
-  - `group-edit.tags-field` (single-line; Return commits the typed tag)
-  - `group-edit.tag-suggestions` / `group-edit.tag-suggestion.<normalized-tag>` (renders nothing when there is nothing left to suggest)
-  - `group-edit.notes-field`
-  - `group-edit.autofill-toggle` ("Hide from Search & AutoFill"; seeded from the *effective* exclusion, so it reads on for a group hidden by an ancestor)
-  - `group-edit.cancel` / `group-edit.save` (Save is disabled until the form is dirty and the trimmed name non-empty)
-  - `group-edit.saving-overlay`
-- `autofill-tip.enable` / `autofill-tip.dismiss` (database-list AutoFill tip banner)
-- `settings.autofill.turn-on` / `settings.autofill.open-ios-settings` (Settings → AutoFill provider status row)
-- `settings.autofill.copy-totp` (Settings → AutoFill, copy-TOTP-after-fill toggle)
-- `database-details.autofill-toggle` (database-details sheet, per-database AutoFill toggle)
-- `database-details.change-master-key` (database-details sheet, session context only; pushes the Change Master Key screen, disabled while read-only)
-- Change Master Key screen (`MasterKeyChangeView`, pushed inside the details sheet):
-  - `master-key.new-password-field` / `master-key.new-password-visibility-button`
-  - `master-key.confirm-password-field` / `master-key.confirm-password-visibility-button`
-  - `master-key.keyfile.select` / `master-key.keyfile.clear`
-  - `master-key.save` / `master-key.cancel`
-  - `master-key.confirm-change` (destructive action in the confirmation dialog every save presents; matches nested buttons — use `.firstMatch`)
-  - `master-key.error` (validation/change error banner)
-- `settings.autofill.database-toggle.<database-id-uuidString>` (Settings → AutoFill per-database toggles; match with a BEGINSWITH predicate)
-- `settings.autofill.clear-entries` / `settings.autofill.clear-entries.confirm` (Clear AutoFill Entries button + destructive confirmation; the confirm identifier matches two nested buttons — use `.firstMatch`)
-- AutoFill store inspector (DEBUG-only; presented at the app root by the `-autofill-store-inspector` launch argument, wired in `../KeeForge/App/KeeForgeApp.swift`; no effect in Release). Counts and states are exposed as element **values** (read `element.value`, not the label):
-  - `autofill-inspector.enabled-state` (value `enabled` / `disabled`)
-  - `autofill-inspector.total-count`
-  - `autofill-inspector.refresh`
-  - `autofill-inspector.database.<database-id-uuidString>.count` (uppercase UUID, same convention as `settings.autofill.database-toggle.<uuid>`)
-  - `autofill-inspector.legacy.count` / `autofill-inspector.unrecognized.count` (rendered only when non-empty)
-
-  **Simulator enumeration caveat.** On simulator runtimes (verified iOS 18.5 and 26.5) the enumeration API `ASCredentialIdentityStore.credentialIdentities(...)` always returns an *empty array* despite persisted writes (the saves succeed and QuickType consumes them). The inspector's counts — and the app's own enumerate-then-mutate store maintenance (`CredentialIdentityStoreManager.populate` / `removeIdentities(forDatabase:)`) — are therefore only meaningful on a physical device.
-
-  **Why `AutoFillStoreUITests` uses two disjoint fixtures.** The system store can dedup identities sharing `(service_id, user)` across databases, ignoring `recordIdentifier`. `AutoFillStoreUITests` therefore seeds its second ("bravo") database from `autofill-union.kdbx`, fully domain/username-disjoint from `test.kdbx` ("alpha") — see `../TestFixtures/README.md` — so no cross-database dedup can occur and `testMultiDatabaseUnionAndSingleSectionRemoval` deterministically asserts the full union: inspector total = alpha's count + bravo's, each section holds its own full set, and disabling bravo removes only its section.
-
-If a new screen or interaction needs UI coverage, add an accessibility identifier as part of the feature work rather than relying on fragile label matching.
+- `KeeForgeUITestCase`: launch, fixtures, unlock, search, view menu, Database Details, scrolling, typing. Start a test with `unlockSuccessfully()`.
+- `UnlockedDatabaseUITestCase` for browse and detail (`openEntry(named:inGroup:)`, `searchResult(named:)`); `EntryEditUITestCase` for create, edit, delete, and context menus.
+- Area bases: `DatabaseCreationUITestCase`, `SaveConflictMergeUITestCase`, `AppSettingsUITestCase`, `TOTPEnrollmentUITestCase`, `CloudSyncBaseUITests`, `WebDAVSyncBaseUITests`.

@@ -38,6 +38,7 @@ final class DatabaseListUITests: KeeForgeUITestCase {
     }
 
     func testDatabaseDetailsAutoFillTogglePersistsAcrossReopen() {
+        // Fail fast if the long press stalls against the reorder gesture.
         executionTimeAllowance = 120
         XCTAssertTrue(waitForDatabaseList(), "Database list did not appear")
 
