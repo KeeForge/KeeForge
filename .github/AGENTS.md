@@ -40,7 +40,7 @@ Three repository rulesets, all with admin bypass. They live in GitHub settings, 
 ## Gotchas
 
 - Renaming the `unit-tests` or `macos-unit-tests` job breaks the rulesets, which match the check by job name.
-- Every `KeeForgeMac` job runs on `macos-26` and fails below Xcode 26.4: Xcode 26.3's `actool` crashes compiling `KeeForge.icon` for macOS. iOS jobs stay on `macos-15`, which carries the iOS 18 simulator runtimes.
+- Every `KeeForgeMac` job runs on `macos-26` and fails below Xcode 26.4: Xcode 26.3's `actool` crashes compiling `KeeForge.icon` for macOS. The iOS unit-test jobs (`pr-tests.yml`, `ci.yml`) also run on `macos-26`. The iOS 18 workflows (`ios18-rc-tests.yml`, `ios18-ui-regression.yml`) stay on `macos-15`, the only image with iOS 18 simulator runtimes.
 - Mac jobs sign ad hoc with entitlements stripped (`CODE_SIGN_IDENTITY=-`, `CODE_SIGN_ENTITLEMENTS=`), because runners have no signing account.
 - Workflows regenerate the project with XcodeGen; the checked-in `.xcodeproj` is never assumed current. All but `ios18-ui-regression.yml`, which pins Xcode 26.3, select the newest Xcode on the runner.
 - Workflows bootstrap `BuildConfig.local.xcconfig` with the placeholder `DROPBOX_APP_KEY=ciplaceholderdropboxappkey`. It must stay alphanumeric and the app treats it as cloud sign-in disabled; the rule is in `../ci_scripts/AGENTS.md`.

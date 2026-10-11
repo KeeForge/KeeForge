@@ -77,8 +77,7 @@ jobs:
   macos-build-and-test:
     # macos-26, not macos-15: macos-15 tops out at Xcode 26.3, whose actool
     # crashes compiling the KeeForge.icon Icon Composer bundle for the macOS
-    # platform (it compiles the same .icon for iOS fine, which is why
-    # build-and-test above stays on macos-15). Same reason pr-tests.yml's
+    # platform. Same reason pr-tests.yml's
     # macos-unit-tests and the macos-rc-tests gate run there.
     runs-on: macos-26
     # The Mac suite alone runs 22-32 minutes on this runner class.
