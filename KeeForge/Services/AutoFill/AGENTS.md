@@ -23,8 +23,8 @@
 ### Credential identities
 
 - Every operation reads `CredentialIdentityStoreCapabilities` first. Per-database aggregation (enumerate, attribute by record identifier, remove then save) is reachable only when `supportsIncrementalUpdates` is true.
-- macOS reports it false. There every refresh is a whole-store replace and every targeted removal degrades to clearing the store, so the store holds one database's identities. The gate is the runtime flag, not `#if os(macOS)`, so aggregation turns on by itself if a release starts reporting support. Platform facts are in `../../../AutoFillExtension/AGENTS.md`.
-- Enumeration throws when any returned object lacks `ASCredentialIdentity` conformance, so an unreadable store is never mistaken for an empty one and never triggers a replacement.
+- Where macOS reports it false (recorded on 26.5, not re-verified), every refresh is a whole-store replace and every targeted removal degrades to clearing the store, so the store holds one database's identities. The gate is the runtime flag, not `#if os(macOS)`. macOS 27.0.1 reports it true, so aggregation is attempted there and stops at enumeration (next bullet). Platform facts are in `../../../AutoFillExtension/AGENTS.md`.
+- Enumeration throws when any returned object lacks `ASCredentialIdentity` conformance, so an unreadable store is never mistaken for an empty one and never triggers a replacement. macOS 27.0.1 and a physical iPhone on iOS 27.0.1 return only such objects.
 - An enumerated identity without a readable `recordIdentifier` forces the additive path: unknown system identities are never deleted by a refresh. Clear AutoFill Entries removes them.
 - The mutation queue is per process. The app and extension can overlap, so a refresh must be idempotent; the worst case is a briefly stale suggestion until the database's next refresh.
 - A password identity is a `.URL` identifier `https://<host>`; a one-time-code identity is a `.domain` identifier with the exact host. Only the host is published: no path, port, query, or user info reaches the system store, and never the registrable domain, because the host is all the system list shows to tell subdomains apart.

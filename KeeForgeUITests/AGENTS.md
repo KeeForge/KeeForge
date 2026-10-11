@@ -93,7 +93,7 @@ xcrun xcresulttool export attachments --path <xcresult> --output-path <fresh-dir
 
 ## Device AutoFill store suite
 
-`AutoFillStoreUITests` asserts against the real `ASCredentialIdentityStore`. Simulators return an empty enumeration despite persisted writes, so only a physical iPhone can run it. It replaces KeeForge's registered database list and clears its credential identities: never run it on a device holding personal vaults.
+`AutoFillStoreUITests` asserts against the real `ASCredentialIdentityStore`. A simulator cannot run it: its enumeration was recorded as empty despite persisted writes (not re-verified; a fresh iOS 27.0 simulator has the provider disabled). It needs a physical iPhone whose store returns readable identities; on iOS 27.0.1 the store returns private objects without `ASCredentialIdentity` conformance, which the inspector reports as an enumeration error. It replaces KeeForge's registered database list and clears its credential identities: never run it on a device holding personal vaults.
 
 Preparation, once per install: pair the iPhone for development, install the Debug app (running the class does this), then enable KeeForge under Settings > General > AutoFill & Passwords. To check, launch with `-autofill-store-inspector` and read `autofill-inspector.enabled-state`. Run it with `-destination 'platform=iOS,name=<device>'` and `-parallel-testing-enabled NO`.
 

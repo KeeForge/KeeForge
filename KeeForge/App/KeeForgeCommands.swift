@@ -183,7 +183,8 @@ struct KeeForgeCommands: Commands {
             .disabled(isUnlocked == false)
         }
 
-        // Without a replacement macOS ships a "KeeForge Help" item that does nothing.
+        // Without a replacement macOS ships a "KeeForge Help" item that only raises
+        // a "Help isn't available" alert, because the app has no help book.
         CommandGroup(replacing: .help) {
             Button("KeeForge Help") {
                 open(Self.helpURLString)

@@ -117,7 +117,7 @@ Find your change's row and write what it names before calling the change done:
 | Layout or visual polish | No new assertions. Use previews or the `MacScreenshotAuditUITests` captures; add a screen to that walk for a new screen. |
 | A SwiftUI view the macOS AutoFill shell hosts | A manual pass in a real AutoFill panel; it has no `NSToolbar` (`AutoFillExtension/AGENTS.md`). |
 | Parser, writer, protected fields, unknown XML, or a save path | `KDBXCompatibilityTests` (rule in `KeeForge/AGENTS.md`) plus `KDBX_COMPAT_SCHEME=KeeForgeMac ci_scripts/run_kdbx_compatibility_gate.sh`. |
-| A write to the system credential identity store | A `CredentialIdentityStoreManagerTests` case with `FakeCredentialIdentityStore.supportsIncrementalUpdatesValue = false`, beside the incremental one; macOS always takes that branch. |
+| A write to the system credential identity store | A `CredentialIdentityStoreManagerTests` case with `FakeCredentialIdentityStore.supportsIncrementalUpdatesValue = false`, beside the incremental one; macOS takes that branch on releases that report no incremental updates. |
 | Entitlements, App Group container, extension boundary, or Sparkle | Refresh `KeeForgeMac/SECURITY.md`; re-run `AppGroupGuardrailTests` if the container's write surface moved. |
 
 - Shared SwiftUI is the default. A targeted AppKit view is right only where SwiftUI cannot express the interaction (`MacUnlockPasswordField`: secure event input bypasses SwiftUI key handling). Take that escape hatch deliberately, not to work around a flaky test.

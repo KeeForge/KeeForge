@@ -91,11 +91,11 @@ struct CredentialRecordIdentifier: Hashable, Sendable {
 
 /// The two `ASCredentialIdentityStoreState` flags every mutation depends on.
 ///
-/// `supportsIncrementalUpdates` is false on macOS (verified against a real
-/// enabled provider on macOS 26.5). Apple defines `saveCredentialIdentities`
-/// as "pass all credential identities" and `removeCredentialIdentities` as
-/// unsupported in that mode, so the whole per-database diff below only ever
-/// applies where the flag is true.
+/// `supportsIncrementalUpdates` was false for a real enabled provider on
+/// macOS 26.5; macOS 27.0.1 reports true. Apple defines
+/// `saveCredentialIdentities` as "pass all credential identities" and
+/// `removeCredentialIdentities` as unsupported where it is false, so the
+/// whole per-database diff below only ever applies where the flag is true.
 struct CredentialIdentityStoreCapabilities: Sendable {
     let isEnabled: Bool
     let supportsIncrementalUpdates: Bool
@@ -380,9 +380,10 @@ enum CredentialIdentityStoreManager: Sendable {
     /// databases' identities survive, so QuickType aggregates suggestions
     /// across every enabled database.
     ///
-    /// That aggregation needs store enumeration *and* incremental updates,
-    /// and macOS offers neither, so there every refresh is a whole-store
-    /// replace and the store holds the most recently unlocked database alone.
+    /// That aggregation needs store enumeration *and* incremental updates.
+    /// Where macOS reports no incremental updates every refresh is a
+    /// whole-store replace and the store holds the most recently unlocked
+    /// database alone.
     /// The reasoning and the user-visible consequence are in
     /// `../../../AutoFillExtension/AGENTS.md`.
     ///
@@ -731,10 +732,10 @@ enum CredentialIdentityStoreManager: Sendable {
         }
     }
 
-    /// Some macOS releases return private `SFPasswordCredentialIdentity`
-    /// instances from enumeration. They can conform to the public protocol
-    /// while omitting its newer Objective-C accessor at runtime. Check the
-    /// selector before dispatching through the Swift property.
+    /// Some OS releases return private `SFPasswordCredentialIdentity`
+    /// instances from enumeration. Where they conform to the public protocol
+    /// at all, they can omit its newer Objective-C accessor at runtime. Check
+    /// the selector before dispatching through the Swift property.
     static func recordIdentifier(of identity: any ASCredentialIdentity) -> String? {
         guard let object = identity as? NSObject,
               object.responds(to: Selector(("recordIdentifier"))) else {

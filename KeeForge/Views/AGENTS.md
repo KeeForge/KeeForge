@@ -37,7 +37,7 @@ All of these shims live in `../Extensions/PlatformCompat.swift`.
 - A `ForEach` with `.onMove` produces one concrete row type. An `if`/`else` in its body gives the list two types to reconcile and a drag reorder repaints the old order; move the branch into a `ViewModifier` (`DatabaseRowChrome`).
 - A `List` row holds at most one `NavigationLink`. With several, the row owns the link and a tap opens the wrong destination; a `Button` nested in a link's label gets no taps. Use sibling `Button`s that select or append to `workspace.navigationPath` (tag chips, `VerificationCodeRow`).
 - Entry rows render `DatabaseViewModel.entry(withID:)`, not the entry they were handed. `KPEntry` compares equal by ID, so a caller's array looks unchanged after an edit and the row would show the pre-edit entry.
-- On macOS, a tap gesture on a `List(selection:)` row consumes the click the list selects with, so the row sets the selection itself. Details in `Entry/AGENTS.md`.
+- On macOS, a `List(selection:)` row with a tap gesture sets the selection itself instead of relying on the list to still select under the gesture (it does on macOS 27.0; earlier releases are unverified). Details in `Entry/AGENTS.md`.
 
 ### Secrets on screen
 

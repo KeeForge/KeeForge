@@ -41,8 +41,8 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 ### macOS workspace lists
 
 - All three browsing columns are native `List(selection:)` so arrow keys, type-select, and the focus ring come from AppKit. Rows are plain content, not buttons: a `Button` swallows the click the list needs.
-- Any tap gesture on a row consumes the click the list would have used for selection, `simultaneousGesture` included. Sidebar rows therefore carry no tap gesture; the disclosure triangle is the only way to fold a group.
-- The entries column wants double-click-to-open, so its row (`../Views/Entry/MacEntriesList.swift`) handles the single click itself: it sets `selectedEntryID` and focuses the list, because a consumed click never makes the list first responder and arrow keys would go nowhere.
+- Do not rely on the list still selecting under a row's tap gesture. On macOS 27.0 it does (`onTapGesture`, `simultaneousGesture`, and double-tap variants all still move the selection); the earlier releases where the gesture was recorded as consuming the click are unverified. Sidebar rows carry no tap gesture; the disclosure triangle is the only way to fold a group.
+- The entries column wants double-click-to-open, so its row (`../Views/Entry/MacEntriesList.swift`) handles the single click itself: it sets `selectedEntryID` and focuses the list, so neither selection nor arrow keys depend on what the list does with that click. The sidebar's selection binding takes focus on every write for a related reason: on macOS 27.0 a click on a gesture-free row, or an accessibility selection, moves the selection without making the list first responder.
 - Because rows are not buttons, Mac UI tests match them with `descendants(matching: .any)`; the rule is stated in `../Views/AGENTS.md` and `../../KeeForgeMacUITests/AGENTS.md`.
 - The macOS sidebar cannot host pushed `NavigationStack` levels (they render zero-height), so navigation there is selection on `DatabaseViewModel.workspace`, never a pushed stack. `GroupListView` never renders on macOS.
 - The sidebar and entries column are keyed with `.id(viewModel.contentRevision)` because the three-column split view caches them and keeps stale rows after draft edits. View-local state inside those subtrees is lost on every edit; expansion and selection live outside them.
@@ -53,7 +53,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 ### iPad workspace
 
 - Editors raised from the sidebar (New Entry, Edit Group) are hosted in the detail column, not pushed into the narrow sidebar. A hosted editor keeps its unsaved work: later requests are ignored while one is up.
-- iPad mini in portrait collapses the sidebar behind the system "Show Sidebar" button. That is the platform's display mode for a sub-768 pt regular window; column widths and `columnVisibility: .all` do not change it, so leave the default alone.
+- iPad mini in portrait starts with the sidebar collapsed behind the system "Show Sidebar" button. That is the platform's default visibility for a 744 pt regular window. An explicit `columnVisibility: .all` does open it side by side (iOS 18.6 and 27.0); the workspace passes no column visibility and keeps the platform default.
 
 ### Menu bar
 

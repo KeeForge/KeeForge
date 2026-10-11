@@ -34,7 +34,7 @@
 
 - Both inspector files are wholly `#if DEBUG`, shown only for the `-autofill-store-inspector` launch argument. It reads store metadata only, never vault contents, and enumerates off the main actor.
 - A pending or failed enumeration renders its own status or error, never a zero count.
-- Simulators return an empty enumeration even though writes persist, and macOS cannot enumerate either. Inspector counts and enumerate-then-mutate store maintenance are only meaningful on a physical device, which is why `AutoFillStoreUITests` runs on one.
+- Enumeration is not readable everywhere. A simulator's was recorded as empty even though writes persist (not re-verified: a fresh iOS 27.0 simulator has the provider disabled and rejects writes). macOS 27.0.1 and a physical iPhone on iOS 27.0.1 return private objects without `ASCredentialIdentity` conformance, which the inspector shows as an enumeration error. Inspector counts and enumerate-then-mutate store maintenance are meaningful only on a physical device whose store returns readable identities, which is why `AutoFillStoreUITests` runs on one.
 
 ## Tests
 
