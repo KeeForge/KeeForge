@@ -91,11 +91,11 @@ struct CredentialRecordIdentifier: Hashable, Sendable {
 
 /// The two `ASCredentialIdentityStoreState` flags every mutation depends on.
 ///
-/// `supportsIncrementalUpdates` is false on macOS (verified against a real
-/// enabled provider on macOS 26.5). Apple defines `saveCredentialIdentities`
-/// as "pass all credential identities" and `removeCredentialIdentities` as
-/// unsupported in that mode, so the whole per-database diff below only ever
-/// applies where the flag is true.
+/// `supportsIncrementalUpdates` was false for a real enabled provider on
+/// macOS 26.5; macOS 27.0.1 reports true. Apple defines
+/// `saveCredentialIdentities` as "pass all credential identities" and
+/// `removeCredentialIdentities` as unsupported where it is false, so additive
+/// saves and targeted removals only ever happen where the flag is true.
 struct CredentialIdentityStoreCapabilities: Sendable {
     let isEnabled: Bool
     let supportsIncrementalUpdates: Bool
@@ -115,7 +115,9 @@ protocol CredentialIdentityStoreProviding: Sendable {
     func saveCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws
     func removeCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws
     func removeAllCredentialIdentities() async throws
-    /// Every identity this app has published.
+    /// Every identity this app has published. Throws when the system returns
+    /// objects whose ownership cannot be read (iOS and macOS 27.0.1 return
+    /// only such objects), so callers never see an unreadable store as empty.
     /// Simulator runtimes (verified iOS 18.5 and 26.5) return an empty array
     /// despite persisted writes, so enumeration-dependent flows can only be
     /// exercised on a physical device.
@@ -352,15 +354,18 @@ enum CredentialIdentityStoreManager: Sendable {
         return SystemCredentialIdentityStore()
     }
     private static func enqueueMutation(
-        _ operation: @escaping @Sendable (any CredentialIdentityStoreProviding) async throws -> Void
+        _ operation: @escaping @Sendable (any CredentialIdentityStoreProviding) async -> Void
     ) {
+        #if DEBUG
+        // A unit-test host is the real signed app; without a fake installed a
+        // mutation would land in the developer's own system store.
+        if AppGroupContainer.isRedirectedForTesting, storeProviderOverrideStorage.get() == nil {
+            return
+        }
+        #endif
         let store = currentStore()
         mutationQueue.enqueue {
-            do {
-                try await operation(store)
-            } catch {
-                logger.error("Credential identity store operation stopped: \(String(describing: error))")
-            }
+            await operation(store)
         }
     }
 
@@ -380,14 +385,15 @@ enum CredentialIdentityStoreManager: Sendable {
     /// databases' identities survive, so QuickType aggregates suggestions
     /// across every enabled database.
     ///
-    /// That aggregation needs store enumeration *and* incremental updates,
-    /// and macOS offers neither, so there every refresh is a whole-store
-    /// replace and the store holds the most recently unlocked database alone.
+    /// That aggregation needs incremental updates. Where macOS reports none
+    /// every refresh is a whole-store replace and the store holds the most
+    /// recently unlocked database alone.
     /// The reasoning and the user-visible consequence are in
     /// `../../../AutoFillExtension/AGENTS.md` and `../../../KeeForgeMac/README.md`.
     ///
     /// Refresh decision tree (incremental stores only):
-    /// 1. Enumerate the store.
+    /// 1. Enumerate the store. If it cannot be read, follow
+    ///    `refreshWithoutEnumeration` instead of the steps below.
     /// 2. If enumeration shows no other database's identities (a `.current`
     ///    tag owned by a different database) and no identity
     ///    lacks a readable runtime `recordIdentifier`, do an atomic whole-store
@@ -465,7 +471,14 @@ enum CredentialIdentityStoreManager: Sendable {
                 return
             }
 
-            let storedIdentities = try await store.credentialIdentities()
+            guard let storedIdentities = await readableIdentities(in: store) else {
+                do {
+                    try await refreshWithoutEnumeration(databaseIdentities, for: databaseID, in: store)
+                } catch {
+                    logger.error("Failed to refresh credential identities: \(error.localizedDescription)")
+                }
+                return
+            }
             let otherDatabaseIdentitiesPresent = storedIdentities.contains { identity in
                 guard let recordIdentifier = recordIdentifier(of: identity),
                       case .current(let parsed) = CredentialRecordIdentifier.parse(recordIdentifier)
@@ -558,7 +571,7 @@ enum CredentialIdentityStoreManager: Sendable {
             let capabilities = await store.capabilities()
             guard capabilities.isEnabled else { return }
             guard capabilities.supportsIncrementalUpdates else {
-                await clearWholeStoreForUnsupportedTargetedRemoval(in: store)
+                await clearWholeStoreInPlaceOfTargetedRemoval(in: store)
                 return
             }
 
@@ -587,7 +600,8 @@ enum CredentialIdentityStoreManager: Sendable {
     /// exactly the identities whose record identifier is tagged with
     /// `databaseID`. Works with every database locked — enumeration reads
     /// only the OS-managed store; no entry data or decryption is involved.
-    /// Without incremental updates the store is cleared instead.
+    /// Without incremental updates, or when the store cannot be enumerated,
+    /// the store is cleared instead.
     ///
     /// Legacy bare-UUID identifiers carry no database attribution, so they
     /// are skipped by default; pass `includingLegacyIdentifiers: true` when
@@ -618,12 +632,11 @@ enum CredentialIdentityStoreManager: Sendable {
                 logger.info("Identity store is not enabled; skipping targeted removal")
                 return
             }
-            guard capabilities.supportsIncrementalUpdates else {
-                await clearWholeStoreForUnsupportedTargetedRemoval(in: store)
+            guard capabilities.supportsIncrementalUpdates,
+                  let storedIdentities = await readableIdentities(in: store) else {
+                await clearWholeStoreInPlaceOfTargetedRemoval(in: store)
                 return
             }
-
-            let storedIdentities = try await store.credentialIdentities()
 
             let identitiesToRemove = storedIdentities.filter { identity in
                 guard let recordIdentifier = recordIdentifier(of: identity) else { return false }
@@ -658,7 +671,7 @@ enum CredentialIdentityStoreManager: Sendable {
     /// Like `removeIdentities(forDatabase:)` this works purely by store
     /// enumeration, so it needs no entry data and works while every database
     /// is locked, and it degrades to clearing the store where incremental
-    /// updates are unsupported.
+    /// updates are unsupported or the store cannot be enumerated.
     static func removeIdentity(withRecordIdentifier recordIdentifier: String) {
         #if DEBUG
         let observer = storeProviderOverrideStorage.getRemoveIdentityObserver()
@@ -680,12 +693,11 @@ enum CredentialIdentityStoreManager: Sendable {
                 logger.info("Identity store is not enabled; skipping single-identity removal")
                 return
             }
-            guard capabilities.supportsIncrementalUpdates else {
-                await clearWholeStoreForUnsupportedTargetedRemoval(in: store)
+            guard capabilities.supportsIncrementalUpdates,
+                  let storedIdentities = await readableIdentities(in: store) else {
+                await clearWholeStoreInPlaceOfTargetedRemoval(in: store)
                 return
             }
-
-            let storedIdentities = try await store.credentialIdentities()
 
             let identitiesToRemove = storedIdentities.filter {
                 Self.recordIdentifier(of: $0) == recordIdentifier
@@ -714,18 +726,55 @@ enum CredentialIdentityStoreManager: Sendable {
         }
     }
 
+    /// `nil` when the store cannot be enumerated. That is a state of its own,
+    /// never an empty store: callers must not infer what the store holds.
+    private static func readableIdentities(
+        in store: any CredentialIdentityStoreProviding
+    ) async -> [any ASCredentialIdentity]? {
+        do {
+            return try await store.credentialIdentities()
+        } catch {
+            logger.warning("Credential identity store cannot be enumerated: \(String(describing: error))")
+            return nil
+        }
+    }
+
+    /// Per-database refresh for an incremental store that cannot be
+    /// enumerated. The database registry stands in for the store's contents:
+    /// only AutoFill-enabled databases publish, so with no other one enabled
+    /// nothing else belongs in the store and a whole-store replace is exact.
+    /// Otherwise the save is additive and leaves every other identity alone,
+    /// including this database's own stale ones, which stay until a targeted
+    /// removal or `clearStore()` empties the store.
+    private static func refreshWithoutEnumeration(
+        _ identities: [any ASCredentialIdentity],
+        for databaseID: UUID,
+        in store: any CredentialIdentityStoreProviding
+    ) async throws {
+        let anotherDatabasePublishes = DatabaseListStore.autoFillEnabledDatabases.contains { $0.id != databaseID }
+        if anotherDatabasePublishes {
+            if !identities.isEmpty {
+                try await store.saveCredentialIdentities(identities)
+            }
+            logger.info("Saved \(identities.count) identities for one database without enumerating the store")
+        } else {
+            try await replaceWholeStore(with: identities, in: store)
+            logger.info("Replaced identity store with \(identities.count) identities for the only AutoFill database (store cannot be enumerated)")
+        }
+    }
+
     /// Targeted removal needs both store enumeration and
-    /// `removeCredentialIdentities`, and neither is supported without
-    /// incremental updates. Everything in the store then belongs to the one
-    /// database that last refreshed, so clearing is the only reduction
+    /// `removeCredentialIdentities`. Without incremental updates neither is
+    /// supported, and an incremental store that cannot be enumerated cannot
+    /// say which identities to remove. Clearing is the only reduction
     /// available; suggestions come back on the next unlock of an
     /// AutoFill-enabled database.
-    private static func clearWholeStoreForUnsupportedTargetedRemoval(
+    private static func clearWholeStoreInPlaceOfTargetedRemoval(
         in store: any CredentialIdentityStoreProviding
     ) async {
         do {
             try await store.removeAllCredentialIdentities()
-            logger.info("Cleared the identity store in place of a targeted removal (store has no incremental updates)")
+            logger.info("Cleared the identity store in place of a targeted removal")
         } catch {
             logger.error("Failed to clear credential identities: \(error.localizedDescription)")
         }
