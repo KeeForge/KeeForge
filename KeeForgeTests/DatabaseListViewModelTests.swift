@@ -551,6 +551,94 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.isAutoFillProviderEnabled, true)
     }
 
+    // MARK: - One-database AutoFill limit
+
+    func testOneDatabaseLimitUnknownBeforeStatusCheck() throws {
+        try addTwoAutoFillDatabases()
+        AutoFillStatusService.enabledProvider = { true }
+        AutoFillStatusService.incrementalUpdatesProvider = { false }
+        let viewModel = DatabaseListViewModel()
+
+        XCTAssertNil(viewModel.autoFillStoreSupportsIncrementalUpdates)
+        XCTAssertFalse(viewModel.isAutoFillLimitedToOneDatabase)
+    }
+
+    func testOneDatabaseLimitShownWhenStoreHasNoIncrementalUpdates() async throws {
+        try addTwoAutoFillDatabases()
+        AutoFillStatusService.enabledProvider = { true }
+        AutoFillStatusService.incrementalUpdatesProvider = { false }
+        let viewModel = DatabaseListViewModel()
+
+        await viewModel.refreshAutoFillStatus()
+
+        XCTAssertEqual(viewModel.autoFillStoreSupportsIncrementalUpdates, false)
+        XCTAssertTrue(viewModel.isAutoFillLimitedToOneDatabase)
+    }
+
+    func testOneDatabaseLimitHiddenWhenStoreSupportsIncrementalUpdates() async throws {
+        try addTwoAutoFillDatabases()
+        AutoFillStatusService.enabledProvider = { true }
+        AutoFillStatusService.incrementalUpdatesProvider = { true }
+        let viewModel = DatabaseListViewModel()
+
+        await viewModel.refreshAutoFillStatus()
+
+        XCTAssertEqual(viewModel.autoFillStoreSupportsIncrementalUpdates, true)
+        XCTAssertFalse(viewModel.isAutoFillLimitedToOneDatabase)
+    }
+
+    func testOneDatabaseLimitFollowsTheNumberOfAutoFillDatabases() async throws {
+        let (_, second) = try addTwoAutoFillDatabases()
+        AutoFillStatusService.enabledProvider = { true }
+        AutoFillStatusService.incrementalUpdatesProvider = { false }
+        let viewModel = DatabaseListViewModel()
+        await viewModel.refreshAutoFillStatus()
+
+        viewModel.setAutoFillEnabled(false, for: second)
+        XCTAssertFalse(viewModel.isAutoFillLimitedToOneDatabase)
+
+        viewModel.setAutoFillEnabled(true, for: second)
+        XCTAssertTrue(viewModel.isAutoFillLimitedToOneDatabase)
+    }
+
+    /// The flag is only recorded for an enabled provider, so a disabled
+    /// store's answer must not be read as the limit.
+    func testOneDatabaseLimitUnknownWhileProviderIsOff() async throws {
+        try addTwoAutoFillDatabases()
+        AutoFillStatusService.enabledProvider = { true }
+        AutoFillStatusService.incrementalUpdatesProvider = { false }
+        let viewModel = DatabaseListViewModel()
+        await viewModel.refreshAutoFillStatus()
+        XCTAssertTrue(viewModel.isAutoFillLimitedToOneDatabase)
+
+        AutoFillStatusService.enabledProvider = { false }
+        await viewModel.refreshAutoFillStatus()
+
+        XCTAssertNil(viewModel.autoFillStoreSupportsIncrementalUpdates)
+        XCTAssertFalse(viewModel.isAutoFillLimitedToOneDatabase)
+    }
+
+    func testSuccessfulEnableReadsTheOneDatabaseLimit() async throws {
+        try addTwoAutoFillDatabases()
+        AutoFillStatusService.enabledProvider = { false }
+        AutoFillStatusService.incrementalUpdatesProvider = { false }
+        AutoFillStatusService.enableRequester = { true }
+        let viewModel = DatabaseListViewModel()
+        await viewModel.refreshAutoFillStatus()
+        XCTAssertFalse(viewModel.isAutoFillLimitedToOneDatabase)
+
+        await viewModel.requestEnableAutoFill()
+
+        XCTAssertTrue(viewModel.isAutoFillLimitedToOneDatabase)
+    }
+
+    @discardableResult
+    private func addTwoAutoFillDatabases() throws -> (DatabaseReference, DatabaseReference) {
+        let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "work.kdbx"))
+        return (first, second)
+    }
+
     // MARK: - Pending upload alerts
 
     func testPushPendingChangesSurfacesConflictAlertForPushedDatabase() async {
