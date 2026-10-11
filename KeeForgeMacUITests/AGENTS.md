@@ -19,7 +19,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 
 ### Launch
 
-- `-key value` argument pairs go before the bare `-ui-testing` flag, which `MacUITestCase.setUp` keeps last. A bare flag ahead of a pair consumes the pair's key as its value. In `configureLaunch(app:)`, insert at the index of `-ui-testing`; do not append.
+- `-key value` argument pairs can sit on either side of the bare `-ui-testing` flag: argument-domain parsing takes the next token as a flag's value only when it does not start with `-`.
 - `-ApplePersistenceIgnoreState YES` stays in the base launch. Without it state restoration can restore a session with no windows and no main window ever appears.
 - To capture the app's own windows, launch with `-KeeForge.blockScreenCapture NO`, placed as above. The app excludes its windows from capture by default, so a capture is blank or shows whatever is behind the app.
 - The reveal/copy device-owner gate is off under `-ui-testing`, because XCUITest cannot dismiss the system prompt. A boundary test launches with `UI_TEST_DEVICE_OWNER_AUTH_PENDING=1`, which re-arms the gate with an authentication that never completes. Without it, immediate disclosure reads as a leak.

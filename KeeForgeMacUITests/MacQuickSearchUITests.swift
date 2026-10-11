@@ -8,8 +8,7 @@ import XCTest
 final class MacQuickSearchUITests: MacUITestCase {
     override func configureLaunch(app: XCUIApplication) throws {
         // Argument-domain override, so the status item appears without the
-        // setting being saved. `-key value` pairs go before the bare
-        // `-ui-testing` flag (see `MacUITestCase.setUp`).
+        // setting being saved.
         let arguments = ["-KeeForge.macMenuBarQuickAccess", "YES"]
         if let index = app.launchArguments.firstIndex(of: "-ui-testing") {
             app.launchArguments.insert(contentsOf: arguments, at: index)

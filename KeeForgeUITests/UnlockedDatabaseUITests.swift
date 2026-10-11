@@ -1142,8 +1142,8 @@ final class ProtectedCustomFieldEditorAuthUITests: UnlockedDatabaseUITestCase {
 final class AuthenticationGracePeriodUITests: UnlockedDatabaseUITestCase {
     override func configureLaunch(app: XCUIApplication) throws {
         app.launchEnvironment["UI_TEST_DEVICE_OWNER_AUTH_PENDING"] = "1"
-        // Defaults pairs must precede the bare `-ui-testing` flag. The session
-        // has to survive the background for the second half of the test.
+        // The session has to survive the background for the second half of
+        // the test.
         app.launchArguments = [
             "-KeeForge.authenticationGracePeriod", "fiveMinutes",
             "-KeeForge.lockOnBackground", "NO",

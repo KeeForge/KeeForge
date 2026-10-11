@@ -28,7 +28,7 @@ Base commands and repo-wide policy (`-only-testing:` always, no full UI suite un
 | `UI_TEST_LOCAL_SAVE_CONFLICT_COUNT=<n>`, `UI_TEST_LOCAL_SAVE_CONFLICT_DIVERGES_POOL=1` | Inject real save conflicts; see below. |
 | `UI_TEST_CLOUD_*_JSON`, `UI_TEST_DROPBOX_PAYLOAD_JSON`, `UI_TEST_WEBDAV_PAYLOAD_JSON` | Seed the mock cloud providers; `CloudSyncBaseUITests` and `WebDAVSyncBaseUITests` build the payloads. |
 | `-autofill-store-inspector` | DEBUG only: replaces the app root with the AutoFill store inspector. |
-| `-KeeForge.<defaultsKey> <value>` | Overrides a stored preference for one launch. Insert the pair before `-ui-testing`: a bare flag ahead of a pair consumes the pair's key as its own value. |
+| `-KeeForge.<defaultsKey> <value>` | Overrides a stored preference for one launch. The pair can sit on either side of a bare flag such as `-ui-testing`: argument-domain parsing takes the next token as a flag's value only when it does not start with `-`. |
 
 Opt-in captures are gated on the runner environment: `TEST_RUNNER_APPSTORE_SCREENSHOTS=1` for `AppStoreScreenshots` (it skips otherwise) and `TEST_RUNNER_WHATS_NEW_SCREENSHOTS=1` for `WhatsNewUITests`. Set them as real environment variables on the `xcodebuild` process; a trailing `KEY=value` argument is a build-setting override that never reaches the runner, and the class skips silently.
 

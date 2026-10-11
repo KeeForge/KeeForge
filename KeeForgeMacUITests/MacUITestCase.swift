@@ -40,11 +40,6 @@ class MacUITestCase: XCTestCase {
         // -ApplePersistenceIgnoreState: macOS state restoration can restore a
         // "zero windows" session (e.g. after a killed run), leaving the app
         // with no main window at all; every UI test needs a fresh window.
-        //
-        // Order matters: NSUserDefaults argument parsing pairs `-key value`,
-        // so the bare `-ui-testing` flag must come LAST — placed before the
-        // pair it would swallow `-ApplePersistenceIgnoreState` as its value
-        // and state restoration would run anyway.
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES", "-ui-testing"]
 
         let payloads = try databaseFixtures.map { fixture -> [String: String] in

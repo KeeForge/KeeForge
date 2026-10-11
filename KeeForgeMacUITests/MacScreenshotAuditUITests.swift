@@ -59,9 +59,6 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         // composite: ScreenCaptureKit returns a blank image and a screen-region
         // capture returns whatever sits BEHIND the app. A screenshot harness has
         // to opt out of the protection it is trying to photograph.
-        //
-        // `-key value` pairs go BEFORE the bare `-ui-testing` flag, which the
-        // base class keeps last so it is not swallowed as another key's value.
         insertLaunchArguments(["-KeeForge.blockScreenCapture", "NO"], into: app)
 
         // Seed the app's own appearance preference (`@AppStorage`) so the host's
