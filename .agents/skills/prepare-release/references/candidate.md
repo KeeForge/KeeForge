@@ -14,8 +14,9 @@ changing `CURRENT_PROJECT_VERSION`:
 2. Read the integer displayed under **Next Build Number** and call it `xcodeCloudNextBuild`. This is
    the product-wide counter shared by the KeeForge Xcode Cloud workflows, not an iOS-only or
    macOS-only value. Record the page URL, observation time, displayed value, and screenshot or
-   equivalent browser evidence before editing the project. Carry this non-secret evidence into the
-   candidate manifest after [RC tag and manifest](candidate.md#commit-push-and-tag-the-candidate) initializes it.
+   equivalent browser evidence before editing the project. Save any screenshot in the candidate's
+   `evidence/` directory ([release artifact directory](shared.md#where-release-artifacts-live)) and
+   carry this non-secret evidence into the candidate manifest after [RC tag and manifest](candidate.md#commit-push-and-tag-the-candidate) initializes it.
 3. If App Store Connect is inaccessible, the signed-in product cannot be identified, or the value
    is absent, nonnumeric, or ambiguous, stop. Do not calculate a replacement from upload history or
    continue with only the repository value.
@@ -90,16 +91,20 @@ machine is the only place KeeForge-written databases are cross-validated against
 implementation:
 
 ```bash
-LOG=/Users/tan/src/KeeForge/scratch/xcode-logs/$(date +%Y%m%d-%H%M%S)-kdbx-gate-ios.log
-mkdir -p "$(dirname "$LOG")"
-KDBX_COMPAT_RESULT_BUNDLE="$PWD/build/kdbx-gate-ios.xcresult" \
-KDBX_COMPAT_ATTACHMENTS_DIR="$PWD/build/kdbx-gate-ios-attachments" \
+CANDIDATE="$(ci_scripts/release_dir.sh {version}-b{repoBuild})"
+mkdir -p "$CANDIDATE/evidence"
+LOG="$CANDIDATE/evidence/kdbx-gate-ios.log"
+KDBX_COMPAT_RESULT_BUNDLE="$CANDIDATE/evidence/kdbx-gate-ios.xcresult" \
+KDBX_COMPAT_ATTACHMENTS_DIR="$CANDIDATE/evidence/kdbx-gate-ios-attachments" \
 /Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- \
   ci_scripts/run_kdbx_compatibility_gate.sh > "$LOG" 2>&1
 echo "exit=$? log=$LOG"
 ```
 
-Repeat with `KDBX_COMPAT_SCHEME=KeeForgeMac`, a separate `-mac` log, and separate
+These are release evidence, so they go in the candidate's `evidence/` directory
+([release artifact directory](shared.md#where-release-artifacts-live)), not in `scratch/`.
+
+Repeat with `KDBX_COMPAT_SCHEME=KeeForgeMac`, a separate `kdbx-gate-mac.log`, and separate
 `kdbx-gate-mac` result bundle and attachments paths — the script deletes its result bundle and
 attachments directory before each run, so shared defaults would erase the iOS evidence. Record
 both verdicts, logs, and result bundles as `gates.kdbxIOS` and `gates.kdbxMac`.
@@ -132,8 +137,9 @@ git tag -a rc/{version}-b{repoBuild} -m "RC v{version} repo build {repoBuild}"
 git push origin rc/{version}-b{repoBuild}
 ```
 
-Create the immutable candidate record now, after the RC tag exists. It records no secrets and
-refuses to overwrite an earlier candidate with the same identity. Do not validate distribution
+Create the immutable candidate record now, after the RC tag exists. It is written to
+`$CANDIDATE/manifest.json`, records no secrets, and refuses to overwrite an earlier candidate with
+the same identity. Do not validate distribution
 evidence yet: [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke) and [artifact verification and beta distribution](candidate.md#verify-all-three-artifacts-assign-the-app-store-builds-and-distribute-when-approved) are what produce it.
 
 ```bash
@@ -192,7 +198,9 @@ testers or the direct build is called a release candidate.
    pkill -f 'KeeForgeMacUITests-Runner' 2>/dev/null || true
    STATE_ROOT="$PWD/scratch/release-session/pre-ui-state-b{repoBuild}"
    ci_scripts/restore_pre_ui_state.sh --state-root "$STATE_ROOT" --backup
-   # Run the UI smoke here. Keep STATE_ROOT for review.
+   # Run the UI smoke here, writing its log and -resultBundlePath to
+   # "$CANDIDATE/evidence/mac-smoke.log" and "$CANDIDATE/evidence/mac-smoke.xcresult".
+   # Keep STATE_ROOT for review.
    osascript -e 'tell application "KeeForge" to quit' 2>/dev/null || true
    pkill -f 'KeeForgeMacUITests-Runner' 2>/dev/null || true
    ci_scripts/restore_pre_ui_state.sh --state-root "$STATE_ROOT"
@@ -236,10 +244,11 @@ in App Store Connect, independently for iOS and Mac.
    it is not proof of a completed download. Before accepting it, verify the new file's name, byte
    size, and SHA-256 on disk, then
    close any temporary `about:blank` tabs.
-   Run the artifact check on that exact exported app:
+   Keep the exported app in `$CANDIDATE/mas/` and run the artifact check on that exact app:
    ```bash
-   ci_scripts/verify_mac_artifact.sh --channel mas --app <exact-exported-mas-app> \
-     --architectures arm64,x86_64 --expect-version {version} --expect-build {macTestFlightBuild}
+   ci_scripts/verify_mac_artifact.sh --channel mas --app "$CANDIDATE/mas/KeeForge.app" \
+     --architectures arm64,x86_64 --expect-version {version} --expect-build {macTestFlightBuild} \
+     > "$CANDIDATE/evidence/mas-verify.log" 2>&1
    ```
    Do not substitute an embedded archive app: the exact exported package can have its own build
    number. The expected architecture set is the
@@ -253,19 +262,24 @@ in App Store Connect, independently for iOS and Mac.
    authentication:
    ```bash
    /Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- \
-     ci_scripts/build_mac_direct.sh --archive-export --rc-tag rc/{version}-b{repoBuild}
-   ci_scripts/build_mac_direct.sh --finalize --rc-tag rc/{version}-b{repoBuild}
+     ci_scripts/build_mac_direct.sh --archive-export --rc-tag rc/{version}-b{repoBuild} \
+     > "$CANDIDATE/evidence/direct-archive-export.log" 2>&1
+   ci_scripts/build_mac_direct.sh --finalize --rc-tag rc/{version}-b{repoBuild} \
+     > "$CANDIDATE/evidence/direct-finalize.log" 2>&1
    ```
-   The finalize phase captures the validated checkpoint's tag/SHA/tree before notarizing, so its
+   Both phases write to `$CANDIDATE/direct/` by default, in the main checkout even when the build
+   runs from a release worktree. The finalize phase captures the validated checkpoint's tag/SHA/tree before notarizing, so its
    final metadata stays bound to that RC through Apple and Keychain waits. It also verifies canonical
    paths and the exported-app digest. Verify its direct `CFBundleVersion` equals the repo build and run the
    same fail-closed check on its exact exported app:
    ```bash
-   ci_scripts/verify_mac_artifact.sh --channel direct --app <exact-direct-app> \
-     --architectures arm64,x86_64 --expect-version {version} --expect-build {repoBuild}
+   ci_scripts/verify_mac_artifact.sh --channel direct --app "$CANDIDATE/direct/export/KeeForge.app" \
+     --architectures arm64,x86_64 --expect-version {version} --expect-build {repoBuild} \
+     > "$CANDIDATE/evidence/direct-verify.log" 2>&1
    ```
    Both artifact checks must pass before any external distribution or direct-artifact staging.
-   Then run `ci_scripts/release_direct_artifact.sh stage` to generate a complete unpublished appcast
+   Then run `ci_scripts/release_direct_artifact.sh stage` into `$CANDIDATE/appcast/`
+   ([stage command](direct-distribution.md#stage-candidate-time)) to generate a complete unpublished appcast
    while preserving older items and recording the base-feed hash. Do not run `handoff` until [production publication](../../ship-release/SKILL.md#release-the-approved-channels-and-verify-production)'s
    post-approval go decision.
    Before distributing either beta, add all three verified artifact identity records under
@@ -275,7 +289,7 @@ in App Store Connect, independently for iOS and Mac.
    notarization, and Sparkle attributes. Then validate the complete distribution evidence:
    ```bash
    ci_scripts/candidate_manifest.py validate \
-     --manifest scratch/release-manifests/{version}-b{repoBuild}.json --mode distribute
+     --manifest "$CANDIDATE/manifest.json" --mode distribute
    ```
 4. Write platform-specific **What to Test** notes for each build. These are the only text each
    tester group sees, and are the steering channel for the soak. Always include:
@@ -284,6 +298,9 @@ in App Store Connect, independently for iOS and Mac.
      the production bundle ID and container, so testers are running an unreviewed candidate
      against their real KDBX files.
    - Any area you specifically want exercised.
+
+   Save each platform's exact text as `$CANDIDATE/notes/what-to-test-ios.txt` and
+   `what-to-test-macos.txt`.
    The shared iOS/macOS public TestFlight link is `https://testflight.apple.com/join/mPAT4f1a`; record
    its enabled state in the manifest instead of treating the link itself as distribution evidence.
 5. If this is the **first build of this marketing version/platform**, submit it for Beta App Review
