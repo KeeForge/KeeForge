@@ -227,6 +227,85 @@ final class SSHAgentRequestHandlerTests: XCTestCase {
         XCTAssertEqual(handler.response(to: Self.signRequest(for: Keys.ed25519.publicKeyData, flags: 0)), Self.failure)
     }
 
+    // MARK: - Key cache
+
+    /// A key the cache holds for this entry, lease, and exact file is used
+    /// as it is: the answer shows the planted key, not the one a new parse of
+    /// the file would give.
+    func testAnUnchangedKeyFileIsNotParsedAgain() throws {
+        let cache = SSHAgentKeyCache()
+        let offered = source("Laptop", ["id_ed25519": Keys.ed25519.fileData])
+        let planted = try SSHAgentKey(privateKeyFile: Keys.ecdsaP256.fileData)
+        cache.store(planted, for: offered, privateKeyFile: Keys.ed25519.fileData, generation: cache.generation)
+        let handler = SSHAgentRequestHandler(keySources: { [offered] }, keyCache: cache)
+
+        let identities = try Self.identities(in: handler.response(to: Self.requestIdentities))
+
+        XCTAssertEqual(identities.map(\.blob), [Keys.ecdsaP256.publicKeyData])
+    }
+
+    func testAKeyIsKeptOnlyForItsLeaseAndExactFile() throws {
+        let cache = SSHAgentKeyCache()
+        let entryID = UUID()
+        let offered = source("Server", ["id_ed25519": Keys.ed25519.fileData], id: entryID)
+        let handler = SSHAgentRequestHandler(keySources: { [offered] }, keyCache: cache)
+        _ = handler.response(to: Self.requestIdentities)
+        XCTAssertNotNil(cache.key(for: offered, privateKeyFile: Keys.ed25519.fileData))
+
+        let replaced = source("Server", ["id_ecdsa": Keys.ecdsaP256.fileData], id: entryID)
+        XCTAssertNil(cache.key(for: replaced, privateKeyFile: Keys.ecdsaP256.fileData), "Another file is another key")
+        let afterLock = SSHAgentKeySource(
+            entryID: entryID,
+            entryTitle: offered.entryTitle,
+            attachments: offered.attachments,
+            lease: SSHAgentLease(session: offered.lease.session, lockCycleID: offered.lease.lockCycleID + 1)
+        )
+        XCTAssertNil(cache.key(for: afterLock, privateKeyFile: Keys.ed25519.fileData), "A later lock cycle starts over")
+
+        // Replacing the attachment makes the next request parse the new file.
+        let replacing = SSHAgentRequestHandler(keySources: { [replaced] }, keyCache: cache)
+        let identities = try Self.identities(in: replacing.response(to: Self.requestIdentities))
+        XCTAssertEqual(identities.map(\.blob), [Keys.ecdsaP256.publicKeyData])
+        XCTAssertNil(cache.key(for: offered, privateKeyFile: Keys.ed25519.fileData))
+    }
+
+    func testKeysOfEntriesNoLongerOfferedLeaveTheCache() {
+        let cache = SSHAgentKeyCache()
+        let kept = source("Laptop", ["id_ed25519": Keys.ed25519.fileData])
+        let dropped = source("Deploy Key", ["id_rsa": Keys.rsaWrittenByCryptography.fileData])
+        let offered = OSAllocatedUnfairLock(initialState: [kept, dropped])
+        let handler = SSHAgentRequestHandler(keySources: { offered.withLock { $0 } }, keyCache: cache)
+        _ = handler.response(to: Self.requestIdentities)
+        XCTAssertNotNil(cache.key(for: dropped, privateKeyFile: Keys.rsaWrittenByCryptography.fileData))
+
+        offered.withLock { $0 = [kept] }
+        _ = handler.response(to: Self.requestIdentities)
+
+        XCTAssertNotNil(cache.key(for: kept, privateKeyFile: Keys.ed25519.fileData))
+        XCTAssertNil(cache.key(for: dropped, privateKeyFile: Keys.rsaWrittenByCryptography.fileData))
+
+        offered.withLock { $0 = [] }
+        _ = handler.response(to: Self.requestIdentities)
+
+        XCTAssertTrue(cache.isEmpty)
+    }
+
+    /// The cache is emptied when the session locks. A request that read the
+    /// session just before that must not put its key back afterwards.
+    func testAKeyParsedFromAReadTheCacheWasEmptiedAfterIsNotKept() throws {
+        let cache = SSHAgentKeyCache()
+        let offered = source("Laptop", ["id_ed25519": Keys.ed25519.fileData])
+        let handler = SSHAgentRequestHandler(keySources: {
+            cache.removeAll()
+            return [offered]
+        }, keyCache: cache)
+
+        let identities = try Self.identities(in: handler.response(to: Self.requestIdentities))
+
+        XCTAssertEqual(identities.map(\.blob), [Keys.ed25519.publicKeyData])
+        XCTAssertTrue(cache.isEmpty)
+    }
+
     // MARK: - Refused requests
 
     func testRequestsBeyondListingAndSigningFail() {

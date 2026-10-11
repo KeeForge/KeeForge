@@ -240,18 +240,22 @@ the agent off or quitting removes the socket; a file left by a crash is replaced
 the next start, and anything at that path that is not a socket is left alone and
 reported.
 
-The agent stores no keys. Which entries it serves is a per-database list of entry
+The agent writes no keys anywhere. Which entries it serves is a per-database list of entry
 UUIDs in the app's own defaults, chosen in Settings ▸ SSH Agent. Every request
 reads those entries from the one active session at that moment, so nothing is
 offered while that session is locked, closed, or has a lock pending: one waiting
 on unsaved work or a window-close prompt, or Retry Save and Lock writing before it
 locks.
-The private key is parsed from the decrypted attachment pool for each request, off
-the main thread, and dropped afterwards. A key file over 64 KiB, several times the
-largest supported key, is refused before it is decoded, a `KeeAgent.settings` over
-the same size is not parsed, and the list of identities is cut to the 256 KiB
-message limit, so what an attachment can make one request do is bounded without
-keeping parsed keys between requests. After signing, the agent reads the session
+The private key is read from the decrypted attachment pool for each request and
+parsed off the main thread. A key file over 64 KiB, several times the largest
+supported key, is refused before it is decoded, a `KeeAgent.settings` over the same
+size is not parsed, and the list of identities is cut to the 256 KiB message limit,
+so what an attachment can make one request do is bounded. A parsed key is kept in
+memory only for the same entry, the same lock cycle of the same session, and
+byte-identical key file content, so an unchanged key is not parsed for every
+request. That cache is emptied the moment the session locks or a lock becomes
+pending, when the selection changes, and when the agent is turned off; a key parsed
+from a read of the session that such an event has overtaken is not kept. After signing, the agent reads the session
 again and withholds the signature if the session's lock cycle, the selection, or the
 entry's key attachment has changed. No key file is written to disk and no key is exported.
 

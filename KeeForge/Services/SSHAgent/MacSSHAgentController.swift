@@ -40,11 +40,12 @@ struct MacSSHAgentCandidate: Identifiable, Sendable, Equatable {
 /// Owns the opt-in SSH agent: the socket while it is turned on, the entries
 /// each database serves through it, and the key list Settings shows.
 ///
-/// The agent holds no keys. Every request reads the chosen entries from the
-/// one active session at that moment, so it offers nothing while that session
-/// is locked, closed, or has a lock pending (`DatabaseViewModel.isLockPending`),
-/// and a lock that lands mid-signature withholds the signature
-/// (`SSHAgentRequestHandler`).
+/// Every request reads the chosen entries from the one active session at that
+/// moment, so the agent offers nothing while that session is locked, closed,
+/// or has a lock pending (`DatabaseViewModel.isLockPending`), and a lock that
+/// lands mid-signature withholds the signature (`SSHAgentRequestHandler`).
+/// Parsed keys are kept only for the lease they were read under
+/// (`SSHAgentKeyCache`) and dropped the moment it ends.
 @MainActor
 @Observable
 final class MacSSHAgentController {
@@ -74,6 +75,9 @@ final class MacSSHAgentController {
     @ObservationIgnored var sessionProvider: SessionProvider
     private let defaults: UserDefaults
     private let notificationCenter: NotificationCenter
+    @ObservationIgnored private let keyCache: SSHAgentKeyCache
+    /// The lease whose end `keyCache` is being watched for.
+    @ObservationIgnored private var watchedLease: SSHAgentLease?
     @ObservationIgnored private var server: SSHAgentSocketServer?
     @ObservationIgnored private var isStarted = false
     @ObservationIgnored private var observers: [any NSObjectProtocol] = []
@@ -90,11 +94,13 @@ final class MacSSHAgentController {
         socketPath: String = MacSSHAgentController.defaultSocketPath,
         defaults: UserDefaults = .standard,
         notificationCenter: NotificationCenter = .default,
+        keyCache: SSHAgentKeyCache = SSHAgentKeyCache(),
         sessionProvider: @escaping SessionProvider = { nil }
     ) {
         self.socketPath = socketPath
         self.defaults = defaults
         self.notificationCenter = notificationCenter
+        self.keyCache = keyCache
         self.sessionProvider = sessionProvider
         isEnabled = SettingsService.macSSHAgentEnabled(in: defaults)
         selectedEntryIDs = SettingsService.macSSHAgentSelectedEntryIDs(in: defaults)
@@ -138,6 +144,7 @@ final class MacSSHAgentController {
         }
         selectedEntryIDs[databaseID] = entryIDs.isEmpty ? nil : entryIDs
         SettingsService.setMacSSHAgentSelectedEntryIDs(selectedEntryIDs, in: defaults)
+        keyCache.removeAll()
     }
 
     /// The chosen entries of the active session, read at the moment of a
@@ -151,9 +158,30 @@ final class MacSSHAgentController {
               let entryIDs = selectedEntryIDs[session.databaseReference.id]
         else { return [] }
         let lease = SSHAgentLease(session: ObjectIdentifier(session), lockCycleID: session.lockCycleID)
+        emptyKeyCacheWhenLeaseEnds(lease, of: session)
         return session.allEntries.compactMap { entry in
             guard entryIDs.contains(entry.id) else { return nil }
             return Self.keySource(for: entry, in: session, lease: lease)
+        }
+    }
+
+    /// A lock has to take the parsed keys with it at once, not at the next
+    /// request, which may never come. The change handler runs inside the
+    /// session's own mutation, on the main actor, before the new value is set.
+    private func emptyKeyCacheWhenLeaseEnds(_ lease: SSHAgentLease, of session: DatabaseViewModel) {
+        guard watchedLease != lease else { return }
+        watchedLease = lease
+        withObservationTracking {
+            _ = session.state
+            _ = session.lockCycleID
+            _ = session.isLockPending
+        } onChange: { [weak self, keyCache] in
+            keyCache.removeAll()
+            MainActor.assumeIsolated {
+                if self?.watchedLease == lease {
+                    self?.watchedLease = nil
+                }
+            }
         }
     }
 
@@ -176,10 +204,10 @@ final class MacSSHAgentController {
             return
         }
         guard server == nil else { return }
-        let handler = SSHAgentRequestHandler { [weak self] in
+        let handler = SSHAgentRequestHandler(keySources: { [weak self] in
             guard let self else { return [] }
             return Self.onMainActor { self.keySources() }
-        }
+        }, keyCache: keyCache)
         let server = SSHAgentSocketServer(path: socketPath, handler: handler)
         do {
             try server.start()
@@ -194,6 +222,7 @@ final class MacSSHAgentController {
         server?.stop()
         server = nil
         isUnavailable = false
+        keyCache.removeAll()
     }
 
     /// `queue: nil` runs the handler inside the post, on the main thread

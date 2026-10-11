@@ -114,6 +114,80 @@ final class MacSSHAgentControllerTests: XCTestCase {
         XCTAssertEqual(handler.response(to: Self.signRequest(for: Keys.ed25519.publicKeyData)), Self.failure)
     }
 
+    /// Parsed keys go with the lock itself. Nothing may wait for a request
+    /// that might never arrive.
+    func testLockingTheDatabaseEmptiesTheKeyCacheAtOnce() async throws {
+        let session = try await makeUnlockedSession()
+        let cache = SSHAgentKeyCache()
+        let controller = try makeController(keyCache: cache)
+        controller.isEnabled = true
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: session.databaseReference.id)
+        let handler = SSHAgentRequestHandler(keySources: {
+            MainActor.assumeIsolated { controller.keySources() }
+        }, keyCache: cache)
+        XCTAssertEqual(try Self.identities(in: handler.response(to: Self.requestIdentities)), [Keys.ed25519.publicKeyData])
+        XCTAssertFalse(cache.isEmpty)
+
+        session.lockRequest(force: true)
+
+        XCTAssertTrue(cache.isEmpty)
+    }
+
+    func testDeselectingAnEntryOrTurningTheAgentOffEmptiesTheKeyCache() async throws {
+        let session = try await makeUnlockedSession()
+        let cache = SSHAgentKeyCache()
+        let controller = try makeController(keyCache: cache)
+        controller.isEnabled = true
+        controller.start()
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: session.databaseReference.id)
+        controller.setSelected(true, entryID: rsaEntryID, inDatabase: session.databaseReference.id)
+        let handler = SSHAgentRequestHandler(keySources: {
+            MainActor.assumeIsolated { controller.keySources() }
+        }, keyCache: cache)
+        _ = handler.response(to: Self.requestIdentities)
+        XCTAssertFalse(cache.isEmpty)
+
+        controller.setSelected(false, entryID: rsaEntryID, inDatabase: session.databaseReference.id)
+        XCTAssertTrue(cache.isEmpty)
+
+        _ = handler.response(to: Self.requestIdentities)
+        XCTAssertFalse(cache.isEmpty)
+
+        controller.isEnabled = false
+        XCTAssertTrue(cache.isEmpty)
+    }
+
+    /// A deferred lock that the user cancels leaves the same lease in place;
+    /// the keys cached after it still have to go with the lock that follows.
+    func testTheKeyCacheIsStillEmptiedByALockThatFollowsACancelledOne() async throws {
+        let session = try await makeUnlockedSession()
+        let cache = SSHAgentKeyCache()
+        let controller = try makeController(keyCache: cache)
+        controller.isEnabled = true
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: session.databaseReference.id)
+        let handler = SSHAgentRequestHandler(keySources: {
+            MainActor.assumeIsolated { controller.keySources() }
+        }, keyCache: cache)
+        _ = handler.response(to: Self.requestIdentities)
+
+        let editorID = UUID()
+        session.setEditorHasUnsavedChanges(true, editorID: editorID)
+        session.lockRequest(manuallyTriggered: true)
+        XCTAssertTrue(session.isLockPending)
+        XCTAssertTrue(cache.isEmpty)
+        await session.continueEditingAfterLockRequest()
+        session.setEditorHasUnsavedChanges(false, editorID: editorID)
+        XCTAssertEqual(session.state, .unlocked)
+        XCTAssertFalse(session.isLockPending)
+
+        _ = handler.response(to: Self.requestIdentities)
+        XCTAssertFalse(cache.isEmpty)
+
+        session.lockRequest(force: true)
+
+        XCTAssertTrue(cache.isEmpty)
+    }
+
     func testClosingTheDatabaseWithdrawsItsKeys() async throws {
         let session = try await makeUnlockedSession()
         let controller = try makeController()
@@ -432,7 +506,7 @@ final class MacSSHAgentControllerTests: XCTestCase {
         return session
     }
 
-    private func makeController() throws -> MacSSHAgentController {
+    private func makeController(keyCache: SSHAgentKeyCache = SSHAgentKeyCache()) throws -> MacSSHAgentController {
         // Short, because a socket path must fit in `sockaddr_un.sun_path`.
         let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("kf-ssh-\(UUID().uuidString.prefix(8))", isDirectory: true)
@@ -442,6 +516,7 @@ final class MacSSHAgentControllerTests: XCTestCase {
             socketPath: directory.appendingPathComponent("agent.sock").path,
             defaults: try XCTUnwrap(defaults),
             notificationCenter: notificationCenter,
+            keyCache: keyCache,
             sessionProvider: { [weak self] in self?.session }
         )
         self.controller = controller

@@ -1,5 +1,6 @@
 #if os(macOS)
 import Foundation
+import os
 
 /// One attachment of an entry the agent may read a key from.
 struct SSHAgentAttachment: Sendable {
@@ -96,6 +97,69 @@ enum KeeAgentSettings {
     }
 }
 
+/// Parsed keys of the entries the agent serves, kept so a request does not
+/// parse an unchanged key file again; for RSA that parse derives the CRT
+/// exponents. A key is reused only for the same entry under the same lease
+/// with byte-identical key file content. Nothing outlives the lease: the
+/// controller empties the cache when the session locks, the selection
+/// changes, or the agent stops, and each request drops what its own read of
+/// the session no longer offers.
+final class SSHAgentKeyCache: Sendable {
+    private struct Entry {
+        let lease: SSHAgentLease
+        let privateKeyFile: Data
+        let key: SSHAgentKey
+    }
+
+    private struct State {
+        var entries: [UUID: Entry] = [:]
+        var generation = 0
+    }
+
+    private let state = OSAllocatedUnfairLock(uncheckedState: State())
+
+    /// Read before the session is; `store` refuses a key parsed from a read
+    /// that `removeAll` has overtaken since.
+    var generation: Int {
+        state.withLockUnchecked { $0.generation }
+    }
+
+    var isEmpty: Bool {
+        state.withLockUnchecked { $0.entries.isEmpty }
+    }
+
+    func key(for source: SSHAgentKeySource, privateKeyFile: Data) -> SSHAgentKey? {
+        state.withLockUnchecked { state in
+            guard let entry = state.entries[source.entryID],
+                  entry.lease == source.lease,
+                  entry.privateKeyFile == privateKeyFile
+            else { return nil }
+            return entry.key
+        }
+    }
+
+    func store(_ key: SSHAgentKey, for source: SSHAgentKeySource, privateKeyFile: Data, generation: Int) {
+        state.withLockUnchecked { state in
+            guard state.generation == generation else { return }
+            state.entries[source.entryID] = Entry(lease: source.lease, privateKeyFile: privateKeyFile, key: key)
+        }
+    }
+
+    func keep(only sources: [SSHAgentKeySource]) {
+        let leases = Dictionary(sources.map { ($0.entryID, $0.lease) }, uniquingKeysWith: { first, _ in first })
+        state.withLockUnchecked { state in
+            state.entries = state.entries.filter { leases[$0.key] == $0.value.lease }
+        }
+    }
+
+    func removeAll() {
+        state.withLockUnchecked { state in
+            state.entries = [:]
+            state.generation += 1
+        }
+    }
+}
+
 /// Answers SSH agent protocol messages (draft-miller-ssh-agent) from the keys
 /// `keySources` offers at the moment each request arrives. Only listing and
 /// signing are supported; adding, removing, and locking keys belong to the
@@ -113,6 +177,7 @@ struct SSHAgentRequestHandler: Sendable {
     static let maximumMessageLength = 256 * 1024
 
     let keySources: @Sendable () -> [SSHAgentKeySource]
+    var keyCache = SSHAgentKeyCache()
 
     /// `request` and the result are message bodies without the length prefix.
     func response(to request: Data) -> Data {
@@ -134,7 +199,9 @@ struct SSHAgentRequestHandler: Sendable {
     private func identitiesAnswer() -> Data {
         var identities: [(publicKeyBlob: Data, comment: Data)] = []
         var length = 1 + 4
-        for available in availableKeys() {
+        // A key stored on two entries is offered by the first.
+        var seen = Set<Data>()
+        for available in availableKeys() where seen.insert(available.key.publicKeyBlob).inserted {
             let comment = available.key.comment.isEmpty ? available.source.entryTitle : available.key.comment
             let identity = (publicKeyBlob: available.key.publicKeyBlob, comment: Data(comment.utf8))
             let identityLength = 4 + identity.publicKeyBlob.count + 4 + identity.comment.count
@@ -157,16 +224,14 @@ struct SSHAgentRequestHandler: Sendable {
         let data = try reader.readString()
         let flags = try reader.readUInt32()
         // Lazy: parsing stops at the entry that holds the requested key.
-        guard let available = keySources().lazy.compactMap(AvailableKey.init(source:))
-            .first(where: { $0.key.publicKeyBlob == publicKeyBlob })
-        else {
+        guard let available = availableKeys().first(where: { $0.key.publicKeyBlob == publicKeyBlob }) else {
             return Self.failure
         }
         let signature = try available.key.signature(for: data, flags: flags)
         // A lock, deselection, or replaced key attachment that lands while
         // signing withdraws the key before the signature leaves the process.
         let source = available.source
-        guard keySources().contains(where: {
+        guard currentSources().sources.contains(where: {
             $0.entryID == source.entryID && $0.lease == source.lease && $0.privateKeyFile == available.privateKeyFile
         }) else {
             return Self.failure
@@ -177,12 +242,19 @@ struct SSHAgentRequestHandler: Sendable {
         return writer.data
     }
 
-    /// Every usable key once, in entry order; a key stored on two entries is
-    /// offered by the first.
-    private func availableKeys() -> [AvailableKey] {
-        var seen = Set<Data>()
-        return keySources().compactMap(AvailableKey.init(source:)).filter {
-            seen.insert($0.key.publicKeyBlob).inserted
+    /// One read of the session, with the cache brought in line with it.
+    private func currentSources() -> (sources: [SSHAgentKeySource], generation: Int) {
+        let generation = keyCache.generation
+        let sources = keySources()
+        keyCache.keep(only: sources)
+        return (sources, generation)
+    }
+
+    /// Every usable key, lazily and in entry order.
+    private func availableKeys() -> some Sequence<AvailableKey> {
+        let (sources, generation) = currentSources()
+        return sources.lazy.compactMap { [keyCache] source in
+            AvailableKey(source: source, cache: keyCache, generation: generation)
         }
     }
 
@@ -191,13 +263,17 @@ struct SSHAgentRequestHandler: Sendable {
         let privateKeyFile: Data
         let key: SSHAgentKey
 
-        init?(source: SSHAgentKeySource) {
-            guard let file = source.privateKeyFile, let key = try? SSHAgentKey(privateKeyFile: file) else {
-                return nil
+        init?(source: SSHAgentKeySource, cache: SSHAgentKeyCache, generation: Int) {
+            guard let file = source.privateKeyFile else { return nil }
+            if let cached = cache.key(for: source, privateKeyFile: file) {
+                key = cached
+            } else {
+                guard let parsed = try? SSHAgentKey(privateKeyFile: file) else { return nil }
+                cache.store(parsed, for: source, privateKeyFile: file, generation: generation)
+                key = parsed
             }
             self.source = source
             privateKeyFile = file
-            self.key = key
         }
     }
 }
