@@ -431,11 +431,10 @@ private struct AutoFillSettingsView: View {
                 }
 
                 #if os(macOS)
-                // macOS credential identity stores do not support incremental
-                // updates, so suggestions cannot be aggregated across
-                // databases (see CredentialIdentityStoreManager.populate).
-                if quickAutoFillEnabled,
-                   listViewModel.databases.count(where: { $0.autoFillEnabled }) > 1 {
+                // Gated on the store's runtime flag, not the platform: macOS
+                // 26.5 reported no incremental updates, macOS 27.0.1 reports
+                // them. Only the copy is macOS-specific.
+                if quickAutoFillEnabled, listViewModel.isAutoFillLimitedToOneDatabase {
                     Text("macOS shows suggestions from one database at a time — whichever you unlocked most recently. Unlock another selected database to switch which entries appear.")
                 }
                 #endif

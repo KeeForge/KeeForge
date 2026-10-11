@@ -52,6 +52,18 @@ final class AutoFillStatusServiceTests: XCTestCase {
         XCTAssertFalse(disabled)
     }
 
+    // MARK: - supportsIncrementalUpdates
+
+    func testSupportsIncrementalUpdatesReturnsProviderValue() async {
+        AutoFillStatusService.incrementalUpdatesProvider = { true }
+        let supported = await AutoFillStatusService.supportsIncrementalUpdates()
+        XCTAssertTrue(supported)
+
+        AutoFillStatusService.incrementalUpdatesProvider = { false }
+        let unsupported = await AutoFillStatusService.supportsIncrementalUpdates()
+        XCTAssertFalse(unsupported)
+    }
+
     // MARK: - requestEnableAutoFill
 
     func testRequestEnableAutoFillReturnsRequesterResult() async {

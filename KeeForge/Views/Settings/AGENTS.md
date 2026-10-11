@@ -16,7 +16,7 @@
 - A declined enable request is persistent footer text (`isAutoFillEnableRequestRejected`), never an alert, and the manual route into system Settings stays visible while the provider is off. The system can refuse the one-tap prompt and tears this sheet down when it closes.
 - Copy Verification Code is iOS-only. The Mac extension supplies codes directly, and its timer-based clipboard clearing cannot outlive the extension process.
 - Clear AutoFill Entries does not republish the open database; the user asked for an empty store.
-- The macOS Databases footer says suggestions come from one database at a time when more than one is selected. That holds where the store reports no incremental updates (recorded on macOS 26.5). macOS 27.0.1 reports them, so the manager saves additively there and the footer may understate; it is unconditional `#if os(macOS)` copy and has not been checked against a written-to 27.0.1 store (`../../Services/AutoFill/AGENTS.md`).
+- The macOS Databases footer saying suggestions come from one database at a time follows `DatabaseListViewModel.isAutoFillLimitedToOneDatabase`: more than one database selected and an enabled store that reports no incremental updates (recorded on macOS 26.5). The platform alone never shows it, and it stays hidden while the flag is unknown or the provider is off. macOS 27.0.1 reports incremental updates, so the footer is hidden there on the strength of the manager's additive save, which has not been checked against a written-to 27.0.1 store (`../../Services/AutoFill/AGENTS.md`).
 - The iOS root's AutoFill row says nothing about the system provider until its state is known, and the root refreshes that state itself.
 - The macOS Security tab's biometric label describes the AutoFill extension only; the Mac app never auto-unlocks.
 
@@ -38,11 +38,11 @@
 
 ## Tests
 
-- `AppSettingsViewModelTests`, `AppSettingsSummaryTests`, `AutoFillStoreInspectorGroupingTests`, `FeedbackSubmissionServiceTests`.
+- `AppSettingsViewModelTests`, `AppSettingsSummaryTests`, `AutoFillStoreInspectorGroupingTests`, `FeedbackSubmissionServiceTests`; `DatabaseListViewModelTests` for the one-database footer condition.
 - UI: `AutoFillTipUITests`, `MacAppSuggestionUITests`, `WhatsNewUITests`, `AutoFillStoreInspectorSmokeUITests`; `AutoFillStoreUITests` needs a provisioned device.
 
 ## See also
 
 - `../AGENTS.md`, `../Components/AGENTS.md` (`SettingsSummaryRow`, `tipBannerCard()`)
 - `../../ViewModels/AGENTS.md`, `../../Services/AutoFill/AGENTS.md`, `../../Services/AppSupport/AGENTS.md`
-- `../../../AutoFillExtension/AGENTS.md`: why macOS suggestions cannot aggregate across databases
+- `../../../AutoFillExtension/AGENTS.md`: where macOS suggestions cannot aggregate across databases

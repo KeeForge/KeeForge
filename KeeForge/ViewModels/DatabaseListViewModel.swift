@@ -50,6 +50,9 @@ final class DatabaseListViewModel {
     private(set) var rowStatuses: [UUID: DatabaseRowStatus] = [:]
     private(set) var pendingUploadAlert: PendingUploadAlert?
     private(set) var isAutoFillProviderEnabled: Bool?
+    /// Nil until the provider is known to be on; the flag is only recorded for
+    /// an enabled provider.
+    private(set) var autoFillStoreSupportsIncrementalUpdates: Bool?
     private(set) var isAutoFillTipDismissed = AutoFillStatusService.tipDismissed
     private(set) var isMacAppSuggestionDismissed = MacAppSuggestionService.isDismissed
     /// Set when an enable request came back with the provider still off. It has
@@ -254,10 +257,22 @@ final class DatabaseListViewModel {
             && !AutoFillStatusService.isTipSuppressedForUITesting
     }
 
+    /// A store without incremental updates holds one database's identities
+    /// (`CredentialIdentityStoreManager.populate`), so suggestions cannot span
+    /// the selected databases.
+    var isAutoFillLimitedToOneDatabase: Bool {
+        autoFillStoreSupportsIncrementalUpdates == false
+            && databases.count(where: \.autoFillEnabled) > 1
+    }
+
     func refreshAutoFillStatus() async {
-        isAutoFillProviderEnabled = await AutoFillStatusService.isAutoFillEnabled()
-        if isAutoFillProviderEnabled == true {
+        let isEnabled = await AutoFillStatusService.isAutoFillEnabled()
+        isAutoFillProviderEnabled = isEnabled
+        if isEnabled {
             isAutoFillEnableRequestRejected = false
+            autoFillStoreSupportsIncrementalUpdates = await AutoFillStatusService.supportsIncrementalUpdates()
+        } else {
+            autoFillStoreSupportsIncrementalUpdates = nil
         }
     }
 
@@ -265,6 +280,7 @@ final class DatabaseListViewModel {
         if await AutoFillStatusService.requestEnableAutoFill() {
             isAutoFillProviderEnabled = true
             isAutoFillEnableRequestRejected = false
+            autoFillStoreSupportsIncrementalUpdates = await AutoFillStatusService.supportsIncrementalUpdates()
         } else {
             // The prompt closed without authorizing KeeForge. Confirm that
             // against the real provider state before recording it — the result
