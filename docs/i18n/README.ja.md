@@ -102,7 +102,7 @@ scripts/              # ローカル開発用ツール
 - [`CHANGELOG.md`](../../CHANGELOG.md) - バージョン履歴
 - [`ROADMAP.md`](../../ROADMAP.md) - 予定している開発内容と現在の優先事項
 - [`AGENTS.md`](../../AGENTS.md) - コーディングエージェント向けのコンテキスト
-- [`KeeForge/README.md`](../../KeeForge/README.md) - App ターゲットのアーキテクチャ図
+- [`KeeForge/AGENTS.md`](../../KeeForge/AGENTS.md) - App ターゲットのアーキテクチャ図
 - [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) - 拡張機能の制約と共有ソースに関する注記
 - [`SECURITY.md`](../../SECURITY.md) - 脆弱性の開示方針
 - [`docs/`](../../docs/) - 実装仕様、監査結果、詳細な設計ドキュメント

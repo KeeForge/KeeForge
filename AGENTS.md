@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Entry point for coding agents working on KeeForge. This file is intentionally brief; most useful guidance now lives in folder-local docs next to the code.
+Entry point for coding agents working on KeeForge. This file holds the repo-wide rules. Each folder's `AGENTS.md` holds that folder's invariants, ownership boundaries, and test mapping.
 
 ## High level guidance
 
@@ -14,35 +14,28 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 
 ## Project Snapshot
 
-- Native iPhone, iPad, and Mac KeePass manager for KDBX 4.x databases; also reads KDBX 3.1 (read-only)
+- Native iPhone, iPad, and Mac KeePass manager for KDBX 4.x; also reads KDBX 3.1 (read-only)
 - Swift 6, SwiftUI, iOS 18+ / macOS 15+, `@Observable`, strict concurrency
 - XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`; target-membership rules live in `KeeForge/AGENTS.md`
-- Xcode Cloud uses `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`; the ordinary `KeeForge` scheme retains both full suites. UI B is the complement of A, so new UI classes stay covered. XcodeGen validates this partition automatically; details live in `ci_scripts/AGENTS.md`.
-- Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`. The native macOS app shipped in v1.16.0; macOS work now follows the ordinary changelog flow under `## Unreleased`.
+- Xcode Cloud runs the `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB` schemes; the partition rules are in `ci_scripts/AGENTS.md`.
+- Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`
 
-## Open The Local Doc First
+## Find The Right Doc
 
-Read the owning folder's `AGENTS.md` before changing its files. These live in
-`KeeForge`, `KeeForge/{App,Models,ViewModels,Extensions}`, every `KeeForge/Services/*`
-and `KeeForge/Views/*` subfolder, `AutoFillExtension`, `KeeForgeTests` (and its `Support`),
-and `KeeForgeMacUITests`. Maintain instructions directly in `AGENTS.md`.
-The docs below are read on demand:
+Before changing a folder, read its `AGENTS.md` and each parent's `AGENTS.md` up to this file. These docs are not on that path:
 
-- `KeeForge/AGENTS.md` — shared-source changes, workflow ownership, and KDBX compatibility requirements
-- `KeeForge/README.md` — app-target map and cross-cutting flows that span folders
-- `KeeForge/Services/AGENTS.md` — save-path split, App Group and Keychain boundaries, shared AutoFill allow-list rules
-- `KeeForge/Views/AGENTS.md` — UI rules every shell shares: the macOS grouped-form requirement, the `ForEach`/`.onMove` single-row-type rule, and the identifier surface
-- `KeeForge/Resources/README.md` — string catalogs, assets, and resource conventions
-- `KeeForgeMac/README.md` — macOS target constraints and "What Mac Work Has To Test"
-- `KeeForgeMac/SECURITY.md` — maintained Mac security boundaries and platform limitations
-- `KeeForgeUITests/AGENTS.md` — XCUITest workflow and flake-avoidance guidance
-- `TestFixtures/README.md` — bundled databases, passwords, and key files
-- `Vendor/KeeForgeTwofish/README.md` — vendored Twofish cipher package
-- `ci_scripts/AGENTS.md` — Xcode Cloud bootstrap and `run_kdbx_compatibility_gate.sh`, the required local release gate
-- `scripts/README.md` — local dev tooling
-- `.github/AGENTS.md` — CI workflow gating map (named `AGENTS.md` because GitHub renders a `.github/README.md` as the repo front-page README)
-- `docs/threat-model.md` — living, high-level threat model; required review for major product or architecture changes
-- `docs/README.md` — documentation index and living-document maintenance rules; historical specs, audits, and notes may not match current code
+- `docs/threat-model.md`: living threat model; required review for major product or architecture changes
+- `docs/README.md`: doc index and maintenance rules (specs, audits, and notes are historical)
+- `KeeForgeMac/README.md`: Mac target constraints, distribution channels
+- `KeeForgeMac/SECURITY.md`: Mac security boundaries and platform limits
+- `TestFixtures/README.md`: bundled databases, passwords, key files
+- `KeeForge/Resources/README.md`: string catalogs, assets, add-a-locale checklist
+- `.github/AGENTS.md`: CI workflow gating map (not a README, which GitHub would render as the repo front page)
+- `ci_scripts/AGENTS.md`: Xcode Cloud bootstrap and `run_kdbx_compatibility_gate.sh`, the required KDBX compatibility gate
+- `scripts/README.md`: local dev tooling
+- `Vendor/KeeForgeTwofish/README.md`: vendored Twofish package
+
+Repository skills are in `.agents/skills/`: `prepare-release`, `respin-release`, `ship-release`, `pre-release-review`, `publish-app-store-version`, `test-audit`, `triage-feedback`, `keeforge-swiftui`, `keeforge-github-issues`.
 
 ## Repo-Wide Rules
 
@@ -57,19 +50,18 @@ The docs below are read on demand:
 
 ### Workflows
 
-- Keep this section repo-wide; put specific procedures in the owning folder's `AGENTS.md` and link them from the local-doc map above.
 - Keep temporary agent artifacts in the main checkout's gitignored `scratch/`, never a linked worktree's. Find the main checkout with the first entry in `git worktree list --porcelain`.
-- Update the nearest folder doc when ownership, file maps, or workflows change. Leave historical `docs/specs` alone unless explicitly asked.
-- Preserve accessibility identifiers or update the relevant UI tests in the same change.
+- Update the folder's `AGENTS.md` when an invariant, ownership boundary, or test mapping changes. Do not add file maps, identifier lists, or history. Leave historical `docs/specs` alone unless explicitly asked.
+- Preserve accessibility identifiers or update the relevant UI tests in the same change. `KeeForgeUITests` and `KeeForgeMacUITests` share one identifier surface, so update both.
 - Add concise, user-facing changes to `CHANGELOG.md` under `## Unreleased`; fixes for unreleased features may skip it.
 
 ### Localization
 
-- UI text is localized with Xcode String Catalogs (`.xcstrings`), source language `en`. Currently shipped locales: `en`, `de`, `fr`, `es`, `zh-Hans`, `zh-Hant`, `ja`, `it`, `ru`.
+- UI text uses Xcode String Catalogs (`.xcstrings`), source language `en`. Shipped locales: `en`, `de`, `fr`, `es`, `zh-Hans`, `zh-Hant`, `ja`, `it`, `ru`.
 - Reach user-facing strings via `String(localized:)` (or SwiftUI's automatic catalog lookup) — never hardcode display text.
-- Every English key needs a translation in each shipped locale; `KeeForgeTests/LocalizationTests.swift` fails on missing or drifted translations (currently checks `de`, `fr`, `es`, `zh-Hans`, `zh-Hant`, `ja`, `it`, and `ru`) and also runs in `KeeForgeMacTests`. Run it after touching any catalog.
-- Xcode reserializes `.xcstrings` into its own canonical style on open/build, so editing a catalog as plain JSON causes a large reordering diff next time. After any programmatic catalog edit, run `swift scripts/normalize-xcstrings.swift` (no args = all catalogs; `--check` verifies) so committed bytes match Xcode's.
-- The four-catalog file map and the add-a-locale checklist live in `KeeForge/Resources/README.md`.
+- Every English key needs a translation in each shipped locale. Run `KeeForgeTests/LocalizationTests.swift` (it also runs in `KeeForgeMacTests`) after touching any catalog.
+- Xcode reserializes catalogs in its own canonical style, so after any programmatic edit run `swift scripts/normalize-xcstrings.swift` (no args = all catalogs; `--check` verifies) to avoid a large reordering diff.
+- The catalog file map and add-a-locale checklist are in `KeeForge/Resources/README.md`.
 
 ### Research Notes
 
@@ -113,13 +105,24 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 
 ### macOS Test Strategy
 
-Mac XCUITest is the slowest and most fragile lever available: it needs an unlocked login session, grabs real screen and input focus, and serializes against every other Xcode run on the machine. Reach for it last.
+Mac XCUITest is the slowest, most fragile lever: it needs an unlocked login session, takes real screen and input focus, and serializes against every other Xcode run. Reach for it last. Put Mac behavior in `@Observable` view models and cover it in `KeeForgeMacTests`, which runs headless on the shared `KeeForgeTests` sources; keep `KeeForgeMacUITests` a thin smoke layer.
 
-- Put Mac behavior in `@Observable` view models and cover it in `KeeForgeMacTests`, which runs headless and shares the iOS unit sources. Keep `KeeForgeMacUITests` a thin smoke layer over flows that only exist as UI.
-- For Mac-specific layout deltas, prefer SwiftUI previews or the `MacScreenshotAuditUITests` capture pass over driving the app with new assertions.
-- What a given change has to test is a table in `KeeForgeMac/README.md` ("What Mac Work Has To Test"). Read the row for your change before you call it done.
-- Shared SwiftUI is the default and keeps macOS nearly free — but a targeted AppKit view is the right answer where SwiftUI on Mac cannot express the interaction at all (keyboard navigation in search results and the tag browser are the known cases). Take the escape hatch deliberately, not as a workaround for a flaky test.
-- To capture the Mac app's own windows (screenshots, visual audits), disable screen-capture blocking with the launch argument `-KeeForge.blockScreenCapture NO` — the argument-domain override of `SettingsService.blockScreenCapture`. This pair must come *before* the bare `-ui-testing` flag (`MacScreenshotAuditUITests` inserts it there).
+Find your change's row and write what it names before calling the change done:
+
+| Change | Must exist when done |
+| --- | --- |
+| View model, service, or model behavior reachable on macOS | A `KeeForgeTests/` test; it compiles into `KeeForgeMacTests` for free. The default answer. |
+| Behavior behind `#if os(macOS)` | A `#if os(macOS)` test in `KeeForgeTests/`, like `MacLockMonitorTests` and `CredentialProviderShellMacTests`. |
+| Mac-only interaction with no view-model seam (keyboard routing, first responder, window lifecycle) | Give it a seam and test that. Otherwise the smallest case in `KeeForgeMacUITests/MacSmokeUITests.swift`, noting why a unit test cannot reach it (`MacUnlockPasswordFieldTests` is the model). |
+| Layout or visual polish | No new assertions. Use previews or the `MacScreenshotAuditUITests` captures; add a screen to that walk for a new screen. |
+| A SwiftUI view the macOS AutoFill shell hosts | A manual pass in a real AutoFill panel; it has no `NSToolbar` (`AutoFillExtension/AGENTS.md`). |
+| Parser, writer, protected fields, unknown XML, or a save path | `KDBXCompatibilityTests` (rule in `KeeForge/AGENTS.md`) plus `KDBX_COMPAT_SCHEME=KeeForgeMac ci_scripts/run_kdbx_compatibility_gate.sh`. |
+| A write to the system credential identity store | A `CredentialIdentityStoreManagerTests` case with `FakeCredentialIdentityStore.supportsIncrementalUpdatesValue = false`, beside the incremental one; macOS always takes that branch. |
+| Entitlements, App Group container, extension boundary, or Sparkle | Refresh `KeeForgeMac/SECURITY.md`; re-run `AppGroupGuardrailTests` if the container's write surface moved. |
+
+- Shared SwiftUI is the default. A targeted AppKit view is right only where SwiftUI cannot express the interaction (`MacUnlockPasswordField`: secure event input bypasses SwiftUI key handling). Take that escape hatch deliberately, not to work around a flaky test.
+- `KeeForgeMacUITests` never runs in CI (`.github/AGENTS.md`), so behavior covered only there is uncovered for CI.
+- Every `KeeForgeTests/` test runs on both platforms. Keep macOS-only cases behind `#if os(macOS)`, not branched inside a shared test.
 
 ## Security Reminders
 

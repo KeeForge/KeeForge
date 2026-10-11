@@ -45,4 +45,4 @@
 
 - `../AGENTS.md`, `../Components/AGENTS.md` (`SettingsSummaryRow`, `tipBannerCard()`)
 - `../../ViewModels/AGENTS.md`, `../../Services/AutoFill/AGENTS.md`, `../../Services/AppSupport/AGENTS.md`
-- `../../../KeeForgeMac/README.md`: why macOS suggestions cannot aggregate across databases
+- `../../../AutoFillExtension/AGENTS.md`: why macOS suggestions cannot aggregate across databases

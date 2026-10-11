@@ -105,7 +105,7 @@ scripts/              # Локальные инструменты разрабо
 - [`CHANGELOG.md`](../../CHANGELOG.md) - история версий
 - [`ROADMAP.md`](../../ROADMAP.md) - запланированная работа над продуктом и открытые приоритеты
 - [`AGENTS.md`](../../AGENTS.md) - контекст для агентов программирования
-- [`KeeForge/README.md`](../../KeeForge/README.md) - карта архитектуры целевого приложения
+- [`KeeForge/AGENTS.md`](../../KeeForge/AGENTS.md) - карта архитектуры целевого приложения
 - [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) - ограничения расширения и заметки об общем коде
 - [`SECURITY.md`](../../SECURITY.md) - политика раскрытия уязвимостей
 - [`docs/`](../../docs/) - спецификации реализации, аудиты и подробные проектные документы

@@ -47,5 +47,5 @@ The bundle holds only the shared `UITestFixtures` set listed in `../KeeForgeUITe
 
 ## See also
 
-- `../KeeForgeMac/README.md`: "What Mac Work Has To Test"
+- `../AGENTS.md`: "macOS Test Strategy", including what Mac work has to test
 - `../TestFixtures/README.md`: fixture contents and passwords

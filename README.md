@@ -105,7 +105,7 @@ scripts/              # Local dev tooling
 - [`CHANGELOG.md`](CHANGELOG.md) - version history
 - [`ROADMAP.md`](ROADMAP.md) - planned product work and open priorities
 - [`AGENTS.md`](AGENTS.md) - context for coding agents
-- [`KeeForge/README.md`](KeeForge/README.md) - app-target architecture map
+- [`KeeForge/AGENTS.md`](KeeForge/AGENTS.md) - app-target architecture map
 - [`AutoFillExtension/AGENTS.md`](AutoFillExtension/AGENTS.md) - extension constraints and shared-source notes
 - [`SECURITY.md`](SECURITY.md) - vulnerability disclosure policy
 - [`docs/`](docs/) - implementation specs, audits, and longer-form design docs

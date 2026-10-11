@@ -56,7 +56,7 @@ All of these shims live in `../Extensions/PlatformCompat.swift`.
 ## Tests
 
 - View behavior belongs in view-model unit tests where possible. For navigation, split-view, or sheet changes run the smallest affected class from `../../KeeForgeUITests/AGENTS.md`.
-- macOS: read the row for your change in `../../KeeForgeMac/README.md` ("What Mac Work Has To Test"). Selection and keyboard behavior of the Mac lists: `MacListKeyboardNavigationUITests`.
+- macOS: read the row for your change in `../../AGENTS.md` ("macOS Test Strategy"). Selection and keyboard behavior of the Mac lists: `MacListKeyboardNavigationUITests`.
 
 ## See also
 

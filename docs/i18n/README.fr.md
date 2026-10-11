@@ -102,7 +102,7 @@ scripts/              # Outils de développement locaux
 - [`CHANGELOG.md`](../../CHANGELOG.md) – historique des versions
 - [`ROADMAP.md`](../../ROADMAP.md) – travaux produit prévus et priorités ouvertes
 - [`AGENTS.md`](../../AGENTS.md) – contexte pour les agents de codage
-- [`KeeForge/README.md`](../../KeeForge/README.md) – plan de l’architecture des cibles de l’application
+- [`KeeForge/AGENTS.md`](../../KeeForge/AGENTS.md) – plan de l’architecture des cibles de l’application
 - [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) – contraintes de l’extension et notes sur le code partagé
 - [`SECURITY.md`](../../SECURITY.md) – politique de signalement des vulnérabilités
 - [`docs/`](../../docs/) – spécifications d’implémentation, audits et documents de conception plus détaillés

@@ -102,7 +102,7 @@ scripts/              # 本地开发工具
 - [`CHANGELOG.md`](../../CHANGELOG.md) - 版本历史
 - [`ROADMAP.md`](../../ROADMAP.md) - 规划中的产品工作和当前优先事项
 - [`AGENTS.md`](../../AGENTS.md) - 面向编码代理的上下文
-- [`KeeForge/README.md`](../../KeeForge/README.md) - 应用 target 架构图
+- [`KeeForge/AGENTS.md`](../../KeeForge/AGENTS.md) - 应用 target 架构图
 - [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) - 扩展的限制和共享源码说明
 - [`SECURITY.md`](../../SECURITY.md) - 漏洞披露政策
 - [`docs/`](../../docs/) - 实现规格、审计和较长篇幅的设计文档

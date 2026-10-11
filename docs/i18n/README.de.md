@@ -102,7 +102,7 @@ scripts/              # Lokale Entwickler-Tools
 - [`CHANGELOG.md`](../../CHANGELOG.md) – Versionshistorie
 - [`ROADMAP.md`](../../ROADMAP.md) – geplante Produktarbeit und offene Prioritäten
 - [`AGENTS.md`](../../AGENTS.md) – Kontext für Coding-Agents
-- [`KeeForge/README.md`](../../KeeForge/README.md) – Architekturübersicht des App-Targets
+- [`KeeForge/AGENTS.md`](../../KeeForge/AGENTS.md) – Architekturübersicht des App-Targets
 - [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) – Extension-Einschränkungen und Hinweise zu geteiltem Code
 - [`SECURITY.md`](../../SECURITY.md) – Richtlinie zur Meldung von Sicherheitslücken
 - [`docs/`](../../docs/) – Implementierungs-Specs, Audits und längere Design-Dokumente

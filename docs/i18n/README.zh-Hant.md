@@ -102,7 +102,7 @@ scripts/              # 本機開發工具
 - [`CHANGELOG.md`](../../CHANGELOG.md) - 版本歷史
 - [`ROADMAP.md`](../../ROADMAP.md) - 規劃中的產品工作與待辦優先事項
 - [`AGENTS.md`](../../AGENTS.md) - 給編碼代理程式的背景資訊
-- [`KeeForge/README.md`](../../KeeForge/README.md) - App 目標的架構地圖
+- [`KeeForge/AGENTS.md`](../../KeeForge/AGENTS.md) - App 目標的架構地圖
 - [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) - 延伸功能限制與共用程式碼說明
 - [`SECURITY.md`](../../SECURITY.md) - 弱點揭露政策
 - [`docs/`](../../docs/) - 實作規格、稽核與較長篇的設計文件
