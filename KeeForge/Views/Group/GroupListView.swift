@@ -13,9 +13,6 @@ struct GroupListView: View {
     let groupID: UUID
     @Bindable var viewModel: DatabaseViewModel
     var onSelectEntry: ((KPEntry) -> Void)? = nil
-    /// macOS drill-down: when set, group rows call this instead of pushing a
-    /// `NavigationLink` (pushed sidebar stacks render zero-height on macOS).
-    var onSelectGroup: ((UUID) -> Void)? = nil
     /// iPad split view: when set, New Entry hands its editor to the host so it
     /// opens in the detail column instead of being pushed into this sidebar.
     var onCreateEntry: ((EntryEditViewModel) -> Void)? = nil
@@ -45,9 +42,6 @@ struct GroupListView: View {
     /// Kept here rather than in the bar item, which leaves the bar while the
     /// title is scrolled away and must not slide in again when it returns.
     @State private var hasAppNameSlidIn = false
-    #if os(macOS)
-    @FocusState private var isSearchFieldFocused: Bool
-    #endif
 
     private var resolvedGroup: KPGroup? {
         viewModel.group(withID: groupID)
@@ -367,38 +361,11 @@ struct GroupListView: View {
         }
     }
 
-    /// Attaches the search field.
-    ///
-    /// iOS: every pushed level attaches `.searchable` (navigation-bar drawer),
-    /// unchanged legacy behavior.
-    ///
-    /// macOS: only the ROOT group list attaches `.searchable`. Attaching it on
-    /// every pushed level collapses the pushed List to zero height inside the
-    /// `NavigationSplitView` sidebar column (SwiftUI layout bug observed on
-    /// macOS 26), which made subgroup browsing render an empty sidebar. The
-    /// toolbar search field therefore only appears at the vault root, and the
-    /// menu-bar Find command (⌘F) focuses it there via
-    /// `searchFocusRequestID` + `searchFocused` (macOS 15+).
+    /// Attaches the search field to every level, pushed ones included.
     private struct GroupListSearchModifier: ViewModifier {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(macOS)
-            if view.groupID == view.viewModel.visibleRootGroupID {
-                content
-                    .searchable(
-                        text: view.$viewModel.searchText,
-                        placement: .navigationBarDrawer(displayMode: .always),
-                        prompt: "Search entries"
-                    )
-                    .searchFocused(view.$isSearchFieldFocused)
-                    .onChange(of: view.viewModel.workspace.searchFocusRequestID) { _, _ in
-                        view.isSearchFieldFocused = true
-                    }
-            } else {
-                content
-            }
-            #else
             // The system's default place from iOS 26 on: the bottom of the
             // screen on iPhone.
             if #available(iOS 26.0, *) {
@@ -412,7 +379,6 @@ struct GroupListView: View {
                         prompt: "Search entries"
                     )
             }
-            #endif
         }
     }
 
@@ -638,22 +604,10 @@ struct GroupListView: View {
 
     @ViewBuilder
     private func groupRow(for groupID: UUID) -> some View {
-        Group {
-            if let onSelectGroup {
-                Button {
-                    onSelectGroup(groupID)
-                } label: {
-                    GroupRow(groupID: groupID, viewModel: viewModel)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("group.navlink")
-            } else {
-                NavigationLink(value: DatabaseRoute.group(groupID)) {
-                    GroupRow(groupID: groupID, viewModel: viewModel)
-                }
-                .accessibilityIdentifier("group.navlink")
-            }
+        NavigationLink(value: DatabaseRoute.group(groupID)) {
+            GroupRow(groupID: groupID, viewModel: viewModel)
         }
+        .accessibilityIdentifier("group.navlink")
         .macHoverHighlight()
         .contextMenu {
             if canEditGroup(groupID) {
