@@ -6,11 +6,6 @@
 
 - KeeForge now speaks Russian: a full Russian (Русский) localization across the app and the AutoFill extension, plus translated README and contributor docs (#180).
 
-### Fixes
-
-- AutoFill suggestions update again on iOS 27 and macOS 27. After the first unlock, new and changed entries no longer reached the keyboard and Safari suggestions, and turning AutoFill off for a database or removing it left its suggestions behind. With more than one AutoFill database on these systems, turning one off or removing it now clears all suggestions until you next unlock the others, and a deleted entry's suggestion can remain until then or until you use Clear AutoFill Entries.
-- The macOS AutoFill settings note that suggestions come from one database at a time now appears only on macOS versions that have that limit.
-
 ## v1.18.0 (2026-10-07)
 
 ### Changes
@@ -40,7 +35,7 @@
 - On Mac, the setup-link and AutoFill passkey forms show editable fields correctly, and disabling the menu bar stops shortcut recording.
 - The direct-download Mac app keeps Check for Updates available in step with the updater.
 - The group editor stays open until a save conflict has been resolved, so you can finish saving without losing your place.
-- AutoFill stops updates when iOS returns unreadable credential identities, preventing an unreadable store from being treated as empty.
+- AutoFill keeps suggestions up to date on iOS 27 and macOS 27, where the system no longer lets KeeForge read back the suggestions it has published. With more than one AutoFill database on these systems, turning one off or removing it clears all suggestions until you next unlock the others, and a deleted entry's suggestion can remain until then or until you use Clear AutoFill Entries.
 - Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
 - When the saved Face ID, Touch ID or Apple Watch key can no longer be used, for example after enrolled fingerprints change, the unlock screen now says so and asks for your master password, which saves a new key.
 - After a cancelled or failed Face ID or Touch ID unlock, the error screen now also shows the password field, so you can unlock with your master password right away.
@@ -49,6 +44,7 @@
 - The Delete and Remove swipe actions on entries, groups, and databases stay red when a custom accent color is selected.
 - The AutoFill screens for saving a new credential or passkey on iPhone and iPad show their full title in every language. The save button moved from the navigation bar to the bottom of the screen.
 - On the unlock screen, the Key File and Hardware Key rows no longer squeeze their value at large text sizes: the value moves onto its own line instead of breaking inside a word or shrinking to an ellipsis.
+- The macOS AutoFill settings note that suggestions come from one database at a time now appears only on macOS versions that have that limit.
 
 ### New Features
 
