@@ -52,7 +52,7 @@ ci_scripts/run_kdbx_compatibility_gate.sh                                  # iOS
 KDBX_COMPAT_SCHEME=KeeForgeMac ci_scripts/run_kdbx_compatibility_gate.sh   # macOS
 ```
 
-- The iOS run uses `KeeForgeTests` on the `iPhone 17 Pro` simulator (override with `KDBX_COMPAT_DESTINATION`). The Mac run uses `KeeForgeMacTests`, which compiles the same sources, on `platform=macOS`.
+- The iOS run uses `KeeForgeTests` on the `iPhone 18 Pro` simulator (override with `KDBX_COMPAT_DESTINATION`). The Mac run uses `KeeForgeMacTests`, which compiles the same sources, on `platform=macOS`.
 - Each run deletes its result bundle and attachments directory first. Set distinct `KDBX_COMPAT_RESULT_BUNDLE` and `KDBX_COMPAT_ATTACHMENTS_DIR` paths per platform to keep both sets of evidence. The release form of the command, with logs, is in `../.agents/skills/prepare-release/references/candidate.md`.
 
 **What it checks, per artifact:**

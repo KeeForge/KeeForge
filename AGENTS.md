@@ -86,10 +86,10 @@ Repository skills are in `.agents/skills/`: `prepare-release`, `respin-release`,
 xcodegen generate
 
 xcodebuild build -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro'
 
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro' \
   -only-testing:KeeForgeTests/DatabaseViewModelTests -quiet
 
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
