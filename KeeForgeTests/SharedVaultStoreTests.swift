@@ -104,6 +104,32 @@ final class SharedVaultStoreTests: XCTestCase {
         )
     }
 
+    func testPickerFailureAlertDoesNotSuppressCancellationCodeInAnotherDomain() {
+        let error = NSError(
+            domain: "FileProviderTests",
+            code: NSUserCancelledError,
+            userInfo: [NSLocalizedDescriptionKey: "File provider unavailable."]
+        )
+
+        XCTAssertEqual(
+            DocumentPickerService.pickerFailureAlert(for: error),
+            .init(title: String(localized: "Couldn’t Open File"), message: "File provider unavailable.")
+        )
+    }
+
+    func testFileAccessFailureAfterSelectionDoesNotSuppressCocoaCancellation() {
+        let error = NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSUserCancelledError,
+            userInfo: [NSLocalizedDescriptionKey: "The provider cancelled file access."]
+        )
+
+        XCTAssertEqual(
+            DocumentPickerService.fileAccessFailureAlert(for: error),
+            .init(title: String(localized: "Couldn’t Open File"), message: "The provider cancelled file access.")
+        )
+    }
+
     func testCacheDatabaseCopyWritesLoadableSharedCopy() throws {
         let sourceData = Data("cached database".utf8)
         let url = try makeTemporaryFileURL(name: "cache-test.kdbx", contents: sourceData)

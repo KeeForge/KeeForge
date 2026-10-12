@@ -28,7 +28,7 @@
 
 	     MSAL's macOS token cache group (com.microsoft.identity.universalstorage,
 	     unlike the iOS com.microsoft.adalcache) is deliberately NOT here: macOS
-	     ships WebDAV only, so nothing authenticates through MSAL and nothing
+	     offers only WebDAV and FTP, so nothing authenticates through MSAL and nothing
 	     writes to that group. Re-enabling OneDrive on macOS means adding it back
 	     AND regenerating the hand-made Developer ID profiles, which embed the
 	     entitlements — MSAL checks for it by suffix match before it will enable

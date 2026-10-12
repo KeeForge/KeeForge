@@ -215,6 +215,42 @@ final class AutoLockTests: XCTestCase {
     }
 
 #if os(iOS)
+    func testIOSTypingExtendsDeadlineButBackgroundAndLockedActivityCannot() async throws {
+        SettingsService.autoLockTimeout = .thirtySeconds
+        SettingsService.lockOnBackground = false
+        let clock = MutableNowProvider(now: Date(timeIntervalSince1970: 1_000))
+        let vm = try await makeUnlockedViewModel(nowProvider: { clock.now })
+        let center = NotificationCenter()
+        let window = UIWindow()
+        let field = UITextField()
+        var active = true
+        let observer = IOSUserActivityView(
+            onActivity: { vm.resetInactivityTimer() }, notificationCenter: center,
+            now: { clock.now }, isActive: { active }
+        )
+        window.addSubview(observer)
+        window.addSubview(field)
+        defer { observer.removeFromSuperview() }
+
+        clock.advance(by: 20)
+        center.post(name: UITextField.textDidChangeNotification, object: field)
+        XCTAssertEqual(vm.inactivityDeadline, Date(timeIntervalSince1970: 1_050))
+        vm.handleSceneDidEnterBackground()
+        active = false
+        clock.advance(by: 20)
+        center.post(name: UITextField.textDidChangeNotification, object: field)
+        XCTAssertNil(vm.inactivityTimer)
+        XCTAssertEqual(vm.inactivityDeadline, Date(timeIntervalSince1970: 1_050))
+
+        clock.advance(by: 11)
+        active = true
+        vm.handleSceneDidBecomeActive()
+        XCTAssertEqual(vm.state, .locked, "Idle time in the background still counts from the last real activity")
+        center.post(name: UITextField.textDidChangeNotification, object: field)
+        XCTAssertNil(vm.inactivityTimer)
+        XCTAssertNil(vm.inactivityDeadline)
+    }
+
     func testBackgroundLockLeavesCopiedValueOnPasteboard() async throws {
         SettingsService.autoLockTimeout = .fiveMinutes
         SettingsService.lockOnBackground = true

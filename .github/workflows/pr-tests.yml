@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   unit-tests:
-    runs-on: macos-15
+    runs-on: macos-26
     # The suite itself takes about half this; the rest is headroom for slow
     # runners, which have taken the same commit from 28 to over 41 minutes.
     timeout-minutes: 75
@@ -123,9 +123,8 @@ jobs:
   macos-unit-tests:
     # macos-26, not macos-15: macos-15 tops out at Xcode 26.3, whose actool
     # crashes compiling the KeeForge.icon Icon Composer bundle for the macOS
-    # platform (it compiles the same .icon for iOS fine, which is why the
-    # unit-tests job above stays on macos-15). macos-26 ships Xcode 26.6, the
-    # version Xcode Cloud builds the Mac archive with, and the one the
+    # platform. macos-26 ships Xcode 26.6, the version Xcode Cloud builds
+    # the Mac archive with, and the one the
     # macos-rc-tests gate already runs on.
     runs-on: macos-26
     timeout-minutes: 75

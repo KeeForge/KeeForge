@@ -250,7 +250,7 @@ struct MasterKeyChangeView: View {
             do {
                 try viewModel.selectKeyFile(url: url)
             } catch {
-                selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+                selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: error)
             }
         case .failure(let error):
             selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)

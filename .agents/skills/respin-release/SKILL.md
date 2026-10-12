@@ -7,6 +7,9 @@ description: Replace an unshipped KeeForge candidate after a fix on an existing 
 
 Read [the shared release contract](../prepare-release/references/shared.md) first.
 Confirm the release branch and candidate manifest, and verify that `v{version}` does not exist.
+The new candidate gets its own `b{repoBuild}`
+[release artifact directory](../prepare-release/references/shared.md#where-release-artifacts-live);
+leave the replaced candidate's directory untouched.
 A fix to a shipped version needs [prepare-release](../prepare-release/SKILL.md).
 
 Use when a fix must land on a live release branch. Every respin produces a new build and restarts

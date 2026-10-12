@@ -56,6 +56,17 @@ struct AutoFillPasskeyCreatorView: View {
             }
             #else
             form
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    AutoFillCreatorSaveBar(
+                        title: "Save Passkey",
+                        isSaving: isSaving,
+                        accessibilityIdentifier: "autofill-passkey-creator.save"
+                    ) {
+                        Task {
+                            await save()
+                        }
+                    }
+                }
             #endif
         }
         .alert(item: $alertState) { state in
@@ -77,6 +88,7 @@ struct AutoFillPasskeyCreatorView: View {
             .accessibilityIdentifier("autofill-passkey-creator.cancel")
     }
 
+    #if os(macOS)
     @ViewBuilder
     private var saveButton: some View {
         if isSaving {
@@ -90,6 +102,7 @@ struct AutoFillPasskeyCreatorView: View {
             .accessibilityIdentifier("autofill-passkey-creator.save")
         }
     }
+    #endif
 
     private var form: some View {
         Form {
@@ -134,10 +147,6 @@ struct AutoFillPasskeyCreatorView: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 cancelButton
-            }
-
-            ToolbarItem(placement: .confirmationAction) {
-                saveButton
             }
         }
         #endif

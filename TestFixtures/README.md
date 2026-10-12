@@ -1,85 +1,217 @@
 # Test Fixtures
 
-This folder contains the sample databases and key files used by unit tests, UI tests, and screenshot flows.
+Sample databases and key files used by unit tests, UI tests, the KDBX compatibility gate, and screenshot flows. Generator scripts and tests cite this file as the inventory; each generator module under `generators/` documents how and why its fixture is built.
 
-## Main Databases
+## Databases
 
-- `autofill-store-alpha.kdbx` and `autofill-store-bravo.kdbx` — dedicated physical-device AutoFill store fixtures; password `testpassword123`. Alpha has `Alpha Login` (`alpha-user`, `alpha-store-fixture.net`) with a password and TOTP. Bravo has `Bravo Login` (`bravo-user`, `bravo-store-fixture.org`) with password/TOTP and `Bravo Password` (`bravo-password-user`, `bravo-password-fixture.com`) with a password only. The 2/3 identity counts, disjoint service domains, fixed entry UUIDs, and no expiration keep the lifecycle smoke independent of changes to the general fixtures. Only bundled into `KeeForgeUITests`; generated and independently reopened by `generators/autofill_store.py`.
-- `test.kdbx` — default fixture for most tests. Password: `testpassword123`. Also backs the `aes-baseline` compatibility ID.
-- `demo.kdbx` — richer demo fixture used by `KeeForgeUITests/AppStoreScreenshots.swift`. Password: `demo`.
-- `demo-keyfile.kdbx` — key-file-protected fixture. Credentials: password `demo` plus `demo-keyfile.key`, hardcoded by the UI tests and by `KeeForgeTests/KDBXWriterTests.swift` and `KeeForgeTests/KDBXRoundTripTests.swift`. Also backs the `password-keyfile` compatibility ID.
-- `autofill-union.kdbx` — distinct-domain second database for `KeeForgeUITests/AutoFillStoreUITests`' multi-database union scenario. Password: `testpassword123`. One `Union` group with three entries — `Union Bank` (`unionbank-fixture.net`), `Union News` (`union-news-fixture.org`, TOTP via the KeePassXC `otp` field), `Union Shop` (`union-shop-fixture.io`) — publishing exactly 3 password + 1 one-time-code AutoFill identities. Every service domain and username is deliberately disjoint from `test.kdbx`'s: the system credential-identity store can dedup identities sharing the same (service, user) pair across databases, so the union scenario needs fixtures that cannot collapse into each other. Generated with `pykeepass` (`create_database` → KDBX 4.0 / AES-256, same rationale as `kitchen-sink.kdbx` — `keepassxc-cli db-create` only produces KDBX 3.1); regenerate by recreating the three entries above with the same password.
-- `kitchen-sink.kdbx` — the rich union fixture, and the only bundled database with entry tags, group `<Tags>`, a `Meta/CustomIcons` image, a binary pool, a protected custom field, or a `PublicCustomData` outer-header field. Genuine KDBX **4.1** (AES-256-CBC, Argon2d) built with `pykeepass`, an independent implementation. Password: `testpassword123`. Its outer header carries one field KeeForge does not model — `PublicCustomData` (id `0x0C`), a variant dictionary holding `KeeForgeFixture` = `KDBX 4.1 public custom data` — which a KeeForge save must re-emit byte-for-byte. Ten root groups, in this child order:
-  - `Tagged` — `Router Admin` (`tag-router-user` / `TagRouterSecret1`, tags `shared`, `Work`, `Personal Notes`), `Mail Account` (`tag-mail-user` / `TagMailSecret2`, tags `shared`, `work`), `Untagged Entry` (no tags). The tag set deliberately covers what the tag browser has to get right: a count above one, the `Work`/`work` case-variant pair (exact-string identity keeps them apart, the Finder-style display sort keeps them adjacent), and `Personal Notes` with a space in it (identifier suffix `tag-list.row.personal-notes`).
-  - `Archive` — `Old Backup` (`tag-archive-user` / `TagArchiveSecret4`, tag `archive`), the "1 entry" plural branch's carrier.
-  - `Secrets` — `Protected Custom` (`fixture-user` / `fixture-password`), whose current version **and** single stored history version both carry `API Token = custom-secret` with `Protected="True"`; then `TOTP Login` (`totp-user` / `TotpSecret1`) with a protected `otp` field holding an `otpauth://` URI (secret `JBSWY3DPEHPK3PXP`, 30s, 6 digits).
-  - `Icons` — `Custom Badge` (`icon-custom-user` / `IconCustomSecret1`, URL `https://icons-fixture.example.com`) displays the fixture's single custom icon, UUID `4D9C2B1E-7A35-4E68-9B0D-52F16C8A3E77`, a deterministic 8x8 PNG; `Plain Entry` (`icon-plain-user` / `IconPlainSecret2`) uses a standard icon, ships **no** stored `<History>`, and deliberately has **no** URL, so the icon-change-pushes-history and disabled-"Download Website Icon" cases both have a carrier. The icon UUID is hardcoded in the UI test's `entry-icon-picker.custom.<uuid>` accessibility identifier — change both together.
-  - `Projects` — group tags `team;shared` (pykeepass writes the KeePass-canonical `;` join, exercising the semicolon split) **plus** a group `<Notes>` ("Group notes ride along as unknown XML next to the structured Tags element."), so unknown-sibling positioning next to the structured `<Tags>` is exercised in a real file. Contains `Alpha Login` (`alpha-user` / `GroupTagAlpha1`, URL `https://alpha.example.com`).
-  - `Projects/Client Work` — nested group with tag `billable`; contains `Beta Login` (`beta-user` / `GroupTagBeta2`, URL `https://beta.example.com`, own **entry** tag `own-tag`) so inheritance accumulation (parent tag + subgroup tag + own tag) has a real carrier.
-  - `Empty Tags Group` — an EMPTY `<Tags/>` element (present but contentless, the state `hasTagsElement` preserves); contains `Gamma Login` (`gamma-user` / `GroupTagGamma3`).
-  - `Plain Group` — no `<Tags>` element at all (KeeForge must never add one); contains `Delta Login` (`delta-user` / `GroupTagDelta4`).
-  - `Attachments` — `Multi Attachment Entry` (`multi-user` / `entry-password-1`, attachments `note-ü.txt` and `pixel.png`, exercising a non-ASCII filename and binary content), `Dedup Entry A` and `Dedup Entry B` (`entry-password-2` / `entry-password-3`, both attaching one `shared.bin` **pool binary they share**, for dedup coverage), `No Attachment Entry` (`plain-user` / `entry-password-4`, none). The three payload SHA-256s, also recorded in `KeeForgeTests/KDBXCompatibilitySupport.AttachmentFixtureHashes` and re-verified via `keepassxc-cli attachment-export`:
-    - `note-ü.txt`: `bcc1c6cd101bd5b27356a7004361fd1e1ff74ed2ef416e3252997d328efd3727`
-    - `pixel.png`: `3ec322a42990a3067cc6c73f3856a86e55bdd8baf19d2166954a8fb319329a72`
-    - `shared.bin` (identical on both dedup entries): `fd184a4f05cf3d4f39ab726bda3d3a923da30e9ab2d6697b69c2d39d7ea1ab18`
-  - `Round Trip` — `Controlled Unknowns` (`roundtrip-user` / `roundtrip-pass`, URL `https://example.com/round-trip`), the carrier for opaque XML in awkward **positions**, which is the coverage here rather than the values. Its `<CustomData>` (`RoundTripEntryKey` = `RoundTripEntryValue-Expected`) sits between `<Binary>` and `<History>`; its `<Password>` and `<Notes>` sit *after* `<History>`, a legal but non-canonical child order a re-canonicalizing writer would destroy; its `<AutoType>` carries a `DefaultSequence` and a `RoundTrip Login` association. The attachment `round-trip.txt` (`22e06efe984efab5605bccf1c0c1e208db740e16cac328dcbfa27cecee8458db`) is referenced by the current entry **and** by its single history version (password `history-pass-v1`, notes `Historical revision for round-trip coverage`, no `<CustomData>`), so a history-only `<Binary>` cannot be dropped. `Meta` additionally carries a **second** `<CustomData>` sibling (`RoundTripMetaKey` = `RoundTripMetaValue-Expected`) next to the one pykeepass writes — schema-invalid, the only such construct in the corpus, and exactly the shape that breaks a parser keying opaque fragments by element name. Driven by `KDBXRoundTripTests.test_unknownNodes_controlledFixture_…`, `AttachmentTests`, `DatabaseDraftTests.test_updateEntry_updatesFields_preservesUnknownXML`, and `KDBXWriterTests.test_writtenFile_validatesOuterHeaderHMAC`.
-  - `Recycle Bin` — a real bin holding `Trashed Login` (`trashed-user` / `GroupTagTrashed5`), with `Meta/RecycleBinUUID` set, so soft-delete edits must **reuse** it rather than author one. The bin itself deliberately carries no tags; recycle-bin tag exclusion is unit-tested in-memory in `DatabaseViewModelTests`.
+| File | Password | Format | Generator |
+| --- | --- | --- | --- |
+| `test.kdbx` | `testpassword123` | KDBX 4, AES-256 | none |
+| `demo.kdbx` | `demo` | KDBX 4 | none |
+| `demo-keyfile.kdbx` | `demo` + `demo-keyfile.key` | KDBX 4 | none |
+| `autofill-union.kdbx` | `testpassword123` | KDBX 4.0, AES-256 | none |
+| `autofill-store-alpha.kdbx`, `autofill-store-bravo.kdbx` | `testpassword123` | KDBX 4 | `autofill_store.py` |
+| `kitchen-sink.kdbx` | `testpassword123` | KDBX 4.1, AES-256-CBC, Argon2d | `kitchen_sink.py` |
+| `challenge-response.kdbx` | `challenge-response` + YubiKey response | KDBX 4.0, AES-256-CBC, Argon2d (2 iterations, 1 MiB) | `challenge_response.py` |
+| `challenge-response-aeskdf.kdbx` | `challenge-response` + YubiKey response | KDBX 4, AES-KDF (1000 rounds) | `challenge_response.py` |
+| `compatibility/legacy-kdbx31.kdbx` | `testpassword123` | KDBX 3.1 | none |
+| `compatibility/foreign-chacha20.kdbx` | `foreign-chacha20` | KDBX 4, ChaCha20 | `foreign_ciphers.py` |
+| `compatibility/foreign-twofish.kdbx` | `foreign-twofish` | KDBX 4, Twofish | `foreign_ciphers.py` |
+| `compatibility/unknown-inner-header.kdbx` | `unknown-inner-header` | KDBX 4, AES-256-CBC, Argon2d | `unknown_inner_header.py` |
+| `compatibility/argon2-high-iterations.kdbx` | `argon2-high-iterations` | KDBX 4, AES-256-CBC, Argon2d (1500 iterations, 1 MiB, parallelism 1) | `argon2_high_iterations.py` |
 
-  Driven by `KDBXParserTests.testGroupTagsFixtureParsesGroupTagsThroughFullDecryptPath`, `KDBXRoundTripTests`' `<Times>`-order, opaque-XML and fixed-point sweeps, `SortOrderTests`' recycle-bin pinning, and the compatibility gate's `kitchen-sink` scenarios (`fixture-smoke-kitchen-sink`, `attachments-update-entry`, `attachments-soft-delete-entry`, `attachments-add-remove`, `group-tags-update-entry`, `group-tags-update-group`), all run by `KDBXCompatibilityTests.test_kitchenSinkFixture_…`. Bundled into every test target and driven by `KeeForgeUITests`' `TagBrowserUITests`, `InheritedTagsUITests`, `EntryAttachmentsSmokeUITests`, `SaveConflictMergeDeclineUITests`, `ProtectedCustomFieldUITests`, and `EntryCustomIconPickerUITests` — retargeting or removing it breaks UI tests, not just the compatibility gate.
+### `test.kdbx`
 
-  Regenerate with `python3 TestFixtures/generate_fixtures.py kitchen-sink`, or verify the committed file with `--check` (see [Regenerating fixtures](#regenerating-fixtures)). `TestFixtures/generators/kitchen_sink.py` holds the recipe and documents the pieces pykeepass has no API for: the header mutation that writes 4.1 (pykeepass writes 4.0 by default and Construct's `RawCopy` re-emits cached header bytes unless dropped — see `drop_rawcopy_cache` in `generators/_common.py`), the `PublicCustomData` header item appended the same way, the `Meta/CustomIcons` image, `<CustomIconUUID>`, `Round Trip` opaque fragments and duplicate `Meta/CustomData` written straight into the XML tree, and the group `<Tags>` elements inserted at KeePass's canonical position. Content is deterministic, bytes are not (see [Regenerating fixtures](#regenerating-fixtures)). Changing any password here means updating `KDBXCompatibilitySupport.fixtureEntryPasswords`/`passwordExpectations`; changing group names or tags means updating the `group-tags-*` scenarios plus `KDBXParserTests` and `KDBXCompatibilityTests`.
-- `challenge-response.kdbx` — KDBX 4.0 (AES-256-CBC, Argon2d with 2 iterations and 1 MiB so it opens fast) whose composite key includes a YubiKey HMAC-SHA1 challenge-response, built the way KeePassXC builds it: `SHA256(SHA256(password) || SHA256(response))`, where the challenge is the KDF salt PKCS#7-padded to 64 bytes and the response is HMAC-SHA1 over the unpadded salt (a variable-length slot strips the padding). Password: `challenge-response`; HMAC secret: `KeeForgeYubiKeyTest!`, mirrored by `KeeForgeTests/Support/YubiKeyEmulator.swift`. The password alone does **not** open it. One `Hardware Key` group holding `YubiKey Entry` (`yubikey-user` / `YubiKeySecret1`). pykeepass has no hardware-key support, so `TestFixtures/generators/challenge_response.py` runs the Argon2d transform itself and hands pykeepass the result as a precomputed `transformed_key`; verification reopens the file the same way and checks the password alone is rejected. It is not part of the external compatibility gate: `keepassxc-cli` would need a real YubiKey. Regenerate with `python3 TestFixtures/generate_fixtures.py challenge-response` (see [Regenerating fixtures](#regenerating-fixtures)). Drives `ChallengeResponseKeyTests` and `HardwareKeyUnlockTests`.
-- `challenge-response-aeskdf.kdbx` — the same database, password, secret, and entry keyed with the KDBX 4 AES-KDF (1000 rounds) under the `c9d9f39a…` UUID, which is what KeePassXC writes for a KDBX 4 AES-KDF database and reads back as its KDBX 4 AES-KDF: the response is folded in before the KDF exactly as with Argon2, and the challenge is the AES-KDF seed `S`, padded the same way. Generated by the same module (`python3 TestFixtures/generate_fixtures.py challenge-response-aeskdf`), with the same password-alone rejection check. Drives `ChallengeResponseKeyTests`.
-- `compatibility/legacy-kdbx31.kdbx` — legacy KDBX 3.1 fixture. Password: `testpassword123`. Backs the `legacy-kdbx31` compatibility ID and, as a plain bundled fixture, the legacy-format coverage in `KDBXParserTests`, `KDBXFileSummaryTests`, `LocalDatabaseSaverTests`, `CloudDatabaseSaverTests`, and `DatabaseViewModelTests`. Also bundled into `KeeForgeUITests`.
-- `compatibility/` — fixtures for the KDBX compatibility matrix and external opener gate. A compatibility **ID** is an artifact ID, not a file name: three of them read a fixture that lives outside this folder, because the bytes were identical and only one copy is kept — `aes-baseline` → `test.kdbx`, `password-keyfile` → `demo-keyfile.kdbx` plus `demo-keyfile.key`, `kitchen-sink` → `kitchen-sink.kdbx` (`legacy-kdbx31` is the reverse case: the file stayed here and the unit tests came to it). The mapping lives in `KDBXCompatibilitySupport.Fixture`. Database passwords mirror their source fixtures: `aes-baseline` uses `testpassword123`, `password-keyfile` uses `demo` plus its key file, `kitchen-sink` uses `testpassword123`, `legacy-kdbx31.kdbx` uses `testpassword123`, `foreign-chacha20.kdbx` uses `foreign-chacha20`, `foreign-twofish.kdbx` uses `foreign-twofish`, `unknown-inner-header.kdbx` uses `unknown-inner-header`, and `argon2-high-iterations.kdbx` uses `argon2-high-iterations`.
-  - **Entry** passwords the compatibility gate depends on: after KeeForge rewrites each fixture, `run_kdbx_compatibility_gate.sh` asks `keepassxc-cli show -s -a Password` to read back one protected value the fixture already carried, proving a value authored by another KeePass implementation survives a KeeForge save. These pairs are mirrored in `KDBXCompatibilitySupport.fixtureEntryPasswords`; changing an entry's password in a fixture means updating that table.
-    - `aes-baseline` — `Social/Twitter` → `twitterpass123`
-    - `password-keyfile` — `KeyFile Test Entry` → `keyfilepass123`
-    - `kitchen-sink` — `Attachments/Multi Attachment Entry` → `entry-password-1` (the group-tag scenarios additionally probe `Projects/Alpha Login` → `GroupTagAlpha1`, `Plain Group/Delta Login` → `GroupTagDelta4`, and `Projects/Client Work/Beta Login Updated` → `GroupTagBetaUpdated2`, the last a value KeeForge wrote; the generator's own `keepassxc-cli` pass also probes `Round Trip/Controlled Unknowns` → `roundtrip-pass`)
-    - `foreign-chacha20.kdbx` — `Foreign/Foreign Entry Alpha` → `ForeignAlphaSecret1`
-    - `foreign-twofish.kdbx` — `Foreign/Foreign Entry Alpha` → `ForeignAlphaSecret1`
-    - `unknown-inner-header.kdbx` — `Unknown Header/Inner Header Entry` → `UnknownHeaderSecret1`
-    - `argon2-high-iterations.kdbx` — `High Iterations/High Iteration Entry` → `HighIterationSecret1`
-- `compatibility/foreign-chacha20.kdbx` and `compatibility/foreign-twofish.kdbx` — KDBX4 fixtures built with `pykeepass`, an independent (non-KeeForge) implementation, specifically to test KeeForge's ChaCha20 and Twofish outer-cipher **read** paths against a database KeeForge did not write itself. Every other fixture in this repo is AES-256-CBC (authored by pykeepass or KeeForge), so without these two, a read failure on a user's foreign-authored ChaCha20/Twofish vault had zero test coverage. Both carry identical content: a root-level `Foreign` group with two entries — `Foreign Entry Alpha` (username `foreign-alpha-user`, password `ForeignAlphaSecret1`, one custom field `ForeignField` = `ForeignFieldValue`) and `Foreign Entry Beta` (username `foreign-beta-user`, password `ForeignBetaSecret2`, no custom field). Only the database password and the declared outer cipher differ between the two files. Regenerate with `python3 TestFixtures/generate_fixtures.py foreign-chacha20 foreign-twofish` (see [Regenerating fixtures](#regenerating-fixtures)); `TestFixtures/generators/foreign_ciphers.py` documents pykeepass's undocumented header-mutation path (there is no public `encryption_algorithm` setter) and re-verifies the written cipher UUID by parsing the outer header independently, since the content is deterministic but the crypto salts (master seed, encryption IV, KDF salt) are freshly randomized on every run by `_common.new_database`.
-- `compatibility/unknown-inner-header.kdbx` — KDBX4 (AES-256-CBC, Argon2d) fixture with unrecognized KDBX4 inner-header fields spliced in, for KeeForge's unknown-inner-header-field preservation (see `docs/specs/2026-07-26-kdbx-format-hardening/02-unknown-inner-header-preservation.md`). Password: `unknown-inner-header`. One `Unknown Header` group with one entry, `Inner Header Entry` (username `unknown-header-user`, password `UnknownHeaderSecret1`), carrying two attachments — `alpha-attachment.txt` (`2e1e53db7251ba3852ea965523b8ff3ab8b7426adf50277d0d8d41d40630bdfd`) and `beta-attachment.txt` (`ee48b95cd61f6f910959979dc94199de8012611f0050e85c5d7cd15e3d95d4b0`) — so the inner-header binary pool has two entries to splice between. Three unknown inner-header fields are spliced into the on-disk item sequence: id `0x21` with a non-empty payload positioned BETWEEN the two binary-pool entries (KeeForge's writer is expected to normalize this to before-the-pool on save — this fixture is what lets a test observe that), id `0x7F` with a recognizable non-trivial payload, and id `0x10` with a zero-length payload, both positioned after the protected-stream ID/key fields. The inner header (unlike the outer header the other fixtures mutate) lives inside the encrypted payload, so pykeepass's usual header-mutation trick doesn't reach it — pykeepass's own inner-header type field also has no default mapping and raises `MappingError` on any byte outside `0x00`-`0x03`, so it cannot even round-trip an unknown field back out. Regenerate with `python3 TestFixtures/generate_fixtures.py unknown-inner-header` (see [Regenerating fixtures](#regenerating-fixtures)); `TestFixtures/generators/unknown_inner_header.py` documents the from-scratch decrypt/re-encrypt fallback this required: pykeepass builds and saves a normal database first (verified by reopening it with pykeepass, before the splice), then the script decrypts the payload independently (Argon2d transform, HMAC-SHA256 block verification, AES-256-CBC, zlib inflate), splices the three fields into the parsed item list, and re-encrypts under the same master seed/IV/KDF params. Deliberately, reopening the FINAL spliced file with pykeepass fails with `MappingError` — that failure is the verified, expected behavior demonstrating the gap this fixture exists to probe, not a defect; KeePassXC's reader has no such default-less switch and opens the file normally (its own `readInnerHeaderField` silently skips unrecognized IDs). Content is deterministic, bytes are not (see [Regenerating fixtures](#regenerating-fixtures)). Changing the entry password means updating `KDBXCompatibilitySupport.fixtureEntryPasswords`.
-- `compatibility/argon2-high-iterations.kdbx` — KDBX4 (AES-256-CBC, Argon2d) fixture built with `pykeepass` whose Argon2 KDF uses a HIGH iteration count with LOW memory: iterations 1500, memory 1 MiB, parallelism 1 (1.5 GiB of total work). Password: `argon2-high-iterations`. This is the acceptance case for the `KDFExecutionPolicy` work-budget model (issue #74): KeeForge used to reject any Argon2 configuration with iterations > 1000 regardless of memory, so a foreign-authored database with these settings could never open. One `High Iterations` group with one entry, `High Iteration Entry` (username `high-iteration-user`, password `HighIterationSecret1`). The low memory keeps the repeated derivations in the compatibility matrix and gate cheap. Regenerate with `python3 TestFixtures/generate_fixtures.py argon2-high-iterations` (see [Regenerating fixtures](#regenerating-fixtures)). `TestFixtures/generators/argon2_high_iterations.py` documents the pykeepass header-mutation recipe for KDF parameters (pykeepass exposes no KDF API; the values are set on the parsed variant dictionary and RawCopy's cached header bytes are dropped) and re-reads the written KDF values by parsing the outer header independently. Content is deterministic, bytes are not (see [Regenerating fixtures](#regenerating-fixtures)). Changing the entry password means updating `KDBXCompatibilitySupport.fixtureEntryPasswords`.
+Default fixture for most tests and the stable source for common entries. Also backs the `aes-baseline` compatibility ID.
+
+- The root holds only groups, so a flow enters a subgroup before opening an entry.
+- `Social`: `Twitter` (password `twitterpass123`), `Discord`, `Offline Key`, `Public Profile`.
+- `Work`: `Email`, `GitHub`, and the nested group `Internal` with one entry.
+- `Empty`: no entries.
+- It has no passkeys and no key file.
+
+### `demo.kdbx` and `demo-keyfile.kdbx`
+
+- `demo.kdbx` is the richer demo database used by `KeeForgeUITests/AppStoreScreenshots.swift`.
+- `demo-keyfile.kdbx` needs password `demo` plus `demo-keyfile.key`. The UI tests, `KeeForgeTests/KDBXWriterTests.swift`, and `KeeForgeTests/KDBXRoundTripTests.swift` hardcode those credentials. It backs the `password-keyfile` compatibility ID; its entry `KeyFile Test Entry` has password `keyfilepass123`.
+
+### `autofill-union.kdbx`
+
+One `Union` group with three entries, publishing exactly 3 password and 1 one-time-code AutoFill identities:
+
+| Entry | Domain | Notes |
+| --- | --- | --- |
+| `Union Bank` | `unionbank-fixture.net` | |
+| `Union News` | `union-news-fixture.org` | TOTP through the KeePassXC `otp` field |
+| `Union Shop` | `union-shop-fixture.io` | |
+
+- Every service domain and username is disjoint from `test.kdbx`.
+- Bundled only into `KeeForgeUITests`, where the TOTP classes use it (`TOTPSmokeUITests`, `TOTPEnrollmentUITests`, `TOTPEnrollmentDeepLinkUITests`).
+- Built with `pykeepass` (`create_database`). There is no generator: regenerate by recreating the three entries with the same password.
+
+### `autofill-store-alpha.kdbx` and `autofill-store-bravo.kdbx`
+
+Dedicated fixtures for the physical-device `AutoFillStoreUITests`; bundled only into `KeeForgeUITests`.
+
+| Database | Entry | Username | Domain | Has |
+| --- | --- | --- | --- | --- |
+| alpha | `Alpha Login` | `alpha-user` | `alpha-store-fixture.net` | password, TOTP |
+| bravo | `Bravo Login` | `bravo-user` | `bravo-store-fixture.org` | password, TOTP |
+| bravo | `Bravo Password` | `bravo-password-user` | `bravo-password-fixture.com` | password |
+
+- Alpha publishes 2 identities and bravo 3.
+- Service domains are disjoint, entry UUIDs are fixed, and nothing expires, so the suite does not depend on the general fixtures. The system credential-identity store can dedup identities that share a (service, user) pair across databases, which is why the two must not overlap.
+
+### `kitchen-sink.kdbx`
+
+The rich union fixture, built with `pykeepass`, an independent implementation. It is the only bundled database with entry tags, group `<Tags>`, a `Meta/CustomIcons` image, a binary pool, a protected custom field, or a `PublicCustomData` outer-header field.
+
+The outer header carries `PublicCustomData` (id `0x0C`), a variant dictionary holding `KeeForgeFixture` = `KDBX 4.1 public custom data`. KeeForge does not model it and a save must re-emit it byte for byte.
+
+Ten root groups, in this child order:
+
+| Group | Entries (`username` / `password`) | What it carries |
+| --- | --- | --- |
+| `Tagged` | `Router Admin` (`tag-router-user` / `TagRouterSecret1`; tags `shared`, `Work`, `Personal Notes`), `Mail Account` (`tag-mail-user` / `TagMailSecret2`; tags `shared`, `work`), `Untagged Entry` (no tags) | A tag count above one, the `Work`/`work` case-variant pair, and a tag with a space (identifier suffix `tag-list.row.personal-notes`) |
+| `Archive` | `Old Backup` (`tag-archive-user` / `TagArchiveSecret4`; tag `archive`) | The "1 entry" plural branch |
+| `Secrets` | `Protected Custom` (`fixture-user` / `fixture-password`), `TOTP Login` (`totp-user` / `TotpSecret1`) | See below |
+| `Icons` | `Custom Badge` (`icon-custom-user` / `IconCustomSecret1`, URL `https://icons-fixture.example.com`), `Plain Entry` (`icon-plain-user` / `IconPlainSecret2`) | See below |
+| `Projects` | `Alpha Login` (`alpha-user` / `GroupTagAlpha1`, URL `https://alpha.example.com`) | Group tags `team;shared` plus a group `<Notes>` |
+| `Projects/Client Work` | `Beta Login` (`beta-user` / `GroupTagBeta2`, URL `https://beta.example.com`, entry tag `own-tag`) | Nested group with tag `billable`: parent tag, subgroup tag, and own tag accumulate |
+| `Empty Tags Group` | `Gamma Login` (`gamma-user` / `GroupTagGamma3`) | An empty `<Tags/>` element, the state `hasTagsElement` preserves |
+| `Plain Group` | `Delta Login` (`delta-user` / `GroupTagDelta4`) | No `<Tags>` element at all; KeeForge must never add one |
+| `Attachments` | `Multi Attachment Entry` (`multi-user` / `entry-password-1`), `Dedup Entry A` (`entry-password-2`), `Dedup Entry B` (`entry-password-3`), `No Attachment Entry` (`plain-user` / `entry-password-4`) | See below |
+| `Round Trip` | `Controlled Unknowns` (`roundtrip-user` / `roundtrip-pass`, URL `https://example.com/round-trip`) | See below |
+| `Recycle Bin` | `Trashed Login` (`trashed-user` / `GroupTagTrashed5`) | A real bin with `Meta/RecycleBinUUID` set, so soft-delete edits must reuse it. The bin has no tags |
+
+Details the table does not hold:
+
+- `Secrets`: `Protected Custom`'s current version and its single stored history version both carry `API Token = custom-secret` with `Protected="True"`. `TOTP Login` has a protected `otp` field holding an `otpauth://` URI (secret `JBSWY3DPEHPK3PXP`, 30 s, 6 digits).
+- `Icons`: `Custom Badge` displays the fixture's single custom icon, UUID `4D9C2B1E-7A35-4E68-9B0D-52F16C8A3E77`, a deterministic 8x8 PNG. The UUID is hardcoded in the UI test's `entry-icon-picker.custom.<uuid>` identifier; change both together. `Plain Entry` uses a standard icon, has no stored `<History>`, and has no URL, so it carries the icon-change-pushes-history and disabled "Download Website Icon" cases.
+- `Projects`: pykeepass writes the `;` join, which exercises the semicolon split. The group `<Notes>` ("Group notes ride along as unknown XML next to the structured Tags element.") exercises unknown-sibling positioning next to `<Tags>`.
+- `Attachments`: `Multi Attachment Entry` has `note-ü.txt` (non-ASCII filename) and `pixel.png` (binary content). The two dedup entries attach one shared pool binary, `shared.bin`.
+- `Round Trip`: the coverage is opaque XML in awkward positions, not the values.
+  - Its `<CustomData>` (`RoundTripEntryKey` = `RoundTripEntryValue-Expected`) sits between `<Binary>` and `<History>`.
+  - Its `<Password>` and `<Notes>` sit after `<History>`, a legal but non-canonical child order.
+  - Its `<AutoType>` carries a `DefaultSequence` and a `RoundTrip Login` association.
+  - The attachment `round-trip.txt` is referenced by the current entry and by its single history version (password `history-pass-v1`, notes `Historical revision for round-trip coverage`, no `<CustomData>`), so a history-only `<Binary>` cannot be dropped.
+  - `Meta` carries a second `<CustomData>` sibling (`RoundTripMetaKey` = `RoundTripMetaValue-Expected`) next to the one pykeepass writes. It is schema-invalid and the only such construct in the corpus.
+- Recycle-bin tag exclusion is unit-tested in memory in `DatabaseViewModelTests`, not through this bin.
+
+Attachment SHA-256 values, also recorded in `KeeForgeTests/Support/KDBXCompatibilitySupport.swift` (`AttachmentFixtureHashes`) and verified with `keepassxc-cli attachment-export`:
+
+| Attachment | SHA-256 |
+| --- | --- |
+| `note-ü.txt` | `bcc1c6cd101bd5b27356a7004361fd1e1ff74ed2ef416e3252997d328efd3727` |
+| `pixel.png` | `3ec322a42990a3067cc6c73f3856a86e55bdd8baf19d2166954a8fb319329a72` |
+| `shared.bin` | `fd184a4f05cf3d4f39ab726bda3d3a923da30e9ab2d6697b69c2d39d7ea1ab18` |
+| `round-trip.txt` | `22e06efe984efab5605bccf1c0c1e208db740e16cac328dcbfa27cecee8458db` |
+
+Consumers:
+
+- Bundled into every test target, both UI suites included. The UI classes that use it are listed in `../KeeForgeUITests/AGENTS.md`; retargeting or removing it breaks UI tests, not only the compatibility gate.
+- Unit tests: `KDBXParserTests.testGroupTagsFixtureParsesGroupTagsThroughFullDecryptPath`, `KDBXRoundTripTests` (`<Times>` order, opaque XML, fixed-point sweeps, `test_unknownNodes_controlledFixture_…`), `SortOrderTests` (recycle-bin pinning), `AttachmentTests`, `DatabaseDraftTests.test_updateEntry_updatesFields_preservesUnknownXML`, `KDBXWriterTests.test_writtenFile_validatesOuterHeaderHMAC`.
+- Compatibility gate scenarios, all run by `KDBXCompatibilityTests.test_kitchenSinkFixture_…`: `fixture-smoke-kitchen-sink`, `attachments-update-entry`, `attachments-soft-delete-entry`, `attachments-add-remove`, `group-tags-update-entry`, `group-tags-update-group`.
+
+When changing it:
+
+- A password change means updating `KDBXCompatibilitySupport.fixtureEntryPasswords` / `passwordExpectations`.
+- A group name or tag change means updating the `group-tags-*` scenarios, `KDBXParserTests`, and `KDBXCompatibilityTests`.
+
+### `challenge-response.kdbx` and `challenge-response-aeskdf.kdbx`
+
+Databases whose composite key includes a YubiKey HMAC-SHA1 challenge-response, built the way KeePassXC builds it.
+
+- Password `challenge-response`; HMAC secret `KeeForgeYubiKeyTest!`, mirrored by `KeeForgeTests/Support/YubiKeyEmulator.swift`. The password alone does not open either file, and the generator verifies that.
+- Composite key: `SHA256(SHA256(password) || SHA256(response))`. The challenge is the KDF salt PKCS#7-padded to 64 bytes; the response is HMAC-SHA1 over the unpadded salt.
+- The AES-KDF variant uses the `c9d9f39a…` KDF UUID, which KeePassXC writes for a KDBX 4 AES-KDF database. Its challenge is the AES-KDF seed, padded the same way.
+- Both hold one `Hardware Key` group with `YubiKey Entry` (`yubikey-user` / `YubiKeySecret1`).
+- Neither is in the external compatibility gate: `keepassxc-cli` would need a real YubiKey.
+- `challenge-response.kdbx` drives `ChallengeResponseKeyTests` and `HardwareKeyUnlockTests`; the AES-KDF variant drives `ChallengeResponseKeyTests`.
+
+### `compatibility/`
+
+Fixtures for the KDBX compatibility matrix and the external opener gate.
+
+A compatibility ID is an artifact ID, not a file name. Three IDs read a fixture outside this folder, because only one copy of identical bytes is kept. The mapping lives in `KDBXCompatibilitySupport.Fixture`.
+
+| Compatibility ID | File | Database password | Entry the gate reads back → password |
+| --- | --- | --- | --- |
+| `aes-baseline` | `test.kdbx` | `testpassword123` | `Social/Twitter` → `twitterpass123` |
+| `password-keyfile` | `demo-keyfile.kdbx` + `demo-keyfile.key` | `demo` | `KeyFile Test Entry` → `keyfilepass123` |
+| `kitchen-sink` | `kitchen-sink.kdbx` | `testpassword123` | `Attachments/Multi Attachment Entry` → `entry-password-1` |
+| `legacy-kdbx31` | `compatibility/legacy-kdbx31.kdbx` | `testpassword123` | none |
+| `foreign-chacha20` | `compatibility/foreign-chacha20.kdbx` | `foreign-chacha20` | `Foreign/Foreign Entry Alpha` → `ForeignAlphaSecret1` |
+| `foreign-twofish` | `compatibility/foreign-twofish.kdbx` | `foreign-twofish` | `Foreign/Foreign Entry Alpha` → `ForeignAlphaSecret1` |
+| `unknown-inner-header` | `compatibility/unknown-inner-header.kdbx` | `unknown-inner-header` | `Unknown Header/Inner Header Entry` → `UnknownHeaderSecret1` |
+| `argon2-high-iterations` | `compatibility/argon2-high-iterations.kdbx` | `argon2-high-iterations` | `High Iterations/High Iteration Entry` → `HighIterationSecret1` |
+
+- After KeeForge rewrites a fixture, `run_kdbx_compatibility_gate.sh` asks `keepassxc-cli show -s -a Password` for the entry in the last column, proving a value authored by another implementation survives a KeeForge save. The pairs are mirrored in `KDBXCompatibilitySupport.fixtureEntryPasswords`; change both together.
+- The `kitchen-sink` group-tag scenarios also probe `Projects/Alpha Login` → `GroupTagAlpha1`, `Plain Group/Delta Login` → `GroupTagDelta4`, and `Projects/Client Work/Beta Login Updated` → `GroupTagBetaUpdated2` (a value KeeForge wrote). The generator's own `keepassxc-cli` pass also probes `Round Trip/Controlled Unknowns` → `roundtrip-pass`.
+
+`legacy-kdbx31.kdbx`: besides its compatibility ID it is a plain bundled fixture for the legacy-format coverage in `KDBXParserTests`, `KDBXFileSummaryTests`, `LocalDatabaseSaverTests`, `CloudDatabaseSaverTests`, and `DatabaseViewModelTests`, and is bundled into `KeeForgeUITests`.
+
+`foreign-chacha20.kdbx` and `foreign-twofish.kdbx`: pykeepass-authored, so they cover KeeForge's ChaCha20 and Twofish outer-cipher read paths against a database KeeForge did not write. Every other fixture is AES-256-CBC. Both hold identical content and differ only in password and declared outer cipher:
+
+- A root-level `Foreign` group.
+- `Foreign Entry Alpha`: `foreign-alpha-user` / `ForeignAlphaSecret1`, custom field `ForeignField` = `ForeignFieldValue`.
+- `Foreign Entry Beta`: `foreign-beta-user` / `ForeignBetaSecret2`, no custom field.
+
+`unknown-inner-header.kdbx`: covers preservation of unrecognized KDBX 4 inner-header fields (`../docs/specs/2026-07-26-kdbx-format-hardening/02-unknown-inner-header-preservation.md`).
+
+- One `Unknown Header` group with `Inner Header Entry` (`unknown-header-user` / `UnknownHeaderSecret1`) and two attachments, so the binary pool has two entries to splice between:
+  - `alpha-attachment.txt`: `2e1e53db7251ba3852ea965523b8ff3ab8b7426adf50277d0d8d41d40630bdfd`
+  - `beta-attachment.txt`: `ee48b95cd61f6f910959979dc94199de8012611f0050e85c5d7cd15e3d95d4b0`
+- Three unknown fields are spliced into the on-disk item sequence:
+  - id `0x21`, non-empty payload, between the two binary-pool entries. KeeForge's writer normalizes it to before the pool on save, and this fixture lets a test observe that.
+  - id `0x7F`, a recognizable non-trivial payload, after the protected-stream ID and key fields.
+  - id `0x10`, zero-length payload, after `0x7F`.
+- Reopening the final file with pykeepass fails with `MappingError`. That is the expected, verified outcome; KeePassXC skips unrecognized IDs and opens it normally.
+
+`argon2-high-iterations.kdbx`: a high iteration count with low memory (1.5 GiB of total work), the acceptance case for the `KDFExecutionPolicy` work budget. A per-parameter iteration cap would reject it. One `High Iterations` group with `High Iteration Entry` (`high-iteration-user` / `HighIterationSecret1`). The low memory keeps repeated derivations in the matrix and gate cheap.
+
+Changing an entry password in `unknown-inner-header.kdbx` or `argon2-high-iterations.kdbx` means updating `KDBXCompatibilitySupport.fixtureEntryPasswords`.
 
 ## Merge Fixtures
 
-`Merge/` holds the oracle fixtures for the KeePass Synchronize merge feature. Every scenario is a directory containing a trio of KDBX 4 databases plus a recorded expectation dump; all of them share one password, `testpassword123`.
+`Merge/` holds the oracle fixtures for the KeePass Synchronize merge feature. Each scenario is a directory with a trio of KDBX 4 databases and a recorded expectation dump. All share the password `testpassword123`.
 
-- `Merge/<scenario-id>/local.kdbx` — the side KeeForge holds in memory (the merge **target**).
-- `Merge/<scenario-id>/remote.kdbx` — the side that landed on disk or in the cloud (the merge **source**).
-- `Merge/<scenario-id>/merged-reference.kdbx` — `cp local.kdbx merged-reference.kdbx` followed by `keepassxc-cli merge -s merged-reference.kdbx remote.kdbx`. Real KeePassXC 2.7.12 is the behavioural oracle.
-- `Merge/<scenario-id>/expectations.txt` — the merge's own change list, the idempotence re-merge output, `keepassxc-cli ls -R` for all three files, and a decoded structural dump (tree, UUIDs, `LastModificationTime`, `LocationChanged`, history items, attachments, `DeletedObjects`).
-- `Merge/manifest.json` — machine-readable index: password, base-tree UUIDs, per-scenario description, edit order, assertions, and every place the oracle's behaviour diverges from the algorithm spec.
+| Path | Content |
+| --- | --- |
+| `Merge/<scenario-id>/local.kdbx` | The side KeeForge holds in memory (the merge target) |
+| `Merge/<scenario-id>/remote.kdbx` | The side that landed on disk or in the cloud (the merge source) |
+| `Merge/<scenario-id>/merged-reference.kdbx` | `cp local.kdbx merged-reference.kdbx`, then `keepassxc-cli merge -s merged-reference.kdbx remote.kdbx`. KeePassXC 2.7.12 is the behavioral oracle |
+| `Merge/<scenario-id>/expectations.txt` | The merge's change list, the idempotence re-merge output, `keepassxc-cli ls -R` for all three files, and a decoded structural dump (tree, UUIDs, `LastModificationTime`, `LocationChanged`, history items, attachments, `DeletedObjects`) |
+| `Merge/manifest.json` | Machine-readable index: password, base-tree UUIDs, per-scenario description, edit order, assertions, and every place the oracle diverges from the algorithm spec |
 
-The base tree behind every scenario is deterministic — root `00000000-0000-4000-8000-000000000000`, groups `Work` / `Personal` / `Archive` (`1111…`, `2222…`, `3333…`), entries `Alpha` / `Beta` / `Gamma` (`aaaa…`, `bbbb…`, `cccc…`) — so tests can key on UUIDs. Timestamps are real wall-clock values from generation time and change on every regeneration.
+The base tree is deterministic, so tests can key on UUIDs: root `00000000-0000-4000-8000-000000000000`, groups `Work` / `Personal` / `Archive` (`1111…`, `2222…`, `3333…`), entries `Alpha` / `Beta` / `Gamma` (`aaaa…`, `bbbb…`, `cccc…`). Timestamps are wall-clock values from generation time and change on every regeneration.
 
 Scenarios: `both-add-entries`, `remote-newer-wins`, `local-newer-wins`, `history-union`, `same-timestamp-diverged`, `move-vs-edit`, `move-into-remote-only-group`, `delete-local-then-edit-remote`, `edit-remote-then-delete-local`, `delete-remote-then-edit-local`, `edit-local-then-delete-remote`, `recycle-vs-edit`, `group-rename-vs-entry-add`, `group-deleted-vs-entry-added`, `attachment-divergence`, `identical-no-changes`.
 
-**The reference is not authoritative everywhere.** `keepassxc-cli merge` runs KeePassXC's `Merger` in *KeepNewer* mode (the root group's merge mode falls back to `KeepNewer`, and `Merger::mergeDeletions` returns early for every mode except `Synchronize`), and there is no CLI flag to force `Synchronize`. Consequences, all recorded per scenario in `manifest.json`:
+**The reference is not authoritative everywhere.** `keepassxc-cli merge` runs KeePassXC's `Merger` in *KeepNewer* mode (the root group's merge mode falls back to `KeepNewer`, and `Merger::mergeDeletions` returns early for every mode except `Synchronize`), and no CLI flag forces `Synchronize`. Consequences, all recorded per scenario in `manifest.json`:
 
-- **Deletions never propagate.** In the four delete scenarios the reference resurrects the entry regardless of timestamps, and target-side tombstones survive next to the live entry they refer to. KeeForge implements the `Synchronize` rule (a tombstone kills an object whose `LastModificationTime` precedes the `DeletionTime`; an object edited afterwards survives and its tombstone is dropped), so the reference and KeeForge deliberately disagree in `edit-remote-then-delete-local` and `edit-local-then-delete-remote`, and disagree on tombstone retention in `delete-local-then-edit-remote`.
-- **`Meta/RecycleBinUUID` is never adopted** (there is an explicit TODO in `Merger::mergeMetadata`), so `recycle-vs-edit`'s reference carries the bin group with an all-zero `RecycleBinUUID`.
-- **A merge-moved entry keeps its stale `LocationChanged`** — `Merger` adopts the source value for groups but not for entries. Compare placement, not that timestamp.
-- **Sibling order is an artefact.** When the source entry wins a conflict, `Merger` erases the target entry and appends a clone, so the winner ends up last in its group. Compare merged trees order-insensitively.
+- **Deletions never propagate.** In the four delete scenarios the reference resurrects the entry regardless of timestamps, and target-side tombstones survive next to the live entry. KeeForge implements the `Synchronize` rule: a tombstone kills an object whose `LastModificationTime` precedes the `DeletionTime`; an object edited afterwards survives and its tombstone is dropped. So the reference and KeeForge deliberately disagree in `edit-remote-then-delete-local` and `edit-local-then-delete-remote`, and on tombstone retention in `delete-local-then-edit-remote`.
+- **`Meta/RecycleBinUUID` is never adopted** (an explicit TODO in `Merger::mergeMetadata`), so `recycle-vs-edit`'s reference carries the bin group with an all-zero `RecycleBinUUID`.
+- **A merge-moved entry keeps its stale `LocationChanged`.** `Merger` adopts the source value for groups but not for entries. Compare placement, not that timestamp.
+- **Sibling order is an artifact.** When the source entry wins a conflict, `Merger` erases the target entry and appends a clone, so the winner ends up last in its group. Compare merged trees order-insensitively.
 
-Everything else — entry conflict resolution, history union, history dedupe by `LastModificationTime`, moves, group renames, idempotence — is mode-independent in KeePassXC (`Merger::mergeHistory` ignores the merge mode outright) and is a faithful oracle.
+Everything else (entry conflict resolution, history union, history dedupe by `LastModificationTime`, moves, group renames, idempotence) is mode-independent in KeePassXC and is a faithful oracle.
 
-Regenerate the whole set with `scripts/generate-merge-fixtures.sh` (see `scripts/README.md`); `--scenario <id>` rebuilds a single one.
-
-`KeeForgeTests/KDBXMergerOracleTests.swift` consumes them, enumerating scenarios from `manifest.json`. Unlike every other fixture, they are bundled into `KeeForgeTests`/`KeeForgeMacTests` as a **folder reference** (`type: folder` in `../project.yml`), because the sixteen scenario directories all contain files named `local.kdbx`, `remote.kdbx`, and `merged-reference.kdbx` — a flat resource copy would collide. The bundle therefore keeps the `Merge/<scenario-id>/…` structure, and adding a scenario directory needs no project change (the oracle suite fails if a directory and the manifest disagree).
+- Regenerate the set with `scripts/generate-merge-fixtures.sh` (see `../scripts/README.md`); `--scenario <id>` rebuilds one.
+- `KeeForgeTests/KDBXMergerOracleTests.swift` consumes them, enumerating scenarios from `manifest.json`.
+- They are bundled into `KeeForgeTests` / `KeeForgeMacTests` as a folder reference (`type: folder` in `../project.yml`), because every scenario directory holds the same three file names and a flat resource copy would collide. The bundle keeps the `Merge/<scenario-id>/…` structure, and a new scenario directory needs no project change. The oracle suite fails if a directory and the manifest disagree.
 
 ## Key Files
 
-- `test-hex.key`, `test-v1.key`, `test-v2.keyx`, and `test-arbitrary.key` cover the supported key-file parsing formats.
-- `demo-keyfile.key` is the end-to-end fixture paired with `demo-keyfile.kdbx`, and doubles as `KeyFileProcessorTests`' 32-byte binary-format sample.
-- `invalid-xml.keyx` deliberately carries non-base64 XML key data. It is bundled into `KeeForgeUITests` so `KeyFileUITests` can verify malformed XML fails visibly during unlock instead of being ignored.
+| File | Use |
+| --- | --- |
+| `test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key` | The supported key-file parsing formats. Bundled only into the unit-test targets |
+| `demo-keyfile.key` | Paired with `demo-keyfile.kdbx`; also `KeyFileProcessorTests`' 32-byte binary-format sample |
+| `invalid-xml.keyx` | Non-base64 XML key data. Bundled into `KeeForgeUITests` so `KeyFileUITests` can verify malformed XML fails visibly during unlock |
 
 ## Regenerating fixtures
 
-Five fixtures are authored by one tool, `TestFixtures/generate_fixtures.py` (`pip3 install --user pykeepass`; runs from any working directory). Each fixture's recipe, and the prose explaining why it exists, lives in its own module under `TestFixtures/generators/`; shared plumbing (outer-header and variant-dictionary parsing, the Construct `RawCopy` cache drop, the `keepassxc-cli` wrapper) lives in `generators/_common.py`.
+`TestFixtures/generate_fixtures.py` authors the generated fixtures (`pip3 install --user pykeepass`; it runs from any working directory). Each recipe lives in its own module under `TestFixtures/generators/`; shared plumbing is in `generators/_common.py`.
 
 ```bash
 python3 TestFixtures/generate_fixtures.py --list          # names and output paths
@@ -87,18 +219,19 @@ python3 TestFixtures/generate_fixtures.py --all --check   # verify every generat
 python3 TestFixtures/generate_fixtures.py kitchen-sink    # rebuild one, then verify it
 ```
 
-Registered names: `autofill-store-alpha`, `autofill-store-bravo`, `kitchen-sink`, `argon2-high-iterations`, `foreign-chacha20`, `foreign-twofish`, `unknown-inner-header`.
+Registered names: `autofill-store-alpha`, `autofill-store-bravo`, `kitchen-sink`, `argon2-high-iterations`, `challenge-response`, `challenge-response-aeskdf`, `foreign-chacha20`, `foreign-twofish`, `unknown-inner-header`. Several names can be passed in one run, for example `foreign-chacha20 foreign-twofish`.
 
 - `--check` verifies only and never writes. Without it, each selected fixture is rebuilt and then verified with the same assertions.
-- `--keepassxc-cli /Applications/KeePassXC.app/Contents/MacOS/keepassxc-cli` adds an external-reader check (KeePassXC opens the file and lists its group; `kitchen-sink` and `unknown-inner-header` also read back entry passwords and export every attachment for a SHA-256 comparison). Optional.
+- `--keepassxc-cli /Applications/KeePassXC.app/Contents/MacOS/keepassxc-cli` adds an optional external-reader check: KeePassXC opens the file and lists its group. `kitchen-sink` and `unknown-inner-header` also read back entry passwords and export every attachment for a SHA-256 comparison.
 - `--output-dir DIR` builds and verifies in `DIR` instead of the committed locations, to rehearse a regeneration without touching the repo.
-- Regenerating always changes the file's **bytes**: `generators/_common.new_database` randomizes the master seed, encryption IV, and Argon2 salt (pykeepass itself ships one blank template with all three fixed and never regenerates them), and pykeepass mints fresh UUIDs and timestamps. Only the decoded **content** is deterministic, and that is all the tests and the tool's own verification assert.
+- Regenerating always changes the file's bytes: the master seed, encryption IV, and KDF salt are randomized, and pykeepass mints fresh UUIDs and timestamps. Only the decoded content is deterministic, and that is all the tests and the tool's own verification assert.
 
-The remaining fixtures have no generator: the `Merge/` set is rebuilt by `scripts/generate-merge-fixtures.sh` (see `scripts/README.md`); `test.kdbx`, `demo.kdbx`, `demo-keyfile.kdbx`, `autofill-union.kdbx`, `compatibility/legacy-kdbx31.kdbx`, and every key file are one-off artifacts described in place above.
+Fixtures without a generator:
+
+- The `Merge/` set is rebuilt by `scripts/generate-merge-fixtures.sh`.
+- `test.kdbx`, `demo.kdbx`, `demo-keyfile.kdbx`, `autofill-union.kdbx`, `compatibility/legacy-kdbx31.kdbx`, and every key file are one-off artifacts described above.
 
 ## Notes
 
-- `test.kdbx` has groups under the root, so many flows need to enter a subgroup before opening an entry.
-- `test.kdbx` is the stable fixture-backed source for common entries like Twitter, GitHub, and Email.
-- One file per content: no fixture is a byte-identical copy of another. Every bundled database is described once by a `KDBXTestFixture` descriptor in `../KeeForgeTests/KDBXTreeAssertions.swift`; the compatibility harness points at that descriptor (`KDBXCompatibilitySupport.Fixture.Source.bundled(_:)`) instead of keeping a private copy under `compatibility/`, and its fixture IDs stay stable when the file it reads moves.
-- If you add a new fixture that tests depend on, wire it into `../project.yml`. Fixtures shared by more than one target live in the `UnitTestFixtures` and `UITestFixtures` `targetTemplates`; a target lists only its own extras (`KeeForgeUITests` does, `KeeForgeMacUITests` does not).
+- One file per content: no fixture is a byte-identical copy of another. Every bundled database is described once by a `KDBXTestFixture` descriptor in `../KeeForgeTests/Support/KDBXTreeAssertions.swift`. The compatibility harness points at that descriptor (`KDBXCompatibilitySupport.Fixture.Source.bundled(_:)`) instead of keeping a private copy under `compatibility/`, and its fixture IDs stay stable when the file it reads moves.
+- A new fixture that tests depend on must be wired into `../project.yml`. Fixtures shared by more than one target live in the `UnitTestFixtures` and `UITestFixtures` `targetTemplates`; a target lists only its own extras (`KeeForgeUITests` does, `KeeForgeMacUITests` does not).

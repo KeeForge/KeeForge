@@ -1,6 +1,6 @@
-# Docs Archive
+# Docs
 
-**Most of this folder is an archive of past design and review documents.** Each archived doc captures the design that guided an implementation or audit at the time it was written. Archived docs are not maintained afterward, and there is **no guarantee that they describe current code behavior** — features may have shipped differently, been reworked, or not been built at all. Always confirm against the current code (and folder-local `README.md` files next to the code) before relying on archived material.
+**Most of this folder is an archive of past design and review documents.** Each archived doc captures the design that guided an implementation or audit at the time it was written. Archived docs are not maintained afterward, and there is **no guarantee that they describe current code behavior** — features may have shipped differently, been reworked, or not been built at all. Always confirm against the current code (and the folder-local `AGENTS.md` or `README.md` next to the code) before relying on archived material.
 
 Archived files and folders are prefixed with the date the doc was written. Do not update archived docs for new code changes unless explicitly asked.
 
@@ -30,7 +30,7 @@ Design docs written before or during a feature's implementation. Multi-slice fea
 | 2026-04-24 | `specs/2026-04-24-database-creation.md` | Creating new local KDBX 4.x databases |
 | 2026-07-12 | `specs/2026-07-12-macos-port/` | Native macOS app: target scaffolding, Mac UX, desktop OAuth, macOS AutoFill, distribution (epic + slices 01–07) |
 | 2026-07-12 | `specs/2026-07-12-twofish-support/` | Twofish cipher support and KDBX 3.1 read (epic + slices 01–03) |
-| 2026-07-19 | `specs/2026-07-19-selectable-autofill-per-database/` | Per-database AutoFill selection, multi-database QuickType, clear-entries action (epic + slices 01–06; `deferred-tests.md` is the 2026-07-19 pick-up list for the tests written after the Linux implementation — all slice tests are done, and the remaining manual checks were largely automated by `AutoFillStoreUITests`, see `KeeForgeUITests/README.md`) |
+| 2026-07-19 | `specs/2026-07-19-selectable-autofill-per-database/` | Per-database AutoFill selection, multi-database QuickType, clear-entries action (epic + slices 01–06; `deferred-tests.md` is the 2026-07-19 pick-up list for the tests written after the Linux implementation — all slice tests are done, and the remaining manual checks were largely automated by `AutoFillStoreUITests`, see `KeeForgeUITests/AGENTS.md`) |
 | 2026-07-19 | `specs/2026-07-19-tag-integration/` | Tag browser, tag search, group-tag inheritance, editor tag suggestions (epic + slices 01–04) |
 | 2026-07-20 | `specs/2026-07-20-autofill-store-validation-harness/` | Opt-in real-`ASCredentialIdentityStore` assertion harness: debug inspector screen, simulator provisioning, lifecycle UI tests (epic + slices 01–03) |
 | 2026-07-26 | `specs/2026-07-26-kdbx-format-hardening/` | ChaCha20 implementation consolidation + unknown KDBX4 inner-header preservation (epic + slices 01–02; from the 2026-07-25 test-suite audit) |

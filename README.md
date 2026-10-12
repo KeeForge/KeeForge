@@ -5,7 +5,7 @@
 <h1 align="center">KeeForge</h1>
 
 <p align="center">
-  English | <a href="docs/i18n/README.de.md">Deutsch</a> | <a href="docs/i18n/README.fr.md">Français</a> | <a href="docs/i18n/README.es.md">Español</a> | <a href="docs/i18n/README.zh-Hans.md">简体中文</a> | <a href="docs/i18n/README.zh-Hant.md">繁體中文</a> | <a href="docs/i18n/README.ja.md">日本語</a> | <a href="docs/i18n/README.it.md">Italiano</a>
+  English | <a href="docs/i18n/README.de.md">Deutsch</a> | <a href="docs/i18n/README.fr.md">Français</a> | <a href="docs/i18n/README.es.md">Español</a> | <a href="docs/i18n/README.zh-Hans.md">简体中文</a> | <a href="docs/i18n/README.zh-Hant.md">繁體中文</a> | <a href="docs/i18n/README.ja.md">日本語</a> | <a href="docs/i18n/README.it.md">Italiano</a> | <a href="docs/i18n/README.ru.md">Русский</a>
 </p>
 
 <p align="center">
@@ -22,10 +22,7 @@
     <img alt="Download KeeForge directly for Mac" src="https://img.shields.io/badge/Mac-Direct%20Download-24292F?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="Join the iPhone and iPad beta on TestFlight" src="https://img.shields.io/badge/TestFlight-iPhone%20%26%20iPad-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
-  </a>
-  <a href="https://testflight.apple.com/join/ZKQRwPaa">
-    <img alt="Join the Mac beta on TestFlight" src="https://img.shields.io/badge/TestFlight-Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="Join the iPhone, iPad, and Mac beta on TestFlight" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="Requires iOS 18.0 or later" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="Requires macOS 15.0 or later" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -41,11 +38,9 @@ KeeForge is a native KeePass client for iPhone, iPad, and Mac, built for people 
 
 ## Public Beta
 
-- iPhone and iPad: [Join the KeeForge beta on TestFlight](https://testflight.apple.com/join/mPAT4f1a)
-- Mac: [Join the KeeForge beta on TestFlight](https://testflight.apple.com/join/ZKQRwPaa)
+**[Join the KeeForge beta for iPhone, iPad, and Mac on TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
 
-Beta availability can differ between iPhone, iPad, and Mac while Apple reviews
-each platform build.
+Beta availability can differ between iPhone, iPad, and Mac while Apple reviews each platform build.
 
 ## Highlights
 
@@ -81,7 +76,7 @@ KeeForge takes data safety very seriously: a password manager must never corrupt
 
 With FTP, the final conflict check and file replacement cannot happen as one operation. A simultaneous save from another app or device may still be overwritten, so avoid editing an FTP database in two places at once.
 
-For the technically curious, the test suite is mapped in [`KeeForgeTests/AGENTS.md`](KeeForgeTests/AGENTS.md) and the pre-release verification gate in [`ci_scripts/README.md`](ci_scripts/README.md).
+For the technically curious, the test suite is mapped in [`KeeForgeTests/AGENTS.md`](KeeForgeTests/AGENTS.md) and the pre-release verification gate in [`ci_scripts/AGENTS.md`](ci_scripts/AGENTS.md).
 
 ## Project Map
 
@@ -110,7 +105,7 @@ scripts/              # Local dev tooling
 - [`CHANGELOG.md`](CHANGELOG.md) - version history
 - [`ROADMAP.md`](ROADMAP.md) - planned product work and open priorities
 - [`AGENTS.md`](AGENTS.md) - context for coding agents
-- [`KeeForge/README.md`](KeeForge/README.md) - app-target architecture map
+- [`KeeForge/AGENTS.md`](KeeForge/AGENTS.md) - app-target architecture map
 - [`AutoFillExtension/AGENTS.md`](AutoFillExtension/AGENTS.md) - extension constraints and shared-source notes
 - [`SECURITY.md`](SECURITY.md) - vulnerability disclosure policy
 - [`docs/`](docs/) - implementation specs, audits, and longer-form design docs
