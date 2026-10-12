@@ -85,23 +85,26 @@ struct EntryListView: View {
 
     @ViewBuilder
     private func entryRow(for entry: KPEntry) -> some View {
-        if viewModel.workspace.entrySelection != nil {
-            EntrySelectionRow(entryID: entry.id, viewModel: viewModel, identifier: "search.entry.navlink") {
-                EntryRow(
-                    entry: entry,
-                    username: viewModel.resolvingFieldReferences(entry.username),
-                    customIconData: viewModel.customIconData(for: entry),
-                    folderPath: viewModel.folderPath(forEntryID: entry.id)
-                )
+        HStack {
+            if viewModel.workspace.entrySelection != nil {
+                EntrySelectionRow(entryID: entry.id, viewModel: viewModel, identifier: "search.entry.navlink") {
+                    EntryRow(
+                        entry: entry,
+                        username: viewModel.resolvingFieldReferences(entry.username),
+                        customIconData: viewModel.customIconData(for: entry),
+                        folderPath: viewModel.folderPath(forEntryID: entry.id)
+                    )
+                }
+                .macHoverHighlight()
+            } else {
+                browsingEntryRow(for: entry)
             }
-            .macHoverHighlight()
-        } else {
-            browsingEntryRow(for: entry)
         }
     }
 
     private func browsingEntryRow(for entry: KPEntry) -> some View {
-        Group {
+        // A concrete row container lets List defer offscreen matches.
+        HStack {
             if let onSelectEntry {
                 Button {
                     onSelectEntry(entry)
@@ -157,6 +160,7 @@ struct EntryListView: View {
                 Button(deletionTitle(for: entry), role: .destructive) {
                     requestDeletion(for: entry)
                 }
+                .tint(.red)
                 .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }

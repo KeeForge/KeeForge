@@ -5,7 +5,7 @@
 <h1 align="center">KeeForge</h1>
 
 <p align="center">
-  <a href="../../README.md">English</a> | <a href="README.de.md">Deutsch</a> | <a href="README.fr.md">Français</a> | <a href="README.es.md">Español</a> | <a href="README.zh-Hans.md">简体中文</a> | 繁體中文 | <a href="README.ja.md">日本語</a> | <a href="README.it.md">Italiano</a>
+  <a href="../../README.md">English</a> | <a href="README.de.md">Deutsch</a> | <a href="README.fr.md">Français</a> | <a href="README.es.md">Español</a> | <a href="README.zh-Hans.md">简体中文</a> | 繁體中文 | <a href="README.ja.md">日本語</a> | <a href="README.it.md">Italiano</a> | <a href="README.ru.md">Русский</a>
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@
     <img alt="在 App Store 下載" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="透過 TestFlight 加入公開測試版" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="透過 TestFlight 加入 iPhone、iPad 和 Mac 測試版" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="需要 iOS 18.0 或以上版本" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="需要 macOS 15.0 或以上版本" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -35,7 +35,9 @@ KeeForge 是適用於 iPhone、iPad 與 Mac 的原生 KeePass 用戶端。本機
 
 ## 公開測試版
 
-**[透過 TestFlight 加入 KeeForge 測試版](https://testflight.apple.com/join/mPAT4f1a)**
+**[透過 TestFlight 加入適用於 iPhone、iPad 和 Mac 的 KeeForge 測試版](https://testflight.apple.com/join/mPAT4f1a)**
+
+Apple 審核各平台的建置版本期間，iPhone、iPad 和 Mac 測試版的可用性可能有所不同。
 
 ## 功能亮點
 
@@ -71,7 +73,7 @@ KeeForge 非常重視資料安全：密碼管理工具絕不能損毀你的保�
 
 使用 FTP 時，最後一次衝突檢查與取代檔案無法當作同一項操作完成。其他 App 或裝置同時儲存的變更仍可能被覆寫，因此請勿在多個地方同時編輯同一個 FTP 資料庫。
 
-想深入了解技術細節的話，測試套件的說明在 [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md)，發佈前的驗證關卡則在 [`ci_scripts/README.md`](../../ci_scripts/README.md)（皆為英文）。
+想深入了解技術細節的話，測試套件的說明在 [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md)，發佈前的驗證關卡則在 [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md)（皆為英文）。
 
 ## 專案地圖
 
@@ -100,7 +102,7 @@ scripts/              # 本機開發工具
 - [`CHANGELOG.md`](../../CHANGELOG.md) - 版本歷史
 - [`ROADMAP.md`](../../ROADMAP.md) - 規劃中的產品工作與待辦優先事項
 - [`AGENTS.md`](../../AGENTS.md) - 給編碼代理程式的背景資訊
-- [`KeeForge/README.md`](../../KeeForge/README.md) - App 目標的架構地圖
+- [`KeeForge/AGENTS.md`](../../KeeForge/AGENTS.md) - App 目標的架構地圖
 - [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) - 延伸功能限制與共用程式碼說明
 - [`SECURITY.md`](../../SECURITY.md) - 弱點揭露政策
 - [`docs/`](../../docs/) - 實作規格、稽核與較長篇的設計文件

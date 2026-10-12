@@ -17,6 +17,9 @@ enum AutoFillStatusService {
     nonisolated(unsafe) static var enabledProvider: @Sendable () async -> Bool = {
         await ASCredentialIdentityStore.shared.state().isEnabled
     }
+    nonisolated(unsafe) static var incrementalUpdatesProvider: @Sendable () async -> Bool = {
+        await ASCredentialIdentityStore.shared.state().supportsIncrementalUpdates
+    }
     nonisolated(unsafe) static var enableRequester: @Sendable () async -> Bool = {
         await systemEnableRequest()
     }
@@ -32,6 +35,13 @@ enum AutoFillStatusService {
     static func isAutoFillEnabled() async -> Bool {
         guard !isTipForcedForUITesting else { return false }
         return await enabledProvider()
+    }
+
+    /// Whether the system store can hold more than one database's identities
+    /// (`CredentialIdentityStoreCapabilities`). Recorded only for an enabled
+    /// provider, so read it once `isAutoFillEnabled()` is true.
+    static func supportsIncrementalUpdates() async -> Bool {
+        await incrementalUpdatesProvider()
     }
 
     /// Asks the user to enable KeeForge as the system AutoFill provider.
@@ -89,6 +99,9 @@ enum AutoFillStatusService {
     static func resetForTesting() {
         defaults.removeObject(forKey: Key.tipDismissed)
         enabledProvider = { await ASCredentialIdentityStore.shared.state().isEnabled }
+        incrementalUpdatesProvider = {
+            await ASCredentialIdentityStore.shared.state().supportsIncrementalUpdates
+        }
         enableRequester = { await systemEnableRequest() }
     }
 }

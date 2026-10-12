@@ -31,7 +31,6 @@ struct MacQuickSearchView: View {
             }
         }
         .frame(width: MacQuickSearchPanel.panelSize.width, height: MacQuickSearchPanel.panelSize.height)
-        .accessibilityIdentifier("quick-search.panel")
     }
 
     private func handOff(systemImage: String, title: Text, message: Text, action: Text) -> some View {

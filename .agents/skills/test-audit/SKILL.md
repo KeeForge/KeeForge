@@ -55,8 +55,8 @@ changes. A failing build or an unrelated guard is not a regression control.
 ## Discovery and retention
 
 Read `KeeForgeTests/AGENTS.md` and relevant support/fixture guidance before judging
-overlap. Read `KeeForgeMac/README.md`'s testing table for affected Mac behavior, and
-`.github/AGENTS.md`, `ci_scripts/README.md`, and actual target/scheme selection for
+overlap. Read the root `AGENTS.md` "macOS Test Strategy" table for affected Mac behavior, and
+`.github/AGENTS.md`, `ci_scripts/AGENTS.md`, and actual target/scheme selection for
 execution coverage. Read each candidate test in full, its production owner, callers,
 relevant callees, overlapping suites, and history. Inspect dependency code or types
 when a claim relies on a dependency contract.

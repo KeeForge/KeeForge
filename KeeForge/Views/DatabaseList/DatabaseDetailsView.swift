@@ -117,7 +117,7 @@ struct DatabaseDetailsView: View {
                 do {
                     try listViewModel.setKeyFile(url: url, for: reference)
                 } catch {
-                    selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+                    selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: error)
                 }
             case .failure(let error):
                 selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)

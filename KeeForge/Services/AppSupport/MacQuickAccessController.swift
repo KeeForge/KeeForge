@@ -67,6 +67,13 @@ final class MacQuickAccessController {
     /// macOS refused the shortcut, normally because another app holds it.
     private(set) var isShortcutUnavailable = false
 
+    /// The app's active session, kept current by the main window. Observable
+    /// rather than a `Binding` to the app's state: the panel reads it from its
+    /// own view update, where a captured binding returns the value it was
+    /// created with. Only the reference is held, and it is cleared with the
+    /// session.
+    var activeSession: DatabaseViewModel?
+
     /// Opens a new main window; set by the app, which owns `openWindow`.
     @ObservationIgnored var openMainWindow: (() -> Void)?
     @ObservationIgnored weak var mainWindow: NSWindow?
@@ -77,7 +84,6 @@ final class MacQuickAccessController {
     @ObservationIgnored private var isStarted = false
 
     init(
-        sessionProvider: @escaping MacQuickSearchViewModel.SessionProvider = { nil },
         presenter: MacQuickSearchPanelPresenting? = nil,
         hotKey: MacHotKeyRegistering = MacGlobalHotKey(),
         activateApp: @escaping @MainActor () -> Void = {
@@ -88,7 +94,6 @@ final class MacQuickAccessController {
         }
     ) {
         let searchModel = MacQuickSearchViewModel(
-            sessionProvider: sessionProvider,
             authenticateDeviceOwner: { gate in
                 // LocalAuthentication only prompts for the active app, and the
                 // panel does not activate KeeForge on its own.
@@ -104,6 +109,7 @@ final class MacQuickAccessController {
         self.activateApp = activateApp
         isMenuBarItemEnabled = SettingsService.macMenuBarQuickAccessEnabled
         shortcut = SettingsService.macQuickSearchShortcut
+        searchModel.sessionProvider = { [weak self] in self?.activeSession }
     }
 
     func start() {
@@ -308,6 +314,9 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
         panel.hasShadow = true
         panel.animationBehavior = .utilityWindow
         panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary, .transient, .ignoresCycle]
+        // On the window: an identifier on the SwiftUI root replaces the
+        // identifier of every element inside it.
+        panel.setAccessibilityIdentifier("quick-search.panel")
 
         let background = NSVisualEffectView(frame: NSRect(origin: .zero, size: Self.panelSize))
         background.material = .popover

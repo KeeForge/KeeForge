@@ -13,9 +13,6 @@ struct GroupListView: View {
     let groupID: UUID
     @Bindable var viewModel: DatabaseViewModel
     var onSelectEntry: ((KPEntry) -> Void)? = nil
-    /// macOS drill-down: when set, group rows call this instead of pushing a
-    /// `NavigationLink` (pushed sidebar stacks render zero-height on macOS).
-    var onSelectGroup: ((UUID) -> Void)? = nil
     /// iPad split view: when set, New Entry hands its editor to the host so it
     /// opens in the detail column instead of being pushed into this sidebar.
     var onCreateEntry: ((EntryEditViewModel) -> Void)? = nil
@@ -45,9 +42,6 @@ struct GroupListView: View {
     /// Kept here rather than in the bar item, which leaves the bar while the
     /// title is scrolled away and must not slide in again when it returns.
     @State private var hasAppNameSlidIn = false
-    #if os(macOS)
-    @FocusState private var isSearchFieldFocused: Bool
-    #endif
 
     private var resolvedGroup: KPGroup? {
         viewModel.group(withID: groupID)
@@ -301,27 +295,11 @@ struct GroupListView: View {
         .entrySelectionBar(viewModel: viewModel) { pendingMove = $0 }
     }
 
-    /// Presents the entry editor. iOS pushes it onto the navigation stack;
-    /// macOS presents a sheet (the sidebar drill-down has no stack to push
-    /// onto, and pushed sidebar stacks render zero-height on macOS anyway).
+    /// Pushes the entry editor onto the navigation stack.
     private struct GroupListEditorPresentation: ViewModifier {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(macOS)
-            content
-                .sheet(item: view.$activeEditor) { formViewModel in
-                    NavigationStack {
-                        EntryEditView(
-                            formViewModel: formViewModel,
-                            databaseViewModel: view.viewModel
-                        ) { _ in
-                            view.activeEditor = nil
-                        }
-                    }
-                    .macSheetFrame()
-                }
-            #else
             content
                 .navigationDestination(item: view.$activeEditor) { formViewModel in
                     EntryEditView(
@@ -331,31 +309,16 @@ struct GroupListView: View {
                         view.activeEditor = nil
                     }
                 }
-            #endif
         }
     }
 
-    /// Presents the group editor, with the same iOS-push / macOS-sheet split as
-    /// the entry editor. Attached to the body's outer `Group` so a branch that
-    /// vanishes mid-edit cannot tear the host down under a presented editor.
+    /// Pushes the group editor. Attached to the body's outer `Group` so a
+    /// branch that vanishes mid-edit cannot tear the host down under a
+    /// presented editor.
     private struct GroupListGroupEditorPresentation: ViewModifier {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(macOS)
-            content
-                .sheet(item: view.$activeGroupEditor) { formViewModel in
-                    NavigationStack {
-                        GroupEditView(
-                            formViewModel: formViewModel,
-                            databaseViewModel: view.viewModel
-                        ) {
-                            view.activeGroupEditor = nil
-                        }
-                    }
-                    .macSheetFrame(minHeight: 520)
-                }
-            #else
             content
                 .navigationDestination(item: view.$activeGroupEditor) { formViewModel in
                     GroupEditView(
@@ -365,42 +328,14 @@ struct GroupListView: View {
                         view.activeGroupEditor = nil
                     }
                 }
-            #endif
         }
     }
 
-    /// Attaches the search field.
-    ///
-    /// iOS: every pushed level attaches `.searchable` (navigation-bar drawer),
-    /// unchanged legacy behavior.
-    ///
-    /// macOS: only the ROOT group list attaches `.searchable`. Attaching it on
-    /// every pushed level collapses the pushed List to zero height inside the
-    /// `NavigationSplitView` sidebar column (SwiftUI layout bug observed on
-    /// macOS 26), which made subgroup browsing render an empty sidebar. The
-    /// toolbar search field therefore only appears at the vault root, and the
-    /// menu-bar Find command (⌘F) focuses it there via
-    /// `searchFocusRequestID` + `searchFocused` (macOS 15+).
+    /// Attaches the search field to every level, pushed ones included.
     private struct GroupListSearchModifier: ViewModifier {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(macOS)
-            if view.groupID == view.viewModel.visibleRootGroupID {
-                content
-                    .searchable(
-                        text: view.$viewModel.searchText,
-                        placement: .navigationBarDrawer(displayMode: .always),
-                        prompt: "Search entries"
-                    )
-                    .searchFocused(view.$isSearchFieldFocused)
-                    .onChange(of: view.viewModel.workspace.searchFocusRequestID) { _, _ in
-                        view.isSearchFieldFocused = true
-                    }
-            } else {
-                content
-            }
-            #else
             // The system's default place from iOS 26 on: the bottom of the
             // screen on iPhone.
             if #available(iOS 26.0, *) {
@@ -414,7 +349,6 @@ struct GroupListView: View {
                         prompt: "Search entries"
                     )
             }
-            #endif
         }
     }
 
@@ -640,22 +574,10 @@ struct GroupListView: View {
 
     @ViewBuilder
     private func groupRow(for groupID: UUID) -> some View {
-        Group {
-            if let onSelectGroup {
-                Button {
-                    onSelectGroup(groupID)
-                } label: {
-                    GroupRow(groupID: groupID, viewModel: viewModel)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("group.navlink")
-            } else {
-                NavigationLink(value: DatabaseRoute.group(groupID)) {
-                    GroupRow(groupID: groupID, viewModel: viewModel)
-                }
-                .accessibilityIdentifier("group.navlink")
-            }
+        NavigationLink(value: DatabaseRoute.group(groupID)) {
+            GroupRow(groupID: groupID, viewModel: viewModel)
         }
+        .accessibilityIdentifier("group.navlink")
         .macHoverHighlight()
         .contextMenu {
             if canEditGroup(groupID) {
@@ -703,6 +625,7 @@ struct GroupListView: View {
                 Button(groupDeleteButtonTitle(for: groupID), role: .destructive) {
                     preparePendingGroupDeletion(groupID)
                 }
+                .tint(.red)
                 .accessibilityIdentifier("group-row.delete-swipe")
             }
         }
@@ -720,18 +643,21 @@ struct GroupListView: View {
             customIconData: viewModel.customIconData(for: entry),
             folderPath: showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil
         )
-        if viewModel.workspace.entrySelection != nil {
-            EntrySelectionRow(entryID: entry.id, viewModel: viewModel, identifier: "entry.navlink") {
-                row
+        HStack {
+            if viewModel.workspace.entrySelection != nil {
+                EntrySelectionRow(entryID: entry.id, viewModel: viewModel, identifier: "entry.navlink") {
+                    row
+                }
+                .macHoverHighlight()
+            } else {
+                browsingEntryRow(for: entry, row: row, showsVerificationCode: showsVerificationCode)
             }
-            .macHoverHighlight()
-        } else {
-            browsingEntryRow(for: entry, row: row, showsVerificationCode: showsVerificationCode)
         }
     }
 
     private func browsingEntryRow(for entry: KPEntry, row: EntryRow, showsVerificationCode: Bool) -> some View {
-        Group {
+        // A concrete row container lets List defer offscreen rows.
+        HStack {
             if showsVerificationCode, let config = entry.totpConfig, let sessionKey = viewModel.sessionKey {
                 VerificationCodeRow(
                     title: entry.title.isEmpty ? String(localized: "(untitled)") : entry.title,
@@ -798,6 +724,7 @@ struct GroupListView: View {
                         )
                     )
                 }
+                .tint(.red)
                 .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }

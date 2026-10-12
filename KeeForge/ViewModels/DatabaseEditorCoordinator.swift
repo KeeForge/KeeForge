@@ -67,6 +67,7 @@ final class DatabaseEditorCoordinator {
 
     func activate() {
         if activatedLockCycle != database.lockCycleID {
+            // The entry a failed create staged went away with the locked session's draft.
             stagedCreation = nil
         }
         isActive = true
@@ -183,6 +184,7 @@ final class DatabaseEditorCoordinator {
             finish(completion, onComplete: onComplete)
             database.resumeLockRequest(request)
         } else if let saveError = database.saveError {
+            // The editor stays open: re-register it so a later lock submits its latest fields.
             synchronizeUnsavedChanges()
             errorMessage = saveError.localizedDescription
             database.clearSaveError()

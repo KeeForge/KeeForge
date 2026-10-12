@@ -1,6 +1,6 @@
 # Contributing to KeeForge
 
-English | <a href="docs/i18n/CONTRIBUTING.de.md">Deutsch</a> | <a href="docs/i18n/CONTRIBUTING.fr.md">Français</a> | <a href="docs/i18n/CONTRIBUTING.es.md">Español</a> | <a href="docs/i18n/CONTRIBUTING.zh-Hans.md">简体中文</a> | <a href="docs/i18n/CONTRIBUTING.zh-Hant.md">繁體中文</a> | <a href="docs/i18n/CONTRIBUTING.ja.md">日本語</a> | <a href="docs/i18n/CONTRIBUTING.it.md">Italiano</a>
+English | <a href="docs/i18n/CONTRIBUTING.de.md">Deutsch</a> | <a href="docs/i18n/CONTRIBUTING.fr.md">Français</a> | <a href="docs/i18n/CONTRIBUTING.es.md">Español</a> | <a href="docs/i18n/CONTRIBUTING.zh-Hans.md">简体中文</a> | <a href="docs/i18n/CONTRIBUTING.zh-Hant.md">繁體中文</a> | <a href="docs/i18n/CONTRIBUTING.ja.md">日本語</a> | <a href="docs/i18n/CONTRIBUTING.it.md">Italiano</a> | <a href="docs/i18n/CONTRIBUTING.ru.md">Русский</a>
 
 Thanks for helping improve KeeForge.
 

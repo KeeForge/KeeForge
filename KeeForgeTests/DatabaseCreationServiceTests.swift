@@ -19,11 +19,11 @@ final class DatabaseCreationServiceTests: XCTestCase {
     }
 
     func testCreatePasswordOnlyDatabaseWritesParseableKDBX4() async throws {
-        let destinationURL = try makeDestinationURL(name: "Personal.kdbx")
+        let destinationURL = try makeDestinationURL(name: "new%20db 100%.kdbx")
 
         let created = try await DatabaseCreationService.create(
             request: DatabaseCreationRequest(
-                displayName: "Personal",
+                displayName: "new%20db 100%",
                 destination: .files(
                     url: destinationURL,
                     bookmarkData: try bookmarkData(for: destinationURL)
@@ -32,15 +32,20 @@ final class DatabaseCreationServiceTests: XCTestCase {
             )
         )
 
-        let encryptedBytes = try Data(contentsOf: destinationURL)
+        let encryptedBytes = try DatabaseFileAccess.withReadableURL(for: created.reference) { url in
+            XCTAssertEqual(url.lastPathComponent, "new%20db 100%.kdbx")
+            return try Data(contentsOf: url)
+        }
         let parsed = try KDBXParser.parseWithMetaAndHeader(
             data: encryptedBytes,
             password: "correct horse battery staple",
             sessionKey: SymmetricKey(size: .bits256)
         )
 
-        XCTAssertEqual(created.reference.filename, "Personal.kdbx")
+        XCTAssertEqual(created.reference.filename, "new%20db 100%.kdbx")
         XCTAssertFalse(created.reference.isDocumentsResident)
+        XCTAssertEqual(parsed.rootGroup.groups.first?.name, "new%20db 100%")
+        XCTAssertEqual(destinationURL.lastPathComponent, "new%20db 100%.kdbx")
         XCTAssertEqual(parsed.header.formatVersion, .kdbx4(minor: 0))
         XCTAssertEqual(DatabaseListStore.databases.map(\.id), [created.reference.id])
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: created.reference))), encryptedBytes)
@@ -372,6 +377,16 @@ final class DatabaseCreationServiceTests: XCTestCase {
         )
     }
 
+    func testFilenamePreservesLiteralPercentCharactersAndSequences() throws {
+        for name in ["100%", "new%20db 100%", "encoded%2520", "%2F%3A"] {
+            XCTAssertEqual(try DatabaseCreationService.normalizedFilename(for: name), "\(name).kdbx")
+        }
+        XCTAssertEqual(
+            try DatabaseCreationService.normalizedFilename(for: " .Family/:\\?*|\"<> 100%. "),
+            "Family_________ 100%.kdbx"
+        )
+    }
+
     func testCreatedEncryptedBytesDoNotContainVisibleRootName() async throws {
         let destinationURL = try makeDestinationURL(name: "SecretName.kdbx")
 
@@ -396,11 +411,11 @@ final class DatabaseCreationServiceTests: XCTestCase {
 
         let created = try await DatabaseCreationService.create(
             request: DatabaseCreationRequest(
-                displayName: "Cloud Vault",
+                displayName: "new%20db 100%",
                 destination: .cloud(
                     provider: CloudProviderKind.dropbox.rawValue,
                     accountId: "acct-1",
-                    folderPath: "/Vaults"
+                    folderPath: "/Vaults%20 100%"
                 ),
                 password: "dropbox create password"
             ),
@@ -418,13 +433,13 @@ final class DatabaseCreationServiceTests: XCTestCase {
 
         XCTAssertEqual(recorder.uploadedProvider, CloudProviderKind.dropbox.rawValue)
         XCTAssertEqual(recorder.uploadedAccountID, "acct-1")
-        XCTAssertEqual(recorder.uploadedPath, "/Vaults/Cloud Vault.kdbx")
-        XCTAssertEqual(parsed.rootGroup.groups.first?.name, "Cloud Vault")
-        XCTAssertEqual(created.reference.filename, "Cloud Vault.kdbx")
+        XCTAssertEqual(recorder.uploadedPath, "/Vaults%20 100%/new%20db 100%.kdbx")
+        XCTAssertEqual(parsed.rootGroup.groups.first?.name, "new%20db 100%")
+        XCTAssertEqual(created.reference.filename, "new%20db 100%.kdbx")
         XCTAssertEqual(metadata.provider, CloudProviderKind.dropbox.rawValue)
         XCTAssertEqual(metadata.accountId, "acct-1")
-        XCTAssertEqual(metadata.fileId, "/Vaults/Cloud Vault.kdbx")
-        XCTAssertEqual(metadata.displayPath, "/Vaults/Cloud Vault.kdbx")
+        XCTAssertEqual(metadata.fileId, "/Vaults%20 100%/new%20db 100%.kdbx")
+        XCTAssertEqual(metadata.displayPath, "/Vaults%20 100%/new%20db 100%.kdbx")
         XCTAssertEqual(metadata.remoteContentHash, "created-hash")
         XCTAssertEqual(metadata.remoteRev, "rev-created")
         XCTAssertEqual(DatabaseListStore.databases.map(\.id), [created.reference.id])

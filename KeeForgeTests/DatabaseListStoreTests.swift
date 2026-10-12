@@ -109,6 +109,34 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(DatabaseListStore.quickLaunchDatabase?.id, storedReference.id)
     }
 
+    #if os(macOS)
+    func testRefreshStaleLockedKeyFileBookmarkPreservesLegacyAssociation() throws {
+        let url = try makeTemporaryFileURL(name: "original.keyx")
+        let movedURL = url.deletingLastPathComponent().appendingPathComponent("moved.keyx")
+        defer {
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: movedURL.path)
+            try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+        }
+        var reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "legacy-key.kdbx"))
+        let legacyBookmark = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
+        reference.keyFileBookmarkData = legacyBookmark
+        reference.keyFileFilename = url.lastPathComponent
+        DatabaseListStore.update(reference)
+        try FileManager.default.moveItem(at: url, to: movedURL)
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: movedURL.path)
+        XCTAssertTrue(try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: legacyBookmark)).isStale)
+
+        let resolved = try XCTUnwrap(DatabaseListStore.resolveKeyFileURL(for: reference))
+        XCTAssertEqual(try Data(contentsOf: resolved), try Data(contentsOf: movedURL))
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first)
+        let refreshed = try XCTUnwrap(stored.keyFileBookmarkData)
+        XCTAssertNotEqual(refreshed, legacyBookmark)
+        XCTAssertFalse(try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: refreshed)).isStale)
+        XCTAssertEqual(stored.id, reference.id)
+        XCTAssertEqual(stored.bookmarkData, reference.bookmarkData)
+    }
+    #endif
+
     func testMoveReordersDatabases() throws {
         let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "one.kdbx"))
         let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "two.kdbx"))

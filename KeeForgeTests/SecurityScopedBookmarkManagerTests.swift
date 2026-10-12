@@ -22,9 +22,62 @@ final class SecurityScopedBookmarkManagerTests: XCTestCase {
             if accessed { resolved.url.stopAccessingSecurityScopedResource() }
         }
         XCTAssertEqual(try Data(contentsOf: resolved.url), Data("fixture".utf8))
+        try Data("updated".utf8).write(to: resolved.url)
+        XCTAssertEqual(try Data(contentsOf: url), Data("updated".utf8))
+    }
+
+    func testReadOnlyBookmarkRoundTripResolvesAndReadsFile() throws {
+        let url = try makeTemporaryFileURL(name: "read-only-scope.keyx")
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let bookmark = try SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true)
+        let resolved = try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: bookmark))
+        XCTAssertEqualFilePaths(resolved.url, url)
+        XCTAssertFalse(resolved.isStale)
+        let accessed = resolved.url.startAccessingSecurityScopedResource()
+        defer {
+            if accessed { resolved.url.stopAccessingSecurityScopedResource() }
+        }
+        XCTAssertEqual(try Data(contentsOf: resolved.url), Data("fixture".utf8))
     }
 
     #if os(macOS)
+    func testMacLockedKeyFileBookmarkRoundTrip() throws {
+        let url = try makeTemporaryFileURL(name: "locked.keyx")
+        defer {
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: url.path)
+            try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+        }
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: url.path)
+        XCTAssertEqual(try url.resourceValues(forKeys: [.isUserImmutableKey]).isUserImmutable, true)
+        XCTAssertEqual(try Data(contentsOf: url), Data("fixture".utf8))
+
+        let bookmark = try SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true)
+        let resolved = try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: bookmark))
+        let accessed = resolved.url.startAccessingSecurityScopedResource()
+        defer {
+            if accessed { resolved.url.stopAccessingSecurityScopedResource() }
+        }
+        XCTAssertEqual(try Data(contentsOf: resolved.url), Data("fixture".utf8))
+    }
+
+    func testMacReadOnlyKeyFileBookmarkRoundTrip() throws {
+        let url = try makeTemporaryFileURL(name: "readonly.keyx")
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: url.path)
+        XCTAssertEqual(try Data(contentsOf: url), Data("fixture".utf8))
+
+        let bookmark = try SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true)
+        let resolved = try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: bookmark))
+        let accessed = resolved.url.startAccessingSecurityScopedResource()
+        defer {
+            if accessed { resolved.url.stopAccessingSecurityScopedResource() }
+        }
+        XCTAssertEqual(try Data(contentsOf: resolved.url), Data("fixture".utf8))
+    }
+
     func testMacBookmarkIsCreatedWithSecurityScope() throws {
         let url = try makeTemporaryFileURL(name: "scoped-creation.kdbx")
 

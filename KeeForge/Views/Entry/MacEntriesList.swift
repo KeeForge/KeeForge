@@ -142,9 +142,9 @@ struct MacEntryRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .macSelectableRowHover()
-        // Any tap gesture on a row consumes the click the enclosing `List`
-        // would have used to move its selection, so the single-click case has
-        // to be handled here as well.
+        // Whether the enclosing `List` still moves its selection under a row's
+        // tap gesture varies by macOS release (it does on 27.0), so the
+        // single-click case is handled here as well.
         //
         // The double-click must arrive as a *simultaneous* gesture attached
         // after the single tap, not as a second `onTapGesture(count: 2)`

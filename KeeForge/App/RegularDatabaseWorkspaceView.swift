@@ -487,6 +487,8 @@ struct RegularDatabaseWorkspaceView: View {
                 return nil
             },
             set: { newValue in
+                // An accessibility click can change the selection without making
+                // the list first responder, so each write takes focus as well.
                 switch newValue {
                 case .group(let groupID):
                     viewModel.workspace.selectedGroupID = groupID
@@ -812,9 +814,9 @@ enum MacSidebarSelection: Hashable {
 /// entry, which an inline computed property missed.
 private struct MacEntriesColumn: View {
     @Bindable var viewModel: DatabaseViewModel
-    /// A row's tap handler consumes the click, so the list never becomes first
-    /// responder on its own and the arrow keys would go nowhere; the handler
-    /// hands focus over explicitly.
+    /// A click on a row with a tap handler is not relied on to make the list
+    /// first responder (it does on macOS 27.0; earlier releases are
+    /// unverified), so the handler hands focus over explicitly.
     @FocusState private var isListFocused: Bool
     /// Double-click and Return; the workspace hosts the editor sheet.
     let onOpenEntry: (UUID) -> Void
@@ -967,8 +969,9 @@ private struct MacGroupTreeRow: View {
                 }
             } label: {
                 // No double-click-to-toggle here on purpose: a `TapGesture` on
-                // the label consumes the click the list needs to change its
-                // selection, and selecting a group is what this row is for.
+                // the label is not known to leave the list's selection click
+                // alone on every supported macOS (it does on 27.0), and
+                // selecting a group is what this row is for.
                 // The disclosure triangle stays the way to fold a group.
                 row
             }
