@@ -107,6 +107,8 @@ enum KeychainService {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecValueData as String: SecureWipe.wipingData(copying: key),
+            // No kSecAttrAccessGroup: the item lands in the first entitled
+            // group, which must stay the one shared with AutoFill.
             kSecAttrAccessControl as String: accessControl,
             // Required on macOS to use the iOS-style data-protection keychain
             // instead of the legacy file keychain; harmless no-op on iOS.

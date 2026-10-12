@@ -86,6 +86,9 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
         set { lock.withLock { _onEnumerate = newValue } }
     }
 
+    /// Set to simulate iOS and macOS 27.0.1, where an incremental store
+    /// returns objects without `ASCredentialIdentity` conformance and the
+    /// production store throws instead of returning them.
     var enumerationError: CredentialIdentityStoreReadError? {
         get { lock.withLock { _enumerationError } }
         set { lock.withLock { _enumerationError = newValue } }

@@ -1,20 +1,60 @@
 # Security Services
 
-This folder holds device-security integrations and secret-handling helpers outside the core models.
+**Scope:** device-security integrations and secret-handling helpers outside the core models: Keychain, LocalAuthentication, the reveal/copy gate, passkey crypto, YubiKey challenge-response, screen privacy. Cross-service rules are in `../AGENTS.md`.
 
-## Main Files
+## Ownership
 
-- `BiometricService.swift` wraps LocalAuthentication flows used by the app and AutoFill. `quickUnlockPolicy` is what the app's explicit quick-unlock action evaluates: `.deviceOwnerAuthenticationWithBiometricsOrCompanion` in the native Mac app, `.deviceOwnerAuthenticationWithBiometrics` on iPhone and iPad. AutoFill always passes the biometric-only default. Neither accepts the device passcode or Mac login password.
-- `SecretAccessGate.swift` is the device-owner gate in front of revealing or copying a protected value, one per database session (`DatabaseViewModel.secretAccess`), and owns the recent-authentication grace period (#101). `requiresAuthentication` is false inside the period and on a device with no owner authentication; `authenticate(reason:)` prompts, opens or refreshes the period on success, and ends it on a failed or cancelled prompt. The grant is in memory only, on `ContinuousClock`, and never outlives the shortest period selected since it was earned: a tighter `SettingsService.authenticationGracePeriod` shortens it for good and Always Ask revokes it, so selecting the old period again brings nothing back and lengthening needs a new authentication. `SecretAccessGate.gracePeriodSettingDidChange()` applies that to every live gate (they register weakly) and is called by `AppSettingsViewModel` once the new value is stored; each gate also tightens whenever it is asked, which covers a write that skipped the call. An invalidation that lands while a prompt is up makes `authenticate(reason:)` throw `CancellationError`, so the late answer grants neither disclosure nor a grace period. App targets only — AutoFill authenticates on its own and never sees a grace period. Tests: `../../../KeeForgeTests/SecretAccessGateTests.swift` and `../../../KeeForgeTests/EntrySecretActionTests.swift`.
-- `KeychainService.swift` stores one composite-key item per database, shared with the extension via the keychain access group (see the invariant below). `quickUnlockAccessControlFlags` is `[.biometryCurrentSet, .or, .companion]` on the Mac (Touch ID or an authorized Apple Watch) and `.biometryCurrentSet` on iPhone and iPad, always `WhenUnlockedThisDeviceOnly`. On the Mac, reads use a non-interactive context, so the caller's evaluated policy is the only prompt: biometric-only AutoFill cannot fall through to a Keychain-raised Watch prompt. `shouldStoreQuickUnlockKey` gates writes on `BiometricService.isQuickUnlockAvailable`, and on the Mac also rewrites an existing item while neither mechanism is available, since the master key may have changed on another device.
-- `PasskeyCrypto.swift` handles passkey-related crypto helpers used by the extension flow: PEM key handling and assertion signing, plus registration support — ES256 key/credential-ID generation, attested authenticator data (COSE key, `aaguid` = KeeForge's stable product AAGUID `FF55D8C0-F4FB-4016-9FDD-56DBBD251802`), and the "none"-format WebAuthn attestation object via a minimal private CBOR encoder.
-- `HardwareKeyService.swift` answers a YubiKey HMAC-SHA1 challenge over NFC through YubiKit (`YubiKitManager`, `YKFChallengeResponseSession`) and maps YubiKit and Core NFC failures to `HardwareKeyError`. YubiKit is linked into the iOS `KeeForge` target only; Mac has no transports and requests throw `unavailable`. The file is not on the AutoFill allow-lists. Task cancellation stops NFC and the request re-checks cancellation after resuming so a cancelled request never returns a response. NFC needs the `com.apple.developer.nfc.readersession.formats` entitlement plus the YubiKey OTP AIDs and `NFCReaderUsageDescription` in `../../Info.plist`. Wired transports are unsupported: no accessory connection is started, and YubiKit's required accessory delegate callbacks do nothing. The upstream SDK is monolithic and still links ExternalAccessory internally; do not restore the accessory protocol declaration or wire those callbacks to challenge-response.
-- `ScreenProtectionService.swift` holds both platform implementations behind `#if os(iOS)`/`#else`: iOS shields the app switcher and reacts to screen capture; macOS layers a resign-active cover with best-effort `NSWindow.sharingType` capture blocking through a single choke point (see `../../../KeeForgeMac/SECURITY.md`).
-- `SecureRandom.swift` wraps `SecRandomCopyBytes` for throwing secure-random `Data` generation; on both AutoFill allow-lists in `../../../project.yml` (dual-list rule in `../README.md`).
+- `KeychainService`: one quick-unlock item per database, shared with the AutoFill extension.
+- `BiometricService`: every LocalAuthentication prompt. It also owns `isBiometricAuthInProgress`, which `../AppSupport/MacLockMonitor` reads.
+- `SecretAccessGate`: the device-owner gate and grace period in front of revealing or copying a protected value, one per database session (`DatabaseViewModel.secretAccess`). App targets only; AutoFill authenticates on its own and has no grace period.
+- `ScreenProtectionService`: both platforms' screen privacy behind `#if os(iOS)` / `#else`. The Mac design and its limits are in `../../../KeeForgeMac/SECURITY.md`.
 
-## Change Carefully
+## Invariants
 
-- Keychain account naming, access-group behavior, biometric prompts, and screen-protection defaults all have user-visible security consequences.
-- Every reveal or copy of a protected value asks its session's `SecretAccessGate`, never `BiometricService` directly: a prompt raised around the gate neither honors the grace period nor ends it when it fails. `DatabaseViewModel` invalidates the gate on every lock and lock request (also one that unsaved work defers), on backgrounding, and at the start of each unlock attempt.
-- For a database with `DatabaseReference.hardwareKey` set, the item `KeychainService` stores is the pre-key (`KDBXCrypto.preKey`), never the composite key, so Quick Launch still has to ask the YubiKey and no response is ever persisted. `DatabaseListStore.setHardwareKey` deletes the item whenever the hardware key is turned on or off, because the item's meaning changes; the AutoFill coordinator never offers biometrics for such a database.
-- Access-group ordering invariant: `KeychainService` never sets `kSecAttrAccessGroup`, so its items land in the FIRST keychain access group listed in the calling target's entitlements. App/extension sharing therefore depends on `com.keevault.sharedkeychain` staying first in every entitlements file — ahead of `com.microsoft.adalcache` in the iOS app, the only target that currently lists a second group. Reordering any `keychain-access-groups` array strands the shared composite keys, so the invariant holds for the Mac entitlements too even though they list one group today. Also noted in comments in `../../../AutoFillExtension/AutoFillExtensionMac.entitlements` and `../../../KeeForgeMac/KeeForgeMac.entitlements`.
+### Keychain
+
+- `com.keevault.sharedkeychain` must stay FIRST in every target's `keychain-access-groups` (`KeeForge.entitlements`, `KeeForgeMac.entitlements`, `KeeForgeMacDirect.entitlements`, `AutoFillExtension.entitlements`, `AutoFillExtensionMac.entitlements`). `KeychainService` sets no `kSecAttrAccessGroup`, so its items land in the first listed group.
+- Reordering strands every stored quick-unlock key: the app and extension stop seeing each other's items. Today only the iOS app lists a second group (`com.microsoft.adalcache`, for MSAL); the rule holds for the single-group targets the moment a group is added.
+- Item naming is a compatibility boundary: service `com.keevault.app`, account `compositeKey:<database UUID>`, plus the legacy `compositeKey:<filename>` account that older installs still hold.
+- The item is `WhenUnlockedThisDeviceOnly` with `quickUnlockAccessControlFlags`: `.biometryCurrentSet` on iPhone and iPad, `[.biometryCurrentSet, .or, .companion]` (Touch ID or an authorized Apple Watch) on the Mac. No flag admits the passcode or Mac login password. Keep it in step with `BiometricService.quickUnlockPolicy`.
+- On the Mac a read uses a non-interactive context, so the caller's evaluated policy is the only prompt. Without that, the Keychain could raise a Watch prompt inside biometric-only AutoFill.
+- For a database with `DatabaseReference.hardwareKey`, the stored item is the pre-key (`KDBXCrypto.preKey`), never the composite key, so quick unlock still needs the YubiKey and no response is persisted. `DatabaseListStore.setHardwareKey` deletes the item whenever a hardware key is added or removed, because its meaning changes.
+- `shouldStoreQuickUnlockKey` gates writes on `BiometricService.isQuickUnlockAvailable`. On the Mac it also rewrites an existing item while neither mechanism is available, since the master key may have changed on another device.
+- Cloud credentials are not stored here. `../Cloud/CloudTokenStore` has its own items with a different protection class (`../Cloud/AGENTS.md`).
+
+### Authentication
+
+- Every reveal or copy of a protected value asks its session's `SecretAccessGate`, never `BiometricService` directly. A prompt raised around the gate neither honors the grace period nor ends it on failure.
+- The grant is in memory only, on `ContinuousClock`, and never outlives the shortest period selected since it was earned. A tighter setting shortens it for good and Always Ask revokes it; lengthening needs a new authentication, so an unlocked app in someone else's hands cannot extend it.
+- Whoever writes `SettingsService.authenticationGracePeriod` calls `SecretAccessGate.gracePeriodSettingDidChange()` afterwards. Each gate also tightens when asked, which covers a write that skipped the call.
+- An invalidation that lands while a prompt is up makes `authenticate(reason:)` throw `CancellationError`: the late answer grants neither the disclosure nor a grace period. When the session invalidates is in `../../ViewModels/AGENTS.md`.
+- The app's quick-unlock action evaluates `quickUnlockPolicy` (biometrics, or biometrics-or-companion on the Mac). AutoFill always passes the biometric-only default, so its prompt never offers Apple Watch.
+- Reveal/copy gating uses `canAuthenticateDeviceOwner`, not `isAvailable`: a device without biometrics still prompts for the passcode or login password instead of skipping authentication.
+- `isBiometricAuthInProgress` is raised before the system prompt appears and by some callers around their own work. It does not mean a prompt is on screen; consumers must not treat it as one.
+
+### Hardware key and passkeys
+
+- `HardwareKeyService` works only in the iOS app: YubiKit is linked into `KeeForge` alone, the file is not on the AutoFill allow-lists, and elsewhere a request throws `unavailable`.
+- NFC is the only transport. YubiKit requires the accessory delegate callbacks, which do nothing here; do not wire them to challenge-response or restore the accessory protocol declaration.
+- A cancelled request never returns a response: cancellation stops NFC and the request re-checks cancellation after resuming.
+- NFC needs the `com.apple.developer.nfc.readersession.formats` entitlement (`KeeForge.entitlements`) plus the YubiKey OTP AIDs and `NFCReaderUsageDescription` in `../../Info.plist`.
+- `PasskeyCrypto.aaguid` (`FF55D8C0-F4FB-4016-9FDD-56DBBD251802`) identifies KeeForge to relying parties and never changes. Registration is ES256 only, with "none" attestation.
+
+### Screen privacy
+
+- macOS capture blocking goes through one choke point (`ScreenProtectionService.windowSharingType(blockCapture:)`). A window the key-window sweep cannot reach, such as the quick-search panel, must apply that value itself.
+- The Mac blur cover on resign-active is unconditional and skips only the secret-free Settings window (`shouldPrivacyCover(windowIdentifier:)`). Capture blocking is best-effort; do not describe it as a guarantee.
+
+## Tests
+
+- `KeychainServiceTests`, `KeychainMigrationTests`; `SecretAccessGateTests` with `EntrySecretActionTests` for the gate's callers.
+- `HardwareKeyUnlockTests` covers the unlock flow around `HardwareKeyService`; the NFC session itself has no unit coverage.
+- `PasskeyCryptoTests` (in `PasskeyTests.swift`) and `CredentialProviderRegistrationTests` for `PasskeyCrypto`.
+- Mac window covering is checked by hand (`../../../KeeForgeMac/SECURITY.md`); only the policy functions are unit-tested, in `SettingsServiceTests`.
+
+## See also
+
+- `../AGENTS.md`, `../Cloud/AGENTS.md`, `../AppSupport/AGENTS.md`
+- `../../ViewModels/AGENTS.md`: lock, unlock, and `secretAccess` lifetime
+- `../../../AutoFillExtension/AGENTS.md`: the extension's own unlock rules
+- `../../../KeeForgeMac/SECURITY.md`, `../../../docs/threat-model.md`

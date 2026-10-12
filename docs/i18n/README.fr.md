@@ -5,7 +5,7 @@
 <h1 align="center">KeeForge</h1>
 
 <p align="center">
-  <a href="../../README.md">English</a> | <a href="README.de.md">Deutsch</a> | Français | <a href="README.es.md">Español</a> | <a href="README.zh-Hans.md">简体中文</a> | <a href="README.zh-Hant.md">繁體中文</a> | <a href="README.ja.md">日本語</a> | <a href="README.it.md">Italiano</a>
+  <a href="../../README.md">English</a> | <a href="README.de.md">Deutsch</a> | Français | <a href="README.es.md">Español</a> | <a href="README.zh-Hans.md">简体中文</a> | <a href="README.zh-Hant.md">繁體中文</a> | <a href="README.ja.md">日本語</a> | <a href="README.it.md">Italiano</a> | <a href="README.ru.md">Русский</a>
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@
     <img alt="Télécharger sur l’App Store" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="Rejoindre la bêta publique sur TestFlight" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="Rejoindre la bêta pour iPhone, iPad et Mac sur TestFlight" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="Nécessite iOS 18.0 ou version ultérieure" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="Nécessite macOS 15.0 ou version ultérieure" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -35,7 +35,9 @@ KeeForge est un client KeePass natif pour iPhone, iPad et Mac. Les fichiers loca
 
 ## Bêta publique
 
-**[Rejoignez la bêta KeeForge sur TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
+**[Rejoignez la bêta KeeForge pour iPhone, iPad et Mac sur TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
+
+La disponibilité de la bêta peut varier entre iPhone, iPad et Mac pendant qu’Apple examine chaque build.
 
 ## Points forts
 
@@ -71,7 +73,7 @@ KeeForge prend la sécurité des données très au sérieux : un gestionnaire d
 
 Avec FTP, la dernière vérification des conflits et le remplacement du fichier ne peuvent pas se faire en une seule opération. Un enregistrement simultané depuis une autre application ou un autre appareil peut donc être écrasé. Évitez de modifier une base de données FTP à deux endroits en même temps.
 
-Pour les personnes curieuses sur le plan technique : la suite de tests est décrite dans [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md), et l’étape de vérification avant chaque publication dans [`ci_scripts/README.md`](../../ci_scripts/README.md) (les deux en anglais).
+Pour les personnes curieuses sur le plan technique : la suite de tests est décrite dans [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md), et l’étape de vérification avant chaque publication dans [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md) (les deux en anglais).
 
 ## Plan du projet
 
@@ -100,7 +102,7 @@ scripts/              # Outils de développement locaux
 - [`CHANGELOG.md`](../../CHANGELOG.md) – historique des versions
 - [`ROADMAP.md`](../../ROADMAP.md) – travaux produit prévus et priorités ouvertes
 - [`AGENTS.md`](../../AGENTS.md) – contexte pour les agents de codage
-- [`KeeForge/README.md`](../../KeeForge/README.md) – plan de l’architecture des cibles de l’application
+- [`KeeForge/AGENTS.md`](../../KeeForge/AGENTS.md) – plan de l’architecture des cibles de l’application
 - [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) – contraintes de l’extension et notes sur le code partagé
 - [`SECURITY.md`](../../SECURITY.md) – politique de signalement des vulnérabilités
 - [`docs/`](../../docs/) – spécifications d’implémentation, audits et documents de conception plus détaillés

@@ -99,8 +99,17 @@ final class DatabaseCreationViewModel {
         }
     }
 
+    var filenamePreview: String? {
+        try? DatabaseCreationService.normalizedFilename(for: databaseName)
+    }
+
+    var showsFilenameReplacementExplanation: Bool {
+        filenamePreview != nil
+            && databaseName.rangeOfCharacter(from: DatabaseCreationService.filenameReplacementCharacters) != nil
+    }
+
     var suggestedFilename: String {
-        (try? DatabaseCreationService.normalizedFilename(for: databaseName)) ?? "New Database.kdbx"
+        filenamePreview ?? "New Database.kdbx"
     }
 
     var preparedFilename: String {
@@ -120,7 +129,7 @@ final class DatabaseCreationViewModel {
         }
 
         keyFileData = try Data(contentsOf: url)
-        keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
+        keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true)
         keyFileFilename = url.lastPathComponent
         clearDisplayedErrors()
     }

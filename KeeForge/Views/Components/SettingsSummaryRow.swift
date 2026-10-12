@@ -7,6 +7,8 @@ struct SettingsSummaryRow: View {
     let systemImage: String
     var summary: String?
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         Label {
             VStack(alignment: .leading, spacing: 2) {
@@ -16,12 +18,18 @@ struct SettingsSummaryRow: View {
                     Text(summary)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(Self.summaryLineLimit(for: dynamicTypeSize))
                 }
             }
         } icon: {
             Image(systemName: systemImage)
         }
+    }
+
+    /// Two lines keep the rows even at standard sizes; at accessibility sizes
+    /// two lines no longer hold a whole summary, so it wraps in full.
+    static func summaryLineLimit(for dynamicTypeSize: DynamicTypeSize) -> Int? {
+        dynamicTypeSize.isAccessibilitySize ? nil : 2
     }
 }
 

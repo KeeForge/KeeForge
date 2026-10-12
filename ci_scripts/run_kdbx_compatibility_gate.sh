@@ -28,7 +28,7 @@ if [[ "${SCHEME}" == "KeeForgeMac" ]]; then
   DESTINATION="${KDBX_COMPAT_DESTINATION:-platform=macOS}"
 else
   TEST_TARGET="${KDBX_COMPAT_TEST_TARGET:-KeeForgeTests}"
-  DESTINATION="${KDBX_COMPAT_DESTINATION:-platform=iOS Simulator,name=iPhone 17 Pro}"
+  DESTINATION="${KDBX_COMPAT_DESTINATION:-platform=iOS Simulator,name=iPhone 18 Pro}"
 fi
 
 rm -rf "${RESULT_BUNDLE}" "${ATTACHMENT_DIR}"

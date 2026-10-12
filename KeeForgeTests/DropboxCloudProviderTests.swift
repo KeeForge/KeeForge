@@ -21,6 +21,17 @@ final class DropboxCloudProviderTests: XCTestCase {
         XCTAssertEqual(scopeRequest.includeGrantedScopes, false)
     }
 
+    func testUploadArgumentKeepsLiteralPercentNames() throws {
+        let filename = try DatabaseCreationService.normalizedFilename(for: "new%20db 100%")
+        let path = DatabaseCreationService.cloudFilePath(filename: filename, folderPath: "/Vaults%20 100%")
+        let arguments = Files.UploadArg(path: path, mode: .add, strictConflict: true)
+        let json = try Files.UploadArgSerializer().serialize(arguments)
+        guard case .dictionary(let fields) = json else {
+            return XCTFail("Expected upload arguments")
+        }
+        XCTAssertEqual(fields["path"], .str("/Vaults%20 100%/new%20db 100%.kdbx"))
+    }
+
     // MARK: - Sign-out
 
     /// Disconnecting from Settings can be the first Dropbox call of the session,
