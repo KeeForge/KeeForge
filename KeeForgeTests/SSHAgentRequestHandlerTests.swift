@@ -254,6 +254,8 @@ final class SSHAgentRequestHandlerTests: XCTestCase {
 
         let replaced = source("Server", ["id_ecdsa": Keys.ecdsaP256.fileData], id: entryID)
         XCTAssertNil(cache.key(for: replaced, privateKeyFile: Keys.ecdsaP256.fileData), "Another file is another key")
+        cache.keep(only: [replaced])
+        XCTAssertTrue(cache.isEmpty, "The old private key must leave memory when its attachment changes")
         let afterLock = SSHAgentKeySource(
             entryID: entryID,
             entryTitle: offered.entryTitle,

@@ -13,7 +13,7 @@ enum SecurityScopedBookmarkManager {
     private static let resolutionOptions: URL.BookmarkResolutionOptions = []
     #endif
 
-    static func makeBookmarkData(for url: URL) throws -> Data {
+    static func makeBookmarkData(for url: URL, readOnly: Bool = false) throws -> Data {
         let accessed = url.startAccessingSecurityScopedResource()
         defer {
             if accessed {
@@ -21,8 +21,14 @@ enum SecurityScopedBookmarkManager {
             }
         }
 
+        #if os(macOS)
+        let options = readOnly ? creationOptions.union(.securityScopeAllowOnlyReadAccess) : creationOptions
+        #else
+        let options = creationOptions
+        #endif
+
         return try url.bookmarkData(
-            options: creationOptions,
+            options: options,
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         )

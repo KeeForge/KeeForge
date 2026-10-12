@@ -262,8 +262,8 @@ gate, or change the direct Mac artifact procedure.
 
 One `rc/{version}-b{repoBuild}` tag starts the workflow (or a verified manual recovery run, above). The iOS and Mac archive actions build the
 four product targets from that SHA and may receive different App Store Connect TestFlight build
-numbers. Match each processed build to the RC tag/SHA and record the pair in
-`scratch/release-manifests/{version}-b{repoBuild}.json` along with the direct build's
+numbers. Match each processed build to the RC tag/SHA and record the pair in the candidate's
+`manifest.json` ([release artifact directory](shared.md#where-release-artifacts-live)) along with the direct build's
 `CFBundleVersion` (which equals `repoBuild`). The manifest also records all three cloud check URLs,
 both KDBX log paths, local Mac smoke result, artifact hashes/signatures, and notarization ID. It
 must contain no credentials, tokens, passwords, private keys, keychain profiles, or cloud secret

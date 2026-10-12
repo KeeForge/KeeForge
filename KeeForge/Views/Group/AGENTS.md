@@ -19,6 +19,7 @@
 - View-menu items are `Toggle`s, not a `Picker`, because a picker's options cannot be split into menu sections.
 - The leading app-name item leaves the bar while the inline title is in it (hidden in place it still pushes the title off the edge), so whether it has slid in is stored on `GroupListView`, not in the item.
 - `databaseActionsPlacement` pins the trailing items where the SDK allows, or an iOS 27 build folds Lock into an overflow menu behind a long inline title.
+- `GroupListView.entryRow(for:)` keeps its row-kind branch (verification code, selection, navigation) inside a concrete row container so `List` builds only the rows it shows. Wrapped in a `Group`, every entry of the group or view is constructed up front.
 - `VerificationCodeRow` is two sibling buttons; the opening one keeps `entry.navlink` and does what the link would in each shell (select in the regular workspace, append to `workspace.navigationPath` in compact).
 - The group editor never previews a custom icon: the payload carries only a standard `iconID`, and the draft leaves a custom icon alone unless a different standard one is picked.
 - The group editor's tag row mirrors the entry editor's, with one intended difference: suggestions do not exclude inherited tags, because restating an ancestor's tag on a child group is legitimate.
@@ -28,6 +29,7 @@
 
 - `ViewMenuUITests`, `DefaultViewUITests`, `TagBrowserUITests` for the root views; `GroupEditUITests`, `GroupIconPickerUITests` for the editor and picker.
 - `KeeForgeUITestCase.selectDatabaseView` is the supported way to switch views in a test.
+- Row laziness of the group, All Entries, Verification Codes, and Recycle Bin lists: `testBrowseListsDoNotResolveOffscreenRows` in `DatabaseViewModelTests` (iOS only).
 
 ## See also
 

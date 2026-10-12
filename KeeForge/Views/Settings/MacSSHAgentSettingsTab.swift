@@ -63,7 +63,11 @@ struct MacSSHAgentSettingsTab: View {
     @ViewBuilder
     private var keyRows: some View {
         if let session, session.state == .unlocked {
-            if candidates.isEmpty {
+            if controller.concealsKeyList {
+                Text(verbatim: "••••••••")
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(Text("Keys"))
+            } else if candidates.isEmpty {
                 Text("This database has no entries with a private key attachment.")
                     .foregroundStyle(.secondary)
             } else {
@@ -75,7 +79,6 @@ struct MacSSHAgentSettingsTab: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        .redacted(reason: controller.concealsKeyList ? .placeholder : [])
                     }
                     .disabled(candidate.isSupported == false)
                     .accessibilityIdentifier("settings.ssh-agent.key-toggle.\(candidate.id.uuidString)")

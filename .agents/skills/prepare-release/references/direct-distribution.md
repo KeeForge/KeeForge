@@ -29,7 +29,9 @@ into a release worktree before building. Without local export settings, the comm
 ### Two phases
 
 Both phases require a clean checkout exactly at `rc/{version}-b{repoBuild}` and default to
-`build/mac-direct-{version}-b{repoBuild}`.
+`direct/` in the candidate's [release artifact directory](shared.md#where-release-artifacts-live):
+`build/releases/{version}/b{repoBuild}/direct` in the main checkout, including when the build runs
+from a linked release worktree.
 
 - `--archive-export` runs under `/Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode --`. It
   regenerates from `project-direct.yml`, archives and exports, restores the App Store project and
@@ -48,8 +50,8 @@ Both phases require a clean checkout exactly at `rc/{version}-b{repoBuild}` and 
 ### Output and worktree rules
 
 - An explicit output directory must be an absolute path naming a safe basename exactly one level
-  below `${repo}/build`. Relative paths, the build directory itself, traversal, symlinks, and paths
-  outside that directory are refused before any cleanup.
+  below the candidate's release directory. Relative paths, that directory itself, traversal,
+  symlinks, and paths outside it are refused before any cleanup.
 - The source worktree must be clean, including untracked non-ignored files, because XcodeGen uses
   folder globs. Ignored `build/` and `scratch/` outputs are allowed.
 - `--archive-export` saves the exact `Package.resolved` bytes (or records that the file was
@@ -138,8 +140,9 @@ What the verifier checks, beyond version/build and the values above:
 
 ## Direct artifact handoff
 
-After the MAS archive and direct build are accepted, the direct build directory contains
-`direct-artifact.json`. Its non-secret fields include the version/build, source commit and tree
+After the MAS archive and direct build are accepted, `$CANDIDATE/direct/` contains
+`direct-artifact.json` (`$CANDIDATE` as set in the
+[release artifact directory](shared.md#where-release-artifacts-live) section). Its non-secret fields include the version/build, source commit and tree
 SHA, exact zip name/path, SHA-256, byte size, notarization submission ID, Sparkle enclosure
 attributes, and archive/symbol paths.
 
@@ -151,10 +154,11 @@ version's GitHub release page, `https://github.com/KeeForge/KeeForge/releases/ta
 ### Stage (candidate time)
 
 ```bash
+curl -fsS https://keeforge.com/appcast.xml -o "$CANDIDATE/appcast/base-appcast.xml"
 ci_scripts/release_direct_artifact.sh stage \
-  --artifact-json build/mac-direct-{version}-b{repoBuild}/direct-artifact.json \
-  --output-dir scratch/direct-release \
-  --input-appcast /path/to/current-appcast.xml
+  --artifact-json "$CANDIDATE/direct/direct-artifact.json" \
+  --output-dir "$CANDIDATE/appcast" \
+  --input-appcast "$CANDIDATE/appcast/base-appcast.xml"
 ```
 
 `stage` validates the build JSON, preserves older appcast items, and records the base-feed SHA (or
@@ -163,7 +167,7 @@ its explicit absence) and the staged-feed SHA in `staged-appcast.json`.
 Use `--new-feed` only when the production endpoint is actually absent. KeeForge's production
 `https://keeforge.com/appcast.xml` already exists and must be downloaded as the input so each new
 item preserves every published release. Never use a prior candidate's staged file. The stage output
-is immutable: choose a fresh directory for a respin.
+is immutable; a respin stages into its own candidate directory.
 
 ### Handoff (after approval and final go)
 
@@ -173,10 +177,10 @@ base feed, plus the reviewed release body:
 
 ```bash
 ci_scripts/release_direct_artifact.sh handoff \
-  --artifact-json build/mac-direct-{version}-b{repoBuild}/direct-artifact.json \
-  --output-dir scratch/direct-release \
+  --artifact-json "$CANDIDATE/direct/direct-artifact.json" \
+  --output-dir "$CANDIDATE/appcast" \
   --notes-file /path/to/reviewed-release-notes.md \
-  --input-appcast /path/to/current-appcast.xml
+  --input-appcast "$CANDIDATE/appcast/base-appcast.xml"
 ```
 
 - It requires local **and origin** `v{version}` and `rc/{version}-b{repoBuild}` tags to resolve to
@@ -197,12 +201,12 @@ evidence, and an explicit deployment destination:
 
 ```bash
 ci_scripts/release_direct_artifact.sh verify-public-url \
-  --artifact-json build/mac-direct-{version}-b{repoBuild}/direct-artifact.json \
-  --output scratch/direct-release/public-verification.json
+  --artifact-json "$CANDIDATE/direct/direct-artifact.json" \
+  --output "$CANDIDATE/appcast/public-verification.json"
 ci_scripts/release_direct_artifact.sh publish-appcast \
-  --staged scratch/direct-release/appcast.xml \
-  --metadata scratch/direct-release/staged-appcast.json \
-  --public-verification scratch/direct-release/public-verification.json \
+  --staged "$CANDIDATE/appcast/appcast.xml" \
+  --metadata "$CANDIDATE/appcast/staged-appcast.json" \
+  --public-verification "$CANDIDATE/appcast/public-verification.json" \
   --destination /path/to/deployed/appcast.xml
 ```
 
@@ -217,9 +221,9 @@ the staged feed); the evidence file's `matches` field says which one was seen:
 
 ```bash
 ci_scripts/release_direct_artifact.sh verify-live-feed \
-  --metadata scratch/direct-release/staged-appcast.json \
+  --metadata "$CANDIDATE/appcast/staged-appcast.json" \
   --url https://keeforge.com/appcast.xml \
-  --output scratch/direct-release/live-feed.json
+  --output "$CANDIDATE/appcast/live-feed.json"
 ```
 
 The website source is `keeforge.com/public/appcast.xml`. Pages deploys when its reviewed source

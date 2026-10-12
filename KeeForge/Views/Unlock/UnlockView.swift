@@ -668,7 +668,7 @@ struct UnlockView: View {
             do {
                 try viewModel.relinkDatabaseFile(to: url)
             } catch {
-                selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+                selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: error)
             }
         case .failure(let error):
             selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
@@ -689,7 +689,7 @@ struct UnlockView: View {
                     keyFileData = data
                     keyFileName = url.lastPathComponent
                 case .failure(let error):
-                    selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+                    selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: error)
                 }
             }
         case .failure(let error):

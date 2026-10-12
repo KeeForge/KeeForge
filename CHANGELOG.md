@@ -7,6 +7,15 @@
 - KeeForge now speaks Russian: a full Russian (Русский) localization across the app and the AutoFill extension, plus translated README and contributor docs (#180).
 - On Mac, use SSH keys stored in KeeForge with `ssh`, `git`, and other SSH clients (#163). Turn on Settings → SSH Agent → "Enable SSH Agent", click "Copy SSH Configuration" and paste it into `~/.ssh/config`, then choose which keys of the unlocked database the agent offers. KeeForge uses an entry's attached OpenSSH private key, including entries set up with KeeAgent, KeePassXC, or Strongbox; Ed25519, ECDSA, and RSA keys without a passphrase are supported, and other keys are listed with the reason they can't be used. Keys are only available while their database is unlocked: locking or closing it makes them unavailable right away, and no key file is written to disk. The agent is off until you turn it on.
 
+### Fixes
+
+- Search stays responsive in large databases on iPhone and iPad (#211).
+- Groups, All Entries, Verification Codes, and the Recycle Bin open without stalling when they hold thousands of entries on iPhone and iPad.
+- A database import, relink, or key file selection through Files that fails now shows an error instead of failing silently (#220).
+- New database names preserve percent characters, and the creation form explains when unsupported filename characters are replaced (#219).
+- On Mac, locked or read-only key files can now be linked and remembered for a database (#215).
+- On iPhone and iPad, typing, scrolling, and tapping buttons now restart the auto-lock timeout, so a database stays unlocked while you use it.
+
 ## v1.18.0 (2026-10-07)
 
 ### Changes

@@ -28,14 +28,17 @@
 #   ci_scripts/build_mac_direct.sh --finalize [--rc-tag TAG] [output-dir]
 #   ci_scripts/build_mac_direct.sh --preflight
 #
-# The build writes direct-artifact.json beside the zip. It is a non-secret
-# handoff record consumed by release_direct_artifact.sh after App Review.
+# The output defaults to direct/ in the candidate's release directory
+# (release_dir.sh), which is in the main checkout even when this runs from a
+# linked worktree. The build writes direct-artifact.json beside the zip. It is a
+# non-secret handoff record consumed by release_direct_artifact.sh after App Review.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
-BUILD_ROOT="${REPO_ROOT}/build"
+# The candidate's release directory; resolved once the RC identity is known.
+BUILD_ROOT=""
 
 PREFLIGHT=0
 PHASE=""
@@ -95,7 +98,7 @@ resolve_candidate_identity() {
 reject_output_dir() {
   local build_root="${2:-${BUILD_ROOT}}"
   echo "error: refusing unsafe direct-build output directory: $1" >&2
-  echo "The output must be an absolute, safe-named directory directly under ${build_root}." >&2
+  echo "The output must be an absolute, safe-named directory directly under the candidate's release directory ${build_root}." >&2
   return 1
 }
 
@@ -510,6 +513,7 @@ YAML
   mkdir -p "${test_repo}/ci_scripts" "${test_repo}/Configs"
   git -C "${test_repo}" checkout -q rc/1.2.3-b9
   cp "${BASH_SOURCE[0]}" "${test_repo}/ci_scripts/build_mac_direct.sh"
+  cp "${SCRIPT_DIR}/release_dir.sh" "${test_repo}/ci_scripts/release_dir.sh"
   : >"${test_repo}/Configs/ExportOptions-DeveloperID.plist"
   stub_bin="${test_root}/stub-bin"; mkdir "${stub_bin}"
   printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"${stub_bin}/xcodegen"
@@ -531,6 +535,8 @@ YAML
   fi
   grep -Fq "missing export-ready checkpoint" "${control_log}" \
     || { echo "error: preflight finalization fixture did not require archive/export first" >&2; return 1; }
+  [[ -d "${test_repo}/build/releases/1.2.3/b9" && ! -e "${test_repo}/build/mac-direct-1.2.3-b9" ]] \
+    || { echo "error: preflight fixture did not default to the candidate release directory" >&2; return 1; }
   ! grep -Fq "Generating project from the direct-download spec" "${control_log}" \
     || { echo "error: preflight finalization fixture regenerated the project" >&2; return 1; }
   synthetic_attrs='sparkle:edSignature="synthetic-signature" length="9791801"'
@@ -601,7 +607,8 @@ cd "${REPO_ROOT}"
 # build/ and scratch/ are ignored output locations and are intentionally fine.
 require_clean_source_worktree "${REPO_ROOT}"
 resolve_candidate_identity
-OUT_DIR="${REQUESTED_OUT_DIR:-${BUILD_ROOT}/mac-direct-${RELEASE_VERSION}-b${RELEASE_BUILD}}"
+BUILD_ROOT="$("${SCRIPT_DIR}/release_dir.sh" --repo "${REPO_ROOT}" "${RELEASE_VERSION}-b${RELEASE_BUILD}")"
+OUT_DIR="${REQUESTED_OUT_DIR:-${BUILD_ROOT}/direct}"
 if [[ -L "${BUILD_ROOT}" ]]; then
   reject_output_dir "${OUT_DIR} (build root is a symlink)"
 fi

@@ -175,7 +175,7 @@ final class DatabaseListViewModel {
     func setKeyFile(url: URL?, for reference: DatabaseReference) throws {
         try update(reference) { updatedReference in
             if let url {
-                updatedReference.keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
+                updatedReference.keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true)
                 updatedReference.keyFileFilename = url.lastPathComponent
             } else {
                 updatedReference.keyFileBookmarkData = nil

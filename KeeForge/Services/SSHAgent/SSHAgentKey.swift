@@ -19,8 +19,8 @@ enum SSHAgentKeyError: Error, Equatable {
 /// the PROTOCOL.key format `ssh-keygen` writes by default) that can sign
 /// agent requests: Ed25519, ECDSA P-256/P-384/P-521, and RSA.
 ///
-/// Parsed from the attachment bytes for each use and dropped afterwards, so no
-/// key outlives the request that needed it.
+/// Parsed from bounded attachment bytes and cached only while the same
+/// unlocked session offers the identical key file.
 struct SSHAgentKey {
     enum Algorithm: Sendable, Equatable {
         case ed25519

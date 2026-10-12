@@ -121,7 +121,7 @@ import AppKit
 /// single unconditional sweep), but the resign-active blur cover deliberately
 /// skips it: covering a preferences window would only be visual noise.
 /// `shouldPrivacyCover(windowIdentifier:)` encodes that split. Its one
-/// vault-derived surface, the SSH agent's key list, redacts itself on
+/// vault-derived surface, the SSH agent's key list, hides its rows on
 /// resign-active instead (`MacSSHAgentController.concealsKeyList`); anything
 /// else Settings comes to show from a vault has to do the same.
 ///

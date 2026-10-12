@@ -12,7 +12,7 @@
 ## Invariants
 
 - No key export and no writing key files. Every request reads the session afresh, so a lock withdraws keys by the next read.
-- Parsed keys never outlive their lease. `MacSSHAgentController` empties `SSHAgentKeyCache` inside the session's own change of `state`, `lockCycleID`, or `isLockPending` (observation tracking, re-armed by the next `keySources()`), on a selection change, and when the server stops. `removeAll` advances the cache's generation, so a request that read the session before the lock cannot store its key after it. A new way for the lease to end has to empty the cache too.
+- Parsed keys never outlive their lease or the vault content that supplied them. `MacSSHAgentController` empties `SSHAgentKeyCache` inside the session's own change of `state`, `lockCycleID`, `isLockPending`, or `contentRevision` (observation tracking, re-armed by the next `keySources()`), on a session change, a selection change, and when the server stops. A request also removes a cached key if its attachment bytes changed. `removeAll` advances the cache's generation, so a request that read the session before invalidation cannot store its key afterwards.
 - A new vault-derived value in Settings ▸ SSH Agent has to honor `concealsKeyList` too.
 - Keep the default socket path stable; users paste it into `~/.ssh/config`.
 

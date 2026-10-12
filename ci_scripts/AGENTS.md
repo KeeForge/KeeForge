@@ -79,6 +79,7 @@ Only the scripts whose names do not explain them. Usage is in each script's head
 - `ci_post_clone.sh`, `ci_pre_xcodebuild.sh`: Xcode Cloud hooks. Post-clone installs XcodeGen, prepares the build config, and generates the project.
 - `validate_xcresult_summary.py`: the CI verdict. It requires `result=Passed`, zero failures, and at least one executed test in a fresh `.xcresult` summary. `xcodebuild` exit 65 is tolerated only after that check. Fixtures: `test_validate_xcresult_summary.sh`.
 - `restore_pre_ui_state.sh`: backs up (`--backup`) and restores the Mac App Group and defaults around the local Mac UI smoke. With neither flag it only inspects; restoring needs `--execute --confirm RESTORE_PRE_UI_STATE`. Fixtures: `test_restore_pre_ui_state.sh`.
+- `release_dir.sh`: prints the main checkout's `build/releases` directory, or one version's or candidate's directory under it, from any worktree. Release scripts and skills take their artifact locations from it. `--self-test` covers it.
 - `build_mac_direct.sh`, `verify_mac_artifact.sh`, `verify_sparkle_ed25519.swift`, `release_direct_artifact.sh`, `generate_appcast.py`: the Developer ID direct-download channel only; the Mac App Store build never goes through `build_mac_direct.sh`.
 - `make_appstore_screenshots.py` (Mac layout in `mac_screenshot_design.py`): composes App Store listing images from UI-test captures. It does not capture them; its header gives the opt-in capture commands.
 
@@ -86,7 +87,7 @@ Only the scripts whose names do not explain them. Usage is in each script's head
 
 Release steps live with the release skills, under `../.agents/skills/prepare-release/references/`:
 
-- `shared.md`: candidate identity, the manifest, required gates, and the invariants.
+- `shared.md`: candidate identity, where release artifacts live, the manifest, required gates, and the invariants.
 - `candidate.md`: build number (`next_repo_build.sh`), both KDBX gate runs, RC tag and manifest (`candidate_manifest.py`), hosted gates, Mac smoke, and beta distribution.
 - `direct-distribution.md`: the direct-build safety contract, artifact verification, appcast stage/handoff/publish, the manual Sparkle rehearsal, and ZIP extraction verification.
 

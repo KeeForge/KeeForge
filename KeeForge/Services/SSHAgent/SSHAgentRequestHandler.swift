@@ -146,9 +146,12 @@ final class SSHAgentKeyCache: Sendable {
     }
 
     func keep(only sources: [SSHAgentKeySource]) {
-        let leases = Dictionary(sources.map { ($0.entryID, $0.lease) }, uniquingKeysWith: { first, _ in first })
+        let current = Dictionary(sources.map { ($0.entryID, $0) }, uniquingKeysWith: { first, _ in first })
         state.withLockUnchecked { state in
-            state.entries = state.entries.filter { leases[$0.key] == $0.value.lease }
+            state.entries = state.entries.filter { id, entry in
+                guard let source = current[id] else { return false }
+                return source.lease == entry.lease && source.privateKeyFile == entry.privateKeyFile
+            }
         }
     }
 

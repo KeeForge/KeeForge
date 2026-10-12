@@ -30,6 +30,11 @@ Record explicitly, and state it back to the user before proceeding:
 - Both distribution timestamps, elapsed soak times, unique-install/crash counts, and direct install/update results.
 - Which [soak guidance](../prepare-release/references/soak.md#candidate-soak) signals, if any, are short of target.
 
+Read these from the candidate's `manifest.json` and artifacts in its
+[release artifact directory](../prepare-release/references/shared.md#where-release-artifacts-live)
+(`ci_scripts/release_dir.sh {version}-b{repoBuild}`). If the manifest, the direct ZIP, or the staged
+appcast is missing there, stop: do not rebuild or restage a soaked candidate.
+
 Each TestFlight build number here **is** the build you will select for its platform in App Store
 Connect. If either does not match the build distributed and soaked, stop — something is out of
 sync. Do not substitute a newer build.
@@ -78,8 +83,8 @@ the ship evidence. Then create `v{version}` on the accepted RC commit; it trigge
 the code that actually shipped. Include any accepted soak exception in the tag message.
 
 ```bash
-ci_scripts/candidate_manifest.py validate \
-  --manifest scratch/release-manifests/{version}-b{repoBuild}.json --mode ship
+CANDIDATE="$(ci_scripts/release_dir.sh {version}-b{repoBuild})"
+ci_scripts/candidate_manifest.py validate --manifest "$CANDIDATE/manifest.json" --mode ship
 ```
 
 ```bash
