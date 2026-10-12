@@ -651,7 +651,7 @@ struct DatabaseListView: View {
                 onSelectDatabase(reference)
                 selectionAlert = nil
             } catch {
-                selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+                selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: error)
             }
 
         case .failure(let error):
@@ -667,7 +667,7 @@ struct DatabaseListView: View {
                 refreshDetailsReferenceIfNeeded(for: reference.id)
                 selectionAlert = nil
             } catch {
-                selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+                selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: error)
             }
 
         case .failure(let error):
