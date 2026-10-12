@@ -23,8 +23,6 @@ enum DatabaseListStore {
     private static let migrationVersionKey = "databaseListMigrationVersion"
     private static let currentMigrationVersion = 1
     private static let uiTestingLaunchArg = "-ui-testing"
-    private static let uiTestDBBase64Env = "UI_TEST_DB_BASE64"
-    private static let uiTestDBFilenameEnv = "UI_TEST_DB_FILENAME"
     private static let uiTestDatabasesJSONEnv = "UI_TEST_DATABASES_JSON"
     private static let uiTestCloudDatabasesJSONEnv = "UI_TEST_CLOUD_DATABASES_JSON"
     private static let uiTestCloudAccountsJSONEnv = "UI_TEST_CLOUD_ACCOUNTS_JSON"
@@ -961,10 +959,6 @@ enum DatabaseListStore {
             return payloads.compactMap(uiTestReference(from:))
         }
 
-        if let url = uiTestDatabaseURL() {
-            return [url].compactMap { try? makeReference(from: $0) }
-        }
-
         return []
     }
 
@@ -1016,17 +1010,6 @@ enum DatabaseListStore {
         }
 
         return try? uiTestJSONDecoder().decode([CloudAccount].self, from: data)
-    }
-
-    private static func uiTestDatabaseURL() -> URL? {
-        let environment = ProcessInfo.processInfo.environment
-        guard let base64 = environment[uiTestDBBase64Env], !base64.isEmpty,
-              let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) else {
-            return nil
-        }
-
-        let requestedFilename = environment[uiTestDBFilenameEnv] ?? "ui-test.kdbx"
-        return writeUITestDatabase(data: data, requestedFilename: requestedFilename)
     }
 
     private static func uiTestEnvironmentFlag(_ key: String) -> Bool {
@@ -1299,7 +1282,7 @@ enum DatabaseListStore {
                 }
             }
 
-            if let refreshedBookmarkData = try? SecurityScopedBookmarkManager.makeBookmarkData(for: url) {
+            if let refreshedBookmarkData = try? SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true) {
                 onRefresh(refreshedBookmarkData)
             }
         }

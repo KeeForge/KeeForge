@@ -1607,6 +1607,22 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(localSaverCalls.didCall, "nothing may be written")
     }
 
+    /// The confirmation is usually read with nothing staged — straight after an unlock or
+    /// a save — and must not report the history as capped just because no draft exists yet.
+    func testRestoreKeepsReplacedStateIsReportedWithoutPendingEdits() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let entry = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first { !$0.history.isEmpty })
+        XCTAssertNil(vm.draft, "precondition: nothing is staged after a fresh unlock")
+
+        XCTAssertTrue(vm.restoreKeepsReplacedState(entryID: entry.id))
+
+        XCTAssertNil(vm.draft, "asking must not stage a draft")
+        XCTAssertFalse(vm.isDirty)
+        XCTAssertFalse(vm.restoreKeepsReplacedState(entryID: UUID()), "an unknown entry keeps nothing")
+    }
+
     func testRestoringAnEarlierVersionBringsBackItsValues() async throws {
         let (vm, entryID, originalUsername, _) = try await makeViewModelWithEditedEntry()
 
@@ -2921,6 +2937,94 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.failedAttempts, 0)
         XCTAssertNil(vm.lockoutUntil)
     }
+
+    #if os(iOS)
+    func testSearchListDoesNotResolveOffscreenRows() async throws {
+        for usesSelection in [false, true] {
+            var entries = (0..<5_000).map { KPEntry(title: "Account \($0)", username: "user\($0)") }
+            entries[4_999].username = "{REF:U@T:Account 0}"
+            let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Accounts", entries: entries))
+            vm.searchText = "account"
+            let host = UIHostingController(rootView: EntryListView(
+                entries: vm.searchResults,
+                viewModel: vm,
+                onSelectEntry: usesSelection ? { _ in } : nil
+            ))
+            _ = host.sizeThatFits(in: CGSize(width: 375, height: 650))
+            XCTAssertFalse(try hasBuiltFieldReferenceCache(vm),
+                           "List must defer offscreen row data, selection=\(usesSelection)")
+            XCTAssertEqual(vm.resolvingFieldReferences(entries[4_999].username), "user0")
+            vm.lock()
+        }
+    }
+
+    func testBrowseListsDoNotResolveOffscreenRows() async throws {
+        let totpConfig = TOTPConfig(
+            secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: SymmetricKey(size: .bits256))
+        )
+        // Three rows fit on screen, so the referencing one renders; of 5,000 it must not.
+        for rowCount in [3, 5_000] {
+            // Mid-list under every sort order and direction, which persist across tests.
+            let reference = "{REF:U@T:Account 0000}"
+            func makeEntries() -> [KPEntry] {
+                var entries = (0..<rowCount).map {
+                    KPEntry(
+                        title: String(format: "Account %04d", $0),
+                        username: "user\($0)",
+                        totpConfig: totpConfig,
+                        creationTime: Date(timeIntervalSinceReferenceDate: TimeInterval($0)),
+                        lastModificationTime: Date(timeIntervalSinceReferenceDate: TimeInterval($0))
+                    )
+                }
+                entries[rowCount / 2].username = reference
+                return entries
+            }
+            let binID = UUID()
+            let vm = try await makeInjectedViewModel(rootGroup: KPGroup(
+                name: "Accounts",
+                entries: makeEntries(),
+                groups: [KPGroup(id: binID, name: "Recycle Bin", entries: makeEntries())],
+                recycleBinUUID: binID
+            ))
+            let modes: [DatabaseWorkspaceState.ViewMode] = [.groups, .allEntries, .verificationCodes, .recycleBin]
+            for mode in modes {
+                for usesSelection in [false, true] {
+                    // Drops the reference cache the previous list may have built.
+                    try await vm.reloadDiscardingDraft()
+                    vm.workspace.viewMode = mode
+                    // In a window, so the list also builds the rows it shows.
+                    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 375, height: 650))
+                    window.rootViewController = UIHostingController(rootView: GroupListView(
+                        groupID: try XCTUnwrap(vm.visibleRootGroupID),
+                        viewModel: vm,
+                        onSelectEntry: usesSelection ? { _ in } : nil
+                    ))
+                    window.isHidden = false
+                    window.layoutIfNeeded()
+                    XCTAssertEqual(try hasBuiltFieldReferenceCache(vm), rowCount == 3,
+                                   "List must build only the rows it shows, mode=\(mode.rawValue) selection=\(usesSelection) rows=\(rowCount)")
+                    window.isHidden = true
+                    window.rootViewController = nil
+                }
+            }
+            _ = vm.resolvingFieldReferences(reference)
+            XCTAssertTrue(try hasBuiltFieldReferenceCache(vm))
+            vm.lock()
+        }
+    }
+
+    /// Whether anything has resolved a field reference this session; a row
+    /// that renders a referencing username builds the session's reference cache.
+    private func hasBuiltFieldReferenceCache(_ viewModel: DatabaseViewModel) throws -> Bool {
+        let cache = try XCTUnwrap(
+            Mirror(reflecting: viewModel).children.first { $0.label == "fieldReferenceResolver" },
+            "Resolver storage was renamed; update this rendering probe."
+        )
+        XCTAssertTrue(type(of: cache.value) == Optional<FieldReferenceResolver>.self,
+                      "Resolver storage must remain Optional<FieldReferenceResolver>; update this rendering probe.")
+        return Mirror(reflecting: cache.value).children.isEmpty == false
+    }
+    #endif
 
     func testSearchResultsMatchesEntryFieldsCaseInsensitively() async throws {
         let entry = KPEntry(

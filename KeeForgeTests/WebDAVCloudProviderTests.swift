@@ -372,7 +372,7 @@ final class WebDAVCloudProviderTests: XCTestCase {
 
         let created = try await provider.createFile(
             accountId: accountId,
-            path: "/Vaults/new.kdbx",
+            path: "/Vaults/new%20db 100%.kdbx",
             data: Data("bytes".utf8),
             progress: { _ in }
         )
@@ -380,9 +380,11 @@ final class WebDAVCloudProviderTests: XCTestCase {
         let capturedPut = await recorder.firstMatching(method: "PUT")
         let put = try XCTUnwrap(capturedPut)
         XCTAssertEqual(put.value(forHTTPHeaderField: "If-None-Match"), "*")
+        XCTAssertEqual(put.url?.absoluteString, "https://host.example.com/dav/Vaults/new%2520db%20100%25.kdbx")
+        XCTAssertEqual(created.file.id, "/Vaults/new%20db 100%.kdbx")
         XCTAssertEqual(created.metadata.rev, "\"created-etag\"")
-        XCTAssertEqual(created.file.name, "new.kdbx")
-        XCTAssertEqual(created.file.path, "/Vaults/new.kdbx")
+        XCTAssertEqual(created.file.name, "new%20db 100%.kdbx")
+        XCTAssertEqual(created.file.path, "/Vaults/new%20db 100%.kdbx")
     }
 
     func testCreateFile412ThrowsConflict() async throws {

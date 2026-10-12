@@ -6,11 +6,13 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'USAGE'
-Usage: next_repo_build.sh [--no-fetch] [--repo DIR] [--manifest-dir DIR]
+Usage: next_repo_build.sh [--no-fetch] [--repo DIR] [--releases-dir DIR]
        next_repo_build.sh --self-test
 
 Historical target values establish the floor. The current tree must contain
 all four product targets with one equal numeric CURRENT_PROJECT_VERSION.
+Candidate manifests are read from {version}/b{repoBuild}/manifest.json under
+the releases directory (default: release_dir.sh).
 USAGE
 }
 
@@ -19,12 +21,12 @@ die() { echo "error: $*" >&2; exit 1; }
 NO_FETCH=0
 SELF_TEST=0
 REPO=""
-MANIFEST_DIR=""
+RELEASES_DIR=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-fetch) NO_FETCH=1; shift ;;
     --repo) REPO="${2:-}"; shift 2 ;;
-    --manifest-dir) MANIFEST_DIR="${2:-}"; shift 2 ;;
+    --releases-dir) RELEASES_DIR="${2:-}"; shift 2 ;;
     --self-test) SELF_TEST=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1" ;;
@@ -79,7 +81,7 @@ run() {
   [[ -n "$REPO" ]] || REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
   REPO="$(cd "$REPO" && pwd -P)"
   [[ -f "$REPO/project.yml" ]] || die "missing project.yml in $REPO"
-  [[ -n "$MANIFEST_DIR" ]] || MANIFEST_DIR="$REPO/scratch/release-manifests"
+  [[ -n "$RELEASES_DIR" ]] || RELEASES_DIR="$("$(dirname "${BASH_SOURCE[0]}")/release_dir.sh" --repo "$REPO")"
   if (( ! NO_FETCH )); then
     git -C "$REPO" fetch origin --tags 'refs/heads/release/*:refs/remotes/origin/release/*'
   fi
@@ -96,18 +98,18 @@ run() {
   done <<<"$commits"
   [[ -n "$history_values" ]] || die "no usable numeric historical build value; cannot assume zero"
   manifest_values=""
-  if [[ -d "$MANIFEST_DIR" ]]; then
+  if [[ -d "$RELEASES_DIR" ]]; then
     while IFS= read -r manifest; do
       build="$(validate_manifest "$manifest")" || die "invalid release manifest: $manifest"
       expected_name="$(python3 - "$manifest" "$build" <<'PY'
 import json, os, sys
 d=json.load(open(sys.argv[1]))
-print(f"{d['version']}-b{sys.argv[2]}.json")
+print(f"{d['version']}/b{sys.argv[2]}/manifest.json")
 PY
 )"
-      [[ "$(basename "$manifest")" == "$expected_name" ]] || die "manifest filename does not match version/build: $manifest"
+      [[ "$manifest" == "$RELEASES_DIR/$expected_name" ]] || die "manifest location does not match version/build: $manifest"
       manifest_values+="$build"$'\n'
-    done < <(find "$MANIFEST_DIR" -type f -name '*.json' -print | sort)
+    done < <(find "$RELEASES_DIR" -mindepth 3 -maxdepth 3 -type f -path '*/b[1-9]*/manifest.json' -print | sort)
   fi
   local all_values floor
   all_values="$(printf '%s%s%s\n' "$history_values" "$manifest_values" "$current" | sed '/^$/d' | sort -n -u)"
@@ -123,8 +125,8 @@ self_test() {
   local root repo manifests result
   root="$(mktemp -d "${TMPDIR:-/tmp}/keeforge-next-build.XXXXXX")"
   trap 'rm -rf "${root:-}"' EXIT
-  repo="$root/repo"; manifests="$repo/scratch/release-manifests"
-  mkdir -p "$manifests"; git -C "$root" init -q repo
+  repo="$root/repo"; manifests="$repo/build/releases"
+  mkdir -p "$manifests/1.0.0/b14" "$manifests/1.1.0/b15"; git -C "$root" init -q repo
   git -C "$repo" config user.email fixture@example.invalid; git -C "$repo" config user.name fixture
   cat >"$repo/project.yml" <<'YAML'
 targets:
@@ -160,22 +162,26 @@ YAML
   git -C "$repo" add project.yml; git -C "$repo" commit -qm current
   result="$($0 --no-fetch --repo "$repo")"
   grep -Fq 'next repoBuild: 14' <<<"$result" || die "self-test did not honor the historical monotonic floor"
-  printf '%s\n' '{"version":"1.0.0","repoBuild":14,"rcTag":"rc/1.0.0-b14"}' >"$manifests/1.0.0-b14.json"
+  printf '%s\n' '{"version":"1.0.0","repoBuild":14,"rcTag":"rc/1.0.0-b14"}' >"$manifests/1.0.0/b14/manifest.json"
   result="$($0 --no-fetch --repo "$repo")"
   grep -Fq 'next repoBuild: 15' <<<"$result" || die "self-test did not honor manifest monotonic floor"
+  mkdir -p "$manifests/1.0.0/content"; printf '%s\n' '{"attachments":[]}' >"$manifests/1.0.0/content/manifest.json"
+  "$0" --no-fetch --repo "$repo" >/dev/null || die "self-test read a non-candidate manifest.json"
   sed -i '' 's/KeeForgeMacAutoFill:/Other:/' "$repo/project.yml"
   if "$0" --no-fetch --repo "$repo" >/dev/null 2>&1; then die "self-test accepted missing current target"; fi
   sed -i '' 's/Other:/KeeForgeMacAutoFill:/' "$repo/project.yml"
   perl -0pi -e 's/CURRENT_PROJECT_VERSION: "12"/CURRENT_PROJECT_VERSION: "13"/' "$repo/project.yml"
   if "$0" --no-fetch --repo "$repo" >/dev/null 2>&1; then die "self-test accepted unequal current targets"; fi
   perl -0pi -e 's/CURRENT_PROJECT_VERSION: "13"/CURRENT_PROJECT_VERSION: "12"/' "$repo/project.yml"
-  printf '%s\n' '{bad json' >"$manifests/1.1.0-b15.json"
+  printf '%s\n' '{bad json' >"$manifests/1.1.0/b15/manifest.json"
   if "$0" --no-fetch --repo "$repo" >/dev/null 2>&1; then die "self-test accepted malformed manifest"; fi
-  rm "$manifests/1.1.0-b15.json"
+  printf '%s\n' '{"version":"1.0.0","repoBuild":14,"rcTag":"rc/1.0.0-b14"}' >"$manifests/1.1.0/b15/manifest.json"
+  if "$0" --no-fetch --repo "$repo" >/dev/null 2>&1; then die "self-test accepted a manifest filed under another candidate"; fi
+  rm "$manifests/1.1.0/b15/manifest.json"
   perl -0pi -e 's/CURRENT_PROJECT_VERSION: "12"/CURRENT_PROJECT_VERSION: "99"/g' "$repo/project.yml"
   result="$($0 --no-fetch --repo "$repo")"
   grep -Fq 'next repoBuild: 100' <<<"$result" || die "self-test did not include an uncommitted current build in the floor"
-  echo 'self-test: legacy/missing/unequal/manifest/current-floor checks passed'
+  echo 'self-test: legacy/missing/unequal/manifest/misfiled-manifest/current-floor checks passed'
 }
 
 if (( SELF_TEST )); then self_test; else run; fi

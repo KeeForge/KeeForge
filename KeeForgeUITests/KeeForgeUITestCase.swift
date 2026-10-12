@@ -2,8 +2,6 @@ import XCTest
 
 @MainActor
 class KeeForgeUITestCase: XCTestCase {
-    private static let uiTestDBBase64Env = "UI_TEST_DB_BASE64"
-    private static let uiTestDBFilenameEnv = "UI_TEST_DB_FILENAME"
     static let uiTestViewModeEnv = "UI_TEST_VIEW_MODE"
     private static let uiTestDatabasesJSONEnv = "UI_TEST_DATABASES_JSON"
     private static let uiTestKeyFileBase64Env = "UI_TEST_KEYFILE_BASE64"
@@ -102,10 +100,6 @@ class KeeForgeUITestCase: XCTestCase {
         app.launchEnvironment[Self.uiTestViewModeEnv] = "groups"
         let payloadData = try JSONSerialization.data(withJSONObject: payloads, options: [])
         app.launchEnvironment[Self.uiTestDatabasesJSONEnv] = String(decoding: payloadData, as: UTF8.self)
-
-        if let firstFixture = databaseFixtures.first {
-            app.launchEnvironment[Self.uiTestDBFilenameEnv] = firstFixture.injectedFilename
-        }
 
         if let keyFileName = keyFileFixtureName {
             let ext = keyFileFixtureExtension

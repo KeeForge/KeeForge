@@ -322,10 +322,12 @@ enum DatabaseCreationService {
         )
     }
 
+    static let filenameReplacementCharacters = CharacterSet(charactersIn: "/:\\?*|\"<>")
+
     static func normalizedFilename(for displayName: String) throws -> String {
         let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let sanitizedScalars = trimmed.unicodeScalars.map { scalar in
-            CharacterSet(charactersIn: "/:\\?%*|\"<>").contains(scalar) ? "_" : String(scalar)
+            filenameReplacementCharacters.contains(scalar) ? "_" : String(scalar)
         }
         var filename = sanitizedScalars.joined()
             .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".")))

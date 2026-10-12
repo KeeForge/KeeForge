@@ -321,8 +321,6 @@ final class DatabaseViewModel {
         case passwordFallback
     }
 
-    /// Typed rejection reasons for `changeMasterKey`. Presentation strings are
-    /// the caller's responsibility.
     /// How an attempt to merge pending AutoFill saves into the file ended.
     enum PendingLocalSaveMergeResult: Equatable, Sendable {
         /// Nothing was pending, the saves were merged or set aside, or the
@@ -334,6 +332,8 @@ final class DatabaseViewModel {
         case fileChangedSinceOpen
     }
 
+    /// Typed rejection reasons for `changeMasterKey`. Presentation strings are
+    /// the caller's responsibility.
     enum RekeyError: Error, Equatable, Sendable {
         case sessionUnavailable
         case databaseIsReadOnly
@@ -1902,9 +1902,11 @@ final class DatabaseViewModel {
 
     /// Whether restoring would keep the state it replaces, so the confirmation does not
     /// promise an undo the database's history caps cannot honour.
+    ///
+    /// Asks a working draft rather than `draft`, which is nil until the first edit.
     func restoreKeepsReplacedState(entryID: UUID) -> Bool {
         _ = contentRevision
-        return draft?.restoreKeepsReplacedState(entryID: entryID) ?? false
+        return (try? makeWorkingDraft())?.restoreKeepsReplacedState(entryID: entryID) ?? false
     }
 
     /// Makes the entry's `historyIndex`-th stored version current again.
@@ -3438,7 +3440,7 @@ final class DatabaseViewModel {
         // macOS reaches this only from `MacLockMonitor`, which has already
         // applied `SettingsService.macLockPolicy` and whose triggers all mean
         // the user walked away. Locking here is the macOS security guarantee
-        // (`KeeForgeMac/README.md`), so it must never depend on
+        // (`KeeForgeMac/SECURITY.md`), so it must never depend on
         // `lockOnBackground` — an iOS-only setting the Mac never renders and
         // cannot repair. The clipboard is scrubbed too: macOS has no expiring,
         // device-local copy (`KeeForgeMac/SECURITY.md`).

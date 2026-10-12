@@ -5,8 +5,8 @@ the two local KDBX gates and the local Mac smoke; [production shipping](../../sh
 does not reopen these decisions. Do not distribute either App Store build or call the direct build
 release-ready while any required verdict is unresolved.
 
-The candidate identity is the non-secret manifest at
-`scratch/release-manifests/{version}-b{repoBuild}.json`. It maps one immutable
+The candidate identity is the non-secret `manifest.json` in the candidate's
+[release artifact directory](shared.md#where-release-artifacts-live). It maps one immutable
 `rc/{version}-b{repoBuild}` tag and commit SHA to the iOS TestFlight build, Mac TestFlight build,
 and direct `CFBundleVersion`. Record every verdict, reproduction, adjudication, and log path there.
 
@@ -100,7 +100,8 @@ manifest.
 
 Every actual XCTest failure must be reproduced on its exact platform/runtime. Use a fresh Bash
 session, keep `-quiet` off, use at least one `-only-testing:` selector, capture the complete output
-to `/Users/tan/src/KeeForge/scratch/xcode-logs/`, and run each Xcode command through:
+and result bundle in the candidate's `evidence/` directory (they are what the adjudication cites),
+and run each Xcode command through:
 
 ```bash
 /Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- ...
@@ -116,11 +117,12 @@ unavailable exact pair cannot be called a reproduction.
 
 ```bash
 xcodegen generate
-LOG=/Users/tan/src/KeeForge/scratch/xcode-logs/$(date +%Y%m%d-%H%M%S)-ios-repro.log
-mkdir -p "$(dirname "$LOG")"
+CANDIDATE="$(ci_scripts/release_dir.sh {version}-b{repoBuild})"
+LOG="$CANDIDATE/evidence/repro-ios-{name}.log"
 /Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- \
   xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
     -destination 'platform=iOS Simulator,name={exact device},OS={exact version}' \
+    -resultBundlePath "$CANDIDATE/evidence/repro-ios-{name}.xcresult" \
     -only-testing:{test-target/test-class/test-method} > "$LOG" 2>&1
 echo "exit=$? log=$LOG"
 grep -E '\*\* TEST (SUCCEEDED|FAILED)' "$LOG"
@@ -135,11 +137,12 @@ an iOS simulator, or a broad test run:
 
 ```bash
 xcodegen generate
-LOG=/Users/tan/src/KeeForge/scratch/xcode-logs/$(date +%Y%m%d-%H%M%S)-mac-repro.log
-mkdir -p "$(dirname "$LOG")"
+CANDIDATE="$(ci_scripts/release_dir.sh {version}-b{repoBuild})"
+LOG="$CANDIDATE/evidence/repro-mac-{name}.log"
 /Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- \
   xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
     -destination 'platform=macOS' \
+    -resultBundlePath "$CANDIDATE/evidence/repro-mac-{name}.xcresult" \
     -only-testing:KeeForgeMacTests/{test-class/test-method} > "$LOG" 2>&1
 echo "exit=$? log=$LOG"
 grep -E '\*\* TEST (SUCCEEDED|FAILED)' "$LOG"

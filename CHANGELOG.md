@@ -2,9 +2,20 @@
 
 ## Unreleased
 
+### New Features
+
+- KeeForge now speaks Russian: a full Russian (Русский) localization across the app and the AutoFill extension, plus translated README and contributor docs (#180).
+
 ### Fixes
 
 - Mac AutoFill can save a new passkey into a database opened from a file (#182). Registration used to stop with a permission error, because the AutoFill extension cannot open that file itself. The passkey is now kept by KeeForge and offered for sign-in on this Mac, and it is written to the database file the next time you unlock that database in KeeForge; the passkey form says so. Until then other apps and devices do not see it. Changes another app made to the file in the meantime are kept. If the passkey cannot be combined with the file, KeeForge says so and keeps it as a backup in Database Details that is never rotated out.
+
+- Search stays responsive in large databases on iPhone and iPad (#211).
+- Groups, All Entries, Verification Codes, and the Recycle Bin open without stalling when they hold thousands of entries on iPhone and iPad.
+- A database import, relink, or key file selection through Files that fails now shows an error instead of failing silently (#220).
+- New database names preserve percent characters, and the creation form explains when unsupported filename characters are replaced (#219).
+- On Mac, locked or read-only key files can now be linked and remembered for a database (#215).
+- On iPhone and iPad, typing, scrolling, and tapping buttons now restart the auto-lock timeout, so a database stays unlocked while you use it.
 
 ## v1.18.0 (2026-10-07)
 
@@ -19,7 +30,7 @@
 - The Face ID and Touch ID unlock buttons now use the selected app language (#183).
 - Group deletion actions now use the selected app language on iPhone, iPad, and Mac (#184).
 - Restoring an earlier entry version keeps that version's expiration settings after saving and reopening the database.
-- WebDAV folders and newly created databases with percent sequences in their names now keep the correct path.
+- WebDAV folders with percent sequences such as "%20" in their names now open correctly, and databases opened from or created in them keep the correct path.
 - AutoFill changes in cloud databases stay queued if KeeForge opens while AutoFill is still saving, preventing an interrupted save from losing its pending upload.
 - Entries and groups with matching names or dates keep a stable order when sorted descending.
 - Notes keep their original line endings after saving. Imported group names, custom field names, and attachment names keep their whitespace.
@@ -35,11 +46,16 @@
 - On Mac, the setup-link and AutoFill passkey forms show editable fields correctly, and disabling the menu bar stops shortcut recording.
 - The direct-download Mac app keeps Check for Updates available in step with the updater.
 - The group editor stays open until a save conflict has been resolved, so you can finish saving without losing your place.
-- AutoFill stops updates when iOS returns unreadable credential identities, preventing an unreadable store from being treated as empty.
+- AutoFill keeps suggestions up to date on iOS 27 and macOS 27, where the system no longer lets KeeForge read back the suggestions it has published. With more than one AutoFill database on these systems, turning one off or removing it clears all suggestions until you next unlock the others, and a deleted entry's suggestion can remain until then or until you use Clear AutoFill Entries.
 - Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
 - When the saved Face ID, Touch ID or Apple Watch key can no longer be used, for example after enrolled fingerprints change, the unlock screen now says so and asks for your master password, which saves a new key.
 - After a cancelled or failed Face ID or Touch ID unlock, the error screen now also shows the password field, so you can unlock with your master password right away.
 - AutoFill on iPhone and iPad now searches a database opened from the Files app in its current state, so credentials another app or device added since KeeForge last opened it are found (#167). Cloud databases, and every database in Mac AutoFill, still search the copy KeeForge last saved; when a search there finds nothing, AutoFill now says when that copy was last updated and directs you to unlock the database in KeeForge. For cloud databases, use Sync Now in Database Details to refresh it.
+- Restoring an earlier version of an entry no longer warns that the current contents will be lost when the database keeps history. The confirmation gave that warning whenever there were no unsaved changes, even though the replaced contents were kept as a new history version.
+- The Delete and Remove swipe actions on entries, groups, and databases stay red when a custom accent color is selected.
+- The AutoFill screens for saving a new credential or passkey on iPhone and iPad show their full title in every language. The save button moved from the navigation bar to the bottom of the screen.
+- On the unlock screen, the Key File and Hardware Key rows no longer squeeze their value at large text sizes: the value moves onto its own line instead of breaking inside a word or shrinking to an ellipsis.
+- The macOS AutoFill settings note that suggestions come from one database at a time now appears only on macOS versions that have that limit.
 
 ### New Features
 

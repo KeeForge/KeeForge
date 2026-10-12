@@ -1,14 +1,21 @@
 # Cloud Views
 
-Cloud provider file browsing and the manual WebDAV and FTP connect forms.
+**Scope:** the cloud file and folder browser and the manual WebDAV and FTP connect forms. Folder-wide UI rules, including the macOS grouped-form modifiers these forms need, are in `../AGENTS.md`.
 
-## Screen Map
+## Ownership
 
-- `WebDAVConnectView.swift` owns the manual WebDAV connect sheet (server address, username, password with `PasswordInputRow`, advanced unencrypted-HTTP opt-in, inline error, Connect/Cancel), backed by `WebDAVConnectViewModel`. Its nested sheet sizes itself to the form, so nothing is clipped today, but the `Form` still takes `macGroupedForm()` for the sheet rule above; each field takes `macFormFieldStyle()`, and the server field also `macLabelsHidden()` because the section header already says "Server".
-- `FTPConnectView.swift` is the same form for FTP (server address, username, password, the mandatory Allow Unencrypted FTP toggle, inline error), backed by `FTPConnectViewModel`, with the same Mac form modifiers. `CloudFileBrowserView.swift`'s private `ManualConnectSheet` picks the form by the provider's connect seam (`WebDAVConnecting` or `FTPConnecting`).
+- `CloudFileBrowserView` picks the manual form from the provider's connect seam (`WebDAVConnecting` or `FTPConnecting`); other providers use hosted sign-in. Connection logic is in `WebDAVConnectViewModel` / `FTPConnectViewModel`, listing and selection in `CloudFileBrowserSession` and `CloudFolderBrowserViewModel`.
 
-Both manual connect forms block Cancel and interactive dismissal while connecting, then invalidate their form lifetime and clear the password on disappearance. A late provider result cannot invoke the dismissed form's callback or publish an error; credential persistence already committed by a provider is preserved.
+## Invariants
 
-`CloudFileBrowserView.swift` owns file picking and creation-folder picking. Each navigation stack is keyed by selected account, so switching accounts drops pushed folder IDs. Selection callbacks capture the listing's account ID and validate it through `CloudFileBrowserSession.selectionAccount(matching:)`; the folder view model also clears old files when a new account starts loading and rejects superseded results.
+- Each browser `NavigationStack` is `.id(session.selectedAccountID)`, so switching accounts drops pushed folder IDs that belong to the old account.
+- A selection callback captures the listing's account ID and resolves it through `CloudFileBrowserSession.selectionAccount(matching:)`. A pick from a superseded account's listing must not be attributed to the current one.
+- Both connect forms block Cancel and interactive dismissal while connecting, and on disappearance invalidate the form and clear the password. A late provider result cannot call back into a dismissed form; credentials a provider already persisted stay.
 
-Shared UI shells and the folder-wide UI rules live in `../README.md`.
+## Tests
+
+- `WebDAVConnectViewModelTests`, `FTPConnectViewModelTests`, `CloudFileBrowserViewModelTests`. UI classes are in `CloudSyncUITests.swift` and `WebDAVSyncUITests.swift` (`CloudBrowserSmokeUITests`, `WebDAVAddFlowUITests`, `WebDAVConnectErrorUITests`).
+
+## See also
+
+- `../AGENTS.md`, `../../Services/Cloud/AGENTS.md`

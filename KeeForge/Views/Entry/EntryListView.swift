@@ -84,7 +84,8 @@ struct EntryListView: View {
 
     @ViewBuilder
     private func entryRow(for entry: KPEntry) -> some View {
-        Group {
+        // A concrete row container lets List defer offscreen matches.
+        HStack {
             if let onSelectEntry {
                 Button {
                     onSelectEntry(entry)
@@ -138,6 +139,7 @@ struct EntryListView: View {
                 Button(deletionTitle(for: entry), role: .destructive) {
                     requestDeletion(for: entry)
                 }
+                .tint(.red)
                 .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }

@@ -395,6 +395,7 @@ struct DatabaseListView: View {
                     pendingRemoval = target
                 }
             }
+            .tint(.red)
         }
         // Both dialogs are attached to the row (not the List) so iOS anchors
         // them to the database they act on instead of an arbitrary popover in
@@ -650,7 +651,7 @@ struct DatabaseListView: View {
                 onSelectDatabase(reference)
                 selectionAlert = nil
             } catch {
-                selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+                selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: error)
             }
 
         case .failure(let error):
@@ -666,7 +667,7 @@ struct DatabaseListView: View {
                 refreshDetailsReferenceIfNeeded(for: reference.id)
                 selectionAlert = nil
             } catch {
-                selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+                selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: error)
             }
 
         case .failure(let error):
