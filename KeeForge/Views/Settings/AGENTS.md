@@ -23,7 +23,7 @@
 
 ### SSH agent tab
 
-- The key list names entries and key fingerprints of the unlocked vault, and the Settings window gets no privacy cover. Its rows are redacted while `MacSSHAgentController.concealsKeyList` is true (another app is frontmost); any further vault-derived value on this tab has to honor it too.
+- The key list names entries and key fingerprints of the unlocked vault, and the Settings window receives the resign-active privacy cover. Its rows are also hidden while `MacSSHAgentController.concealsKeyList` is true (another app is frontmost); any further vault-derived value on this tab has to honor it too.
 - The list reloads off the main actor whenever the session, its lock cycle, or its contents change. It clears its rows when a refresh starts and drops a superseded result, and asks the user to unlock while the session is locked.
 - Copy SSH Configuration copies without the concealed pasteboard marker: the `IdentityAgent` block holds no secret.
 - Identifiers: `settings.tab.ssh-agent`, `settings.ssh-agent.{toggle,copy-configuration}`, and `settings.ssh-agent.key-toggle.<entry-uuid>`.

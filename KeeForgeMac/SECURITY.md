@@ -163,11 +163,10 @@ also reject changed navigation, selection, or inputs; changing the selected entr
 conceals its fields. A successful prompt does not authorize a later session.
 
 [ScreenProtectionService](../KeeForge/Services/Security/ScreenProtectionService.swift)
-places a blur cover over vault-content windows when the app resigns active and
-removes it on activation. Settings is excluded from the cover. Its only
-vault-derived content, the entry titles and key fingerprints under Settings ▸ SSH
-Agent, is redacted from the resign-active notification until the app is active
-again
+places a blur cover over all app windows, including Settings, when the app
+resigns active and removes it on activation. The SSH Agent tab also removes
+its vault-derived entry titles and key fingerprints from its view while the app
+is inactive
 ([MacSSHAgentController](../KeeForge/Services/SSHAgent/MacSSHAgentController.swift)
 `concealsKeyList`). This cover is independent of the capture-blocking toggle.
 
@@ -278,7 +277,7 @@ host for the length of the connection. A signature is not bound to a destination
 either: `session-bind@openssh.com` is refused like every other extension.
 
 Not validated on a signed, sandboxed build: whether a client outside the container
-reaches the socket without a prompt, how the redacted key list and the capture
+reaches the socket without a prompt, how the covered Settings window and capture
 block behave in Mission Control and under ScreenCaptureKit, and `ssh`, `git`, and
 a forwarded agent end to end. Not measured: lock latency while many clients send
 requests (each one reads the session on the main thread), and the time a

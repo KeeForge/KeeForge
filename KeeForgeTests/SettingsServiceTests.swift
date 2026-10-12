@@ -461,11 +461,10 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(ScreenProtectionService.windowSharingType(blockCapture: false), .readOnly)
     }
 
-    func testPrivacyCoverExcludesSettingsWindow() {
-        // The Settings window gets no blur cover; what it shows of a vault
-        // conceals itself (MacSSHAgentControllerTests).
-        XCTAssertFalse(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "com_apple_SwiftUI_Settings_window"))
-        XCTAssertFalse(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "SettingsWindow"))
+    func testPrivacyCoverIncludesSettingsWindow() {
+        // The SSH Agent tab can show vault titles and key fingerprints.
+        XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "com_apple_SwiftUI_Settings_window"))
+        XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "SettingsWindow"))
     }
 
     func testPrivacyCoverAppliesToVaultAndUnknownWindows() {
