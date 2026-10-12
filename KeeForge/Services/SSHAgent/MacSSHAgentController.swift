@@ -143,9 +143,7 @@ final class MacSSHAgentController {
         }
         selectedEntryIDs[databaseID] = entryIDs.isEmpty ? nil : entryIDs
         SettingsService.setMacSSHAgentSelectedEntryIDs(selectedEntryIDs, in: defaults)
-        if watchedLease != nil {
-            keyCache.removeAll()
-        }
+        keyCache.removeAll()
     }
 
     /// The chosen entries of the active session, read at the moment of a
@@ -171,7 +169,11 @@ final class MacSSHAgentController {
     /// session's own mutation, on the main actor, before the new value is set.
     private func emptyKeyCacheWhenLeaseEnds(_ lease: SSHAgentLease, of session: DatabaseViewModel) {
         guard watchedLease != lease else { return }
-        keyCache.removeAll()
+        // The handler captures the cache generation before reading sources.
+        // Invalidating an empty initial lease would discard its first parse.
+        if watchedLease != nil {
+            keyCache.removeAll()
+        }
         watchedLease = lease
         withObservationTracking {
             _ = session.state
