@@ -2938,6 +2938,34 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.lockoutUntil)
     }
 
+    #if os(iOS)
+    func testSearchListDoesNotResolveOffscreenRows() async throws {
+        for usesSelection in [false, true] {
+            var entries = (0..<5_000).map { KPEntry(title: "Account \($0)", username: "user\($0)") }
+            entries[4_999].username = "{REF:U@T:Account 0}"
+            let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Accounts", entries: entries))
+            vm.searchText = "account"
+            let host = UIHostingController(rootView: EntryListView(
+                entries: vm.searchResults,
+                viewModel: vm,
+                onSelectEntry: usesSelection ? { _ in } : nil
+            ))
+            _ = host.sizeThatFits(in: CGSize(width: 375, height: 650))
+            // Resolving the last row would build the session's reference cache.
+            let cache = try XCTUnwrap(
+                Mirror(reflecting: vm).children.first { $0.label == "fieldReferenceResolver" },
+                "Resolver storage was renamed; update this rendering probe."
+            )
+            XCTAssertTrue(type(of: cache.value) == Optional<FieldReferenceResolver>.self,
+                          "Resolver storage must remain Optional<FieldReferenceResolver>; update this rendering probe.")
+            XCTAssertTrue(Mirror(reflecting: cache.value).children.isEmpty,
+                          "List must defer offscreen row data, selection=\(usesSelection)")
+            XCTAssertEqual(vm.resolvingFieldReferences(entries[4_999].username), "user0")
+            vm.lock()
+        }
+    }
+    #endif
+
     func testSearchResultsMatchesEntryFieldsCaseInsensitively() async throws {
         let entry = KPEntry(
             title: "titleNeedle",

@@ -20,6 +20,10 @@
 - Selection-driven shells (iPad detail column, macOS) pass `popsOnClose: false` and clear the selection in `onClose`. Their `dismiss` has nothing of this screen to pop and would pop the sidebar's stack instead.
 - A deletion handed to a container passes the finished `PendingDeletion`, never the entry, so the per-entry soft/permanent choice is not recomputed against the wrong group.
 
+### List rendering
+
+- `EntryListView` keeps its selection/navigation branch inside a concrete row container so `List` can identify rows without constructing every match.
+
 ### Mac lists
 
 - `MacEntryRow` sets the selection in its tap handler, and the double-click is a `simultaneousGesture` attached after that tap. Two plain tap gestures compose exclusively and hold every single click for the system double-click interval before the detail pane updates.

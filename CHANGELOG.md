@@ -8,6 +8,7 @@
 
 ### Fixes
 
+- Search stays responsive in large databases on iPhone and iPad (#211).
 - A database import, relink, or key file selection through Files that fails now shows an error instead of failing silently (#220).
 - New database names preserve percent characters, and the creation form explains when unsupported filename characters are replaced (#219).
 - On Mac, locked or read-only key files can now be linked and remembered for a database (#215).

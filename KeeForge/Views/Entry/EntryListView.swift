@@ -84,7 +84,8 @@ struct EntryListView: View {
 
     @ViewBuilder
     private func entryRow(for entry: KPEntry) -> some View {
-        Group {
+        // A concrete row container lets List defer offscreen matches.
+        HStack {
             if let onSelectEntry {
                 Button {
                     onSelectEntry(entry)
