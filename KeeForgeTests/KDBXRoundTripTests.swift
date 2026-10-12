@@ -468,6 +468,42 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(try nativeTOTPCode(of: reloaded), "06060638", "The saved entry and the reopened file must agree")
     }
 
+    @MainActor
+    func test_nativeTOTPSecret_reEnrollmentSurvivesLaterSettingsEdits() throws {
+        let cases: [(period: Int, digits: Int, algorithm: TOTPAlgorithm, code: String)] = [
+            (60, 8, .sha1, "91063902"),
+            (30, 6, .sha1, "060638"),
+            (30, 8, .sha256, "12591804"),
+        ]
+
+        for setting in cases {
+            let parsed = try parseNativeTOTPEntry(secretField: "TimeOtp-Secret-Hex", secret: "DEADBEEF")
+            let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+            let viewModel = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
+            XCTAssertNil(viewModel.applySetupLink("otpauth://totp/Review?secret=DEADBEEF&digits=8"))
+            viewModel.totpPeriod = setting.period
+            viewModel.totpDigits = setting.digits
+            viewModel.totpAlgorithm = setting.algorithm
+
+            let payload = try XCTUnwrap(viewModel.entryDraftPayload.totpConfig)
+            XCTAssertNil(payload.otpauthURI)
+            XCTAssertNil(payload.decodedSecret)
+            XCTAssertEqual(viewModel.totpPreview?.code(at: Date(timeIntervalSince1970: 59)), setting.code)
+
+            let updated = try DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: roundTripSessionKey)
+                .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+            let saved = try XCTUnwrap(updated.rootGroup.allEntries.first)
+            XCTAssertEqual(saved.totpConfig?.keePassSecretField, .base32)
+            XCTAssertEqual(try nativeTOTPCode(of: saved), setting.code)
+
+            let reloaded = try XCTUnwrap(
+                serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta)).rootGroup.allEntries.first
+            )
+            XCTAssertEqual(reloaded.totpConfig?.keePassSecretField, .base32)
+            XCTAssertEqual(try nativeTOTPCode(of: reloaded), setting.code)
+        }
+    }
+
     /// A draft that carries both an enrollment link and bytes decoded from
     /// the entry's old field is an enrollment: the link decides the secret.
     func test_updateEntry_enrollmentLinkOutranksDecodedBytesOfTheOldSecretField() throws {
@@ -2118,7 +2154,7 @@ final class KDBXRoundTripTests: XCTestCase {
         return try parseXML(Data(xml.utf8))
     }
 
-    /// The entry's eight-digit code at T = 59, the RFC 6238 test instant.
+    /// The entry's code at T = 59, the RFC 6238 test instant.
     private func nativeTOTPCode(of entry: KPEntry) throws -> String {
         let config = try XCTUnwrap(entry.totpConfig)
         return TOTPGenerator.generateCode(

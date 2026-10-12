@@ -762,7 +762,7 @@ final class EntryEditViewModel {
         // reads the same: behind a hexadecimal or Base64 field it stands for
         // other bytes than it does as the link's Base32.
         let enrolledURI = payloadOTPAuthURI(currentSecret: trimmedSecret)
-        let secretChanged = enrolledURI != nil
+        let secretChanged = isEnrolledSecret(currentSecret: trimmedSecret)
             || trimmedSecret != originalSnapshot.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
         // A KeeOTP query the parser would reject on reload (non-canonical
         // secret, or a size outside its {6, 8} whitelist) must never be
@@ -803,15 +803,21 @@ final class EntryEditViewModel {
         )
     }
 
-    /// The enrolled URI is emitted only while its parsed values still match
-    /// the form; a post-enrollment edit silently drops it (the existing
-    /// verbatim-or-drop philosophy for stored otpauth URIs).
-    private func payloadOTPAuthURI(currentSecret: String) -> String? {
+    private func isEnrolledSecret(currentSecret: String) -> Bool {
         guard keeOTPSource == nil,
               let enrolledOTPAuthURI,
               let uri = try? OTPAuthURI(string: enrolledOTPAuthURI),
               let decoded = TOTPGenerator.base32Decode(currentSecret), !decoded.isEmpty,
-              TOTPGenerator.base32Encode(decoded) == uri.secret,
+              TOTPGenerator.base32Encode(decoded) == uri.secret else { return false }
+        return true
+    }
+
+    /// Keep the verbatim URI only while all its settings still match the
+    /// form. Losing the URI does not undo the secret replacement.
+    private func payloadOTPAuthURI(currentSecret: String) -> String? {
+        guard isEnrolledSecret(currentSecret: currentSecret),
+              let enrolledOTPAuthURI,
+              let uri = try? OTPAuthURI(string: enrolledOTPAuthURI),
               uri.period == totpPeriod,
               uri.digits == totpDigits,
               uri.algorithm == totpAlgorithm else { return nil }
