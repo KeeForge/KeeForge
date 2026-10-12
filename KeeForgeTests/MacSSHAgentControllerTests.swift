@@ -151,6 +151,23 @@ final class MacSSHAgentControllerTests: XCTestCase {
         XCTAssertTrue(cache.isEmpty)
     }
 
+    func testActiveSessionChangeEmptiesTheKeyCacheAtOnce() async throws {
+        let session = try await makeUnlockedSession()
+        let cache = SSHAgentKeyCache()
+        let controller = try makeController(keyCache: cache)
+        controller.isEnabled = true
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: session.databaseReference.id)
+        let handler = SSHAgentRequestHandler(keySources: {
+            MainActor.assumeIsolated { controller.keySources() }
+        }, keyCache: cache)
+        _ = handler.response(to: Self.requestIdentities)
+        XCTAssertFalse(cache.isEmpty)
+
+        controller.activeSessionDidChange()
+
+        XCTAssertTrue(cache.isEmpty)
+    }
+
     func testDeselectingAnEntryOrTurningTheAgentOffEmptiesTheKeyCache() async throws {
         let session = try await makeUnlockedSession()
         let cache = SSHAgentKeyCache()

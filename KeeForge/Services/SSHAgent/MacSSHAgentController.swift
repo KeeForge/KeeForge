@@ -229,6 +229,13 @@ final class MacSSHAgentController {
         keyCache.removeAll()
     }
 
+    /// Called when the app changes which database session is active, even if
+    /// the former session is still unlocked. No key from it may stay cached.
+    func activeSessionDidChange() {
+        watchedLease = nil
+        keyCache.removeAll()
+    }
+
     /// `queue: nil` runs the handler inside the post, on the main thread
     /// AppKit posts these from, so `concealsKeyList` is set before the app
     /// has finished resigning.
