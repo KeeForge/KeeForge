@@ -172,6 +172,14 @@ final class UnlockedDatabaseBrowseAndDetailUITests: UnlockedDatabaseUITestCase {
             app.buttons["lock.button"].waitForNonExistence(timeout: 5),
             "An open entry should not offer a Lock button"
         )
+
+        let backButton = app.navigationBars.buttons["Social"].firstMatch
+        XCTAssertTrue(backButton.waitForExistence(timeout: 5), "Could not return to the entry list")
+        tapElement(backButton)
+        let lockButton = currentLockButton()
+        XCTAssertTrue(lockButton.waitForExistence(timeout: 5), "The list should offer manual lock again")
+        tapElement(lockButton)
+        XCTAssertTrue(waitForLockedState(timeout: 10), "Manual lock did not leave the vault locked")
     }
 
     func testFixtureEntryDetailShowsTimestamps() {
