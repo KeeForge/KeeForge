@@ -4,6 +4,7 @@
 
 ### New Features
 
+- Move several entries to another group at once (#186). Long-press an entry (right-click on Mac) and choose "Select Entries", tap the other entries you want, including ones in other groups or in search results, then choose "Move to Group" and pick the destination. The selected entries are moved and saved together.
 - KeeForge now speaks Russian: a full Russian (Русский) localization across the app and the AutoFill extension, plus translated README and contributor docs (#180).
 
 ### Fixes
