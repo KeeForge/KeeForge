@@ -641,7 +641,8 @@ struct GroupListView: View {
             customIconData: viewModel.customIconData(for: entry),
             folderPath: showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil
         )
-        Group {
+        // A concrete row container lets List defer offscreen rows.
+        HStack {
             if showsVerificationCode, let config = entry.totpConfig, let sessionKey = viewModel.sessionKey {
                 VerificationCodeRow(
                     title: entry.title.isEmpty ? String(localized: "(untitled)") : entry.title,
