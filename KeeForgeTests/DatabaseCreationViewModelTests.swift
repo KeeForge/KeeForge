@@ -31,6 +31,25 @@ final class DatabaseCreationViewModelTests: XCTestCase {
 
     // MARK: - selectKeyFile / clearKeyFile
 
+    #if os(macOS)
+    func testSelectLockedKeyFileLoadsDataAndBookmark() throws {
+        let url = try makeTemporaryFileURL(name: "locked.keyx", contents: Data("key-bytes".utf8))
+        defer {
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: url.path)
+            try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+        }
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: url.path)
+
+        let viewModel = DatabaseCreationViewModel()
+        try viewModel.selectKeyFile(url: url)
+
+        XCTAssertEqual(viewModel.keyFileData, Data("key-bytes".utf8))
+        XCTAssertEqual(viewModel.keyFileFilename, "locked.keyx")
+        let bookmark = try XCTUnwrap(viewModel.keyFileBookmarkData)
+        XCTAssertNotNil(SecurityScopedBookmarkManager.resolveURL(from: bookmark))
+    }
+    #endif
+
     func testSelectKeyFileLoadsDataBookmarkAndFilenameAndClearsDisplayedErrors() throws {
         let viewModel = DatabaseCreationViewModel()
         viewModel.validationError = "stale validation error"

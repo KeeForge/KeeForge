@@ -52,6 +52,27 @@ final class DatabaseListViewModelTests: XCTestCase {
         )
     }
 
+    #if os(macOS)
+    func testSetKeyFilePersistsLockedFileAssociation() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "locked-key.kdbx"))
+        let keyFileURL = try makeTemporaryFileURL(name: "locked.keyx")
+        defer {
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: keyFileURL.path)
+            try? FileManager.default.removeItem(at: keyFileURL.deletingLastPathComponent())
+        }
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: keyFileURL.path)
+
+        try DatabaseListViewModel().setKeyFile(url: keyFileURL, for: reference)
+
+        let reloaded = DatabaseListViewModel()
+        let stored = try XCTUnwrap(reloaded.databases.first)
+        XCTAssertEqual(stored.keyFileFilename, "locked.keyx")
+        XCTAssertNotNil(stored.keyFileBookmarkData)
+        let resolved = try XCTUnwrap(DatabaseListStore.resolveKeyFileURL(for: stored))
+        XCTAssertEqual(try Data(contentsOf: resolved), try Data(contentsOf: keyFileURL))
+    }
+    #endif
+
     func testMoveDatabasesDropsBetweenLaterRows() throws {
         let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "one.kdbx"))
         let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "two.kdbx"))

@@ -109,7 +109,7 @@ final class MasterKeyChangeViewModel {
         }
 
         pickedKeyFileData = try Data(contentsOf: url)
-        pickedKeyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
+        pickedKeyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true)
         pickedKeyFileFilename = url.lastPathComponent
         keyFileChange = .replace
         clearDisplayedErrors()

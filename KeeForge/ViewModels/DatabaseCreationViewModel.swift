@@ -120,7 +120,7 @@ final class DatabaseCreationViewModel {
         }
 
         keyFileData = try Data(contentsOf: url)
-        keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
+        keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true)
         keyFileFilename = url.lastPathComponent
         clearDisplayedErrors()
     }

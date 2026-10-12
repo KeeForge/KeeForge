@@ -1267,7 +1267,7 @@ enum DatabaseListStore {
                 }
             }
 
-            if let refreshedBookmarkData = try? SecurityScopedBookmarkManager.makeBookmarkData(for: url) {
+            if let refreshedBookmarkData = try? SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true) {
                 onRefresh(refreshedBookmarkData)
             }
         }
