@@ -17,8 +17,8 @@ final class UnlockKeyFileSelectionTests: XCTestCase {
         XCTAssertFalse(selection.isLoading)
     }
 
-    func testReadFailureRemainsAvailableForThePickerAlert() async throws {
-        let selection = UnlockKeyFileSelection { _ in throw CocoaError(.fileReadNoSuchFile) }
+    func testReadFailureReportedAsCancellationRemainsAvailableForTheAlert() async throws {
+        let selection = UnlockKeyFileSelection { _ in throw CocoaError(.userCancelled) }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
 
         let readResult = await selection.read(url: url)
@@ -27,7 +27,7 @@ final class UnlockKeyFileSelectionTests: XCTestCase {
         guard case .failure(let error) = result else {
             return XCTFail("Expected the file read error")
         }
-        XCTAssertNotNil(DocumentPickerService.pickerFailureAlert(for: error))
+        XCTAssertEqual((error as? CocoaError)?.code, .userCancelled)
         XCTAssertFalse(selection.isLoading)
     }
 
