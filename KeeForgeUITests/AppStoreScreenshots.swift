@@ -156,7 +156,6 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
             size: Int64(fixtureData.count)
         )
 
-        app.launchEnvironment["UI_TEST_ENABLE_FAVICONS"] = "1"
         app.launchEnvironment[Self.uiTestCloudAccountsEnv] = try encode([account, webDAVAccount, oneDriveAccount])
         app.launchEnvironment[Self.uiTestCloudDatabasesEnv] = try encode([
             CloudDatabasePayload(

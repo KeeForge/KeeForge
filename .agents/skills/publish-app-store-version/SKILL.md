@@ -70,7 +70,8 @@ bundle identifier, then confirm its identity. Do not select an app by display na
 
 The `prepare-release` and `respin-release` skills prepare the candidate; after soak,
 `ship-release` hands off the accepted release manifest. Require that handoff at
-`scratch/release-manifests/{version}-b{repoBuild}.json`. Match the marketing version, repo build,
+`build/releases/{version}/b{repoBuild}/manifest.json` in the main checkout
+(`ci_scripts/release_dir.sh {version}-b{repoBuild}` prints the directory). Match the marketing version, repo build,
 RC tag/SHA, `iosTestFlightBuild`, `macTestFlightBuild`, and platform build IDs. Both builds must
 come from the accepted RC; `directCFBundleVersion` must equal `repoBuild`. Verify the recorded
 external TestFlight soak and direct-channel evidence. Internal-only testing and Xcode Cloud

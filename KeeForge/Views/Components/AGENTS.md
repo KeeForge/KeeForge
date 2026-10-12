@@ -1,15 +1,23 @@
 # Components Views
 
-Reusable controls shared across the feature folders.
+**Scope:** small controls shared across feature folders: icons, password rows, the generator sheet, summary rows, tip cards, and the read-only indicator. Folder-wide UI rules are in `../AGENTS.md`.
 
-## Screen Map
+## Invariants
 
-- `FaviconView.swift` renders an entry's icon: a custom `Meta/CustomIcons` image, a cached/fetched favicon, or the standard-icon glyph fallback from `StandardIconView.swift`. Its `FaviconLoadModel` clears the previous image when the requested domain changes and ignores stale or cancelled fetch responses; `FaviconLoadModelTests` covers that lifetime without network requests.
-- `StandardIconView.swift` is the single renderer for the 69 KDBX standard icon IDs in the app and AutoFill extension. It applies KeeForge's semantic SF Symbol palette everywhere, falling back to white on a selected row for contrast; custom database icons and website favicons keep their own image colors.
-- `PasswordInputRow.swift` owns editable password entry controls shared by master-password creation and entry editing; `usesPasswordAutoFill` (default on) drives both `textContentType` applications — the row's own and `passwordInputStyle(contentType:)`'s — so a row holding a non-password can turn password AutoFill off entirely. `PasswordDisplay.swift` owns read-only password reveal/display rows plus strength indicators. `EntryDetailView.swift`'s `ProtectedFieldRow` masks custom fields whose key is in `KPEntry.protectedStringKeys`, gates reveal and copy behind device-owner authentication, and is shared with the history viewer; identifiers `entry.copy.<normalized-key>` / `entry-history.copy.<normalized-key>` and `entry.protected-field.<normalized-key>.reveal` / `entry-history.protected-field.<normalized-key>.reveal`.
-- `PasswordGeneratorSheet.swift` shows a generated suggestion and passes it to the caller with Use. The suggestion's plaintext leaf carries `password-generator.password`; `PasswordDisplayRow` applies that optional identifier without assigning it to the row's copy/regenerate controls or strength summary.
-- `SettingsSummaryRow.swift` is the label of a settings hub row — icon, title, and one secondary line saying what is currently set — shared by the iOS Settings root (`../Settings/SettingsView.swift`) and the Database Details hub (`../DatabaseList/DatabaseDetailsView.swift`). It is a label only: the caller wraps it in the `NavigationLink` and owns the identifier. `SettingsSummaryText.joined` builds the line from optional parts with the ` · ` separator; the wording itself lives beside each screen in `AppSettingsSummary` and `DatabaseSettingsSummary`.
-- `TipBannerCard.swift` is `tipBannerCard()`, the rounded card behind the dismissible tips on the database list (`../Settings/AutoFillTipBanner.swift`, `../Settings/MacAppSuggestionBanner.swift`). It carries no accessibility identifier, because a container identifier is copied onto the buttons inside it.
-- `ReadOnlyIndicator.swift` is the toolbar status for a database that cannot be edited, shared by the compact group list, the entry detail (iOS only — macOS states it once in the window toolbar the workspace owns), and the macOS workspace toolbar. Identifier `database.read-only-indicator`.
+- `PasswordDisplay.swift`, `PasswordInputRow.swift`, and `StandardIconView.swift` also compile into both AutoFill extension targets (`project.yml`). Keep them free of app-only types.
+- `StandardIconView` is the single renderer for the KDBX standard icons, in the app and the extension. Custom database icons and favicons keep their own colors.
+- `PasswordInputRow(usesPasswordAutoFill: false)` is for a row that only looks like a password (a TOTP setup key). The flag drives both `textContentType` applications; leaving it on lets QuickType offer to replace the value with a generated password.
+- A revealed password is never selectable; see "Secrets on screen" in `../AGENTS.md`.
+- `PasswordGeneratorSheet` refuses to turn off the last character set, matching `PasswordGenerator`, which would silently re-enable lowercase. `password-generator.password` sits on the plaintext leaf only, not on the row's controls.
+- `FaviconLoadModel` clears the previous image when the domain changes and ignores stale or cancelled responses, so a reused row never shows another entry's icon.
+- `SettingsSummaryRow` is a label only. The caller wraps it in the `NavigationLink` and owns the identifier.
+- `tipBannerCard()` carries no identifier; a container identifier would replace the buttons' own.
+- `ReadOnlyIndicator` appears in entry detail on iOS only. On macOS the detail toolbar merges into the window toolbar, which already shows it.
 
-Shared UI shells and the folder-wide UI rules live in `../README.md`.
+## Tests
+
+- `FaviconLoadModelTests`, `SettingsSummaryRowTests` (line limit at accessibility sizes).
+
+## See also
+
+- `../AGENTS.md`, `../../../AutoFillExtension/AGENTS.md`

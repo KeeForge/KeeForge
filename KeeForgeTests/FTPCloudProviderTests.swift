@@ -946,6 +946,29 @@ final class FTPCloudProviderTests: XCTestCase {
 
     // MARK: - Create
 
+    func testPercentNamesSurviveCreateListDownloadAndUpload() async throws {
+        let name = "new%20db 100%.kdbx"
+        let server = FakeFTPServer()
+        server.addDirectory("vaults%20 100%")
+        let (provider, accountId) = try makeProvider(server: server, baseURL: "ftp://nas.local/vaults%2520%20100%25/")
+        let created = try await provider.createFile(accountId: accountId, path: "/\(name)", data: Data("original".utf8)) { _ in }
+        XCTAssertEqual(created.file.id, "/\(name)")
+        XCTAssertEqual(created.file.name, name)
+        let listed = try await provider.listFiles(accountId: accountId, path: nil, query: nil, includesAllFiles: false)
+        XCTAssertEqual(listed.map(\.id), [created.file.id])
+
+        let localURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: localURL) }
+        _ = try await provider.download(accountId: accountId, fileId: created.file.id, to: localURL) { _ in }
+        XCTAssertEqual(try Data(contentsOf: localURL), Data("original".utf8))
+        _ = try await provider.upload(accountId: accountId, fileId: created.file.id, data: Data("updated".utf8), expectedRev: created.metadata.rev) { _ in }
+        XCTAssertEqual(server.filePaths, ["vaults%20 100%/\(name)"])
+        XCTAssertEqual(server.file("vaults%20 100%/\(name)")?.data, Data("updated".utf8))
+        XCTAssertTrue(server.commandLog.contains("RETR vaults%20 100%/\(name)"))
+        XCTAssertTrue(server.commandLog.contains("STOR vaults%20 100%/.\(name).20260918120000-0000CAFE.keeforge-upload"))
+        XCTAssertTrue(server.commandLog.contains("RNTO vaults%20 100%/\(name)"))
+    }
+
     func testCreateFileWritesANewDatabase() async throws {
         let server = FakeFTPServer()
         server.addDirectory("vaults")

@@ -145,10 +145,12 @@ final class AppRoutingCoordinator {
             return nil
         }
         if let database {
+            // Keep Editing cancelled the source's lock, so the destination is dropped.
             guard database.lockRequestCancellationID == transition.sourceCancellationID else {
                 databaseTransition = nil
                 return nil
             }
+            // The source has not locked yet (an editor or draft prompt is up): keep waiting.
             guard database.lockCycleID != transition.sourceLockCycle else { return nil }
             guard database.state == .locked else {
                 databaseTransition = nil

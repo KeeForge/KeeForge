@@ -5,7 +5,7 @@
 <h1 align="center">KeeForge</h1>
 
 <p align="center">
-  <a href="../../README.md">English</a> | <a href="README.de.md">Deutsch</a> | <a href="README.fr.md">Français</a> | <a href="README.es.md">Español</a> | 简体中文 | <a href="README.zh-Hant.md">繁體中文</a> | <a href="README.ja.md">日本語</a> | <a href="README.it.md">Italiano</a>
+  <a href="../../README.md">English</a> | <a href="README.de.md">Deutsch</a> | <a href="README.fr.md">Français</a> | <a href="README.es.md">Español</a> | 简体中文 | <a href="README.zh-Hant.md">繁體中文</a> | <a href="README.ja.md">日本語</a> | <a href="README.it.md">Italiano</a> | <a href="README.ru.md">Русский</a>
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@
     <img alt="在 App Store 下载" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="通过 TestFlight 加入公开测试版" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="通过 TestFlight 加入 iPhone、iPad 和 Mac 测试版" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="需要 iOS 18.0 或更高版本" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="需要 macOS 15.0 或更高版本" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -35,7 +35,9 @@ KeeForge 是一款适用于 iPhone、iPad 和 Mac 的原生 KeePass 客户端。
 
 ## 公开测试版
 
-**[通过 TestFlight 加入 KeeForge 测试版](https://testflight.apple.com/join/mPAT4f1a)**
+**[通过 TestFlight 加入适用于 iPhone、iPad 和 Mac 的 KeeForge 测试版](https://testflight.apple.com/join/mPAT4f1a)**
+
+Apple 审核各平台的构建版本期间，iPhone、iPad 和 Mac 测试版的可用性可能有所不同。
 
 ## 亮点
 
@@ -71,7 +73,7 @@ KeeForge 非常重视数据安全：密码管理器绝不能损坏你的保险�
 
 使用 FTP 时，最后一次冲突检查与替换文件无法作为同一操作完成。其他应用或设备同时保存的更改仍可能被覆盖，因此请勿在多个地方同时编辑同一个 FTP 数据库。
 
-对技术细节感兴趣的话，测试套件的说明见 [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md)，发布前验证关卡的说明见 [`ci_scripts/README.md`](../../ci_scripts/README.md)（均为英文）。
+对技术细节感兴趣的话，测试套件的说明见 [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md)，发布前验证关卡的说明见 [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md)（均为英文）。
 
 ## 项目结构
 
@@ -100,7 +102,7 @@ scripts/              # 本地开发工具
 - [`CHANGELOG.md`](../../CHANGELOG.md) - 版本历史
 - [`ROADMAP.md`](../../ROADMAP.md) - 规划中的产品工作和当前优先事项
 - [`AGENTS.md`](../../AGENTS.md) - 面向编码代理的上下文
-- [`KeeForge/README.md`](../../KeeForge/README.md) - 应用 target 架构图
+- [`KeeForge/AGENTS.md`](../../KeeForge/AGENTS.md) - 应用 target 架构图
 - [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) - 扩展的限制和共享源码说明
 - [`SECURITY.md`](../../SECURITY.md) - 漏洞披露政策
 - [`docs/`](../../docs/) - 实现规格、审计和较长篇幅的设计文档

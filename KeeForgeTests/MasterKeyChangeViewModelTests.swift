@@ -169,6 +169,26 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.changeError)
     }
 
+    #if os(macOS)
+    func testSelectLockedKeyFileEntersReplaceStateWithDataAndBookmark() throws {
+        let url = try makeTemporaryFileURL(name: "locked.keyx", contents: Data("new-key-bytes".utf8))
+        defer {
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: url.path)
+            try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+        }
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: url.path)
+
+        let viewModel = makeViewModel(currentKeyFileFilename: "current.keyx")
+        try viewModel.selectKeyFile(url: url)
+
+        XCTAssertEqual(viewModel.keyFileChange, .replace)
+        XCTAssertEqual(viewModel.pickedKeyFileData, Data("new-key-bytes".utf8))
+        XCTAssertEqual(viewModel.pickedKeyFileFilename, "locked.keyx")
+        let bookmark = try XCTUnwrap(viewModel.pickedKeyFileBookmarkData)
+        XCTAssertNotNil(SecurityScopedBookmarkManager.resolveURL(from: bookmark))
+    }
+    #endif
+
     func testClearKeyFileWithCurrentAssociationEntersRemoveState() throws {
         let viewModel = makeViewModel(
             currentKeyFileFilename: "current.keyx",

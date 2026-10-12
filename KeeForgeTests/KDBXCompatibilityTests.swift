@@ -32,6 +32,37 @@ final class KDBXCompatibilityTests: XCTestCase {
         Bundle(for: Self.self)
     }
 
+    func test_createdPercentRootNameSurvivesWriteAndReopen() async throws {
+        let name = "new%20db 100%"
+        let prepared = try await DatabaseCreationService.prepare(request: DatabasePreparationRequest(
+            displayName: name,
+            password: "creation compatibility password",
+            keyFileData: nil,
+            keyFileBookmarkData: nil,
+            keyFileFilename: nil
+        ))
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: prepared.encryptedBytes,
+            compositeKey: prepared.compositeKey,
+            sessionKey: prepared.sessionKey
+        )
+        let written = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: prepared.compositeKey,
+            header: parsed.header,
+            sessionKey: prepared.sessionKey
+        )
+        let reopened = try KDBXParser.parseWithMeta(
+            data: written,
+            compositeKey: prepared.compositeKey,
+            sessionKey: prepared.sessionKey
+        )
+        XCTAssertEqual(prepared.filename, "\(name).kdbx")
+        XCTAssertEqual(parsed.rootGroup.groups.first?.name, name)
+        XCTAssertEqual(reopened.rootGroup.groups.first?.name, name)
+    }
+
     func test_invalidNotesAreRejectedByDraftAndWriterForAESAndTwofish() throws {
         for fixture in [KDBXCompatibilitySupport.Fixture.syntheticRich, .syntheticTwofish] {
             let loaded = try KDBXCompatibilitySupport.load(fixture, bundle: bundle)

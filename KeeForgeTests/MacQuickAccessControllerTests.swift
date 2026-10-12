@@ -1,6 +1,7 @@
 #if os(macOS)
 import AppKit
 import Carbon.HIToolbox
+import SwiftUI
 import XCTest
 @testable import KeeForge
 
@@ -19,6 +20,7 @@ final class MacQuickAccessControllerTests: XCTestCase {
 
     private var presenter: FakePresenter!
     private var hotKey: FakeHotKey!
+    private var renderedContent: [MacQuickSearchViewModel.Content] = []
 
     override func setUp() async throws {
         try await super.setUp()
@@ -26,6 +28,7 @@ final class MacQuickAccessControllerTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: shortcutKey)
         presenter = FakePresenter()
         hotKey = FakeHotKey()
+        renderedContent = []
     }
 
     override func tearDown() async throws {
@@ -270,7 +273,70 @@ final class MacQuickAccessControllerTests: XCTestCase {
         XCTAssertFalse(MacQuickSearchPanel.isComposingText(in: NSView()))
     }
 
+    // MARK: - Active session
+
+    /// The panel reads the session from a view body in its own hosting view.
+    /// A source that is only current outside a view update, such as a binding
+    /// captured from the app's state, renders "No Database Open" forever.
+    func testAHostedViewBodyFollowsTheActiveSession() async throws {
+        let controller = makeStartedController(menuBarEnabled: true)
+        let hosting = NSHostingView(rootView: ContentProbe(model: controller.searchModel) { [weak self] in
+            self?.renderedContent.append($0)
+        })
+        hosting.frame = NSRect(x: 0, y: 0, width: 10, height: 10)
+        await render(hosting)
+        XCTAssertEqual(renderedContent.last, .noDatabase)
+
+        let session = try makeSession()
+        let name = session.databaseReference.displayName
+        controller.activeSession = session
+        await render(hosting)
+        XCTAssertEqual(renderedContent.last, .locked(databaseName: name))
+
+        await session.unlock(password: "testpassword123")
+        await render(hosting)
+        XCTAssertEqual(renderedContent.last, .unlocked(databaseName: name))
+
+        session.lockRequest(force: true)
+        await render(hosting)
+        XCTAssertEqual(renderedContent.last, .locked(databaseName: name))
+
+        controller.activeSession = nil
+        await render(hosting)
+        XCTAssertEqual(renderedContent.last, .noDatabase)
+    }
+
+    func testClearingTheActiveSessionReleasesIt() throws {
+        let controller = makeStartedController(menuBarEnabled: true)
+        weak var released: DatabaseViewModel?
+        try autoreleasepool {
+            let session = try makeSession()
+            released = session
+            controller.activeSession = session
+            XCTAssertEqual(
+                controller.searchModel.content,
+                .locked(databaseName: session.databaseReference.displayName)
+            )
+        }
+        XCTAssertNotNil(released)
+
+        controller.activeSession = nil
+
+        XCTAssertNil(released, "The panel must not keep a closed database alive")
+    }
+
     // MARK: - Helpers
+
+    private func makeSession() throws -> DatabaseViewModel {
+        let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        return DatabaseViewModel(databaseReference: try TestDatabaseSupport.makeReference(for: url))
+    }
+
+    /// Lets SwiftUI act on an observed change, then runs the pending update.
+    private func render(_ hosting: NSView) async {
+        await Task.yield()
+        hosting.layoutSubtreeIfNeeded()
+    }
 
     private func makeStartedController(menuBarEnabled: Bool = false) -> MacQuickAccessController {
         SettingsService.macMenuBarQuickAccessEnabled = menuBarEnabled
@@ -297,6 +363,17 @@ final class MacQuickAccessControllerTests: XCTestCase {
             keyCode: UInt16(keyCode)
         ))
         return MacQuickSearchPanel.command(for: event)
+    }
+}
+
+/// Reads `content` the way `MacQuickSearchView` does: from a view body.
+private struct ContentProbe: View {
+    let model: MacQuickSearchViewModel
+    let record: (MacQuickSearchViewModel.Content) -> Void
+
+    var body: some View {
+        let _ = record(model.content)
+        Color.clear
     }
 }
 

@@ -74,11 +74,17 @@ enum DocumentPickerService {
 
     static func pickerFailureAlert(for error: Error) -> SelectionAlert? {
         let nsError = error as NSError
-        guard nsError.code != NSUserCancelledError else { return nil }
+        if nsError.domain == NSCocoaErrorDomain, nsError.code == NSUserCancelledError {
+            return nil
+        }
 
-        return SelectionAlert(
+        return fileAccessFailureAlert(for: error)
+    }
+
+    static func fileAccessFailureAlert(for error: Error) -> SelectionAlert {
+        SelectionAlert(
             title: String(localized: "Couldn’t Open File"),
-            message: nsError.localizedDescription
+            message: error.localizedDescription
         )
     }
 }

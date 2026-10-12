@@ -52,6 +52,20 @@ final class OneDriveCloudProviderTests: XCTestCase {
         XCTAssertFalse(url.absoluteString.contains("%25"))
     }
 
+    func testPercentNamesAreEncodedOnceForCreateOpenSaveAndList() throws {
+        let path = "/Vaults%20 100%/new%20db 100%.kdbx"
+        let encoded = "/Vaults%2520%20100%25/new%2520db%20100%25.kdbx"
+        for (requestPath, suffix) in [
+            (OneDriveCloudProvider.uploadSessionPath(for: path), ":/createUploadSession"),
+            (OneDriveCloudProvider.contentPath(for: path), ":/content"),
+            (OneDriveCloudProvider.itemPath(for: path), ":"),
+            (OneDriveCloudProvider.listChildrenPath(for: path), ":/children"),
+        ] {
+            let url = try OneDriveCloudProvider.graphURL(path: requestPath)
+            XCTAssertEqual(url.absoluteString, "\(graphBase)/me/drive/root:\(encoded)\(suffix)")
+        }
+    }
+
     func testPlainASCIIPathIsUnchanged() throws {
         let url = try OneDriveCloudProvider.graphURL(
             path: OneDriveCloudProvider.contentPath(for: "/Vaults/personal.kdbx")
