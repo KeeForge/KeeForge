@@ -65,9 +65,8 @@ final class MacSSHAgentController {
     /// The entries served per database, keyed by `DatabaseReference.id`.
     private(set) var selectedEntryIDs: [UUID: Set<UUID>]
 
-    /// True while another app is frontmost. The key list names entries and
-    /// key fingerprints, and the Settings window gets no privacy cover
-    /// (`ScreenProtectionService`), so the list redacts its rows instead.
+    /// True while another app is frontmost. The Settings window receives the
+    /// privacy cover, and the SSH tab also removes its key rows from the view.
     private(set) var concealsKeyList = false
 
     let socketPath: String
