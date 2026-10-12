@@ -139,25 +139,22 @@ struct AutoFillEntryCreatorView: View {
             .navigationTitle("New Credential")
             .navigationBarTitleDisplayMode(.inline)
             .disabled(isSaving)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                AutoFillCreatorSaveBar(
+                    title: "Save and Fill",
+                    isSaving: isSaving,
+                    accessibilityIdentifier: "autofill-entry-creator.save-and-fill"
+                ) {
+                    Task {
+                        await save()
+                    }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
                         .disabled(isSaving)
                         .accessibilityIdentifier("autofill-entry-creator.cancel")
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    if isSaving {
-                        ProgressView()
-                    } else {
-                        Button("Save and Fill") {
-                            Task {
-                                await save()
-                            }
-                        }
-                        .disabled(isSaving)
-                        .accessibilityIdentifier("autofill-entry-creator.save-and-fill")
-                    }
                 }
             }
         }

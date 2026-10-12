@@ -3,7 +3,7 @@
 Maintained security boundaries and limitations for the native Mac app and its
 AutoFill extension. Update this document when the implementation changes.
 Vulnerability reporting belongs in the [root security policy](../SECURITY.md);
-release verification belongs in [CI Scripts](../ci_scripts/README.md#macos-distribution-channels).
+release verification belongs in [the direct-distribution release reference](../.agents/skills/prepare-release/references/direct-distribution.md).
 
 ## Secrets in memory
 
@@ -323,7 +323,7 @@ signature verification in the installed app.
 
 Control of the appcast host and signing key compromises the direct update channel.
 Maintain both as trusted release infrastructure. Run the
-[manual Sparkle rehearsal](../ci_scripts/README.md#manual-sparkle-rehearsal-test-feed-only)
+[manual Sparkle rehearsal](../.agents/skills/prepare-release/references/direct-distribution.md#manual-sparkle-rehearsal-test-feed-only)
 after changing update infrastructure or sandbox exceptions. ZIP extraction and
 clean-account Gatekeeper verification are part of that procedure. Record each
 run's evidence in the candidate manifest, not in this security model.

@@ -19,7 +19,7 @@
     <img alt="Im App Store laden" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="Der öffentlichen Beta über TestFlight beitreten" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="Der Beta für iPhone, iPad und Mac über TestFlight beitreten" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="Erfordert iOS 18.0 oder neuer" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="Erfordert macOS 15.0 oder neuer" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -35,7 +35,9 @@ KeeForge ist ein nativer KeePass-Client für iPhone, iPad und Mac. Lokale Dateie
 
 ## Öffentliche Beta
 
-**[Der KeeForge-Beta über TestFlight beitreten](https://testflight.apple.com/join/mPAT4f1a)**
+**[Der KeeForge-Beta für iPhone, iPad und Mac über TestFlight beitreten](https://testflight.apple.com/join/mPAT4f1a)**
+
+Die Verfügbarkeit der Beta kann sich zwischen iPhone, iPad und Mac unterscheiden, während Apple den jeweiligen Build prüft.
 
 ## Highlights
 
@@ -71,7 +73,7 @@ KeeForge nimmt Datensicherheit sehr ernst: Ein Passwort-Manager darf deinen Tres
 
 Bei FTP können die letzte Konfliktprüfung und das Ersetzen der Datei nicht als ein Vorgang erfolgen. Eine gleichzeitige Änderung aus einer anderen App oder von einem anderen Gerät kann daher überschrieben werden. Bearbeite eine FTP-Datenbank nicht an zwei Stellen gleichzeitig.
 
-Für technisch Interessierte: Die Test-Suite ist in [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) beschrieben, das Prüf-Gate vor jedem Release in [`ci_scripts/README.md`](../../ci_scripts/README.md) (beide auf Englisch).
+Für technisch Interessierte: Die Test-Suite ist in [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) beschrieben, das Prüf-Gate vor jedem Release in [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md) (beide auf Englisch).
 
 ## Projektübersicht
 
@@ -100,7 +102,7 @@ scripts/              # Lokale Entwickler-Tools
 - [`CHANGELOG.md`](../../CHANGELOG.md) – Versionshistorie
 - [`ROADMAP.md`](../../ROADMAP.md) – geplante Produktarbeit und offene Prioritäten
 - [`AGENTS.md`](../../AGENTS.md) – Kontext für Coding-Agents
-- [`KeeForge/README.md`](../../KeeForge/README.md) – Architekturübersicht des App-Targets
+- [`KeeForge/AGENTS.md`](../../KeeForge/AGENTS.md) – Architekturübersicht des App-Targets
 - [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) – Extension-Einschränkungen und Hinweise zu geteiltem Code
 - [`SECURITY.md`](../../SECURITY.md) – Richtlinie zur Meldung von Sicherheitslücken
 - [`docs/`](../../docs/) – Implementierungs-Specs, Audits und längere Design-Dokumente

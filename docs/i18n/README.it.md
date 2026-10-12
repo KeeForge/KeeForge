@@ -22,10 +22,7 @@
     <img alt="Scarica KeeForge direttamente per Mac" src="https://img.shields.io/badge/Mac-Direct%20Download-24292F?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="Partecipa alla beta per iPhone e iPad su TestFlight" src="https://img.shields.io/badge/TestFlight-iPhone%20%26%20iPad-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
-  </a>
-  <a href="https://testflight.apple.com/join/ZKQRwPaa">
-    <img alt="Partecipa alla beta per Mac su TestFlight" src="https://img.shields.io/badge/TestFlight-Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="Partecipa alla beta per iPhone, iPad e Mac su TestFlight" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="Richiede iOS 18.0 o versioni successive" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="Richiede macOS 15.0 o versioni successive" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -41,11 +38,9 @@ KeeForge è un client KeePass nativo per iPhone, iPad e Mac, pensato per chi vuo
 
 ## Beta pubblica
 
-- iPhone e iPad: [Partecipa alla beta di KeeForge su TestFlight](https://testflight.apple.com/join/mPAT4f1a)
-- Mac: [Partecipa alla beta di KeeForge su TestFlight](https://testflight.apple.com/join/ZKQRwPaa)
+**[Partecipa alla beta di KeeForge per iPhone, iPad e Mac su TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
 
-La disponibilità della beta può differire tra iPhone, iPad e Mac mentre Apple
-esamina la build di ciascuna piattaforma.
+La disponibilità della beta può differire tra iPhone, iPad e Mac mentre Apple esamina la build di ciascuna piattaforma.
 
 ## Punti di forza
 
@@ -81,7 +76,7 @@ KeeForge prende molto sul serio la sicurezza dei dati: un gestore di password no
 
 Con FTP, il controllo finale dei conflitti e la sostituzione del file non possono avvenire come un'unica operazione. Un salvataggio simultaneo da un'altra app o da un altro dispositivo può comunque essere sovrascritto, quindi evita di modificare un database FTP in due posti contemporaneamente.
 
-Per chi è curioso degli aspetti tecnici, la suite di test è descritta in [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) e la verifica che precede ogni rilascio in [`ci_scripts/README.md`](../../ci_scripts/README.md).
+Per chi è curioso degli aspetti tecnici, la suite di test è descritta in [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) e la verifica che precede ogni rilascio in [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md).
 
 ## Mappa del progetto
 
@@ -110,7 +105,7 @@ scripts/              # Strumenti di sviluppo locali
 - [`CHANGELOG.md`](../../CHANGELOG.md) - cronologia delle versioni
 - [`ROADMAP.md`](../../ROADMAP.md) - lavoro pianificato sul prodotto e priorità aperte
 - [`AGENTS.md`](../../AGENTS.md) - contesto per gli agenti di programmazione
-- [`KeeForge/README.md`](../../KeeForge/README.md) - mappa dell'architettura del target dell'app
+- [`KeeForge/AGENTS.md`](../../KeeForge/AGENTS.md) - mappa dell'architettura del target dell'app
 - [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) - vincoli dell'estensione e note sul codice condiviso
 - [`SECURITY.md`](../../SECURITY.md) - politica di segnalazione delle vulnerabilità
 - [`docs/`](../../docs/) - specifiche di implementazione, audit e documenti di progettazione più estesi

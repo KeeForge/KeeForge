@@ -55,9 +55,14 @@ def write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
+def candidate_dir(repo: Path, tag: str) -> Path:
+    result = subprocess.run([str(Path(__file__).with_name("release_dir.sh")), "--repo", str(repo), tag], text=True, capture_output=True)
+    if result.returncode: fail(result.stderr.strip() or "release_dir.sh failed")
+    return Path(result.stdout.strip())
+
 def init(args: argparse.Namespace) -> None:
     repo = Path(args.repo).resolve(); value = identity(repo, args.rc_tag)
-    out = Path(args.manifest_dir) / f"{value['version']}-b{value['repoBuild']}.json"
+    out = (Path(args.candidate_dir) if args.candidate_dir else candidate_dir(repo, args.rc_tag)) / "manifest.json"
     if out.exists(): fail(f"refusing to overwrite existing candidate manifest: {out}")
     value.update({"schemaVersion": 1, "createdAt": datetime.now(timezone.utc).isoformat(), "scope": "candidate", "artifacts": {}, "gates": {}, "iosTestFlightBuild": None, "macTestFlightBuild": None})
     write_json(out, value); print(out)
@@ -229,10 +234,11 @@ def self_test(_: argparse.Namespace) -> None:
         )
         (repo / "project.yml").write_text("targets:\n" + targets + "\n")
         subprocess.run(["git", "-C", str(repo), "add", "project.yml"], check=True); subprocess.run(["git", "-C", str(repo), "commit", "-qm", "fixture"], check=True); subprocess.run(["git", "-C", str(repo), "tag", "rc/1.2.3-b9"], check=True)
-        manifests = repo / "scratch/release-manifests"
-        init_args = argparse.Namespace(manifest_dir=str(manifests), repo=str(repo), rc_tag="rc/1.2.3-b9")
+        init_args = argparse.Namespace(candidate_dir=None, repo=str(repo), rc_tag="rc/1.2.3-b9")
         init(init_args)
-        validate_args = argparse.Namespace(manifest=str(manifests / "1.2.3-b9.json"), mode="distribute", repo=str(repo))
+        manifest = repo.resolve() / "build/releases/1.2.3/b9/manifest.json"
+        if not manifest.is_file(): fail("self-test: init did not write build/releases/{version}/b{repoBuild}/manifest.json")
+        validate_args = argparse.Namespace(manifest=str(manifest), mode="distribute", repo=str(repo))
         try: validate(validate_args)
         except SystemExit:
             pass
@@ -360,7 +366,7 @@ parser = argparse.ArgumentParser()
 sub = parser.add_subparsers(required=True)
 for name, function in (("init", init), ("validate", validate)):
     item = sub.add_parser(name); item.add_argument("--repo", default=".")
-    if name == "init": item.add_argument("--rc-tag", required=True); item.add_argument("--manifest-dir", default="scratch/release-manifests")
+    if name == "init": item.add_argument("--rc-tag", required=True); item.add_argument("--candidate-dir", help="default: the candidate's directory from release_dir.sh")
     else: item.add_argument("--manifest", required=True); item.add_argument("--mode", choices=("distribute", "ship"), required=True)
     item.set_defaults(function=function)
 item = sub.add_parser("self-test"); item.set_defaults(function=self_test)

@@ -3,7 +3,7 @@
 Releases run on one dedicated `release/{major}.{minor}` branch. Each candidate produces three
 artifacts from one commit: an iOS App Store/TestFlight build, a Mac App Store/TestFlight build,
 and a notarized direct-download Mac build. Archives/uploads may be automatic, but the two App Store
-builds are moved manually to their respective external TestFlight groups only after every required
+builds are moved manually to the shared **KeeForge Test** external TestFlight group only after every required
 gate is accepted; the direct build is staged and soaked separately. Ship only those exact artifacts.
 This is a sequential, high-stakes workflow: each step depends on the previous one succeeding. Do not
 skip steps or proceed past a failure.
@@ -38,7 +38,8 @@ Local edits, project generation, focused localization/content checks, and the fo
 `WhatsNewUITests` flow with screenshot attachments or native app capture are authorized preparation
 for this review. Follow the repository's Xcode lock, device preference, and saved-log rules; do not
 run a full UI suite just to capture this sheet. Preserve the screenshots and the approved exact
-copy in the main checkout's `scratch/` so the eventual commit can be checked against them.
+copy in `{version}/content/` under the [release artifact directory](#where-release-artifacts-live)
+so the eventual commit can be checked against them.
 
 If displayed copy, order, links, or layout changes after approval, repeat the affected text and
 screenshot reviews. Reuse prior approval only for unchanged content and rendering; an ordinary
@@ -69,6 +70,44 @@ Never disable authentication, broaden Keychain ACLs, or change security policy t
 prompt. Never treat a smoke run that executed zero tests as a pass: it is an infrastructure failure.
 Routine authorized test runs need no separate owner approval step.
 
+## Where release artifacts live
+
+Everything a later release step needs is kept in the main checkout's gitignored `build/releases/`.
+`scratch/` is temporary working space that may be emptied at any time, and a linked release
+worktree is just as disposable: nothing needed later may exist only in either. Resolve the paths
+with `ci_scripts/release_dir.sh`, which prints the main checkout's location from any worktree:
+
+```bash
+VERSION_DIR="$(ci_scripts/release_dir.sh {version})"             # build/releases/{version}
+CANDIDATE="$(ci_scripts/release_dir.sh {version}-b{repoBuild})"  # build/releases/{version}/b{repoBuild}
+mkdir -p "$VERSION_DIR/content" "$CANDIDATE"/{appcast,evidence,notes}
+```
+
+The later command blocks use `$VERSION_DIR` and `$CANDIDATE` as set here.
+
+| Path under `build/releases/` | Holds |
+| --- | --- |
+| `{version}/content/` | The approved release copy and What's New screenshots; respins reuse them |
+| `{version}/b{repoBuild}/manifest.json` | The candidate manifest |
+| `{version}/b{repoBuild}/direct/` | `build_mac_direct.sh` output: the archive and its dSYMs, the exported app, `KeeForge-{version}-b{repoBuild}.zip`, `direct-artifact.json`, and the notarization and Sparkle signature records |
+| `{version}/b{repoBuild}/appcast/` | `base-appcast.xml` (the production feed the stage was built from), the staged `appcast.xml` and `staged-appcast.json`, and later the draft, public-URL, and live-feed verification records |
+| `{version}/b{repoBuild}/mas/` | The exact exported Mac App Store app |
+| `{version}/b{repoBuild}/evidence/` | The log, result bundle, or verifier output of every gate, reproduction, and artifact check the manifest cites |
+| `{version}/b{repoBuild}/notes/` | Each platform's What to Test text |
+
+- Name evidence after what produced it (`kdbx-gate-ios.log`, `kdbx-gate-ios.xcresult`,
+  `mac-smoke.xcresult`, `direct-finalize.log`). A rerun gets a numeric suffix; never overwrite
+  evidence a recorded verdict cites.
+- Record evidence in the manifest as a path relative to the candidate directory
+  (`evidence/kdbx-gate-ios.log`) or as a URL. `artifacts.direct` is the exception: it is the
+  generated `direct-artifact.json`, whose paths are absolute.
+- Copy evidence produced on another machine, such as a CI Mac, into `evidence/` instead of citing a
+  path on that machine.
+- A respin gets its own `b{repoBuild}` directory. Never reuse or edit a previous candidate's.
+- Only temporary state belongs in `scratch/`: the Mac smoke's pre-UI-state backup, script fixtures,
+  and exploratory runs that no verdict cites.
+- Remove a superseded candidate's directory only after the version has shipped.
+
 ## Shared release state and manifest
 
 The release handoff is one state record, not a single build number:
@@ -84,7 +123,8 @@ verifying that it does not trail the repository floor. Xcode Cloud may still ass
 platform-specific TestFlight build numbers; record both and match each back to the RC tag and SHA
 rather than assuming the uploaded records match the preflight value.
 
-During a release, record the state in `scratch/release-manifests/{version}-b{repoBuild}.json`.
+During a release, record the state in the candidate's `manifest.json`
+([release artifact directory](#where-release-artifacts-live)).
 That path is gitignored and is working state, not a secret store. The manifest must contain only
 non-secret evidence: `schemaVersion`, `version`, `repoBuild`, `rcTag`, `commitSHA`, `sourceTree`,
 the App Store Connect build-number preflight, both platform build numbers/version records,
@@ -93,7 +133,7 @@ filename/URL/SHA-256, Sparkle signature attributes, notarization ID, archive/sym
 review states, release timestamps, and accepted soak exceptions. Never put passwords, tokens,
 App Store Connect credentials, private signing keys, keychain profiles, or cloud secret values in
 it or in logs. At ship time preserve the completed non-secret manifest with the release evidence
-(for example, GitHub Release notes/asset or the team's secure release archive); the scratch copy is
+(for example, GitHub Release notes/asset or the team's secure release archive); the local copy is
 not the long-term record.
 
 A passed gate records its verdict and a log, URL, or result bundle. An adjudicated gate is only an
@@ -149,8 +189,9 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
   restores the App Store project under the global Xcode lock, and then finalizes
   the checkpoint without that lock. It refuses to submit anything that is unsandboxed or carries a
   `com.apple.security.cs.*` exception, notarizes, staples, and emits the appcast
-  zip and writes a non-secret `direct-artifact.json` handoff record. Run it **after** the App Store
-  build is cut, from the same commit, so both channels ship identical code. Obtain/export the exact
+  zip and writes a non-secret `direct-artifact.json` handoff record into the candidate's `direct/`
+  directory. Run it **after** the App Store build is cut, from the same commit, so both channels
+  ship identical code. Obtain/export the exact
   MAS app from the accepted Xcode Cloud archive without rebuilding, and run
   `ci_scripts/verify_mac_artifact.sh` on both exact exported apps with `--architectures arm64,x86_64`
   before external distribution or direct-artifact staging. A different architecture set requires

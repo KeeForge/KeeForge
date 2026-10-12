@@ -19,7 +19,7 @@
     <img alt="Descargar en App Store" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="Unirse a la beta pública en TestFlight" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="Unirse a la beta para iPhone, iPad y Mac en TestFlight" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="Requiere iOS 18.0 o posterior" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="Requiere macOS 15.0 o posterior" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -35,7 +35,9 @@ KeeForge es un cliente nativo de KeePass para iPhone, iPad y Mac. Los archivos l
 
 ## Beta pública
 
-**[Únase a la beta de KeeForge en TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
+**[Únase a la beta de KeeForge para iPhone, iPad y Mac en TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
+
+La disponibilidad de la beta puede variar entre iPhone, iPad y Mac mientras Apple revisa la compilación de cada plataforma.
 
 ## Funciones destacadas
 
@@ -71,7 +73,7 @@ KeeForge se toma muy en serio la seguridad de los datos: un gestor de contraseñ
 
 Con FTP, la última comprobación de conflictos y la sustitución del archivo no pueden realizarse como una sola operación. Un guardado simultáneo desde otra app u otro dispositivo puede sobrescribirse; evite editar una base de datos FTP en dos lugares a la vez.
 
-Para quien tenga curiosidad técnica, la batería de pruebas está descrita en [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) y la prueba de control previa a cada versión en [`ci_scripts/README.md`](../../ci_scripts/README.md) (ambas en inglés).
+Para quien tenga curiosidad técnica, la batería de pruebas está descrita en [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) y la prueba de control previa a cada versión en [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md) (ambas en inglés).
 
 ## Mapa del proyecto
 
@@ -100,7 +102,7 @@ scripts/              # Herramientas de desarrollo local
 - [`CHANGELOG.md`](../../CHANGELOG.md) – historial de versiones
 - [`ROADMAP.md`](../../ROADMAP.md) – trabajo de producto planificado y prioridades abiertas
 - [`AGENTS.md`](../../AGENTS.md) – contexto para agentes de codificación
-- [`KeeForge/README.md`](../../KeeForge/README.md) – mapa de la arquitectura de los targets de la app
+- [`KeeForge/AGENTS.md`](../../KeeForge/AGENTS.md) – mapa de la arquitectura de los targets de la app
 - [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) – restricciones de la extensión y notas sobre el código compartido
 - [`SECURITY.md`](../../SECURITY.md) – política de divulgación de vulnerabilidades
 - [`docs/`](../../docs/) – especificaciones de implementación, auditorías y documentos de diseño más extensos
