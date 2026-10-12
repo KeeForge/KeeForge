@@ -49,7 +49,8 @@ enum AutoFillSaveCoordinator {
                     reference: reference,
                     compositeKey: compositeKey,
                     openTimeSHA512: openTimeSHA512,
-                    kdfPolicy: .autoFillExtension
+                    kdfPolicy: .autoFillExtension,
+                    environment: .autoFillExtension
                 )
                 switch result {
                 case .saved(let newSHA512):

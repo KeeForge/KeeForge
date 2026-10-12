@@ -45,6 +45,8 @@
 
 ### Saving
 
+- On macOS, a passkey registration for a bookmarked local database saves to the shared encrypted copy and stores the resulting bytes in `PendingLocalSaveStore` before registration completes. The extension cannot write the bookmarked file. The app merges the pending save into that file after unlock; the creator must explain this delay. Cloud databases and KeeForge-only databases already save to their shared copy, while iOS can write its bookmarked file.
+
 - The extension never uploads. A save goes through `AutoFillSaveCoordinator.saveNewEntry` into `LocalDatabaseSaver` and, for a cloud database, leaves a pending-upload marker before success is returned; the app drains it. Marker rules: `../KeeForge/Services/Cloud/AGENTS.md`; save paths: `../KeeForge/Services/AGENTS.md`.
 - Picker-initiated creation (`makeEntryCreationAction`) exists only on iOS, against a writable non-KDBX-3.1 database, for a request with a service identifier; passkey and code pickers stay selection-only. It completes with an `ASPasswordCredential` from the confirmed draft, while save-password completes with `completeSavePasswordRequest`.
 - Passkey registration (iOS and macOS) mirrors save-password, then cancels with `.matchedExcludedCredential` when an excluded descriptor matches a stored passkey. The database is saved first and `completeRegistrationRequest` runs only after the save succeeds, so the relying party never receives a credential that was not persisted. Every request still ends in a completion or cancel; an unsupported or malformed one cancels with `.failed`.
