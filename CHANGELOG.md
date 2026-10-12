@@ -8,6 +8,7 @@
 
 ### Fixes
 
+- New database names preserve percent characters, and the creation form explains when unsupported filename characters are replaced (#219).
 - On Mac, locked or read-only key files can now be linked and remembered for a database (#215).
 - On iPhone and iPad, typing, scrolling, and tapping buttons now restart the auto-lock timeout, so a database stays unlocked while you use it.
 

@@ -50,6 +50,54 @@ final class DatabaseCreationViewModelTests: XCTestCase {
     }
     #endif
 
+    func testValidNameShowsFilenamePreviewWithoutReplacementExplanation() {
+        let viewModel = DatabaseCreationViewModel()
+        viewModel.databaseName = "Family Vault"
+
+        XCTAssertEqual(viewModel.filenamePreview, "Family Vault.kdbx")
+        XCTAssertFalse(viewModel.showsFilenameReplacementExplanation)
+    }
+
+    func testReplacedCharactersShowFilenamePreviewAndExplanation() {
+        let viewModel = DatabaseCreationViewModel()
+        for character in "/:\\?*|\"<>" {
+            viewModel.databaseName = "Family\(character)Vault"
+
+            XCTAssertEqual(viewModel.filenamePreview, "Family_Vault.kdbx")
+            XCTAssertTrue(viewModel.showsFilenameReplacementExplanation)
+        }
+    }
+
+    func testTrimmingAloneDoesNotShowReplacementExplanation() {
+        let viewModel = DatabaseCreationViewModel()
+        for name in ["  Family Vault  ", ".Family Vault.", " \n.Family Vault.\t "] {
+            viewModel.databaseName = name
+
+            XCTAssertEqual(viewModel.filenamePreview, "Family Vault.kdbx")
+            XCTAssertFalse(viewModel.showsFilenameReplacementExplanation)
+        }
+    }
+
+    func testPercentNamesShowLiteralPreviewWithoutReplacementExplanation() {
+        let viewModel = DatabaseCreationViewModel()
+        for name in ["100%", "new%20db 100%"] {
+            viewModel.databaseName = name
+
+            XCTAssertEqual(viewModel.filenamePreview, "\(name).kdbx")
+            XCTAssertFalse(viewModel.showsFilenameReplacementExplanation)
+        }
+    }
+
+    func testInvalidNameHasNoFilenamePreviewOrReplacementExplanation() {
+        let viewModel = DatabaseCreationViewModel()
+        for name in ["", "   ", " .\n. "] {
+            viewModel.databaseName = name
+
+            XCTAssertNil(viewModel.filenamePreview)
+            XCTAssertFalse(viewModel.showsFilenameReplacementExplanation)
+        }
+    }
+
     func testSelectKeyFileLoadsDataBookmarkAndFilenameAndClearsDisplayedErrors() throws {
         let viewModel = DatabaseCreationViewModel()
         viewModel.validationError = "stale validation error"
@@ -119,7 +167,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
 
     func testPrepareForExportSucceedsClearsSecretsButKeepsKeyFileMetadata() async throws {
         let viewModel = DatabaseCreationViewModel()
-        viewModel.databaseName = "Personal"
+        viewModel.databaseName = "new%20db 100%"
         viewModel.password = "correct horse battery staple"
         viewModel.confirmPassword = "correct horse battery staple"
         let keyFileURL = try makeTemporaryFileURL(name: "MyKey.keyx", contents: Data("key-bytes".utf8))
@@ -132,7 +180,8 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.creationError)
         XCTAssertNil(viewModel.validationError)
         XCTAssertNotNil(viewModel.preparedDatabase)
-        XCTAssertEqual(viewModel.preparedFilename, "Personal.kdbx")
+        XCTAssertEqual(viewModel.suggestedFilename, "new%20db 100%.kdbx")
+        XCTAssertEqual(viewModel.preparedFilename, "new%20db 100%.kdbx")
         XCTAssertFalse(viewModel.preparedEncryptedBytes.isEmpty)
         // clearSecrets() runs on success: password/confirmPassword/keyFileData
         // clear, but keyFileFilename/keyFileBookmarkData are untouched — they

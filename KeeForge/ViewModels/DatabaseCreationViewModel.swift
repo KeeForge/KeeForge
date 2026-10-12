@@ -99,8 +99,17 @@ final class DatabaseCreationViewModel {
         }
     }
 
+    var filenamePreview: String? {
+        try? DatabaseCreationService.normalizedFilename(for: databaseName)
+    }
+
+    var showsFilenameReplacementExplanation: Bool {
+        filenamePreview != nil
+            && databaseName.rangeOfCharacter(from: DatabaseCreationService.filenameReplacementCharacters) != nil
+    }
+
     var suggestedFilename: String {
-        (try? DatabaseCreationService.normalizedFilename(for: databaseName)) ?? "New Database.kdbx"
+        filenamePreview ?? "New Database.kdbx"
     }
 
     var preparedFilename: String {

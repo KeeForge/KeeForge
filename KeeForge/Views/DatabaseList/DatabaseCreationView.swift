@@ -118,6 +118,18 @@ struct DatabaseCreationView: View {
                     TextField("Database name", text: $viewModel.databaseName)
                         .textInputAutocapitalization(.words)
                         .accessibilityIdentifier("database-create.name-field")
+                    if let filename = viewModel.filenamePreview {
+                        Text("Filename: \(filename)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("database-create.filename")
+                        if viewModel.showsFilenameReplacementExplanation {
+                            Text("Unsupported filename characters are replaced with _.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .accessibilityIdentifier("database-create.filename-explanation")
+                        }
+                    }
                 }
             } header: {
                 Text("Database")
