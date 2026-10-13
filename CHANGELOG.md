@@ -8,6 +8,7 @@
 
 ### New Features
 
+- Add more URLs to an entry while editing it on iPhone, iPad, and Mac: Add Another URL below the URL field adds one, and each extra URL has its own remove button (#209). They are saved as `KP2A_URL` fields, so KeePass2Android and KeePassXC read them too, and AutoFill matches them like the main URL. Extra URLs already stored in an entry now appear as URL rows in the editor, and an entry no longer lists them a second time under Custom Fields.
 - Move several entries to another group at once (#186). Long-press an entry (right-click on Mac) and choose "Select Entries", tap the other entries you want, including ones in other groups or in search results, then choose "Move to Group" and pick the destination. The selected entries are moved and saved together.
 - KeeForge now speaks Russian: a full Russian (Русский) localization across the app and the AutoFill extension, plus translated README and contributor docs (#180).
 

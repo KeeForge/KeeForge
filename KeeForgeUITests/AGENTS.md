@@ -130,6 +130,7 @@ Extend a base class instead of repeating launch or unlock code, and promote a re
 
 - `KeeForgeUITestCase`: launch, fixtures, unlock, search, view menu, Database Details, scrolling, typing. Start a test with `unlockSuccessfully()`.
 - `UnlockedDatabaseUITestCase` for browse and detail (`openEntry(named:inGroup:)`, `searchResult(named:)`); `EntryEditUITestCase` for create, edit, delete, and context menus.
+- `EntryEditSmokeUITests.testAddedURLIsSavedAndShownOnTheEntry` exercises a second URL added in the editor and its detail presentation without duplicate custom-field text.
 - `UnlockedDatabaseBrowseAndDetailUITests` checks that compact entry detail omits `lock.button`, then returns to its list and locks. `TagBrowserUITests` covers the longer return path from a tagged entry to manual lock.
 - `EntrySelectionMoveUITests` covers selecting two group entries, Cancel, and moving through the shared picker. Cross-group, search, and tag selection use the same session state and need separate UI coverage.
 - Area bases: `DatabaseCreationUITestCase`, `SaveConflictMergeUITestCase`, `AppSettingsUITestCase`, `TOTPEnrollmentUITestCase`, `CloudSyncBaseUITests`, `WebDAVSyncBaseUITests`.
