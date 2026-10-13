@@ -41,6 +41,8 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 
 ### Selection, search, tags
 
+- `workspace.entrySelection` is one session-wide set of picked entry IDs; it survives navigation, prunes entries that leave the tree or enter the recycle bin, and ends on lock, reload, or read-only transition. `moveEntries` stages one draft and refuses read-only sessions before mutation.
+- While bulk selection is active, Mac single-entry edit/copy/Return and entry or group Delete commands must be unavailable. `commandEntryID`, `canEditSelectedEntry`, and `deletableSelection` share that gate.
 - A permanently deleted entry's `selectedEntryID` is not cleared by `synchronizeSelections()`; the mounted detail view closes itself. Clearing it in the deleting update unmounts the detail column and wedges a pushed editor (`../Views/AGENTS.md`). A recycled entry still exists, so `deleteEntry` / `deleteGroup` clear it at once.
 - `autoFillExcludedGroupIDs` resolves `<EnableSearching>` in the same inheritance order as `KPGroup.autoFillEntries`. Change both together or search and AutoFill disagree.
 - Entries under an excluded group leave the search corpus but stay in the tag index and browsing lists.

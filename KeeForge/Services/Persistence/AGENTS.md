@@ -43,6 +43,8 @@
 ### Saves, backups, creation
 
 - After replacing a local database file, a failed refresh of its separate AutoFill cache does not undo the save. `LocalDatabaseSaver` removes the older copy so AutoFill cannot fill stale credentials; if both refresh and removal fail, the saved file remains authoritative and a later unlock or save can refresh the cache.
+- `PendingLocalSaveStore` retains each Mac AutoFill save to a bookmarked local database under `pending-local-saves/<database UUID>/`. The extension records the encrypted result before replacing its shared copy; the app merges pending changes into the unlocked session, saves the original file under its baseline check, and removes each pending save only after success. Merge again after unlock, save, and app activation, and before rekey. A file conflict during rekey must ask for reload; an unmergeable save moves to a retained backup that pruning cannot remove. While pending, cache refresh must not replace the copy AutoFill serves.
+
 - `LocalDatabaseSaver` step order and the `SaveBaseline` gate are in `../AGENTS.md`. Under `-ui-testing` only (`UI_TEST_LOCAL_SAVE_CONFLICT_COUNT`), the saver can rewrite the file with real divergent bytes before the hash check, so UI tests conflict and merge against a real file (`../../../KeeForgeUITests/AGENTS.md`).
 - The staged replacement is written outside the picked folder: file-scoped security access may not allow creating a sibling temp file.
 - Backups are `yyyyMMdd-HHmmss-uuuuuu.kdbx` in UTC. `recentBackups` and pruning sort by filename, and `DatabaseExportService` parses the date out of it, so any new backup writer must use the same shape.

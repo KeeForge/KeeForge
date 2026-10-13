@@ -55,7 +55,7 @@ struct MacEntriesList: View {
         .listStyle(.inset)
         .focused($isListFocused)
         .onKeyPress(.return) {
-            guard let entryID = viewModel.workspace.selectedEntryID else { return .ignored }
+            guard let entryID = viewModel.workspace.commandEntryID else { return .ignored }
             openEntry(entryID)
             return .handled
         }
@@ -122,12 +122,23 @@ struct MacEntryRow: View {
         // `KPEntry` equality is by ID, so a list handed the same matches after
         // an edit (adding a TOTP code) keeps passing the pre-edit entry.
         let entry = viewModel.entry(withID: self.entry.id) ?? self.entry
-        EntryRow(
-            entry: entry,
-            username: viewModel.resolvingFieldReferences(entry.username),
-            customIconData: viewModel.customIconData(for: entry),
-            folderPath: showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil
-        )
+        // In selection mode a click picks the entry instead of showing it, and
+        // the row offers nothing else. An entry that cannot be moved keeps
+        // behaving as a plain row.
+        let selection = viewModel.workspace.entrySelection
+        let isSelectable = selection != nil && EntryRowMoveAction.isAvailable(entryID: entry.id, viewModel: viewModel)
+        let isSelected = selection?.contains(entry.id) == true
+        HStack(spacing: 8) {
+            if isSelectable {
+                EntrySelectionIndicator(isSelected: isSelected)
+            }
+            EntryRow(
+                entry: entry,
+                username: viewModel.resolvingFieldReferences(entry.username),
+                customIconData: viewModel.customIconData(for: entry),
+                folderPath: showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil
+            )
+        }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .macSelectableRowHover()
@@ -143,41 +154,56 @@ struct MacEntryRow: View {
         // `NSEvent.doubleClickInterval` (0.5s by default). Measured on this
         // row's shape: 353ms exclusive, 3ms simultaneous.
         .onTapGesture {
-            viewModel.workspace.selectedEntryID = entry.id
+            if isSelectable {
+                viewModel.workspace.toggleEntrySelection(entry.id)
+            } else {
+                viewModel.workspace.selectedEntryID = entry.id
+            }
             isListFocused = true
         }
         .simultaneousGesture(
             TapGesture(count: 2).onEnded {
+                guard selection == nil else { return }
                 onOpenEntry(entry.id)
             }
         )
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityIdentifier(rowIdentifier)
         .contextMenu {
-            EntryRowCopyActions(entry: entry, viewModel: viewModel)
-
-            EntryRowDuplicateAction(entryID: entry.id, viewModel: viewModel) { editor in
-                onRequestDuplicate(editor)
+            if selection == nil {
+                menuItems(for: entry)
             }
+        }
+    }
 
-            EntryRowMoveAction(entryID: entry.id, viewModel: viewModel) { move in
-                onRequestMove(move)
-            }
+    @ViewBuilder
+    private func menuItems(for entry: KPEntry) -> some View {
+        EntryRowCopyActions(entry: entry, viewModel: viewModel)
 
-            if viewModel.isReadOnly == false {
-                Button(sendToRecycleBin ? "Delete" : "Delete Permanently", role: .destructive) {
-                    onRequestDeletion(
-                        .entry(
-                            PendingEntryDeletion(
-                                entryID: entry.id,
-                                sendToRecycleBin: sendToRecycleBin
-                            )
+        EntryRowDuplicateAction(entryID: entry.id, viewModel: viewModel) { editor in
+            onRequestDuplicate(editor)
+        }
+
+        EntryRowMoveAction(entryID: entry.id, viewModel: viewModel) { move in
+            onRequestMove(move)
+        }
+
+        EntryRowSelectAction(entryID: entry.id, viewModel: viewModel)
+
+        if viewModel.isReadOnly == false {
+            Button(sendToRecycleBin ? "Delete" : "Delete Permanently", role: .destructive) {
+                onRequestDeletion(
+                    .entry(
+                        PendingEntryDeletion(
+                            entryID: entry.id,
+                            sendToRecycleBin: sendToRecycleBin
                         )
                     )
-                }
-                .accessibilityIdentifier(
-                    sendToRecycleBin ? "entry-row.delete-context" : "entry-row.delete-permanent"
                 )
             }
+            .accessibilityIdentifier(
+                sendToRecycleBin ? "entry-row.delete-context" : "entry-row.delete-permanent"
+            )
         }
     }
 

@@ -4,11 +4,15 @@
 
 ### New Features
 
+- Move several entries to another group at once (#186). Long-press an entry (right-click on Mac) and choose "Select Entries", tap the other entries you want, including ones in other groups or in search results, then choose "Move to Group" and pick the destination. The selected entries are moved and saved together.
 - KeeForge now speaks Russian: a full Russian (Русский) localization across the app and the AutoFill extension, plus translated README and contributor docs (#180).
 
 ### Fixes
 
 - AutoFill no longer keeps an outdated copy of a database when a save could not update that copy (#207). The copy is removed instead, so AutoFill reads the saved file where it can and otherwise stays unavailable for that database until KeeForge opens or saves it again.
+- Mac AutoFill can save a new passkey into a database opened from a file (#182). Registration used to stop with a permission error, because the AutoFill extension cannot open that file itself. The passkey is now kept by KeeForge and offered for sign-in on this Mac, and it is written to the database file the next time you unlock that database in KeeForge; the passkey form says so. Until then other apps and devices do not see it. Changes another app made to the file in the meantime are kept. If the passkey cannot be combined with the file, KeeForge says so and keeps it as a backup in Database Details that is never rotated out.
+
+- Custom group icons now appear in the Mac sidebar, matching iPhone and iPad (#224).
 - Search stays responsive in large databases on iPhone and iPad (#211).
 - Groups, All Entries, Verification Codes, and the Recycle Bin open without stalling when they hold thousands of entries on iPhone and iPad.
 - A database import, relink, or key file selection through Files that fails now shows an error instead of failing silently (#220).

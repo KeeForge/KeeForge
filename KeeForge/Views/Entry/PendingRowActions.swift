@@ -180,6 +180,8 @@ struct ListScopedDeletionAlert: ViewModifier {
 enum PendingMove: Identifiable {
     case entry(UUID)
     case group(UUID)
+    /// The entries picked in selection mode, moved together.
+    case entries(Set<UUID>)
 
     var id: String {
         switch self {
@@ -187,6 +189,9 @@ enum PendingMove: Identifiable {
             "entry-\(entryID.uuidString)"
         case .group(let groupID):
             "group-\(groupID.uuidString)"
+        case .entries:
+            // A session has one selection, so it has one such move at a time.
+            "entries"
         }
     }
 }
@@ -201,6 +206,8 @@ extension PendingMove {
             viewModel.moveDestinationOptions(forEntryID: entryID)
         case .group(let groupID):
             viewModel.moveDestinationOptions(forGroupID: groupID)
+        case .entries(let entryIDs):
+            viewModel.moveDestinationOptions(forEntryIDs: entryIDs)
         }
     }
 
@@ -212,6 +219,9 @@ extension PendingMove {
                 try viewModel.moveEntry(entryID: entryID, toGroupID: destinationGroupID)
             case .group(let groupID):
                 try viewModel.moveGroup(groupID: groupID, toGroupID: destinationGroupID)
+            case .entries(let entryIDs):
+                try viewModel.moveEntries(entryIDs: entryIDs, toGroupID: destinationGroupID)
+                viewModel.workspace.endEntrySelection()
             }
             Task {
                 await viewModel.saveHandlingError()
