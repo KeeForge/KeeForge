@@ -637,7 +637,8 @@ extension KDBXMerger {
                 guard left.period == right.period,
                       left.digits == right.digits,
                       left.algorithm == right.algorithm,
-                      left.keeOTPSource == right.keeOTPSource
+                      left.keeOTPSource == right.keeOTPSource,
+                      left.keePassSecretField == right.keePassSecretField
                 else { return false }
                 return try plaintext(left.secret) == plaintext(right.secret)
                     && plaintext(left.decodedSecret) == plaintext(right.decodedSecret)

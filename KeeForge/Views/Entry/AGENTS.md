@@ -12,6 +12,8 @@
 
 ## Invariants
 
+- `EntryDetailView` shows entry actions and any sync warning in its toolbar. Lock stays on the compact list or regular-width workspace toolbar, leaving room for the entry title; the list's `lock.button` remains the manual-lock path.
+
 ### Closing a deleted entry
 
 - `EntryDetailView` closes itself through `finishClose()` when its entry leaves the index. It runs at most once: both `onAppear`s can fire on one reveal and each `dismiss()` pops a level.

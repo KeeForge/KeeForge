@@ -52,6 +52,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 
 ### Stale completions and forms
 
+- `EntryEditViewModel` keeps imported non-Base32 TOTP bytes through unrelated edits. Explicit URI enrollment replaces those bytes even when its Base32 text matches the old field's text; later period, digit, or algorithm edits may drop the verbatim URI but must not restore the old bytes.
 - `EntrySecretAction` and `AttachmentLoadCoordinator` publish only while the request and the caller's session check are current. Invalidation allows a fresh request without letting the old completion finish or clear it.
 - `MacQuickSearchViewModel` holds no entry data: it reads the live session on every access and re-checks it after the password prompt.
 - `commitPendingTag()` is never called from the tag field's setter (rewriting a focused field drops keystrokes), and `normalizedTags()` includes the pending token. Both editors share these rules.
