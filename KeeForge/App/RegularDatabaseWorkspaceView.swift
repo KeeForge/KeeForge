@@ -355,6 +355,7 @@ struct RegularDatabaseWorkspaceView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 340)
         } content: {
             macContentColumn
+                .entrySelectionBar(viewModel: viewModel) { pendingMove = $0 }
                 .navigationSplitViewColumnWidth(min: 260, ideal: 320, max: 460)
         } detail: {
             detailColumn
@@ -464,12 +465,10 @@ struct RegularDatabaseWorkspaceView: View {
     private func macGroupNode(for groupID: UUID) -> MacGroupNode? {
         guard let group = viewModel.group(withID: groupID) else { return nil }
         let childNodes = viewModel.sortedGroups(group.groups).compactMap { macGroupNode(for: $0.id) }
-        let isRecycleBin = viewModel.currentRootGroup?.recycleBinUUID == groupID
         return MacGroupNode(
-            id: groupID,
-            name: group.name,
-            iconID: isRecycleBin ? 43 : group.iconID,
-            isRecycleBin: isRecycleBin,
+            group: group,
+            recycleBinUUID: viewModel.currentRootGroup?.recycleBinUUID,
+            customIcons: viewModel.currentMeta?.customIcons ?? [:],
             children: childNodes.isEmpty ? nil : childNodes
         )
     }
@@ -728,7 +727,7 @@ struct RegularDatabaseWorkspaceView: View {
 
     @MainActor
     private func beginSelectedEntryEdit() {
-        guard let entryID = viewModel.workspace.selectedEntryID else { return }
+        guard let entryID = viewModel.workspace.commandEntryID else { return }
         beginEntryEdit(entryID: entryID)
     }
 
@@ -858,7 +857,7 @@ private struct MacEntriesColumn: View {
                     .listStyle(.inset)
                     .focused($isListFocused)
                     .onKeyPress(.return) {
-                        guard let entryID = viewModel.workspace.selectedEntryID else { return .ignored }
+                        guard let entryID = viewModel.workspace.commandEntryID else { return .ignored }
                         onOpenEntry(entryID)
                         return .handled
                     }
@@ -917,8 +916,17 @@ struct MacGroupNode: Identifiable {
     let id: UUID
     let name: String
     let iconID: Int
-    let isRecycleBin: Bool
+    let customIconData: Data?
     let children: [MacGroupNode]?
+
+    init(group: KPGroup, recycleBinUUID: UUID?, customIcons: [UUID: Data], children: [MacGroupNode]? = nil) {
+        let isRecycleBin = group.id == recycleBinUUID
+        id = group.id
+        name = group.name
+        iconID = isRecycleBin ? 43 : group.iconID
+        customIconData = isRecycleBin ? nil : group.customIconUUID.flatMap { customIcons[$0] }
+        self.children = children
+    }
 }
 
 /// Recursive sidebar row. Concrete (not an opaque `some View` helper) so it can
@@ -985,10 +993,10 @@ private struct MacGroupTreeRow: View {
             Text(node.name)
                 .lineLimit(1)
         } icon: {
-            StandardIconView(
+            GroupIconView(
                 iconID: node.iconID,
-                fallbackSystemName: node.isRecycleBin ? "trash" : "folder.fill",
-                fallbackPalette: node.isRecycleBin ? .green : .blue
+                customIconData: node.customIconData,
+                size: 18
             )
         }
         .font(.body)

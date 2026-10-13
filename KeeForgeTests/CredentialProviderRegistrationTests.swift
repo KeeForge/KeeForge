@@ -228,6 +228,24 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         XCTAssertEqual(creator.context.userName, "alice@example.com")
         XCTAssertEqual(creator.context.databaseName, "Personal Vault")
         XCTAssertEqual(creator.context.initialTitle, "example.com")
+        #if os(macOS)
+        XCTAssertTrue(creator.context.awaitsWriteBack, "The Mac extension cannot write a bookmarked file itself")
+        #else
+        XCTAssertFalse(creator.context.awaitsWriteBack)
+        #endif
+    }
+
+    func test_afterUnlock_creatorForADatabaseWithoutABookmarkNeverAwaitsWriteBack() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        var reference = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: "app-only.kdbx"))
+        reference.bookmarkData = nil
+        seedUnlockedVaultState(coordinator)
+        coordinator.activeDatabaseReference = reference
+        coordinator.pendingPasskeyRegistrationRequest = makeRegistrationRequest()
+
+        XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
+
+        XCTAssertFalse(try XCTUnwrap(presenter.passkeyCreator).context.awaitsWriteBack)
     }
 
     func test_afterUnlock_creatorShowsTheConfiguredDestinationGroup() throws {
