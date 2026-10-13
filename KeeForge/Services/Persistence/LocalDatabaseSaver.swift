@@ -90,6 +90,10 @@ enum LocalDatabaseSaver {
     struct ResolvedLocation: Sendable {
         let url: URL
         let usesSecurityScope: Bool
+        /// The shared copy standing in for a bookmarked file this process
+        /// cannot open. The app replaces that copy from the file, so the saved
+        /// bytes are also kept as a pending local save for the app to merge.
+        var awaitsWriteBack = false
     }
 
     struct Environment: Sendable {
@@ -106,6 +110,9 @@ enum LocalDatabaseSaver {
         var now: @Sendable () -> Date
         var replaceFileAtomically: @Sendable (Data, URL) throws -> Void
         var cacheDatabaseCopy: @Sendable (Data, DatabaseReference) throws -> Void
+        var addPendingLocalSave: @Sendable (Data, DatabaseReference) throws -> PendingLocalSaveStore.PendingSave
+        var removePendingLocalSave: @Sendable (PendingLocalSaveStore.PendingSave) -> Void
+        var hasPendingLocalSaves: @Sendable (DatabaseReference) -> Bool
 
         static let live = Environment(
             beginBackgroundTask: { name in
@@ -157,8 +164,30 @@ enum LocalDatabaseSaver {
             },
             cacheDatabaseCopy: { data, reference in
                 try DatabaseListStore.cacheDatabaseCopy(data, for: reference)
+            },
+            addPendingLocalSave: { data, reference in
+                try PendingLocalSaveStore.add(data, for: reference.id)
+            },
+            removePendingLocalSave: { pendingSave in
+                PendingLocalSaveStore.remove(pendingSave)
+            },
+            hasPendingLocalSaves: { reference in
+                PendingLocalSaveStore.hasSaves(for: reference.id)
             }
         )
+
+        /// The AutoFill extension's saves, which go to the shared copy where
+        /// `autoFillSavesAwaitWriteBack` says the extension cannot reach the
+        /// file.
+        static var autoFillExtension: Environment {
+            var environment = live
+            environment.resolveLocation = { reference in
+                LocalDatabaseSaver.autoFillSavesAwaitWriteBack(for: reference)
+                    ? LocalDatabaseSaver.sharedCopyLocation(for: reference)
+                    : LocalDatabaseSaver.resolveLocation(for: reference)
+            }
+            return environment
+        }
     }
 
     /// Saves an edited database draft back to encrypted storage.
@@ -300,13 +329,30 @@ enum LocalDatabaseSaver {
             isDirectory: false
         )
         try environment.writeBackup(currentData, backupURL)
-        try environment.replaceFileAtomically(newData, location.url)
+        // Made durable before the shared copy changes, so that copy never
+        // holds a save nothing else records.
+        let pendingSave = location.awaitsWriteBack
+            ? try environment.addPendingLocalSave(newData, reference)
+            : nil
+        do {
+            try environment.replaceFileAtomically(newData, location.url)
+        } catch {
+            if let pendingSave {
+                environment.removePendingLocalSave(pendingSave)
+            }
+            throw error
+        }
         // When the save location already IS the cache file (a cloud reference
         // without a bookmark resolves straight to it), the replace above was
         // the cache write; repeating it widens the window where a concurrent
         // cache read can mismatch its pending-upload marker.
+        //
+        // A pending local save keeps the shared copy too: that copy holds an
+        // AutoFill save these bytes may not contain, and AutoFill reads it.
+        // Whoever merges the pending saves refreshes the copy afterwards.
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
-        if canonicalPath(of: location.url) != canonicalPath(of: cacheURL) {
+        if canonicalPath(of: location.url) != canonicalPath(of: cacheURL),
+           environment.hasPendingLocalSaves(reference) == false {
             try? environment.cacheDatabaseCopy(newData, reference)
         }
         try? environment.pruneBackups(reference, 5)
@@ -327,11 +373,31 @@ enum LocalDatabaseSaver {
         return ResolvedLocation(url: cachedURL, usesSecurityScope: false)
     }
 
+    /// Whether the AutoFill extension saves this database to the shared copy
+    /// and leaves the file to the app. True on the Mac for a bookmarked local
+    /// database: the extension's sandbox cannot open the file behind the app's
+    /// bookmark. The iOS extension opens that file itself.
+    static func autoFillSavesAwaitWriteBack(for reference: DatabaseReference) -> Bool {
+        #if os(macOS)
+        reference.isCloudBacked == false && reference.bookmarkData != nil
+        #else
+        false
+        #endif
+    }
+
+    static func sharedCopyLocation(for reference: DatabaseReference) -> ResolvedLocation {
+        ResolvedLocation(
+            url: DatabaseListStore.cacheLocation(for: reference),
+            usesSecurityScope: false,
+            awaitsWriteBack: true
+        )
+    }
+
     private static func canonicalPath(of url: URL) -> String {
         url.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
-    private static func backupFilename(for date: Date) -> String {
+    static func backupFilename(for date: Date) -> String {
         let utcCalendar = Calendar(identifier: .gregorian)
         let utcTimeZone = TimeZone(secondsFromGMT: 0) ?? .current
         let components = utcCalendar.dateComponents(in: utcTimeZone, from: date)

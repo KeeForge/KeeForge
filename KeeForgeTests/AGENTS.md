@@ -33,6 +33,8 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 
 ### Isolation from real user data
 
+- `PendingLocalSaveTests` covers the Mac AutoFill write-back, conflict, merge, retained backup, and rekey paths. Run it with the saver, registration, and compatibility suites when this flow changes.
+
 - Both targets are hosted by the real app. `AppGroupContainer.isRedirectedForTesting` sends App Group storage to a temporary container; without it a Mac run's `DatabaseListStore.clearAll()` deletes the developer's own database list and backups. `AppGroupIsolationTests` is the gate; never bypass the redirect.
 - Tests that scan Documents set `DatabaseListStore.documentsDirectoryOverride`; never touch the real directory.
 - `LocalDatabaseSaverTests` saves attachments at the reader's size limit and holds several hundred megabytes. Do not add tests of that size elsewhere.

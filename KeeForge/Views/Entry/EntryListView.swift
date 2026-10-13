@@ -63,6 +63,7 @@ struct EntryListView: View {
                 }
             }
         }
+        .modifier(ListScopedSelectionBar(viewModel: viewModel, isHosted: onRequestDeletion == nil) { pendingMove = $0 })
     }
 
     /// Resolves the soft/permanent choice per entry — these lists draw from
@@ -84,6 +85,24 @@ struct EntryListView: View {
 
     @ViewBuilder
     private func entryRow(for entry: KPEntry) -> some View {
+        HStack {
+            if viewModel.workspace.entrySelection != nil {
+                EntrySelectionRow(entryID: entry.id, viewModel: viewModel, identifier: "search.entry.navlink") {
+                    EntryRow(
+                        entry: entry,
+                        username: viewModel.resolvingFieldReferences(entry.username),
+                        customIconData: viewModel.customIconData(for: entry),
+                        folderPath: viewModel.folderPath(forEntryID: entry.id)
+                    )
+                }
+                .macHoverHighlight()
+            } else {
+                browsingEntryRow(for: entry)
+            }
+        }
+    }
+
+    private func browsingEntryRow(for entry: KPEntry) -> some View {
         // A concrete row container lets List defer offscreen matches.
         HStack {
             if let onSelectEntry {
@@ -122,6 +141,8 @@ struct EntryListView: View {
             EntryRowMoveAction(entryID: entry.id, viewModel: viewModel) { move in
                 pendingMove = move
             }
+
+            EntryRowSelectAction(entryID: entry.id, viewModel: viewModel)
 
             if viewModel.isReadOnly == false {
                 Button(deletionTitle(for: entry), role: .destructive) {
