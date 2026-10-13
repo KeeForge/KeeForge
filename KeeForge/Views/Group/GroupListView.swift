@@ -975,22 +975,11 @@ struct GroupRow: View {
         Group {
             if let group {
                 HStack {
-                    if let iconData = viewModel.customIconData(for: group),
-                       let icon = PlatformImage(data: iconData) {
-                        Image(platformImage: icon)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                            .frame(width: 22, height: 22)
-                            .frame(width: 28)
-                    } else {
-                        StandardIconView(
-                            iconID: group.iconID,
-                            fallbackSystemName: "folder.fill",
-                            fallbackPalette: .blue
-                        )
-                            .frame(width: 28)
-                    }
+                    GroupIconView(
+                        iconID: group.iconID,
+                        customIconData: viewModel.customIconData(for: group)
+                    )
+                    .frame(width: 28)
 
                     VStack(alignment: .leading) {
                         Text(group.name)

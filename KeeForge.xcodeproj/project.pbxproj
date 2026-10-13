@@ -467,6 +467,7 @@
 		88511AE7115CDEAFB5D7613E /* EntryHistoryTrimmer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B23EE0FFF365E0E5F1E571E /* EntryHistoryTrimmer.swift */; };
 		8896685A7AD0595926312D61 /* DatabaseRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 111C97CB5E5C656BD1970277 /* DatabaseRowView.swift */; };
 		892A996500C080EE85DA8D68 /* EncryptionSettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4065659205645A44172E76A0 /* EncryptionSettingsViewModel.swift */; };
+		89642D888B01D287656FF54F /* GroupIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A2EF26D9C48D155A6700D4 /* GroupIconView.swift */; };
 		897048166743B87F85CACA6E /* DatabaseListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F178F4027D7DB837D823C54C /* DatabaseListViewModel.swift */; };
 		898DB82E5EE9D2391B5E534E /* DatabaseEditorCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1111F048E119FE4C01710497 /* DatabaseEditorCoordinator.swift */; };
 		8A0291FBC03B237CA4878218 /* StandardIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6C4374097541AB7852E249 /* StandardIconView.swift */; };
@@ -479,6 +480,7 @@
 		8BB6422DAD2503E2052570CC /* FeedbackSubmissionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF77C387846CFF3B94A08369 /* FeedbackSubmissionServiceTests.swift */; };
 		8BE8008593A85770F51E10D1 /* CloudFileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D58D7BAED64CD891E644E14 /* CloudFileBrowserView.swift */; };
 		8C3717BA192EEF8CC2BBD21A /* EntryEditAttachmentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C9BD50A1E32076A6D355C52 /* EntryEditAttachmentsSection.swift */; };
+		8C5ACB271A41992F21839369 /* GroupIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A2EF26D9C48D155A6700D4 /* GroupIconView.swift */; };
 		8C73A708D9508C4931C50779 /* KDBXWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C243B2746CDA396F76E052B6 /* KDBXWriter.swift */; };
 		8CBE8DF70368FAE59565D6D2 /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F265178D41B43F55813C70AD /* WebDAVClient.swift */; };
 		8D451C0FF02C60504FE778CC /* foreign-chacha20.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = EF6FBD0976DB77F511EDBFFA /* foreign-chacha20.kdbx */; };
@@ -635,6 +637,7 @@
 		B9985CFC1B303D5AE619A299 /* TOTPViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6681D2B1E9D865434D606B7 /* TOTPViewModel.swift */; };
 		B9E8881E7C38CC81B3D23EAE /* SecureWipeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDDBAD5449F808AED0A63FBE /* SecureWipeTests.swift */; };
 		BA604F83D5FCE06F038E5875 /* CloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70041C9E76CC7196DFCB5AE1 /* CloudProviderTests.swift */; };
+		BAD538FD3B169A39330E023F /* GroupIconViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEFC4B470F2EA79C7D8950A7 /* GroupIconViewTests.swift */; };
 		BAFA1FC716503B16F6C8BBA7 /* ReviewPromptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F440A311BC64D32980E78A /* ReviewPromptService.swift */; };
 		BBD02F6D3B2E3611B621C635 /* DatabaseListStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E56924FBDB62B185403ECA2 /* DatabaseListStore.swift */; };
 		BC3BB1882DE6F21881AFE403 /* KeyFileProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F67A19B307012E6FFA9545C /* KeyFileProcessor.swift */; };
@@ -689,6 +692,7 @@
 		CADA85848D7284D9C9804FCD /* GroupEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 949A21E632A57DDE3E8BDF5A /* GroupEditView.swift */; };
 		CAF34116D0BCF06265E918E8 /* EntryExpiryXML.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD17A3C9E631C14E1FF5A5F /* EntryExpiryXML.swift */; };
 		CBDA630DB9EE7F95DC23D6F2 /* SortOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFF14B46CC89D1B7A9138E80 /* SortOrderTests.swift */; };
+		CC496523ADEA443E53609241 /* GroupIconViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEFC4B470F2EA79C7D8950A7 /* GroupIconViewTests.swift */; };
 		CD0DAB7F744AA133D65C7725 /* CloudDatabaseSaverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD06FD75C4769929A64951F0 /* CloudDatabaseSaverTests.swift */; };
 		CD4C2C7C9B5073AE8F9E6731 /* BackoffUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 166C906E1AECCEE8FDBC33D7 /* BackoffUITests.swift */; };
 		CDC4CE8E4E0796BAD33B1A4B /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 68FE916D34E1B688CC1CC521 /* InfoPlist.xcstrings */; };
@@ -1140,6 +1144,7 @@
 		66DF057AA435224858861550 /* CloudAccountStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountStoreTests.swift; sourceTree = "<group>"; };
 		68FE916D34E1B688CC1CC521 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		695FD416F0002BB9CAE9F2C8 /* FTPCloudProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FTPCloudProviderTests.swift; sourceTree = "<group>"; };
+		69A2EF26D9C48D155A6700D4 /* GroupIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupIconView.swift; sourceTree = "<group>"; };
 		69B0A8304EFC7576FCE0082B /* TagBrowserUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagBrowserUITests.swift; sourceTree = "<group>"; };
 		6A3F14CAB04F9CE313C7ABFC /* AppRoutingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRoutingCoordinator.swift; sourceTree = "<group>"; };
 		6A60D769EF54ACAE8FAFEC73 /* AutoLockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoLockTests.swift; sourceTree = "<group>"; };
@@ -1266,6 +1271,7 @@
 		BB9EAD04B18512BA84C050DE /* SecretAccessGateHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretAccessGateHarness.swift; sourceTree = "<group>"; };
 		BE3F7365E8B09C1E10D9EEBA /* MacUITestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacUITestCase.swift; sourceTree = "<group>"; };
 		BE7B832DCD71D53272108662 /* HapticService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticService.swift; sourceTree = "<group>"; };
+		BEFC4B470F2EA79C7D8950A7 /* GroupIconViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupIconViewTests.swift; sourceTree = "<group>"; };
 		BF45C7A930180364061D5C77 /* KeeForgeCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeeForgeCommands.swift; sourceTree = "<group>"; };
 		BF77C387846CFF3B94A08369 /* FeedbackSubmissionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackSubmissionServiceTests.swift; sourceTree = "<group>"; };
 		BFDA78854986EA7182C73B73 /* AttachmentPreviewFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentPreviewFileStore.swift; sourceTree = "<group>"; };
@@ -1538,6 +1544,7 @@
 			isa = PBXGroup;
 			children = (
 				3D07D803277E1C8581E2FB51 /* FaviconView.swift */,
+				69A2EF26D9C48D155A6700D4 /* GroupIconView.swift */,
 				3AD4237706B18C568583C16A /* PasswordDisplay.swift */,
 				60F6233A5A7173BAA633FF6A /* PasswordGeneratorSheet.swift */,
 				3A81C906DE4BC0FFCA1CC754 /* PasswordInputRow.swift */,
@@ -1983,6 +1990,7 @@
 				EA44C9DED7389761B585E671 /* FTPConnectViewModelTests.swift */,
 				FEAE356ABE815CE10D767927 /* FTPListingParserTests.swift */,
 				3ECEDBFE3791A3AF8121C4DD /* GroupEditViewModelTests.swift */,
+				BEFC4B470F2EA79C7D8950A7 /* GroupIconViewTests.swift */,
 				78F02B60D6E7C4712F4D4769 /* HardwareKeyUnlockTests.swift */,
 				D265572977E75D10885314BB /* IOSUserActivityTests.swift */,
 				E1F996FD4C85163E8005264E /* KDBXCompatibilityTests.swift */,
@@ -2696,6 +2704,7 @@
 				8DBA5DD43302AD63DCCE2E6C /* FieldReferenceResolverTests.swift in Sources */,
 				910E27E6CA2845484DBF732B /* FilePathAssertions.swift in Sources */,
 				7991355F2A9BA147B460445B /* GroupEditViewModelTests.swift in Sources */,
+				BAD538FD3B169A39330E023F /* GroupIconViewTests.swift in Sources */,
 				CFB92212E5D7BA2EF612D84D /* HardwareKeyUnlockTests.swift in Sources */,
 				927D68D07827E1C1F5A136B7 /* IOSUserActivityTests.swift in Sources */,
 				7C2ADBD3398D8B446E83008B /* KDBXCompatibilitySupport.swift in Sources */,
@@ -2861,6 +2870,7 @@
 				CADA85848D7284D9C9804FCD /* GroupEditView.swift in Sources */,
 				5A7AFD448B2C67EE04D999C0 /* GroupEditViewModel.swift in Sources */,
 				5123A23E4E1259641D06C1A0 /* GroupIconPickerView.swift in Sources */,
+				89642D888B01D287656FF54F /* GroupIconView.swift in Sources */,
 				63966E9ABEBF25B9CD783C48 /* GroupListView.swift in Sources */,
 				0C3A40CBFB5BDE0D3F2CAFF5 /* HapticService.swift in Sources */,
 				5A92004811238A45D97AFE9F /* HardwareKey.swift in Sources */,
@@ -3061,6 +3071,7 @@
 				7CAB34B07818A1D3DC2D1D92 /* GroupEditView.swift in Sources */,
 				1AEFBED9548E21E13517BA1D /* GroupEditViewModel.swift in Sources */,
 				834FBF71DFAE4E365303F131 /* GroupIconPickerView.swift in Sources */,
+				8C5ACB271A41992F21839369 /* GroupIconView.swift in Sources */,
 				391C73A3C5A0FC952C414E1D /* GroupListView.swift in Sources */,
 				85800F363D34B2A7DAAE8B41 /* HapticService.swift in Sources */,
 				D83D66B51D5812C2B3681C0F /* HardwareKey.swift in Sources */,
@@ -3263,6 +3274,7 @@
 				ED885E82DF11D0A81987D497 /* FieldReferenceResolverTests.swift in Sources */,
 				B9678605A2230AE22B51B984 /* FilePathAssertions.swift in Sources */,
 				715289CA9B37F2D1C8DFBC2E /* GroupEditViewModelTests.swift in Sources */,
+				CC496523ADEA443E53609241 /* GroupIconViewTests.swift in Sources */,
 				15DF17582DB69A0D67E214D1 /* HardwareKeyUnlockTests.swift in Sources */,
 				B7C2A64626BAE26765795B5F /* IOSUserActivityTests.swift in Sources */,
 				D3AC8E44FEAF73EE72DAE66F /* KDBXCompatibilitySupport.swift in Sources */,

@@ -47,6 +47,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 - Because rows are not buttons, Mac UI tests match them with `descendants(matching: .any)`; the rule is stated in `../Views/AGENTS.md` and `../../KeeForgeMacUITests/AGENTS.md`.
 - The macOS sidebar cannot host pushed `NavigationStack` levels (they render zero-height), so navigation there is selection on `DatabaseViewModel.workspace`, never a pushed stack. `GroupListView` never renders on macOS.
 - The sidebar and entries column are keyed with `.id(viewModel.contentRevision)` because the three-column split view caches them and keeps stale rows after draft edits. View-local state inside those subtrees is lost on every edit; expansion and selection live outside them.
+- `MacGroupNode` resolves custom group images from the current metadata for the shared `GroupIconView`; the recycle bin always uses standard icon 43 with no custom image.
 - Sheets, the Move picker, and the delete confirmation raised by a row are hosted on the split view, not the row. Rows come and go with the tree, and a row-scoped host is torn down mid-presentation.
 - The delete confirmation is a `confirmationDialog`, not a second `.alert(item:)`: two sibling `.alert(item:)` on one view chain collide and SwiftUI silently drops one. Lists rendered inline in the content column raise their deletion to this host for the same reason.
 - Database-scoped toolbar items use `.navigation` placement. `.primaryAction` would put them beside entry detail's Edit button, where they read as actions on the selected entry.
@@ -66,6 +67,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 - Routing and launch order: `AppRoutingCoordinatorTests`. Menu password copy: `EntrySecretActionTests`. Lock triggers: `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `AutoLockTests`. iOS window activity forwarding: `IOSUserActivityTests`; real editor typing, scrolling, button taps, and subsequent idle locking: `AutoLockActivityUITests`.
 - Mac list selection and keyboard wiring exists only as UI: `MacSmokeUITests` (the `testDownArrow…` and double-click cases) and `MacListKeyboardNavigationUITests`.
+- Sidebar custom-icon data and recycle-bin icon projection: the macOS cases in `GroupIconViewTests`.
 - Root navigation changes ripple into `DatabaseListView`, `UnlockView`, and both UI suites; rerun the smallest affected class from `../../KeeForgeUITests/AGENTS.md`.
 
 ## See also
