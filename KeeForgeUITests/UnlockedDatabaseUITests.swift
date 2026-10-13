@@ -152,6 +152,36 @@ final class UnlockedDatabaseBrowseAndDetailUITests: UnlockedDatabaseUITestCase {
         urlCopy.tap()
     }
 
+    /// Lock belongs to the lists. On an open entry the navigation bar holds
+    /// only the entry's own actions, so going back is what leads to Lock.
+    func testEntryDetailHasNoLockButtonAndTheListKeepsIts() throws {
+        unlockSuccessfully()
+        try XCTSkipIf(
+            app.windows.firstMatch.frame.width >= 700,
+            "At regular width the sidebar keeps its Lock button beside the entry"
+        )
+
+        openGroup(named: "Social")
+        XCTAssertTrue(revealElement(entryRow(named: "Twitter")), "Twitter entry was not visible in Social")
+        XCTAssertTrue(app.buttons["lock.button"].exists, "The entry list lost its Lock button")
+
+        openEntry(named: "Twitter")
+
+        XCTAssertTrue(app.buttons["entry-detail.edit"].waitForExistence(timeout: 5), "Entry detail did not open")
+        XCTAssertTrue(
+            app.buttons["lock.button"].waitForNonExistence(timeout: 5),
+            "An open entry should not offer a Lock button"
+        )
+
+        let backButton = app.navigationBars.buttons["Social"].firstMatch
+        XCTAssertTrue(backButton.waitForExistence(timeout: 5), "Could not return to the entry list")
+        tapElement(backButton)
+        let lockButton = currentLockButton()
+        XCTAssertTrue(lockButton.waitForExistence(timeout: 5), "The list should offer manual lock again")
+        tapElement(lockButton)
+        XCTAssertTrue(waitForLockedState(timeout: 10), "Manual lock did not leave the vault locked")
+    }
+
     func testFixtureEntryDetailShowsTimestamps() {
         unlockSuccessfully()
 

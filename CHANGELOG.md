@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changes
+
+- On iPhone, and on iPad in a narrow window, an open entry no longer shows the Lock button next to Edit, so the entry's title has more room. Go back to the list to lock the database; the Lock button there is unchanged.
+
 ### New Features
 
 - Add more URLs to an entry while editing it on iPhone, iPad, and Mac: Add Another URL below the URL field adds one, and each extra URL has its own remove button (#209). They are saved as `KP2A_URL` fields, so KeePass2Android and KeePassXC read them too, and AutoFill matches them like the main URL. Extra URLs already stored in an entry now appear as URL rows in the editor, and an entry no longer lists them a second time under Custom Fields.
@@ -10,6 +14,8 @@
 
 ### Fixes
 
+- Verification codes that KeePass stores in its own fields with SHA-256 or SHA-512 now show the correct code, and saving keeps their algorithm (#205). KeeForge also writes the algorithm under the name KeePass documents, including for codes added by typing a setup key. If an earlier version already saved such a SHA-256 or SHA-512 entry, choose its algorithm again in the entry editor.
+- Verification codes that KeePass stores with a UTF-8, hexadecimal, or Base64 secret now show their code, and saving no longer removes them from the database.
 - Mac AutoFill can save a new passkey into a database opened from a file (#182). Registration used to stop with a permission error, because the AutoFill extension cannot open that file itself. The passkey is now kept by KeeForge and offered for sign-in on this Mac, and it is written to the database file the next time you unlock that database in KeeForge; the passkey form says so. Until then other apps and devices do not see it. Changes another app made to the file in the meantime are kept. If the passkey cannot be combined with the file, KeeForge says so and keeps it as a backup in Database Details that is never rotated out.
 
 - Custom group icons now appear in the Mac sidebar, matching iPhone and iPad (#224).

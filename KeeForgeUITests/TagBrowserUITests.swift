@@ -82,6 +82,31 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
         XCTAssertTrue(revealElement(chip, in: scrollableContainer()), "Tag chip was not reachable")
     }
 
+    func testTaggedEntryCanReturnToManualLock() throws {
+        unlockSuccessfully()
+        try XCTSkipIf(
+            app.windows.firstMatch.frame.width >= 700,
+            "At regular width the workspace keeps Lock beside the entry"
+        )
+        openTaggedEntryFromTheTagBrowser()
+        XCTAssertTrue(app.buttons["entry-detail.edit"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["lock.button"].waitForNonExistence(timeout: 5))
+
+        for _ in 0..<4 where app.buttons["lock.button"].exists == false {
+            guard let backButton = app.navigationBars.buttons.allElementsBoundByIndex.first(where: {
+                $0.exists && $0.isHittable && $0.identifier != "entry-detail.edit"
+            }) else {
+                return XCTFail("Could not navigate back to a list with Lock")
+            }
+            backButton.tap()
+        }
+
+        let lockButton = currentLockButton()
+        XCTAssertTrue(lockButton.waitForExistence(timeout: 5), "No manual-lock action after returning from the tagged entry")
+        tapElement(lockButton)
+        XCTAssertTrue(waitForLockedState(timeout: 10), "Manual lock did not leave the vault locked")
+    }
+
     /// Tapping a chip must open *that* chip's tag.
     ///
     /// The chips share one list row, so when they were `NavigationLink`s the

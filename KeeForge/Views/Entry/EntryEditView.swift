@@ -593,7 +593,7 @@ struct EntryEditView: View {
     }
 
     private var hasTOTPConfiguration: Bool {
-        formViewModel.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        formViewModel.hasTOTPSecret
     }
 
     private var isTOTPConfigurationVisible: Bool {
