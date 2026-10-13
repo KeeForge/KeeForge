@@ -5,10 +5,14 @@
 ### New Features
 
 - Add more URLs to an entry while editing it on iPhone, iPad, and Mac: Add Another URL below the URL field adds one, and each extra URL has its own remove button (#209). They are saved as `KP2A_URL` fields, so KeePass2Android and KeePassXC read them too, and AutoFill matches them like the main URL. Extra URLs already stored in an entry now appear as URL rows in the editor, and an entry no longer lists them a second time under Custom Fields.
+- Move several entries to another group at once (#186). Long-press an entry (right-click on Mac) and choose "Select Entries", tap the other entries you want, including ones in other groups or in search results, then choose "Move to Group" and pick the destination. The selected entries are moved and saved together.
 - KeeForge now speaks Russian: a full Russian (Русский) localization across the app and the AutoFill extension, plus translated README and contributor docs (#180).
 
 ### Fixes
 
+- Mac AutoFill can save a new passkey into a database opened from a file (#182). Registration used to stop with a permission error, because the AutoFill extension cannot open that file itself. The passkey is now kept by KeeForge and offered for sign-in on this Mac, and it is written to the database file the next time you unlock that database in KeeForge; the passkey form says so. Until then other apps and devices do not see it. Changes another app made to the file in the meantime are kept. If the passkey cannot be combined with the file, KeeForge says so and keeps it as a backup in Database Details that is never rotated out.
+
+- Custom group icons now appear in the Mac sidebar, matching iPhone and iPad (#224).
 - Search stays responsive in large databases on iPhone and iPad (#211).
 - Groups, All Entries, Verification Codes, and the Recycle Bin open without stalling when they hold thousands of entries on iPhone and iPad.
 - A database import, relink, or key file selection through Files that fails now shows an error instead of failing silently (#220).

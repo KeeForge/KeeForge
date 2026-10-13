@@ -291,6 +291,8 @@ struct GroupListView: View {
                 pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
             }
         }
+        // Covers the inline search results as well as this level's own rows.
+        .entrySelectionBar(viewModel: viewModel) { pendingMove = $0 }
     }
 
     /// Pushes the entry editor onto the navigation stack.
@@ -641,6 +643,19 @@ struct GroupListView: View {
             customIconData: viewModel.customIconData(for: entry),
             folderPath: showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil
         )
+        HStack {
+            if viewModel.workspace.entrySelection != nil {
+                EntrySelectionRow(entryID: entry.id, viewModel: viewModel, identifier: "entry.navlink") {
+                    row
+                }
+                .macHoverHighlight()
+            } else {
+                browsingEntryRow(for: entry, row: row, showsVerificationCode: showsVerificationCode)
+            }
+        }
+    }
+
+    private func browsingEntryRow(for entry: KPEntry, row: EntryRow, showsVerificationCode: Bool) -> some View {
         // A concrete row container lets List defer offscreen rows.
         HStack {
             if showsVerificationCode, let config = entry.totpConfig, let sessionKey = viewModel.sessionKey {
@@ -682,6 +697,8 @@ struct GroupListView: View {
             EntryRowMoveAction(entryID: entry.id, viewModel: viewModel) { move in
                 pendingMove = move
             }
+
+            EntryRowSelectAction(entryID: entry.id, viewModel: viewModel)
 
             if viewModel.isReadOnly == false {
                 Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
@@ -958,22 +975,11 @@ struct GroupRow: View {
         Group {
             if let group {
                 HStack {
-                    if let iconData = viewModel.customIconData(for: group),
-                       let icon = PlatformImage(data: iconData) {
-                        Image(platformImage: icon)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                            .frame(width: 22, height: 22)
-                            .frame(width: 28)
-                    } else {
-                        StandardIconView(
-                            iconID: group.iconID,
-                            fallbackSystemName: "folder.fill",
-                            fallbackPalette: .blue
-                        )
-                            .frame(width: 28)
-                    }
+                    GroupIconView(
+                        iconID: group.iconID,
+                        customIconData: viewModel.customIconData(for: group)
+                    )
+                    .frame(width: 28)
 
                     VStack(alignment: .leading) {
                         Text(group.name)

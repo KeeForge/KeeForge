@@ -22,6 +22,7 @@
 
 ### List rendering
 
+- `EntrySelectionRow` and `EntrySelectionBar` share the session's bulk selection across group, search, and tag lists. Selecting a row toggles it without opening it or offering context/swipe actions; each screen uses its existing move picker. Keep a concrete row container around the selection/browse branch so `List` defers offscreen rows.
 - `EntryListView` keeps its selection/navigation branch inside a concrete row container so `List` can identify rows without constructing every match.
 
 ### Mac lists

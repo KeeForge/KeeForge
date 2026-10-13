@@ -12,6 +12,7 @@
 
 ## Invariants
 
+- Group rows keep navigating while entry bulk selection is active. The root list hosts one selection bar for its own rows and inline search results; a picked destination moves the selected entries through one save.
 - Edit Group, Change Icon, and the AutoFill exclusion toggle have the same eligibility (not read-only, not the recycle bin, not inside it), spelled as `canEditGroup`, `canChangeGroupIcon`, and `canChangeAutoFillExclusion`. Change them together.
 - The excluded badge is hidden inside the recycle bin so a row never shows a badge it cannot act on; KeePass marks the bins it creates `EnableSearching` false.
 - The recycle bin is never drawn as a group row at any level; it opens only from the view menu.

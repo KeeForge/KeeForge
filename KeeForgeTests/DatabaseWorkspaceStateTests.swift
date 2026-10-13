@@ -32,7 +32,8 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         workspace.reconcileSelection(
             visibleRootGroupID: rootID,
             groupExists: { $0 == rootID },
-            tagExists: { $0 == "Work" }
+            tagExists: { $0 == "Work" },
+            entryIsSelectable: { _ in true }
         )
         XCTAssertNil(workspace.selectedGroupID)
         XCTAssertEqual(workspace.selectedTag, "Work")
@@ -40,7 +41,8 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         workspace.reconcileSelection(
             visibleRootGroupID: rootID,
             groupExists: { $0 == rootID },
-            tagExists: { _ in false }
+            tagExists: { _ in false },
+            entryIsSelectable: { _ in true }
         )
         XCTAssertNil(workspace.selectedTag)
         XCTAssertEqual(workspace.selectedGroupID, rootID)
@@ -54,7 +56,8 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         workspace.reconcileSelection(
             visibleRootGroupID: rootID,
             groupExists: { $0 == rootID },
-            tagExists: { _ in false }
+            tagExists: { _ in false },
+            entryIsSelectable: { _ in true }
         )
         XCTAssertEqual(workspace.selectedGroupID, rootID)
         XCTAssertNil(workspace.selectedEntryID)
@@ -69,17 +72,72 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         workspace.reconcileSelection(
             visibleRootGroupID: rootID,
             groupExists: { $0 == rootID },
-            tagExists: { _ in false }
+            tagExists: { _ in false },
+            entryIsSelectable: { _ in true }
         )
         XCTAssertEqual(workspace.selectedEntryID, entryID)
 
         workspace.reconcileSelection(
             visibleRootGroupID: nil,
             groupExists: { _ in false },
-            tagExists: { _ in false }
+            tagExists: { _ in false },
+            entryIsSelectable: { _ in true }
         )
         XCTAssertNil(workspace.selectedGroupID)
         XCTAssertNil(workspace.selectedEntryID)
+    }
+
+    func testEntrySelectionTogglesEntriesAndOnlyEndsWhenAsked() {
+        let workspace = DatabaseWorkspaceState()
+        let first = UUID()
+        let second = UUID()
+
+        workspace.toggleEntrySelection(first)
+        XCTAssertNil(workspace.entrySelection, "a toggle outside selection mode must not start it")
+
+        workspace.beginEntrySelection(with: first)
+        workspace.toggleEntrySelection(second)
+        XCTAssertEqual(workspace.entrySelection, [first, second])
+
+        workspace.toggleEntrySelection(first)
+        workspace.toggleEntrySelection(second)
+        XCTAssertEqual(workspace.entrySelection, [], "deselecting the last entry keeps the mode")
+
+        workspace.endEntrySelection()
+        XCTAssertNil(workspace.entrySelection)
+    }
+
+    func testReconciliationDropsEntriesThatCanNoLongerBeSelected() {
+        let workspace = DatabaseWorkspaceState()
+        let rootID = UUID()
+        let kept = UUID()
+        let gone = UUID()
+        workspace.beginEntrySelection(with: kept)
+        workspace.toggleEntrySelection(gone)
+
+        workspace.reconcileSelection(
+            visibleRootGroupID: rootID,
+            groupExists: { $0 == rootID },
+            tagExists: { _ in false },
+            entryIsSelectable: { $0 == kept }
+        )
+        XCTAssertEqual(workspace.entrySelection, [kept])
+
+        workspace.reconcileSelection(
+            visibleRootGroupID: rootID,
+            groupExists: { $0 == rootID },
+            tagExists: { _ in false },
+            entryIsSelectable: { _ in false }
+        )
+        XCTAssertEqual(workspace.entrySelection, [], "the user is still choosing")
+
+        workspace.reconcileSelection(
+            visibleRootGroupID: nil,
+            groupExists: { _ in false },
+            tagExists: { _ in false },
+            entryIsSelectable: { _ in true }
+        )
+        XCTAssertNil(workspace.entrySelection)
     }
 
     func testLockClearsNavigationAndSelectionWithoutReplayingCommands() {
@@ -87,6 +145,7 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         workspace.navigationPath = [.group(UUID()), .entry(UUID()), .tag("Work")]
         workspace.selectedTag = "Work"
         workspace.selectedEntryID = UUID()
+        workspace.beginEntrySelection(with: UUID())
         workspace.isSearchActive = true
         workspace.viewMode = .recycleBin
         workspace.request(.newEntry)
@@ -102,6 +161,7 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         XCTAssertNil(workspace.selectedGroupID)
         XCTAssertNil(workspace.selectedTag)
         XCTAssertNil(workspace.selectedEntryID)
+        XCTAssertNil(workspace.entrySelection)
         XCTAssertFalse(workspace.isSearchActive)
         XCTAssertEqual(workspace.viewMode, DatabaseWorkspaceState.initialViewMode())
         XCTAssertEqual(workspace.newEntryRequestID, 2)
@@ -122,6 +182,9 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
             { workspace.selectedEntryID = UUID() },
             { workspace.isSearchActive = true },
             { workspace.viewMode = .tags },
+            { workspace.beginEntrySelection(with: UUID()) },
+            { workspace.toggleEntrySelection(UUID()) },
+            { workspace.endEntrySelection() },
         ]
         for action in actions {
             let before = interactions
