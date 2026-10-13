@@ -353,7 +353,14 @@ enum LocalDatabaseSaver {
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         if canonicalPath(of: location.url) != canonicalPath(of: cacheURL),
            environment.hasPendingLocalSaves(reference) == false {
-            try? environment.cacheDatabaseCopy(newData, reference)
+            do {
+                try environment.cacheDatabaseCopy(newData, reference)
+            } catch {
+                // The file is already replaced, so the save has succeeded. An
+                // older copy must not keep answering AutoFill for it; with
+                // none, AutoFill reads the file or fails until a copy is written.
+                try? FileManager.default.removeItem(at: cacheURL)
+            }
         }
         try? environment.pruneBackups(reference, 5)
 

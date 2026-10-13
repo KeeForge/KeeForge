@@ -295,6 +295,107 @@ final class LocalDatabaseSaverTests: XCTestCase {
         )
     }
 
+    func testSaveWhoseSharedCopyRefreshFailsRemovesTheOlderCopy() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: databaseURL), for: reference)
+        let context = try makeDirtySaveContext(
+            databaseURL: databaseURL,
+            entryTitle: "Uncached Entry"
+        )
+        var environment = LocalDatabaseSaver.Environment.live
+        environment.cacheDatabaseCopy = { _, _ in
+            throw CocoaError(.fileWriteOutOfSpace)
+        }
+
+        let result = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            kdfPolicy: .mainApp,
+            environment: environment
+        )
+
+        let savedData = try Data(contentsOf: databaseURL)
+        XCTAssertEqual(
+            result,
+            .saved(newSHA512: KDBXCrypto.sha512(savedData)),
+            "The file is replaced, so the session must move on to its new bytes"
+        )
+        let reparsed = try KDBXParser.parseWithMeta(
+            data: savedData,
+            password: fixturePassword,
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+        XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Uncached Entry" })
+        XCTAssertNil(
+            DatabaseListStore.cachedDatabaseURL(for: reference),
+            "AutoFill must not keep opening the copy from before the save"
+        )
+    }
+
+    func testRekeySaveWhoseSharedCopyRefreshFailsRemovesTheCopyUnderTheOldKey() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: databaseURL), for: reference)
+        let context = try makeCleanSaveContext(databaseURL: databaseURL)
+        let newPassword = "rotated-master-123"
+        var environment = LocalDatabaseSaver.Environment.live
+        environment.cacheDatabaseCopy = { _, _ in
+            throw CocoaError(.fileWriteOutOfSpace)
+        }
+
+        let result = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            kdfPolicy: .mainApp,
+            newCompositeKey: try KDBXCrypto.compositeKey(password: newPassword, keyFileData: nil),
+            environment: environment
+        )
+
+        let savedData = try Data(contentsOf: databaseURL)
+        XCTAssertEqual(result, .saved(newSHA512: KDBXCrypto.sha512(savedData)))
+        XCTAssertNoThrow(
+            try KDBXParser.parseWithMeta(
+                data: savedData,
+                password: newPassword,
+                sessionKey: SymmetricKey(size: .bits256)
+            )
+        )
+        XCTAssertNil(
+            DatabaseListStore.cachedDatabaseURL(for: reference),
+            "A copy that only the old master key opens must not stay behind for AutoFill"
+        )
+    }
+
+    func testSaveWhoseSharedCopyRefreshFailsSucceedsWithoutAnOlderCopy() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let context = try makeDirtySaveContext(
+            databaseURL: databaseURL,
+            entryTitle: "Never Cached Entry"
+        )
+        var environment = LocalDatabaseSaver.Environment.live
+        environment.cacheDatabaseCopy = { _, _ in
+            throw CocoaError(.fileWriteOutOfSpace)
+        }
+
+        let result = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            kdfPolicy: .mainApp,
+            environment: environment
+        )
+
+        XCTAssertEqual(result, .saved(newSHA512: KDBXCrypto.sha512(try Data(contentsOf: databaseURL))))
+        XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: reference))
+    }
+
     func testSaveCloudReferenceResolvedToCacheWritesCacheExactlyOnce() async throws {
         // A cloud-backed reference has no bookmark, so (as in an AutoFill
         // extension save) the resolved save location IS the shared cache

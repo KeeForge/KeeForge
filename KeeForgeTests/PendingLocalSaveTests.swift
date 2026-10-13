@@ -254,6 +254,32 @@ final class PendingLocalSaveTests: XCTestCase {
         XCTAssertEqual(PendingLocalSaveStore.saves(for: reference.id).count, 1)
     }
 
+    func testFailedCacheRefreshDoesNotDeleteAPendingAutoFillSave() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let original = try Data(contentsOf: databaseURL)
+        let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
+        try seedPendingSave(pending, for: reference)
+        let context = try makeDirtySaveContext(data: original, entryTitle: "App Edit")
+        var environment = LocalDatabaseSaver.Environment.live
+        environment.cacheDatabaseCopy = { _, _ in throw CocoaError(.fileWriteOutOfSpace) }
+
+        let result = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            environment: environment
+        )
+
+        guard case .saved = result else {
+            return XCTFail("Expected the app save to succeed")
+        }
+        XCTAssertTrue(try entryTitles(in: try Data(contentsOf: databaseURL)).contains("App Edit"))
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), pending)
+        XCTAssertEqual(PendingLocalSaveStore.saves(for: reference.id).count, 1)
+    }
+
     func testAutoFillSaveOfABookmarkedDatabaseLandsWhereTheExtensionCanWrite() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
