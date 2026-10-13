@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changes
+
+- On iPhone, and on iPad in a narrow window, an open entry no longer shows the Lock button next to Edit, so the entry's title has more room. Go back to the list to lock the database; the Lock button there is unchanged.
+
 ### New Features
 
 - Move several entries to another group at once (#186). Long-press an entry (right-click on Mac) and choose "Select Entries", tap the other entries you want, including ones in other groups or in search results, then choose "Move to Group" and pick the destination. The selected entries are moved and saved together.
