@@ -2,9 +2,7 @@
 
 ## Unreleased
 
-### Changes
-
-- On iPhone, and on iPad in a narrow window, an open entry no longer shows the Lock button next to Edit, so the entry's title has more room. Go back to the list to lock the database; the Lock button there is unchanged.
+## v1.19.0 (2026-10-13)
 
 ### New Features
 
@@ -18,7 +16,6 @@
 - Verification codes that KeePass stores in its own fields with SHA-256 or SHA-512 now show the correct code, and saving keeps their algorithm (#205). KeeForge also writes the algorithm under the name KeePass documents, including for codes added by typing a setup key. If an earlier version already saved such a SHA-256 or SHA-512 entry, choose its algorithm again in the entry editor.
 - Verification codes that KeePass stores with a UTF-8, hexadecimal, or Base64 secret now show their code, and saving no longer removes them from the database.
 - Mac AutoFill can save a new passkey into a database opened from a file (#182). Registration used to stop with a permission error, because the AutoFill extension cannot open that file itself. The passkey is now kept by KeeForge and offered for sign-in on this Mac, and it is written to the database file the next time you unlock that database in KeeForge; the passkey form says so. Until then other apps and devices do not see it. Changes another app made to the file in the meantime are kept. If the passkey cannot be combined with the file, KeeForge says so and keeps it as a backup in Database Details that is never rotated out.
-
 - Custom group icons now appear in the Mac sidebar, matching iPhone and iPad (#224).
 - Search stays responsive in large databases on iPhone and iPad (#211).
 - Groups, All Entries, Verification Codes, and the Recycle Bin open without stalling when they hold thousands of entries on iPhone and iPad.
@@ -26,6 +23,10 @@
 - New database names preserve percent characters, and the creation form explains when unsupported filename characters are replaced (#219).
 - On Mac, locked or read-only key files can now be linked and remembered for a database (#215).
 - On iPhone and iPad, typing, scrolling, and tapping buttons now restart the auto-lock timeout, so a database stays unlocked while you use it.
+
+### Changes
+
+- On iPhone, and on iPad in a narrow window, an open entry no longer shows the Lock button next to Edit, so the entry's title has more room. Go back to the list to lock the database; the Lock button there is unchanged.
 
 ## v1.18.0 (2026-10-12)
 
