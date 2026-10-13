@@ -27,7 +27,7 @@
 - On Mac, locked or read-only key files can now be linked and remembered for a database (#215).
 - On iPhone and iPad, typing, scrolling, and tapping buttons now restart the auto-lock timeout, so a database stays unlocked while you use it.
 
-## v1.18.0 (2026-10-07)
+## v1.18.0 (2026-10-12)
 
 ### Changes
 
