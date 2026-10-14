@@ -143,7 +143,9 @@ jobs:
 
           # Test timeouts are on, as in Xcode Cloud, so the suites' execution
           # allowances are enforced. Raw output is captured verbatim (no
-          # xcpretty) for uploaded diagnostic evidence.
+          # xcpretty) for uploaded diagnostic evidence. The runner's shell sets
+          # -e, which would end the step on a nonzero exit before the verdict.
+          set +e
           xcodebuild test-without-building \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
@@ -152,6 +154,7 @@ jobs:
             -resultBundlePath "$result" \
             2>&1 | tee "$log"
           status=${PIPESTATUS[0]}
+          set -e
           echo "$SCHEME: xcodebuild exit=$status"
 
           # The canonical xcresult summary decides the verdict, not the exit
