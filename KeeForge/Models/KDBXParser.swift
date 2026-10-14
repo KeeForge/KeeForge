@@ -1799,13 +1799,21 @@ private class EntryBuilder {
             return parseTOTPFromURI(otpURL, sessionKey: sessionKey)
         }
 
-        // KeePassXC TimeOtp fields
-        if let secret = customFields["TimeOtp-Secret-Base32"], !secret.isEmpty {
+        // KeePass 2.x TimeOtp fields
+        if let field = KeePassTOTPSecretField.allCases.first(where: { customFields[$0.rawValue]?.isEmpty == false }),
+           let secret = customFields[field.rawValue] {
             let encryptedSecret = (try? EncryptedValue.encrypt(secret, using: sessionKey)) ?? .empty
             let period = Self.sanitizedTOTPPeriod(Int(customFields["TimeOtp-Period"] ?? "30"))
             let digits = Self.sanitizedTOTPDigits(Int(customFields["TimeOtp-Length"] ?? "6"))
-            let algo = TOTPAlgorithm(rawValue: customFields["TimeOtp-Algorithm"] ?? "SHA1") ?? .sha1
-            return TOTPConfig(secret: encryptedSecret, period: period, digits: digits, algorithm: algo)
+            let algo = customFields["TimeOtp-Algorithm"].flatMap(TOTPAlgorithm.init(keePassName:)) ?? .sha1
+            return TOTPConfig(
+                secret: encryptedSecret,
+                decodedSecret: decodedKeePassSecret(secret, in: field, sessionKey: sessionKey),
+                keePassSecretField: field,
+                period: period,
+                digits: digits,
+                algorithm: algo
+            )
         }
 
         // Legacy TOTP Seed / TOTP Settings
@@ -1878,6 +1886,25 @@ private class EntryBuilder {
             digits: size,
             algorithm: algorithm
         )
+    }
+
+    /// Base32 stays text and is decoded when a code is generated. The other
+    /// encodings are decoded here; a value that does not decode keeps its
+    /// field and generates no code.
+    private func decodedKeePassSecret(
+        _ secret: String,
+        in field: KeePassTOTPSecretField,
+        sessionKey: SymmetricKey
+    ) -> EncryptedValue? {
+        let encoding: String
+        switch field {
+        case .base32: return nil
+        case .utf8: encoding = "utf8"
+        case .hex: encoding = "hex"
+        case .base64: encoding = "base64"
+        }
+        return decodeKeeOTPSecret(secret, encoding: encoding)
+            .flatMap { try? EncryptedValue.encrypt($0, using: sessionKey) } ?? .empty
     }
 
     private func decodeKeeOTPSecret(_ key: String, encoding: String) -> Data? {

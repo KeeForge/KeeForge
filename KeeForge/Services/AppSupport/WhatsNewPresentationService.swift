@@ -56,6 +56,35 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.19.0":
+            features = [
+                WhatsNewFeature(
+                    id: "entry-additional-urls",
+                    title: "Add more URLs to an entry",
+                    detail: "Add every address a login is used on while editing an entry. AutoFill matches each one, and KeePassXC and KeePass2Android read them too.",
+                    systemImage: "link"
+                ),
+                WhatsNewFeature(
+                    id: "move-several-entries",
+                    title: "Move several entries at once",
+                    detail: "Touch and hold an entry, choose Select Entries, and pick the others, even from other groups or search results. Then move them to a group together.",
+                    systemImage: "checklist",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "move-several-entries-mac",
+                    title: "Move several entries at once",
+                    detail: "Right-click an entry, choose Select Entries, and pick the others, even from other groups or search results. Then move them to a group together.",
+                    systemImage: "checklist",
+                    platforms: [.macOS]
+                ),
+                WhatsNewFeature(
+                    id: "russian-localization",
+                    title: "Use KeeForge in Russian",
+                    detail: "KeeForge and AutoFill are now fully translated into Russian.",
+                    systemImage: "globe"
+                ),
+            ]
         case "1.18.0":
             features = [
                 WhatsNewFeature(

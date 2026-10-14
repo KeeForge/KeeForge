@@ -3,6 +3,7 @@
 // argument does nothing in Release builds. Reads only store metadata — never
 // EncryptedValue or vault contents — so it needs no database unlocked.
 @preconcurrency import AuthenticationServices
+import os
 import SwiftUI
 
 // MARK: - View model
@@ -13,12 +14,23 @@ final class AutoFillStoreInspectorViewModel {
     private(set) var snapshot: InspectorStoreSnapshot?
     private(set) var isRefreshing = false
     private(set) var enumerationError: String?
+    /// Objects an unreadable store returned; their ownership cannot be read.
+    private(set) var unreadableIdentityCount: Int?
     private(set) var capabilities: CredentialIdentityStoreCapabilities?
+    private(set) var isProviderStateUnavailable = false
 
     private let store: any CredentialIdentityStoreProviding
+    private let providerStateAttemptTimeout: Duration
+    private let providerStateAttempts: Int
 
-    init(store: any CredentialIdentityStoreProviding = SystemCredentialIdentityStore()) {
+    init(
+        store: any CredentialIdentityStoreProviding = SystemCredentialIdentityStore(),
+        providerStateAttemptTimeout: Duration = .seconds(2),
+        providerStateAttempts: Int = 5
+    ) {
         self.store = store
+        self.providerStateAttemptTimeout = providerStateAttemptTimeout
+        self.providerStateAttempts = providerStateAttempts
     }
 
     /// Re-enumerates the store off the main actor and republishes the snapshot.
@@ -28,7 +40,9 @@ final class AutoFillStoreInspectorViewModel {
         isRefreshing = true
         snapshot = nil
         enumerationError = nil
+        unreadableIdentityCount = nil
         capabilities = nil
+        isProviderStateUnavailable = false
 
         // Resolve database display names on the main actor (DatabaseListStore
         // reads shared defaults) and capture the Sendable lookup for off-actor
@@ -38,19 +52,57 @@ final class AutoFillStoreInspectorViewModel {
             uniquingKeysWith: { first, _ in first }
         )
         let store = self.store
+        let attemptTimeout = providerStateAttemptTimeout
+        let attempts = providerStateAttempts
 
         Task {
-            let capabilities = await store.capabilities()
+            guard let capabilities = await Self.readCapabilities(
+                from: store, attemptTimeout: attemptTimeout, attempts: attempts
+            ) else {
+                self.isProviderStateUnavailable = true
+                self.isRefreshing = false
+                return
+            }
             self.capabilities = capabilities
             do {
                 self.snapshot = try await Self.buildSnapshot(store: store, capabilities: capabilities) { namesByID[$0] }
-                self.enumerationError = nil
             } catch {
-                self.snapshot = nil
+                if case .nonConformingIdentities(let count) = error as? CredentialIdentityStoreReadError {
+                    self.unreadableIdentityCount = count
+                }
                 self.enumerationError = "Credential store enumeration failed: \(String(describing: error))"
             }
             self.isRefreshing = false
         }
+    }
+
+    /// The iOS 27.0 simulator sometimes never answers the first
+    /// `ASCredentialIdentityStore.state()` call of a launch, while a fresh call
+    /// answers at once, so each attempt is bounded and a stalled one abandoned.
+    nonisolated static func readCapabilities(
+        from store: any CredentialIdentityStoreProviding,
+        attemptTimeout: Duration,
+        attempts: Int
+    ) async -> CredentialIdentityStoreCapabilities? {
+        for _ in 0..<attempts {
+            let isAnswered = OSAllocatedUnfairLock(initialState: false)
+            let capabilities: CredentialIdentityStoreCapabilities? = await withCheckedContinuation { continuation in
+                let answer: @Sendable (CredentialIdentityStoreCapabilities?) -> Void = { value in
+                    let isFirst = isAnswered.withLock { answered in
+                        defer { answered = true }
+                        return !answered
+                    }
+                    if isFirst { continuation.resume(returning: value) }
+                }
+                Task { answer(await store.capabilities()) }
+                Task {
+                    try? await Task.sleep(for: attemptTimeout)
+                    answer(nil)
+                }
+            }
+            if let capabilities { return capabilities }
+        }
+        return nil
     }
 
     /// Runs entirely off the main actor: `nonisolated async` bodies execute on
@@ -127,6 +179,13 @@ struct AutoFillStoreInspectorView: View {
                         identifier: "autofill-inspector.incremental-updates"
                     )
                 }
+                if let count = viewModel.unreadableIdentityCount {
+                    valueRow(
+                        field: "Unreadable identities",
+                        value: "\(count)",
+                        identifier: "autofill-inspector.unreadable-count"
+                    )
+                }
                 if let snapshot = viewModel.snapshot {
                     valueRow(
                         field: "Total identities",
@@ -163,6 +222,8 @@ struct AutoFillStoreInspectorView: View {
                         rows: snapshot.unrecognizedRows
                     )
                 }
+            } else if viewModel.isProviderStateUnavailable {
+                Text(verbatim: "The system did not report the provider state. Refresh to ask again.")
             } else if let error = viewModel.enumerationError {
                 Text(verbatim: error)
                     .accessibilityIdentifier("autofill-inspector.enumeration-error")
@@ -177,6 +238,8 @@ struct AutoFillStoreInspectorView: View {
     }
 
     private var readStatus: String {
+        if viewModel.isProviderStateUnavailable { return "provider-state-unavailable" }
+        if viewModel.unreadableIdentityCount != nil { return "unreadable" }
         if viewModel.enumerationError != nil { return "failed" }
         if viewModel.snapshot != nil { return "complete" }
         return viewModel.capabilities == nil ? "reading-provider-state" : "reading-identities"

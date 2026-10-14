@@ -258,19 +258,25 @@ verify_public_url() {
   echo "verified public URL: ${url}; evidence: ${output}"
 }
 
+# GitHub's releases/tags endpoint never returns a draft, so read the release from the list.
+release_for_tag() {
+  local tag="$1" matches
+  matches="$(gh api --paginate "repos/${RELEASE_REPO}/releases?per_page=100" | jq -cs --arg tag "$tag" '[.[][] | select(.tag_name == $tag)]')" || return 1
+  [[ "$(jq 'length' <<<"$matches")" -le 1 ]] || die "more than one GitHub Release uses ${tag}"
+  jq -c '.[0] // empty' <<<"$matches"
+}
+
 verify_draft_release() {
-  local version filename tag release_json release_error asset_count asset_url temp
+  local version filename tag release_json asset_count asset_url temp
   version="$(json_value '.version | strings')"
   filename="$(json_value '.zipFilename | strings')"
   tag="v${version}"
-  release_error="${OUTPUT_DIR}/release-view.error"
-  if ! release_json="$(gh api "repos/${RELEASE_REPO}/releases/tags/${tag}" 2>"$release_error")"; then
-    if ! grep -Eiq 'not found|404' "$release_error"; then
-      die "could not safely determine whether GitHub Release ${tag} exists"
-    fi
+  release_json="$(release_for_tag "$tag")" || die "could not safely determine whether GitHub Release ${tag} exists"
+  if [[ -z "$release_json" ]]; then
     gh release create "$tag" --repo "$RELEASE_REPO" --draft --verify-tag \
       --title "KeeForge ${version}" --notes-file "$NOTES_FILE"
-    release_json="$(gh api "repos/${RELEASE_REPO}/releases/tags/${tag}")" || die "cannot read newly-created draft release ${tag}"
+    release_json="$(release_for_tag "$tag")" || die "cannot read newly-created draft release ${tag}"
+    [[ -n "$release_json" ]] || die "cannot read newly-created draft release ${tag}"
   fi
   [[ "$(jq -r '.tag_name // empty' <<<"$release_json")" == "$tag" ]] || die "draft release tag does not match ${tag}"
   [[ "$(jq -r '.draft' <<<"$release_json")" == true ]] || die "GitHub Release ${tag} is published; refusing to modify it"
@@ -278,7 +284,7 @@ verify_draft_release() {
   [[ "$(jq '[.assets[]] | length' <<<"$release_json")" == "$asset_count" ]] || die "draft release contains an unexpected asset"
   if [[ "$asset_count" == 0 ]]; then
     gh release upload "$tag" "$ARTIFACT_ZIP_PATH" --repo "$RELEASE_REPO"
-    release_json="$(gh api "repos/${RELEASE_REPO}/releases/tags/${tag}")" || die "cannot read draft release after upload"
+    release_json="$(release_for_tag "$tag")" || die "cannot read draft release after upload"
   fi
   asset_count="$(jq --arg filename "$filename" '[.assets[] | select(.name == $filename)] | length' <<<"$release_json")"
   [[ "$asset_count" == 1 ]] || die "draft release must contain exactly one expected asset"

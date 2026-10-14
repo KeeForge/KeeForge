@@ -20,9 +20,6 @@ struct EntryDetailView: View {
     /// their `dismiss` has nothing of this screen's to pop, so it bubbles out
     /// to the split view and pops the *sidebar's* navigation stack instead.
     var popsOnClose: Bool = true
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    #endif
     @Environment(\.dismiss) private var dismiss
     @State private var activeEditor: EntryEditViewModel?
     /// Set when the editor completes a delete; the close then finishes in
@@ -126,16 +123,6 @@ struct EntryDetailView: View {
         EntrySecretAction.currentSession(viewModel)
     }
 
-    private var showsCompactLockButton: Bool {
-        // `\.horizontalSizeClass` does not exist on macOS; the Mac app always
-        // uses the regular layout.
-        #if os(iOS)
-        horizontalSizeClass == .compact
-        #else
-        false
-        #endif
-    }
-
     /// macOS states the read-only condition once, in the window toolbar the
     /// workspace owns. This screen's toolbar merges into that same bar, so
     /// repeating it here put two indicators side by side in one toolbar.
@@ -215,9 +202,10 @@ struct EntryDetailView: View {
                         }
                     }
 
-                    if !entry.displayCustomFields.isEmpty {
+                    let customFields = EntryEditViewModel.customFieldsOutsideURLRows(of: entry)
+                    if !customFields.isEmpty {
                         Section("Custom Fields") {
-                            ForEach(entry.displayCustomFields.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+                            ForEach(customFields.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
                                 if entry.protectedStringKeys.contains(key) {
                                     ProtectedFieldRow(
                                         label: key,
@@ -283,19 +271,6 @@ struct EntryDetailView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         HStack(spacing: 12) {
-                            // Leads the trailing group rather than sitting
-                            // beside the system back button, which made an
-                            // accidental lock a one-tap mistake.
-                            if showsCompactLockButton {
-                                Button {
-                                    viewModel.lockRequest(manuallyTriggered: true)
-                                } label: {
-                                    Image(systemName: "lock.fill")
-                                }
-                                .accessibilityLabel("Lock")
-                                .accessibilityIdentifier("lock.button")
-                            }
-
                             if let warningText = viewModel.cloudSyncBannerText {
                                 CloudSyncWarningButton(message: warningText)
                             }

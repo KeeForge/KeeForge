@@ -40,6 +40,8 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 
 ### Secrets
 
+- Native KeePass TOTP uses `TimeOtp-Secret`, `-Hex`, `-Base32`, or `-Base64` in that precedence order. `TOTPConfig.keePassSecretField` keeps the active field and `decodedSecret` keeps the effective bytes for non-Base32 secrets. An unchanged draft preserves that field; a new secret is written as Base32.
+- `TimeOtp-Algorithm` uses KeePass's `HMAC-SHA-*` names. `TOTPAlgorithm.rawValue` remains the short `otpauth` and KeeOTP token. The serializer writes `keePassName`; the parser also accepts the short names that earlier KeeForge versions wrote.
 - Secrets stay sealed as `EncryptedValue` under the session key until the point of use. `EncryptedValue` re-seals with a fresh nonce, so equal secrets never have equal ciphertext: compare plaintext.
 - The passkey private key PEM is diverted out of `customFields` into `KPEntry.passkeyPrivateKey` at parse time and re-emitted by the serializer at its original sorted custom-field position. It is decrypted only at signing time.
 - `EntryDraftPayload.protectedCustomFieldKeys` decides which created custom fields serialize `Protected=True`. AutoFill passkey registration relies on it for the `KPEX_PASSKEY_*` fields.
