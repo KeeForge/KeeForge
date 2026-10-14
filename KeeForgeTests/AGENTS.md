@@ -20,7 +20,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 - **Session and workflow:** `DatabaseViewModelTests`, `AutoLockTests`, `HardwareKeyUnlockTests`, `DatabaseEditorCoordinatorTests`, `AppRoutingCoordinatorTests`.
 - **AutoFill and passkeys:** `CredentialProviderCoordinatorTests` and its `CredentialProvider*Tests` siblings (save, registration, picker creation), `CredentialMatcherTests`, `CredentialIdentityStoreManagerTests`, `AutoFillMemoryLimitTests`, `PasskeyCredentialTests`, `PasskeyCryptoTests`.
 - **Localization and bundle:** `LocalizationTests` (translation completeness and format-specifier parity for every shipped locale), `URLSchemeFormatTests` (declared URL schemes are legal after build-setting substitution).
-- **macOS only:** `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `MacQuickSearchViewModelTests`, `MacQuickAccessControllerTests`, `MacUnlockPasswordFieldTests`, `MacTransitionNoticeServiceTests`, `CredentialProviderShellMacTests`.
+- **macOS only:** `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `MacQuickSearchViewModelTests`, `MacQuickAccessControllerTests`, `MacUnlockPasswordFieldTests`, `MacTransitionNoticeServiceTests`, `CredentialProviderShellMacTests`, and the SSH agent's `SSHAgentKeyTests`, `SSHAgentRequestHandlerTests`, `MacSSHAgentControllerTests`.
 
 ## Invariants
 
@@ -37,6 +37,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 
 - Both targets are hosted by the real app. `AppGroupContainer.isRedirectedForTesting` sends App Group storage to a temporary container; without it a Mac run's `DatabaseListStore.clearAll()` deletes the developer's own database list and backups. `AppGroupIsolationTests` is the gate; never bypass the redirect.
 - Tests that scan Documents set `DatabaseListStore.documentsDirectoryOverride`; never touch the real directory.
+- `MacSSHAgentControllerTests` gives the controller a `UserDefaults` suite and a `NotificationCenter` of its own and a socket in a temporary directory. Never point it at `UserDefaults.standard`, which in the hosted Mac app holds the developer's real agent settings. Its OpenSSH round trip (`ssh-add`, `ssh-keygen`) skips in a sandboxed test host.
 - `LocalDatabaseSaverTests` saves attachments at the reader's size limit and holds several hundred megabytes. Do not add tests of that size elsewhere.
 - Inject the prompt, clipboard, clock, notification centers, and window effects. No unit test raises a system authentication prompt, writes the real pasteboard, shows a window, registers a global hot key, or locks the screen.
 - Keychain-dependent cases (`CloudTokenStore`, `KeychainService`, WebDAV and FTP credentials) `XCTSkip` when the host cannot write the Keychain. A skip is not coverage.

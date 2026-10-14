@@ -8,6 +8,7 @@
 - `Persistence/LocalDatabaseSaver`: every save whose target is a file on this device, including the AutoFill extension's save into a cloud database's cached copy.
 - `Cloud/CloudDatabaseSaver`: the app's save of a cloud-backed database. `Cloud/CloudSyncCoordinator`: download-before-open and every replacement of a cloud cache file.
 - `AutoFill/AutoFillSaveCoordinator`: the extension-safe save of a new entry, and the pending-upload marker that covers it.
+- `SSHAgent/MacSSHAgentController`: the macOS-only, opt-in SSH agent that signs with keys stored in the unlocked database (`SSHAgent/AGENTS.md`).
 - `Security/KeychainService`: the per-database quick-unlock key. `Cloud/CloudTokenStore`: provider credentials. They are separate items with different protection (see `Security/AGENTS.md`, `Cloud/AGENTS.md`).
 
 ## Invariants
@@ -16,7 +17,7 @@
 
 - The AutoFill extensions compile only an explicit list of service and view files. `../../project.yml` holds it twice, between the `>>> SHARED AUTOFILL ALLOW-LIST` / `<<< SHARED AUTOFILL ALLOW-LIST` markers under `KeeForgeAutoFill` and `KeeForgeMacAutoFill`. The `- path:` lines must stay identical, in the same order; edit both together or one platform's extension silently diverges.
 - A file on that list, and everything it references, must be extension-safe on both platforms: no app-only types or APIs, no dependency on a file that is not also listed, and it must compile for iOS and macOS.
-- `KeeForgeMac` compiles the whole `Services` tree except `Cloud/DropboxCloudProvider.swift` and `Cloud/OneDriveCloudProvider.swift`, so every other service must compile on macOS. The iOS app excludes the four `AppSupport/Mac*` files that need AppKit window or hot-key APIs (`MacLockMonitor`, `MacWindowCloseGuard`, `MacQuickAccessController`, `MacGlobalHotKey`).
+- `KeeForgeMac` compiles the whole `Services` tree except `Cloud/DropboxCloudProvider.swift` and `Cloud/OneDriveCloudProvider.swift`, so every other service must compile on macOS. The iOS app excludes the four `AppSupport/Mac*` files that need AppKit window or hot-key APIs (`MacLockMonitor`, `MacWindowCloseGuard`, `MacQuickAccessController`, `MacGlobalHotKey`) and the `SSHAgent` folder.
 - Shared membership means the code compiles on both platforms, not that the feature exists on both. Mac cloud sync offers WebDAV and FTP; Dropbox and OneDrive are iOS-only and not built into the Mac app. Mac AutoFill fills passwords, passkeys, and one-time codes and saves a passkey registration, but has no password save, generation, or picker-created entry (`../../AutoFillExtension/AGENTS.md`).
 
 ### Compatibility with shipped installs
@@ -51,7 +52,7 @@
 
 ## See also
 
-- `AppSupport/AGENTS.md`, `AutoFill/AGENTS.md`, `Cloud/AGENTS.md`, `Persistence/AGENTS.md`, `Security/AGENTS.md`
+- `AppSupport/AGENTS.md`, `AutoFill/AGENTS.md`, `Cloud/AGENTS.md`, `Persistence/AGENTS.md`, `Security/AGENTS.md`, `SSHAgent/AGENTS.md`
 - `../../AutoFillExtension/AGENTS.md`: the extension target and its platform limits
 - `../ViewModels/AGENTS.md`: session-side save, conflict, merge, and rekey rules
 - `../../KeeForgeMac/SECURITY.md`, `../../docs/threat-model.md`
