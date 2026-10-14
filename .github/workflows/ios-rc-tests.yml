@@ -1,0 +1,171 @@
+name: iOS RC Tests
+
+# The three Xcode Cloud "Tests (RC)" test schemes on GitHub-hosted runners, on
+# the same two devices at the newest iOS runtime of the selected Xcode. Xcode
+# Cloud meters these tests against a monthly compute allowance; this workflow
+# does not, so a candidate still gets the latest-runtime test verdict when that
+# allowance is spent. The schemes select their own tests (ci_scripts/AGENTS.md,
+# "Xcode Cloud test partition"), so no -only-testing is passed.
+#
+# Trigger mirrors the other RC gates: one rc/{version}-b{build} tag per
+# candidate build. rc tags are permanent and are never moved or deleted; the
+# deletion guard below keeps a manually removed tag from starting a run.
+# Manual dispatch takes the ref to test, because an existing rc tag cannot
+# gain a workflow file: dispatch from a branch that has this file and name the
+# tag in `ref`.
+
+on:
+  push:
+    tags:
+      - 'rc/*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Tag, branch, or SHA to test (default is the dispatched ref)
+        required: false
+        default: ''
+
+concurrency:
+  group: ios-rc-${{ inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-rc-tests:
+    if: github.event_name == 'workflow_dispatch' || github.event.deleted == false
+    # xcode-27 is the only GitHub image with Xcode 27 and an iOS 27 simulator
+    # runtime; macos-26 tops out at Xcode 26.6.
+    runs-on: xcode-27
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        scheme: [KeeForgeCloudUnitTests, KeeForgeCloudUIA, KeeForgeCloudUIB]
+        device:
+          - { name: 'iPhone 18 Pro', slug: iphone-18-pro }
+          - { name: 'iPhone SE (3rd generation)', slug: iphone-se-3 }
+    name: ${{ matrix.scheme }} (${{ matrix.device.name }})
+    env:
+      SCHEME: ${{ matrix.scheme }}
+      PROJECT: KeeForge.xcodeproj
+      RUN_NAME: ${{ matrix.scheme }}-${{ matrix.device.slug }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Record the tested commit
+        run: |
+          echo "Tested ref: ${{ inputs.ref || github.ref }}"
+          echo "Tested commit: $(git rev-parse HEAD)"
+          echo "Tested tree: $(git rev-parse 'HEAD^{tree}')"
+
+      - name: Show Xcode
+        run: |
+          # The image default is its newest release Xcode, which is what Xcode
+          # Cloud's "Latest Release" uses. Selecting the newest installed Xcode
+          # here would pick a beta.
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Prepare build config
+        env:
+          DROPBOX_APP_KEY: ciplaceholderdropboxappkey
+        run: BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh .
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Create simulator
+        id: sim
+        env:
+          DEVICE_NAME: ${{ matrix.device.name }}
+        run: |
+          set -euo pipefail
+          echo "Installed runtimes:"
+          xcrun simctl list runtimes
+
+          # Newest available iOS runtime: Xcode Cloud's "Latest from Selected
+          # Xcode". The image does not pre-create an iPhone SE, so both devices
+          # are created here from their device type.
+          RUNTIME=$(xcrun simctl list runtimes --json | python3 -c '
+          import json, sys
+          runtimes = [
+              r for r in json.load(sys.stdin)["runtimes"]
+              if r.get("isAvailable") and r["identifier"].startswith("com.apple.CoreSimulator.SimRuntime.iOS-")
+          ]
+          runtimes.sort(key=lambda r: [int(p) for p in r["version"].split(".")])
+          if not runtimes:
+              sys.exit("No iOS simulator runtime is available on this runner image.")
+          print(runtimes[-1]["identifier"])
+          ')
+          DEVICE_TYPE=$(xcrun simctl list devicetypes --json | python3 -c '
+          import json, os, sys
+          name = os.environ["DEVICE_NAME"]
+          matches = [d["identifier"] for d in json.load(sys.stdin)["devicetypes"] if d["name"] == name]
+          if len(matches) != 1:
+              sys.exit(f"Expected one device type named {name!r}, found {len(matches)}.")
+          print(matches[0])
+          ')
+          echo "Using runtime: $RUNTIME"
+          echo "Using device type: $DEVICE_TYPE"
+
+          UDID=$(xcrun simctl create "KeeForge-RC" "$DEVICE_TYPE" "$RUNTIME")
+          echo "Created simulator: $UDID"
+          xcrun simctl boot "$UDID" || true
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build for testing
+        run: |
+          mkdir -p build
+          log="build/$RUN_NAME-build-for-testing.log"
+          if ! xcodebuild build-for-testing \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -skipPackagePluginValidation \
+            >"$log" 2>&1; then
+            tail -n 200 "$log"
+            exit 1
+          fi
+          tail -n 5 "$log"
+
+      - name: Run tests
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          set -uo pipefail
+          log="build/$RUN_NAME.log"
+          result="build/$RUN_NAME.xcresult"
+          rm -rf "$result"
+
+          # Test timeouts are on, as in Xcode Cloud, so the suites' execution
+          # allowances are enforced. Raw output is captured verbatim (no
+          # xcpretty) for uploaded diagnostic evidence.
+          xcodebuild test-without-building \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            -test-timeouts-enabled YES \
+            -resultBundlePath "$result" \
+            2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          echo "$SCHEME: xcodebuild exit=$status"
+
+          # The canonical xcresult summary decides the verdict, not the exit
+          # code or attempt lines (.github/AGENTS.md, "Verdict rule").
+          python3 ci_scripts/validate_xcresult_summary.py \
+            --result-bundle "$result" --suite "$SCHEME" --xcodebuild-exit "$status"
+
+      - name: Upload test logs and result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-rc-${{ env.RUN_NAME }}
+          path: |
+            build/*.log
+            build/*.xcresult
+          if-no-files-found: warn
+          retention-days: 14
