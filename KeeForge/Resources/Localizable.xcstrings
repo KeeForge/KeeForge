@@ -3238,6 +3238,58 @@
         }
       }
     },
+    "Add Another URL" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weitere URL hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir otra URL"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter une autre URL"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi un altro URL"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL をさらに追加"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить ещё один URL"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加其他 URL"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增其他 URL"
+          }
+        }
+      }
+    },
     "Add Attachment" : {
       "localizations" : {
         "de" : {
@@ -3446,6 +3498,58 @@
         }
       }
     },
+    "Add every address a login is used on while editing an entry. AutoFill matches each one, and KeePassXC and KeePass2Android read them too." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füge beim Bearbeiten eines Eintrags jede Adresse hinzu, unter der eine Anmeldung verwendet wird. AutoFill berücksichtigt jede davon, und auch KeePassXC und KeePass2Android lesen sie."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al editar una entrada, añade todas las direcciones en las que se usa un inicio de sesión. Autorrelleno las tiene en cuenta todas, y KeePassXC y KeePass2Android también las leen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lors de la modification d’une entrée, ajoutez toutes les adresses où un identifiant est utilisé. AutoFill les prend toutes en compte, et KeePassXC et KeePass2Android les lisent aussi."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mentre modifichi una voce, aggiungi tutti gli indirizzi in cui viene usato un login. L'inserimento automatico li riconosce tutti, e anche KeePassXC e KeePass2Android li leggono."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリの編集中に、そのログインを使うすべてのアドレスを追加できます。AutoFill はそれぞれのアドレスと照合し、KeePassXC や KeePass2Android でも読み取れます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "При редактировании записи добавьте все адреса, на которых используется этот вход. Автозаполнение учитывает каждый из них, а KeePassXC и KeePass2Android тоже их читают."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑条目时，可添加使用该登录信息的每个地址。AutoFill 会匹配每一个地址，KeePassXC 和 KeePass2Android 也能读取。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯項目時，可加入使用該登入資訊的每個位址。AutoFill 會比對每一個位址，KeePassXC 和 KeePass2Android 也能讀取。"
+          }
+        }
+      }
+    },
     "Add Field" : {
       "localizations" : {
         "de" : {
@@ -3546,6 +3650,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從密碼匯出檔案（例如「密碼」App 建立的檔案）新增登入資訊。"
+          }
+        }
+      }
+    },
+    "Add more URLs to an entry" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weitere URLs zu einem Eintrag hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade más URL a una entrada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez d’autres URL à une entrée"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi altri URL a una voce"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリに URL をさらに追加"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Несколько URL в одной записи"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为条目添加更多 URL"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為項目加入更多 URL"
           }
         }
       }
@@ -25554,6 +25710,58 @@
         }
       }
     },
+    "KeeForge and AutoFill are now fully translated into Russian." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge und AutoFill sind jetzt vollständig ins Russische übersetzt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge y Autorrelleno ahora están completamente traducidos al ruso."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge et AutoFill sont désormais entièrement traduits en russe."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge e l'inserimento automatico sono ora completamente tradotti in russo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge と AutoFill がすべてロシア語で利用できるようになりました。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge и автозаполнение теперь полностью переведены на русский язык."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 和 AutoFill 现已全面提供俄语翻译。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 和 AutoFill 現已全面提供俄文翻譯。"
+          }
+        }
+      }
+    },
     "KeeForge can now open older KeePass 3.1 vaults and databases protected with Twofish — and keeps their original encryption when you save." : {
       "localizations" : {
         "de" : {
@@ -31063,6 +31271,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "移動項目和群組"
+          }
+        }
+      }
+    },
+    "Move several entries at once" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehrere Einträge auf einmal verschieben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mueve varias entradas a la vez"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déplacez plusieurs entrées à la fois"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sposta più voci contemporaneamente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数のエントリをまとめて移動"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перемещение нескольких записей сразу"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一次移动多个条目"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一次移動多個項目"
           }
         }
       }
@@ -38608,6 +38868,58 @@
         }
       }
     },
+    "Remove URL %lld" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL %lld entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar la URL %lld"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer l’URL %lld"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovi l'URL %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL %lldを削除"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить URL %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除 URL %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除 URL %lld"
+          }
+        }
+      }
+    },
     "Remove Verification Code" : {
       "localizations" : {
         "de" : {
@@ -39332,6 +39644,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在列表中右鍵點按項目，即可拷貝其使用者名稱或密碼。拷貝密碼時仍需確認您的身分。"
+          }
+        }
+      }
+    },
+    "Right-click an entry, choose Select Entries, and pick the others, even from other groups or search results. Then move them to a group together." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klicke mit der rechten Maustaste auf einen Eintrag, wähle „Einträge auswählen“ und markiere die weiteren, auch in anderen Gruppen oder in Suchergebnissen. Verschiebe sie dann gemeinsam in eine Gruppe."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haz clic con el botón derecho en una entrada, elige «Seleccionar entradas» y marca las demás, incluso de otros grupos o de los resultados de búsqueda. Después, muévelas juntas a un grupo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cliquez avec le bouton droit sur une entrée, choisissez « Sélectionner des entrées », puis sélectionnez les autres, même dans d’autres groupes ou dans les résultats de recherche. Déplacez-les ensuite ensemble vers un groupe."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fai clic con il tasto destro su una voce, scegli Seleziona voci e seleziona le altre, anche da altri gruppi o dai risultati di ricerca. Poi spostale insieme in un gruppo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリを右クリックして「エントリを選択」を選び、ほかのグループや検索結果にあるものも含めて、移動したいエントリを選択します。その後、まとめてグループへ移動できます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Щёлкните запись правой кнопкой мыши, выберите «Выбрать записи» и отметьте остальные — даже из других групп или результатов поиска. Затем переместите их в группу все вместе."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "右键点按条目并选择“选择条目”，再选取其他条目，其他群组或搜索结果中的条目也可以。然后将它们一起移动到某个群组。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "右鍵點按項目並選擇「選取項目」，再選取其他項目，其他群組或搜尋結果中的項目也可以。然後將它們一起移動到某個群組。"
           }
         }
       }
@@ -53704,6 +54068,58 @@
         }
       }
     },
+    "Touch and hold an entry, choose Select Entries, and pick the others, even from other groups or search results. Then move them to a group together." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halte einen Eintrag gedrückt, wähle „Einträge auswählen“ und markiere die weiteren, auch in anderen Gruppen oder in Suchergebnissen. Verschiebe sie dann gemeinsam in eine Gruppe."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantén pulsada una entrada, elige «Seleccionar entradas» y marca las demás, incluso de otros grupos o de los resultados de búsqueda. Después, muévelas juntas a un grupo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maintenez le doigt sur une entrée, choisissez « Sélectionner des entrées », puis sélectionnez les autres, même dans d’autres groupes ou dans les résultats de recherche. Déplacez-les ensuite ensemble vers un groupe."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tieni premuta una voce, scegli Seleziona voci e seleziona le altre, anche da altri gruppi o dai risultati di ricerca. Poi spostale insieme in un gruppo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリを長押しして「エントリを選択」を選び、ほかのグループや検索結果にあるものも含めて、移動したいエントリを選択します。その後、まとめてグループへ移動できます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Коснитесь записи и удерживайте её, выберите «Выбрать записи» и отметьте остальные — даже из других групп или результатов поиска. Затем переместите их в группу все вместе."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住条目并选择“选择条目”，再选取其他条目，其他群组或搜索结果中的条目也可以。然后将它们一起移动到某个群组。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住項目並選擇「選取項目」，再選取其他項目，其他群組或搜尋結果中的項目也可以。然後將它們一起移動到某個群組。"
+          }
+        }
+      }
+    },
     "Touch ID" : {
       "localizations" : {
         "de" : {
@@ -57132,6 +57548,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "以日文使用 KeeForge"
+          }
+        }
+      }
+    },
+    "Use KeeForge in Russian" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge auf Russisch verwenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa KeeForge en ruso"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez KeeForge en russe"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa KeeForge in russo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge をロシア語で使う"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge на русском языке"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以俄语使用 KeeForge"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以俄文使用 KeeForge"
           }
         }
       }

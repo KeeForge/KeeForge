@@ -10,6 +10,7 @@
 | `rc/*` tag push | `workflows/ios18-rc-tests.yml` | Full unit and UI suites on an iPhone SE (3rd generation) at the newest iOS 18.x runtime on the runner, then the two regular-width UI classes on an iPad. |
 | `rc/*` tag push | `workflows/macos-rc-tests.yml` | Full `KeeForgeMacTests`. |
 | `rc/*` tag push | Xcode Cloud **Tests (RC)** | `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, `KeeForgeCloudUIB` on the latest runtime, plus the iOS and Mac App Store archives. |
+| `rc/*` tag push | `workflows/ios-rc-tests.yml` | The same three Cloud test schemes on GitHub's `xcode-27` runner: iPhone 18 Pro and iPhone SE (3rd generation) at the newest iOS runtime, six jobs. No archives. |
 | Each release candidate, locally | `ci_scripts/run_kdbx_compatibility_gate.sh` | KeePassXC cross-validation, once per platform. |
 | Each release candidate, locally | `KeeForgeMacUITests/MacSmokeUITests` | Mac UI smoke. |
 | Manual only | `workflows/ci.yml`, `workflows/ios18-ui-regression.yml` | Diagnostics, not gates. |
@@ -25,7 +26,7 @@
 
 ## Verdict rule
 
-`pr-tests.yml`, both RC workflows, and `ios18-ui-regression.yml` judge on `ci_scripts/validate_xcresult_summary.py`, not the `xcodebuild` exit code: the fresh `.xcresult` summary must report `result=Passed`, zero failures, and at least one executed test. Exit 65 is tolerated only after that check, because runners return it intermittently during teardown; any other nonzero exit fails. `ci.yml` judges on the raw exit code, which is why it is manual only.
+`pr-tests.yml`, the three RC workflows, and `ios18-ui-regression.yml` judge on `ci_scripts/validate_xcresult_summary.py`, not the `xcodebuild` exit code: the fresh `.xcresult` summary must report `result=Passed`, zero failures, and at least one executed test. Exit 65 is tolerated only after that check, because runners return it intermittently during teardown; any other nonzero exit fails. `ci.yml` judges on the raw exit code, which is why it is manual only.
 
 ## Branch rulesets
 
@@ -42,7 +43,9 @@ Three repository rulesets, all with admin bypass. They live in GitHub settings, 
 - Renaming the `unit-tests` or `macos-unit-tests` job breaks the rulesets, which match the check by job name.
 - Every `KeeForgeMac` job runs on `macos-26` and fails below Xcode 26.4: Xcode 26.3's `actool` crashes compiling `KeeForge.icon` for macOS. The iOS unit-test jobs (`pr-tests.yml`, `ci.yml`) also run on `macos-26`. The iOS 18 workflows (`ios18-rc-tests.yml`, `ios18-ui-regression.yml`) stay on `macos-15`, the only image with iOS 18 simulator runtimes.
 - Mac jobs sign ad hoc with entitlements stripped (`CODE_SIGN_IDENTITY=-`, `CODE_SIGN_ENTITLEMENTS=`), because runners have no signing account.
-- Workflows regenerate the project with XcodeGen; the checked-in `.xcodeproj` is never assumed current. All but `ios18-ui-regression.yml`, which pins Xcode 26.3, select the newest Xcode on the runner.
+- Workflows regenerate the project with XcodeGen; the checked-in `.xcodeproj` is never assumed current. `ios18-ui-regression.yml` pins Xcode 26.3 and `ios-rc-tests.yml` keeps the image default; the rest select the newest Xcode on the runner.
 - Workflows bootstrap `BuildConfig.local.xcconfig` with the placeholder `DROPBOX_APP_KEY=ciplaceholderdropboxappkey`. It must stay alphanumeric and the app treats it as cloud sign-in disabled; the rule is in `../ci_scripts/AGENTS.md`.
 - `ios18-rc-tests.yml` takes about two hours on one runner and has a 180-minute timeout. It fails loudly if the runner image drops its iOS 18 runtimes.
+- `ios-rc-tests.yml` runs on `xcode-27`, the only image with Xcode 27 and an iOS 27 runtime. It uses the image's default Xcode, because the newest one installed there is a beta. Xcode Cloud's test actions are metered against a monthly compute allowance and are cancelled once it is spent; this workflow is not metered.
+- An existing `rc/*` tag cannot gain a workflow file. To run `ios-rc-tests.yml` against one, dispatch it from a branch that has the file and pass the tag as `ref`; the run then reports on the dispatching branch, so read the tested commit from its log.
 - This file is named `AGENTS.md` because GitHub renders a `.github/README.md` as the repository front page.

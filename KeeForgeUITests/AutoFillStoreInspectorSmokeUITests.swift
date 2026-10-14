@@ -1,8 +1,10 @@
 import XCTest
 
-/// Default-suite smoke coverage for the DEBUG-only AutoFill store inspector
+/// Default-suite smoke coverage for the DEBUG-only AutoFill store inspector.
 /// Safe on unprovisioned simulators: provider readiness is independent of
-/// identity enumeration, which may remain pending on the system store.
+/// identity enumeration, which may remain pending on the system store. The
+/// inspector re-asks for a provider state the system leaves unanswered, well
+/// within this test's wait.
 /// It does not extend `KeeForgeUITestCase` because the inspector replaces the
 /// normal database-list root, so no fixture injection or unlock flow applies.
 @MainActor

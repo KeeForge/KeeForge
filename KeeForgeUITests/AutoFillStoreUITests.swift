@@ -3,6 +3,8 @@ import XCTest
 // Requires a disposable physical iPhone with KeeForge enabled as its AutoFill
 // provider. Seed once per test; subsequent launches preserve database UUIDs.
 // Each scenario clears the real store before publishing its dedicated fixtures.
+// Counts are asserted on every store; per-database attribution only where the
+// store returns readable identities.
 @MainActor
 final class AutoFillStoreUITests: AppSettingsUITestCase {
 
@@ -43,6 +45,8 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
     private static let inspectorArgument = "-autofill-store-inspector"
     private static let enabledStateID = "autofill-inspector.enabled-state"
     private static let totalCountID = "autofill-inspector.total-count"
+    private static let unreadableCountID = "autofill-inspector.unreadable-count"
+    private static let readStatusID = "autofill-inspector.read-status"
     private static let refreshID = "autofill-inspector.refresh"
     private static let databaseTogglePrefix = "settings.autofill.database-toggle."
 
@@ -51,10 +55,13 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
     /// test device: the StoreKit review prompt (`hasPrompted` counts
     /// unlocks in standard defaults, which persist across runs) and the
     /// AutoFill tip banner (irrelevant while the provider is enabled, but the
-    /// dismissal flag keeps argument-free launches deterministic).
+    /// dismissal flag keeps argument-free launches deterministic), and the
+    /// Face ID prompt a relaunch raises for a database unlocked earlier in the
+    /// test, which XCUITest cannot answer.
     private static let launchDefaultsOverrides = [
         "-KeeForge.reviewPrompt.hasPrompted", "YES",
         "-KeeForge.autoFillTip.dismissed", "YES",
+        "-KeeForge.autoUnlockWithFaceID", "NO",
     ]
 
     // MARK: - Skip guard
@@ -70,7 +77,14 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
     override func setUp() async throws {
         continueAfterFailure = false
         executionTimeAllowance = 300
+        #if targetEnvironment(simulator)
+        throw XCTSkip(
+            "AutoFillStoreUITests needs a physical iPhone: a simulator's credential identity "
+                + "store does not enumerate the identities written to it."
+        )
+        #else
         try skipUnlessProvisionedStoreIsAvailable()
+        #endif
         try await super.setUp()
     }
 
@@ -98,7 +112,7 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
                 evidence.name = "Inspector readiness failure"
                 evidence.lifetime = .keepAlways
                 add(evidence)
-                let readStatus = inspector.staticTexts["autofill-inspector.read-status"].value ?? "<missing>"
+                let readStatus = inspector.staticTexts[Self.readStatusID].value ?? "<missing>"
                 inspector.terminate()
                 throw NSError(domain: "AutoFillStoreUITests", code: 1,
                               userInfo: [NSLocalizedDescriptionKey: "Store inspector did not report provider readiness; read status: \(readStatus)"])
@@ -128,8 +142,8 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         allowStoreWritesToSettle()
 
         launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount)")
-        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha))
+        var read = waitForStoreCount(Self.alphaIdentityCount)
+        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha), read: read)
 
         launchNormalRoot()
         openAutoFillSettings()
@@ -149,8 +163,8 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         allowStoreWritesToSettle()
 
         launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "0")
-        assertInspectorDatabaseSectionAbsent(ids.alpha)
+        read = waitForStoreCount(0)
+        assertInspectorDatabaseSectionAbsent(ids.alpha, read: read)
 
         launchNormalRoot()
         unlockDatabase(named: "alpha")
@@ -158,8 +172,8 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         allowStoreWritesToSettle()
 
         launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount)")
-        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha))
+        read = waitForStoreCount(Self.alphaIdentityCount)
+        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha), read: read)
     }
 
     // MARK: - Confirmed clear
@@ -172,8 +186,8 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         allowStoreWritesToSettle()
 
         launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount)")
-        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha))
+        var read = waitForStoreCount(Self.alphaIdentityCount)
+        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha), read: read)
 
         launchNormalRoot()
         openAutoFillSettings()
@@ -182,11 +196,14 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         allowStoreWritesToSettle()
 
         launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "0")
-        assertInspectorDatabaseSectionAbsent(ids.alpha)
+        read = waitForStoreCount(0)
+        assertInspectorDatabaseSectionAbsent(ids.alpha, read: read)
         assertInspectorValue(Self.enabledStateID, equals: "enabled")
     }
 
+    /// On an unreadable store the targeted removal clears the whole store
+    /// (`KeeForge/Services/AutoFill/AGENTS.md`), so alpha is preserved only
+    /// where the union reads back.
     func testPublicationUnionAndTargetedRemovalPreserveOtherDatabase() throws {
         let ids = try seedStoreBaselineAndCaptureDatabaseIDs()
         unlockDatabase(named: "alpha")
@@ -194,9 +211,9 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         allowStoreWritesToSettle()
 
         launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount)")
-        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha))
-        assertInspectorDatabaseSectionAbsent(ids.bravo)
+        var read = waitForStoreCount(Self.alphaIdentityCount)
+        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha), read: read)
+        assertInspectorDatabaseSectionAbsent(ids.bravo, read: read)
 
         launchNormalRoot()
         unlockDatabase(named: "bravo")
@@ -204,9 +221,9 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         allowStoreWritesToSettle()
 
         launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount + Self.bravoIdentityCount)")
-        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha))
-        assertDatabaseMetadata(ids.bravo, equals: bravoMetadata(databaseID: ids.bravo))
+        let unionRead = waitForStoreCount(Self.alphaIdentityCount + Self.bravoIdentityCount)
+        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha), read: unionRead)
+        assertDatabaseMetadata(ids.bravo, equals: bravoMetadata(databaseID: ids.bravo), read: unionRead)
 
         launchNormalRoot()
         openDatabaseDetails(rowContaining: "bravo")
@@ -218,9 +235,14 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         allowStoreWritesToSettle()
 
         launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "\(Self.alphaIdentityCount)")
-        assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha))
-        assertInspectorDatabaseSectionAbsent(ids.bravo)
+        if unionRead == .readable {
+            read = waitForStoreCount(Self.alphaIdentityCount)
+            assertDatabaseMetadata(ids.alpha, equals: alphaMetadata(databaseID: ids.alpha), read: read)
+        } else {
+            read = waitForStoreCount(0)
+            assertInspectorDatabaseSectionAbsent(ids.alpha, read: read)
+        }
+        assertInspectorDatabaseSectionAbsent(ids.bravo, read: read)
 
         launchNormalRoot()
         openAutoFillSettings()
@@ -231,9 +253,9 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         allowStoreWritesToSettle()
 
         launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "0")
-        assertInspectorDatabaseSectionAbsent(ids.alpha)
-        assertInspectorDatabaseSectionAbsent(ids.bravo)
+        read = waitForStoreCount(0)
+        assertInspectorDatabaseSectionAbsent(ids.alpha, read: read)
+        assertInspectorDatabaseSectionAbsent(ids.bravo, read: read)
         assertInspectorValue(Self.enabledStateID, equals: "enabled")
     }
 
@@ -300,7 +322,7 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
 
         allowStoreWritesToSettle()
         launchInspector()
-        waitForInspectorValue(Self.totalCountID, toEqual: "0")
+        waitForStoreCount(0)
         launchNormalRoot()
         return SeededDatabaseIDs(alpha: alphaID, bravo: bravoID)
     }
@@ -368,6 +390,56 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         "autofill-inspector.database.\(uuid).count"
     }
 
+    private enum StoreRead {
+        case readable
+        /// iOS 27.0.1 returns objects without `ASCredentialIdentity`
+        /// conformance once the store is non-empty: their number is known,
+        /// their owning database is not.
+        case unreadable
+    }
+
+    /// Polls until the store holds `expected` objects, readable or not, and
+    /// reports which. Any other enumeration failure fails the test; a pending
+    /// or unanswered read is retried through the refresh control.
+    @discardableResult
+    private func waitForStoreCount(
+        _ expected: Int,
+        timeout: TimeInterval = 45,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> StoreRead {
+        let refresh = app.buttons[Self.refreshID]
+        let deadline = Date().addingTimeInterval(timeout)
+        var lastObserved = "<missing>"
+
+        repeat {
+            let status = scanInspectorRow(app.staticTexts[Self.readStatusID]).value
+            switch status {
+            case "complete":
+                let total = scanInspectorRow(app.staticTexts[Self.totalCountID]).value
+                lastObserved = "\(total ?? "<missing>") readable"
+                if total == "\(expected)" { return .readable }
+            case "unreadable":
+                let count = scanInspectorRow(app.staticTexts[Self.unreadableCountID]).value
+                lastObserved = "\(count ?? "<missing>") unreadable"
+                if count == "\(expected)" { return .unreadable }
+            case "failed":
+                let error = app.staticTexts["autofill-inspector.enumeration-error"]
+                XCTFail(error.value as? String ?? error.label, file: file, line: line)
+                return .readable
+            default:
+                lastObserved = "read status \(status ?? "<missing>")"
+            }
+            if refresh.exists, refresh.isHittable {
+                refresh.tap()
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+        } while Date() < deadline
+
+        XCTFail("Store did not reach \(expected) identities; last read: \(lastObserved)", file: file, line: line)
+        return .readable
+    }
+
     /// Polls an inspector value row until it reads `expected`, re-enumerating
     /// the store via the refresh control between reads and scrolling the row
     /// into the accessibility hierarchy when it sits below the fold.
@@ -413,9 +485,14 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
     private func assertDatabaseMetadata(
         _ databaseID: String,
         equals expected: [String],
+        read: StoreRead,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
+        guard read == .readable else {
+            XCTContext.runActivity(named: "Unreadable store: identities of \(databaseID) not attributed") { _ in }
+            return
+        }
         waitForInspectorValue(databaseCountID(databaseID), toEqual: "\(expected.count)", file: file, line: line)
         waitForInspectorValue("autofill-inspector.database.\(databaseID).identities",
                               toEqual: expected.sorted().joined(separator: "\n"), file: file, line: line)
@@ -442,9 +519,14 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
     /// for by the surviving sections.
     private func assertInspectorDatabaseSectionAbsent(
         _ uuid: String,
+        read: StoreRead,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
+        guard read == .readable else {
+            XCTContext.runActivity(named: "Unreadable store: absence of \(uuid) not checked") { _ in }
+            return
+        }
         let row = scanInspectorRow(app.staticTexts[databaseCountID(uuid)])
         XCTAssertFalse(
             row.exists,

@@ -3561,7 +3561,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeeForgeMac/KeeForgeMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 70;
+				CURRENT_PROJECT_VERSION = 71;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -3571,7 +3571,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.18.0;
+				MARKETING_VERSION = 1.19.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app;
 				PRODUCT_MODULE_NAME = KeeForge;
 				PRODUCT_NAME = KeeForge;
@@ -3590,7 +3590,7 @@
 				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtensionMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 70;
+				CURRENT_PROJECT_VERSION = 71;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -3602,7 +3602,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.18.0;
+				MARKETING_VERSION = 1.19.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
@@ -3752,7 +3752,7 @@
 				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtensionMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 70;
+				CURRENT_PROJECT_VERSION = 71;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -3764,7 +3764,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.18.0;
+				MARKETING_VERSION = 1.19.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
@@ -3780,7 +3780,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeeForgeMac/KeeForgeMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 70;
+				CURRENT_PROJECT_VERSION = 71;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -3790,7 +3790,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.18.0;
+				MARKETING_VERSION = 1.19.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app;
 				PRODUCT_MODULE_NAME = KeeForge;
 				PRODUCT_NAME = KeeForge;
@@ -3808,7 +3808,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 70;
+				CURRENT_PROJECT_VERSION = 71;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AutoFillExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -3817,7 +3817,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.18.0;
+				MARKETING_VERSION = 1.19.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -3869,7 +3869,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeeForge/KeeForge.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 70;
+				CURRENT_PROJECT_VERSION = 71;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KeeForge/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -3877,7 +3877,7 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.18.0;
+				MARKETING_VERSION = 1.19.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) -Xcc -Wno-incomplete-umbrella";
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app;
 				PRODUCT_MODULE_NAME = KeeForge;
@@ -3963,7 +3963,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 70;
+				CURRENT_PROJECT_VERSION = 71;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AutoFillExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -3972,7 +3972,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.18.0;
+				MARKETING_VERSION = 1.19.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -3988,7 +3988,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeeForge/KeeForge.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 70;
+				CURRENT_PROJECT_VERSION = 71;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KeeForge/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -3996,7 +3996,7 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.18.0;
+				MARKETING_VERSION = 1.19.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) -Xcc -Wno-incomplete-umbrella";
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app;
 				PRODUCT_MODULE_NAME = KeeForge;

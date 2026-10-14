@@ -22,6 +22,21 @@ final class EntryEditViewModel {
         }
     }
 
+    /// A further website for the entry. KeePass has no standard field for
+    /// one, so it is stored the way KeePass2Android stores it and KeePassXC
+    /// reads it: an unprotected `KP2A_URL_<n>` string field.
+    struct AdditionalURL: Identifiable, Equatable, Sendable {
+        let id: UUID
+        let key: String
+        var value: String
+
+        init(id: UUID = UUID(), key: String, value: String = "") {
+            self.id = id
+            self.key = key
+            self.value = value
+        }
+    }
+
     struct Attachment: Identifiable, Equatable, Sendable {
         enum Source: Equatable, Sendable {
             case existing(KPAttachment)
@@ -53,6 +68,7 @@ final class EntryEditViewModel {
     ]).union(PasskeyCredential.allFieldKeys)
     /// The parser reads a `key=` value under these names as KeeOTP storage.
     private static let keeOTPCandidateKeys: Set<String> = ["OTP", "Otp"]
+    private static let additionalURLKeyPrefix = "KP2A_URL_"
 
     enum Mode: Sendable, Equatable {
         case create(parentGroupID: UUID)
@@ -64,6 +80,7 @@ final class EntryEditViewModel {
         var username: String
         var password: String
         var url: String
+        var additionalURLs: [AdditionalURL]
         var notes: String
         var tags: [String]
         var customFields: [CustomField]
@@ -90,6 +107,9 @@ final class EntryEditViewModel {
     var username: String
     var password: String
     var url: String
+    /// The entry's further websites in the order the detail screen numbers
+    /// them, new ones appended. A row left empty is not written.
+    var additionalURLs: [AdditionalURL]
     var notes: String
     /// Tags the user has committed, rendered as removable pills. Order is the
     /// order they arrived in — the file's own order when seeded — and identity
@@ -142,6 +162,7 @@ final class EntryEditViewModel {
         username: String = "",
         password: String = "",
         url: String = "",
+        additionalURLs: [AdditionalURL] = [],
         notes: String = "",
         tags: [String] = [],
         knownTags: [String] = [],
@@ -166,6 +187,7 @@ final class EntryEditViewModel {
         self.username = username
         self.password = password
         self.url = url
+        self.additionalURLs = additionalURLs
         self.notes = notes
         self.tags = TagNormalizer.tags(from: tags)
         self.knownTags = knownTags
@@ -198,6 +220,7 @@ final class EntryEditViewModel {
                 username: "",
                 password: "",
                 url: "",
+                additionalURLs: [],
                 notes: "",
                 tags: [],
                 customFields: [],
@@ -215,6 +238,7 @@ final class EntryEditViewModel {
                 username: username,
                 password: password,
                 url: url,
+                additionalURLs: Self.written(additionalURLs),
                 notes: notes,
                 tags: TagNormalizer.tags(from: tags),
                 customFields: editableCustomFields,
@@ -266,6 +290,7 @@ final class EntryEditViewModel {
             username: entry.username,
             password: password,
             url: entry.url,
+            additionalURLs: Self.additionalURLs(of: entry),
             notes: entry.notes,
             tags: entry.tags,
             knownTags: knownTags,
@@ -303,7 +328,7 @@ final class EntryEditViewModel {
     ) {
         let editableCustomFields = Self.editableCustomFields(of: entry)
         let password = (try? entry.password.decrypt(using: sessionKey)) ?? ""
-        let totpSecret = (try? entry.totpConfig?.secret.decrypt(using: sessionKey)) ?? ""
+        let totpSecret = Self.base32TOTPSecret(of: entry, sessionKey: sessionKey)
 
         self.init(
             mode: .create(parentGroupID: parentGroupID),
@@ -311,6 +336,7 @@ final class EntryEditViewModel {
             username: entry.username,
             password: password,
             url: entry.url,
+            additionalURLs: Self.additionalURLs(of: entry),
             notes: entry.notes,
             tags: entry.tags,
             knownTags: knownTags,
@@ -324,12 +350,49 @@ final class EntryEditViewModel {
         )
     }
 
+    /// A copy stores its secret as Base32, so one the entry keeps in another
+    /// encoding is converted; one that does not decode is left out.
+    private static func base32TOTPSecret(of entry: KPEntry, sessionKey: SymmetricKey) -> String {
+        guard let config = entry.totpConfig else { return "" }
+        guard config.decodedSecret != nil else {
+            return (try? config.secret.decrypt(using: sessionKey)) ?? ""
+        }
+        return TOTPGenerator.resolveSecret(config: config, sessionKey: sessionKey)
+            .map { TOTPGenerator.base32Encode($0.data) } ?? ""
+    }
+
     private static func editableCustomFields(of entry: KPEntry) -> [CustomField] {
-        entry.displayCustomFields
+        customFieldsOutsideURLRows(of: entry)
             .sorted(by: { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending })
             .map {
                 CustomField(key: $0.key, value: $0.value, isProtected: entry.protectedStringKeys.contains($0.key))
             }
+    }
+
+    /// The custom fields left for the Custom Fields section, here and on the
+    /// detail screen, once the ones shown as URL rows are taken out.
+    static func customFieldsOutsideURLRows(of entry: KPEntry) -> [String: String] {
+        entry.displayCustomFields.filter { isAdditionalURL(key: $0.key, value: $0.value, in: entry) == false }
+    }
+
+    /// In `KPEntry.additionalURLs` order, so row numbers match the detail screen.
+    private static func additionalURLs(of entry: KPEntry) -> [AdditionalURL] {
+        entry.customFields
+            .filter { isAdditionalURL(key: $0.key, value: $0.value, in: entry) }
+            .sorted { $0.key < $1.key }
+            .map { AdditionalURL(key: $0.key, value: $0.value) }
+    }
+
+    /// An empty field stays a custom field so a save never drops it unasked,
+    /// and a protected one stays there to keep its value concealed.
+    private static func isAdditionalURL(key: String, value: String, in entry: KPEntry) -> Bool {
+        key.hasPrefix(additionalURLKeyPrefix)
+            && value.isEmpty == false
+            && entry.protectedStringKeys.contains(key) == false
+    }
+
+    private static func written(_ additionalURLs: [AdditionalURL]) -> [AdditionalURL] {
+        additionalURLs.filter { $0.value.isEmpty == false }
     }
 
     /// Marks the copy apart from its source in the list it lands in. An
@@ -611,6 +674,25 @@ final class EntryEditViewModel {
         }
     }
 
+    func addAdditionalURL() {
+        additionalURLs.append(AdditionalURL(key: nextFreeAdditionalURLKey()))
+    }
+
+    func removeAdditionalURL(id: UUID) {
+        additionalURLs.removeAll(where: { $0.id == id })
+    }
+
+    /// Numbered from 1 like KeePass2Android. A name the edited entry protects
+    /// is skipped: `DatabaseDraft` would write the URL protected under it.
+    private func nextFreeAdditionalURLKey() -> String {
+        let takenKeys = Set(additionalURLs.map(\.key))
+            .union(customFields.map { $0.key.trimmingCharacters(in: .whitespacesAndNewlines) })
+            .union(protectedKeysKeptOnSave)
+        var index = 1
+        while takenKeys.contains(Self.additionalURLKeyPrefix + String(index)) { index += 1 }
+        return Self.additionalURLKeyPrefix + String(index)
+    }
+
     func addCustomField() {
         customFields.append(CustomField())
     }
@@ -651,7 +733,7 @@ final class EntryEditViewModel {
         }
         let isDuplicate = customFields.contains {
             $0.id != field.id && $0.key.trimmingCharacters(in: .whitespacesAndNewlines) == key
-        }
+        } || Self.written(additionalURLs).contains { $0.key == key }
         return isDuplicate ? String(localized: "Another field already uses this name.") : nil
     }
 
@@ -673,6 +755,7 @@ final class EntryEditViewModel {
             username: username,
             password: password,
             url: url,
+            additionalURLs: Self.written(additionalURLs),
             notes: notes,
             // The pending token counts: typing a tag and saving without
             // committing it must read as a change, and must save the tag.
@@ -718,6 +801,9 @@ final class EntryEditViewModel {
             guard key.isEmpty == false, isReservedCustomFieldKey(key) == false else { continue }
             merged[key] = field.value
         }
+        for additionalURL in Self.written(additionalURLs) {
+            merged[additionalURL.key] = additionalURL.value
+        }
         return merged
     }
 
@@ -735,11 +821,24 @@ final class EntryEditViewModel {
         TagNormalizer.tags(from: tags + [pendingTagText])
     }
 
-    private func normalizedTOTPConfiguration() -> EntryDraftPayload.TOTPConfiguration? {
-        let trimmedSecret = totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedSecret.isEmpty == false else { return nil }
+    /// Whether the form holds a one-time-code secret. Whitespace is not a
+    /// secret anyone types, but a stored KeePass UTF-8 secret can consist of
+    /// it, so one the user has not touched still counts.
+    var hasTOTPSecret: Bool {
+        totpSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            || (totpSecret.isEmpty == false && totpSecret == originalSnapshot.totpSecret)
+    }
 
-        let secretChanged = trimmedSecret != originalSnapshot.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func normalizedTOTPConfiguration() -> EntryDraftPayload.TOTPConfiguration? {
+        guard hasTOTPSecret else { return nil }
+        let trimmedSecret = totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // An enrolled link replaces the stored secret even when the text
+        // reads the same: behind a hexadecimal or Base64 field it stands for
+        // other bytes than it does as the link's Base32.
+        let enrolledURI = payloadOTPAuthURI(currentSecret: trimmedSecret)
+        let secretChanged = isEnrolledSecret(currentSecret: trimmedSecret)
+            || trimmedSecret != originalSnapshot.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
         // A KeeOTP query the parser would reject on reload (non-canonical
         // secret, or a size outside its {6, 8} whitelist) must never be
         // written: revert to the original snapshot instead.
@@ -775,19 +874,25 @@ final class EntryEditViewModel {
             period: totpPeriod,
             digits: totpDigits,
             algorithm: totpAlgorithm,
-            otpauthURI: payloadOTPAuthURI(currentSecret: trimmedSecret)
+            otpauthURI: enrolledURI
         )
     }
 
-    /// The enrolled URI is emitted only while its parsed values still match
-    /// the form; a post-enrollment edit silently drops it (the existing
-    /// verbatim-or-drop philosophy for stored otpauth URIs).
-    private func payloadOTPAuthURI(currentSecret: String) -> String? {
+    private func isEnrolledSecret(currentSecret: String) -> Bool {
         guard keeOTPSource == nil,
               let enrolledOTPAuthURI,
               let uri = try? OTPAuthURI(string: enrolledOTPAuthURI),
               let decoded = TOTPGenerator.base32Decode(currentSecret), !decoded.isEmpty,
-              TOTPGenerator.base32Encode(decoded) == uri.secret,
+              TOTPGenerator.base32Encode(decoded) == uri.secret else { return false }
+        return true
+    }
+
+    /// Keep the verbatim URI only while all its settings still match the
+    /// form. Losing the URI does not undo the secret replacement.
+    private func payloadOTPAuthURI(currentSecret: String) -> String? {
+        guard isEnrolledSecret(currentSecret: currentSecret),
+              let enrolledOTPAuthURI,
+              let uri = try? OTPAuthURI(string: enrolledOTPAuthURI),
               uri.period == totpPeriod,
               uri.digits == totpDigits,
               uri.algorithm == totpAlgorithm else { return nil }

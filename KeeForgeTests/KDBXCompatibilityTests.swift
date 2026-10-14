@@ -1079,6 +1079,40 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     @MainActor
+    func test_keePassTOTPSecretInAnotherEncoding_keepsItsFieldUntilTheSecretChanges() throws {
+        let xml = "<KeePassFile><Root><Group><Name>Root</Name><Entry>"
+            + "<String><Key>Title</Key><Value>KeePass Hex</Value></String>"
+            + "<String><Key>TimeOtp-Secret-Hex</Key><Value>3132333435363738393031323334353637383930</Value></String>"
+            + "</Entry></Group></Root></KeePassFile>"
+        let parsed = try KDBXParser.parseXML(
+            xmlData: Data(xml.utf8), innerStreamKey: Data(), innerStreamID: 0, sessionKey: entrySessionKey
+        )
+        let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
+        viewModel.notes = "Edited"
+
+        var updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [entry]), meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        var reloaded = try writeAndReload(updated)
+        var config = try XCTUnwrap(reloaded.totpConfig)
+        XCTAssertEqual(config.keePassSecretField, .hex)
+        XCTAssertEqual(try config.secret.decrypt(using: entrySessionKey), "3132333435363738393031323334353637383930")
+        XCTAssertEqual(resolvedSecret(config), Data("12345678901234567890".utf8))
+        XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
+
+        // A new secret is typed as Base32 and replaces the hexadecimal field.
+        let secretEdit = EntryEditViewModel(editing: reloaded, sessionKey: entrySessionKey)
+        secretEdit.totpSecret = "JBSWY3DPEHPK3PXP"
+        updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [reloaded]), meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: reloaded.id, draft: secretEdit.entryDraftPayload))
+        reloaded = try writeAndReload(updated)
+        config = try XCTUnwrap(reloaded.totpConfig)
+        XCTAssertEqual(config.keePassSecretField, .base32)
+        XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
+        XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
+    }
+
+    @MainActor
     func test_freshOTPAuthURIEnrollment_storesProtectedVerbatimURIAndLaterEditsDropIt() throws {
         let raw = "otpauth://totp/Compat:enroll@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Compat&period=45&digits=8&algorithm=SHA256"
         let entry = KPEntry(
@@ -1171,6 +1205,36 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         XCTAssertEqual(reloaded.additionalURLs, ["https://second.example"])
         XCTAssertEqual(reloaded.url, "https://first.example")
+    }
+
+    /// The editor's own URL rows (#209) are written the way KeePass2Android
+    /// writes further URLs: plain `KP2A_URL_<n>` string fields, which is also
+    /// what KeePassXC's browser integration reads.
+    @MainActor
+    func test_urlsAddedInTheEditor_surviveWriteAndReloadAsPlainKP2AURLFields() throws {
+        let entry = KPEntry(
+            title: "Three Sites",
+            password: try EncryptedValue.encrypt("password", using: entrySessionKey),
+            url: "https://first.example",
+            customFields: ["KP2A_URL_1": "https://second.example", "Region": "EU"]
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
+        viewModel.addAdditionalURL()
+        viewModel.additionalURLs[1].value = "https://third.example"
+        XCTAssertTrue(viewModel.canSave)
+
+        let updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [entry]), meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let reloaded = try writeAndReload(updated)
+
+        XCTAssertEqual(reloaded.url, "https://first.example")
+        XCTAssertEqual(reloaded.additionalURLs, ["https://second.example", "https://third.example"])
+        XCTAssertEqual(
+            reloaded.customFields,
+            ["KP2A_URL_1": "https://second.example", "KP2A_URL_2": "https://third.example", "Region": "EU"]
+        )
+        XCTAssertTrue(reloaded.protectedStringKeys.isDisjoint(with: reloaded.customFields.keys))
+        XCTAssertEqual(reloaded.history.first?.additionalURLs, ["https://second.example"])
     }
 
     /// Protection is preserved by key name in `DatabaseDraft`, because callers

@@ -41,8 +41,9 @@
 ### AutoFill store inspector
 
 - Both inspector files are wholly `#if DEBUG`, shown only for the `-autofill-store-inspector` launch argument. It reads store metadata only, never vault contents, and enumerates off the main actor.
-- A pending or failed enumeration renders its own status or error, never a zero count.
-- Enumeration is not readable everywhere. A simulator's was recorded as empty even though writes persist (not re-verified: a fresh iOS 27.0 simulator has the provider disabled and rejects writes). macOS 27.0.1 and a physical iPhone on iOS 27.0.1 return private objects without `ASCredentialIdentity` conformance once the store is non-empty, which the inspector shows as an enumeration error naming how many objects came back. Inspector counts and per-database attribution are meaningful only on a physical device whose store returns readable identities, which is why `AutoFillStoreUITests` runs on one.
+- A pending, unanswered, or failed read renders its own status or error, never a zero count. An unreadable store reports read status `unreadable` and how many objects came back as `autofill-inspector.unreadable-count`; `autofill-inspector.total-count` exists only for a readable store.
+- The iOS 27.0 simulator sometimes never answers the first `ASCredentialIdentityStore.state()` of a launch, while a fresh call answers at once. Each provider-state attempt is therefore bounded and retried, and only after the last one does the inspector report `provider-state-unavailable`.
+- Enumeration is not readable everywhere. A simulator's was recorded as empty even though writes persist (not re-verified: a fresh iOS 27.0 simulator has the provider disabled and rejects writes). macOS 27.0.1 and a physical iPhone on iOS 27.0.1 return private objects without `ASCredentialIdentity` conformance once the store is non-empty, which the inspector shows as the unreadable state. Inspector counts are meaningful only on a physical device, which is why `AutoFillStoreUITests` runs on one, and per-database attribution only where its store returns readable identities.
 
 ## Tests
 

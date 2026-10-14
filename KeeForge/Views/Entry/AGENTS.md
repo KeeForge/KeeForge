@@ -12,6 +12,8 @@
 
 ## Invariants
 
+- `EntryDetailView` shows entry actions and any sync warning in its toolbar. Lock stays on the compact list or regular-width workspace toolbar, leaving room for the entry title; the list's `lock.button` remains the manual-lock path.
+
 ### Closing a deleted entry
 
 - `EntryDetailView` closes itself through `finishClose()` when its entry leaves the index. It runs at most once: both `onAppear`s can fire on one reveal and each `dismiss()` pops a level.
@@ -41,6 +43,7 @@
 
 ### Editor
 
+- `EntryEditView` draws additional URL rows in Basics using `EntryEditViewModel.additionalURLs`, with a named remove action for VoiceOver. Field names are stored as `KP2A_URL_<n>` but are not shown to the user; `EntryDetailView` displays those URLs once, outside Custom Fields.
 - `EntryEditView.body` is at the limit of what the CI Xcode type-checks. Put a new presentation in a `ViewModifier` (as `EntryAttachmentImporter` does), not inline, or the build fails only on CI.
 - Every site that builds an `EntryEditViewModel` passes `knownTags` and the location's inherited tags. Both default to empty, so a missed site compiles and silently loses tag suggestions.
 - Save and Save and Lock stay disabled while attachment files are being read, and while `canSave` is false; the lock prompt must never write an invalid form.
