@@ -29,7 +29,7 @@ Before changing a folder, read its `AGENTS.md` and each parent's `AGENTS.md` up 
 - `KeeForgeMac/README.md`: Mac target constraints, distribution channels
 - `KeeForgeMac/SECURITY.md`: Mac security boundaries and platform limits
 - `TestFixtures/README.md`: bundled databases, passwords, key files
-- `KeeForge/Resources/README.md`: string catalogs, assets, add-a-locale checklist
+- `KeeForge/Resources/README.md`: string catalog map, assets
 - `.github/AGENTS.md`: CI workflow gating map (not a README, which GitHub would render as the repo front page)
 - `ci_scripts/AGENTS.md`: Xcode Cloud bootstrap and `run_kdbx_compatibility_gate.sh`, the required KDBX compatibility gate
 - `scripts/README.md`: local dev tooling
@@ -59,10 +59,16 @@ Repository skills are in `.agents/skills/`: `prepare-release`, `respin-release`,
 ### Localization
 
 - UI text uses Xcode String Catalogs (`.xcstrings`), source language `en`. Shipped locales: `en`, `de`, `fr`, `es`, `zh-Hans`, `zh-Hant`, `ja`, `it`, `ru`.
-- Reach user-facing strings via `String(localized:)` (or SwiftUI's automatic catalog lookup) — never hardcode display text.
+- Reach user-facing strings via `String(localized:)` (or SwiftUI's automatic catalog lookup) — never hardcode display text. This includes `String` values a view renders, such as labels and captions returned by view models.
 - Every English key needs a translation in each shipped locale. Run `KeeForgeTests/LocalizationTests.swift` (it also runs in `KeeForgeMacTests`) after touching any catalog.
 - Xcode reserializes catalogs in its own canonical style, so after any programmatic edit run `swift scripts/normalize-xcstrings.swift` (no args = all catalogs; `--check` verifies) to avoid a large reordering diff.
-- The catalog file map and add-a-locale checklist are in `KeeForge/Resources/README.md`.
+- The catalog file map is in `KeeForge/Resources/README.md`.
+- A new locale spans this repo and the website, and ships only when all of these are done:
+  - All four catalogs are translated, with AutoFill keys matching the app's. `xcodegen generate` adds the locale to `knownRegions` from the catalogs.
+  - `shippedTranslationLocales` in `LocalizationTests.swift` and every shipped-locale list in the docs name it (`git grep zh-Hant` finds them).
+  - `docs/i18n/` has `README.<locale>.md` and `CONTRIBUTING.<locale>.md`, and the language switcher row in the root files and every translation links them.
+  - The separate `keeforge.com` repo ships the locale in the same release, following the "Adding a locale" checklist in its README. That covers the pages, routing, Feedback Worker, and tests.
+  - `CHANGELOG.md` notes the locale. App Store listing locales are a separate owner decision (`publish-app-store-version`).
 
 ### Research Notes
 
