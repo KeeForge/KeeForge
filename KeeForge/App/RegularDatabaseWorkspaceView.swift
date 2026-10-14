@@ -17,6 +17,7 @@ struct RegularDatabaseWorkspaceView: View {
     /// column idle behind a "Select an Entry" placeholder.
     @State private var detailEditor: DetailEditor?
     #else
+    @SceneStorage("macWorkspace.sidebarWidth") private var macSidebarWidth = 240.0
     /// Editor presented by the menu-bar New Entry command (⌘N) and the toolbar
     /// add button — a single shared sheet so presentation stays reliable.
     @State private var commandEditor: EntryEditViewModel?
@@ -352,7 +353,13 @@ struct RegularDatabaseWorkspaceView: View {
     private var macSplitView: some View {
         NavigationSplitView {
             macSidebarColumn
-                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 340)
+                .navigationSplitViewColumnWidth(min: 200, ideal: macSidebarWidth, max: 340)
+                .onGeometryChange(for: Double.self) { proxy in
+                    Double(proxy.size.width)
+                } action: { width in
+                    guard viewModel.state == .unlocked, width.isFinite, width >= 200 else { return }
+                    macSidebarWidth = width
+                }
         } content: {
             macContentColumn
                 .entrySelectionBar(viewModel: viewModel) { pendingMove = $0 }
