@@ -227,6 +227,7 @@ final class AutoFillStoreInspectorGroupingTests: XCTestCase {
         XCTAssertEqual(model.capabilities?.isEnabled, true)
         XCTAssertNil(model.snapshot)
         XCTAssertTrue(model.enumerationError?.contains("2 identities") == true)
+        XCTAssertEqual(model.unreadableIdentityCount, 2)
 
         fake.enumerationError = nil
         fake.isEnabledValue = false
@@ -234,10 +235,43 @@ final class AutoFillStoreInspectorGroupingTests: XCTestCase {
         XCTAssertNil(model.enumerationError)
         await waitForRefresh(model)
         XCTAssertNil(model.enumerationError)
+        XCTAssertNil(model.unreadableIdentityCount)
         XCTAssertEqual(model.capabilities?.isEnabled, false)
         XCTAssertEqual(model.snapshot?.totalCount, 0)
         XCTAssertEqual(model.snapshot?.isEnabled, false)
         XCTAssertTrue(fake.calls.isEmpty)
+    }
+
+    func testRefreshAsksAgainWhenProviderStateReadStalls() async {
+        let fake = FakeCredentialIdentityStore()
+        fake.stalledCapabilitiesReads = 1
+        let model = AutoFillStoreInspectorViewModel(store: fake, providerStateAttemptTimeout: .milliseconds(100))
+        model.refresh()
+        await waitForRefresh(model)
+
+        XCTAssertFalse(model.isProviderStateUnavailable)
+        XCTAssertEqual(model.capabilities?.isEnabled, true)
+        XCTAssertEqual(model.snapshot?.totalCount, 0)
+    }
+
+    func testRefreshReportsUnansweredProviderStateWithoutInventingIt() async {
+        let fake = FakeCredentialIdentityStore()
+        fake.stalledCapabilitiesReads = 2
+        let model = AutoFillStoreInspectorViewModel(
+            store: fake, providerStateAttemptTimeout: .milliseconds(100), providerStateAttempts: 2
+        )
+        model.refresh()
+        await waitForRefresh(model)
+
+        XCTAssertTrue(model.isProviderStateUnavailable)
+        XCTAssertNil(model.capabilities)
+        XCTAssertNil(model.snapshot, "An unanswered provider state must not report a zero count")
+
+        model.refresh()
+        await waitForRefresh(model)
+        XCTAssertFalse(model.isProviderStateUnavailable)
+        XCTAssertEqual(model.capabilities?.isEnabled, true)
+        XCTAssertEqual(model.snapshot?.totalCount, 0)
     }
 
     private func waitForRefresh(_ model: AutoFillStoreInspectorViewModel) async {

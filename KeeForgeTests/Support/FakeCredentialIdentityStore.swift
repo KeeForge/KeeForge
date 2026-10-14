@@ -28,6 +28,7 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     private var _onMutation: (@Sendable () -> Void)?
     private var _onEnumerate: (@Sendable () -> Void)?
     private var _enumerationError: CredentialIdentityStoreReadError?
+    private var _stalledCapabilitiesReads = 0
     private var _activeMutations = 0
     private var _maxConcurrentMutations = 0
     private var _mutationDelayNanoseconds: UInt64 = 0
@@ -94,6 +95,13 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
         set { lock.withLock { _enumerationError = newValue } }
     }
 
+    /// How many upcoming `capabilities()` calls stall for a minute before
+    /// answering, like the iOS 27.0 simulator's first `state()` of a launch.
+    var stalledCapabilitiesReads: Int {
+        get { lock.withLock { _stalledCapabilitiesReads } }
+        set { lock.withLock { _stalledCapabilitiesReads = newValue } }
+    }
+
     var mutationDelayNanoseconds: UInt64 {
         get { lock.withLock { _mutationDelayNanoseconds } }
         set { lock.withLock { _mutationDelayNanoseconds = newValue } }
@@ -106,7 +114,14 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     // MARK: - CredentialIdentityStoreProviding
 
     func capabilities() async -> CredentialIdentityStoreCapabilities {
-        CredentialIdentityStoreCapabilities(
+        let stalls = lock.withLock {
+            defer { _stalledCapabilitiesReads = max(0, _stalledCapabilitiesReads - 1) }
+            return _stalledCapabilitiesReads > 0
+        }
+        if stalls {
+            try? await Task.sleep(for: .seconds(60))
+        }
+        return CredentialIdentityStoreCapabilities(
             isEnabled: isEnabledValue,
             supportsIncrementalUpdates: supportsIncrementalUpdatesValue
         )

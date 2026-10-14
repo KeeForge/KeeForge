@@ -93,18 +93,20 @@ xcrun xcresulttool export attachments --path <xcresult> --output-path <fresh-dir
 
 ## Device AutoFill store suite
 
-`AutoFillStoreUITests` asserts against the real `ASCredentialIdentityStore`. A simulator cannot run it: its enumeration was recorded as empty despite persisted writes (not re-verified; a fresh iOS 27.0 simulator has the provider disabled). It needs a physical iPhone whose store returns readable identities. On iOS 27.0.1 a non-empty store returns private objects without `ASCredentialIdentity` conformance, which the inspector reports as an enumeration error, so every method fails at its first non-zero count there even though publication works. The app's behavior also differs on such a store (a targeted removal clears the whole store), so the union-and-removal method's counts describe a readable store only. It replaces KeeForge's registered database list and clears its credential identities: never run it on a device holding personal vaults.
+`AutoFillStoreUITests` asserts against the real `ASCredentialIdentityStore` and skips on a simulator, whose enumeration was recorded as empty despite persisted writes (not re-verified; a fresh iOS 27.0 simulator has the provider disabled). It needs a physical iPhone. It replaces KeeForge's registered database list and clears its credential identities: never run it on a device holding personal vaults.
+
+Every count is asserted on either store shape. On iOS 27.0.1 a non-empty store returns private objects without `ASCredentialIdentity` conformance; the inspector reports them as `unreadable` with their number, and the tests accept that number as the count. Which database owns each identity is checked only on a store that reads back, and the result records an activity wherever it was not. The app also behaves differently there, so the union-and-removal method expects the documented outcome: removing bravo's identities clears the whole store, alpha's included.
 
 Preparation, once per install: pair the iPhone for development, install the Debug app (running the class does this), then enable KeeForge under Settings > General > AutoFill & Passwords. To check, launch with `-autofill-store-inspector` and read `autofill-inspector.enabled-state`. Run it with `-destination 'platform=iOS,name=<device>'` and `-parallel-testing-enabled NO`.
 
 - Its two fixtures have disjoint domains and usernames, because the system store can dedup identities that share `(service, user)` across databases regardless of `recordIdentifier`. With overlap the union count is not deterministic.
-- The first launch seeds with `-ui-testing`; every later launch in the test omits it so the registry UUIDs and per-database flags survive.
+- The first launch seeds with `-ui-testing`; every later launch in the test omits it so the registry UUIDs and per-database flags survive. Those launches lose the `-ui-testing` guards, so each passes argument-domain overrides instead; one turns off Face ID auto-unlock, because a database unlocked earlier in the test would otherwise reopen behind a Face ID prompt XCUITest cannot answer.
 - Store writes are fire-and-forget, so the test pauses briefly before terminating the app. That is the one deliberate sleep; every assertion still polls the inspector.
-- An explicitly disabled provider skips. A missing inspector state or an enumeration error fails; it is never read as zero.
-- A release result needs all three methods passed with zero skips. A simulator skip, or an enumeration the system cannot return, is a blocked check, not coverage. Do not work around it with private API.
+- An explicitly disabled provider skips. A missing inspector state or any other enumeration error fails; an unreadable store is never read as zero.
+- A release result needs all three methods passed with zero skips on the device. A simulator skip is a blocked check, not coverage. A pass on an unreadable store covers counts, not per-database attribution. Do not work around it with private API.
 - Still manual: QuickType and Safari filling, the extension's own flows, suggestion cleanup after entry deletion or database removal, and republish when re-enabling the open database.
 
-`AutoFillStoreInspectorSmokeUITests` only checks that the inspector presents; it is safe on any simulator.
+`AutoFillStoreInspectorSmokeUITests` only checks that the inspector presents and reads the provider state; it is safe on any simulator.
 
 ## Fixtures
 
