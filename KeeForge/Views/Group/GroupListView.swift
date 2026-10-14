@@ -120,14 +120,21 @@ struct GroupListView: View {
                     }
                     .toolbar {
                         #if os(iOS)
-                        // Out of the bar while the inline title is in it:
-                        // hidden in place it would still push that title
-                        // away from the leading edge.
-                        if #available(iOS 26.0, *), rootViewMode != nil, isTitleHeaderVisible {
-                            ToolbarItem(placement: .topBarLeading) {
-                                RootBarAppName(startCenterX: listCenterX, hasSlidIn: $hasAppNameSlidIn)
+                        // Never both, or iOS 27 folds the title menu into a
+                        // "…" button: a second view switcher. In the title's
+                        // place the name truncates where a leading item
+                        // would overflow.
+                        if #available(iOS 26.0, *), rootViewMode != nil {
+                            if isTitleHeaderVisible {
+                                ToolbarItem(placement: .title) {
+                                    RootBarAppName(startCenterX: listCenterX, hasSlidIn: $hasAppNameSlidIn)
+                                }
+                                .sharedBackgroundVisibility(.hidden)
+                            } else {
+                                ToolbarTitleMenu {
+                                    viewMenuItems
+                                }
                             }
-                            .sharedBackgroundVisibility(.hidden)
                         }
                         #endif
 
@@ -415,9 +422,9 @@ struct GroupListView: View {
         #endif
     }
 
-    /// Where the list draws the root's title, the bar stays empty until that
-    /// header has scrolled away, then shows the title inline with the same
-    /// menu, the way a large title collapses.
+    /// Where the list draws the root's title, the bar shows the app's name
+    /// until that header has scrolled away, then the title inline with the
+    /// same menu, the way a large title collapses.
     private struct GroupListTitleStyle: ViewModifier {
         let view: GroupListView
 
@@ -426,10 +433,6 @@ struct GroupListView: View {
             if view.hasTitleViewMenu, view.rootViewMode != nil {
                 content
                     .navigationBarTitleDisplayMode(.inline)
-                    .toolbar(removing: view.isTitleHeaderVisible ? .title : nil)
-                    .toolbarTitleMenu {
-                        view.viewMenuItems
-                    }
             } else {
                 content
                     .navigationBarTitleDisplayMode(.large)
@@ -862,7 +865,7 @@ private struct RootBarAppName: View {
     var body: some View {
         Text("KeeForge")
             .font(.headline)
-            .fixedSize()
+            .lineLimit(1)
             .onGeometryChange(for: CGFloat?.self) { proxy in
                 proxy.size.width > 0 ? proxy.frame(in: .global).midX : nil
             } action: { centerX in
