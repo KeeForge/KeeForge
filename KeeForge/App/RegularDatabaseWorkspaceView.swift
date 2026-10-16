@@ -17,6 +17,9 @@ struct RegularDatabaseWorkspaceView: View {
     /// column idle behind a "Select an Entry" placeholder.
     @State private var detailEditor: DetailEditor?
     #else
+    @SceneStorage("macWorkspace.sidebarWidth") private var macSidebarWidth = MacSidebarWidthSampler.idealWidth
+    @State private var macSidebarWidthSampler = MacSidebarWidthSampler()
+    @State private var macSplitWidth: Double?
     /// Editor presented by the menu-bar New Entry command (⌘N) and the toolbar
     /// add button — a single shared sheet so presentation stays reliable.
     @State private var commandEditor: EntryEditViewModel?
@@ -352,13 +355,36 @@ struct RegularDatabaseWorkspaceView: View {
     private var macSplitView: some View {
         NavigationSplitView {
             macSidebarColumn
-                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 340)
+                .onGeometryChange(for: Double.self) { proxy in
+                    Double(proxy.size.width)
+                } action: { width in
+                    // Deferred so the split view's width from the same layout
+                    // pass is known, whichever geometry change fires first.
+                    Task { @MainActor in
+                        guard viewModel.state == .unlocked else { return }
+                        if let preferred = macSidebarWidthSampler.preferredWidth(sidebarWidth: width, splitWidth: macSplitWidth) {
+                            macSidebarWidth = preferred
+                        }
+                    }
+                }
+                // Outermost: wrapped by the geometry observer, the split view
+                // ignores the column width (144 pt on macOS 27.0.1).
+                .navigationSplitViewColumnWidth(
+                    min: MacSidebarWidthSampler.minimumWidth,
+                    ideal: macSidebarWidth,
+                    max: MacSidebarWidthSampler.maximumWidth
+                )
         } content: {
             macContentColumn
                 .entrySelectionBar(viewModel: viewModel) { pendingMove = $0 }
                 .navigationSplitViewColumnWidth(min: 260, ideal: 320, max: 460)
         } detail: {
             detailColumn
+        }
+        .onGeometryChange(for: Double.self) { proxy in
+            Double(proxy.size.width)
+        } action: { width in
+            macSplitWidth = width
         }
         .navigationTitle(viewModel.databaseDisplayName)
         .searchable(text: $viewModel.searchText, prompt: "Search entries")
