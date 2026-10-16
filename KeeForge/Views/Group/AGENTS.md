@@ -18,7 +18,7 @@
 - The recycle bin is never drawn as a group row at any level; it opens only from the view menu.
 - The root title is the view menu, and it is drawn three ways: a list section header from iOS 26 (the bar's large title takes no taps), the inline bar title once that header scrolls away, and a toolbar button on iOS 18 to 25 (`hasTitleViewMenu`). Change all three together.
 - View-menu items are `Toggle`s, not a `Picker`, because a picker's options cannot be split into menu sections.
-- The leading app-name item leaves the bar while the inline title is in it (hidden in place it still pushes the title off the edge), so whether it has slid in is stored on `GroupListView`, not in the item.
+- While the title header is on screen the bar's title place holds the app's name and the bar has no title menu; once the header scrolls away the inline title takes its place with `ToolbarTitleMenu`. Never both: a title menu with no title to hang on, or a leading item that does not fit beside the actions, turns into a "…" overflow button on iOS 27, a second view switcher (`ViewMenuLargeTextUITests`). The app name leaves the bar with the header, so whether it has slid in is stored on `GroupListView`, not in the item.
 - `databaseActionsPlacement` pins the trailing items where the SDK allows, or an iOS 27 build folds Lock into an overflow menu behind a long inline title.
 - `GroupListView.entryRow(for:)` keeps its row-kind branch (verification code, selection, navigation) inside a concrete row container so `List` builds only the rows it shows. Wrapped in a `Group`, every entry of the group or view is constructed up front.
 - `VerificationCodeRow` is two sibling buttons; the opening one keeps `entry.navlink` and does what the link would in each shell (select in the regular workspace, append to `workspace.navigationPath` in compact).
@@ -28,7 +28,7 @@
 
 ## Tests
 
-- `ViewMenuUITests`, `DefaultViewUITests`, `TagBrowserUITests` for the root views; `GroupEditUITests`, `GroupIconPickerUITests` for the editor and picker.
+- `ViewMenuUITests`, `DefaultViewUITests`, `ViewMenuLargeTextUITests`, `TagBrowserUITests` for the root views; `GroupEditUITests`, `GroupIconPickerUITests` for the editor and picker.
 - `KeeForgeUITestCase.selectDatabaseView` is the supported way to switch views in a test.
 - Row laziness of the group, All Entries, Verification Codes, and Recycle Bin lists: `testBrowseListsDoNotResolveOffscreenRows` in `DatabaseViewModelTests` (iOS only).
 
