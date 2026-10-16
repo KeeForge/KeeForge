@@ -155,6 +155,9 @@ final class ViewMenuLargeTextUITests: UnlockedDatabaseUITestCase {
     }
 
     override func configureLaunch(app: XCUIApplication) throws {
+        guard #available(iOS 26.0, *) else {
+            throw XCTSkip("iOS 18 to 25 keep the view menu as a toolbar button, with no app name or title menu in the bar")
+        }
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"]
     }
 
