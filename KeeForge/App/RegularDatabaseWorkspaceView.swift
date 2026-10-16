@@ -355,11 +355,6 @@ struct RegularDatabaseWorkspaceView: View {
     private var macSplitView: some View {
         NavigationSplitView {
             macSidebarColumn
-                .navigationSplitViewColumnWidth(
-                    min: MacSidebarWidthSampler.minimumWidth,
-                    ideal: macSidebarWidth,
-                    max: MacSidebarWidthSampler.maximumWidth
-                )
                 .onGeometryChange(for: Double.self) { proxy in
                     Double(proxy.size.width)
                 } action: { width in
@@ -372,6 +367,13 @@ struct RegularDatabaseWorkspaceView: View {
                         }
                     }
                 }
+                // Outermost: wrapped by the geometry observer, the split view
+                // ignores the column width (144 pt on macOS 27.0.1).
+                .navigationSplitViewColumnWidth(
+                    min: MacSidebarWidthSampler.minimumWidth,
+                    ideal: macSidebarWidth,
+                    max: MacSidebarWidthSampler.maximumWidth
+                )
         } content: {
             macContentColumn
                 .entrySelectionBar(viewModel: viewModel) { pendingMove = $0 }
