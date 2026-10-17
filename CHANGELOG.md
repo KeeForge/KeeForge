@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- The Mac group sidebar keeps its resized width when locking and unlocking a database in the same window (#227).
+
 ## v1.19.0 (2026-10-13)
 
 ### New Features
