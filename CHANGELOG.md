@@ -5,6 +5,7 @@
 ### Fixes
 
 - The Mac group sidebar keeps its resized width when locking and unlocking a database in the same window (#227).
+- The cloud sync status bar at the top of an open database, with its Sync Now button, no longer shows the list through it when the list is scrolled up (#231). The same applies to the unsaved-changes bar.
 
 ## v1.19.0 (2026-10-13)
 
