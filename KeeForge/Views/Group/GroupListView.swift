@@ -104,7 +104,7 @@ struct GroupListView: View {
             if viewModel.searchText.isEmpty {
                 if let resolvedGroup {
                     List {
-                        if hasTitleViewMenu, let rootViewMode {
+                        if hasTitleViewMenu, CloudSyncControls.isVisible(for: viewModel) == false, let rootViewMode {
                             titleViewMenu(for: rootViewMode)
                         }
                         browsingRows
@@ -275,6 +275,7 @@ struct GroupListView: View {
                 )
             }
         }
+        .modifier(CloudBrowsingTitleStyle(view: self))
         .modifier(GroupListSearchModifier(view: self))
         .modifier(GroupListEditorPresentation(view: self))
         .modifier(GroupListGroupEditorPresentation(view: self))
@@ -293,6 +294,50 @@ struct GroupListView: View {
         }
         // Covers the inline search results as well as this level's own rows.
         .entrySelectionBar(viewModel: viewModel) { pendingMove = $0 }
+    }
+
+    private struct CloudBrowsingTitleStyle: ViewModifier {
+        let view: GroupListView
+
+        func body(content: Content) -> some View {
+            #if os(iOS)
+            if CloudSyncControls.isVisible(for: view.viewModel) {
+                content
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar(removing: .title)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        HStack(spacing: 8) {
+                            if view.viewModel.searchText.isEmpty == false {
+                                Text("Search")
+                            } else if let mode = view.rootViewMode {
+                                view.viewMenu {
+                                    HStack(spacing: 6) {
+                                        Text(mode.title)
+                                        Image(systemName: "chevron.down")
+                                            .font(.caption.weight(.semibold))
+                                            .accessibilityHidden(true)
+                                    }
+                                    .foregroundStyle(Color.primary)
+                                }
+                            } else if let group = view.resolvedGroup {
+                                Text(group.name)
+                            }
+                            Spacer(minLength: 0)
+                            CloudSyncControls(viewModel: view.viewModel)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                        .font(.title2.bold())
+                        .lineLimit(1)
+                        .padding(.horizontal, 16)
+                        .background(Color(.systemBackground))
+                    }
+            } else {
+                content
+            }
+            #else
+            content
+            #endif
+        }
     }
 
     /// Pushes the entry editor onto the navigation stack.
@@ -423,7 +468,9 @@ struct GroupListView: View {
 
         func body(content: Content) -> some View {
             #if os(iOS)
-            if view.hasTitleViewMenu, view.rootViewMode != nil {
+            if CloudSyncControls.isVisible(for: view.viewModel) {
+                content
+            } else if view.hasTitleViewMenu, view.rootViewMode != nil {
                 content
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar(removing: view.isTitleHeaderVisible ? .title : nil)
@@ -440,12 +487,11 @@ struct GroupListView: View {
         }
     }
 
-    /// From iOS 26 the search field sits at the bottom of the screen, which
-    /// leaves the top of the list free for a title that is the view menu.
-    /// Earlier systems keep the bar's large title over the search drawer and
-    /// get the menu as a toolbar button.
     private var hasTitleViewMenu: Bool {
         #if os(iOS)
+        if CloudSyncControls.isVisible(for: viewModel) {
+            return true
+        }
         if #available(iOS 26.0, *) {
             return true
         }

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changes
+
+- Cloud databases keep a compact Sync Now shortcut on iPhone, iPad, and Mac. Tap its status icon to see why a cloud check was skipped, the last sync time, or the latest result (#232).
+
 ### Fixes
 
 - The Mac group sidebar keeps its resized width when locking and unlocking a database in the same window (#227).

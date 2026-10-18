@@ -17,6 +17,7 @@ final class MacWebDAVSmokeUITests: MacUITestCase {
     override var databaseFixtures: [DatabaseFixture] { [] }
 
     override func configureLaunch(app: XCUIApplication) throws {
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         let payload = try makeMockWebDAVPayload()
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -46,6 +47,27 @@ final class MacWebDAVSmokeUITests: MacUITestCase {
 
         let passwordField = app.secureTextFields["unlock.password.field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 15), "⌘L did not lock the WebDAV-backed vault")
+    }
+
+    func testSyncShortcutAndStatusPopoverRemainAvailableAfterSync() {
+        unlockSuccessfully()
+        let sync = app.buttons["database.cloud-sync-now"]
+        let details = app.buttons["database.cloud-sync-status.details"]
+        XCTAssertTrue(sync.waitForExistence(timeout: 10))
+        XCTAssertTrue(details.exists)
+        XCTAssertFalse(app.staticTexts["database.cloud-sync-status.title"].exists)
+
+        for _ in 0..<2 {
+            sync.click()
+            let completed = NSPredicate { _, _ in
+                sync.isEnabled && (details.value as? String)?.contains("up to date") == true
+            }
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: completed, object: nil)], timeout: 15), .completed)
+            details.click()
+            XCTAssertTrue(app.staticTexts["database.cloud-sync-status.title"].waitForExistence(timeout: 10))
+            app.buttons["database.cloud-sync-status.dismiss"].click()
+            XCTAssertTrue(sync.exists)
+        }
     }
 
     // MARK: - Payload

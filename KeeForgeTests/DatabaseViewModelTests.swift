@@ -4588,7 +4588,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(conflictedVM.hasPendingCloudUploads)
         XCTAssertTrue(conflictedVM.hasPendingUploadConflict)
         XCTAssertFalse(
-            CloudSyncStatusBanner.showsPendingUploadNote(for: conflictedVM),
+            CloudSyncControls.showsPendingUploadNote(for: conflictedVM),
             "\"Still waiting to upload\" contradicts the conflict banner saying the upload failed"
         )
 
@@ -4602,7 +4602,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
         await waitingVM.unlock(password: fixturePassword)
         XCTAssertFalse(waitingVM.hasPendingUploadConflict)
-        XCTAssertTrue(CloudSyncStatusBanner.showsPendingUploadNote(for: waitingVM))
+        XCTAssertTrue(CloudSyncControls.showsPendingUploadNote(for: waitingVM))
     }
 
     func testMergePendingUploadsWhoseUploadFailsKeepsTheMarker() async throws {

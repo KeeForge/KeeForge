@@ -34,7 +34,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertTrue(vm.isCloudRefreshPending)
         XCTAssertNil(vm.cloudSyncBannerText, "A deliberate skip must not wear the offline or error warning")
         XCTAssertNil(vm.cloudSyncOutcome)
-        XCTAssertTrue(CloudSyncStatusBanner.isVisible(for: vm))
+        XCTAssertTrue(CloudSyncControls.isVisible(for: vm))
+        XCTAssertTrue(CloudSyncControls.showsWarning(for: vm))
         XCTAssertTrue(vm.canSyncCloudNow)
     }
 
@@ -76,6 +77,13 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertEqual(stored.cloudSyncMetadata?.lastSyncedAt, syncedAt)
         XCTAssertEqual(stored.cloudSyncPolicy, .manual, "Syncing once must not change the policy")
         XCTAssertEqual(vm.databaseReference.cloudSyncMetadata?.lastSyncedAt, syncedAt)
+        XCTAssertFalse(CloudSyncControls.showsWarning(for: vm))
+        vm.dismissCloudSyncOutcome()
+        XCTAssertTrue(CloudSyncControls.isVisible(for: vm), "The shortcut must survive dismissing a successful result")
+        XCTAssertTrue(vm.canSyncCloudNow)
+        await vm.syncCloudNow()
+        XCTAssertEqual(refreshRecorder.references.count, 2)
+        XCTAssertEqual(vm.cloudSyncOutcome, .upToDate)
     }
 
     func testSyncNowWithNewerCopyReplacesTheOpenDatabase() async throws {
@@ -146,6 +154,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertEqual(vm.cloudSyncBannerText, CloudSyncResolution.offlineCachedBannerMessage)
         XCTAssertTrue(vm.isCloudRefreshPending, "The cloud still has not been checked")
         XCTAssertTrue(vm.rootGroup === rootBefore)
+        XCTAssertTrue(CloudSyncControls.showsWarning(for: vm), "A failed check must not clear the warning")
+        XCTAssertTrue(CloudSyncControls.isVisible(for: vm))
     }
 
     func testSyncNowThatThrowsReportsTheFailure() async throws {
@@ -180,6 +190,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         vm.setEditorHasUnsavedChanges(true, editorID: editorID)
 
         XCTAssertFalse(vm.canSyncCloudNow)
+        XCTAssertTrue(CloudSyncControls.isVisible(for: vm), "Unsaved work disables the shortcut rather than hiding it")
         await vm.syncCloudNow()
 
         XCTAssertTrue(refreshRecorder.references.isEmpty)
@@ -544,6 +555,35 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
 
         XCTAssertEqual(vm.databaseReference.cloudSyncPolicy, .onOpen)
         XCTAssertEqual(DatabaseListStore.databases.first(where: { $0.id == reference.id })?.cloudSyncPolicy, .onOpen)
+    }
+
+    func testSyncShortcutSurvivesChangingPolicyAfterACheckedOpen() async throws {
+        var reference = try makeStoredManualReference()
+        reference.cloudSyncPolicy = .onOpen
+        DatabaseListStore.update(reference)
+        let openedData = try fixtureData()
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, _ in
+                Self.resolution(reference, data: openedData, status: .current)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertTrue(CloudSyncControls.isVisible(for: vm))
+        XCTAssertFalse(CloudSyncControls.showsWarning(for: vm))
+        vm.setCloudSyncPolicy(.manual)
+        XCTAssertTrue(CloudSyncControls.isVisible(for: vm))
+        XCTAssertFalse(vm.isCloudRefreshPending, "Changing future opens must not misreport this open")
+        XCTAssertFalse(CloudSyncControls.showsWarning(for: vm))
+        XCTAssertTrue(vm.canSyncCloudNow)
+    }
+
+    func testLocalDatabaseHasNoCloudSyncShortcut() throws {
+        var reference = try makeStoredManualReference()
+        reference.source = .local
+        let vm = DatabaseViewModel(databaseReference: reference)
+        XCTAssertFalse(CloudSyncControls.isVisible(for: vm))
     }
 
     /// The foreground refresh is the other automatic remote check. A manual

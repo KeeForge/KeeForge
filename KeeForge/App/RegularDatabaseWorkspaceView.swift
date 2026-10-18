@@ -121,10 +121,6 @@ struct RegularDatabaseWorkspaceView: View {
                         UnsavedChangesBanner(viewModel: viewModel)
                     }
 
-                    if CloudSyncStatusBanner.isVisible(for: viewModel) {
-                        CloudSyncStatusBanner(viewModel: viewModel)
-                    }
-
                     if viewModel.hasPendingUploadConflict && viewModel.isSaving == false {
                         PendingUploadConflictBanner(viewModel: viewModel)
                     }
@@ -632,6 +628,10 @@ struct RegularDatabaseWorkspaceView: View {
         }
 
         ToolbarItemGroup(placement: .navigation) {
+            if CloudSyncControls.isVisible(for: viewModel) {
+                CloudSyncControls(viewModel: viewModel)
+            }
+
             if let warningText = viewModel.cloudSyncBannerText {
                 CloudSyncWarningButton(message: warningText)
             }
