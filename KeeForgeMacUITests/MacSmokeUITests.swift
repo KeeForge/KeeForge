@@ -30,6 +30,46 @@ final class MacSmokeUITests: MacUITestCase {
 
     // MARK: - Browse
 
+    // Only the native split view can establish whether a recreated workspace
+    // restores the divider position after locking.
+    func testSidebarWidthSurvivesRepeatedLockUnlockCycles() throws {
+        unlockSuccessfully()
+        let window = app.windows.firstMatch
+        let originalWindowSize = window.frame.size
+        let divider = try XCTUnwrap(sidebarDivider(), "The workspace sidebar divider is missing")
+        let originalPosition = divider.frame.midX - window.frame.minX
+        let delta: CGFloat = originalPosition < 280 ? 60 : -60
+        let start = divider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.2, thenDragTo: start.withOffset(CGVector(dx: delta, dy: 0)))
+
+        let resizedDivider = try XCTUnwrap(sidebarDivider(), "The resized sidebar divider is missing")
+        let resizedPosition = resizedDivider.frame.midX - window.frame.minX
+        XCTAssertGreaterThan(abs(resizedPosition - originalPosition), 20, "The sidebar divider did not resize")
+
+        for _ in 0..<3 {
+            typeCommandShortcut("l")
+            XCTAssertTrue(app.secureTextFields["unlock.password.field"].waitForExistence(timeout: 15))
+            XCTAssertFalse(rowQuery(identifier: "group.navlink").firstMatch.exists)
+            unlockSuccessfully()
+
+            let restored = NSPredicate { [self] _, _ in
+                guard let divider = sidebarDivider() else { return false }
+                return abs(divider.frame.midX - window.frame.minX - resizedPosition) <= 2
+            }
+            let restoredExpectation = XCTNSPredicateExpectation(predicate: restored, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [restoredExpectation], timeout: 10), .completed,
+                           "Unlocking reset the sidebar width")
+            XCTAssertEqual(window.frame.width, originalWindowSize.width, accuracy: 2)
+            XCTAssertEqual(window.frame.height, originalWindowSize.height, accuracy: 2)
+        }
+    }
+
+    private func sidebarDivider() -> XCUIElement? {
+        app.splitters.allElementsBoundByIndex
+            .filter { $0.frame.height > 100 && $0.frame.width < 20 }
+            .min { $0.frame.minX < $1.frame.minX }
+    }
+
     func testBrowseGroupsShowsFixtureGroups() {
         unlockSuccessfully()
 

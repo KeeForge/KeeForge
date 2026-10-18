@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- The Mac group sidebar keeps its resized width when locking and unlocking a database in the same window (#227).
 - On iPhone with larger text, the database's view title no longer gets a second view menu behind a "…" button in Groups, All Entries, Verification Codes, and Tags (#226). The title is the only view menu in every view, before and after it scrolls into the navigation bar, and the bar keeps Lock, Add, Sort, and Settings in view.
 
 ## v1.19.0 (2026-10-13)
