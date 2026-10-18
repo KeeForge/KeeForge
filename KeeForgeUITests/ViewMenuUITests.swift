@@ -128,15 +128,27 @@ final class DefaultViewUITests: UnlockedDatabaseUITestCase {
         app.launchEnvironment.removeValue(forKey: Self.uiTestViewModeEnv)
     }
 
-    func testDatabaseOpensOnAllEntriesAgainAfterLocking() {
+    func testDatabaseReopensOnTheViewPickedLast() {
         unlockSuccessfully()
-        XCTAssertTrue(waitForDatabaseView(.allEntries), "An unlocked database did not open on All Entries")
-
         selectDatabaseView(.tags)
         tapElement(currentLockButton())
         XCTAssertTrue(waitForLockedState(), "Database did not lock")
 
         unlockSuccessfully()
-        XCTAssertTrue(waitForDatabaseView(.allEntries), "Unlocking again returned to the view picked before locking")
+        XCTAssertTrue(waitForDatabaseView(.tags), "Unlocking again did not return to the view picked before locking")
+
+        selectDatabaseView(.verificationCodes)
+        selectDatabaseView(.recycleBin)
+        app.terminate()
+        app.launch()
+        app.activate()
+        _ = app.wait(for: .runningForeground, timeout: 30)
+        XCTAssertTrue(waitForDatabaseList(timeout: 10), "Database list did not appear after relaunching")
+
+        unlockSuccessfully()
+        XCTAssertTrue(
+            waitForDatabaseView(.verificationCodes),
+            "A relaunch did not return to the browsing view picked last"
+        )
     }
 }

@@ -5,6 +5,7 @@
 ### Fixes
 
 - The Mac group sidebar keeps its resized width when locking and unlocking a database in the same window (#227).
+- On iPhone and iPad a database opens on the view you picked last (All Entries, Groups, Verification Codes, or Tags), including after locking or restarting the app, instead of always on All Entries (#230). The Recycle Bin is never where a database opens.
 
 ## v1.19.0 (2026-10-13)
 
