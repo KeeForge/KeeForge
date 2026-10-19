@@ -51,23 +51,28 @@ final class MacWebDAVSmokeUITests: MacUITestCase {
 
     func testSyncShortcutAndStatusPopoverRemainAvailableAfterSync() {
         unlockSuccessfully()
-        let sync = app.buttons["database.cloud-sync-now"]
-        let details = app.buttons["database.cloud-sync-status.details"]
-        XCTAssertTrue(sync.waitForExistence(timeout: 10))
-        XCTAssertTrue(details.exists)
         XCTAssertFalse(app.staticTexts["database.cloud-sync-status.title"].exists)
 
         for _ in 0..<2 {
-            sync.click()
-            let completed = NSPredicate { _, _ in
-                sync.isEnabled && (details.value as? String)?.contains("up to date") == true
-            }
-            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: completed, object: nil)], timeout: 15), .completed)
-            details.click()
-            XCTAssertTrue(app.staticTexts["database.cloud-sync-status.title"].waitForExistence(timeout: 10))
-            app.buttons["database.cloud-sync-status.dismiss"].click()
-            XCTAssertTrue(sync.exists)
+            clickToolbarButton(identifier: "database.cloud-sync-now", overflowLabel: "Sync Now")
+            clickToolbarButton(identifier: "database.cloud-sync-status.details", overflowLabel: "Cloud Sync")
+            XCTAssertTrue(waitForSyncStatusTitle(containing: "up to date"), "Sync Now did not report the database as up to date")
+            app.buttons["database.cloud-sync-status.dismiss"].firstMatch.click()
         }
+    }
+
+    /// Re-queries the popover's title every pass: a sync outcome rebuilds the
+    /// toolbar controls and the popover with them.
+    private func waitForSyncStatusTitle(containing expected: String, timeout: TimeInterval = 15) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let titles = app.staticTexts.matching(identifier: "database.cloud-sync-status.title").allElementsBoundByIndex
+            if titles.contains(where: { displayText(of: $0).contains(expected) }) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        } while Date() < deadline
+        return false
     }
 
     // MARK: - Payload
