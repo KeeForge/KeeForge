@@ -4,8 +4,24 @@ import XCTest
 
 @MainActor
 final class DatabaseWorkspaceStateTests: XCTestCase {
+    private var suiteName: String!
+    private var defaults: UserDefaults!
+
+    override func setUp() async throws {
+        try await super.setUp()
+        suiteName = "DatabaseWorkspaceStateTests.\(UUID().uuidString)"
+        defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+    }
+
+    override func tearDown() async throws {
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults = nil
+        suiteName = nil
+        try await super.tearDown()
+    }
+
     func testSwitchingBetweenGroupAndTagClearsEntryButReselectingPreservesIt() {
-        let workspace = DatabaseWorkspaceState()
+        let workspace = DatabaseWorkspaceState(defaults: defaults)
         let groupID = UUID()
         let entryID = UUID()
         workspace.selectedGroupID = groupID
@@ -26,7 +42,7 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
     }
 
     func testReconciliationPreservesTagUntilItsLastCarrierDisappears() {
-        let workspace = DatabaseWorkspaceState()
+        let workspace = DatabaseWorkspaceState(defaults: defaults)
         let rootID = UUID()
         workspace.selectedTag = "Work"
         workspace.reconcileSelection(
@@ -49,7 +65,7 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
     }
 
     func testMissingGroupFallsBackToRootAndClearsItsEntry() {
-        let workspace = DatabaseWorkspaceState()
+        let workspace = DatabaseWorkspaceState(defaults: defaults)
         let rootID = UUID()
         workspace.selectedGroupID = UUID()
         workspace.selectedEntryID = UUID()
@@ -64,7 +80,7 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
     }
 
     func testReconciliationLeavesEntryForPresentationHostToDismiss() {
-        let workspace = DatabaseWorkspaceState()
+        let workspace = DatabaseWorkspaceState(defaults: defaults)
         let rootID = UUID()
         let entryID = UUID()
         workspace.selectedGroupID = rootID
@@ -88,7 +104,7 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
     }
 
     func testEntrySelectionTogglesEntriesAndOnlyEndsWhenAsked() {
-        let workspace = DatabaseWorkspaceState()
+        let workspace = DatabaseWorkspaceState(defaults: defaults)
         let first = UUID()
         let second = UUID()
 
@@ -108,7 +124,7 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
     }
 
     func testReconciliationDropsEntriesThatCanNoLongerBeSelected() {
-        let workspace = DatabaseWorkspaceState()
+        let workspace = DatabaseWorkspaceState(defaults: defaults)
         let rootID = UUID()
         let kept = UUID()
         let gone = UUID()
@@ -141,12 +157,13 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
     }
 
     func testLockClearsNavigationAndSelectionWithoutReplayingCommands() {
-        let workspace = DatabaseWorkspaceState()
+        let workspace = DatabaseWorkspaceState(defaults: defaults)
         workspace.navigationPath = [.group(UUID()), .entry(UUID()), .tag("Work")]
         workspace.selectedTag = "Work"
         workspace.selectedEntryID = UUID()
         workspace.beginEntrySelection(with: UUID())
         workspace.isSearchActive = true
+        workspace.viewMode = .tags
         workspace.viewMode = .recycleBin
         workspace.request(.newEntry)
         workspace.request(.newEntry)
@@ -163,7 +180,7 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         XCTAssertNil(workspace.selectedEntryID)
         XCTAssertNil(workspace.entrySelection)
         XCTAssertFalse(workspace.isSearchActive)
-        XCTAssertEqual(workspace.viewMode, DatabaseWorkspaceState.initialViewMode())
+        XCTAssertEqual(workspace.viewMode, .tags, "Locking leaves the recycle bin for the browsing view picked last")
         XCTAssertEqual(workspace.newEntryRequestID, 2)
         XCTAssertEqual(workspace.searchFocusRequestID, 1)
         XCTAssertEqual(workspace.newGroupRequestID, 1)
@@ -171,8 +188,29 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         XCTAssertEqual(workspace.deleteSelectionRequestID, 1)
     }
 
+    func testANewSessionOpensOnTheBrowsingViewPickedLast() {
+        XCTAssertEqual(DatabaseWorkspaceState(defaults: defaults).viewMode, .allEntries)
+
+        DatabaseWorkspaceState(defaults: defaults).viewMode = .groups
+        XCTAssertEqual(DatabaseWorkspaceState(defaults: defaults).viewMode, .groups)
+
+        DatabaseWorkspaceState(defaults: defaults).viewMode = .recycleBin
+        XCTAssertEqual(
+            DatabaseWorkspaceState(defaults: defaults).viewMode,
+            .groups,
+            "The recycle bin is never where a database opens"
+        )
+    }
+
+    func testAnUnreadableStoredViewOpensOnAllEntries() {
+        for stored in ["no-such-view", DatabaseWorkspaceState.ViewMode.recycleBin.rawValue] {
+            defaults.set(stored, forKey: DatabaseWorkspaceState.viewModeKey)
+            XCTAssertEqual(DatabaseWorkspaceState(defaults: defaults).viewMode, .allEntries, stored)
+        }
+    }
+
     func testEveryNavigationInteractionReportsActivity() {
-        let workspace = DatabaseWorkspaceState()
+        let workspace = DatabaseWorkspaceState(defaults: defaults)
         var interactions = 0
         workspace.onInteraction = { interactions += 1 }
         let actions: [() -> Void] = [

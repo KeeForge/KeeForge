@@ -61,6 +61,12 @@ final class DatabaseWorkspaceState {
     }
 
     @ObservationIgnored var onInteraction: (() -> Void)?
+    @ObservationIgnored private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        viewMode = Self.initialViewMode(defaults: defaults)
+    }
 
     var navigationPath: [DatabaseRoute] = [] {
         didSet { onInteraction?() }
@@ -99,8 +105,13 @@ final class DatabaseWorkspaceState {
     var isSearchActive = false {
         didSet { onInteraction?() }
     }
-    var viewMode = DatabaseWorkspaceState.initialViewMode() {
-        didSet { onInteraction?() }
+    var viewMode: ViewMode {
+        didSet {
+            if viewMode != .recycleBin {
+                defaults.set(viewMode.rawValue, forKey: Self.viewModeKey)
+            }
+            onInteraction?()
+        }
     }
     private(set) var newEntryRequestID = 0
     private(set) var searchFocusRequestID = 0
@@ -156,7 +167,7 @@ final class DatabaseWorkspaceState {
     func resetForLock() {
         resetNavigation()
         isSearchActive = false
-        viewMode = Self.initialViewMode()
+        viewMode = Self.initialViewMode(defaults: defaults)
     }
 
     func reconcileSelection(
@@ -184,15 +195,25 @@ final class DatabaseWorkspaceState {
         // The detail host clears a vanished entry after its editor dismisses.
     }
 
-    /// A database opens on All Entries. UI tests can start on another view
-    /// through `UI_TEST_VIEW_MODE`: their helpers browse from the group list.
+    static let viewModeKey = "KeeForge.databaseViewMode"
+
+    /// A database opens on the browsing view picked last, All Entries the
+    /// first time; never on the recycle bin. UI tests can start on another
+    /// view through `UI_TEST_VIEW_MODE`: their helpers browse from the group
+    /// list.
     static func initialViewMode(
+        defaults: UserDefaults = .standard,
         arguments: [String] = ProcessInfo.processInfo.arguments,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> ViewMode {
-        guard arguments.contains("-ui-testing"),
-              let rawValue = environment["UI_TEST_VIEW_MODE"],
-              let mode = ViewMode(rawValue: rawValue) else {
+        if arguments.contains("-ui-testing"),
+           let rawValue = environment["UI_TEST_VIEW_MODE"],
+           let mode = ViewMode(rawValue: rawValue) {
+            return mode
+        }
+        guard let rawValue = defaults.string(forKey: viewModeKey),
+              let mode = ViewMode(rawValue: rawValue),
+              mode != .recycleBin else {
             return .allEntries
         }
         return mode

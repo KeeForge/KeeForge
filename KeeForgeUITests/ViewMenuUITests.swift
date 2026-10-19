@@ -128,15 +128,81 @@ final class DefaultViewUITests: UnlockedDatabaseUITestCase {
         app.launchEnvironment.removeValue(forKey: Self.uiTestViewModeEnv)
     }
 
-    func testDatabaseOpensOnAllEntriesAgainAfterLocking() {
+    func testDatabaseReopensOnTheViewPickedLast() {
         unlockSuccessfully()
-        XCTAssertTrue(waitForDatabaseView(.allEntries), "An unlocked database did not open on All Entries")
-
         selectDatabaseView(.tags)
         tapElement(currentLockButton())
         XCTAssertTrue(waitForLockedState(), "Database did not lock")
 
         unlockSuccessfully()
-        XCTAssertTrue(waitForDatabaseView(.allEntries), "Unlocking again returned to the view picked before locking")
+        XCTAssertTrue(waitForDatabaseView(.tags), "Unlocking again did not return to the view picked before locking")
+
+        selectDatabaseView(.verificationCodes)
+        selectDatabaseView(.recycleBin)
+        app.terminate()
+        app.launch()
+        app.activate()
+        _ = app.wait(for: .runningForeground, timeout: 30)
+        XCTAssertTrue(waitForDatabaseList(timeout: 10), "Database list did not appear after relaunching")
+
+        unlockSuccessfully()
+        XCTAssertTrue(
+            waitForDatabaseView(.verificationCodes),
+            "A relaunch did not return to the browsing view picked last"
+        )
+    }
+}
+
+/// Larger text widens the bar's actions until the app's name no longer fits
+/// beside them. iOS 27 then folded the name into a "…" overflow button that
+/// also carried the view menu, a second view switcher in every view with the
+/// add menu. The name has to give way instead, and Lock stay in the bar.
+@MainActor
+final class ViewMenuLargeTextUITests: UnlockedDatabaseUITestCase {
+    override var databaseFixtureName: String { "kitchen-sink" }
+
+    /// UIKit's own identifier for the overflow button it adds to a crowded bar.
+    private var overflowButton: XCUIElement {
+        app.navigationBars.buttons["OverflowBarButtonItem"]
+    }
+
+    override func configureLaunch(app: XCUIApplication) throws {
+        guard #available(iOS 26.0, *) else {
+            throw XCTSkip("iOS 18 to 25 keep the view menu as a toolbar button, with no app name or title menu in the bar")
+        }
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"]
+    }
+
+    func testEveryViewKeepsItsBarActionsOutOfAnOverflowMenu() {
+        unlockSuccessfully()
+
+        let views: [DatabaseView] = [.allEntries, .groups, .verificationCodes, .tags, .recycleBin]
+        for view in views {
+            selectDatabaseView(view)
+            XCTAssertFalse(overflowButton.exists, "'\(view.label)' folded bar items into an overflow menu")
+            XCTAssertTrue(currentLockButton().isHittable, "'\(view.label)' did not keep Lock in the bar")
+        }
+    }
+
+    /// All Entries, because it is the fixture's one list long enough to
+    /// scroll in an iPad sidebar.
+    func testTheBarOffersTheViewMenuOnlyOnceTheTitleHasScrolledAway() {
+        unlockSuccessfully()
+        selectDatabaseView(.allEntries)
+
+        let header = app.buttons["view.menu"].firstMatch
+        let barTitleMenu = app.navigationBars.buttons.matching(
+            NSPredicate(format: "label == %@", DatabaseView.allEntries.label)
+        ).firstMatch
+        XCTAssertTrue(header.waitForExistence(timeout: Self.ciElementTimeout), "The root did not show its title menu")
+        XCTAssertFalse(barTitleMenu.exists, "The bar offered a view menu beside the title's own")
+
+        app.collectionViews.firstMatch.swipeUp()
+
+        XCTAssertTrue(barTitleMenu.waitForExistence(timeout: Self.ciElementTimeout), "The collapsed title was not the view menu")
+        XCTAssertFalse(header.exists && header.isHittable, "The title header was still on screen")
+        XCTAssertFalse(overflowButton.exists, "The collapsed bar folded items into an overflow menu")
+
+        selectDatabaseView(.groups)
     }
 }
