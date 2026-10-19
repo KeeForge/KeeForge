@@ -7,6 +7,7 @@
 - `GroupListView` is iOS/iPadOS only. macOS browses through `macSplitView` and `MacGroupTreeRow` in `../../App/RegularDatabaseWorkspaceView.swift`, which carries its own move sheet, delete confirmation, group-row menu, and Database Details button. A feature added here needs its Mac counterpart there.
 - On the iPad split view, New Entry and Edit Group are handed to the workspace through `onCreateEntry` / `onEditGroup` so they open in the detail column. With the closures nil (compact) `GroupListView` pushes them itself.
 - `GroupEditView` only collects fields; `DatabaseEditorCoordinator` applies them as one `updateGroup` edit and owns dirty state, Save and Lock, and completion (`../../ViewModels/AGENTS.md`). The Mac sidebar raises the group to the workspace so the sheet is hosted on the split view, not on a row that comes and goes.
+- Recycled group rows expose the shared Restore action on iOS/iPadOS and in the Mac sidebar. The Recycle Bin itself is excluded.
 - The pickers (`GroupIconPickerView`, `MoveToGroupPickerView`) report a pick and dismiss. The caller mutates and saves; cancelling writes nothing.
 - `DatabaseViewModel.workspace.viewMode` decides what the database root lists. The last browsing view picked is stored in `UserDefaults`, so lock and relaunch return to it; the Recycle Bin is never stored.
 

@@ -1675,6 +1675,59 @@ final class DatabaseViewModel {
         try applyEntryEdit(.moveGroup(groupID: groupID, destinationGroupID: toGroupID))
     }
 
+    enum RecycleBinItem: Hashable, Identifiable {
+        case entry(UUID)
+        case group(UUID)
+
+        var id: String {
+            switch self {
+            case .entry(let id): "restore-entry-\(id)"
+            case .group(let id): "restore-group-\(id)"
+            }
+        }
+    }
+
+    func canRestore(_ item: RecycleBinItem) -> Bool {
+        guard case .unlocked = state, !isReadOnly, !isSaving, saveConflict == nil else { return false }
+        switch item {
+        case .entry(let id):
+            return entryIndex[id] != nil && isEntryInRecycleBin(entryID: id)
+        case .group(let id):
+            return groupIndex[id] != nil && id != currentRootGroup?.recycleBinUUID
+                && isGroupInRecycleBin(groupID: id) && !isGroupProtectedFromDeletion(groupID: id)
+        }
+    }
+
+    func restoreDestinationOptions(for item: RecycleBinItem) -> [MoveDestinationOption] {
+        guard canRestore(item) else { return [] }
+        switch item {
+        case .entry(let id): return moveDestinationOptions(forEntryID: id)
+        case .group(let id): return moveDestinationOptions(forGroupID: id)
+        }
+    }
+
+    func originalRestoreDestination(for item: RecycleBinItem) -> UUID? {
+        let xml: OpaqueXMLNodes?
+        switch item {
+        case .entry(let id): xml = entryIndex[id]?.unknownXML
+        case .group(let id): xml = groupIndex[id]?.unknownXML
+        }
+        guard let xml, let id = PreviousParentGroupXML.parentID(in: xml),
+              restoreDestinationOptions(for: item).contains(where: { $0.id == id }) else { return nil }
+        return id
+    }
+
+    func restore(_ item: RecycleBinItem, toGroupID destinationID: UUID) throws {
+        guard !isReadOnly else { throw SaveError.databaseIsReadOnly }
+        guard restoreDestinationOptions(for: item).contains(where: { $0.id == destinationID }) else {
+            throw DatabaseDraft.DraftError.restoreUnavailable
+        }
+        switch item {
+        case .entry(let id): try applyEntryEdit(.restoreEntry(entryID: id, destinationGroupID: destinationID))
+        case .group(let id): try applyEntryEdit(.restoreGroup(groupID: id, destinationGroupID: destinationID))
+        }
+    }
+
     /// The groups this entry could move into, in tree order from the visible
     /// root, with the recycle-bin subtree pruned. Empty for an unknown entry.
     func moveDestinationOptions(forEntryID entryID: UUID) -> [MoveDestinationOption] {

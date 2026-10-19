@@ -436,7 +436,8 @@ struct RegularDatabaseWorkspaceView: View {
         }
         .sheet(item: $pendingMove) { pending in
             MoveToGroupPickerView(
-                options: pending.destinationOptions(viewModel: viewModel)
+                options: pending.destinationOptions(viewModel: viewModel),
+                navigationTitle: pending.navigationTitle
             ) { destinationGroupID in
                 pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
             }
@@ -1045,6 +1046,8 @@ private struct MacGroupTreeRow: View {
                 }
                 .accessibilityIdentifier("group-row.edit-context")
             }
+
+            RestoreRowAction(item: .group(node.id), viewModel: viewModel, onChooseDestination: onRequestMove)
 
             if canMove {
                 Button("Move to Group") {

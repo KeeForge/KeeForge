@@ -157,6 +157,27 @@ final class KDBXCompatibilityTests: XCTestCase {
         try collector.emit()
     }
 
+    func test_restoreSavedSubtreePreservesHistoryAttachmentsAndOpaqueMetadata() throws {
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
+        let loaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
+        let group = try XCTUnwrap(loaded.rootGroup.groups.flatMap(\.groups).first { $0.name == "Round Trip" })
+        let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
+                                  binaryPoolFields: loaded.header.innerHeaderBinaryFields)
+        let deleted = try draft.apply(.deleteGroup(groupID: group.id, sendToRecycleBin: true))
+        let data = try deleted.write(compositeKey: loaded.compositeKey, header: loaded.header, kdfPolicy: .mainApp)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(data: data, compositeKey: loaded.compositeKey,
+                                                        sessionKey: loaded.sessionKey, kdfPolicy: .mainApp)
+        let reopened = KDBXCompatibilitySupport.LoadedFixture(
+            fixture: loaded.fixture, rootGroup: parsed.rootGroup, meta: parsed.meta, header: parsed.header,
+            compositeKey: loaded.compositeKey, sourceData: data, sessionKey: loaded.sessionKey,
+            keyFileData: loaded.keyFileData, bundle: bundle
+        )
+        let result = try collector.run(KDBXCompatibilitySupport.restoreRichGroupScenario(), on: reopened)
+        assertHeaderPreserved(result, loaded: reopened, scenario: KDBXCompatibilitySupport.restoreRichGroupScenario())
+        try assertRoundTripFixtureShape(in: result.after)
+        try collector.emit()
+    }
+
     func test_softDeleteCreatesRecycleBinWithoutChangingOtherSemantics() throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
         let loaded = try KDBXCompatibilitySupport.load(.syntheticNoRecycleBin, bundle: bundle)
@@ -700,6 +721,7 @@ final class KDBXCompatibilityTests: XCTestCase {
     /// survive the same round trip: a merged tree reaches `KDBXWriter` through
     /// a pristine draft rather than as an `EntryEdit`, and the artifact this
     /// emits is opened by real KeePassXC in the external gate.
+    /// Remote recycling must retain its original-parent references after reopening.
     func test_mergeScenario_writesAMergedTreeThatReparsesAndOpensExternally() throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
         let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle)
@@ -780,6 +802,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             "kitchen-sink-attachments-update-entry",
             "kitchen-sink-attachments-soft-delete-entry",
             "kitchen-sink-attachments-add-remove",
+            "kitchen-sink-restore-rich-group",
             "kitchen-sink-group-tags-update-entry",
             "kitchen-sink-group-tags-update-group",
             "\(richID)-keeotp-source-matrix",
@@ -808,7 +831,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 41)
+        XCTAssertEqual(descriptors.count, 44)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

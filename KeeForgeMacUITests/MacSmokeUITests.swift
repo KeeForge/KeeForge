@@ -11,6 +11,52 @@ import XCTest
 final class MacSmokeUITests: MacUITestCase {
     private let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
 
+    func testRestoreEntryFromRecycleBinContextMenu() {
+        unlockSuccessfully()
+        openGroup(named: "Social")
+        restoreTestRow(identifier: "entry.navlink", named: "Discord").rightClick()
+        clickRestoreTestMenu("entry-row.delete-context")
+        let delete = app.windows.buttons["Delete"].firstMatch
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        delete.click()
+        openGroup(named: "Recycle Bin")
+        restoreTestRow(identifier: "entry.navlink", named: "Discord").rightClick()
+        clickRestoreTestMenu("entry-row.restore-context")
+        openGroup(named: "Social")
+        XCTAssertTrue(restoreTestRow(identifier: "entry.navlink", named: "Discord").waitForExistence(timeout: 10))
+    }
+
+    func testRestoreGroupFromRecycleBinContextMenu() {
+        unlockSuccessfully()
+        restoreTestRow(identifier: "group.navlink", named: "Work").rightClick()
+        clickRestoreTestMenu("group-row.delete-context")
+        let delete = app.windows.buttons["Delete"].firstMatch
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        delete.click()
+        openGroup(named: "Recycle Bin")
+        restoreTestRow(identifier: "group.navlink", named: "Work").rightClick()
+        clickRestoreTestMenu("group-row.restore-context")
+        openGroup(named: "Work")
+        XCTAssertTrue(restoreTestRow(identifier: "entry.navlink", named: "Email").waitForExistence(timeout: 10))
+    }
+
+    private func restoreTestRow(identifier: String, named name: String) -> XCUIElement {
+        rowQuery(identifier: identifier).matching(NSPredicate(
+            format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", name, name
+        )).allElementsBoundByIndex.first { $0.isHittable && $0.frame.height > 10 }
+            ?? rowQuery(identifier: identifier).matching(NSPredicate(
+                format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", name, name
+            )).firstMatch
+    }
+
+    private func clickRestoreTestMenu(_ identifier: String) {
+        let query = app.menuItems.matching(identifier: identifier)
+        XCTAssertTrue(query.firstMatch.waitForExistence(timeout: 5))
+        let item = query.allElementsBoundByIndex.first { $0.isEnabled && $0.isHittable }
+        XCTAssertNotNil(item, "Context action missing: \(identifier)")
+        item?.click()
+    }
+
     // MARK: - Unlock
 
     func testUnlockSucceedsWithCorrectPassword() {

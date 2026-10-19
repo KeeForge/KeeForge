@@ -179,4 +179,6 @@ enum EntryEdit: Codable, Sendable, Equatable {
     /// leaves `<LastModificationTime>` alone, the same shape as recycling.
     case moveEntry(entryID: UUID, destinationGroupID: UUID)
     case moveGroup(groupID: UUID, destinationGroupID: UUID)
+    case restoreEntry(entryID: UUID, destinationGroupID: UUID)
+    case restoreGroup(groupID: UUID, destinationGroupID: UUID)
 }

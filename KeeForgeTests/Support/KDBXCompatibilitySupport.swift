@@ -472,6 +472,9 @@ enum KDBXCompatibilitySupport {
     /// scenarios where the referenced entry (and its attachment) is expected
     /// to still exist, under its post-edit title, in the written artifact.
     static let attachmentExpectations: [String: [ArtifactManifest.ExpectedAttachment]] = [
+        "restore-rich-group": [
+            .init(entryTitle: "Controlled Unknowns", attachmentName: "round-trip.txt", sha256: AttachmentFixtureHashes.roundTripTxt),
+        ],
         "fixture-smoke-kitchen-sink": [
             .init(entryTitle: "Multi Attachment Entry", attachmentName: "note-ü.txt", sha256: AttachmentFixtureHashes.noteUnicodeTxt),
             .init(entryTitle: "Multi Attachment Entry", attachmentName: "pixel.png", sha256: AttachmentFixtureHashes.pixelPNG),
@@ -530,6 +533,8 @@ enum KDBXCompatibilitySupport {
         "hard-delete-recycled-group",
         "move-entry",
         "move-group",
+        "restore-recycled-entry",
+        "restore-recycled-group",
         "recycle-bin-creation",
         "keeotp-source-matrix",
         "fixture-smoke-aes-baseline",
@@ -578,6 +583,9 @@ enum KDBXCompatibilitySupport {
     /// and an edited password on the synthetic AES database.
     static let passwordExpectations: [String: [ArtifactManifest.ExpectedPassword]] = {
         var table: [String: [ArtifactManifest.ExpectedPassword]] = [:]
+        table["restore-rich-group"] = [.init(entryTitle: "Controlled Unknowns", password: "roundtrip-pass")]
+        table["restore-recycled-entry"] = [.init(entryTitle: "Compat Recycled Entry", password: "recycled-password")]
+        table["restore-recycled-group"] = [.init(entryTitle: "Compat Recycled Nested Entry", password: "recycled-nested-password")]
         for (fixtureID, existingEntry) in fixtureEntryPasswords {
             table["fixture-smoke-\(fixtureID)"] = [
                 .init(
@@ -752,6 +760,9 @@ enum KDBXCompatibilitySupport {
             "hard-delete-recycled-group",
             "move-entry",
             "move-group",
+            "restore-recycled-entry",
+            "restore-recycled-group",
+            "restore-rich-group",
             "recycle-bin-creation",
             "attachments-update-entry",
             "attachments-soft-delete-entry",
@@ -825,6 +836,39 @@ enum KDBXCompatibilitySupport {
         )
     }
 
+    static func restoreRichGroupScenario() -> Scenario {
+        Scenario(
+            id: "restore-rich-group",
+            title: "Restore a saved recycled group with history, attachments, and opaque metadata",
+            artifactFileName: "kitchen-sink-restore-rich-group.kdbx",
+            expectedSearchTerms: ["Controlled Unknowns"],
+            expectedGroupPaths: ["Round Trip"],
+            makeEdit: { loaded in
+                let group = try XCTUnwrap(findGroup(named: "Round Trip", in: loaded.rootGroup))
+                let parentID = try XCTUnwrap(PreviousParentGroupXML.parentID(in: group.unknownXML))
+                return .restoreGroup(groupID: group.id, destinationGroupID: parentID)
+            },
+            assertChange: { before, after, _ in
+                let id = try XCTUnwrap(before.groupID(named: "Round Trip"))
+                let group = try XCTUnwrap(before.groups[id])
+                let parentID = try XCTUnwrap(PreviousParentGroupXML.parentID(in: group.unknownXML))
+                XCTAssertTrue(try XCTUnwrap(after.groups[parentID]).groupIDs.contains(id))
+                let binID = try XCTUnwrap(after.meta.recycleBinUUID)
+                XCTAssertFalse(try XCTUnwrap(after.groups[binID]).groupIDs.contains(id))
+                try assertUnchangedEntries(before: before, after: after)
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after, excluding: [id])
+                let restored = try XCTUnwrap(after.groups[id])
+                XCTAssertGreaterThanOrEqual(try XCTUnwrap(restored.locationChanged), try XCTUnwrap(group.locationChanged))
+                var normalized = restored.scalars
+                normalized.locationChanged = group.locationChanged
+                XCTAssertEqual(normalized, group.scalars)
+                XCTAssertEqual(after.groups[id]?.entryIDs, group.entryIDs)
+                XCTAssertEqual(after.groups[id]?.groupIDs, group.groupIDs)
+                assertMetaUnchanged(before: before, after: after)
+            }
+        )
+    }
+
     static func fullEditScenarios() -> [Scenario] {
         [
             createEntryScenario(),
@@ -843,6 +887,8 @@ enum KDBXCompatibilitySupport {
             hardDeleteRecycledGroupScenario(),
             moveEntryScenario(),
             moveGroupScenario(),
+            restoreRecycledEntryScenario(),
+            restoreRecycledGroupScenario(),
             importApplePasswordsScenario(),
         ]
     }
@@ -868,7 +914,8 @@ enum KDBXCompatibilitySupport {
                 try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
                 assertOnlyLocationChangedDiffers(
                     before: try XCTUnwrap(before.entries[entryID]),
-                    after: try XCTUnwrap(after.entries[entryID])
+                    after: try XCTUnwrap(after.entries[entryID]),
+                    previousParentID: try XCTUnwrap(before.groups.values.first { $0.entryIDs.contains(entryID) }?.id)
                 )
                 try assertSurvivingGroupsPreserveScalars(before: before, after: after, excluding: [rootGroupID])
                 XCTAssertNotNil(after.meta.recycleBinUUID)
@@ -1307,7 +1354,7 @@ enum KDBXCompatibilitySupport {
 
                 let deletedBefore = try XCTUnwrap(before.entries[deletedID])
                 let deletedAfter = try XCTUnwrap(after.entries[deletedID])
-                assertOnlyLocationChangedDiffers(before: deletedBefore, after: deletedAfter)
+                assertOnlyLocationChangedDiffers(before: deletedBefore, after: deletedAfter, previousParentID: try XCTUnwrap(before.groups.values.first { $0.entryIDs.contains(deletedID) }?.id))
                 XCTAssertEqual(deletedAfter.attachments, deletedBefore.attachments)
                 XCTAssertEqual(deletedAfter.attachmentHashes, deletedBefore.attachmentHashes)
 
@@ -1589,7 +1636,7 @@ enum KDBXCompatibilitySupport {
             title: "Merge a divergent remote: conflict, graft, and move in one write",
             artifactFileName: "synthetic-rich-merge-remote-divergence.kdbx",
             expectedSearchTerms: [mergeAddedEntryTitle, "Compat Update Target"],
-            expectedGroupPaths: [mergeRemoteGroupName, "Compat Group Delete Target"],
+            expectedGroupPaths: [mergeRemoteGroupName, "Compat Group Delete Target", "Recycle Bin/Compat Nested Child Group"],
             makeMergedTree: { loaded in
                 let local = KDBXMerger.Side(
                     rootGroup: loaded.rootGroup,
@@ -1612,9 +1659,11 @@ enum KDBXCompatibilitySupport {
                 let deleteTargetID = try XCTUnwrap(before.groupID(named: "Compat Group Delete Target"))
                 let conflictID = try XCTUnwrap(before.entryID(titled: "Compat Update Target"))
                 let movedID = try XCTUnwrap(before.entryID(titled: "Compat Empty Tags"))
+                let recycledEntryID = try XCTUnwrap(before.entryID(titled: "Compat Soft Delete Target"))
+                let recycledGroupID = try XCTUnwrap(before.groupID(named: "Compat Nested Child Group"))
 
-                try assertUnchangedEntries(before: before, after: after, excluding: [conflictID, movedID])
-                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+                try assertUnchangedEntries(before: before, after: after, excluding: [conflictID, movedID, recycledEntryID])
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after, excluding: [recycledGroupID])
                 assertMetaUnchanged(before: before, after: after)
 
                 // The newer remote version wins the entry outright and the
@@ -1640,6 +1689,20 @@ enum KDBXCompatibilitySupport {
                 assertOnlyLocationChangedDiffers(
                     before: try XCTUnwrap(before.entries[movedID]),
                     after: try XCTUnwrap(after.entries[movedID])
+                )
+
+                let bin = try XCTUnwrap(after.groups[try XCTUnwrap(after.meta.recycleBinUUID)])
+                XCTAssertTrue(bin.entryIDs.contains(recycledEntryID))
+                XCTAssertTrue(bin.groupIDs.contains(recycledGroupID))
+                assertOnlyLocationChangedDiffers(
+                    before: try XCTUnwrap(before.entries[recycledEntryID]),
+                    after: try XCTUnwrap(after.entries[recycledEntryID]),
+                    previousParentID: visibleRootID
+                )
+                assertOnlyLocationChangedDiffers(
+                    before: try XCTUnwrap(before.groups[recycledGroupID]),
+                    after: try XCTUnwrap(after.groups[recycledGroupID]),
+                    previousParentID: deleteTargetID
                 )
             }
         )
@@ -1698,9 +1761,14 @@ enum KDBXCompatibilitySupport {
             )
         )
 
+        let recycledEntry = try XCTUnwrap(findEntry(titled: "Compat Soft Delete Target", in: remoteRoot))
+        let recycledGroup = try XCTUnwrap(findGroup(named: "Compat Nested Child Group", in: remoteRoot))
+        let remoteDraft = try DatabaseDraft(rootGroup: remoteRoot, meta: loaded.meta, sessionKey: loaded.sessionKey)
+            .apply(.deleteEntry(entryID: recycledEntry.id, sendToRecycleBin: true))
+            .apply(.deleteGroup(groupID: recycledGroup.id, sendToRecycleBin: true))
         let remoteData = try KDBXWriter.write(
-            rootGroup: remoteRoot,
-            meta: loaded.meta,
+            rootGroup: remoteDraft.rootGroup,
+            meta: remoteDraft.meta,
             compositeKey: loaded.compositeKey,
             header: loaded.header,
             sessionKey: loaded.sessionKey
@@ -1913,6 +1981,9 @@ enum KDBXCompatibilitySupport {
         })
         descriptors.append(
             ArtifactDescriptor(fixture: .kitchenSink, scenario: fixtureSmokeScenario(fixtureID: Fixture.kitchenSink.id))
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .kitchenSink, scenario: restoreRichGroupScenario())
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .kitchenSink, scenario: attachmentsFixtureUpdateEntryScenario())
@@ -2253,7 +2324,7 @@ struct CompatibilitySnapshot {
         /// it byte-identical across the save.
         var locationChanged: Date?
         var history: [Entry]
-        let unknownXML: OpaqueXMLNodes
+        var unknownXML: OpaqueXMLNodes
         let protectedStringKeys: Set<String>
         let attachments: [KPAttachment]
         /// SHA-256 hex digest of each attachment's resolved pool bytes, in
@@ -2355,7 +2426,7 @@ struct CompatibilitySnapshot {
         /// other scenario must leave it alone.
         var locationChanged: Date?
         let recycleBinUUID: UUID?
-        let unknownXML: OpaqueXMLNodes
+        var unknownXML: OpaqueXMLNodes
     }
 
     let entries: [UUID: Entry]
@@ -2913,7 +2984,7 @@ private extension KDBXCompatibilitySupport {
 
                 let beforeEntry = try XCTUnwrap(before.entries[entryID])
                 let afterEntry = try XCTUnwrap(after.entries[entryID])
-                assertOnlyLocationChangedDiffers(before: beforeEntry, after: afterEntry)
+                assertOnlyLocationChangedDiffers(before: beforeEntry, after: afterEntry, previousParentID: try XCTUnwrap(before.groups.values.first { $0.entryIDs.contains(entryID) }?.id))
             }
         )
     }
@@ -2969,7 +3040,7 @@ private extension KDBXCompatibilitySupport {
 
                 let beforeGroup = try XCTUnwrap(before.groups[groupID])
                 let afterGroup = try XCTUnwrap(after.groups[groupID])
-                assertOnlyLocationChangedDiffers(before: beforeGroup, after: afterGroup)
+                assertOnlyLocationChangedDiffers(before: beforeGroup, after: afterGroup, previousParentID: try XCTUnwrap(before.groups.values.first { $0.groupIDs.contains(groupID) }?.id))
             }
         )
     }
@@ -2999,6 +3070,58 @@ private extension KDBXCompatibilitySupport {
                 let recycleBinID = try XCTUnwrap(before.meta.recycleBinUUID)
                 let recycleBin = try XCTUnwrap(after.groups[recycleBinID])
                 XCTAssertFalse(recycleBin.groupIDs.contains(groupID))
+            }
+        )
+    }
+
+    static func restoreRecycledEntryScenario() -> Scenario {
+        Scenario(
+            id: "restore-recycled-entry",
+            title: "Restore recycled entry to an active group",
+            artifactFileName: "synthetic-rich-restore-recycled-entry.kdbx",
+            expectedSearchTerms: ["Compat Recycled Entry"],
+            expectedGroupPaths: ["Compat Group Delete Target"],
+            makeEdit: { loaded in
+                let item = try XCTUnwrap(findEntry(titled: "Compat Recycled Entry", in: loaded.rootGroup))
+                let destination = try XCTUnwrap(findGroup(named: "Compatibility Root", in: loaded.rootGroup))
+                return .restoreEntry(entryID: item.id, destinationGroupID: destination.id)
+            },
+            assertChange: { before, after, _ in
+                let id = try XCTUnwrap(before.entryID(titled: "Compat Recycled Entry"))
+                let destination = try XCTUnwrap(after.groupID(named: "Compatibility Root"))
+                let binID = try XCTUnwrap(after.meta.recycleBinUUID)
+                XCTAssertTrue(try XCTUnwrap(after.groups[destination]).entryIDs.contains(id))
+                XCTAssertFalse(try XCTUnwrap(after.groups[binID]).entryIDs.contains(id))
+                try assertUnchangedEntries(before: before, after: after, excluding: [id])
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+                assertOnlyLocationChangedDiffers(before: try XCTUnwrap(before.entries[id]), after: try XCTUnwrap(after.entries[id]))
+                assertMetaUnchanged(before: before, after: after)
+            }
+        )
+    }
+
+    static func restoreRecycledGroupScenario() -> Scenario {
+        Scenario(
+            id: "restore-recycled-group",
+            title: "Restore recycled group to an active group",
+            artifactFileName: "synthetic-rich-restore-recycled-group.kdbx",
+            expectedSearchTerms: ["Compat Recycled Nested Entry"],
+            expectedGroupPaths: ["Compat Recycled Group Delete Target/Compat Recycled Nested Child Group"],
+            makeEdit: { loaded in
+                let item = try XCTUnwrap(findGroup(named: "Compat Recycled Group Delete Target", in: loaded.rootGroup))
+                let destination = try XCTUnwrap(findGroup(named: "Compatibility Root", in: loaded.rootGroup))
+                return .restoreGroup(groupID: item.id, destinationGroupID: destination.id)
+            },
+            assertChange: { before, after, _ in
+                let id = try XCTUnwrap(before.groupID(named: "Compat Recycled Group Delete Target"))
+                let destination = try XCTUnwrap(after.groupID(named: "Compatibility Root"))
+                let binID = try XCTUnwrap(after.meta.recycleBinUUID)
+                XCTAssertTrue(try XCTUnwrap(after.groups[destination]).groupIDs.contains(id))
+                XCTAssertFalse(try XCTUnwrap(after.groups[binID]).groupIDs.contains(id))
+                try assertUnchangedEntries(before: before, after: after)
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after, excluding: [id])
+                assertOnlyLocationChangedDiffers(before: try XCTUnwrap(before.groups[id]), after: try XCTUnwrap(after.groups[id]))
+                assertMetaUnchanged(before: before, after: after)
             }
         )
     }
@@ -3440,14 +3563,12 @@ private extension KDBXCompatibilitySupport {
         }
     }
 
-    /// Pins the exact shape of a recycle: the object moved, so its
-    /// `<Times>/<LocationChanged>` advanced past what it was and nothing else
-    /// about it changed. Written as "equal after normalizing that one field"
-    /// rather than as a shorter comparison, so a scenario that starts changing
-    /// something else still fails.
+    /// Reparenting changes only the location timestamp and, when specified,
+    /// the recovery reference. Every other field stays identical.
     static func assertOnlyLocationChangedDiffers(
         before: CompatibilitySnapshot.Entry,
         after: CompatibilitySnapshot.Entry,
+        previousParentID: UUID? = nil,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
@@ -3459,13 +3580,20 @@ private extension KDBXCompatibilitySupport {
             line: line
         )
         var normalized = after
+        var original = before
         normalized.locationChanged = before.locationChanged
-        XCTAssertEqual(normalized, before, "Recycled entry changed beyond its move: \(before.title)", file: file, line: line)
+        if let previousParentID {
+            XCTAssertEqual(PreviousParentGroupXML.parentID(in: normalized.unknownXML), previousParentID, file: file, line: line)
+            normalized.unknownXML.removeDirectChildren(named: "PreviousParentGroup")
+            original.unknownXML.removeDirectChildren(named: "PreviousParentGroup")
+        }
+        XCTAssertEqual(normalized, original, "Recycled entry changed beyond its move: \(before.title)", file: file, line: line)
     }
 
     static func assertOnlyLocationChangedDiffers(
         before: CompatibilitySnapshot.Group,
         after: CompatibilitySnapshot.Group,
+        previousParentID: UUID? = nil,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
@@ -3477,8 +3605,14 @@ private extension KDBXCompatibilitySupport {
             line: line
         )
         var normalized = after.scalars
+        var original = before.scalars
         normalized.locationChanged = before.locationChanged
-        XCTAssertEqual(normalized, before.scalars, "Recycled group changed beyond its move: \(before.name)", file: file, line: line)
+        if let previousParentID {
+            XCTAssertEqual(PreviousParentGroupXML.parentID(in: normalized.unknownXML), previousParentID, file: file, line: line)
+            normalized.unknownXML.removeDirectChildren(named: "PreviousParentGroup")
+            original.unknownXML.removeDirectChildren(named: "PreviousParentGroup")
+        }
+        XCTAssertEqual(normalized, original, "Recycled group changed beyond its move: \(before.name)", file: file, line: line)
         XCTAssertEqual(after.entryIDs, before.entryIDs, file: file, line: line)
         XCTAssertEqual(after.groupIDs, before.groupIDs, file: file, line: line)
     }

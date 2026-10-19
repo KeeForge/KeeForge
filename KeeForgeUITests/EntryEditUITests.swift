@@ -694,6 +694,50 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
 
 @MainActor
 final class EntryDeleteSmokeUITests: EntryEditUITestCase {
+    func testRestoreEntryReturnsToOriginalGroup() {
+        unlockSuccessfully()
+        openGroup(named: socialGroupName)
+        revealContextMenuButton(rowNamed: discordEntryTitle, identifier: "entry-row.delete-context", preferredIdentifier: "entry.navlink").tap()
+        app.alerts.buttons["Delete"].tap()
+        waitForAutosaveAttempt()
+        tapBackButton()
+        selectDatabaseView(.recycleBin)
+        revealContextMenuButton(rowNamed: discordEntryTitle, identifier: "entry-row.restore-context", preferredIdentifier: "entry.navlink").tap()
+        waitForAutosaveAttempt()
+        XCTAssertFalse(entry(named: discordEntryTitle).exists)
+        selectDatabaseView(.groups)
+        openGroup(named: socialGroupName)
+        XCTAssertTrue(revealElement(entry(named: discordEntryTitle)))
+    }
+
+    func testRestoreGroupReturnsItsSubtreeToOriginalParent() {
+        unlockSuccessfully()
+        revealContextMenuButton(rowNamed: workGroupName, identifier: "group-row.delete-context", preferredIdentifier: "group.navlink").tap()
+        app.alerts.buttons["Delete"].tap()
+        waitForAutosaveAttempt()
+        selectDatabaseView(.recycleBin)
+        openGroup(named: workGroupName)
+        revealContextMenuButton(rowNamed: "Internal", identifier: "group-row.restore-context", preferredIdentifier: "group.navlink").tap()
+        let cancel = app.buttons["move-picker.cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        cancel.tap()
+        XCTAssertTrue(revealElement(group(named: "Internal")))
+        revealContextMenuButton(rowNamed: "Internal", identifier: "group-row.restore-context", preferredIdentifier: "group.navlink").tap()
+        let destination = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'move-picker.group.'")).firstMatch
+        XCTAssertTrue(destination.waitForExistence(timeout: 5))
+        destination.tap()
+        waitForAutosaveAttempt()
+        XCTAssertFalse(group(named: "Internal").exists)
+        tapBackButton()
+        revealContextMenuButton(rowNamed: workGroupName, identifier: "group-row.restore-context", preferredIdentifier: "group.navlink").tap()
+        waitForAutosaveAttempt()
+        XCTAssertFalse(group(named: workGroupName).exists)
+        selectDatabaseView(.groups)
+        XCTAssertTrue(revealElement(group(named: "Internal")))
+        openGroup(named: workGroupName)
+        XCTAssertTrue(revealElement(entry(named: "Email")))
+    }
+
     func testDeleteSocialTwitterSoftDeleteMovesToRecycleBin() {
         unlockSuccessfully()
 

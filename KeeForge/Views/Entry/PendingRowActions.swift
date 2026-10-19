@@ -182,6 +182,7 @@ enum PendingMove: Identifiable {
     case group(UUID)
     /// The entries picked in selection mode, moved together.
     case entries(Set<UUID>)
+    case restore(DatabaseViewModel.RecycleBinItem)
 
     var id: String {
         switch self {
@@ -189,6 +190,8 @@ enum PendingMove: Identifiable {
             "entry-\(entryID.uuidString)"
         case .group(let groupID):
             "group-\(groupID.uuidString)"
+        case .restore(let item):
+            item.id
         case .entries:
             // A session has one selection, so it has one such move at a time.
             "entries"
@@ -197,6 +200,11 @@ enum PendingMove: Identifiable {
 }
 
 extension PendingMove {
+    var navigationTitle: LocalizedStringKey {
+        if case .restore = self { return "Restore to Group" }
+        return "Move to Group"
+    }
+
     /// Resolved when the picker is built rather than when the menu was tapped,
     /// so the destinations reflect the tree as it is now.
     @MainActor
@@ -208,6 +216,8 @@ extension PendingMove {
             viewModel.moveDestinationOptions(forGroupID: groupID)
         case .entries(let entryIDs):
             viewModel.moveDestinationOptions(forEntryIDs: entryIDs)
+        case .restore(let item):
+            viewModel.restoreDestinationOptions(for: item)
         }
     }
 
@@ -219,6 +229,8 @@ extension PendingMove {
                 try viewModel.moveEntry(entryID: entryID, toGroupID: destinationGroupID)
             case .group(let groupID):
                 try viewModel.moveGroup(groupID: groupID, toGroupID: destinationGroupID)
+            case .restore(let item):
+                try viewModel.restore(item, toGroupID: destinationGroupID)
             case .entries(let entryIDs):
                 try viewModel.moveEntries(entryIDs: entryIDs, toGroupID: destinationGroupID)
                 viewModel.workspace.endEntrySelection()
@@ -228,6 +240,32 @@ extension PendingMove {
             }
         } catch {
             viewModel.presentSaveError(error)
+        }
+    }
+}
+
+struct RestoreRowAction: View {
+    let item: DatabaseViewModel.RecycleBinItem
+    let viewModel: DatabaseViewModel
+    let onChooseDestination: (PendingMove) -> Void
+
+    var body: some View {
+        if viewModel.canRestore(item) {
+            Button("Restore", systemImage: "arrow.uturn.backward") {
+                if let destinationID = viewModel.originalRestoreDestination(for: item) {
+                    PendingMove.restore(item).apply(destinationGroupID: destinationID, viewModel: viewModel)
+                } else {
+                    onChooseDestination(.restore(item))
+                }
+            }
+            .accessibilityIdentifier(identifier)
+        }
+    }
+
+    private var identifier: String {
+        switch item {
+        case .entry: "entry-row.restore-context"
+        case .group: "group-row.restore-context"
         }
     }
 }

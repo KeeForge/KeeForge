@@ -13,6 +13,7 @@ struct EntryRowMoveAction: View {
     let onMove: (PendingMove) -> Void
 
     var body: some View {
+        RestoreRowAction(item: .entry(entryID), viewModel: viewModel, onChooseDestination: onMove)
         if Self.isAvailable(entryID: entryID, viewModel: viewModel) {
             Button("Move to Group") {
                 onMove(.entry(entryID))
