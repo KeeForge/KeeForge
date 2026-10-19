@@ -17,6 +17,7 @@ final class MacWebDAVSmokeUITests: MacUITestCase {
     override var databaseFixtures: [DatabaseFixture] { [] }
 
     override func configureLaunch(app: XCUIApplication) throws {
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         let payload = try makeMockWebDAVPayload()
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -46,6 +47,32 @@ final class MacWebDAVSmokeUITests: MacUITestCase {
 
         let passwordField = app.secureTextFields["unlock.password.field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 15), "⌘L did not lock the WebDAV-backed vault")
+    }
+
+    func testSyncShortcutAndStatusPopoverRemainAvailableAfterSync() {
+        unlockSuccessfully()
+        XCTAssertFalse(app.staticTexts["database.cloud-sync-status.title"].exists)
+
+        for _ in 0..<2 {
+            clickToolbarButton(identifier: "database.cloud-sync-now", overflowLabel: "Sync Now")
+            clickToolbarButton(identifier: "database.cloud-sync-status.details", overflowLabel: "Cloud Sync")
+            XCTAssertTrue(waitForSyncStatusTitle(containing: "up to date"), "Sync Now did not report the database as up to date")
+            app.buttons["database.cloud-sync-status.dismiss"].firstMatch.click()
+        }
+    }
+
+    /// Re-queries the popover's title every pass: a sync outcome rebuilds the
+    /// toolbar controls and the popover with them.
+    private func waitForSyncStatusTitle(containing expected: String, timeout: TimeInterval = 15) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let titles = app.staticTexts.matching(identifier: "database.cloud-sync-status.title").allElementsBoundByIndex
+            if titles.contains(where: { displayText(of: $0).contains(expected) }) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        } while Date() < deadline
+        return false
     }
 
     // MARK: - Payload

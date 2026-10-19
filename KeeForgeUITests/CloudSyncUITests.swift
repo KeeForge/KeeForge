@@ -109,6 +109,67 @@ final class CloudBrowserSmokeUITests: CloudSyncBaseUITests {
 final class CloudUnlockSmokeUITests: CloudSyncBaseUITests {
     override var seedsCloudDatabaseOnLaunch: Bool { true }
 
+    override func configureLaunch(app: XCUIApplication) throws {
+        try super.configureLaunch(app: app)
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    }
+
+    func testCompactSyncDetailsAndRepeatedSync() {
+        unlockSuccessfully()
+        let sync = app.buttons["database.cloud-sync-now"]
+        XCTAssertTrue(sync.waitForExistence(timeout: 10))
+
+        tapElement(app.buttons["settings.button"])
+        XCTAssertTrue(app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout))
+        openDatabaseDetailsPage(.cloudSync)
+        let policy = app.switches["database-details.sync-on-open-toggle"]
+        XCTAssertTrue(revealElement(policy, in: scrollableContainer()))
+        XCTAssertEqual(policy.value as? String, "1")
+        setSwitch(policy, isOn: false)
+        closeDatabaseDetails()
+        XCTAssertTrue(sync.exists)
+
+        currentLockButton().tap()
+        XCTAssertTrue(waitForLockedState())
+        unlockSuccessfully()
+        let details = app.buttons["database.cloud-sync-status.details"]
+        XCTAssertTrue(details.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["database.cloud-sync-status.title"].exists)
+        details.tap()
+        let title = app.staticTexts["database.cloud-sync-status.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        XCTAssertTrue(title.label.contains("Opened without checking"), title.label)
+        let skipped = XCTAttachment(screenshot: app.screenshot())
+        skipped.name = "Compact sync details after a skipped check"
+        skipped.lifetime = .keepAlways
+        add(skipped)
+        app.buttons["database.cloud-sync-status.dismiss"].tap()
+
+        for _ in 0..<2 {
+            XCTAssertTrue(sync.isEnabled)
+            sync.tap()
+            let finished = NSPredicate { _, _ in
+                sync.isEnabled && (details.value as? String)?.contains("up to date") == true
+            }
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: finished, object: nil)], timeout: 15), .completed)
+            details.tap()
+            XCTAssertTrue(title.waitForExistence(timeout: 10))
+            XCTAssertFalse(title.label.contains("Opened without checking"))
+            app.buttons["database.cloud-sync-status.dismiss"].tap()
+            XCTAssertTrue(sync.exists)
+        }
+        selectDatabaseView(.allEntries)
+        app.swipeUp()
+        XCTAssertTrue(sync.isHittable, "The sync shortcut must remain visible while browsing and scrolling")
+        let compact = XCTAttachment(screenshot: app.screenshot())
+        compact.name = "Persistent compact sync shortcut after repeated sync"
+        compact.lifetime = .keepAlways
+        add(compact)
+        searchForEntries(matching: "Twitter")
+        XCTAssertTrue(app.staticTexts["Search"].exists)
+        XCTAssertTrue(sync.isHittable)
+    }
+
     func testSeededCloudDatabaseUnlocksViaMockProvider() {
         unlockSuccessfully()
 
