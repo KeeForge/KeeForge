@@ -95,8 +95,8 @@ class KeeForgeUITestCase: XCTestCase {
         }
 
         app.launchArguments += ["-ui-testing"]
-        // A database opens on All Entries; the helpers here browse from the
-        // group list, so tests start there unless a class clears this.
+        // A database opens on the view picked last; the helpers here browse
+        // from the group list, so tests start there unless a class clears this.
         app.launchEnvironment[Self.uiTestViewModeEnv] = "groups"
         let payloadData = try JSONSerialization.data(withJSONObject: payloads, options: [])
         app.launchEnvironment[Self.uiTestDatabasesJSONEnv] = String(decoding: payloadData, as: UTF8.self)

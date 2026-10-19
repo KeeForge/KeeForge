@@ -2387,38 +2387,54 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.verificationCodeEntries.map(\.title), ["Code"])
     }
 
-    func testDatabaseOpensOnAllEntriesAndLockingReturnsThere() async throws {
+    func testLockAndReopenKeepTheViewPickedLast() async throws {
+        let key = DatabaseWorkspaceState.viewModeKey
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(saved, forKey: key) }
+        UserDefaults.standard.removeObject(forKey: key)
+
         let vm = try makeViewModel()
         XCTAssertEqual(vm.workspace.viewMode, .allEntries)
 
         await vm.unlock(password: fixturePassword)
         vm.workspace.viewMode = .verificationCodes
-
         vm.lock()
 
-        XCTAssertEqual(vm.workspace.viewMode, .allEntries, "The next unlock starts on All Entries, not on the view last picked")
+        XCTAssertEqual(vm.workspace.viewMode, .verificationCodes, "Locking returned to All Entries")
+        XCTAssertEqual(try makeViewModel().workspace.viewMode, .verificationCodes, "A relaunch returned to All Entries")
     }
 
-    func testInitialViewModeHonorsTheOverrideOnlyUnderUITesting() {
-        XCTAssertEqual(DatabaseWorkspaceState.initialViewMode(arguments: [], environment: [:]), .allEntries)
+    func testInitialViewModeHonorsTheOverrideOnlyUnderUITesting() throws {
+        let suiteName = "DatabaseViewModelTests.viewMode.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set("tags", forKey: DatabaseWorkspaceState.viewModeKey)
+
+        XCTAssertEqual(DatabaseWorkspaceState.initialViewMode(defaults: defaults, arguments: [], environment: [:]), .tags)
         XCTAssertEqual(
             DatabaseWorkspaceState.initialViewMode(
+                defaults: defaults,
                 arguments: ["-ui-testing"],
                 environment: ["UI_TEST_VIEW_MODE": "groups"]
             ),
             .groups
         )
         XCTAssertEqual(
-            DatabaseWorkspaceState.initialViewMode(arguments: [], environment: ["UI_TEST_VIEW_MODE": "groups"]),
-            .allEntries,
+            DatabaseWorkspaceState.initialViewMode(
+                defaults: defaults,
+                arguments: [],
+                environment: ["UI_TEST_VIEW_MODE": "groups"]
+            ),
+            .tags,
             "Outside UI testing the environment cannot change where a database opens"
         )
         XCTAssertEqual(
             DatabaseWorkspaceState.initialViewMode(
+                defaults: defaults,
                 arguments: ["-ui-testing"],
                 environment: ["UI_TEST_VIEW_MODE": "no-such-view"]
             ),
-            .allEntries
+            .tags
         )
     }
 

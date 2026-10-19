@@ -125,6 +125,8 @@ struct RegularDatabaseWorkspaceView: View {
                         PendingUploadConflictBanner(viewModel: viewModel)
                     }
                 }
+                // The lists scroll under this inset, and the banners are only tinted.
+                .background(Color(.systemBackground), ignoresSafeAreaEdges: [])
             }
             .disabled(viewModel.isSaving)
             .overlay {
