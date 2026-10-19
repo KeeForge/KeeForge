@@ -13,6 +13,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 ## What the suite covers
 
 - **Parser, writer, crypto:** `KDBXParserTests` (decrypt, integrity rejection, foreign-authored cipher fixtures, Argon2 and Salsa20 known answers), `KDBXWriterTests` (container, header, HMAC, cipher, KDF), `KDBXRoundTripTests` (XML serializer and opaque-XML preservation), `KDFExecutionPolicyTests` (app versus AutoFill resource budgets), `ChaCha20Tests`, `TwofishTests`, `ChallengeResponseKeyTests`, `EncryptedValueTests`.
+- Recycle Bin recovery: `DatabaseDraftTests` covers format references and boundary refusals; `DatabaseViewModelTests` covers save/reopen, destination visibility, nested recovery, read-only/stale requests, cancellation, and failed-write retry. Restore artifacts are in `KDBXCompatibilityTests`.
 - **Edits and compatibility:** `DatabaseDraftTests` (in-memory edit semantics), `KDBXCompatibilityTests` (every supported edit written, reparsed, and handed to KeePassXC by the external gate).
 - **Merge:** `KDBXMergerTests` (synthetic scenarios pinning the specified behavior), `KDBXMergerOracleTests` (the same engine compared with `keepassxc-cli merge` output under `../TestFixtures/Merge/`).
 - **Persistence and save paths:** `LocalDatabaseSaverTests`, `CloudDatabaseSaverTests`, `DatabaseListStoreTests`, `SharedVaultStoreTests`, `PendingUploadQueueTests`, `PendingUploadDrainerTests`, `PendingUploadRecoveryTests`, `KeychainServiceTests`, `AppGroupGuardrailTests`.

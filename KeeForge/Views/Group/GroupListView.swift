@@ -294,7 +294,8 @@ struct GroupListView: View {
         // picker reflects the tree as it is now.
         .sheet(item: $pendingMove) { pending in
             MoveToGroupPickerView(
-                options: pending.destinationOptions(viewModel: viewModel)
+                options: pending.destinationOptions(viewModel: viewModel),
+                navigationTitle: pending.navigationTitle
             ) { destinationGroupID in
                 pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
             }
@@ -640,6 +641,8 @@ struct GroupListView: View {
                 }
                 .accessibilityIdentifier("group-row.edit-context")
             }
+
+            RestoreRowAction(item: .group(groupID), viewModel: viewModel) { pendingMove = $0 }
 
             if canMoveGroup(groupID) {
                 Button("Move to Group") {

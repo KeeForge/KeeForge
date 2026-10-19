@@ -52,6 +52,7 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 
 ### Draft edits
 
+- Recycling stores the standard optional `<PreviousParentGroup>` reference in opaque XML; like KeePass it does not force a 4.1 header. Recovery reparents only from the recycle subtree to a destination outside it, preserving fields, subtree contents, and modification times. Recovery permits duplicate sibling names to avoid renaming restored data.
 - Only a reparent writes `LocationChanged`: move, and recycle (which is a move). New objects get `locationChanged == creationTime`. `LastModificationTime` does not change on a move.
 - `<EnableSearching>` gates both `KPGroup.autoFillEntries` and the search corpus in `DatabaseViewModel`, resolved in the same inheritance order. Change both together. Browsing and the tag browser use `allEntries`.
 - Choosing a standard icon removes the `<CustomIconUUID>` element as well as the display copy: a custom icon outranks `<IconID>` in KeePass and would hide the choice.

@@ -2,6 +2,8 @@
 
 **Scope:** XCUITest suites for iPhone and iPad. The Mac suite is in `../KeeForgeMacUITests/AGENTS.md`; both use the same accessibility identifiers and fixture-injection environment, so a change to either affects both.
 
+- Restore entry/group context actions and the returned contents: the restore cases in `EntryDeleteSmokeUITests`, on iPhone and iPad.
+
 ## Running
 
 Base commands and repo-wide policy (`-only-testing:` always, no full UI suite unless asked, RC failures on the iOS 18 iPhone SE simulator) are in `../AGENTS.md`. Specific to this target:

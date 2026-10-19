@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New Features
+
+- Restore entries and groups from the Recycle Bin on iPhone, iPad, and Mac, returning them to their original group when known or choosing another destination (#223).
+
 ### Changes
 
 - Cloud databases keep a compact Sync Now shortcut on iPhone, iPad, and Mac. Tap its status icon to see why a cloud check was skipped, the last sync time, or the latest result (#232).
