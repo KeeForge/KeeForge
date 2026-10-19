@@ -1636,7 +1636,7 @@ enum KDBXCompatibilitySupport {
             title: "Merge a divergent remote: conflict, graft, and move in one write",
             artifactFileName: "synthetic-rich-merge-remote-divergence.kdbx",
             expectedSearchTerms: [mergeAddedEntryTitle, "Compat Update Target"],
-            expectedGroupPaths: [mergeRemoteGroupName, "Compat Group Delete Target"],
+            expectedGroupPaths: [mergeRemoteGroupName, "Compat Group Delete Target", "Recycle Bin/Compat Nested Child Group"],
             makeMergedTree: { loaded in
                 let local = KDBXMerger.Side(
                     rootGroup: loaded.rootGroup,
@@ -1659,9 +1659,11 @@ enum KDBXCompatibilitySupport {
                 let deleteTargetID = try XCTUnwrap(before.groupID(named: "Compat Group Delete Target"))
                 let conflictID = try XCTUnwrap(before.entryID(titled: "Compat Update Target"))
                 let movedID = try XCTUnwrap(before.entryID(titled: "Compat Empty Tags"))
+                let recycledEntryID = try XCTUnwrap(before.entryID(titled: "Compat Soft Delete Target"))
+                let recycledGroupID = try XCTUnwrap(before.groupID(named: "Compat Nested Child Group"))
 
-                try assertUnchangedEntries(before: before, after: after, excluding: [conflictID, movedID])
-                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+                try assertUnchangedEntries(before: before, after: after, excluding: [conflictID, movedID, recycledEntryID])
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after, excluding: [recycledGroupID])
                 assertMetaUnchanged(before: before, after: after)
 
                 // The newer remote version wins the entry outright and the
@@ -1687,6 +1689,20 @@ enum KDBXCompatibilitySupport {
                 assertOnlyLocationChangedDiffers(
                     before: try XCTUnwrap(before.entries[movedID]),
                     after: try XCTUnwrap(after.entries[movedID])
+                )
+
+                let bin = try XCTUnwrap(after.groups[try XCTUnwrap(after.meta.recycleBinUUID)])
+                XCTAssertTrue(bin.entryIDs.contains(recycledEntryID))
+                XCTAssertTrue(bin.groupIDs.contains(recycledGroupID))
+                assertOnlyLocationChangedDiffers(
+                    before: try XCTUnwrap(before.entries[recycledEntryID]),
+                    after: try XCTUnwrap(after.entries[recycledEntryID]),
+                    previousParentID: visibleRootID
+                )
+                assertOnlyLocationChangedDiffers(
+                    before: try XCTUnwrap(before.groups[recycledGroupID]),
+                    after: try XCTUnwrap(after.groups[recycledGroupID]),
+                    previousParentID: deleteTargetID
                 )
             }
         )
@@ -1745,9 +1761,14 @@ enum KDBXCompatibilitySupport {
             )
         )
 
+        let recycledEntry = try XCTUnwrap(findEntry(titled: "Compat Soft Delete Target", in: remoteRoot))
+        let recycledGroup = try XCTUnwrap(findGroup(named: "Compat Nested Child Group", in: remoteRoot))
+        let remoteDraft = try DatabaseDraft(rootGroup: remoteRoot, meta: loaded.meta, sessionKey: loaded.sessionKey)
+            .apply(.deleteEntry(entryID: recycledEntry.id, sendToRecycleBin: true))
+            .apply(.deleteGroup(groupID: recycledGroup.id, sendToRecycleBin: true))
         let remoteData = try KDBXWriter.write(
-            rootGroup: remoteRoot,
-            meta: loaded.meta,
+            rootGroup: remoteDraft.rootGroup,
+            meta: remoteDraft.meta,
             compositeKey: loaded.compositeKey,
             header: loaded.header,
             sessionKey: loaded.sessionKey

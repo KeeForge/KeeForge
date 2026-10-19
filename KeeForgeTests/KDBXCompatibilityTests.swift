@@ -721,6 +721,7 @@ final class KDBXCompatibilityTests: XCTestCase {
     /// survive the same round trip: a merged tree reaches `KDBXWriter` through
     /// a pristine draft rather than as an `EntryEdit`, and the artifact this
     /// emits is opened by real KeePassXC in the external gate.
+    /// Remote recycling must retain its original-parent references after reopening.
     func test_mergeScenario_writesAMergedTreeThatReparsesAndOpensExternally() throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
         let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle)

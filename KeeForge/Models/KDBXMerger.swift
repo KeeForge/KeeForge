@@ -288,12 +288,19 @@ extension KDBXMerger {
                 return
             }
 
-            if KDBXMerger.isNewer(remoteGroup.lastModificationTime, than: existing.lastModificationTime) {
+            let adoptsRemoteLocation = KDBXMerger.isNewer(remoteGroup.locationChanged, than: existing.locationChanged)
+            let locationXML = adoptsRemoteLocation ? remoteGroup.unknownXML : existing.unknownXML
+            let referenceChanged = PreviousParentGroupXML.copying(from: locationXML, into: existing.unknownXML) != existing.unknownXML
+            let adoptsRemoteScalars = KDBXMerger.isNewer(remoteGroup.lastModificationTime, than: existing.lastModificationTime)
+            if adoptsRemoteScalars {
                 adoptScalars(from: remoteGroup, into: existing)
                 summary.groupsUpdated += 1
+            } else if referenceChanged, parentByGroupID[existing.id] === targetParent {
+                summary.groupsUpdated += 1
             }
+            existing.unknownXML = PreviousParentGroupXML.copying(from: locationXML, into: existing.unknownXML)
 
-            guard KDBXMerger.isNewer(remoteGroup.locationChanged, than: existing.locationChanged) else { return }
+            guard adoptsRemoteLocation else { return }
             existing.locationChanged = remoteGroup.locationChanged
 
             guard let currentParent = parentByGroupID[existing.id],
@@ -310,7 +317,7 @@ extension KDBXMerger {
         /// The newer side wins the whole group: name, notes, icon, times, and
         /// its preserved XML, which is where `<CustomIconUUID>` and every other
         /// unmodelled group scalar lives. Children and `locationChanged` are
-        /// not scalars — they are decided by the walk and the move rule.
+        /// not scalars — they and `<PreviousParentGroup>` follow the move rule.
         private func adoptScalars(from source: KPGroup, into target: KPGroup) {
             target.name = source.name
             target.notes = source.notes
@@ -382,6 +389,12 @@ extension KDBXMerger {
 
             let adoptsRemoteLocation = KDBXMerger.isNewer(remoteEntry.locationChanged, than: localEntry.locationChanged)
             merged.locationChanged = adoptsRemoteLocation ? remoteEntry.locationChanged : localEntry.locationChanged
+            let locationXML = adoptsRemoteLocation ? remoteEntry.unknownXML : localEntry.unknownXML
+            let referenceChanged = PreviousParentGroupXML.copying(from: locationXML, into: localEntry.unknownXML) != localEntry.unknownXML
+            merged.unknownXML = PreviousParentGroupXML.copying(from: locationXML, into: merged.unknownXML)
+            if referenceChanged, targetParent === owner, !(remoteWins && !sameContent) {
+                summary.entriesUpdated += 1
+            }
 
             if adoptsRemoteLocation, targetParent !== owner {
                 owner.entries.remove(at: index)
@@ -619,7 +632,7 @@ extension KDBXMerger {
                   sameInstant(lhs.expiryTime, rhs.expiryTime),
                   lhs.protectedStringKeys == rhs.protectedStringKeys,
                   lhs.attachments == rhs.attachments,
-                  lhs.unknownXML == rhs.unknownXML
+                  PreviousParentGroupXML.removing(from: lhs.unknownXML) == PreviousParentGroupXML.removing(from: rhs.unknownXML)
             else { return false }
 
             guard try plaintext(lhs.password) == plaintext(rhs.password),

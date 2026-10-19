@@ -26,6 +26,22 @@ enum PreviousParentGroupXML {
         return updated
     }
 
+    static func removing(from nodes: OpaqueXMLNodes) -> OpaqueXMLNodes {
+        var updated = nodes
+        updated.removeDirectChildren(named: "PreviousParentGroup")
+        return updated
+    }
+
+    static func copying(from source: OpaqueXMLNodes, into target: OpaqueXMLNodes) -> OpaqueXMLNodes {
+        let references = source.nodes.filter { $0.path.isEmpty && $0.elementName == "PreviousParentGroup" }
+        guard references != target.nodes.filter({ $0.path.isEmpty && $0.elementName == "PreviousParentGroup" }) else {
+            return target
+        }
+        var updated = removing(from: target)
+        updated.nodes.append(contentsOf: references)
+        return updated
+    }
+
     private final class Reader: NSObject, XMLParserDelegate {
         var text = ""
         var isValid = true
