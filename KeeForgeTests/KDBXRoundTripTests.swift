@@ -6,6 +6,24 @@ final class KDBXRoundTripTests: XCTestCase {
     private let roundTripSessionKey = SymmetricKey(size: .bits256)
     private let roundTripInnerStreamKey = Data("KeeForge Slice01 Inner Stream Key".utf8)
 
+    func test_customFieldOrderPreservesXMLSequenceAndProtectedStreamIncludingHistory() throws {
+        let fields = ["Zulu": "secret", "Alpha": "plain", "Middle": "another secret"]
+        let historical = KPEntry(customFields: fields, customFieldOrder: ["Middle", "Zulu", "Alpha"],
+                                 protectedStringKeys: ["Zulu", "Middle"])
+        let entry = KPEntry(customFields: fields, customFieldOrder: ["Zulu", "Zulu", "missing", "Alpha"],
+                            history: [historical], protectedStringKeys: ["Zulu", "Middle"])
+        let source = (KPGroup(name: "Root", entries: [entry]), KPMeta())
+        let reloaded = try serializeAndParse(source)
+        let current = try XCTUnwrap(reloaded.rootGroup.allEntries.first)
+        XCTAssertEqual(current.customFieldOrder, ["Zulu", "Alpha", "Middle"])
+        XCTAssertEqual(current.customFields, fields)
+        XCTAssertEqual(current.protectedStringKeys.intersection(fields.keys), ["Zulu", "Middle"])
+        XCTAssertEqual(current.history.first?.customFieldOrder, ["Middle", "Zulu", "Alpha"])
+        XCTAssertEqual(current.history.first?.customFields, fields)
+        XCTAssertEqual(try serializedXML(of: source),
+                       try serializedXML(of: (reloaded.rootGroup, reloaded.meta)))
+    }
+
     func test_serializerRejectsEveryXMLInvalidUnicodeScalar() throws {
         let invalid: [UInt32] = Array(0...8) + [11, 12] + Array(14...31) + [0xFFFE, 0xFFFF]
         for codepoint in invalid {

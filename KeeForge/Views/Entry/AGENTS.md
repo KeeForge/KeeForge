@@ -44,6 +44,8 @@
 
 ### Editor
 
+- Custom field reordering uses a native List sheet containing field names only, plus named move controls in the form. Field values never appear in reorder rows. The view model owns order, including dirty tracking and save payloads.
+
 - `EntryEditView` draws additional URL rows in Basics using `EntryEditViewModel.additionalURLs`, with a named remove action for VoiceOver. Field names are stored as `KP2A_URL_<n>` but are not shown to the user; `EntryDetailView` displays those URLs once, outside Custom Fields.
 - `EntryEditView.body` is at the limit of what the CI Xcode type-checks. Put a new presentation in a `ViewModifier` (as `EntryAttachmentImporter` does), not inline, or the build fails only on CI.
 - Every site that builds an `EntryEditViewModel` passes `knownTags` and the location's inherited tags. Both default to empty, so a missed site compiles and silently loses tag suggestions.
@@ -53,7 +55,7 @@
 ## Tests
 
 - Search-results delete and move: `SearchResultsDeleteUITests` and `SearchResultsMoveUITests`, both in `KeeForgeUITests/EntryEditUITests.swift`. The move gate itself: `testEntryRowMove...` in `DatabaseViewModelTests`.
-- Row menu: `EntryRowCopyUITests`, `EntryDuplicateUITests`. Editor: `EntryEditSmokeUITests`. Tags shown on detail: `InheritedTagsUITests`.
+- Row menu: `EntryRowCopyUITests`, `EntryDuplicateUITests`. Editor: `EntryEditSmokeUITests`; its custom-field case covers moving and reopening, with the Mac counterpart in `MacSmokeUITests.testCustomFieldMoveControlsPersistOrder`. Tags shown on detail: `InheritedTagsUITests`.
 - Attachments: `EntryAttachmentsSmokeUITests` and `EntryAttachmentFileLoaderTests` (size budget). The system file picker is exercised by hand.
 - History: `EntryHistoryUITests` on iOS. The Mac shell is only captured, as `08b-entry-history` in `MacScreenshotAuditUITests`.
 - Held completion behind a save conflict: `SaveConflictMergeUITests`.

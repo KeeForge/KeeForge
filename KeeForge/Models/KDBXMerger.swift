@@ -627,6 +627,8 @@ extension KDBXMerger {
                   lhs.tags == rhs.tags,
                   lhs.hasTagsElement == rhs.hasTagsElement,
                   lhs.customFields == rhs.customFields,
+                  lhs.orderedCustomFieldKeys(in: Set(lhs.customFields.keys))
+                    == rhs.orderedCustomFieldKeys(in: Set(rhs.customFields.keys)),
                   lhs.otpURL == rhs.otpURL,
                   lhs.expires == rhs.expires,
                   sameInstant(lhs.expiryTime, rhs.expiryTime),

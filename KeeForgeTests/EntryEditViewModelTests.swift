@@ -6,6 +6,56 @@ import XCTest
 final class EntryEditViewModelTests: XCTestCase {
     private let sessionKey = SymmetricKey(size: .bits256)
 
+    func testNativeListMoveOffsetsPreserveRelativeOrderAndRejectStaleIndices() {
+        let form = EntryEditViewModel(createIn: UUID())
+        form.customFields = ["A", "B", "C", "D"].map { .init(key: $0) }
+        form.moveCustomFields(from: IndexSet([0, 2]), to: 4)
+        XCTAssertEqual(form.customFields.map(\.key), ["B", "D", "A", "C"])
+        form.moveCustomFields(from: IndexSet(integer: 8), to: 0)
+        form.moveCustomFields(from: IndexSet(integer: 0), to: -1)
+        XCTAssertEqual(form.customFields.map(\.key), ["B", "D", "A", "C"])
+    }
+
+    func testReorderTracksDirtyStateAndKeepsFieldIdentityProtectionAndRenames() throws {
+        let entry = KPEntry(
+            title: "Fields", customFields: ["Zeta": "secret", "Alpha": "plain"],
+            customFieldOrder: ["Zeta", "Alpha"], protectedStringKeys: ["Zeta"]
+        )
+        let form = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        XCTAssertEqual(form.customFields.map(\.key), ["Zeta", "Alpha"])
+        XCTAssertFalse(form.isDirty)
+        let secret = try XCTUnwrap(form.customFields.first)
+        form.moveCustomField(id: secret.id, offset: 1)
+        XCTAssertTrue(form.isDirty)
+        XCTAssertEqual(form.customFields.map(\.key), ["Alpha", "Zeta"])
+        XCTAssertEqual(form.customFields.last, secret)
+        form.moveCustomField(id: secret.id, offset: -1)
+        XCTAssertFalse(form.isDirty)
+        form.moveCustomField(id: secret.id, offset: -1)
+        form.moveCustomField(id: UUID(), to: secret.id)
+        XCTAssertFalse(form.isDirty)
+        form.moveCustomField(id: secret.id, offset: 1)
+        form.customFields[1].key = " Renamed "
+        XCTAssertEqual(form.entryDraftPayload.customFieldOrder, ["Alpha", "Renamed"])
+        XCTAssertEqual(form.entryDraftPayload.protectedCustomFieldKeys, ["Renamed"])
+        XCTAssertEqual(entry.customFieldOrder, ["Zeta", "Alpha"], "Cancelling must leave the source untouched")
+    }
+
+    func testReorderKeepsHiddenFieldsAndURLsOutOfTheEditableSequence() {
+        let entry = KPEntry(
+            customFields: ["Zeta": "z", "Alpha": "a", "KP2A_URL_1": "https://example.com",
+                           PasskeyCredential.credentialIDKey: "id"],
+            customFieldOrder: ["Zeta", PasskeyCredential.credentialIDKey, "KP2A_URL_1", "Alpha"]
+        )
+        let form = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        XCTAssertEqual(form.customFields.map(\.key), ["Zeta", "Alpha"])
+        XCTAssertEqual(form.entryDraftPayload.customFieldOrder, entry.customFieldOrder)
+        form.moveCustomField(id: form.customFields[0].id, to: form.customFields[1].id)
+        XCTAssertEqual(form.entryDraftPayload.customFieldOrder,
+                       ["Alpha", PasskeyCredential.credentialIDKey, "KP2A_URL_1", "Zeta"])
+        XCTAssertEqual(EntryEditViewModel.orderedCustomFieldsOutsideURLRows(of: entry).map(\.key), ["Zeta", "Alpha"])
+    }
+
     func testEditingEntryPayloadPreservesReadOnlyPasskeyFields() throws {
         let entry = KPEntry(
             title: "Original",

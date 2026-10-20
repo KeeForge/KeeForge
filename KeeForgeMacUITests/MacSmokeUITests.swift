@@ -257,6 +257,43 @@ final class MacSmokeUITests: MacUITestCase {
 
     // MARK: - Edit + save
 
+    func testCustomFieldMoveControlsPersistOrder() {
+        unlockSuccessfully()
+        openGroup(named: "Social")
+        openEntry(named: "Discord")
+        clickToolbarButton(identifier: "entry-detail.edit", overflowLabel: "Edit")
+
+        func reach(_ element: XCUIElement) {
+            for _ in 0..<18 {
+                if element.exists && element.isHittable { return }
+                app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -250)
+            }
+            XCTAssertTrue(element.isHittable)
+        }
+        let addField = app.buttons["entry-edit.custom-field.add"].firstMatch
+        for (index, name) in ["Alpha", "Zulu"].enumerated() {
+            reach(addField)
+            addField.click()
+            let nameField = app.textFields["entry-edit.custom-field.name-field.\(index)"].firstMatch
+            reach(nameField)
+            nameField.click()
+            app.typeText(name)
+        }
+        let moveUp = app.buttons["entry-edit.custom-field.move-up.1"].firstMatch
+        reach(moveUp)
+        moveUp.click()
+        XCTAssertEqual(app.textFields["entry-edit.custom-field.name-field.0"].firstMatch.value as? String, "Zulu")
+        let save = app.buttons["entry-edit.save"].firstMatch
+        save.click()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 15))
+        clickToolbarButton(identifier: "entry-detail.edit", overflowLabel: "Edit")
+        let first = app.textFields["entry-edit.custom-field.name-field.0"].firstMatch
+        reach(first)
+        XCTAssertEqual(first.value as? String, "Zulu")
+        reach(app.textFields["entry-edit.custom-field.name-field.1"].firstMatch)
+        XCTAssertEqual(app.textFields["entry-edit.custom-field.name-field.1"].firstMatch.value as? String, "Alpha")
+    }
+
     func testEditEntryTitleAndSavePersists() {
         unlockSuccessfully()
         openGroup(named: "Social")

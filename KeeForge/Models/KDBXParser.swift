@@ -1384,6 +1384,9 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 case "otp": entry.otpURL = currentValue
                 default:
                     if !currentKey.isEmpty {
+                        if entry.customFields[currentKey] == nil {
+                            entry.customFieldOrder.append(currentKey)
+                        }
                         entry.customFields[currentKey] = currentValue
                     }
                 }
@@ -1727,6 +1730,7 @@ private class EntryBuilder {
     var tags: [String] = []
     var hasTagsElement = false
     var customFields: [String: String] = [:]
+    var customFieldOrder: [String] = []
     var protectedStringKeys: Set<String> = []
     var otpURL: String?
     var creationTime: Date?
@@ -1778,6 +1782,7 @@ private class EntryBuilder {
                     && $0.key != keeOTPFieldName
                     && $0.key != PasskeyCredential.privateKeyPEMKey
             },
+            customFieldOrder: customFieldOrder,
             passkeyPrivateKey: passkeyPrivateKey,
             totpConfig: totpConfig,
             otpURL: otpURL,

@@ -281,6 +281,10 @@ enum KDBXTreeAssertions {
         XCTAssertEqual(lhs.tags, rhs.tags, file: file, line: line)
         XCTAssertEqual(lhs.hasTagsElement, rhs.hasTagsElement, file: file, line: line)
         XCTAssertEqual(lhs.customFields, rhs.customFields, file: file, line: line)
+        XCTAssertEqual(
+            lhs.orderedCustomFieldKeys(in: Set(lhs.customFields.keys)),
+            rhs.orderedCustomFieldKeys(in: Set(rhs.customFields.keys)), file: file, line: line
+        )
         XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
         XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
         XCTAssertEqual(lhs.expires, rhs.expires, file: file, line: line)

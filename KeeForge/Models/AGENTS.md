@@ -43,7 +43,7 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 - Native KeePass TOTP uses `TimeOtp-Secret`, `-Hex`, `-Base32`, or `-Base64` in that precedence order. `TOTPConfig.keePassSecretField` keeps the active field and `decodedSecret` keeps the effective bytes for non-Base32 secrets. An unchanged draft preserves that field; a new secret is written as Base32.
 - `TimeOtp-Algorithm` uses KeePass's `HMAC-SHA-*` names. `TOTPAlgorithm.rawValue` remains the short `otpauth` and KeeOTP token. The serializer writes `keePassName`; the parser also accepts the short names that earlier KeeForge versions wrote.
 - Secrets stay sealed as `EncryptedValue` under the session key until the point of use. `EncryptedValue` re-seals with a fresh nonce, so equal secrets never have equal ciphertext: compare plaintext.
-- The passkey private key PEM is diverted out of `customFields` into `KPEntry.passkeyPrivateKey` at parse time and re-emitted by the serializer at its original sorted custom-field position. It is decrypted only at signing time.
+- The passkey private key PEM is diverted out of `customFields` into `KPEntry.passkeyPrivateKey` at parse time and re-emitted by the serializer at its stored custom-field position. It is decrypted only at signing time.
 - `EntryDraftPayload.protectedCustomFieldKeys` decides which created custom fields serialize `Protected=True`. AutoFill passkey registration relies on it for the `KPEX_PASSKEY_*` fields.
 - The composite key travels as a `SymmetricKey`. Transient key material in `Data` or arrays is wiped with `SecureWipe`, and only buffers this code created and uniquely owns (a shared buffer copies on mutation, so the wipe misses the original).
 - Pre-size multi-append key buffers with `Data(capacity:)`, or a reallocation leaves the earlier bytes unwiped.
@@ -51,6 +51,8 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 - A password import preview holds plaintext; keep it only while the import screen is open. Files over `PasswordImport.maximumFileSize` (16 MiB) are refused before parsing.
 
 ### Draft edits
+
+- Custom fields retain their KDBX String-element order through parse, edits, history, merge, and write. Payloads without an order preserve the existing sequence; missing keys are ignored and new unlisted keys append alphabetically. Other clients may choose their own display order.
 
 - Recycling stores the standard optional `<PreviousParentGroup>` reference in opaque XML; like KeePass it does not force a 4.1 header. Recovery reparents only from the recycle subtree to a destination outside it, preserving fields, subtree contents, and modification times. Recovery permits duplicate sibling names to avoid renaming restored data.
 - Only a reparent writes `LocationChanged`: move, and recycle (which is a move). New objects get `locationChanged == creationTime`. `LastModificationTime` does not change on a move.

@@ -2309,6 +2309,7 @@ struct CompatibilitySnapshot {
         let tags: [String]
         let hasTagsElement: Bool
         let customFields: [String: String]
+        let customFieldOrder: [String]
         /// Decrypted passkey private key PEM diverted out of customFields
         /// (`KPEntry.passkeyPrivateKey`), so drops or corruption of the
         /// sealed key are caught by snapshot equality.
@@ -2542,6 +2543,7 @@ struct CompatibilitySnapshot {
             tags: entry.tags,
             hasTagsElement: entry.hasTagsElement,
             customFields: entry.customFields,
+            customFieldOrder: entry.orderedCustomFieldKeys(in: Set(entry.customFields.keys)),
             passkeyPrivateKeyPEM: try entry.passkeyPrivateKey.map { try $0.decrypt(using: sessionKey) },
             totp: capturedTOTP,
             otpURL: entry.otpURL,
@@ -2755,6 +2757,7 @@ private extension KDBXCompatibilitySupport {
                         url: entry.url,
                         notes: entry.notes,
                         customFields: fields,
+                        customFieldOrder: current.fields.map(\.name),
                         protectedCustomFieldKeys: ["Renamed Secret"],
                         tags: entry.tags,
                         totpConfig: .init(secret: "JBSWY3DPEHPK3PXP"),
@@ -2770,6 +2773,8 @@ private extension KDBXCompatibilitySupport {
                 assertMetaUnchanged(before: before, after: after)
                 let original = try XCTUnwrap(before.entries[entryID])
                 let updated = try XCTUnwrap(after.entries[entryID])
+                XCTAssertEqual(updated.customFieldOrder.filter { current.fields.map(\.name).contains($0) },
+                               current.fields.map(\.name))
                 for field in current.fields {
                     XCTAssertEqual(updated.customFields[field.name], field.value)
                     XCTAssertEqual(updated.protectedStringKeys.contains(field.name), field.isProtected)

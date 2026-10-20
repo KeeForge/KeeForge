@@ -22,6 +22,7 @@ struct EntryEditView: View {
     @State private var showGroupPicker = false
     @State private var showRemoveTOTPConfirmation = false
     @State private var showAttachmentImporter = false
+    @State private var showCustomFieldOrder = false
     @State private var attachmentLoadCoordinator = AttachmentLoadCoordinator()
     @State private var attachmentErrorMessage: String?
     /// String mirror for the numeric period field; committed to the view
@@ -156,6 +157,10 @@ struct EntryEditView: View {
                     Label("Add Field", systemImage: "plus")
                 }
                 .accessibilityIdentifier("entry-edit.custom-field.add")
+
+                Button("Reorder Fields") { showCustomFieldOrder = true }
+                    .disabled(formViewModel.customFields.count < 2)
+                    .accessibilityIdentifier("entry-edit.custom-field.reorder")
             }
 
             EntryEditAttachmentsSection(
@@ -282,6 +287,10 @@ struct EntryEditView: View {
             }
         }
         #endif
+        .modifier(EntryCustomFieldOrderSheet(
+            isPresented: $showCustomFieldOrder,
+            form: formViewModel
+        ))
         .modifier(EntryAttachmentImporter(
             isPresented: $showAttachmentImporter,
             databaseViewModel: databaseViewModel,
@@ -350,6 +359,7 @@ struct EntryEditView: View {
             showRemoveTOTPConfirmation = false
             showDiscardConfirmation = false
             showAttachmentImporter = false
+            showCustomFieldOrder = false
             attachmentErrorMessage = nil
         }
         .onDisappear {
@@ -520,6 +530,7 @@ struct EntryEditView: View {
         let valueLabel = name.isEmpty ? String(localized: "Field Value") : name
 
         return VStack(alignment: .leading, spacing: 10) {
+            customFieldReorderControls(id: id, index: index)
             basicFieldRow(String(localized: "Field Name")) {
                 TextField(String(localized: "Field Name"), text: field.key)
                     .textInputAutocapitalization(.never)
@@ -565,9 +576,36 @@ struct EntryEditView: View {
             .accessibilityIdentifier("entry-edit.custom-field.remove.\(index)")
         }
         .accessibilityElement(children: .contain)
+        .accessibilityLabel(valueLabel)
         .accessibilityIdentifier(
             formViewModel.customFieldAccessibilityIdentifier(for: field.wrappedValue, fallbackIndex: index)
         )
+    }
+
+    private func customFieldReorderControls(id: UUID, index: Int) -> some View {
+        HStack {
+            Spacer()
+            Button {
+                formViewModel.moveCustomField(id: id, offset: -1)
+            } label: {
+                Label("Move Up", systemImage: "arrow.up")
+            }
+            .disabled(index == 0)
+            .accessibilityLabel(Text("Move Up"))
+            .macHelp(String(localized: "Move Up"))
+            .accessibilityIdentifier("entry-edit.custom-field.move-up.\(index)")
+            Button {
+                formViewModel.moveCustomField(id: id, offset: 1)
+            } label: {
+                Label("Move Down", systemImage: "arrow.down")
+            }
+            .disabled(index + 1 >= formViewModel.customFields.count)
+            .accessibilityLabel(Text("Move Down"))
+            .macHelp(String(localized: "Move Down"))
+            .accessibilityIdentifier("entry-edit.custom-field.move-down.\(index)")
+        }
+        .labelStyle(.iconOnly)
+        .buttonStyle(.borderless)
     }
 
     private func customFieldVisibility(_ id: UUID) -> Binding<Bool> {
