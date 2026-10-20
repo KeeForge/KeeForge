@@ -5,6 +5,7 @@
 ### New Features
 
 - Keep a newly saved entry open on iPhone, iPad, and Mac so it is immediately available without finding it again in the list (#119).
+- Rename and delete custom icons stored in a database on iPhone, iPad, and Mac, from Database Details or the entry icon picker. Entries, groups, and history versions that used a deleted icon return to their default icon. Naming an icon upgrades a KDBX 4.0 database to KDBX 4.1 (#202).
 - Protect or unprotect custom fields in the entry editor on iPhone, iPad, and Mac. Protected values stay hidden until revealed and use standard KeePass protection when saved (#217).
 - Reorder custom fields in the entry editor on iPhone, iPad, and Mac, with the chosen order retained when saving and reopening entries (#216).
 - Restore entries and groups from the Recycle Bin on iPhone, iPad, and Mac, returning them to their original group when known or choosing another destination (#223).

@@ -525,6 +525,8 @@ enum KDBXCompatibilitySupport {
         "hide-group-from-autofill",
         "change-group-icon",
         "add-entry-custom-icon",
+        "rename-custom-icon",
+        "delete-custom-icon",
         "update-group",
         "restore-entry-version",
         "soft-delete-entry",
@@ -668,6 +670,8 @@ enum KDBXCompatibilitySupport {
         "hide-group-from-autofill",
         "change-group-icon",
         "add-entry-custom-icon",
+        "rename-custom-icon",
+        "delete-custom-icon",
         "restore-entry-version",
         "soft-delete-entry",
         "soft-delete-group",
@@ -752,6 +756,8 @@ enum KDBXCompatibilitySupport {
             "hide-group-from-autofill",
             "change-group-icon",
             "add-entry-custom-icon",
+            "rename-custom-icon",
+            "delete-custom-icon",
             "update-group",
             "restore-entry-version",
             "soft-delete-entry",
@@ -879,6 +885,8 @@ enum KDBXCompatibilitySupport {
             hideGroupFromAutoFillScenario(),
             changeGroupIconScenario(),
             addEntryCustomIconScenario(),
+            manageCustomIconScenario(deleting: false),
+            manageCustomIconScenario(deleting: true),
             updateGroupScenario(),
             restoreEntryVersionScenario(),
             softDeleteEntryScenario(),
@@ -980,6 +988,51 @@ enum KDBXCompatibilitySupport {
                 XCTAssertEqual(afterEntry.history[0].expiryTime, beforeEntry.expiryTime)
                 XCTAssertEqual(afterEntry.history[0].unknownXML, beforeEntry.unknownXML)
                 XCTAssertEqual(afterEntry.history[1], previous)
+            }
+        )
+    }
+
+    static func manageCustomIconScenario(deleting: Bool) -> Scenario {
+        let uuid = UUID()
+        let id = deleting ? "delete-custom-icon" : "rename-custom-icon"
+        let iconData = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==") ?? Data()
+        return Scenario(
+            id: id,
+            title: deleting ? "Delete a stored icon and its references" : "Rename a stored icon with KDBX 4.1 metadata",
+            artifactFileName: "synthetic-rich-\(id).kdbx",
+            expectedSearchTerms: ["Compat Untouched Entry"],
+            expectedGroupPaths: ["Compat Group Delete Target"],
+            makeMergedTree: { loaded in
+                let entry = try XCTUnwrap(loaded.rootGroup.allEntries.first { $0.title == "Compat Untouched Entry" })
+                var draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
+                                          binaryPoolFields: loaded.header.innerHeaderBinaryFields)
+                draft = try draft.apply(.addEntryCustomIcon(entryID: entry.id, iconUUID: uuid, imageData: iconData))
+                if deleting {
+                    draft = try draft.apply(.setEntryIcon(entryID: entry.id, icon: .standard(iconID: 8)))
+                    draft = try draft.apply(.deleteCustomIcon(iconUUID: uuid))
+                } else {
+                    draft = try draft.apply(.renameCustomIcon(iconUUID: uuid, name: "Website & <Icon> 🗝\rName"))
+                }
+                return (draft.rootGroup, draft.meta)
+            },
+            assertChange: { before, after, _ in
+                let entryID = try XCTUnwrap(before.entryID(titled: "Compat Untouched Entry"))
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+                for (id, data) in before.meta.customIcons { XCTAssertEqual(after.meta.customIcons[id], data) }
+                let entry = try XCTUnwrap(after.entries[entryID])
+                XCTAssertEqual(entry.password, before.entries[entryID]?.password)
+                if deleting {
+                    XCTAssertNil(after.meta.customIcons[uuid])
+                    XCTAssertNil(after.meta.customIconNames[uuid])
+                    XCTAssertTrue(after.meta.deletedObjects.contains { $0.uuid == uuid })
+                    XCTAssertFalse(entry.unknownXML.nodes.contains { $0.xml.contains(uuid.kdbxBase64String) })
+                    XCTAssertFalse(entry.history.contains { $0.unknownXML.nodes.contains { $0.xml.contains(uuid.kdbxBase64String) } })
+                } else {
+                    XCTAssertEqual(after.meta.customIcons[uuid], iconData)
+                    XCTAssertEqual(after.meta.customIconNames[uuid], "Website & <Icon> 🗝\rName")
+                    XCTAssertTrue(entry.unknownXML.nodes.contains { $0.xml.contains(uuid.kdbxBase64String) })
+                }
             }
         )
     }

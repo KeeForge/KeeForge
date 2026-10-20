@@ -757,6 +757,60 @@ final class EntryCustomIconPickerUITests: UnlockedDatabaseUITestCase {
         }
     }
 
+    func testManageCustomIconsRenamesCancelsAndDeletes() {
+        let uuid = "4D9C2B1E-7A35-4E68-9B0D-52F16C8A3E77"
+        unlockSuccessfully()
+        openEntry(named: "Custom Badge", inGroup: "Icons")
+        openEntryIconPicker()
+        let manage = app.buttons["entry-icon-picker.manage"]
+        XCTAssertTrue(revealElement(manage, in: scrollableContainer(), direction: .down))
+        tapElement(manage)
+        let rename = app.buttons["custom-icons.rename.\(uuid)"]
+        XCTAssertTrue(rename.waitForExistence(timeout: 10))
+        tapElement(rename)
+        let name = app.textFields["custom-icons.rename-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        replaceText(in: name, with: "Discarded Name")
+        tapElement(app.buttons["custom-icons.rename-cancel"])
+        XCTAssertFalse(app.staticTexts["Discarded Name"].exists)
+        tapElement(rename)
+        replaceText(in: name, with: "Website Badge")
+        tapElement(app.buttons["custom-icons.rename-save"])
+        XCTAssertTrue(app.staticTexts["Website Badge"].waitForExistence(timeout: 10))
+        let delete = app.buttons["custom-icons.delete.\(uuid)"]
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: delete)
+        XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 15), .completed)
+        tapElement(delete)
+        let cancel = app.buttons["custom-icons.delete-cancel"].firstMatch
+        if cancel.waitForExistence(timeout: 2) {
+            tapElement(cancel)
+        } else {
+            // iOS 26+ omits Cancel from the confirmation popover; tapping
+            // its system dismiss region is the native cancellation action.
+            let dismissRegion = app.otherElements["PopoverDismissRegion"].firstMatch
+            XCTAssertTrue(dismissRegion.waitForExistence(timeout: 5))
+            let popover = app.popovers.firstMatch.frame
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: app.windows.firstMatch.frame.midX, dy: popover.minY - 30))
+                .tap()
+        }
+        XCTAssertTrue(rename.exists)
+        tapElement(delete)
+        let confirm = app.buttons["custom-icons.confirm-delete"].firstMatch
+        tapElement(confirm)
+        XCTAssertTrue(confirm.waitForNonExistence(timeout: 10))
+        XCTAssertTrue(rename.waitForNonExistence(timeout: 15))
+        let back = app.navigationBars.buttons["Custom Badge"].firstMatch
+        let backIsReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: back)
+        XCTAssertEqual(XCTWaiter.wait(for: [backIsReady], timeout: 10), .completed)
+        tapElement(back)
+        XCTAssertTrue(manage.waitForExistence(timeout: 10))
+        let standard = app.buttons["entry-icon-picker.standard.0"]
+        XCTAssertTrue(revealElement(standard, in: scrollableContainer(), direction: .down))
+        XCTAssertTrue(standard.isSelected)
+        XCTAssertFalse(app.buttons[customIconCellID].exists)
+    }
+
     /// Round-trips a custom-icon pick the way the standard-icon test does: only an
     /// edit that reached the draft's entry and was read back out makes the reopened
     /// picker mark the custom cell as selected.

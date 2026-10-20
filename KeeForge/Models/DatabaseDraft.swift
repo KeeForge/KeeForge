@@ -10,6 +10,8 @@ struct DatabaseDraft: Sendable {
         case protectedGroup(UUID)
         case historyVersionNotFound(entryID: UUID, index: Int)
         case customIconNotStorable
+        case customIconUnavailable
+        case customIconNotEditable
         case moveDestinationInsideMovedGroup(groupID: UUID, destinationGroupID: UUID)
         case restoreUnavailable
         case attachmentNotFound(name: String)
@@ -31,6 +33,10 @@ struct DatabaseDraft: Sendable {
                 String(localized: "This group cannot be deleted.")
             case .historyVersionNotFound:
                 String(localized: "That earlier version is no longer available.")
+            case .customIconUnavailable:
+                String(localized: "This icon is no longer available.")
+            case .customIconNotEditable:
+                String(localized: "This database’s icons cannot be changed safely.")
             case .customIconNotStorable:
                 String(localized: "This database's icons are stored in a form KeeForge cannot add to without risking the ones already there.")
             case .moveDestinationInsideMovedGroup:
@@ -184,6 +190,10 @@ struct DatabaseDraft: Sendable {
                 iconUUID: iconUUID,
                 imageData: imageData
             )
+        case .renameCustomIcon(let uuid, let name):
+            updatedState = try applyCustomIconChange(uuid: uuid, name: name)
+        case .deleteCustomIcon(let uuid):
+            updatedState = try applyCustomIconChange(uuid: uuid, name: nil)
         case .updateGroup(let groupID, let draft):
             updatedState = try applyUpdateGroup(groupID: groupID, draft: draft)
         case .restoreEntryVersion(let entryID, let historyIndex):
@@ -479,6 +489,29 @@ struct DatabaseDraft: Sendable {
         }
 
         return updated
+    }
+
+    private func applyCustomIconChange(uuid: UUID, name: String?) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        guard currentMetaStorage.customIcons[uuid] != nil else { throw DraftError.customIconUnavailable }
+        var meta = currentMetaStorage
+        let timestamp = Date.now
+        let updatedXML: OpaqueXMLNodes?
+        if let name {
+            try KDBXXMLSerializer.validateText(name)
+            updatedXML = CustomIconXML.renaming(uuid: uuid, to: name, at: timestamp, in: meta.unknownXML)
+            meta.customIconNames[uuid] = name
+        } else {
+            updatedXML = CustomIconXML.deleting(uuid: uuid, from: meta.unknownXML)
+            meta.customIcons.removeValue(forKey: uuid)
+            meta.customIconNames.removeValue(forKey: uuid)
+            meta.deletedObjects.removeAll { $0.uuid == uuid }
+            meta.deletedObjects.append(KPDeletedObject(uuid: uuid, deletionTime: timestamp))
+        }
+        guard let updatedXML else { throw DraftError.customIconNotEditable }
+        meta.unknownXML = updatedXML
+        let root = currentRootGroupStorage.deepCopy()
+        if name == nil { CustomIconXML.removeReferences(to: [uuid: timestamp], in: root) }
+        return (root, meta)
     }
 
     /// Stores an image in `Meta/CustomIcons` and points the entry at it.

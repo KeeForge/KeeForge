@@ -91,6 +91,8 @@ struct KPMeta: Sendable, Hashable {
     /// round-trips them verbatim.
     var customIcons: [UUID: Data]
 
+    var customIconNames: [UUID: String]
+
     static let defaultMaintenanceHistoryDays = 365
     static let defaultHistoryMaxItems = 10
     static let defaultHistoryMaxSize: Int64 = 6 * 1024 * 1024
@@ -103,7 +105,8 @@ struct KPMeta: Sendable, Hashable {
         historyMaxSize: Int64? = nil,
         unknownXML: OpaqueXMLNodes = .empty,
         deletedObjects: [KPDeletedObject] = [],
-        customIcons: [UUID: Data] = [:]
+        customIcons: [UUID: Data] = [:],
+        customIconNames: [UUID: String] = [:]
     ) {
         self.recycleBinUUID = recycleBinUUID
         self.hasRecycleBinUUIDElement = hasRecycleBinUUIDElement
@@ -113,6 +116,7 @@ struct KPMeta: Sendable, Hashable {
         self.unknownXML = unknownXML
         self.deletedObjects = deletedObjects
         self.customIcons = customIcons
+        self.customIconNames = customIconNames
     }
 
     var resolvedMaintenanceHistoryDays: Int {

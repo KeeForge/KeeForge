@@ -1381,6 +1381,7 @@ final class DatabaseViewModel {
     struct CustomIcon: Identifiable, Sendable, Hashable {
         let id: UUID
         let data: Data
+        var name: String = ""
     }
 
     /// The database's custom icons, in a stable order.
@@ -1393,7 +1394,25 @@ final class DatabaseViewModel {
         guard let icons = currentMeta?.customIcons else { return [] }
         return icons
             .sorted { $0.key.uuidString < $1.key.uuidString }
-            .map { CustomIcon(id: $0.key, data: $0.value) }
+            .map { CustomIcon(id: $0.key, data: $0.value, name: currentMeta?.customIconNames[$0.key] ?? "") }
+    }
+
+    private func validateCustomIconEditing() throws {
+        guard !isReadOnly else { throw SaveError.databaseIsReadOnly }
+        guard case .unlocked = state, !isSaving, saveConflict == nil else { throw SaveError.saveContextUnavailable }
+    }
+
+    func renameCustomIcon(_ uuid: UUID, name: String) throws {
+        try validateCustomIconEditing()
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard currentMeta?.customIcons[uuid] != nil else { throw DatabaseDraft.DraftError.customIconUnavailable }
+        guard (currentMeta?.customIconNames[uuid] ?? "") != name else { return }
+        try applyEntryEdit(.renameCustomIcon(iconUUID: uuid, name: name))
+    }
+
+    func deleteCustomIcon(_ uuid: UUID) throws {
+        try validateCustomIconEditing()
+        try applyEntryEdit(.deleteCustomIcon(iconUUID: uuid))
     }
 
     /// Resolves and decodes attachment bytes for `attachment` against the
