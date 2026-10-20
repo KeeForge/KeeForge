@@ -17,6 +17,23 @@ final class KDBXMergerTests: XCTestCase {
 
     // MARK: - Matching and placement
 
+    func test_merge_reorderOnlyEditWinsAndRetainsPriorOrderInHistory() throws {
+        var old = try makeEntry(id: alphaID, title: "Fields", modified: time(10))
+        old.customFields = ["Alpha": "a", "Zulu": "z"]
+        old.customFieldOrder = ["Alpha", "Zulu"]
+        var new = old
+        new.customFieldOrder = ["Zulu", "Alpha"]
+        new.lastModificationTime = time(20)
+        let local = try makeSide(work: [old])
+        let remote = try makeSide(work: [new])
+        let merged = try mergedResult(local: local, remote: remote)
+        let entry = try XCTUnwrap(findEntry(alphaID, in: merged.rootGroup))
+        XCTAssertEqual(entry.customFieldOrder, ["Zulu", "Alpha"])
+        XCTAssertEqual(entry.history.first?.customFieldOrder, ["Alpha", "Zulu"])
+        let repeated = try mergedResult(local: .init(rootGroup: merged.rootGroup, meta: merged.meta), remote: remote)
+        XCTAssertFalse(repeated.summary.hasChanges)
+    }
+
     func test_merge_addsRemoteOnlyEntry() throws {
         let local = try makeSide(work: [makeEntry(id: alphaID, title: "Alpha", modified: time(10))])
         let remote = try makeSide(work: [

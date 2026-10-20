@@ -202,10 +202,13 @@ private struct EntryHistoryVersionFields: View {
                     SelectableNotesText(viewModel.resolvingFieldReferences(version.notes))
                 }
             }
-            if !version.displayCustomFields.isEmpty {
+            let customFields = version.displayCustomFields
+            if !customFields.isEmpty {
                 Section("Custom Fields") {
                     ForEach(
-                        version.displayCustomFields.sorted(by: { $0.key < $1.key }),
+                        version.orderedCustomFieldKeys(in: Set(customFields.keys)).map {
+                            (key: $0, value: customFields[$0] ?? "")
+                        },
                         id: \.key
                     ) { key, value in
                         if version.protectedStringKeys.contains(key) {

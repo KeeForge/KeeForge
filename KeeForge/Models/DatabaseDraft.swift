@@ -807,6 +807,7 @@ struct DatabaseDraft: Sendable {
             tags: version.tags,
             hasTagsElement: version.hasTagsElement,
             customFields: version.customFields,
+            customFieldOrder: version.customFieldOrder,
             passkeyPrivateKey: version.passkeyPrivateKey,
             totpConfig: version.totpConfig,
             otpURL: version.otpURL,
@@ -1082,6 +1083,7 @@ struct DatabaseDraft: Sendable {
             tags: draft.tags,
             hasTagsElement: !draft.tags.isEmpty,
             customFields: customFields,
+            customFieldOrder: draft.customFieldOrder ?? [],
             passkeyPrivateKey: passkeyPrivateKey,
             totpConfig: try makeTOTPConfig(from: draft.totpConfig),
             otpURL: draft.totpConfig?.keeOTPSource == nil
@@ -1129,6 +1131,7 @@ struct DatabaseDraft: Sendable {
             tags: draft.tags,
             hasTagsElement: originalEntry.hasTagsElement || !draft.tags.isEmpty,
             customFields: customFields,
+            customFieldOrder: draft.customFieldOrder ?? originalEntry.customFieldOrder,
             passkeyPrivateKey: passkeyPrivateKey,
             totpConfig: try makeTOTPConfig(from: draft.totpConfig, originalEntry: originalEntry),
             otpURL: updatedOtpURL(draft: draft, originalEntry: originalEntry),

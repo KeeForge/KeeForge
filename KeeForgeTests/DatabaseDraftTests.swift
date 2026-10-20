@@ -14,6 +14,20 @@ final class DatabaseDraftTests: XCTestCase {
 
     private let sessionKey = SymmetricKey(size: .bits256)
 
+    func testUpdateWithoutFieldOrderPreservesExistingSequenceAndAppendsNewKeys() throws {
+        let entry = KPEntry(title: "Fields", customFields: ["Zulu": "z", "Alpha": "a"],
+                            customFieldOrder: ["Zulu", "Alpha"])
+        let root = KPGroup(name: "Root", entries: [entry])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+        let updated = try draft.apply(.updateEntry(entryID: entry.id, draft: .init(
+            title: "Updated", customFields: ["Zulu": "z", "Alpha": "a", "Beta": "b"]
+        )))
+        let result = try XCTUnwrap(updated.rootGroup.allEntries.first)
+        XCTAssertEqual(result.orderedCustomFieldKeys(in: Set(result.customFields.keys)), ["Zulu", "Alpha", "Beta"])
+        XCTAssertEqual(result.history.first?.customFieldOrder, ["Zulu", "Alpha"])
+        XCTAssertEqual(draft.rootGroup.allEntries.first?.title, "Fields")
+    }
+
     func test_invalidEntryTextIsRejectedBeforeItCanEnterDraftOrHistory() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: false)
         let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)

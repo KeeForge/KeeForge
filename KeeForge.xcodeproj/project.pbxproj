@@ -42,6 +42,7 @@
 		0ABB90E3E16BDE2C9D2E0998 /* PendingUploadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6B7062FC711FD8F8EA1BEE3 /* PendingUploadQueue.swift */; };
 		0B03F19414BF31271EC88320 /* PendingLocalSaveStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C82F63D180F4F7F9204E3B /* PendingLocalSaveStore.swift */; };
 		0B3C8A2029FD1A0FD4028471 /* KDBXExportDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 601B9CEB501A7DDBEEC02D71 /* KDBXExportDocument.swift */; };
+		0B752D1930899A48F0FA41E3 /* EntryCustomFieldOrderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1543CC01DAF7B249E8E5AF26 /* EntryCustomFieldOrderSheet.swift */; };
 		0B7569085B82739B5A20689B /* DatabaseDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBA8C05ADEAD4DD8BFE6152 /* DatabaseDraft.swift */; };
 		0C3A40CBFB5BDE0D3F2CAFF5 /* HapticService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE7B832DCD71D53272108662 /* HapticService.swift */; };
 		0C55C0F3933E2AC968D8786B /* KDBXCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F984480E73A82B5043100065 /* KDBXCrypto.swift */; };
@@ -850,6 +851,7 @@
 		F355C6075E9CE4907C582A0F /* SecureWipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FEA60D513A06248ED78E7E9 /* SecureWipe.swift */; };
 		F3EA8BF6947CF6E7E6494860 /* PendingLocalSaveStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C82F63D180F4F7F9204E3B /* PendingLocalSaveStore.swift */; };
 		F4AC32E3745E5514D29BFAD9 /* KDFExecutionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 234D220DDC5508AC87A4CB08 /* KDFExecutionPolicy.swift */; };
+		F506DC0C830D879AA4484A8D /* EntryCustomFieldOrderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1543CC01DAF7B249E8E5AF26 /* EntryCustomFieldOrderSheet.swift */; };
 		F59BC0D6B849EA8F5CE9ADF2 /* MacQuickSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05341319E3175BBD9F9B2CA0 /* MacQuickSearchView.swift */; };
 		F5AD365FBAD367D891A6405C /* MacUnlockPasswordField.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19F375C8B87A48E090237BE /* MacUnlockPasswordField.swift */; };
 		F5D08D57EB25FD1C4FB99605 /* AutoFillStoreInspectorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50AEA9210D3D3DA7B54C67F5 /* AutoFillStoreInspectorModel.swift */; };
@@ -1023,6 +1025,7 @@
 		122DDA370B5966688ABE338D /* CSVReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVReader.swift; sourceTree = "<group>"; };
 		1396505556F1A30E312193A4 /* EntrySelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntrySelection.swift; sourceTree = "<group>"; };
 		149DB5F58CEC322A5B078635 /* AutoFillStoreInspectorGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillStoreInspectorGroupingTests.swift; sourceTree = "<group>"; };
+		1543CC01DAF7B249E8E5AF26 /* EntryCustomFieldOrderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryCustomFieldOrderSheet.swift; sourceTree = "<group>"; };
 		15B37308F603CF890C96ED80 /* ChaCha20Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChaCha20Tests.swift; sourceTree = "<group>"; };
 		161DA4B3D8C56EE8B3F0EBF3 /* CloudSyncUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncUITests.swift; sourceTree = "<group>"; };
 		166C906E1AECCEE8FDBC33D7 /* BackoffUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffUITests.swift; sourceTree = "<group>"; };
@@ -1607,6 +1610,7 @@
 			children = (
 				30D3E9B8959F15FD248A61FE /* AttachmentQuickLookPreview.swift */,
 				CCF584DE7CA99C49E8FD44CF /* AttachmentsSection.swift */,
+				1543CC01DAF7B249E8E5AF26 /* EntryCustomFieldOrderSheet.swift */,
 				08894081A7C651DBFB58FDD9 /* EntryDetailView.swift */,
 				2C9BD50A1E32076A6D355C52 /* EntryEditAttachmentsSection.swift */,
 				CAB9CB7D5F3120A16D3D7D7E /* EntryEditView.swift */,
@@ -2854,6 +2858,7 @@
 				E0D867100AA57ADD8542A31B /* EncryptionSettingsView.swift in Sources */,
 				4A3139BD312283F61022273A /* EncryptionSettingsViewModel.swift in Sources */,
 				AA14F338CB19654F4C13192F /* Entry.swift in Sources */,
+				0B752D1930899A48F0FA41E3 /* EntryCustomFieldOrderSheet.swift in Sources */,
 				3A93555A074F00A45784F741 /* EntryDetailView.swift in Sources */,
 				9E25781B8EB1F28A7C505E75 /* EntryEdit.swift in Sources */,
 				2BC662E14A1F7F3F156F0D0E /* EntryEditAttachmentsSection.swift in Sources */,
@@ -3057,6 +3062,7 @@
 				40D9BA930E63C126D6B96ECA /* EncryptionSettingsView.swift in Sources */,
 				892A996500C080EE85DA8D68 /* EncryptionSettingsViewModel.swift in Sources */,
 				4559540601B649A98E79C197 /* Entry.swift in Sources */,
+				F506DC0C830D879AA4484A8D /* EntryCustomFieldOrderSheet.swift in Sources */,
 				B1742B3DFEFE6815E8210C2B /* EntryDetailView.swift in Sources */,
 				8EAB80EF201B8AE0EA7F865F /* EntryEdit.swift in Sources */,
 				8C3717BA192EEF8CC2BBD21A /* EntryEditAttachmentsSection.swift in Sources */,

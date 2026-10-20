@@ -137,6 +137,7 @@ final class EntryEditViewModel {
 
     private let preservedCustomFields: [String: String]
     private let seededCustomFieldKeys: Set<String>
+    private let originalCustomFieldOrder: [String]
     /// `DatabaseDraft` keeps an edited entry's protection by key name, so a
     /// field saved under one of these names comes out protected whatever its
     /// own flag says.
@@ -169,6 +170,7 @@ final class EntryEditViewModel {
         inheritedTags: [String] = [],
         editableCustomFields: [CustomField] = [],
         preservedCustomFields: [String: String] = [:],
+        originalCustomFieldOrder: [String] = [],
         protectedKeysKeptOnSave: Set<String> = [],
         totpSecret: String = "",
         totpDecodedSecret: Data? = nil,
@@ -194,6 +196,7 @@ final class EntryEditViewModel {
         self.inheritedTags = Set(inheritedTags)
         self.customFields = editableCustomFields
         self.preservedCustomFields = preservedCustomFields
+        self.originalCustomFieldOrder = originalCustomFieldOrder
         self.seededCustomFieldKeys = Set(editableCustomFields.map(\.key))
         self.protectedKeysKeptOnSave = protectedKeysKeptOnSave
         self.totpSecret = totpSecret
@@ -297,6 +300,7 @@ final class EntryEditViewModel {
             inheritedTags: inheritedTags,
             editableCustomFields: editableCustomFields,
             preservedCustomFields: preservedCustomFields,
+            originalCustomFieldOrder: entry.customFieldOrder,
             protectedKeysKeptOnSave: entry.protectedStringKeys,
             totpSecret: totpSecret,
             totpDecodedSecret: decodedTOTPSecret,
@@ -362,11 +366,15 @@ final class EntryEditViewModel {
     }
 
     private static func editableCustomFields(of entry: KPEntry) -> [CustomField] {
-        customFieldsOutsideURLRows(of: entry)
-            .sorted(by: { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending })
+        orderedCustomFieldsOutsideURLRows(of: entry)
             .map {
                 CustomField(key: $0.key, value: $0.value, isProtected: entry.protectedStringKeys.contains($0.key))
             }
+    }
+
+    static func orderedCustomFieldsOutsideURLRows(of entry: KPEntry) -> [(key: String, value: String)] {
+        let fields = customFieldsOutsideURLRows(of: entry)
+        return entry.orderedCustomFieldKeys(in: Set(fields.keys)).map { ($0, fields[$0] ?? "") }
     }
 
     /// The custom fields left for the Custom Fields section, here and on the
@@ -506,6 +514,7 @@ final class EntryEditViewModel {
             url: url,
             notes: notes,
             customFields: mergedCustomFields(),
+            customFieldOrder: orderedCustomFieldNames(),
             protectedCustomFieldKeys: protectedCustomFieldKeys(),
             tags: normalizedTags(),
             totpConfig: normalizedTOTPConfiguration(),
@@ -693,6 +702,29 @@ final class EntryEditViewModel {
         return Self.additionalURLKeyPrefix + String(index)
     }
 
+    func moveCustomFields(from source: IndexSet, to destination: Int) {
+        guard !source.isEmpty, source.allSatisfy(customFields.indices.contains),
+              (0...customFields.count).contains(destination) else { return }
+        let fields = source.map { customFields[$0] }
+        let insertionIndex = destination - source.count { $0 < destination }
+        for index in source.reversed() { customFields.remove(at: index) }
+        customFields.insert(contentsOf: fields, at: insertionIndex)
+    }
+
+    func moveCustomField(id: UUID, offset: Int) {
+        guard let source = customFields.firstIndex(where: { $0.id == id }),
+              customFields.indices.contains(source + offset) else { return }
+        moveCustomField(id: id, to: customFields[source + offset].id)
+    }
+
+    func moveCustomField(id: UUID, to targetID: UUID) {
+        guard let source = customFields.firstIndex(where: { $0.id == id }),
+              let target = customFields.firstIndex(where: { $0.id == targetID }),
+              source != target else { return }
+        let field = customFields.remove(at: source)
+        customFields.insert(field, at: target)
+    }
+
     func addCustomField() {
         customFields.append(CustomField())
     }
@@ -790,6 +822,15 @@ final class EntryEditViewModel {
             || key == keeOTPSource?.fieldName
             || preservedCustomFields[key] != nil
             || (Self.keeOTPCandidateKeys.contains(key) && seededCustomFieldKeys.contains(key) == false)
+    }
+
+    private func orderedCustomFieldNames() -> [String] {
+        var names = customFields.map { $0.key.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && !isReservedCustomFieldKey($0) }.makeIterator()
+        let ordered = originalCustomFieldOrder.compactMap { key in
+            seededCustomFieldKeys.contains(key) ? names.next() : key
+        }
+        return ordered + Array(names)
     }
 
     /// Reserved keys are skipped here as well as refused by `canSave`: one that

@@ -364,7 +364,7 @@ struct KDBXXMLSerializer {
         // The diverted passkey private key (KPEX_PASSKEY_PRIVATE_KEY_PEM) is
         // stripped from customFields at parse time and held session-key
         // sealed on the entry. Re-emit it under its original key, merged back
-        // into the sorted custom-field order, so serialize→parse→serialize
+        // into the stored custom-field order, so serialize→parse→serialize
         // stays byte-identical. Entries built directly with the PEM still in
         // customFields (no diverted value) serialize through the plain
         // custom-field path below, producing the same bytes.
@@ -376,7 +376,7 @@ struct KDBXXMLSerializer {
             customFieldKeys.append(passkeyPEMKey)
         }
 
-        for key in customFieldKeys.sorted() {
+        for key in entry.orderedCustomFieldKeys(in: Set(customFieldKeys)) {
             let value: String
             if key == passkeyPEMKey, emitsDivertedPasskeyPEM, let sealedPEM = entry.passkeyPrivateKey {
                 value = try sealedPEM.decrypt(using: sessionKey)

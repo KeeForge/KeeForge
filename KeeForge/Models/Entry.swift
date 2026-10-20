@@ -19,10 +19,12 @@ struct KPEntry: Identifiable, Sendable {
     /// indistinguishable from "no tags at all".
     var hasTagsElement: Bool
     var customFields: [String: String]
+    /// Custom string keys in their KDBX storage order. Unlisted keys follow alphabetically.
+    var customFieldOrder: [String]
     /// Passkey private key PEM (`KPEX_PASSKEY_PRIVATE_KEY_PEM`), diverted out
     /// of `customFields` at parse time and sealed with the per-session key so
     /// the plaintext PEM does not survive lock. The serializer re-emits it as
-    /// a String field at its original (sorted) position among custom fields.
+    /// a String field at its original position among custom fields.
     var passkeyPrivateKey: EncryptedValue?
     /// Raw TOTP config: either otpauth:// URI or key/settings
     var totpConfig: TOTPConfig?
@@ -64,6 +66,7 @@ struct KPEntry: Identifiable, Sendable {
         tags: [String] = [],
         hasTagsElement: Bool = false,
         customFields: [String: String] = [:],
+        customFieldOrder: [String] = [],
         passkeyPrivateKey: EncryptedValue? = nil,
         totpConfig: TOTPConfig? = nil,
         otpURL: String? = nil,
@@ -88,6 +91,7 @@ struct KPEntry: Identifiable, Sendable {
         self.tags = tags
         self.hasTagsElement = hasTagsElement
         self.customFields = customFields
+        self.customFieldOrder = customFieldOrder
         self.passkeyPrivateKey = passkeyPrivateKey
         self.totpConfig = totpConfig
         self.otpURL = otpURL
@@ -137,6 +141,12 @@ struct KPEntry: Identifiable, Sendable {
         customFields.filter {
             !PasskeyCredential.allFieldKeys.contains($0.key) && $0.key != totpConfig?.keeOTPSource?.fieldName
         }
+    }
+
+    func orderedCustomFieldKeys(in keys: Set<String>) -> [String] {
+        var remaining = keys
+        let ordered = customFieldOrder.filter { remaining.remove($0) != nil }
+        return ordered + remaining.sorted()
     }
 
     /// System icon name based on KeePass icon ID

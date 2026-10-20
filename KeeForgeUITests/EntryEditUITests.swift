@@ -585,6 +585,33 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         replaceText(in: app.textFields["entry-edit.custom-field.name-field.0"], with: "Account Number")
         XCTAssertTrue(app.staticTexts["entry-edit.custom-field.error.0"].waitForNonExistence(timeout: 5))
 
+        XCTAssertTrue(revealElement(addFieldButton))
+        tapElement(addFieldButton)
+        replaceText(in: app.textFields["entry-edit.custom-field.name-field.1"], with: "Zulu")
+        let moveUp = app.buttons["entry-edit.custom-field.move-up.1"]
+        XCTAssertTrue(revealElement(moveUp))
+        tapElement(moveUp)
+        XCTAssertEqual(app.textFields["entry-edit.custom-field.name-field.0"].value as? String, "Zulu")
+
+        let reorder = app.buttons["entry-edit.custom-field.reorder"]
+        XCTAssertTrue(revealElement(reorder))
+        tapElement(reorder)
+        let firstRow = app.descendants(matching: .any)["entry-edit.custom-field.order.0"].firstMatch
+        let secondRow = app.descendants(matching: .any)["entry-edit.custom-field.order.1"].firstMatch
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 5))
+        firstRow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+            forDuration: 1,
+            thenDragTo: secondRow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1.5))
+        )
+        XCTAssertEqual(firstRow.label, "Account Number")
+        let orderAttachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        orderAttachment.name = "custom-field-reorder-list"
+        orderAttachment.lifetime = .keepAlways
+        add(orderAttachment)
+        tapElement(app.buttons["entry-edit.custom-field.order.done"])
+        XCTAssertTrue(revealElement(moveUp))
+        tapElement(moveUp)
+
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = "custom-field-editor"
         attachment.lifetime = .keepAlways
@@ -595,6 +622,12 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
 
         let copyButton = app.buttons["entry.copy.account_number"]
         XCTAssertTrue(revealElement(copyButton), "The saved custom field was not shown on the entry")
+        XCTAssertTrue(revealElement(editButton))
+        tapElement(editButton)
+        XCTAssertTrue(revealElement(app.textFields["entry-edit.custom-field.name-field.0"]))
+        XCTAssertEqual(app.textFields["entry-edit.custom-field.name-field.0"].value as? String, "Zulu")
+        XCTAssertTrue(revealElement(app.textFields["entry-edit.custom-field.name-field.1"]))
+        XCTAssertEqual(app.textFields["entry-edit.custom-field.name-field.1"].value as? String, "Account Number")
     }
 
     func testAddedURLIsSavedAndShownOnTheEntry() {
