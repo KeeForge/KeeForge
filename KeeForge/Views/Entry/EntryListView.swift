@@ -47,7 +47,8 @@ struct EntryListView: View {
         // picker is built, not when the menu was tapped.
         .sheet(item: $pendingMove) { pending in
             MoveToGroupPickerView(
-                options: pending.destinationOptions(viewModel: viewModel)
+                options: pending.destinationOptions(viewModel: viewModel),
+                navigationTitle: pending.navigationTitle
             ) { destinationGroupID in
                 pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
             }

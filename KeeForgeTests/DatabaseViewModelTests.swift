@@ -871,6 +871,178 @@ final class DatabaseViewModelTests: XCTestCase {
         }
     }
 
+    func testRecycleBinRestoreLegacyItemsChooseDestinationAndForeignReferencesResolve() async throws {
+        let active = KPGroup(name: "Active")
+        let legacy = KPEntry(title: "Legacy")
+        var foreign = KPEntry(title: "Foreign")
+        foreign.unknownXML = OpaqueXMLNodes(nodes: [.init(insertionIndex: 0,
+            xml: "<PreviousParentGroup>\(active.id.kdbxBase64String)</PreviousParentGroup>")])
+        let bin = KPGroup(name: "Recycle Bin", entries: [legacy, foreign])
+        let root = KPGroup(name: "Root", groups: [KPGroup(name: "Visible", groups: [active, bin])], recycleBinUUID: bin.id)
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+        XCTAssertNil(vm.originalRestoreDestination(for: .entry(legacy.id)))
+        XCTAssertEqual(vm.originalRestoreDestination(for: .entry(foreign.id)), active.id)
+        let revision = vm.contentRevision
+        XCTAssertTrue(vm.restoreDestinationOptions(for: .entry(legacy.id)).contains { $0.id == active.id })
+        XCTAssertEqual(vm.contentRevision, revision)
+        XCTAssertFalse(vm.isDirty)
+        try vm.restore(.entry(legacy.id), toGroupID: active.id)
+        XCTAssertTrue(vm.group(withID: active.id)?.entries.contains { $0.id == legacy.id } == true)
+    }
+
+    func testRecycleBinRestoreConflictKeepsRecoveryStagedForResolution() async throws {
+        let remoteData = Data("remote".utf8)
+        let hash = KDBXCrypto.sha512(remoteData)
+        let vm = try makeViewModel(localSaveOperation: { _, _, _, _, _, _, _ in
+            .conflict(remoteSHA512: hash, remoteData: remoteData)
+        })
+        await vm.unlock(password: fixturePassword)
+        let parent = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Work" })
+        let entry = try XCTUnwrap(parent.entries.first)
+        try vm.deleteEntry(entry.id, sendToRecycleBin: true)
+        try vm.restore(.entry(entry.id), toGroupID: parent.id)
+        await vm.saveHandlingError()
+        XCTAssertNotNil(vm.saveConflict)
+        XCTAssertTrue(vm.isDirty)
+        XCTAssertEqual(vm.draft?.pendingEdits.count, 2)
+        XCTAssertTrue(vm.group(withID: parent.id)?.entries.contains { $0.id == entry.id } == true)
+        XCTAssertFalse(vm.canRestore(.entry(entry.id)))
+        XCTAssertThrowsError(try vm.restore(.entry(entry.id), toGroupID: parent.id))
+        XCTAssertNotNil(vm.saveConflict)
+    }
+
+    func testRecycleBinRestoreEntryRemembersParentAcrossSaveAndReopen() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let parent = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Work" })
+        let entry = try XCTUnwrap(parent.entries.first)
+        try vm.deleteEntry(entry.id, sendToRecycleBin: true)
+        try await vm.save()
+        vm.lock()
+        await vm.unlock(password: fixturePassword)
+
+        let item = DatabaseViewModel.RecycleBinItem.entry(entry.id)
+        XCTAssertEqual(vm.originalRestoreDestination(for: item), parent.id)
+        try vm.restore(item, toGroupID: parent.id)
+        XCTAssertFalse(vm.isEntryInRecycleBin(entryID: entry.id))
+        XCTAssertEqual(vm.folderPath(forEntryID: entry.id), "Work")
+        vm.searchText = entry.title
+        XCTAssertTrue(vm.searchResults.contains { $0.id == entry.id })
+        try await vm.save()
+        XCTAssertFalse(vm.isDirty)
+        vm.lock()
+        await vm.unlock(password: fixturePassword)
+        XCTAssertTrue(vm.group(withID: parent.id)?.entries.contains { $0.id == entry.id } == true)
+        XCTAssertEqual(vm.entry(withID: entry.id)?.username, entry.username)
+    }
+
+    func testRecycleBinRestoreNestedItemsAndDestinationVisibility() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let rootID = try XCTUnwrap(vm.visibleRootGroupID)
+        let group = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Social" })
+        let entry = try XCTUnwrap(group.entries.first)
+        try vm.createGroup(named: "Recovery Child", in: group.id)
+        let child = try XCTUnwrap(vm.group(withID: group.id)?.groups.first { $0.name == "Recovery Child" })
+        try vm.deleteGroup(group.id, sendToRecycleBin: true)
+        let binID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
+        let item = DatabaseViewModel.RecycleBinItem.group(group.id)
+        XCTAssertEqual(vm.originalRestoreDestination(for: item), rootID)
+        XCTAssertNil(vm.originalRestoreDestination(for: .entry(entry.id)))
+        let destinations = Set(vm.restoreDestinationOptions(for: item).map(\.id))
+        XCTAssertTrue(destinations.isDisjoint(with: [binID, group.id, child.id]))
+        XCTAssertTrue(vm.canRestore(.group(child.id)))
+        XCTAssertFalse(vm.canRestore(.group(binID)))
+        XCTAssertThrowsError(try vm.restore(item, toGroupID: child.id))
+        XCTAssertThrowsError(try vm.restore(.entry(entry.id), toGroupID: binID))
+
+        let work = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Work" })
+        try vm.setGroupExcludedFromAutoFill(true, groupID: work.id)
+        try vm.restore(.entry(entry.id), toGroupID: work.id)
+        vm.searchText = entry.title
+        XCTAssertFalse(vm.searchResults.contains { $0.id == entry.id })
+        XCTAssertFalse(DatabaseViewModel.credentialStoreEntries(from: try XCTUnwrap(vm.currentRootGroup)).contains { $0.id == entry.id })
+        try vm.restore(.group(child.id), toGroupID: rootID)
+        try vm.restore(item, toGroupID: rootID)
+        XCTAssertFalse(vm.isGroupInRecycleBin(groupID: group.id))
+        XCTAssertFalse(vm.isGroupInRecycleBin(groupID: child.id))
+        XCTAssertEqual(Set(vm.group(withID: group.id)?.entries.map(\.id) ?? []), Set(group.entries.map(\.id)).subtracting([entry.id]))
+        XCTAssertThrowsError(try vm.restore(item, toGroupID: rootID))
+    }
+
+    func testRecycleBinRestoreMissingParentPickerCancellationAndStaleRequests() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let parent = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Work" })
+        let entry = try XCTUnwrap(parent.entries.first)
+        try vm.deleteEntry(entry.id, sendToRecycleBin: true)
+        try vm.deleteGroup(parent.id, sendToRecycleBin: false)
+        let item = DatabaseViewModel.RecycleBinItem.entry(entry.id)
+        XCTAssertNil(vm.originalRestoreDestination(for: item))
+        let revision = vm.contentRevision
+        let edits = vm.draft?.pendingEdits
+        XCTAssertFalse(PendingMove.restore(item).destinationOptions(viewModel: vm).isEmpty)
+        XCTAssertEqual(vm.contentRevision, revision)
+        XCTAssertEqual(vm.draft?.pendingEdits, edits)
+        XCTAssertThrowsError(try vm.restore(item, toGroupID: parent.id))
+        XCTAssertEqual(vm.contentRevision, revision)
+        DatabaseListStore.update(vm.databaseReference)
+        vm.setReadOnly(true)
+        XCTAssertFalse(vm.canRestore(item))
+        XCTAssertThrowsError(try vm.restore(item, toGroupID: try XCTUnwrap(vm.visibleRootGroupID)))
+        XCTAssertEqual(vm.contentRevision, revision)
+        vm.setReadOnly(false)
+        vm.discardDraft()
+        vm.lock()
+        XCTAssertFalse(vm.canRestore(item))
+        XCTAssertTrue(vm.restoreDestinationOptions(for: item).isEmpty)
+        XCTAssertThrowsError(try vm.restore(item, toGroupID: parent.id))
+    }
+
+    func testRecycleBinRestoreFailureRetainsDraftAndRetryWritesOnce() async throws {
+        actor Attempts {
+            var count = 0
+            func next() -> Int { count += 1; return count }
+        }
+        let attempts = Attempts()
+        let vm = try makeViewModel(localSaveOperation: { draft, reference, key, hash, reconciled, newKey, settings in
+            if await attempts.next() == 2 { throw CocoaError(.fileWriteNoPermission) }
+            return try await LocalDatabaseSaver.save(
+                draft: draft, reference: reference, compositeKey: key, openTimeSHA512: hash,
+                reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                newCompositeKey: newKey, encryptionSettings: settings
+            )
+        })
+        await vm.unlock(password: fixturePassword)
+        let parent = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Work" })
+        let entry = try XCTUnwrap(parent.entries.first)
+        try vm.deleteEntry(entry.id, sendToRecycleBin: true)
+        try await vm.save()
+        try vm.restore(.entry(entry.id), toGroupID: parent.id)
+        await vm.saveHandlingError()
+        XCTAssertNotNil(vm.saveError)
+        XCTAssertTrue(vm.isDirty)
+        XCTAssertTrue(vm.group(withID: parent.id)?.entries.contains { $0.id == entry.id } == true)
+        await vm.saveHandlingError()
+        XCTAssertFalse(vm.isDirty)
+        vm.lock()
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.group(withID: parent.id)?.entries.filter { $0.id == entry.id }.count, 1)
+    }
+
+    func testRecycleBinRestoreGroupKeepsNameWhenOriginalParentHasNewSibling() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let rootID = try XCTUnwrap(vm.visibleRootGroupID)
+        let group = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Social" })
+        try vm.deleteGroup(group.id, sendToRecycleBin: true)
+        try vm.createGroup(named: group.name, in: rootID)
+        XCTAssertEqual(vm.originalRestoreDestination(for: .group(group.id)), rootID)
+        try vm.restore(.group(group.id), toGroupID: rootID)
+        XCTAssertEqual(vm.visibleRootGroup?.groups.filter { $0.name == group.name }.count, 2)
+        XCTAssertEqual(vm.group(withID: group.id)?.allEntries.map(\.id), group.allEntries.map(\.id))
+    }
+
     func testMoveEntryMovesItBetweenGroupsAndMarksDirty() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
@@ -2387,38 +2559,54 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.verificationCodeEntries.map(\.title), ["Code"])
     }
 
-    func testDatabaseOpensOnAllEntriesAndLockingReturnsThere() async throws {
+    func testLockAndReopenKeepTheViewPickedLast() async throws {
+        let key = DatabaseWorkspaceState.viewModeKey
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(saved, forKey: key) }
+        UserDefaults.standard.removeObject(forKey: key)
+
         let vm = try makeViewModel()
         XCTAssertEqual(vm.workspace.viewMode, .allEntries)
 
         await vm.unlock(password: fixturePassword)
         vm.workspace.viewMode = .verificationCodes
-
         vm.lock()
 
-        XCTAssertEqual(vm.workspace.viewMode, .allEntries, "The next unlock starts on All Entries, not on the view last picked")
+        XCTAssertEqual(vm.workspace.viewMode, .verificationCodes, "Locking returned to All Entries")
+        XCTAssertEqual(try makeViewModel().workspace.viewMode, .verificationCodes, "A relaunch returned to All Entries")
     }
 
-    func testInitialViewModeHonorsTheOverrideOnlyUnderUITesting() {
-        XCTAssertEqual(DatabaseWorkspaceState.initialViewMode(arguments: [], environment: [:]), .allEntries)
+    func testInitialViewModeHonorsTheOverrideOnlyUnderUITesting() throws {
+        let suiteName = "DatabaseViewModelTests.viewMode.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set("tags", forKey: DatabaseWorkspaceState.viewModeKey)
+
+        XCTAssertEqual(DatabaseWorkspaceState.initialViewMode(defaults: defaults, arguments: [], environment: [:]), .tags)
         XCTAssertEqual(
             DatabaseWorkspaceState.initialViewMode(
+                defaults: defaults,
                 arguments: ["-ui-testing"],
                 environment: ["UI_TEST_VIEW_MODE": "groups"]
             ),
             .groups
         )
         XCTAssertEqual(
-            DatabaseWorkspaceState.initialViewMode(arguments: [], environment: ["UI_TEST_VIEW_MODE": "groups"]),
-            .allEntries,
+            DatabaseWorkspaceState.initialViewMode(
+                defaults: defaults,
+                arguments: [],
+                environment: ["UI_TEST_VIEW_MODE": "groups"]
+            ),
+            .tags,
             "Outside UI testing the environment cannot change where a database opens"
         )
         XCTAssertEqual(
             DatabaseWorkspaceState.initialViewMode(
+                defaults: defaults,
                 arguments: ["-ui-testing"],
                 environment: ["UI_TEST_VIEW_MODE": "no-such-view"]
             ),
-            .allEntries
+            .tags
         )
     }
 
@@ -4588,7 +4776,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(conflictedVM.hasPendingCloudUploads)
         XCTAssertTrue(conflictedVM.hasPendingUploadConflict)
         XCTAssertFalse(
-            CloudSyncStatusBanner.showsPendingUploadNote(for: conflictedVM),
+            CloudSyncControls.showsPendingUploadNote(for: conflictedVM),
             "\"Still waiting to upload\" contradicts the conflict banner saying the upload failed"
         )
 
@@ -4602,7 +4790,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
         await waitingVM.unlock(password: fixturePassword)
         XCTAssertFalse(waitingVM.hasPendingUploadConflict)
-        XCTAssertTrue(CloudSyncStatusBanner.showsPendingUploadNote(for: waitingVM))
+        XCTAssertTrue(CloudSyncControls.showsPendingUploadNote(for: waitingVM))
     }
 
     func testMergePendingUploadsWhoseUploadFailsKeepsTheMarker() async throws {

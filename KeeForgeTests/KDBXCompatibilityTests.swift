@@ -157,6 +157,27 @@ final class KDBXCompatibilityTests: XCTestCase {
         try collector.emit()
     }
 
+    func test_restoreSavedSubtreePreservesHistoryAttachmentsAndOpaqueMetadata() throws {
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
+        let loaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
+        let group = try XCTUnwrap(loaded.rootGroup.groups.flatMap(\.groups).first { $0.name == "Round Trip" })
+        let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
+                                  binaryPoolFields: loaded.header.innerHeaderBinaryFields)
+        let deleted = try draft.apply(.deleteGroup(groupID: group.id, sendToRecycleBin: true))
+        let data = try deleted.write(compositeKey: loaded.compositeKey, header: loaded.header, kdfPolicy: .mainApp)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(data: data, compositeKey: loaded.compositeKey,
+                                                        sessionKey: loaded.sessionKey, kdfPolicy: .mainApp)
+        let reopened = KDBXCompatibilitySupport.LoadedFixture(
+            fixture: loaded.fixture, rootGroup: parsed.rootGroup, meta: parsed.meta, header: parsed.header,
+            compositeKey: loaded.compositeKey, sourceData: data, sessionKey: loaded.sessionKey,
+            keyFileData: loaded.keyFileData, bundle: bundle
+        )
+        let result = try collector.run(KDBXCompatibilitySupport.restoreRichGroupScenario(), on: reopened)
+        assertHeaderPreserved(result, loaded: reopened, scenario: KDBXCompatibilitySupport.restoreRichGroupScenario())
+        try assertRoundTripFixtureShape(in: result.after)
+        try collector.emit()
+    }
+
     func test_softDeleteCreatesRecycleBinWithoutChangingOtherSemantics() throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
         let loaded = try KDBXCompatibilitySupport.load(.syntheticNoRecycleBin, bundle: bundle)
@@ -700,6 +721,7 @@ final class KDBXCompatibilityTests: XCTestCase {
     /// survive the same round trip: a merged tree reaches `KDBXWriter` through
     /// a pristine draft rather than as an `EntryEdit`, and the artifact this
     /// emits is opened by real KeePassXC in the external gate.
+    /// Remote recycling must retain its original-parent references after reopening.
     func test_mergeScenario_writesAMergedTreeThatReparsesAndOpensExternally() throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
         let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle)
@@ -780,6 +802,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             "kitchen-sink-attachments-update-entry",
             "kitchen-sink-attachments-soft-delete-entry",
             "kitchen-sink-attachments-add-remove",
+            "kitchen-sink-restore-rich-group",
             "kitchen-sink-group-tags-update-entry",
             "kitchen-sink-group-tags-update-group",
             "\(richID)-keeotp-source-matrix",
@@ -808,7 +831,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 41)
+        XCTAssertEqual(descriptors.count, 44)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {
@@ -916,6 +939,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         createForm.title = "Coordinator-created entry"
         createForm.password = "created-protected-password"
         createForm.pendingTagText = "coordinator-tag"
+        createForm.customFields = [.init(key: "Zulu", value: "z"), .init(key: "Alpha", value: "a")]
         let createEditor = DatabaseEditorCoordinator(entry: createForm, database: database)
         createEditor.activate()
         await createEditor.save { completions.append($0) }
@@ -954,6 +978,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(reopened.rootGroup.allEntries.count, root.allEntries.count + 1)
         XCTAssertTrue(renamed.entries.contains { $0.id == created.id })
         XCTAssertEqual(created.tags, ["coordinator-tag"])
+        XCTAssertEqual(created.customFieldOrder, ["Zulu", "Alpha"])
         XCTAssertEqual(try created.password.decrypt(using: reopenedKey), "created-protected-password")
         XCTAssertEqual(updated.title, updateForm.title)
         XCTAssertEqual(try updated.password.decrypt(using: reopenedKey), "updated-protected-password")
@@ -996,6 +1021,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         let group = try XCTUnwrap(root.groups.first)
         let form = EntryEditViewModel(createIn: root.id)
         form.title = "Creation before failed write"
+        form.customFields = [.init(key: "Alpha", value: "a"), .init(key: "Zulu", value: "z")]
         form.password = "first-protected-password"
         form.addAttachment(named: "removed.txt", data: Data("remove before retry".utf8))
         let editor = DatabaseEditorCoordinator(entry: form, database: database)
@@ -1009,6 +1035,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: databaseURL), sourceBytes)
 
         form.title = "Creation after edited retry"
+        form.moveCustomField(id: form.customFields[1].id, offset: -1)
         form.password = "retry-protected-password"
         form.username = "retry-user"
         form.pendingTagText = "retry-tag"
@@ -1034,6 +1061,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(reopened.rootGroup.groups.first { $0.id == group.id }).entries.contains { $0.id == createdID })
         XCTAssertEqual(created.title, form.title)
         XCTAssertEqual(created.username, "retry-user")
+        XCTAssertEqual(created.customFieldOrder, ["Zulu", "Alpha"])
         XCTAssertEqual(created.tags, ["retry-tag"])
         XCTAssertEqual(try created.password.decrypt(using: reopenedKey), "retry-protected-password")
         XCTAssertTrue(created.attachments.isEmpty)
@@ -1153,6 +1181,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             title: "Custom Fields",
             password: try EncryptedValue.encrypt("password", using: entrySessionKey),
             customFields: ["PIN": "1234", "Environment": "Staging", "Obsolete": "old"],
+            customFieldOrder: ["PIN", "Obsolete", "Environment"],
             protectedStringKeys: ["PIN"]
         )
         let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
@@ -1165,6 +1194,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         viewModel.addCustomField()
         viewModel.customFields[viewModel.customFields.count - 1].key = "Account Number"
         viewModel.customFields[viewModel.customFields.count - 1].value = "42"
+        viewModel.moveCustomField(id: viewModel.customFields[0].id, to: viewModel.customFields[1].id)
         XCTAssertTrue(viewModel.canSave)
 
         let updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [entry]), meta: KPMeta(), sessionKey: entrySessionKey)
@@ -1181,6 +1211,12 @@ final class KDBXCompatibilityTests: XCTestCase {
             "A renamed protected field stays protected; added fields are plain"
         )
         XCTAssertEqual(reloaded.history.first?.customFields["PIN"], "1234")
+        XCTAssertEqual(reloaded.customFieldOrder, ["Environment", "Card PIN", "Account Number"])
+        XCTAssertEqual(reloaded.history.first?.customFieldOrder, ["PIN", "Obsolete", "Environment"])
+        XCTAssertEqual(EntryEditViewModel(editing: reloaded, sessionKey: entrySessionKey).customFields.map(\.key),
+                       ["Environment", "Card PIN", "Account Number"])
+        let restored = try updated.apply(.restoreEntryVersion(entryID: entry.id, historyIndex: 0))
+        XCTAssertEqual(try writeAndReload(restored).customFieldOrder, ["PIN", "Obsolete", "Environment"])
     }
 
     /// The issue's stated use case (#107): a second website for one entry.

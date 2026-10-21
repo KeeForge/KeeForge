@@ -17,6 +17,23 @@ final class KDBXMergerTests: XCTestCase {
 
     // MARK: - Matching and placement
 
+    func test_merge_reorderOnlyEditWinsAndRetainsPriorOrderInHistory() throws {
+        var old = try makeEntry(id: alphaID, title: "Fields", modified: time(10))
+        old.customFields = ["Alpha": "a", "Zulu": "z"]
+        old.customFieldOrder = ["Alpha", "Zulu"]
+        var new = old
+        new.customFieldOrder = ["Zulu", "Alpha"]
+        new.lastModificationTime = time(20)
+        let local = try makeSide(work: [old])
+        let remote = try makeSide(work: [new])
+        let merged = try mergedResult(local: local, remote: remote)
+        let entry = try XCTUnwrap(findEntry(alphaID, in: merged.rootGroup))
+        XCTAssertEqual(entry.customFieldOrder, ["Zulu", "Alpha"])
+        XCTAssertEqual(entry.history.first?.customFieldOrder, ["Alpha", "Zulu"])
+        let repeated = try mergedResult(local: .init(rootGroup: merged.rootGroup, meta: merged.meta), remote: remote)
+        XCTAssertFalse(repeated.summary.hasChanges)
+    }
+
     func test_merge_addsRemoteOnlyEntry() throws {
         let local = try makeSide(work: [makeEntry(id: alphaID, title: "Alpha", modified: time(10))])
         let remote = try makeSide(work: [
@@ -511,6 +528,142 @@ final class KDBXMergerTests: XCTestCase {
     }
 
     // MARK: - Recycle bin
+
+    func test_merge_entryRecoveryReferenceFollowsLocationInsteadOfContent() throws {
+        let references = [
+            OpaqueXMLNodes.empty,
+            OpaqueXMLNodes(nodes: [.init(insertionIndex: 2, xml: "<PreviousParentGroup>\n\(workID.kdbxBase64String)\n</PreviousParentGroup>")]),
+            OpaqueXMLNodes(nodes: [.init(insertionIndex: 2, xml: "<PreviousParentGroup>foreign-invalid-reference</PreviousParentGroup>")]),
+        ]
+        for remoteLocationWins in [false, true] {
+            for remoteContentWins in [false, true] {
+                for reference in references {
+                    var localEntry = try makeEntry(id: alphaID, title: "Local", modified: time(remoteContentWins ? 10 : 20),
+                                                   locationChanged: time(remoteLocationWins ? 5 : 30))
+                    var remoteEntry = try makeEntry(id: alphaID, title: "Remote", modified: time(remoteContentWins ? 20 : 10),
+                                                    locationChanged: time(remoteLocationWins ? 30 : 5))
+                    let stale = PreviousParentGroupXML.setting(personalID, in: .empty)
+                    localEntry.unknownXML = remoteLocationWins ? stale : reference
+                    remoteEntry.unknownXML = remoteLocationWins ? reference : stale
+                    localEntry.unknownXML.append(xml: "<ForegroundColor>local</ForegroundColor>", insertionIndex: 3)
+                    remoteEntry.unknownXML.append(xml: "<ForegroundColor>remote</ForegroundColor>", insertionIndex: 3)
+                    let local = try makeSide(work: remoteLocationWins ? [localEntry] : [], personal: remoteLocationWins ? [] : [localEntry])
+                    let remote = try makeSide(work: remoteLocationWins ? [] : [remoteEntry], personal: remoteLocationWins ? [remoteEntry] : [])
+
+                    let merged = try mergedResult(local: local, remote: remote)
+                    let entry = try XCTUnwrap(findGroup(personalID, in: merged.rootGroup)?.entries.first)
+                    XCTAssertEqual(entry.title, remoteContentWins ? "Remote" : "Local")
+                    XCTAssertEqual(entry.locationChanged, time(30))
+                    XCTAssertEqual(entry.unknownXML.nodes.filter { $0.elementName == "PreviousParentGroup" }, reference.nodes)
+                    XCTAssertEqual(entry.unknownXML.nodes.filter { $0.elementName == "ForegroundColor" }.map(\.xml),
+                                   ["<ForegroundColor>\(remoteContentWins ? "remote" : "local")</ForegroundColor>"])
+                    XCTAssertEqual(local.rootGroup.allEntries.first?.unknownXML, localEntry.unknownXML)
+                    XCTAssertEqual(remote.rootGroup.allEntries.first?.unknownXML, remoteEntry.unknownXML)
+                    let second = try mergedResult(local: .init(rootGroup: merged.rootGroup, meta: merged.meta), remote: remote)
+                    XCTAssertFalse(second.summary.hasChanges)
+                    XCTAssertEqual(findEntry(alphaID, in: second.rootGroup)?.unknownXML, entry.unknownXML)
+                }
+            }
+        }
+    }
+
+    func test_merge_groupRecoveryReferenceFollowsLocationInsteadOfScalars() throws {
+        let childID = UUID()
+        for remoteLocationWins in [false, true] {
+            for remoteContentWins in [false, true] {
+                for hasReference in [false, true] {
+                    let local = try makeSide(work: [])
+                    let remote = try makeSide(work: [])
+                    let localGroup = KPGroup(id: childID, name: "Local", entries: [try makeEntry(id: alphaID, title: "Alpha", modified: time(1))],
+                                             lastModificationTime: time(remoteContentWins ? 10 : 20), locationChanged: time(remoteLocationWins ? 5 : 30))
+                    let remoteGroup = localGroup.deepCopy()
+                    remoteGroup.name = "Remote"
+                    remoteGroup.lastModificationTime = time(remoteContentWins ? 20 : 10)
+                    remoteGroup.locationChanged = time(remoteLocationWins ? 30 : 5)
+                    let reference = hasReference ? PreviousParentGroupXML.setting(workID, in: .empty) : .empty
+                    let stale = PreviousParentGroupXML.setting(personalID, in: .empty)
+                    localGroup.unknownXML = remoteLocationWins ? stale : reference
+                    remoteGroup.unknownXML = remoteLocationWins ? reference : stale
+                    localGroup.unknownXML.append(xml: "<CustomData><Item>local</Item></CustomData>", insertionIndex: 3)
+                    remoteGroup.unknownXML.append(xml: "<CustomData><Item>remote</Item></CustomData>", insertionIndex: 3)
+                    try XCTUnwrap(findGroup(remoteLocationWins ? workID : personalID, in: local.rootGroup)).groups.append(localGroup)
+                    try XCTUnwrap(findGroup(remoteLocationWins ? personalID : workID, in: remote.rootGroup)).groups.append(remoteGroup)
+
+                    let merged = try mergedResult(local: local, remote: remote)
+                    let group = try XCTUnwrap(findGroup(personalID, in: merged.rootGroup)?.groups.first)
+                    XCTAssertEqual(group.name, remoteContentWins ? "Remote" : "Local")
+                    XCTAssertEqual(group.locationChanged, time(30))
+                    XCTAssertEqual(group.entries.map(\.id), [alphaID])
+                    XCTAssertEqual(group.unknownXML.nodes.filter { $0.elementName == "PreviousParentGroup" }, reference.nodes)
+                    XCTAssertEqual(group.unknownXML.nodes.filter { $0.elementName == "CustomData" }.map(\.xml),
+                                   ["<CustomData><Item>\(remoteContentWins ? "remote" : "local")</Item></CustomData>"])
+                    let second = try mergedResult(local: .init(rootGroup: merged.rootGroup, meta: merged.meta), remote: remote)
+                    XCTAssertFalse(second.summary.hasChanges)
+                    XCTAssertEqual(findGroup(childID, in: second.rootGroup)?.unknownXML, group.unknownXML)
+                }
+            }
+        }
+    }
+
+    func test_merge_recoveryReferenceAloneDoesNotCreateEntryHistory() throws {
+        var localEntry = try makeEntry(id: alphaID, title: "Alpha", modified: time(20), locationChanged: time(5))
+        var remoteEntry = localEntry
+        localEntry.unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty)
+        remoteEntry.unknownXML = PreviousParentGroupXML.setting(workID, in: .empty)
+        remoteEntry.locationChanged = time(30)
+        remoteEntry.lastModificationTime = time(10)
+        let merged = try mergedResult(local: makeSide(work: [localEntry]), remote: makeSide(work: [], personal: [remoteEntry]))
+        let entry = try XCTUnwrap(findEntry(alphaID, in: merged.rootGroup))
+        XCTAssertEqual(PreviousParentGroupXML.parentID(in: entry.unknownXML), workID)
+        XCTAssertTrue(entry.history.isEmpty)
+        XCTAssertEqual(merged.summary.historyItemsAdded, 0)
+    }
+
+    func test_merge_recoveryReferenceChangeInSameParentIsReported() throws {
+        let childID = UUID()
+        let local = try makeSide(work: [makeEntry(id: alphaID, title: "Alpha", modified: time(10), locationChanged: time(5))])
+        let remote = try makeSide(work: [makeEntry(id: alphaID, title: "Alpha", modified: time(10), locationChanged: time(30))])
+        let localWork = try XCTUnwrap(findGroup(workID, in: local.rootGroup))
+        let remoteWork = try XCTUnwrap(findGroup(workID, in: remote.rootGroup))
+        localWork.groups.append(KPGroup(id: childID, name: "Child", lastModificationTime: time(10), locationChanged: time(5)))
+        let remoteGroup = KPGroup(id: childID, name: "Child", lastModificationTime: time(10), locationChanged: time(30))
+        remoteGroup.unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty)
+        remoteWork.groups.append(remoteGroup)
+        remoteWork.entries[0].unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty)
+
+        let merged = try mergedResult(local: local, remote: remote)
+        XCTAssertEqual(PreviousParentGroupXML.parentID(in: try XCTUnwrap(findEntry(alphaID, in: merged.rootGroup)).unknownXML), personalID)
+        XCTAssertEqual(PreviousParentGroupXML.parentID(in: try XCTUnwrap(findGroup(childID, in: merged.rootGroup)).unknownXML), personalID)
+        XCTAssertEqual(merged.summary.entriesUpdated, 1)
+        XCTAssertEqual(merged.summary.groupsUpdated, 1)
+        XCTAssertTrue(merged.summary.hasChanges)
+    }
+
+    func test_merge_equalOrMissingLocationsKeepLocalRecoveryReference() throws {
+        let childID = UUID()
+        for location in [nil, time(30)] {
+            var localEntry = try makeEntry(id: alphaID, title: "Local", modified: time(10), locationChanged: location)
+            var remoteEntry = try makeEntry(id: alphaID, title: "Remote", modified: time(20), locationChanged: location)
+            localEntry.unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty)
+            remoteEntry.unknownXML = PreviousParentGroupXML.setting(workID, in: .empty)
+            let local = try makeSide(work: [localEntry])
+            let remote = try makeSide(work: [remoteEntry])
+            let localGroup = KPGroup(id: childID, name: "Local", lastModificationTime: time(10), locationChanged: location,
+                                     unknownXML: localEntry.unknownXML)
+            let remoteGroup = KPGroup(id: childID, name: "Remote", lastModificationTime: time(20), locationChanged: nil,
+                                      unknownXML: remoteEntry.unknownXML)
+            try XCTUnwrap(findGroup(workID, in: local.rootGroup)).groups.append(localGroup)
+            try XCTUnwrap(findGroup(workID, in: remote.rootGroup)).groups.append(remoteGroup)
+
+            let merged = try mergedResult(local: local, remote: remote)
+            let entry = try XCTUnwrap(findEntry(alphaID, in: merged.rootGroup))
+            let group = try XCTUnwrap(findGroup(childID, in: merged.rootGroup))
+            XCTAssertEqual(entry.title, "Remote")
+            XCTAssertEqual(group.name, "Remote")
+            XCTAssertEqual(PreviousParentGroupXML.parentID(in: entry.unknownXML), personalID)
+            XCTAssertEqual(PreviousParentGroupXML.parentID(in: group.unknownXML), personalID)
+        }
+    }
 
     func test_merge_adoptsRemoteRecycleBinAndTheMoveIntoIt() throws {
         let binID = UUID()

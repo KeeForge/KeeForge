@@ -39,6 +39,8 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
     var url: String
     var notes: String
     var customFields: [String: String]
+    /// nil preserves ordering for callers that do not edit custom fields.
+    var customFieldOrder: [String]?
     /// Custom-field keys to serialize with Protected=True. Keys absent from
     /// `customFields` are ignored; the passkey PEM key stays effective even
     /// though the value is diverted out of customFields before storage.
@@ -62,6 +64,7 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
         url: String = "",
         notes: String = "",
         customFields: [String: String] = [:],
+        customFieldOrder: [String]? = nil,
         protectedCustomFieldKeys: Set<String> = [],
         tags: [String] = [],
         totpConfig: TOTPConfiguration? = nil,
@@ -75,6 +78,7 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
         self.url = url
         self.notes = notes
         self.customFields = customFields
+        self.customFieldOrder = customFieldOrder
         self.protectedCustomFieldKeys = protectedCustomFieldKeys
         self.tags = tags
         self.totpConfig = totpConfig
@@ -179,4 +183,6 @@ enum EntryEdit: Codable, Sendable, Equatable {
     /// leaves `<LastModificationTime>` alone, the same shape as recycling.
     case moveEntry(entryID: UUID, destinationGroupID: UUID)
     case moveGroup(groupID: UUID, destinationGroupID: UUID)
+    case restoreEntry(entryID: UUID, destinationGroupID: UUID)
+    case restoreGroup(groupID: UUID, destinationGroupID: UUID)
 }

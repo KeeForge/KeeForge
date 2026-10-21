@@ -17,6 +17,9 @@ struct RegularDatabaseWorkspaceView: View {
     /// column idle behind a "Select an Entry" placeholder.
     @State private var detailEditor: DetailEditor?
     #else
+    @SceneStorage("macWorkspace.sidebarWidth") private var macSidebarWidth = MacSidebarWidthSampler.idealWidth
+    @State private var macSidebarWidthSampler = MacSidebarWidthSampler()
+    @State private var macSplitWidth: Double?
     /// Editor presented by the menu-bar New Entry command (⌘N) and the toolbar
     /// add button — a single shared sheet so presentation stays reliable.
     @State private var commandEditor: EntryEditViewModel?
@@ -118,14 +121,12 @@ struct RegularDatabaseWorkspaceView: View {
                         UnsavedChangesBanner(viewModel: viewModel)
                     }
 
-                    if CloudSyncStatusBanner.isVisible(for: viewModel) {
-                        CloudSyncStatusBanner(viewModel: viewModel)
-                    }
-
                     if viewModel.hasPendingUploadConflict && viewModel.isSaving == false {
                         PendingUploadConflictBanner(viewModel: viewModel)
                     }
                 }
+                // The lists scroll under this inset, and the banners are only tinted.
+                .background(Color(.systemBackground), ignoresSafeAreaEdges: [])
             }
             .disabled(viewModel.isSaving)
             .overlay {
@@ -352,13 +353,36 @@ struct RegularDatabaseWorkspaceView: View {
     private var macSplitView: some View {
         NavigationSplitView {
             macSidebarColumn
-                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 340)
+                .onGeometryChange(for: Double.self) { proxy in
+                    Double(proxy.size.width)
+                } action: { width in
+                    // Deferred so the split view's width from the same layout
+                    // pass is known, whichever geometry change fires first.
+                    Task { @MainActor in
+                        guard viewModel.state == .unlocked else { return }
+                        if let preferred = macSidebarWidthSampler.preferredWidth(sidebarWidth: width, splitWidth: macSplitWidth) {
+                            macSidebarWidth = preferred
+                        }
+                    }
+                }
+                // Outermost: wrapped by the geometry observer, the split view
+                // ignores the column width (144 pt on macOS 27.0.1).
+                .navigationSplitViewColumnWidth(
+                    min: MacSidebarWidthSampler.minimumWidth,
+                    ideal: macSidebarWidth,
+                    max: MacSidebarWidthSampler.maximumWidth
+                )
         } content: {
             macContentColumn
                 .entrySelectionBar(viewModel: viewModel) { pendingMove = $0 }
                 .navigationSplitViewColumnWidth(min: 260, ideal: 320, max: 460)
         } detail: {
             detailColumn
+        }
+        .onGeometryChange(for: Double.self) { proxy in
+            Double(proxy.size.width)
+        } action: { width in
+            macSplitWidth = width
         }
         .navigationTitle(viewModel.databaseDisplayName)
         .searchable(text: $viewModel.searchText, prompt: "Search entries")
@@ -412,7 +436,8 @@ struct RegularDatabaseWorkspaceView: View {
         }
         .sheet(item: $pendingMove) { pending in
             MoveToGroupPickerView(
-                options: pending.destinationOptions(viewModel: viewModel)
+                options: pending.destinationOptions(viewModel: viewModel),
+                navigationTitle: pending.navigationTitle
             ) { destinationGroupID in
                 pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
             }
@@ -606,6 +631,10 @@ struct RegularDatabaseWorkspaceView: View {
         }
 
         ToolbarItemGroup(placement: .navigation) {
+            if CloudSyncControls.isVisible(for: viewModel) {
+                CloudSyncControls(viewModel: viewModel)
+            }
+
             if let warningText = viewModel.cloudSyncBannerText {
                 CloudSyncWarningButton(message: warningText)
             }
@@ -1017,6 +1046,8 @@ private struct MacGroupTreeRow: View {
                 }
                 .accessibilityIdentifier("group-row.edit-context")
             }
+
+            RestoreRowAction(item: .group(node.id), viewModel: viewModel, onChooseDestination: onRequestMove)
 
             if canMove {
                 Button("Move to Group") {

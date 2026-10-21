@@ -162,6 +162,9 @@ and content revision after device-owner authentication. Detail and editor action
 also reject changed navigation, selection, or inputs; changing the selected entry
 conceals its fields. A successful prompt does not authorize a later session.
 
+Custom-field drag reordering uses a native list of field names. Field values
+are not displayed in that list or its drag previews.
+
 [ScreenProtectionService](../KeeForge/Services/Security/ScreenProtectionService.swift)
 places a blur cover over all app windows, including Settings, when the app
 resigns active and removes it on activation. The SSH Agent tab also removes

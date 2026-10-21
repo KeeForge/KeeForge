@@ -15,6 +15,8 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - `MacSmokeUITests` is the required local release smoke (`prepare-release` skill). Run one class per invocation.
 - `MacScreenshotAuditUITests` skips unless `TEST_RUNNER_SCREENSHOT_AUDIT=1` is set; `TEST_RUNNER_SCREENSHOT_AUDIT_DARK=1` switches its captures to dark. Both must be real environment variables on the `xcodebuild` process: a trailing `KEY=value` argument is a build-setting override that never reaches the runner, and the class skips silently.
 
+- Restore entry/group context actions and split-view refresh: the restore cases in `MacSmokeUITests`. Shared policy and persistence remain unit-tested.
+
 ## Invariants
 
 ### Launch

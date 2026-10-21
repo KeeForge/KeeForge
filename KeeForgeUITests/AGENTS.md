@@ -2,6 +2,8 @@
 
 **Scope:** XCUITest suites for iPhone and iPad. The Mac suite is in `../KeeForgeMacUITests/AGENTS.md`; both use the same accessibility identifiers and fixture-injection environment, so a change to either affects both.
 
+- Restore entry/group context actions and the returned contents: the restore cases in `EntryDeleteSmokeUITests`, on iPhone and iPad.
+
 ## Running
 
 Base commands and repo-wide policy (`-only-testing:` always, no full UI suite unless asked, RC failures on the iOS 18 iPhone SE simulator) are in `../AGENTS.md`. Specific to this target:
@@ -19,7 +21,7 @@ Base commands and repo-wide policy (`-only-testing:` always, no full UI suite un
 | Setting | Effect |
 | --- | --- |
 | `-ui-testing` | Reseeds the database list from the fixture payload on every launch, skips the device-owner prompt for reveal/copy, and hides the What's New sheet and AutoFill tip. |
-| `UI_TEST_VIEW_MODE` | Starting view of the database root. A database opens on All Entries, but the helpers browse from the group list, so `setUp` sets `groups`. A class testing the real default removes the key (`DefaultViewUITests`). |
+| `UI_TEST_VIEW_MODE` | Starting view of the database root, ahead of the stored last pick. The helpers browse from the group list, so `setUp` sets `groups`. A class testing the stored view removes the key (`DefaultViewUITests`). |
 | `UI_TEST_DATABASES_JSON`, `UI_TEST_KEYFILE_*` | Written by `setUp`. Override `databaseFixtureName`, `databaseFixtures`, or `keyFileFixtureName` instead of setting them. |
 | `UI_TEST_DATABASE_READ_ONLY=1` | Opens the database read-only. |
 | `UI_TEST_DEVICE_OWNER_AUTH_PENDING=1` | Re-arms the reveal/copy gate with an authentication that never completes, to assert nothing is disclosed before it succeeds. |
@@ -118,7 +120,7 @@ A test selects a bundled fixture by overriding `databaseFixtureName`, or `databa
 | `demo.kdbx` | `demo` | `AppStoreScreenshots` |
 | `demo-keyfile.kdbx` + `demo-keyfile.key` | `demo` | `KeyFileUnlockUITests` |
 | `invalid-xml.keyx` | none | `KeyFileUITests` malformed-key rejection |
-| `kitchen-sink.kdbx` | `testpassword123` | `TagBrowserUITests`, `InheritedTagsUITests`, `ViewMenuUITests`, `DefaultViewUITests`, `EntryAttachmentsSmokeUITests`, `SaveConflictMergeDeclineUITests`, `ProtectedCustomFieldUITests`, `ProtectedCustomFieldEditorAuthUITests`, `EntryCustomIconPickerUITests` |
+| `kitchen-sink.kdbx` | `testpassword123` | `TagBrowserUITests`, `InheritedTagsUITests`, `ViewMenuUITests`, `DefaultViewUITests`, `ViewMenuLargeTextUITests`, `EntryAttachmentsSmokeUITests`, `SaveConflictMergeDeclineUITests`, `ProtectedCustomFieldUITests`, `ProtectedCustomFieldEditorAuthUITests`, `EntryCustomIconPickerUITests` |
 | `autofill-union.kdbx` | `testpassword123` | `TOTPSmokeUITests`, `TOTPEnrollmentUITests`, `TOTPEnrollmentDeepLinkUITests` |
 | `autofill-store-alpha.kdbx`, `autofill-store-bravo.kdbx` | `testpassword123` | `AutoFillStoreUITests` |
 | `compatibility/legacy-kdbx31.kdbx` | `testpassword123` | `UnlockedDatabaseBrowseAndDetailUITests` read-only KDBX 3.1 case |

@@ -11,6 +11,52 @@ import XCTest
 final class MacSmokeUITests: MacUITestCase {
     private let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
 
+    func testRestoreEntryFromRecycleBinContextMenu() {
+        unlockSuccessfully()
+        openGroup(named: "Social")
+        restoreTestRow(identifier: "entry.navlink", named: "Discord").rightClick()
+        clickRestoreTestMenu("entry-row.delete-context")
+        let delete = app.windows.buttons["Delete"].firstMatch
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        delete.click()
+        openGroup(named: "Recycle Bin")
+        restoreTestRow(identifier: "entry.navlink", named: "Discord").rightClick()
+        clickRestoreTestMenu("entry-row.restore-context")
+        openGroup(named: "Social")
+        XCTAssertTrue(restoreTestRow(identifier: "entry.navlink", named: "Discord").waitForExistence(timeout: 10))
+    }
+
+    func testRestoreGroupFromRecycleBinContextMenu() {
+        unlockSuccessfully()
+        restoreTestRow(identifier: "group.navlink", named: "Work").rightClick()
+        clickRestoreTestMenu("group-row.delete-context")
+        let delete = app.windows.buttons["Delete"].firstMatch
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        delete.click()
+        openGroup(named: "Recycle Bin")
+        restoreTestRow(identifier: "group.navlink", named: "Work").rightClick()
+        clickRestoreTestMenu("group-row.restore-context")
+        openGroup(named: "Work")
+        XCTAssertTrue(restoreTestRow(identifier: "entry.navlink", named: "Email").waitForExistence(timeout: 10))
+    }
+
+    private func restoreTestRow(identifier: String, named name: String) -> XCUIElement {
+        rowQuery(identifier: identifier).matching(NSPredicate(
+            format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", name, name
+        )).allElementsBoundByIndex.first { $0.isHittable && $0.frame.height > 10 }
+            ?? rowQuery(identifier: identifier).matching(NSPredicate(
+                format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", name, name
+            )).firstMatch
+    }
+
+    private func clickRestoreTestMenu(_ identifier: String) {
+        let query = app.menuItems.matching(identifier: identifier)
+        XCTAssertTrue(query.firstMatch.waitForExistence(timeout: 5))
+        let item = query.allElementsBoundByIndex.first { $0.isEnabled && $0.isHittable }
+        XCTAssertNotNil(item, "Context action missing: \(identifier)")
+        item?.click()
+    }
+
     // MARK: - Unlock
 
     func testUnlockSucceedsWithCorrectPassword() {
@@ -29,6 +75,46 @@ final class MacSmokeUITests: MacUITestCase {
     }
 
     // MARK: - Browse
+
+    // Only the native split view can establish whether a recreated workspace
+    // restores the divider position after locking.
+    func testSidebarWidthSurvivesRepeatedLockUnlockCycles() throws {
+        unlockSuccessfully()
+        let window = app.windows.firstMatch
+        let originalWindowSize = window.frame.size
+        let divider = try XCTUnwrap(sidebarDivider(), "The workspace sidebar divider is missing")
+        let originalPosition = divider.frame.midX - window.frame.minX
+        let delta: CGFloat = originalPosition < 280 ? 60 : -60
+        let start = divider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.2, thenDragTo: start.withOffset(CGVector(dx: delta, dy: 0)))
+
+        let resizedDivider = try XCTUnwrap(sidebarDivider(), "The resized sidebar divider is missing")
+        let resizedPosition = resizedDivider.frame.midX - window.frame.minX
+        XCTAssertGreaterThan(abs(resizedPosition - originalPosition), 20, "The sidebar divider did not resize")
+
+        for _ in 0..<3 {
+            typeCommandShortcut("l")
+            XCTAssertTrue(app.secureTextFields["unlock.password.field"].waitForExistence(timeout: 15))
+            XCTAssertFalse(rowQuery(identifier: "group.navlink").firstMatch.exists)
+            unlockSuccessfully()
+
+            let restored = NSPredicate { [self] _, _ in
+                guard let divider = sidebarDivider() else { return false }
+                return abs(divider.frame.midX - window.frame.minX - resizedPosition) <= 2
+            }
+            let restoredExpectation = XCTNSPredicateExpectation(predicate: restored, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [restoredExpectation], timeout: 10), .completed,
+                           "Unlocking reset the sidebar width")
+            XCTAssertEqual(window.frame.width, originalWindowSize.width, accuracy: 2)
+            XCTAssertEqual(window.frame.height, originalWindowSize.height, accuracy: 2)
+        }
+    }
+
+    private func sidebarDivider() -> XCUIElement? {
+        app.splitters.allElementsBoundByIndex
+            .filter { $0.frame.height > 100 && $0.frame.width < 20 }
+            .min { $0.frame.minX < $1.frame.minX }
+    }
 
     func testBrowseGroupsShowsFixtureGroups() {
         unlockSuccessfully()
@@ -170,6 +256,43 @@ final class MacSmokeUITests: MacUITestCase {
     }
 
     // MARK: - Edit + save
+
+    func testCustomFieldMoveControlsPersistOrder() {
+        unlockSuccessfully()
+        openGroup(named: "Social")
+        openEntry(named: "Discord")
+        clickToolbarButton(identifier: "entry-detail.edit", overflowLabel: "Edit")
+
+        func reach(_ element: XCUIElement) {
+            for _ in 0..<18 {
+                if element.exists && element.isHittable { return }
+                app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -250)
+            }
+            XCTAssertTrue(element.isHittable)
+        }
+        let addField = app.buttons["entry-edit.custom-field.add"].firstMatch
+        for (index, name) in ["Alpha", "Zulu"].enumerated() {
+            reach(addField)
+            addField.click()
+            let nameField = app.textFields["entry-edit.custom-field.name-field.\(index)"].firstMatch
+            reach(nameField)
+            nameField.click()
+            app.typeText(name)
+        }
+        let moveUp = app.buttons["entry-edit.custom-field.move-up.1"].firstMatch
+        reach(moveUp)
+        moveUp.click()
+        XCTAssertEqual(app.textFields["entry-edit.custom-field.name-field.0"].firstMatch.value as? String, "Zulu")
+        let save = app.buttons["entry-edit.save"].firstMatch
+        save.click()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 15))
+        clickToolbarButton(identifier: "entry-detail.edit", overflowLabel: "Edit")
+        let first = app.textFields["entry-edit.custom-field.name-field.0"].firstMatch
+        reach(first)
+        XCTAssertEqual(first.value as? String, "Zulu")
+        reach(app.textFields["entry-edit.custom-field.name-field.1"].firstMatch)
+        XCTAssertEqual(app.textFields["entry-edit.custom-field.name-field.1"].firstMatch.value as? String, "Alpha")
+    }
 
     func testEditEntryTitleAndSavePersists() {
         unlockSuccessfully()

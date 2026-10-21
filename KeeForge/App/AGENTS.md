@@ -26,6 +26,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 ### Launch and presentation
 
+- Open cloud databases keep Sync Now beside the iOS browsing title and in the Mac database toolbar. Skipped-check, last-sync, pending-upload, and result text lives in its status popover; choosing a future sync policy never claims the current open skipped a check. Sync enablement comes from `DatabaseViewModel.canSyncCloudNow`.
 - Unlock, unlocking, and unlocked are one selected-database flow. Compact presents unlock as a sheet over the list and swaps to the session once unlocked; regular renders all three states inline in the detail column.
 - Quick Launch waits until the What's New sheet (and the Mac transition notice) is dismissed, so two launch presentations never compete.
 - SwiftUI drops a presentation raised while another sheet is dismissing. That is why deferred presentations wait 450 ms and why the conflicted-upload notice is a banner, not an alert: it is due at unlock, while the compact unlock sheet is dismissing.
@@ -41,6 +42,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 ### macOS workspace lists
 
+- The group sidebar width lives in scene storage, outside the unlocked workspace's lifetime. Measure the visible column and restore its preferred width on unlock; never retain database contents to preserve layout. Only a width measured in a split view of unchanged width is a preference: a narrower window compresses the column without replacing it (`MacSidebarWidthSampler`). Keep `navigationSplitViewColumnWidth` the column's outermost modifier: wrapped by `onGeometryChange`, the split view ignored it on macOS 27.0.1 and laid the sidebar out at 144 pt.
 - All three browsing columns are native `List(selection:)` so arrow keys, type-select, and the focus ring come from AppKit. Rows are plain content, not buttons: a `Button` swallows the click the list needs.
 - Do not rely on the list still selecting under a row's tap gesture. On macOS 27.0 it does (`onTapGesture`, `simultaneousGesture`, and double-tap variants all still move the selection); the earlier releases where the gesture was recorded as consuming the click are unverified. Sidebar rows carry no tap gesture; the disclosure triangle is the only way to fold a group.
 - The entries column wants double-click-to-open, so its row (`../Views/Entry/MacEntriesList.swift`) handles the single click itself: it sets `selectedEntryID` and focuses the list, so neither selection nor arrow keys depend on what the list does with that click. The sidebar's selection binding takes focus on every write for a related reason: on macOS 27.0 a click on a gesture-free row, or an accessibility selection, moves the selection without making the list first responder.
@@ -65,9 +67,11 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 ## Tests
 
+- Persistent cloud sync controls, repeated syncs, policy changes, and warning state: `DatabaseViewModelCloudSyncTests`. The status popover workflow is covered by `CloudUnlockSmokeUITests` and `MacWebDAVSmokeUITests`.
 - Routing and launch order: `AppRoutingCoordinatorTests`. Menu password copy: `EntrySecretActionTests`. Lock triggers: `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `AutoLockTests`. iOS window activity forwarding: `IOSUserActivityTests`; real editor typing, scrolling, button taps, and subsequent idle locking: `AutoLockActivityUITests`.
 - Mac list selection and keyboard wiring exists only as UI: `MacSmokeUITests` (the `testDownArrow…` and double-click cases) and `MacListKeyboardNavigationUITests`.
 - Sidebar custom-icon data and recycle-bin icon projection: the macOS cases in `GroupIconViewTests`.
+- Which sidebar widths count as the preference: `MacSidebarWidthSamplerTests`. Divider restoration across repeated lock/unlock cycles: `MacSmokeUITests.testSidebarWidthSurvivesRepeatedLockUnlockCycles`; native split-view layout requires the UI test.
 - Root navigation changes ripple into `DatabaseListView`, `UnlockView`, and both UI suites; rerun the smallest affected class from `../../KeeForgeUITests/AGENTS.md`.
 
 ## See also

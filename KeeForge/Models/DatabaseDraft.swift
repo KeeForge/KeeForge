@@ -11,6 +11,7 @@ struct DatabaseDraft: Sendable {
         case historyVersionNotFound(entryID: UUID, index: Int)
         case customIconNotStorable
         case moveDestinationInsideMovedGroup(groupID: UUID, destinationGroupID: UUID)
+        case restoreUnavailable
         case attachmentNotFound(name: String)
         case attachmentPoolUnavailable
         case attachmentWouldClaimMissingReference
@@ -34,6 +35,8 @@ struct DatabaseDraft: Sendable {
                 String(localized: "This database's icons are stored in a form KeeForge cannot add to without risking the ones already there.")
             case .moveDestinationInsideMovedGroup:
                 String(localized: "A group cannot be moved into itself or one of its subgroups.")
+            case .restoreUnavailable:
+                String(localized: "This item cannot be restored to that group. Choose another destination.")
             case .attachmentNotFound(let name):
                 String(localized: "The attachment \"\(name)\" is no longer part of this entry.")
             case .attachmentPoolUnavailable:
@@ -185,6 +188,14 @@ struct DatabaseDraft: Sendable {
             updatedState = try applyUpdateGroup(groupID: groupID, draft: draft)
         case .restoreEntryVersion(let entryID, let historyIndex):
             updatedState = try applyRestoreEntryVersion(entryID: entryID, historyIndex: historyIndex)
+        case .restoreEntry(let entryID, let destinationGroupID):
+            let path = findEntryLocation(entryID: entryID, in: currentRootGroupStorage)?.groupPath
+            try validateRestore(sourcePath: path, destinationGroupID: destinationGroupID)
+            updatedState = try applyMoveEntry(entryID: entryID, destinationGroupID: destinationGroupID)
+        case .restoreGroup(let groupID, let destinationGroupID):
+            let path = findGroupLocation(groupID: groupID, in: currentRootGroupStorage)?.parentPath
+            try validateRestore(sourcePath: path, destinationGroupID: destinationGroupID)
+            updatedState = try applyMoveGroup(groupID: groupID, destinationGroupID: destinationGroupID, isRestoring: true)
         case .moveEntry(let entryID, let destinationGroupID):
             updatedState = try applyMoveEntry(entryID: entryID, destinationGroupID: destinationGroupID)
         case .moveGroup(let groupID, let destinationGroupID):
@@ -796,6 +807,7 @@ struct DatabaseDraft: Sendable {
             tags: version.tags,
             hasTagsElement: version.hasTagsElement,
             customFields: version.customFields,
+            customFieldOrder: version.customFieldOrder,
             passkeyPrivateKey: version.passkeyPrivateKey,
             totpConfig: version.totpConfig,
             otpURL: version.otpURL,
@@ -849,6 +861,7 @@ struct DatabaseDraft: Sendable {
         let timestamp = Date.now
         var recycledEntry = entryLocation.entry
         recycledEntry.locationChanged = timestamp
+        recycledEntry.unknownXML = PreviousParentGroupXML.setting(entryLocation.groupPath.last, in: recycledEntry.unknownXML)
 
         switch recycleBinTarget(in: rootWithoutEntry, meta: currentMetaStorage) {
         case .existing(let recycleBinPath):
@@ -924,6 +937,7 @@ struct DatabaseDraft: Sendable {
         // and keeps its own timestamps.
         let timestamp = Date.now
         let recycledGroup = copyGroup(groupLocation.group, locationChanged: timestamp)
+        recycledGroup.unknownXML = PreviousParentGroupXML.setting(groupLocation.parentPath.last, in: recycledGroup.unknownXML)
 
         switch recycleBinTarget(in: rootWithoutGroup, meta: currentMetaStorage) {
         case .existing(let recycleBinPath):
@@ -965,6 +979,15 @@ struct DatabaseDraft: Sendable {
         }
     }
 
+    private func validateRestore(sourcePath: [UUID]?, destinationGroupID: UUID) throws {
+        guard let recycleBinID = currentMetaStorage.recycleBinUUID,
+              sourcePath?.contains(recycleBinID) == true,
+              let destinationPath = pathToGroup(withID: destinationGroupID, in: currentRootGroupStorage),
+              !destinationPath.contains(recycleBinID) else {
+            throw DraftError.restoreUnavailable
+        }
+    }
+
     private func applyMoveEntry(
         entryID: UUID,
         destinationGroupID: UUID
@@ -999,7 +1022,8 @@ struct DatabaseDraft: Sendable {
 
     private func applyMoveGroup(
         groupID: UUID,
-        destinationGroupID: UUID
+        destinationGroupID: UUID,
+        isRestoring: Bool = false
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
         guard isProtectedGroupForDeletion(groupID, in: currentRootGroupStorage, meta: currentMetaStorage) == false else {
             throw DraftError.protectedGroup(groupID)
@@ -1031,7 +1055,8 @@ struct DatabaseDraft: Sendable {
         let movedGroup = copyGroup(groupLocation.group, locationChanged: Date.now)
 
         let updatedRootGroup = try rebuildGroup(in: rootWithoutGroup, targetPath: destinationPath[...]) { group in
-            if group.groups.contains(where: { $0.name.compare(movedGroup.name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) {
+            // Recovery preserves the original name even when a new sibling now shares it.
+            if !isRestoring && group.groups.contains(where: { $0.name.compare(movedGroup.name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) {
                 throw DraftError.duplicateGroupName(parentGroupID: destinationGroupID, name: movedGroup.name)
             }
 
@@ -1058,6 +1083,7 @@ struct DatabaseDraft: Sendable {
             tags: draft.tags,
             hasTagsElement: !draft.tags.isEmpty,
             customFields: customFields,
+            customFieldOrder: draft.customFieldOrder ?? [],
             passkeyPrivateKey: passkeyPrivateKey,
             totpConfig: try makeTOTPConfig(from: draft.totpConfig),
             otpURL: draft.totpConfig?.keeOTPSource == nil
@@ -1105,6 +1131,7 @@ struct DatabaseDraft: Sendable {
             tags: draft.tags,
             hasTagsElement: originalEntry.hasTagsElement || !draft.tags.isEmpty,
             customFields: customFields,
+            customFieldOrder: draft.customFieldOrder ?? originalEntry.customFieldOrder,
             passkeyPrivateKey: passkeyPrivateKey,
             totpConfig: try makeTOTPConfig(from: draft.totpConfig, originalEntry: originalEntry),
             otpURL: updatedOtpURL(draft: draft, originalEntry: originalEntry),

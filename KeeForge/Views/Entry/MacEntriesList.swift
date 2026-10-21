@@ -68,7 +68,8 @@ struct MacEntriesList: View {
         )
         .sheet(item: $pendingMove) { pending in
             MoveToGroupPickerView(
-                options: pending.destinationOptions(viewModel: viewModel)
+                options: pending.destinationOptions(viewModel: viewModel),
+                navigationTitle: pending.navigationTitle
             ) { destinationGroupID in
                 pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
             }

@@ -14,6 +14,20 @@ final class DatabaseDraftTests: XCTestCase {
 
     private let sessionKey = SymmetricKey(size: .bits256)
 
+    func testUpdateWithoutFieldOrderPreservesExistingSequenceAndAppendsNewKeys() throws {
+        let entry = KPEntry(title: "Fields", customFields: ["Zulu": "z", "Alpha": "a"],
+                            customFieldOrder: ["Zulu", "Alpha"])
+        let root = KPGroup(name: "Root", entries: [entry])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+        let updated = try draft.apply(.updateEntry(entryID: entry.id, draft: .init(
+            title: "Updated", customFields: ["Zulu": "z", "Alpha": "a", "Beta": "b"]
+        )))
+        let result = try XCTUnwrap(updated.rootGroup.allEntries.first)
+        XCTAssertEqual(result.orderedCustomFieldKeys(in: Set(result.customFields.keys)), ["Zulu", "Alpha", "Beta"])
+        XCTAssertEqual(result.history.first?.customFieldOrder, ["Zulu", "Alpha"])
+        XCTAssertEqual(draft.rootGroup.allEntries.first?.title, "Fields")
+    }
+
     func test_invalidEntryTextIsRejectedBeforeItCanEnterDraftOrHistory() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: false)
         let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
@@ -792,6 +806,44 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertTrue(updatedEntry.protectedStringKeys.contains("KPEX_PASSKEY_PRIVATE_KEY_PEM"))
     }
 
+    func test_restoreRejectsActiveSourcesBinDestinationsAndCyclesWithoutChangingDraft() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: true)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let binID = try XCTUnwrap(tree.recycleBinGroupID)
+        let parent = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: tree.rootGroup))
+        let childID = try XCTUnwrap(parent.groups.first?.id)
+        XCTAssertThrowsError(try draft.apply(.restoreEntry(entryID: tree.parentEntry.id, destinationGroupID: tree.untouchedGroupID)))
+        XCTAssertThrowsError(try draft.apply(.restoreGroup(groupID: tree.parentGroupID, destinationGroupID: tree.untouchedGroupID)))
+        let recycled = try draft.apply(.deleteGroup(groupID: parent.id, sendToRecycleBin: true))
+        for id in [binID, parent.id, childID, UUID()] {
+            XCTAssertThrowsError(try recycled.apply(.restoreGroup(groupID: parent.id, destinationGroupID: id)))
+            XCTAssertThrowsError(try recycled.apply(.restoreEntry(entryID: tree.parentEntry.id, destinationGroupID: id)))
+        }
+        XCTAssertThrowsError(try recycled.apply(.restoreGroup(groupID: binID, destinationGroupID: tree.untouchedGroupID)))
+        XCTAssertEqual(recycled.pendingEdits.count, 1)
+        let restored = try recycled.apply(.restoreGroup(groupID: parent.id, destinationGroupID: tree.untouchedGroupID))
+        let restoredGroup = try XCTUnwrap(findGroup(withID: parent.id, in: restored.rootGroup))
+        XCTAssertEqual(restoredGroup.allEntries.map(\.id), parent.allEntries.map(\.id))
+        XCTAssertEqual(PreviousParentGroupXML.parentID(in: restoredGroup.unknownXML), tree.rootGroup.groups.first?.id)
+        XCTAssertEqual(draft.pendingEdits.count, 0)
+    }
+
+    func test_previousParentReferenceAcceptsForeignXMLAndRejectsAmbiguousOrMalformedReferences() {
+        let parentID = UUID()
+        var xml = OpaqueXMLNodes()
+        xml.append(xml: "<PreviousParentGroup>\n\(parentID.kdbxBase64String)\n</PreviousParentGroup>", insertionIndex: 2)
+        XCTAssertEqual(PreviousParentGroupXML.parentID(in: xml), parentID)
+        xml.append(xml: "<PreviousParentGroup>invalid</PreviousParentGroup>", insertionIndex: 2)
+        XCTAssertNil(PreviousParentGroupXML.parentID(in: xml))
+        let replaced = PreviousParentGroupXML.setting(parentID, in: xml)
+        XCTAssertEqual(replaced.nodes.count, 1)
+        XCTAssertEqual(PreviousParentGroupXML.parentID(in: replaced), parentID)
+        for value in ["bad", "AAAA", "<Nested>\(parentID.kdbxBase64String)</Nested>"] {
+            let malformed = OpaqueXMLNodes(nodes: [.init(insertionIndex: 0, xml: "<PreviousParentGroup>\(value)</PreviousParentGroup>")])
+            XCTAssertNil(PreviousParentGroupXML.parentID(in: malformed))
+        }
+    }
+
     func test_deleteEntry_softDelete_movesToRecycleBin() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: true)
         let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
@@ -867,9 +919,11 @@ final class DatabaseDraftTests: XCTestCase {
         let recycleBinGroup = try XCTUnwrap(findGroup(withID: recycleBinGroupID, in: updatedDraft.rootGroup))
         let movedGroup = try XCTUnwrap(recycleBinGroup.groups.first(where: { $0.id == tree.parentGroupID }))
         XCTAssertNotNil(movedGroup.locationChanged, "Recycling is a move and must stamp <LocationChanged>")
-        // Everything except that one field has to survive the move untouched.
+        // The recovery reference and move timestamp leave the remaining data untouched.
         let normalized = movedGroup.deepCopy()
         normalized.locationChanged = originalGroup.locationChanged
+        XCTAssertEqual(PreviousParentGroupXML.parentID(in: normalized.unknownXML), try XCTUnwrap(tree.rootGroup.groups.first?.id))
+        normalized.unknownXML.removeDirectChildren(named: "PreviousParentGroup")
         try assertGroupsEqual(normalized, originalGroup)
     }
 
@@ -2801,6 +2855,8 @@ final class DatabaseDraftTests: XCTestCase {
 
         var normalized = recycled
         normalized.locationChanged = entry.locationChanged
+        XCTAssertEqual(PreviousParentGroupXML.parentID(in: normalized.unknownXML), tree.parentGroupID)
+        normalized.unknownXML.removeDirectChildren(named: "PreviousParentGroup")
         try assertEntriesEqual(normalized, entry)
     }
 
