@@ -740,6 +740,36 @@ final class KDBXMergerTests: XCTestCase {
         XCTAssertEqual(remoteRoot.allEntries[0].customIconUUID, uuid)
     }
 
+    func testMergeTakesTheNewerRenameOfAnIconBothSidesHold() throws {
+        let uuid = UUID()
+        let base = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: .empty))
+        func side(name: String?, at date: Date) throws -> KDBXMerger.Side {
+            var meta = KPMeta(customIcons: [uuid: Data([1])])
+            meta.unknownXML = base
+            if let name {
+                meta.unknownXML = try XCTUnwrap(CustomIconXML.renaming(uuid: uuid, to: name, at: date, in: base))
+                meta.customIconNames[uuid] = name
+            }
+            return KDBXMerger.Side(rootGroup: try makeTree(work: []), meta: meta)
+        }
+
+        let remote = try side(name: "Remote", at: time(20))
+        let renamed = try mergedResult(local: try side(name: "Local", at: time(10)), remote: remote)
+        XCTAssertEqual(renamed.meta.customIconNames[uuid], "Remote")
+        XCTAssertEqual(renamed.summary.customIconsUpdated, 1)
+        XCTAssertEqual(CustomIconXML.modificationTime(of: uuid, in: renamed.meta.unknownXML), time(20))
+        XCTAssertFalse(renamed.meta.unknownXML.nodes.contains { $0.xml.contains("<Name>Local</Name>") })
+        let again = try mergedResult(local: .init(rootGroup: renamed.rootGroup, meta: renamed.meta), remote: remote)
+        XCTAssertFalse(again.summary.hasChanges)
+
+        let unnamed = try mergedResult(local: try side(name: nil, at: time(0)), remote: remote)
+        XCTAssertEqual(unnamed.meta.customIconNames[uuid], "Remote")
+
+        let newerLocal = try mergedResult(local: try side(name: "Local", at: time(30)), remote: remote)
+        XCTAssertEqual(newerLocal.meta.customIconNames[uuid], "Local")
+        XCTAssertFalse(newerLocal.summary.hasChanges)
+    }
+
     func testDeletedIconDoesNotCreateHistoryWhenMergingTheSameRemoteAgain() throws {
         let uuid = UUID()
         var entry = try makeEntry(id: betaID, title: "Remote", modified: time(20))

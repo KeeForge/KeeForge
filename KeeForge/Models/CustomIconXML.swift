@@ -72,8 +72,25 @@ enum CustomIconXML {
     }
 
     static func copying(uuid: UUID, from source: OpaqueXMLNodes, to destination: OpaqueXMLNodes) -> OpaqueXMLNodes? {
-        guard let (index, match) = location(of: uuid, in: source) else { return nil }
-        return addingElement(String(source.nodes[index].xml[match.range]), to: destination)
+        guard let element = element(uuid: uuid, in: source) else { return nil }
+        return addingElement(element, to: destination)
+    }
+
+    static func replacing(uuid: UUID, from source: OpaqueXMLNodes, in destination: OpaqueXMLNodes) -> OpaqueXMLNodes? {
+        guard let element = element(uuid: uuid, in: source) else { return nil }
+        return editing(uuid: uuid, in: destination) { _ in element }
+    }
+
+    static func modificationTime(of uuid: UUID, in xml: OpaqueXMLNodes) -> Date? {
+        guard let icon = element(uuid: uuid, in: xml),
+              let field = children(in: icon, root: "Icon")?.first(where: { $0.name == "LastModificationTime" })
+        else { return nil }
+        return Date(kdbxBase64String: icon[field.content].trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private static func element(uuid: UUID, in xml: OpaqueXMLNodes) -> String? {
+        guard let (index, match) = location(of: uuid, in: xml) else { return nil }
+        return String(xml.nodes[index].xml[match.range])
     }
 
     private static func location(of uuid: UUID, in xml: OpaqueXMLNodes) -> (Int, Span)? {

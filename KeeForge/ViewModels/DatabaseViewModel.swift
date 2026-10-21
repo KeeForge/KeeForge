@@ -3242,7 +3242,7 @@ final class DatabaseViewModel {
             + summary.groupsAdded + summary.groupsUpdated + summary.groupsMoved
             + summary.historyItemsAdded + summary.deletionsApplied
             + summary.tombstonesDropped + summary.tombstonesAdded
-            + summary.customIconsSpliced
+            + summary.customIconsSpliced + summary.customIconsUpdated
 
         guard changeCount > 0 else {
             return String(localized: "The other copy had no new changes to add. Your changes were saved.")

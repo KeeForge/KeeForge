@@ -55,6 +55,7 @@ enum KDBXMerger {
         /// Tombstones adopted from remote, so the deletion propagates onward.
         var tombstonesAdded = 0
         var customIconsSpliced = 0
+        var customIconsUpdated = 0
         /// Icon references the merge could not satisfy. Cosmetic only — KeePass
         /// and KeePassXC fall back to the default icon — so not a blocker, and
         /// deliberately not a change.
@@ -65,7 +66,7 @@ enum KDBXMerger {
                 || groupsAdded > 0 || groupsUpdated > 0 || groupsMoved > 0
                 || historyItemsAdded > 0 || deletionsApplied > 0
                 || tombstonesDropped > 0 || tombstonesAdded > 0
-                || customIconsSpliced > 0
+                || customIconsSpliced > 0 || customIconsUpdated > 0
         }
     }
 
@@ -597,6 +598,20 @@ extension KDBXMerger {
                 }
             }
             CustomIconXML.removeReferences(to: deletedIcons, in: root)
+
+            // An icon both sides hold takes the newer KDBX 4.1 rename, as in KeePassXC.
+            for uuid in remote.meta.customIcons.keys.sorted(by: { $0.uuidString < $1.uuidString })
+            where meta.customIcons[uuid] != nil {
+                guard let remoteTime = CustomIconXML.modificationTime(of: uuid, in: remote.meta.unknownXML),
+                      remoteTime > CustomIconXML.modificationTime(of: uuid, in: meta.unknownXML) ?? .distantPast,
+                      let imageData = remote.meta.customIcons[uuid],
+                      let replaced = CustomIconXML.replacing(uuid: uuid, from: remote.meta.unknownXML, in: meta.unknownXML)
+                else { continue }
+                meta.unknownXML = replaced
+                meta.customIcons[uuid] = imageData
+                meta.customIconNames[uuid] = remote.meta.customIconNames[uuid]
+                summary.customIconsUpdated += 1
+            }
 
             var live: Set<UUID> = []
             func visit(_ group: KPGroup) {
