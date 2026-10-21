@@ -26,10 +26,10 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
         form.notes = "Example heading\nExample body"
         await editor.save { completions.append($0) }
 
-        XCTAssertEqual(completions, [.saved])
+        let entry = try XCTUnwrap(database.rootGroup?.allEntries.first { $0.title == form.title })
+        XCTAssertEqual(completions, [.created(entry.id)])
         XCTAssertFalse(database.isDirty)
         XCTAssertEqual(database.rootGroup?.allEntries.count, initialCount + 1)
-        let entry = try XCTUnwrap(database.rootGroup?.allEntries.first { $0.title == form.title })
         XCTAssertEqual(entry.notes, form.notes)
         XCTAssertTrue(entry.history.isEmpty)
         database.lock()
@@ -68,8 +68,8 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
 
         await editor.save { completions.append($0) }
 
-        XCTAssertEqual(completions, [.saved])
-        XCTAssertNotNil(database.rootGroup?.allEntries.first { $0.title == form.title })
+        let entry = try XCTUnwrap(database.rootGroup?.allEntries.first { $0.title == form.title })
+        XCTAssertEqual(completions, [.created(entry.id)])
         XCTAssertFalse(database.hasUnsavedEditor)
         XCTAssertFalse(database.isDirty)
         XCTAssertFalse(editor.isSubmitting)
@@ -241,7 +241,7 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
 
         await editor.save { completions.append($0) }
 
-        XCTAssertEqual(completions, [.saved])
+        XCTAssertEqual(completions, [.created(staged.id)])
         XCTAssertEqual(database.rootGroup?.allEntries.count, originalCount + 1)
         XCTAssertEqual(database.entry(withID: staged.id)?.title, form.title)
         XCTAssertTrue(try XCTUnwrap(database.entry(withID: staged.id)).history.isEmpty)
@@ -278,7 +278,7 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
         await editor.save { completions.append($0) }
 
         let entry = try XCTUnwrap(database.entry(withID: entryID))
-        XCTAssertEqual(completions, [.saved])
+        XCTAssertEqual(completions, [.created(entryID)])
         XCTAssertEqual(database.rootGroup?.allEntries.count, root.allEntries.count + 1)
         XCTAssertTrue(try XCTUnwrap(database.group(withID: destination.id)).entries.contains { $0.id == entryID })
         XCTAssertEqual(entry.title, "Edited retry")
@@ -307,10 +307,11 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
         var completions: [EntryEditCompletion] = []
         await editor.save { completions.append($0) }
 
-        XCTAssertEqual(completions, [.saved])
+        let createdID = try XCTUnwrap(database.rootGroup?.allEntries.first { $0.title == form.title }?.id)
+        XCTAssertEqual(completions, [.created(createdID)])
+        XCTAssertNotEqual(createdID, discardedID)
         XCTAssertNil(database.entry(withID: discardedID))
         XCTAssertEqual(database.rootGroup?.allEntries.count, root.allEntries.count + 1)
-        XCTAssertNotNil(database.rootGroup?.allEntries.first { $0.title == form.title })
     }
 
     func testCreateConflictRetryKeepsTheStagedIdentity() async throws {
@@ -334,7 +335,7 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
         await editor.save { completions.append($0) }
         editor.completeAfterConflictIfSettled { completions.append($0) }
 
-        XCTAssertEqual(completions, [.saved])
+        XCTAssertEqual(completions, [.created(entryID)])
         XCTAssertNil(database.saveConflict)
         XCTAssertEqual(database.rootGroup?.allEntries.count, root.allEntries.count + 1)
         XCTAssertEqual(database.entry(withID: entryID)?.title, form.title)
@@ -360,10 +361,11 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
         var completions: [EntryEditCompletion] = []
         await editor.save { completions.append($0) }
 
-        XCTAssertEqual(completions, [.saved])
+        let createdID = try XCTUnwrap(database.rootGroup?.allEntries.first { $0.title == form.title }?.id)
+        XCTAssertEqual(completions, [.created(createdID)])
+        XCTAssertNotEqual(createdID, discardedID)
         XCTAssertNil(database.entry(withID: discardedID))
         XCTAssertEqual(database.rootGroup?.allEntries.count, root.allEntries.count + 1)
-        XCTAssertNotNil(database.rootGroup?.allEntries.first { $0.title == form.title })
     }
 
     func testCreateRetryRefusesVanishedDestinationWithoutLosingItsStagedEntry() async throws {
@@ -443,7 +445,7 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
         action.operation = {}
         await editor.save { completions.append($0) }
 
-        XCTAssertEqual(completions, [.saved])
+        XCTAssertEqual(completions, [.created(stagedID)])
         XCTAssertEqual(database.rootGroup?.allEntries.count, root.allEntries.count + 1)
         XCTAssertEqual(database.entry(withID: stagedID)?.title, form.title)
     }
@@ -465,6 +467,40 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
 
         XCTAssertFalse(database.isDirty)
         XCTAssertNil(database.currentRootGroup?.allEntries.first { $0.title == form.title })
+    }
+
+    func testCreatedEntryIsReportedOnlyAfterMergeAndSummaryDismissal() async throws {
+        let remoteData = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        let database = try await makeDatabase { _, _, _, _, reconciledHash, _, _ in
+            if let reconciledHash { return .saved(newSHA512: reconciledHash) }
+            return .conflict(remoteSHA512: KDBXCrypto.sha512(remoteData), remoteData: remoteData)
+        }
+        defer { database.lock() }
+        let rootID = try XCTUnwrap(database.rootGroup?.id)
+        let form = EntryEditViewModel(createIn: rootID)
+        form.title = "Creation across merge"
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        var completions: [EntryEditCompletion] = []
+
+        await editor.save { completions.append($0) }
+        let entryID = try XCTUnwrap(database.currentRootGroup?.allEntries.first { $0.title == form.title }?.id)
+        editor.completeAfterConflictIfSettled { completions.append($0) }
+        XCTAssertTrue(completions.isEmpty)
+        XCTAssertNotNil(database.saveConflict)
+
+        try await database.mergeAndSave()
+        editor.completeAfterConflictIfSettled { completions.append($0) }
+        XCTAssertTrue(completions.isEmpty)
+        XCTAssertNotNil(database.mergeSummaryMessage)
+
+        database.acknowledgeMergeSummary()
+        editor.completeAfterConflictIfSettled { completions.append($0) }
+        editor.completeAfterConflictIfSettled { completions.append($0) }
+        XCTAssertEqual(completions, [.created(entryID)])
+        database.revealEntry(entryID)
+        XCTAssertEqual(database.workspace.selectedEntryID, entryID)
+        XCTAssertEqual(database.workspace.selectedGroupID, rootID)
     }
 
     func testGroupConflictWaitsForSuccessfulMergeAndSummaryAcknowledgement() async throws {

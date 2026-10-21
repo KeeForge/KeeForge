@@ -56,6 +56,8 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 ### iPad workspace
 
+- Successful New Entry completion selects the saved entry through `revealEntry` in both regular shells, including a changed destination group. Cancel, edit, and Save and Lock keep their existing selection behavior.
+
 - Editors raised from the sidebar (New Entry, Edit Group) are hosted in the detail column, not pushed into the narrow sidebar. A hosted editor keeps its unsaved work: later requests are ignored while one is up.
 - iPad mini in portrait starts with the sidebar collapsed behind the system "Show Sidebar" button. That is the platform's default visibility for a 744 pt regular window. An explicit `columnVisibility: .all` does open it side by side (iOS 18.6 and 27.0); the workspace passes no column visibility and keeps the platform default.
 

@@ -31,6 +31,15 @@ final class EntryDuplicateUITests: EntryEditUITestCase {
         replaceText(in: titleField, with: duplicatedEntryTitle)
         app.buttons["entry-edit.save"].tap()
 
+        let title = app.staticTexts["entry-detail.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        XCTAssertEqual(title.label, duplicatedEntryTitle)
+        if app.windows.firstMatch.frame.width < 700 {
+            tapBackButton()
+        } else {
+            revealSidebarIfNeeded()
+        }
+
         XCTAssertTrue(
             entry(named: duplicatedEntryTitle).waitForExistence(timeout: 10),
             "The duplicated entry should appear in the group it was created in"

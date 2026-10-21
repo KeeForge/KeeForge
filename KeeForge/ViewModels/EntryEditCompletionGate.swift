@@ -5,6 +5,7 @@ import Foundation
 /// to its destination list on cancel and finishes only on save.
 enum EntryEditCompletion: Equatable, Sendable {
     case saved
+    case created(UUID)
     case cancelled
     case deleted
 }

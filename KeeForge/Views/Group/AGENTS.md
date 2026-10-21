@@ -13,6 +13,8 @@
 
 ## Invariants
 
+- After creating an entry, compact opens its detail from the list’s next `onAppear`, after the editor has popped. Never pop the editor and push the detail in the same transaction.
+
 - Group rows keep navigating while entry bulk selection is active. The root list hosts one selection bar for its own rows and inline search results; a picked destination moves the selected entries through one save.
 - Edit Group, Change Icon, and the AutoFill exclusion toggle have the same eligibility (not read-only, not the recycle bin, not inside it), spelled as `canEditGroup`, `canChangeGroupIcon`, and `canChangeAutoFillExclusion`. Change them together.
 - The excluded badge is hidden inside the recycle bin so a row never shows a badge it cannot act on; KeePass marks the bins it creates `EnableSearching` false.
@@ -28,6 +30,8 @@
 - `MoveToGroupPickerView` is also the New Entry destination picker, with its own title. Options are resolved when the sheet is built, not when the menu was tapped.
 
 ## Tests
+
+- New-entry detail after save: `EntryCreateFocusUITests` on iPhone and iPad; the Mac selection and sheet case is `MacSmokeUITests.testNewEntryIsSelectedAfterSaving`.
 
 - `ViewMenuUITests`, `DefaultViewUITests`, `ViewMenuLargeTextUITests`, `TagBrowserUITests` for the root views; `GroupEditUITests`, `GroupIconPickerUITests` for the editor and picker.
 - `KeeForgeUITestCase.selectDatabaseView` is the supported way to switch views in a test.
