@@ -166,9 +166,12 @@ Custom-field drag reordering uses a native list of field names. Field values
 are not displayed in that list or its drag previews.
 
 [ScreenProtectionService](../KeeForge/Services/Security/ScreenProtectionService.swift)
-places a blur cover over vault-content windows when the app resigns active and
-removes it on activation. Settings is excluded from the cover because it contains
-no vault secrets. This cover is independent of the capture-blocking toggle.
+places a blur cover over all app windows, including Settings, when the app
+resigns active and removes it on activation. The SSH Agent tab also removes
+its vault-derived entry titles and key fingerprints from its view while the app
+is inactive
+([MacSSHAgentController](../KeeForge/Services/SSHAgent/MacSSHAgentController.swift)
+`concealsKeyList`). This cover is independent of the capture-blocking toggle.
 
 The default-on Block Screen Capture setting applies `NSWindow.sharingType = .none`
 to existing and newly observed windows, including Settings. Treat this as
@@ -221,6 +224,68 @@ not titled, so the resign-active blur cover skips it. Because a search usually
 starts while another app is active, the panel closes when it loses key status
 and does not rely on that cover. It applies the Block Screen Capture setting to
 itself when shown, with the same best-effort limits as the other windows.
+
+## SSH agent
+
+The optional SSH agent
+([MacSSHAgentController](../KeeForge/Services/SSHAgent/MacSSHAgentController.swift))
+is off by default. While it is on, it listens on `ssh-agent.sock` in the app's
+container home. The socket is created mode 0600 inside a container directory only
+the user can enter, and every connection is checked with `getpeereid` against the
+app's own user. At most 64 connections are open at once, since each one costs the
+app a thread; a further one takes the place of the connection that has gone longest
+without a complete request, so clients that connect and then stall, stop inside a
+message, or never read their answer cannot keep new ones out. No connection has a
+time limit of its own: below 64, an idle one stays open. It needs no extra
+entitlement and adds no network access. Turning
+the agent off or quitting removes the socket; a file left by a crash is replaced on
+the next start, and anything at that path that is not a socket is left alone and
+reported.
+
+The agent writes no keys anywhere. Which entries it serves is a per-database list of entry
+UUIDs in the app's own defaults, chosen in Settings ▸ SSH Agent. Every request
+reads those entries from the one active session at that moment, so nothing is
+offered while that session is locked, closed, or has a lock pending: one waiting
+on unsaved work or a window-close prompt, or Retry Save and Lock writing before it
+locks.
+The private key is read from the decrypted attachment pool for each request and
+parsed off the main thread. A key file over 64 KiB, several times the largest
+supported key, is refused before it is decoded, a `KeeAgent.settings` over the same
+size is not parsed, and the list of identities is cut to the 256 KiB message limit,
+so what an attachment can make one request do is bounded. A parsed key is kept in
+memory only for the same entry, the same lock cycle of the same session, and
+byte-identical key file content, so an unchanged key is not parsed for every
+request. That cache is emptied the moment the session locks or a lock becomes
+pending, when the selection changes, and when the agent is turned off; a key parsed
+from a read of the session that such an event has overtaken is not kept. After signing, the agent reads the session
+again and withholds the signature if the session's lock cycle, the selection, or the
+entry's key attachment has changed. No key file is written to disk and no key is exported.
+
+Supported keys are unencrypted OpenSSH private keys (`openssh-key-v1`) for Ed25519,
+ECDSA P-256/P-384/P-521, and RSA. RSA signs only with `rsa-sha2-256` or
+`rsa-sha2-512`; SHA-1 `ssh-rsa` requests fail. RSA keys outside OpenSSH's own
+1024 to 16384 bit range are rejected when parsed, which also bounds the arithmetic a
+crafted attachment can make a request do. Passphrase-protected keys, PEM and
+PKCS #8 files, and PuTTY keys are listed as unsupported and never served. The agent
+answers only identity listing and signing; requests to add, remove, or lock keys,
+and protocol extensions, fail.
+
+Like `ssh-agent`, the agent cannot tell one local process from another. Any process
+running as the user that can reach the socket can list the chosen public keys and
+obtain signatures while the database is unlocked, and there is no per-signature
+confirmation. That also holds for an entry whose `KeeAgent.settings` asks for a
+confirmation or a lifetime in KeeAgent or KeePassXC: KeeForge reads only the key's
+attachment name from that file, and choosing the entry in Settings is the consent. Forwarding the agent to a remote host extends the same ability to that
+host for the length of the connection. A signature is not bound to a destination
+either: `session-bind@openssh.com` is refused like every other extension.
+
+Not validated on a signed, sandboxed build: whether a client outside the container
+reaches the socket without a prompt, how the covered Settings window and capture
+block behave in Mission Control and under ScreenCaptureKit, and `ssh`, `git`, and
+a forwarded agent end to end. Not measured: lock latency while many clients send
+requests (each one reads the session on the main thread), and the time a
+16384-bit RSA signature takes. The same-user peer check has no test with a peer of
+another user.
 
 ## Plaintext attachment files and disk encryption
 

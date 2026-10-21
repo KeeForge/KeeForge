@@ -8,6 +8,7 @@
 
 - Every bundled database a unit test opens is described once as a named `KDBXTestFixture` in `KDBXTreeAssertions.swift`, and the descriptor is the only way to open it (`url`, `data`, `keyFileData`, `compositeKey`, `parse`). No inline `KDBXTestFixture(...)` literal, `Bundle.url(forResource:)` lookup, or per-suite loader: suites drift apart and lose coverage.
 - `TestDatabaseSupport.fixtureData` is for non-database resources (key files) only.
+- `SSHAgentTestKeys.swift` (`#if os(macOS)`) holds throwaway OpenSSH private keys and reference RSA signatures generated with Python's `cryptography`, independent of KeeForge's parser. They protect nothing.
 - A compatibility `Fixture.id` is an artifact ID used by the gate's manifests and the expectation allow-lists, independent of the file it reads (`aes-baseline` reads `test.kdbx`). Keep the ID stable when retargeting a fixture's source.
 
 ### Assertions

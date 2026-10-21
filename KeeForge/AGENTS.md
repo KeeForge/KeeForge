@@ -15,7 +15,7 @@ Keep all four compiling when a shared file changes. `KeeForgeTests` also compile
 Exclusions in `../project.yml`:
 
 - The Mac app omits `Resources/LaunchScreen.storyboard`, `Services/Cloud/DropboxCloudProvider.swift`, and `Services/Cloud/OneDriveCloudProvider.swift`. Omitting the two providers is what lets the Mac app drop the Dropbox and MSAL packages.
-- The iOS app omits the macOS-only `App/KeeForgeCommands.swift` and `Services/AppSupport/{MacLockMonitor,MacWindowCloseGuard,MacQuickAccessController,MacGlobalHotKey}.swift`.
+- The iOS app omits the macOS-only `App/KeeForgeCommands.swift` and `Services/AppSupport/{MacLockMonitor,MacWindowCloseGuard,MacQuickAccessController,MacGlobalHotKey}.swift`, and `Services/SSHAgent/`.
 - Both apps compile `../AutoFillExtension/CredentialProviderCoordinator.swift` so hosted unit tests can reach it. The Mac app also compiles the Mac AutoFill shell and its views for the same reason.
 - The iOS `Info.plist` and `KeeForge.entitlements` live here; the Mac equivalents are in `../KeeForgeMac/`.
 
@@ -44,6 +44,7 @@ Flows that span three or more folders, as the types that own each step in order.
 - Verification-code enrollment: an `otpauth://` link goes `App/KeeForgeApp` -> `ViewModels/AppRoutingCoordinator` (parses `Models/OTPAuthURI`) -> `ViewModels/TOTPEnrollmentViewModel` -> `Views/TOTP/TOTPEnrollmentDestinationView` -> `Views/Entry/EntryEditView`.
 - AutoFill read: the app and extensions share models and selected services through `../project.yml`, App Group storage (`Services/Persistence/SharedVaultStore`, `DatabaseListStore`), cached database copies, and Keychain items. A local save must keep the shared cached copy aligned.
 - AutoFill save: `../AutoFillExtension/CredentialProviderCoordinator` -> `Services/AutoFill/AutoFillSaveCoordinator` -> `Services/Persistence/LocalDatabaseSaver` into the cache, plus a `Services/Cloud/PendingUploadQueue` marker for cloud databases. The app's `Services/Cloud/PendingUploadDrainer`, owned by `ViewModels/DatabaseListViewModel`, uploads when the app becomes active.
+- Mac SSH agent: `App/KeeForgeApp` owns one `Services/SSHAgent/MacSSHAgentController`, which runs the opt-in agent socket (`SSHAgentSocketServer`) and answers each request (`SSHAgentRequestHandler`) from the entries chosen in `Views/Settings/MacSSHAgentSettingsTab`, read from the active `ViewModels/DatabaseViewModel` at that moment, so a lock withdraws the keys. Keys come from entry attachments (`SSHAgentKey`); a parsed key is kept in memory only until that lock, and nothing is written to disk.
 
 ## See also
 
