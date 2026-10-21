@@ -1151,6 +1151,20 @@ final class ProtectedCustomFieldEditorAuthUITests: UnlockedDatabaseUITestCase {
         app.launchEnvironment["UI_TEST_DEVICE_OWNER_AUTH_PENDING"] = "1"
     }
 
+    func testRemovingCustomFieldProtectionWaitsForAuthentication() {
+        unlockSuccessfully()
+        openFixtureEntry(groupName: "Secrets", entryName: "Protected Custom")
+        openProtectedCustomFieldInEditor()
+        let protect = app.switches["entry-edit.custom-field.protection.0"]
+        XCTAssertTrue(revealElement(protect))
+        protect.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertEqual(protect.value as? String, "1")
+        XCTAssertFalse(app.textViews["entry-edit.custom-field.value-field.0"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.textFields["entry-edit.custom-field.value-field.0"].exists)
+        XCTAssertTrue(app.secureTextFields["entry-edit.custom-field.value-field.0"].exists)
+        XCTAssertFalse(app.buttons["entry-edit.save"].isEnabled)
+    }
+
     func testRevealingAProtectedCustomFieldInTheEditorWaitsForAuthentication() {
         unlockSuccessfully()
         openFixtureEntry(groupName: "Secrets", entryName: "Protected Custom")

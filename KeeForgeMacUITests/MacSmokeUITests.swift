@@ -257,6 +257,50 @@ final class MacSmokeUITests: MacUITestCase {
 
     // MARK: - Edit + save
 
+    func testCustomFieldProtectionPersistsInTheNativeEditor() {
+        unlockSuccessfully()
+        openGroup(named: "Social")
+        openEntry(named: "Discord")
+        clickToolbarButton(identifier: "entry-detail.edit", overflowLabel: "Edit")
+        func reach(_ element: XCUIElement) {
+            for _ in 0..<18 {
+                if element.exists && element.isHittable { return }
+                app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -250)
+            }
+            XCTAssertTrue(element.isHittable)
+        }
+        let add = app.buttons["entry-edit.custom-field.add"].firstMatch
+        reach(add)
+        add.click()
+        let name = app.textFields["entry-edit.custom-field.name-field.0"].firstMatch
+        reach(name)
+        name.click()
+        app.typeText("PIN")
+        let value = app.textFields["entry-edit.custom-field.value-field.0"].firstMatch
+        reach(value)
+        value.click()
+        app.typeText("1234")
+        let protect = app.checkBoxes["entry-edit.custom-field.protection.0"].firstMatch
+        reach(protect)
+        protect.click()
+        XCTAssertTrue(app.secureTextFields["entry-edit.custom-field.value-field.0"].firstMatch.exists)
+        let save = app.buttons["entry-edit.save"].firstMatch
+        save.click()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 15))
+        let reveal = app.buttons["entry.protected-field.pin.reveal"].firstMatch
+        reach(reveal)
+        XCTAssertFalse(app.staticTexts["1234"].exists)
+        reveal.click()
+        XCTAssertTrue(app.staticTexts["1234"].waitForExistence(timeout: 5))
+        clickToolbarButton(identifier: "entry-detail.edit", overflowLabel: "Edit")
+        reach(protect)
+        XCTAssertEqual(protect.value as? String, "1")
+        protect.click()
+        save.click()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 15))
+        XCTAssertFalse(reveal.exists)
+    }
+
     func testCustomFieldMoveControlsPersistOrder() {
         unlockSuccessfully()
         openGroup(named: "Social")

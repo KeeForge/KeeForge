@@ -248,7 +248,7 @@ enum ApplePasswordsCSVImporter {
                 )
             } else {
                 draft.customFields[PasswordImport.unsupportedOTPFieldName] = otpAuth
-                draft.protectedCustomFieldKeys.insert(PasswordImport.unsupportedOTPFieldName)
+                draft.protectedCustomFieldKeys = [PasswordImport.unsupportedOTPFieldName]
                 keepsUnsupportedVerificationCode = true
             }
         }

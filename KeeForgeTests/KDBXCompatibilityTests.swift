@@ -1176,6 +1176,33 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     @MainActor
+    func test_customFieldProtectionCanBeCreatedChangedAndRemovedThroughSaveAndReopen() throws {
+        let form = EntryEditViewModel(createIn: UUID())
+        form.title = "Protected Fields"
+        form.customFields = [.init(key: "PIN", value: "1234", isProtected: true),
+                             .init(key: "Region", value: "EU")]
+        let root = KPGroup(name: "Root")
+        var draft = try DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.createEntry(parentGroupID: root.id, draft: form.entryDraftPayload))
+        var reloaded = try writeAndReload(draft)
+        XCTAssertEqual(reloaded.customFields, ["PIN": "1234", "Region": "EU"])
+        XCTAssertEqual(reloaded.protectedStringKeys.intersection(reloaded.customFields.keys), ["PIN"])
+        for protection in [false, true] {
+            let editor = EntryEditViewModel(editing: reloaded, sessionKey: entrySessionKey)
+            let index = try XCTUnwrap(editor.customFields.firstIndex { $0.key == "PIN" })
+            editor.customFields[index].isProtected = protection
+            draft = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [reloaded]),
+                                      meta: KPMeta(), sessionKey: entrySessionKey)
+                .apply(.updateEntry(entryID: reloaded.id, draft: editor.entryDraftPayload))
+            reloaded = try writeAndReload(draft)
+            XCTAssertEqual(reloaded.protectedStringKeys.contains("PIN"), protection)
+            XCTAssertEqual(reloaded.customFields["PIN"], "1234")
+            XCTAssertEqual(reloaded.history.first?.protectedStringKeys.contains("PIN"), !protection)
+            XCTAssertEqual(reloaded.history.first?.customFields["PIN"], "1234")
+        }
+    }
+
+    @MainActor
     func test_customFieldEditsInTheEditor_surviveWriteAndReloadWithProtectionIntact() throws {
         let entry = KPEntry(
             title: "Custom Fields",
@@ -1273,12 +1300,8 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(reloaded.history.first?.additionalURLs, ["https://second.example"])
     }
 
-    /// Protection is preserved by key name in `DatabaseDraft`, because callers
-    /// like the AutoFill save path do not restate it. So a name freed by a
-    /// rename and immediately reused keeps the old field's protection — the
-    /// safe direction, and the one behavior the editor cannot override.
     @MainActor
-    func test_reusingARenamedProtectedFieldsNameKeepsThatNameProtected() throws {
+    func test_reusingARenamedProtectedFieldsNameDoesNotProtectTheNewField() throws {
         let entry = KPEntry(
             title: "Audit",
             password: try EncryptedValue.encrypt("password", using: entrySessionKey),
@@ -1298,8 +1321,8 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(reloaded.customFields, ["Card PIN": "1234", "PIN": "not a secret"])
         XCTAssertEqual(
             reloaded.protectedStringKeys.intersection(reloaded.customFields.keys),
-            ["Card PIN", "PIN"],
-            "The renamed field keeps its protection, and the reused name inherits it"
+            ["Card PIN"],
+            "Protection follows field identity, not a reused name"
         )
     }
 

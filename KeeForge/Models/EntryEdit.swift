@@ -41,10 +41,9 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
     var customFields: [String: String]
     /// nil preserves ordering for callers that do not edit custom fields.
     var customFieldOrder: [String]?
-    /// Custom-field keys to serialize with Protected=True. Keys absent from
-    /// `customFields` are ignored; the passkey PEM key stays effective even
-    /// though the value is diverted out of customFields before storage.
-    var protectedCustomFieldKeys: Set<String>
+    /// nil preserves existing protection; otherwise this is the complete set
+    /// for supplied custom fields. The diverted passkey PEM key also counts.
+    var protectedCustomFieldKeys: Set<String>?
     var tags: [String]
     var totpConfig: TOTPConfiguration?
     /// `nil` leaves the entry's stored expiration exactly as it is, so a
@@ -65,7 +64,7 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
         notes: String = "",
         customFields: [String: String] = [:],
         customFieldOrder: [String]? = nil,
-        protectedCustomFieldKeys: Set<String> = [],
+        protectedCustomFieldKeys: Set<String>? = nil,
         tags: [String] = [],
         totpConfig: TOTPConfiguration? = nil,
         expiry: EntryExpiry? = nil,
