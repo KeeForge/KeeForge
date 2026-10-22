@@ -211,7 +211,7 @@ final class CredentialProviderSaveTests: XCTestCase {
 
         XCTAssertTrue(outcome.enqueuedPendingUpload)
         XCTAssertEqual(recorder.relativePathInputs, [expectedCacheURL])
-        XCTAssertEqual(recorder.events, ["enqueue", "saveDraft", "finalize", "notify", "dropSuperseded"])
+        XCTAssertEqual(recorder.events, ["enqueue", "saveDraft", "finalize", "dropSuperseded", "notify"])
 
         let provisionalMarker = try XCTUnwrap(recorder.enqueuedMarkers.first)
         XCTAssertEqual(recorder.enqueuedMarkers.count, 1)
@@ -414,7 +414,7 @@ final class CredentialProviderSaveTests: XCTestCase {
 
         XCTAssertEqual(
             recorder.events,
-            ["enqueue", "saveDraft", "finalize", "resolveReference", "enqueue", "notify", "dropSuperseded"]
+            ["enqueue", "saveDraft", "finalize", "resolveReference", "enqueue", "dropSuperseded", "notify"]
         )
         XCTAssertEqual(recorder.enqueuedMarkers.count, 2)
         let replacementMarker = try XCTUnwrap(recorder.enqueuedMarkers.last)
