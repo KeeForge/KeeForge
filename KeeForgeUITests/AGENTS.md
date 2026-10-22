@@ -120,7 +120,7 @@ A test selects a bundled fixture by overriding `databaseFixtureName`, or `databa
 | `demo.kdbx` | `demo` | `AppStoreScreenshots` |
 | `demo-keyfile.kdbx` + `demo-keyfile.key` | `demo` | `KeyFileUnlockUITests` |
 | `invalid-xml.keyx` | none | `KeyFileUITests` malformed-key rejection |
-| `kitchen-sink.kdbx` | `testpassword123` | `TagBrowserUITests`, `InheritedTagsUITests`, `ViewMenuUITests`, `DefaultViewUITests`, `ViewMenuLargeTextUITests`, `EntryAttachmentsSmokeUITests`, `SaveConflictMergeDeclineUITests`, `ProtectedCustomFieldUITests`, `ProtectedCustomFieldEditorAuthUITests`, `EntryCustomIconPickerUITests` |
+| `kitchen-sink.kdbx` | `testpassword123` | `TagBrowserUITests`, `InheritedTagsUITests`, `ViewMenuUITests`, `DefaultViewUITests`, `ViewMenuLargeTextUITests`, `EntryAttachmentsSmokeUITests`, `SaveConflictMergeDeclineUITests`, `ProtectedCustomFieldUITests`, `ProtectedCustomFieldEditorAuthUITests`, `EntryCustomIconPickerUITests`, `EntryCreateFocusUITests` |
 | `autofill-union.kdbx` | `testpassword123` | `TOTPSmokeUITests`, `TOTPEnrollmentUITests`, `TOTPEnrollmentDeepLinkUITests` |
 | `autofill-store-alpha.kdbx`, `autofill-store-bravo.kdbx` | `testpassword123` | `AutoFillStoreUITests` |
 | `compatibility/legacy-kdbx31.kdbx` | `testpassword123` | `UnlockedDatabaseBrowseAndDetailUITests` read-only KDBX 3.1 case |

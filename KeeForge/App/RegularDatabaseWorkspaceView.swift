@@ -212,7 +212,8 @@ struct RegularDatabaseWorkspaceView: View {
     private func hostedEditor(_ editor: DetailEditor) -> some View {
         switch editor {
         case .entry(let formViewModel):
-            EntryEditView(formViewModel: formViewModel, databaseViewModel: viewModel) { _ in
+            EntryEditView(formViewModel: formViewModel, databaseViewModel: viewModel) { completion in
+                selectCreatedEntry(completion)
                 detailEditor = nil
             }
         case .group(let formViewModel):
@@ -253,7 +254,8 @@ struct RegularDatabaseWorkspaceView: View {
                         EntryEditView(
                             formViewModel: formViewModel,
                             databaseViewModel: view.viewModel
-                        ) { _ in
+                        ) { completion in
+                            view.selectCreatedEntry(completion)
                             view.commandEditor = nil
                         }
                     }
@@ -310,6 +312,11 @@ struct RegularDatabaseWorkspaceView: View {
         }
     }
     #endif
+
+    private func selectCreatedEntry(_ completion: EntryEditCompletion) {
+        guard case .created(let entryID) = completion else { return }
+        viewModel.revealEntry(entryID)
+    }
 
     private func selectEntry(_ entry: KPEntry) {
         viewModel.workspace.selectedEntryID = entry.id

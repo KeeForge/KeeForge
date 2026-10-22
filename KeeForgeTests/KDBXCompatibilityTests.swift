@@ -962,7 +962,8 @@ final class KDBXCompatibilityTests: XCTestCase {
         await groupEditor.save { completions.append($0) }
         groupEditor.deactivate()
         XCTAssertNil(groupEditor.errorMessage)
-        XCTAssertEqual(completions, [.saved, .saved, .saved])
+        let createdID = try XCTUnwrap(database.rootGroup?.allEntries.first { $0.title == createForm.title }?.id)
+        XCTAssertEqual(completions, [.created(createdID), .saved, .saved])
         XCTAssertFalse(database.isDirty)
         XCTAssertFalse(database.hasUnsavedEditor)
         database.lock()
@@ -973,6 +974,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             data: writtenData, password: fixture.password, sessionKey: reopenedKey
         )
         let created = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.title == createForm.title })
+        XCTAssertEqual(created.id, createdID)
         let updated = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.id == existing.id })
         let renamed = try XCTUnwrap(reopened.rootGroup.groups.first { $0.id == group.id })
         XCTAssertEqual(reopened.rootGroup.allEntries.count, root.allEntries.count + 1)

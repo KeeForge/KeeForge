@@ -134,6 +134,13 @@ class DatabaseCreationUITestCase: EntryEditUITestCase {
             line: line
         )
 
+        XCTAssertTrue(app.staticTexts["entry-detail.title"].waitForExistence(timeout: 5))
+        if app.windows.firstMatch.frame.width < 700 {
+            tapBackButton(file: file, line: line)
+        } else {
+            revealSidebarIfNeeded()
+        }
+
         XCTAssertTrue(
             revealElement(entry(named: entryTitle)),
             "Created entry was not visible after saving",

@@ -36,6 +36,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `save()` no-ops behind an in-flight save. An operation holding `isSaving` (rekey, re-encryption) flushes edits that landed behind it; `importEntries` refuses to start.
 - `syncCloudNow()` never discards unsaved work, never applies a response older than a save that finished mid-sync, never swaps a YubiKey session, and never pushes pending uploads.
 - A completion arriving while a save conflict is on screen is held by `EntryEditCompletionGate` until `isSettled`. Reporting it races the conflict alert, which presents from the editor, and loses the dismissal.
+- A successful new-entry save reports `.created` with its stable UUID; failed writes and unresolved conflicts report nothing, and Save and Lock keeps its ordinary completion without opening an entry.
 - `DatabaseEditorCoordinator` guards submission and completion by lock cycle, and completion also by editor lifetime, so an old save cannot close a new editor. A failed create keeps its entry UUID so a retry updates rather than duplicates.
 - `AppRoutingCoordinator` applies an Open/Close destination only after the source session locks; Keep Editing or a replaced source drops it.
 

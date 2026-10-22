@@ -57,6 +57,22 @@ final class MacSmokeUITests: MacUITestCase {
         item?.click()
     }
 
+    // Selection and sheet dismissal need the native split view.
+    func testNewEntryIsSelectedAfterSaving() {
+        unlockSuccessfully()
+        openGroup(named: "Work")
+        openEntry(named: "Email")
+        typeCommandShortcut("n")
+        let titleField = app.textFields["entry-edit.title-field"].firstMatch
+        XCTAssertTrue(titleField.waitForExistence(timeout: 10))
+        titleField.click()
+        app.typeText("ZZZ Newly Saved Entry")
+        let save = app.buttons["entry-edit.save"].firstMatch
+        save.click()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 15))
+        XCTAssertTrue(waitForDisplayText("ZZZ Newly Saved Entry", identifier: "entry-detail.title"))
+    }
+
     // MARK: - Unlock
 
     func testUnlockSucceedsWithCorrectPassword() {
