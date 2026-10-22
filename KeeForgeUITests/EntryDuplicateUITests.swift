@@ -49,4 +49,24 @@ final class EntryDuplicateUITests: EntryEditUITestCase {
             "Duplicating must leave the original entry in place"
         )
     }
+
+    func testDuplicateFromSearchResultsOpensTheSavedCopy() {
+        unlockSuccessfully()
+
+        searchForEntries(matching: discordEntryTitle)
+        revealContextMenuButton(
+            rowNamed: discordEntryTitle,
+            identifier: "entry-row.duplicate-context",
+            preferredIdentifier: "search.entry.navlink"
+        ).tap()
+
+        let titleField = app.textFields["entry-edit.title-field"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5), "Duplicate did not open the entry form")
+        replaceText(in: titleField, with: duplicatedEntryTitle)
+        app.buttons["entry-edit.save"].tap()
+
+        let title = app.staticTexts["entry-detail.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10), "Saving the duplicate did not open its detail")
+        XCTAssertEqual(title.label, duplicatedEntryTitle)
+    }
 }
