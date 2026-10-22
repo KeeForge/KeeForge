@@ -23,7 +23,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - An async session operation captures `lockCycleID` before its first await and publishes nothing in memory if it changed, or session secrets reappear behind the lock screen. Persisted state mirroring a completed write (keychain, reference, upload markers) still updates.
 - An unlock attempt sets its outcome only while `finishUnlockAttempt` accepts its `prepareForUnlock()` token, so a late YubiKey answer or slow KDF cannot unlock behind a lock. The token is not `lockCycleID`, which paces biometric auto-unlock once per lock.
 - `secretAccess` ends on `lock`, every `lockRequest` (even one that unsaved work defers), backgrounding, and the start of each unlock attempt. An unlock that finishes in the background does not open it.
-- While Sync Now parses a fetched copy, `state` is `.unlocking` but `isReplacingWithSyncedCopy` keeps the session open to lock triggers; they must still lock.
+- While a conflict reload or Sync Now replaces the open tree, `state` is `.unlocking` but `isReplacingOpenDatabase` keeps the session open to lock triggers; they must still lock.
 - A YubiKey session (`sessionUsesHardwareKey`) is read-only: a save rotates the KDF salt and would need a fresh response. Quick Launch stores the pre-key, never the response-bearing composite key.
 - `DatabaseOpenFailure` diagnostics carry no file names, paths, or user data (`privacyNote`, `sanitized(_:)`). Hardware-key failures never count toward the lockout.
 

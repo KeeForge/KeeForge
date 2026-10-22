@@ -4132,6 +4132,101 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.workspace.navigationPath.isEmpty)
     }
 
+    func testLockDuringReloadKeepsTheSessionLocked() async throws {
+        let gate = InFlightSaveGate()
+        let vm = try makeViewModel(reloadOperation: { reference, _ in
+            await gate.parkFirstCall()
+            return Self.makeReloadedDatabase(reference: reference)
+        })
+        await vm.unlock(password: fixturePassword)
+
+        let reload = Task { try await vm.reloadDiscardingDraft() }
+        await gate.firstCallStarted()
+        vm.lock(manuallyTriggered: true)
+        await gate.releaseFirstCall()
+        try await reload.value
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.rootGroup)
+        XCTAssertNil(vm.currentRootGroup)
+    }
+
+    func testBackgroundingDuringReloadLocksDespiteTheDiscardedDraft() async throws {
+        let savedLockOnBackground = SettingsService.lockOnBackground
+        SettingsService.lockOnBackground = true
+        defer { SettingsService.lockOnBackground = savedLockOnBackground }
+
+        let gate = InFlightSaveGate()
+        let vm = try makeViewModel(reloadOperation: { reference, _ in
+            await gate.parkFirstCall()
+            return Self.makeReloadedDatabase(reference: reference)
+        })
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Discarded Entry")
+
+        let reload = Task { try await vm.reloadDiscardingDraft() }
+        await gate.firstCallStarted()
+        vm.handleSceneDidEnterBackground()
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.pendingLockRequest)
+
+        await gate.releaseFirstCall()
+        try await reload.value
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.rootGroup)
+        XCTAssertNil(vm.draft)
+    }
+
+    func testFailedReloadReopensTheSessionWithItsDraft() async throws {
+        let vm = try makeViewModel(reloadOperation: { _, _ in
+            throw SaveError.databaseLocationUnavailable
+        })
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Kept Entry")
+
+        do {
+            try await vm.reloadDiscardingDraft()
+            XCTFail("A failed reload must report its error")
+        } catch {}
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertTrue(vm.isDirty)
+        vm.lockRequest()
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft))
+    }
+
+    func testReloadFailingAfterLockStaysLockedWithoutAnError() async throws {
+        let gate = InFlightSaveGate()
+        let vm = try makeViewModel(reloadOperation: { _, _ in
+            await gate.parkFirstCall()
+            throw SaveError.databaseLocationUnavailable
+        })
+        await vm.unlock(password: fixturePassword)
+
+        let reload = Task { try await vm.reloadDiscardingDraft() }
+        await gate.firstCallStarted()
+        vm.lock(manuallyTriggered: true)
+        await gate.releaseFirstCall()
+        try await reload.value
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.rootGroup)
+    }
+
+    nonisolated private static func makeReloadedDatabase(reference: DatabaseReference) -> DatabaseViewModel.ReloadedDatabase {
+        DatabaseViewModel.ReloadedDatabase(
+            reference: reference,
+            rootGroup: KPGroup(name: "Reloaded Root", entries: [KPEntry(title: "Reloaded Entry")]),
+            meta: KPMeta(),
+            formatVersion: .kdbx4(minor: 0),
+            sessionKey: SymmetricKey(size: .bits256),
+            openTimeSHA512: Data("reloaded-hash".utf8),
+            binaryPool: BinaryPool(rawFields: [])
+        )
+    }
+
     // MARK: - Tag inheritance (group tags)
     //
     // These scenarios build KPGroup trees directly and inject them through the
