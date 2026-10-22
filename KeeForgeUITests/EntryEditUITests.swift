@@ -432,7 +432,7 @@ class EntryEditUITestCase: KeeForgeUITestCase {
 
 @MainActor
 final class EntryCreateSmokeUITests: EntryEditUITestCase {
-    func testCreateEntryInWorkGroupSavesAndShowsInList() {
+    func testCreateEntryInWorkGroupSavesAndOpensItsDetail() {
         unlockSuccessfully()
 
         openGroup(named: workGroupName)
@@ -442,8 +442,14 @@ final class EntryCreateSmokeUITests: EntryEditUITestCase {
             password: nil
         )
 
-        tapBackButton()
-        openGroup(named: workGroupName)
+        XCTAssertTrue(app.staticTexts["entry-detail.title"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["entry-detail.title"].label, createdEntryTitle)
+        XCTAssertTrue(app.staticTexts["ui-created-user"].waitForExistence(timeout: 5))
+        if app.windows.firstMatch.frame.width < 700 {
+            tapBackButton()
+        } else {
+            revealSidebarIfNeeded()
+        }
         XCTAssertTrue(
             revealElement(entry(named: createdEntryTitle)),
             "Created entry was not visible in the Work group after saving"
@@ -1408,6 +1414,12 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
         app.buttons["entry-edit.save"].tap()
         XCTAssertTrue(waitForElementToDisappear(app.buttons["entry-edit.save"], timeout: 10))
 
+        XCTAssertTrue(app.staticTexts["entry-detail.title"].waitForExistence(timeout: 5))
+        if app.windows.firstMatch.frame.width < 700 {
+            tapBackButton()
+        } else {
+            revealSidebarIfNeeded()
+        }
         lockAndReopenVault()
         openEntry(named: generatedPasswordEntryTitle, inGroup: workGroupName)
         let revealButton = app.buttons["entry.password.reveal"]
@@ -1491,5 +1503,27 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
             app.buttons["entry-list.add-entry"].waitForExistence(timeout: 5),
             "Add entry button should return after turning read-only off"
         )
+    }
+}
+
+@MainActor
+final class EntryCreateFocusUITests: EntryEditUITestCase {
+    override var databaseFixtureName: String { "kitchen-sink" }
+
+    func testNewEntryBelowTheFoldOpensWithoutSearching() {
+        unlockSuccessfully()
+        selectDatabaseView(.allEntries)
+        selectSortOption("Title")
+        selectSortOption("Ascending")
+        createEntry(title: "ZZZ Newly Saved Entry", username: "new-entry-user", password: nil)
+
+        let title = app.staticTexts["entry-detail.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: Self.ciElementTimeout))
+        XCTAssertEqual(title.label, "ZZZ Newly Saved Entry")
+        XCTAssertTrue(app.buttons["entry.copy.username"].exists)
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "newly-created-entry-detail"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }

@@ -555,10 +555,10 @@ final class DatabaseViewModel {
     /// policy), and no Sync Now has reached the provider since.
     private(set) var isCloudRefreshPending = false
     private(set) var isSyncingCloud = false
-    /// Sync Now is parsing the copy it fetched. `state` reads `.unlocking` so
-    /// the workspace is torn down, but the session is still open and lock
-    /// triggers must still reach it.
-    private var isReplacingWithSyncedCopy = false
+    /// A conflict reload or Sync Now is replacing the open tree. `state` reads
+    /// `.unlocking` so the workspace is torn down, but the session is still
+    /// open and lock triggers must still reach it.
+    private var isReplacingOpenDatabase = false
     private(set) var cloudSyncOutcome: CloudSyncOutcome?
     /// Changes saved through AutoFill that have not reached the cloud yet, as
     /// of the last open or Sync Now.
@@ -1381,6 +1381,7 @@ final class DatabaseViewModel {
     struct CustomIcon: Identifiable, Sendable, Hashable {
         let id: UUID
         let data: Data
+        var name: String = ""
     }
 
     /// The database's custom icons, in a stable order.
@@ -1393,7 +1394,25 @@ final class DatabaseViewModel {
         guard let icons = currentMeta?.customIcons else { return [] }
         return icons
             .sorted { $0.key.uuidString < $1.key.uuidString }
-            .map { CustomIcon(id: $0.key, data: $0.value) }
+            .map { CustomIcon(id: $0.key, data: $0.value, name: currentMeta?.customIconNames[$0.key] ?? "") }
+    }
+
+    private func validateCustomIconEditing() throws {
+        guard !isReadOnly else { throw SaveError.databaseIsReadOnly }
+        guard case .unlocked = state, !isSaving, saveConflict == nil else { throw SaveError.saveContextUnavailable }
+    }
+
+    func renameCustomIcon(_ uuid: UUID, name: String) throws {
+        try validateCustomIconEditing()
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard currentMeta?.customIcons[uuid] != nil else { throw DatabaseDraft.DraftError.customIconUnavailable }
+        guard (currentMeta?.customIconNames[uuid] ?? "") != name else { return }
+        try applyEntryEdit(.renameCustomIcon(iconUUID: uuid, name: name))
+    }
+
+    func deleteCustomIcon(_ uuid: UUID) throws {
+        try validateCustomIconEditing()
+        try applyEntryEdit(.deleteCustomIcon(iconUUID: uuid))
     }
 
     /// Resolves and decodes attachment bytes for `attachment` against the
@@ -2128,7 +2147,7 @@ final class DatabaseViewModel {
             ClipboardService.clearOwnedContents()
         }
         beginNewLockCycle()
-        isReplacingWithSyncedCopy = false
+        isReplacingOpenDatabase = false
         canRemoveMissingDocumentsFile = false
         state = .locked
         rootGroup = nil
@@ -2193,7 +2212,8 @@ final class DatabaseViewModel {
             return
         }
 
-        if isDirty == false {
+        // A reload in flight is already discarding the draft.
+        if isDirty == false || isReplacingOpenDatabase {
             discardDraft()
             lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard)
             return
@@ -2211,7 +2231,7 @@ final class DatabaseViewModel {
 
     private var isSessionOpen: Bool {
         if case .unlocked = state { return true }
-        return isReplacingWithSyncedCopy
+        return isReplacingOpenDatabase
     }
 
     /// Called by editors as their form dirties and again as they go away.
@@ -3223,7 +3243,7 @@ final class DatabaseViewModel {
             + summary.groupsAdded + summary.groupsUpdated + summary.groupsMoved
             + summary.historyItemsAdded + summary.deletionsApplied
             + summary.tombstonesDropped + summary.tombstonesAdded
-            + summary.customIconsSpliced
+            + summary.customIconsSpliced + summary.customIconsUpdated
 
         guard changeCount > 0 else {
             return String(localized: "The other copy had no new changes to add. Your changes were saved.")
@@ -3243,13 +3263,26 @@ final class DatabaseViewModel {
         workspace.resetNavigation()
         searchText = ""
         workspace.isSearchActive = false
+        let expectedLockCycleID = lockCycleID
         state = .unlocking
+        isReplacingOpenDatabase = true
         cloudSyncProgress = nil
         unlockStatusMessage = databaseReference.isCloudBacked
             ? Self.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
 
-        let reloaded = try await reloadOperation(databaseReference, compositeKey)
+        let reloaded: ReloadedDatabase
+        do {
+            reloaded = try await reloadOperation(databaseReference, compositeKey)
+        } catch {
+            guard lockCycleID == expectedLockCycleID else { return }
+            isReplacingOpenDatabase = false
+            state = .unlocked
+            throw error
+        }
+        guard lockCycleID == expectedLockCycleID else { return }
+
+        isReplacingOpenDatabase = false
         applyReloadedDatabase(reloaded)
         saveConflict = nil
         cloudSyncBannerText = nil
@@ -3393,7 +3426,7 @@ final class DatabaseViewModel {
         // the workspace down, so no open editor outlives the tree and session
         // key it took its snapshot from.
         state = .unlocking
-        isReplacingWithSyncedCopy = true
+        isReplacingOpenDatabase = true
         unlockStatusMessage = Self.decryptingStatusMessage
         let reloaded: ReloadedDatabase
         do {
@@ -3405,14 +3438,14 @@ final class DatabaseViewModel {
             )
         } catch {
             guard lockCycleID == expectedLockCycleID else { return }
-            isReplacingWithSyncedCopy = false
+            isReplacingOpenDatabase = false
             state = .unlocked
             cloudSyncOutcome = .failed(error.localizedDescription)
             return
         }
         guard lockCycleID == expectedLockCycleID else { return }
 
-        isReplacingWithSyncedCopy = false
+        isReplacingOpenDatabase = false
         applyReloadedDatabase(reloaded)
         state = .unlocked
         synchronizeSelections()

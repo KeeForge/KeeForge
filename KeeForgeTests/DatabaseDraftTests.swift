@@ -3,6 +3,42 @@ import XCTest
 @testable import KeeForge
 
 final class DatabaseDraftTests: XCTestCase {
+    func testDeletingCustomIconResetsEntriesGroupsAndHistoryWithoutChangingTheirContent() throws {
+        let uuid = UUID()
+        var unknown = OpaqueXMLNodes()
+        unknown.append(xml: "<CustomIconUUID>\(uuid.kdbxBase64String)</CustomIconUUID>", insertionIndex: 2)
+        var entry = KPEntry(title: "Keep", iconID: 9, customIconUUID: uuid, unknownXML: unknown)
+        entry.history = [entry]
+        let child = KPGroup(name: "Child", iconID: 12, customIconUUID: uuid, entries: [entry], unknownXML: unknown)
+        let root = KPGroup(name: "Root", groups: [child])
+        let xml = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: .empty))
+        let meta = KPMeta(unknownXML: xml, customIcons: [uuid: Data([1])])
+        let draft = DatabaseDraft(rootGroup: root, meta: meta, sessionKey: SymmetricKey(size: .bits256))
+        let renamed = try draft.apply(.renameCustomIcon(iconUUID: uuid, name: "Named"))
+        XCTAssertEqual(renamed.meta.customIconNames[uuid], "Named")
+        XCTAssertEqual(renamed.rootGroup.groups[0].entries[0].history.count, 1)
+        let deleted = try renamed.apply(.deleteCustomIcon(iconUUID: uuid))
+        XCTAssertNil(deleted.meta.customIcons[uuid])
+        XCTAssertNil(deleted.meta.customIconNames[uuid])
+        XCTAssertEqual(deleted.meta.deletedObjects.map(\.uuid), [uuid])
+        let group = deleted.rootGroup.groups[0]
+        XCTAssertNil(group.customIconUUID)
+        XCTAssertEqual(group.iconID, 48)
+        for item in [group.entries[0], group.entries[0].history[0]] {
+            XCTAssertNil(item.customIconUUID)
+            XCTAssertEqual(item.iconID, 0)
+            XCTAssertEqual(item.title, entry.title)
+            XCTAssertFalse(item.unknownXML.nodes.contains { $0.elementName == "CustomIconUUID" })
+        }
+        XCTAssertNotNil(group.lastModificationTime)
+        XCTAssertNotNil(group.entries[0].lastModificationTime)
+        XCTAssertEqual(group.entries[0].history[0].lastModificationTime, entry.lastModificationTime)
+        XCTAssertEqual(root.groups[0].customIconUUID, uuid)
+        XCTAssertEqual(draft.meta.customIcons[uuid], Data([1]))
+        XCTAssertThrowsError(try draft.apply(.renameCustomIcon(iconUUID: uuid, name: "bad\u{0}")))
+        XCTAssertThrowsError(try deleted.apply(.deleteCustomIcon(iconUUID: uuid)))
+    }
+
     private struct SyntheticTree {
         let rootGroup: KPGroup
         let meta: KPMeta

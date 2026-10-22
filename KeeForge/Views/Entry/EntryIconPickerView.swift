@@ -15,6 +15,7 @@ struct EntryIconPickerView: View {
     let entryTitle: String
     let selection: EntryIconSelection
     let customIcons: [DatabaseViewModel.CustomIcon]
+    var databaseViewModel: DatabaseViewModel? = nil
     /// False when the entry has no address a favicon service could be asked
     /// about, so the action is shown disabled rather than offered and refused.
     let canDownloadFavicon: Bool
@@ -61,6 +62,12 @@ struct EntryIconPickerView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         downloadFaviconButton
+                        if let databaseViewModel {
+                            NavigationLink("Manage Custom Icons") {
+                                CustomIconsView(viewModel: databaseViewModel)
+                            }
+                            .accessibilityIdentifier("entry-icon-picker.manage")
+                        }
 
                         if customIcons.isEmpty == false {
                             section(title: String(localized: "Custom Icons")) {
@@ -213,7 +220,8 @@ struct EntryIconPickerView: View {
             }
             .id(Self.cellID(custom: icon.id))
             .accessibilityIdentifier("entry-icon-picker.custom.\(icon.id.uuidString)")
-            .accessibilityLabel("Custom icon")
+            .accessibilityLabel(icon.name.isEmpty ? String(localized: "Custom icon") : icon.name)
+            .macHelp(icon.name.isEmpty ? String(localized: "Custom icon") : icon.name)
             .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         }
     }

@@ -8,6 +8,7 @@
 - `RestoreRowAction` shares entry/group recovery across all shells; `PendingMove.restore` hosts the fallback destination picker with a recovery title. Cancellation stages nothing.
 - `PendingRowActions.swift` is the one source of delete-confirmation wording and move state for the iOS group list, `EntryListView`, `MacEntriesList`, and the macOS workspace. The Mac menu-bar Delete builds the same `PendingDeletion`; no path deletes without it.
 - Entry-row context-menu items are the shared `EntryRowCopyActions`, `EntryRowDuplicateAction`, and `EntryRowMoveAction`. Add or change an item there, not per shell. They hand an editor or `PendingMove` back to the caller instead of presenting, because the host differs per shell.
+- A duplicate saved from the search results or tag browser opens like a new entry: iOS pushes or selects it once its sheet has dismissed, macOS selects it.
 - `EntryRowMoveAction.isAvailable` (writable, not in the recycle bin) is the shared ordinary move/duplicate gate; Restore uses the session’s separate recovery eligibility. The group-row move keeps its own gate in `../Group/GroupListView.swift` on purpose.
 - Three entry lists: `EntryListView` (iOS search results and tag browser), `MacEntriesList` (the same two on macOS), and `MacEntriesColumn` in `../../App/RegularDatabaseWorkspaceView.swift` (the Mac group column). The Mac two share `MacEntryRow`.
 
@@ -33,6 +34,11 @@
 - `MacEntryRow` sets the selection in its tap handler, and the double-click is a `simultaneousGesture` attached after that tap. Two plain tap gestures compose exclusively and hold every single click for the system double-click interval before the detail pane updates.
 - Return and double-click go through `DatabaseViewModel.requestEntryEdit()` so they open the one editor the workspace hosts, not a second sheet.
 - The Mac history browser exists because pushing inside that sheet loses its toolbar. Its `init`-seeded selection and `.id(selection)` list are both load-bearing; the reasons are at the sites in `EntryHistoryView.swift`.
+
+### Custom icons
+
+- `CustomIconsView` is shared by the entry picker and Database Details → General. The session stages rename/delete edits and uses its ordinary save/conflict path. Rename cancellation stages nothing; deletion requires confirmation that live items and history fall back to defaults. Read-only sessions expose no mutations.
+- Icon names are database content, not app preferences; naming upgrades KDBX 4.0 to 4.1 and the rename form explains this.
 
 ### Secrets, values, attachments
 

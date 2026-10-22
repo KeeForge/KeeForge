@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import KeeForge
 
@@ -6,6 +7,54 @@ import XCTest
 /// bytes already in that fragment come out the other side unchanged, whatever
 /// the writing client put in them.
 final class CustomIconXMLTests: XCTestCase {
+
+    func testRenameAndDeleteAnIconFromAForeignDatabase() throws {
+        let loaded = try KDBXTestFixture.kitchenSink.parse(in: Bundle(for: Self.self), sessionKey: SymmetricKey(size: .bits256))
+        let uuid = try XCTUnwrap(loaded.meta.customIcons.keys.first)
+        let fragments = loaded.meta.unknownXML.nodes.filter { $0.elementName == "CustomIcons" }.map(\.xml)
+        let renamed = try XCTUnwrap(CustomIconXML.renaming(uuid: uuid, to: "Foreign icon", at: .now, in: loaded.meta.unknownXML), fragments.joined(separator: "\n"))
+        XCTAssertTrue(renamed.nodes.contains { $0.xml.contains("<Name>Foreign icon</Name>") })
+        XCTAssertEqual(renamed.nodes.count, loaded.meta.unknownXML.nodes.count)
+        XCTAssertEqual(renamed.nodes.filter { $0.elementName != "CustomIcons" },
+                       loaded.meta.unknownXML.nodes.filter { $0.elementName != "CustomIcons" })
+        XCTAssertEqual(renamed.nodes.first { $0.elementName == "CustomIcons" }?.xml, fragments.first)
+        let deleted = try XCTUnwrap(CustomIconXML.deleting(uuid: uuid, from: renamed))
+        XCTAssertFalse(deleted.nodes.contains { $0.xml.contains(uuid.kdbxBase64String) })
+    }
+
+    func testRenamePreservesOtherIconsUnknownFieldsAndImageBytes() throws {
+        let other = "<Icon vendor=\"keep\"><Data>YWJj\nZA==</Data><UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID><Name>Other</Name></Icon>"
+        let target = "<Icon vendor=\"target\"><Name>Old</Name><Data>YWJj</Data><UUID>\(iconUUID.kdbxBase64String)</UUID><Vendor><Name>Keep</Name></Vendor></Icon>"
+        let source = OpaqueXMLNodes(nodes: [.init(insertionIndex: 7, xml: "<CustomIcons>\(other)\(target)</CustomIcons>")])
+        let renamed = try XCTUnwrap(CustomIconXML.renaming(uuid: iconUUID, to: "A & <B> 🗝\rC", at: Date(timeIntervalSince1970: 0), in: source))
+        let fragment = renamed.nodes[0].xml
+        XCTAssertTrue(fragment.contains(other))
+        XCTAssertTrue(fragment.contains("<Data>YWJj</Data><UUID>\(iconUUID.kdbxBase64String)</UUID><Vendor><Name>Keep</Name></Vendor>"))
+        XCTAssertTrue(fragment.contains("<Name>A &amp; &lt;B&gt; 🗝&#xD;C</Name>"))
+        XCTAssertFalse(fragment.contains("<Name>Old</Name>"))
+        XCTAssertEqual(renamed.nodes[0].insertionIndex, 7)
+        let deleted = try XCTUnwrap(CustomIconXML.deleting(uuid: iconUUID, from: renamed))
+        XCTAssertEqual(deleted.nodes[0].xml, "<CustomIcons>\(other)</CustomIcons>")
+    }
+
+    func testRefusesMissingDuplicateOrMalformedIconRatherThanGuessing() {
+        let icon = CustomIconXML.iconElement(uuid: iconUUID, imageData: imageData)
+        for fragment in ["<CustomIcons>\(icon)\(icon)</CustomIcons>", "<CustomIcons>\(icon)", "<CustomIcons></CustomIcons>", "<CustomIcons><Icon></Icon></CustomIcons>"] {
+            let source = OpaqueXMLNodes(nodes: [.init(insertionIndex: 0, xml: fragment)])
+            XCTAssertNil(CustomIconXML.deleting(uuid: iconUUID, from: source))
+            XCTAssertNil(CustomIconXML.renaming(uuid: iconUUID, to: "New", at: .now, in: source))
+        }
+    }
+
+    func testRefusesAnIconUUIDDuplicatedAcrossPreservedContainers() {
+        let icon = CustomIconXML.iconElement(uuid: iconUUID, imageData: imageData)
+        let xml = OpaqueXMLNodes(nodes: [
+            .init(insertionIndex: 0, xml: "<CustomIcons>\(icon)</CustomIcons>"),
+            .init(insertionIndex: 3, xml: "<CustomIcons>\(icon)</CustomIcons>"),
+        ])
+        XCTAssertNil(CustomIconXML.renaming(uuid: iconUUID, to: "Ambiguous", at: .now, in: xml))
+        XCTAssertNil(CustomIconXML.deleting(uuid: iconUUID, from: xml))
+    }
 
     private let imageData = Data([0x89, 0x50, 0x4E, 0x47, 0x00, 0x01, 0x02])
     private let iconUUID = UUID(uuidString: "00112233-4455-6677-8899-AABBCCDDEEFF")!
