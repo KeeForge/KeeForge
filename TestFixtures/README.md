@@ -88,6 +88,7 @@ Details the table does not hold:
 
 - `Secrets`: `Protected Custom`'s current version and its single stored history version both carry `API Token = custom-secret` with `Protected="True"`. `TOTP Login` has a protected `otp` field holding an `otpauth://` URI (secret `JBSWY3DPEHPK3PXP`, 30 s, 6 digits).
 - `Icons`: `Custom Badge` displays the fixture's single custom icon, UUID `4D9C2B1E-7A35-4E68-9B0D-52F16C8A3E77`, a deterministic 8x8 PNG. The UUID is hardcoded in the UI test's `entry-icon-picker.custom.<uuid>` identifier; change both together. `Plain Entry` uses a standard icon, has no stored `<History>`, and has no URL, so it carries the icon-change-pushes-history and disabled "Download Website Icon" cases.
+  The preserved XML has an empty `CustomIcons` container before the populated one. `CustomIconXMLTests` covers editing the unique icon across these containers without normalizing or dropping either.
 - `Projects`: pykeepass writes the `;` join, which exercises the semicolon split. The group `<Notes>` ("Group notes ride along as unknown XML next to the structured Tags element.") exercises unknown-sibling positioning next to `<Tags>`.
 - `Attachments`: `Multi Attachment Entry` has `note-ü.txt` (non-ASCII filename) and `pixel.png` (binary content). The two dedup entries attach one shared pool binary, `shared.bin`.
 - `Round Trip`: the coverage is opaque XML in awkward positions, not the values.

@@ -337,6 +337,13 @@ struct DatabaseDetailsView: View {
             )
             .disabled(isFormatReadOnly || isHardwareKeyReadOnly)
             .accessibilityIdentifier("database-row.read-only-toggle")
+
+            if let sessionViewModel {
+                NavigationLink("Manage Custom Icons") {
+                    CustomIconsView(viewModel: sessionViewModel)
+                }
+                .accessibilityIdentifier("database-details.custom-icons")
+            }
         } header: {
             Text("Editing")
         } footer: {

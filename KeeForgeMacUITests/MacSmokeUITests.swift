@@ -747,3 +747,46 @@ final class MacDatabaseListUITests: MacUITestCase {
         XCTAssertFalse(passwordField.exists, "Detail column still showed the removed database")
     }
 }
+
+@MainActor
+final class MacCustomIconManagementUITests: MacUITestCase {
+    override var databaseFixtures: [DatabaseFixture] {
+        [DatabaseFixture(resourceName: "kitchen-sink", injectedFilename: "kitchen-sink.kdbx")]
+    }
+
+    func testRenameCancelAndDeleteStoredIcon() {
+        let uuid = "4D9C2B1E-7A35-4E68-9B0D-52F16C8A3E77"
+        unlockSuccessfully()
+        openGroup(named: "Icons")
+        openEntry(named: "Custom Badge")
+        let iconButton = app.buttons["entry-detail.icon-button"]
+        XCTAssertTrue(iconButton.waitForExistence(timeout: 10))
+        iconButton.click()
+        let manage = app.buttons["entry-icon-picker.manage"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 10))
+        manage.click()
+        let rename = app.buttons["custom-icons.rename.\(uuid)"]
+        XCTAssertTrue(rename.waitForExistence(timeout: 10))
+        rename.click()
+        let name = app.textFields["custom-icons.rename-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 10))
+        name.click()
+        name.typeText("Website Badge")
+        app.buttons["custom-icons.rename-save"].click()
+        XCTAssertTrue(waitForDisplayText("Website Badge", identifier: "custom-icons.name.\(uuid)"))
+        let delete = app.buttons["custom-icons.delete.\(uuid)"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 10))
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: delete)
+        XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 15), .completed)
+        delete.click()
+        let cancel = app.buttons["custom-icons.delete-cancel"].firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        cancel.click()
+        XCTAssertTrue(rename.exists)
+        delete.click()
+        let confirm = app.buttons["custom-icons.confirm-delete"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.click()
+        XCTAssertTrue(rename.waitForNonExistence(timeout: 15))
+    }
+}

@@ -35,6 +35,11 @@
 - Return and double-click go through `DatabaseViewModel.requestEntryEdit()` so they open the one editor the workspace hosts, not a second sheet.
 - The Mac history browser exists because pushing inside that sheet loses its toolbar. Its `init`-seeded selection and `.id(selection)` list are both load-bearing; the reasons are at the sites in `EntryHistoryView.swift`.
 
+### Custom icons
+
+- `CustomIconsView` is shared by the entry picker and Database Details → General. The session stages rename/delete edits and uses its ordinary save/conflict path. Rename cancellation stages nothing; deletion requires confirmation that live items and history fall back to defaults. Read-only sessions expose no mutations.
+- Icon names are database content, not app preferences; naming upgrades KDBX 4.0 to 4.1 and the rename form explains this.
+
 ### Secrets, values, attachments
 
 - A completed password reveal survives the editor for the same mounted entry: disappearance clears the plaintext, reappearance and a same-entry password edit refresh it without a new prompt. A session-key change conceals it; selecting another entry replaces the detail's identity.

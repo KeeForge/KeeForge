@@ -14,6 +14,7 @@
 		00B5DE04B26E29FD55848E17 /* DatabaseViewModelCloudSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653CACD321A235829BFE4A42 /* DatabaseViewModelCloudSyncTests.swift */; };
 		013E898E2086E6583A54A38F /* KeyFileProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F67A19B307012E6FFA9545C /* KeyFileProcessor.swift */; };
 		016F841C04955FB9F2CC1940 /* TOTPEnrollmentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016320C1DF20F5AFC5FF089E /* TOTPEnrollmentViewModel.swift */; };
+		022D8343C81F655ED461D4FC /* CustomIconsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEEA75BB6589855996A95B5F /* CustomIconsView.swift */; };
 		0268947BAC326A3BDBF92D02 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2317B165FEAEFCF3181EE596 /* KeychainService.swift */; };
 		027EA30B1500567C30672146 /* EncryptionSettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3286BE8035670519E0D813C1 /* EncryptionSettingsViewModelTests.swift */; };
 		0331A923639F63C77C1A98B0 /* MacWhatsNewUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32D4BB41876D699E93EF6F80 /* MacWhatsNewUITests.swift */; };
@@ -691,6 +692,7 @@
 		C5B9D35E0ADF869B0D3A6D2C /* AutoFillMacChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE594C96C5ABCA153E8A179 /* AutoFillMacChrome.swift */; };
 		C5CCB8692F1F9D9E2769664A /* TOTPGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A1400E503A230DF2633686 /* TOTPGeneratorTests.swift */; };
 		C71B2634B38C3F412381687B /* CloudProviderRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7852EA57A46BC264E0B5916B /* CloudProviderRegistry.swift */; };
+		C7CB504295E10026B48C4147 /* CustomIconsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEEA75BB6589855996A95B5F /* CustomIconsView.swift */; };
 		C80BFFE4DF5EF867A57FBE67 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E0A599916DAE57D4D11320 /* SettingsService.swift */; };
 		C830C4BDCE2A486F2F1F27C8 /* DocumentsVaultUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1209029C4B875501D2326C3D /* DocumentsVaultUITests.swift */; };
 		C8C4A4DA9D8EEB1A479CAF54 /* UITestWebDAVCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CB86A3375C87F5074F1AB7D /* UITestWebDAVCloudProvider.swift */; };
@@ -1366,6 +1368,7 @@
 		ECCFEAA0C574981A7B48A938 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		ED991255A4FDFF53325EC964 /* test-v2.keyx */ = {isa = PBXFileReference; path = "test-v2.keyx"; sourceTree = "<group>"; };
 		EEE77955BBD928FFC22F1048 /* CloudProviderRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudProviderRegistryTests.swift; sourceTree = "<group>"; };
+		EEEA75BB6589855996A95B5F /* CustomIconsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomIconsView.swift; sourceTree = "<group>"; };
 		EEF347DAB1EA6BFE0047D020 /* IOSUserActivityObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSUserActivityObserver.swift; sourceTree = "<group>"; };
 		EF6FBD0976DB77F511EDBFFA /* foreign-chacha20.kdbx */ = {isa = PBXFileReference; path = "foreign-chacha20.kdbx"; sourceTree = "<group>"; };
 		F010A269DB2C2D6FD2B162EF /* UITestDropboxCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestDropboxCloudProvider.swift; sourceTree = "<group>"; };
@@ -1610,6 +1613,7 @@
 			children = (
 				30D3E9B8959F15FD248A61FE /* AttachmentQuickLookPreview.swift */,
 				CCF584DE7CA99C49E8FD44CF /* AttachmentsSection.swift */,
+				EEEA75BB6589855996A95B5F /* CustomIconsView.swift */,
 				1543CC01DAF7B249E8E5AF26 /* EntryCustomFieldOrderSheet.swift */,
 				08894081A7C651DBFB58FDD9 /* EntryDetailView.swift */,
 				2C9BD50A1E32076A6D355C52 /* EntryEditAttachmentsSection.swift */,
@@ -2832,6 +2836,7 @@
 				520B3801B3A8394E7B89CE17 /* CredentialProviderCoordinator.swift in Sources */,
 				3AE142A52591880436EC144D /* CredentialProviderViewControllerMac.swift in Sources */,
 				5677D213553595D19807B8E5 /* CustomIconXML.swift in Sources */,
+				022D8343C81F655ED461D4FC /* CustomIconsView.swift in Sources */,
 				186B0BF0473B22258603AFB1 /* DatabaseCreationService.swift in Sources */,
 				10B07DE22CE227F1471551FE /* DatabaseCreationView.swift in Sources */,
 				7BE1359C7AC254180DD98A14 /* DatabaseCreationViewModel.swift in Sources */,
@@ -3035,6 +3040,7 @@
 				96335AB328E6C5ABBE87CAEB /* CredentialMatcher.swift in Sources */,
 				AAE58420285704CD0AA393B0 /* CredentialProviderCoordinator.swift in Sources */,
 				DAB007AA0F705896D5765C26 /* CustomIconXML.swift in Sources */,
+				C7CB504295E10026B48C4147 /* CustomIconsView.swift in Sources */,
 				0F9F0E23DADEEE7527C6BAE0 /* DatabaseCreationService.swift in Sources */,
 				31A7F79C4D8B92A9AA230375 /* DatabaseCreationView.swift in Sources */,
 				66DF626BAC87ED327A3BD798 /* DatabaseCreationViewModel.swift in Sources */,

@@ -1,19 +1,165 @@
 import Foundation
 
-/// Adds an image to `Meta/CustomIcons` without rewriting the icons already
-/// there.
-///
-/// The parser keeps that whole element as one preserved fragment and the writer
-/// replays it verbatim, which is why every custom icon in a foreign database
-/// survives a save untouched. Rebuilding the element from the decoded
-/// dictionary would throw that away — `<Icon>` child order, KDBX 4.1's optional
-/// `<Name>` and `<LastModificationTime>`, and each writer's own base64 wrapping
-/// are all things this app does not model and must not normalize.
-///
-/// So the new icon is spliced into the fragment instead: everything before the
-/// closing tag stays byte-identical, and only the appended element is ours.
+/// Edits individual icons inside the preserved `Meta/CustomIcons` fragment.
+/// Neighboring icons, image bytes, and vendor fields stay byte-identical.
 enum CustomIconXML {
     static let elementName = "CustomIcons"
+
+    static func renaming(uuid: UUID, to name: String, at date: Date, in xml: OpaqueXMLNodes) -> OpaqueXMLNodes? {
+        editing(uuid: uuid, in: xml) { icon in
+            guard let children = children(in: icon, root: "Icon") else { return nil }
+            var updated = icon
+            for child in children.reversed() where ["Name", "LastModificationTime"].contains(child.name) {
+                updated.removeSubrange(child.range)
+            }
+            guard let closing = updated.range(of: "</Icon>", options: .backwards) else { return nil }
+            let escaped = name.replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+                .replacingOccurrences(of: "\r", with: "&#xD;")
+            updated.insert(contentsOf: "<Name>\(escaped)</Name><LastModificationTime>\(date.kdbxBase64String)</LastModificationTime>", at: closing.lowerBound)
+            return updated
+        }
+    }
+
+    static func deleting(uuid: UUID, from xml: OpaqueXMLNodes) -> OpaqueXMLNodes? {
+        editing(uuid: uuid, in: xml) { _ in "" }
+    }
+
+    static func entryRemovingReferences(to icons: Set<UUID>, from source: KPEntry) -> KPEntry {
+        guard let uuid = source.customIconUUID, icons.contains(uuid) else { return source }
+        var entry = source
+        entry.customIconUUID = nil
+        entry.iconID = 0
+        entry.unknownXML.removeDirectChildren(named: "CustomIconUUID")
+        return entry
+    }
+
+    /// The caller owns this tree. History loses only the deleted icon, keeping
+    /// its content, timestamps and order, as in KeePassXC maintenance.
+    static func removeReferences(to icons: [UUID: Date], in root: KPGroup) {
+        let identifiers = Set(icons.keys)
+        func entryWithoutIcon(_ source: KPEntry, isHistory: Bool) -> KPEntry {
+            var entry = entryRemovingReferences(to: identifiers, from: source)
+            if !isHistory, let uuid = source.customIconUUID, let deletedAt = icons[uuid] {
+                entry.lastModificationTime = max(entry.lastModificationTime ?? deletedAt, deletedAt)
+            }
+            entry.history = entry.history.map { entryWithoutIcon($0, isHistory: true) }
+            return entry
+        }
+        if let uuid = root.customIconUUID, let deletedAt = icons[uuid] {
+            root.customIconUUID = nil
+            root.iconID = 48
+            root.lastModificationTime = max(root.lastModificationTime ?? deletedAt, deletedAt)
+            root.unknownXML.removeDirectChildren(named: "CustomIconUUID")
+        }
+        root.entries = root.entries.map { entryWithoutIcon($0, isHistory: false) }
+        for group in root.groups { removeReferences(to: icons, in: group) }
+    }
+
+    private static func editing(
+        uuid: UUID,
+        in xml: OpaqueXMLNodes,
+        transform: (String) -> String?
+    ) -> OpaqueXMLNodes? {
+        guard let (index, match) = location(of: uuid, in: xml) else { return nil }
+        let node = xml.nodes[index]
+        guard let replacement = transform(String(node.xml[match.range])) else { return nil }
+        var result = xml
+        result.nodes[index] = .init(path: node.path, insertionIndex: node.insertionIndex,
+                                   xml: node.xml.replacingCharacters(in: match.range, with: replacement))
+        return result
+    }
+
+    static func copying(uuid: UUID, from source: OpaqueXMLNodes, to destination: OpaqueXMLNodes) -> OpaqueXMLNodes? {
+        guard let element = element(uuid: uuid, in: source) else { return nil }
+        return addingElement(element, to: destination)
+    }
+
+    static func replacing(uuid: UUID, from source: OpaqueXMLNodes, in destination: OpaqueXMLNodes) -> OpaqueXMLNodes? {
+        guard let element = element(uuid: uuid, in: source) else { return nil }
+        return editing(uuid: uuid, in: destination) { _ in element }
+    }
+
+    static func modificationTime(of uuid: UUID, in xml: OpaqueXMLNodes) -> Date? {
+        guard let icon = element(uuid: uuid, in: xml),
+              let field = children(in: icon, root: "Icon")?.first(where: { $0.name == "LastModificationTime" })
+        else { return nil }
+        return Date(kdbxBase64String: icon[field.content].trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private static func element(uuid: UUID, in xml: OpaqueXMLNodes) -> String? {
+        guard let (index, match) = location(of: uuid, in: xml) else { return nil }
+        return String(xml.nodes[index].xml[match.range])
+    }
+
+    private static func location(of uuid: UUID, in xml: OpaqueXMLNodes) -> (Int, Span)? {
+        let containers = xml.nodes.indices.filter { xml.nodes[$0].path.isEmpty && xml.nodes[$0].elementName == elementName }
+        var matches: [(Int, Span)] = []
+        for index in containers {
+            let node = xml.nodes[index]
+            guard let icons = children(in: node.xml, root: elementName) else { return nil }
+            for icon in icons where icon.name == "Icon" {
+                let fragment = String(node.xml[icon.range])
+                guard let fields = children(in: fragment, root: "Icon") else { return nil }
+                let ids = fields.filter { $0.name == "UUID" }
+                guard ids.count == 1, let id = ids.first else { return nil }
+                if fragment[id.content].trimmingCharacters(in: .whitespacesAndNewlines) == uuid.kdbxBase64String {
+                    matches.append((index, icon))
+                }
+            }
+        }
+        guard matches.count == 1 else { return nil }
+        return matches.first
+    }
+
+    static func requiresVersion41(_ xml: OpaqueXMLNodes) -> Bool {
+        for node in xml.nodes where node.path.isEmpty && node.elementName == elementName {
+            guard let icons = children(in: node.xml, root: elementName) else { continue }
+            for icon in icons where icon.name == "Icon" {
+                guard let fields = children(in: String(node.xml[icon.range]), root: "Icon") else { continue }
+                if fields.contains(where: { $0.name == "Name" || $0.name == "LastModificationTime" }) { return true }
+            }
+        }
+        return false
+    }
+
+    private struct Span {
+        let name: String
+        let range: Range<String.Index>
+        let content: Range<String.Index>
+    }
+
+    // KDBXParser's capture renders paired tags and escapes angle brackets in
+    // text and attributes. Only that canonical form is editable here.
+    private static func children(in xml: String, root: String) -> [Span]? {
+        var stack: [(name: String, start: String.Index, content: String.Index)] = []
+        var result: [Span] = []
+        var cursor = xml.startIndex
+        var closedRoot = false
+        while let start = xml[cursor...].firstIndex(of: "<") {
+            guard !closedRoot, let end = xml[start...].firstIndex(of: ">") else { return nil }
+            let after = xml.index(after: end)
+            let tag = xml[xml.index(after: start)..<end]
+            if tag.hasPrefix("/") {
+                guard let open = stack.popLast(), tag.dropFirst() == open.name else { return nil }
+                if stack.count == 1 {
+                    result.append(Span(name: open.name, range: open.start..<after, content: open.content..<start))
+                }
+                if stack.isEmpty { closedRoot = true }
+            } else {
+                guard let name = OpaqueXMLNodes.Node(insertionIndex: 0, xml: String(xml[start..<after])).elementName,
+                      !tag.hasSuffix("/"), !tag.contains("<") else { return nil }
+                if stack.isEmpty {
+                    guard name == root, xml[..<start].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+                }
+                stack.append((name, start, after))
+            }
+            cursor = after
+        }
+        guard closedRoot, stack.isEmpty, xml[cursor...].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return result
+    }
 
     /// A minimal `<Icon>`: the UUID and the image, nothing else.
     ///
@@ -44,8 +190,10 @@ enum CustomIconXML {
         imageData: Data,
         to unknownXML: OpaqueXMLNodes
     ) -> OpaqueXMLNodes? {
-        let icon = iconElement(uuid: uuid, imageData: imageData)
+        addingElement(iconElement(uuid: uuid, imageData: imageData), to: unknownXML)
+    }
 
+    private static func addingElement(_ icon: String, to unknownXML: OpaqueXMLNodes) -> OpaqueXMLNodes? {
         guard let index = unknownXML.nodes.firstIndex(where: {
             $0.path.isEmpty && $0.elementName == elementName
         }) else {

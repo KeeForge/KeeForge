@@ -8,6 +8,93 @@ import XCTest
 
 @MainActor
 final class DatabaseViewModelTests: XCTestCase {
+    func testCustomIconRenameDeleteSaveReopenAndNoOp() async throws {
+        let vm = try makeViewModel(reference: makeIconManagementReference())
+        await vm.unlock(password: fixturePassword)
+        let id = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first?.id)
+        let uuid = UUID()
+        try vm.applyEntryEdit(.addEntryCustomIcon(entryID: id, iconUUID: uuid, imageData: Data([1, 2, 3])))
+        try vm.renameCustomIcon(uuid, name: "  Site & <Icon> 🗝\rName  ")
+        XCTAssertEqual(vm.customIcons.first { $0.id == uuid }?.name, "Site & <Icon> 🗝\rName")
+        try await vm.save()
+        try await vm.reloadDiscardingDraft()
+        XCTAssertEqual(vm.customIcons.first { $0.id == uuid }?.name, "Site & <Icon> 🗝\rName")
+        try vm.renameCustomIcon(uuid, name: "Site & <Icon> 🗝\rName")
+        XCTAssertFalse(vm.isDirty)
+        try vm.deleteCustomIcon(uuid)
+        XCTAssertFalse(vm.customIcons.contains { $0.id == uuid })
+        XCTAssertNil(vm.entry(withID: id)?.customIconUUID)
+        try await vm.save()
+        try await vm.reloadDiscardingDraft()
+        XCTAssertFalse(vm.customIcons.contains { $0.id == uuid })
+        XCTAssertNil(vm.entry(withID: id)?.customIconUUID)
+        vm.lock()
+        XCTAssertThrowsError(try vm.renameCustomIcon(uuid, name: "Stale"))
+        XCTAssertThrowsError(try vm.deleteCustomIcon(uuid))
+    }
+
+    func testFailedCustomIconSaveKeepsTheEditForRetry() async throws {
+        actor Attempts {
+            var count = 0
+            func next() -> Int { count += 1; return count }
+        }
+        let attempts = Attempts()
+        let vm = try makeViewModel(reference: makeIconManagementReference(), localSaveOperation: { draft, reference, key, hash, reconciled, newKey, settings in
+            if await attempts.next() == 2 { throw CocoaError(.fileWriteNoPermission) }
+            return try await LocalDatabaseSaver.save(
+                draft: draft, reference: reference, compositeKey: key, openTimeSHA512: hash,
+                reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                newCompositeKey: newKey, encryptionSettings: settings
+            )
+        })
+        await vm.unlock(password: fixturePassword)
+        let id = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first?.id)
+        let uuid = UUID()
+        try vm.applyEntryEdit(.addEntryCustomIcon(entryID: id, iconUUID: uuid, imageData: Data([1])))
+        try await vm.save()
+        try vm.renameCustomIcon(uuid, name: "Retry Name")
+        await vm.saveHandlingError()
+        XCTAssertNotNil(vm.saveError)
+        XCTAssertTrue(vm.isDirty)
+        XCTAssertEqual(vm.customIcons.first { $0.id == uuid }?.name, "Retry Name")
+        let count = vm.draft?.pendingEdits.count
+        try vm.renameCustomIcon(uuid, name: "Retry Name")
+        XCTAssertEqual(vm.draft?.pendingEdits.count, count)
+        try await vm.save()
+        try await vm.reloadDiscardingDraft()
+        XCTAssertEqual(vm.customIcons.first { $0.id == uuid }?.name, "Retry Name")
+        XCTAssertFalse(vm.isDirty)
+    }
+
+    func testCustomIconManagementRejectsReadOnlySessionsAndInvalidNames() async throws {
+        let vm = try makeViewModel(reference: makeIconManagementReference())
+        await vm.unlock(password: fixturePassword)
+        let id = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first?.id)
+        let uuid = UUID()
+        try vm.applyEntryEdit(.addEntryCustomIcon(entryID: id, iconUUID: uuid, imageData: Data([1])))
+        try await vm.save()
+        XCTAssertThrowsError(try vm.renameCustomIcon(uuid, name: "Bad\u{0}"))
+        XCTAssertFalse(vm.isDirty)
+        DatabaseListStore.update(vm.databaseReference)
+        vm.setReadOnly(true)
+        XCTAssertTrue(vm.isReadOnly)
+        XCTAssertThrowsError(try vm.renameCustomIcon(uuid, name: "Blocked")) { error in
+            guard case SaveError.databaseIsReadOnly = error else { return XCTFail("Unexpected error: \(error)") }
+        }
+        XCTAssertThrowsError(try vm.deleteCustomIcon(uuid)) { error in
+            guard case SaveError.databaseIsReadOnly = error else { return XCTFail("Unexpected error: \(error)") }
+        }
+        XCTAssertFalse(vm.isDirty)
+    }
+
+    private func makeIconManagementReference() throws -> DatabaseReference {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let copy = directory.appendingPathComponent("icons.kdbx")
+        try FileManager.default.copyItem(at: fixtureURL(), to: copy)
+        return try TestDatabaseSupport.makeReference(for: copy)
+    }
+
     private let fixturePassword = "testpassword123"
 
     override func setUp() async throws {

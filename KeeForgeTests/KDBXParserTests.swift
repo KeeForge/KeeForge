@@ -1062,6 +1062,22 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertTrue(entry.unknownXML.nodes.contains { $0.xml.contains("<CustomIconUUID>") })
     }
 
+    func testCustomIconNamesDecodeAndDoNotLeakIntoTheNextIcon() throws {
+        let named = UUID()
+        let unnamed = UUID()
+        let xml = """
+        <KeePassFile><Meta><CustomIcons>
+        <Icon><Name>Site &amp; &lt;Icon&gt; 🗝&#xD;Name</Name><UUID>\(named.kdbxBase64String)</UUID><Data>AQ==</Data></Icon>
+        <Icon><UUID>\(unnamed.kdbxBase64String)</UUID><Data>Ag==</Data></Icon>
+        </CustomIcons></Meta><Root><Group><Name>Root</Name></Group></Root></KeePassFile>
+        """
+        let parsed = try KDBXParser.parseXML(xmlData: Data(xml.utf8), innerStreamKey: Data(), innerStreamID: 0,
+                                            sessionKey: testSessionKey)
+        XCTAssertEqual(parsed.meta.customIconNames[named], "Site & <Icon> 🗝\rName")
+        XCTAssertNil(parsed.meta.customIconNames[unnamed])
+        XCTAssertEqual(parsed.meta.customIcons[unnamed], Data([2]))
+    }
+
     func testEntryWithoutCustomIconHasNilCustomIconUUID() throws {
         let entry = try parseSingleEntry(fields: [:])
         XCTAssertNil(entry.customIconUUID)

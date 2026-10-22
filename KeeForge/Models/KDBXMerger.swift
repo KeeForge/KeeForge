@@ -55,6 +55,7 @@ enum KDBXMerger {
         /// Tombstones adopted from remote, so the deletion propagates onward.
         var tombstonesAdded = 0
         var customIconsSpliced = 0
+        var customIconsUpdated = 0
         /// Icon references the merge could not satisfy. Cosmetic only — KeePass
         /// and KeePassXC fall back to the default icon — so not a blocker, and
         /// deliberately not a change.
@@ -65,7 +66,7 @@ enum KDBXMerger {
                 || groupsAdded > 0 || groupsUpdated > 0 || groupsMoved > 0
                 || historyItemsAdded > 0 || deletionsApplied > 0
                 || tombstonesDropped > 0 || tombstonesAdded > 0
-                || customIconsSpliced > 0
+                || customIconsSpliced > 0 || customIconsUpdated > 0
         }
     }
 
@@ -180,6 +181,7 @@ extension KDBXMerger {
         let local: Side
         let remote: Side
         let sessionKey: SymmetricKey
+        private let deletedIconUUIDs: Set<UUID>
 
         private let root: KPGroup
         private var meta: KPMeta
@@ -206,6 +208,7 @@ extension KDBXMerger {
             self.local = local
             self.remote = remote
             self.sessionKey = sessionKey
+            self.deletedIconUUIDs = Set((local.meta.deletedObjects + remote.meta.deletedObjects).map(\.uuid))
             self.root = local.rootGroup.deepCopy()
             self.meta = local.meta
         }
@@ -582,6 +585,34 @@ extension KDBXMerger {
                 meta.hasRecycleBinUUIDElement = true
             }
 
+            // Icon tombstones must survive a merge with a copy that still
+            // references the removed icon, including its stored history.
+            let deletedIcons = Dictionary(meta.deletedObjects.filter {
+                groupsByID[$0.uuid] == nil && entryOwnerByID[$0.uuid] == nil
+            }.map { ($0.uuid, $0.deletionTime) }, uniquingKeysWith: max)
+            for uuid in deletedIcons.keys where meta.customIcons[uuid] != nil {
+                if let xml = CustomIconXML.deleting(uuid: uuid, from: meta.unknownXML) {
+                    meta.unknownXML = xml
+                    meta.customIcons.removeValue(forKey: uuid)
+                    meta.customIconNames.removeValue(forKey: uuid)
+                }
+            }
+            CustomIconXML.removeReferences(to: deletedIcons, in: root)
+
+            // An icon both sides hold takes the newer KDBX 4.1 rename, as in KeePassXC.
+            for uuid in remote.meta.customIcons.keys.sorted(by: { $0.uuidString < $1.uuidString })
+            where meta.customIcons[uuid] != nil {
+                guard let remoteTime = CustomIconXML.modificationTime(of: uuid, in: remote.meta.unknownXML),
+                      remoteTime > CustomIconXML.modificationTime(of: uuid, in: meta.unknownXML) ?? .distantPast,
+                      let imageData = remote.meta.customIcons[uuid],
+                      let replaced = CustomIconXML.replacing(uuid: uuid, from: remote.meta.unknownXML, in: meta.unknownXML)
+                else { continue }
+                meta.unknownXML = replaced
+                meta.customIcons[uuid] = imageData
+                meta.customIconNames[uuid] = remote.meta.customIconNames[uuid]
+                summary.customIconsUpdated += 1
+            }
+
             var live: Set<UUID> = []
             func visit(_ group: KPGroup) {
                 if let uuid = group.customIconUUID { live.insert(uuid) }
@@ -595,7 +626,7 @@ extension KDBXMerger {
             for uuid in remoteIconReferences.intersection(live).sorted(by: { $0.uuidString < $1.uuidString })
             where meta.customIcons[uuid] == nil {
                 guard let imageData = remote.meta.customIcons[uuid],
-                      let spliced = CustomIconXML.adding(uuid: uuid, imageData: imageData, to: meta.unknownXML)
+                      let spliced = CustomIconXML.copying(uuid: uuid, from: remote.meta.unknownXML, to: meta.unknownXML)
                 else {
                     // A reference with no icon behind it renders as the default
                     // icon in every client — cosmetic, so it must not cost the
@@ -605,6 +636,7 @@ extension KDBXMerger {
                 }
                 meta.unknownXML = spliced
                 meta.customIcons[uuid] = imageData
+                meta.customIconNames[uuid] = remote.meta.customIconNames[uuid]
                 summary.customIconsSpliced += 1
             }
         }
@@ -617,7 +649,11 @@ extension KDBXMerger {
         /// this is, not what it holds. Protected values are compared in
         /// plaintext — sealed bytes carry a fresh nonce each time, so equal
         /// secrets never have equal ciphertext.
-        private func hasEqualContent(_ lhs: KPEntry, _ rhs: KPEntry) throws -> Bool {
+        private func hasEqualContent(_ left: KPEntry, _ right: KPEntry) throws -> Bool {
+            // Compare the icons that survive the merge, so a deleted icon
+            // cannot manufacture another history version on the next merge.
+            let lhs = CustomIconXML.entryRemovingReferences(to: deletedIconUUIDs, from: left)
+            let rhs = CustomIconXML.entryRemovingReferences(to: deletedIconUUIDs, from: right)
             guard lhs.title == rhs.title,
                   lhs.username == rhs.username,
                   lhs.url == rhs.url,

@@ -850,6 +850,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         var unknownXML = OpaqueXMLNodes.empty
         var knownChildCount = 0
         var customIcons: [UUID: Data] = [:]
+        var customIconNames: [UUID: String] = [:]
 
         func build() -> KPMeta {
             KPMeta(
@@ -859,7 +860,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 historyMaxItems: historyMaxItems,
                 historyMaxSize: historyMaxSize,
                 unknownXML: unknownXML,
-                customIcons: customIcons
+                customIcons: customIcons,
+                customIconNames: customIconNames
             )
         }
     }
@@ -1083,6 +1085,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
     private var inCustomIcons = false
     private var currentCustomIconUUID: UUID?
     private var currentCustomIconData: Data?
+    private var currentCustomIconName: String?
     private var captureStack: [XMLCaptureElement] = []
 
     private var protectedValueCipher: ProtectedValueCipher
@@ -1154,6 +1157,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         case "Icon" where inCustomIcons:
             currentCustomIconUUID = nil
             currentCustomIconData = nil
+            currentCustomIconName = nil
 
         case "Group":
             groupStack.append(GroupBuilder())
@@ -1257,9 +1261,13 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         case "Icon" where inCustomIcons:
             if let uuid = currentCustomIconUUID, let data = currentCustomIconData {
                 currentMeta.customIcons[uuid] = data
+                currentMeta.customIconNames[uuid] = currentCustomIconName
             }
             currentCustomIconUUID = nil
             currentCustomIconData = nil
+
+        case "Name" where inCustomIcons && parentName == "Icon":
+            currentCustomIconName = currentText
 
         case "UUID" where inCustomIcons:
             currentCustomIconUUID = parseKPUUID(currentText)

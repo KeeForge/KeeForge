@@ -134,13 +134,11 @@ final class KDBXCompatibilityTests: XCTestCase {
             writtenVersions[scenario.id] = result.afterHeader.formatVersion
         }
 
-        // Group `<Tags>` is a KDBX 4.1 element, so authoring one on this 4.0
-        // fixture must bump the written header — and nothing else may. The
-        // matching artifact is opened by real KeePassXC in the external gate,
-        // which is where "the bumped file is still readable elsewhere" is
-        // proven; group tags themselves have no keepassxc-cli verb.
+        // Group tags and custom-icon names require 4.1. The external gate
+        // also opens these upgraded files with KeePassXC.
         XCTAssertEqual(writtenVersions["update-group"], .kdbx4(minor: 1))
-        for (scenarioID, version) in writtenVersions where scenarioID != "update-group" {
+        XCTAssertEqual(writtenVersions["rename-custom-icon"], .kdbx4(minor: 1))
+        for (scenarioID, version) in writtenVersions where scenarioID != "update-group" && scenarioID != "rename-custom-icon" {
             XCTAssertEqual(
                 version,
                 .kdbx4(minor: 0),
@@ -811,6 +809,8 @@ final class KDBXCompatibilityTests: XCTestCase {
             "aes-baseline-rekey-add-keyfile",
             "password-keyfile-rekey-remove-keyfile",
             "\(richID)-custom-field-edits",
+            "\(richID)-rename-custom-icon",
+            "\(richID)-delete-custom-icon",
             "\(richID)-set-entry-expiry",
             "kitchen-sink-change-entry-expiry",
             "aes-baseline-encryption-settings-chacha20-argon2id",
@@ -831,7 +831,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 44)
+        XCTAssertEqual(descriptors.count, 46)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

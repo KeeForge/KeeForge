@@ -39,6 +39,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - A successful new-entry save reports `.created` with its stable UUID; failed writes and unresolved conflicts report nothing, and Save and Lock keeps its ordinary completion without opening an entry.
 - `DatabaseEditorCoordinator` guards submission and completion by lock cycle, and completion also by editor lifetime, so an old save cannot close a new editor. A failed create keeps its entry UUID so a retry updates rather than duplicates.
 - `AppRoutingCoordinator` applies an Open/Close destination only after the source session locks; Keep Editing or a replaced source drops it.
+- Custom-icon management validates the live unlocked, writable session and refuses edits during saving or a conflict. Reads include the draft so a failed save retains visible names/deletions for retry.
 
 ### Selection, search, tags
 
