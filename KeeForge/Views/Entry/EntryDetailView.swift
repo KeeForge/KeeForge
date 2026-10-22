@@ -302,6 +302,7 @@ struct EntryDetailView: View {
                         entryTitle: entry.title,
                         selection: Self.iconSelection(of: entry),
                         customIcons: viewModel.customIcons,
+                        databaseViewModel: viewModel,
                         canDownloadFavicon: viewModel.canDownloadFavicon(forEntryID: entryID),
                         onSelect: { icon in changeEntryIcon(icon) },
                         onDownloadFavicon: {

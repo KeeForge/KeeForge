@@ -19,6 +19,7 @@ struct EntryListView: View {
     /// browser, which the iPad renders in the sidebar column, and a form
     /// pushed there would open beside the entry it was copied from.
     @State private var duplicateEditor: EntryEditViewModel?
+    @State private var createdEntryToOpen: UUID?
 
     var body: some View {
         Group {
@@ -54,17 +55,33 @@ struct EntryListView: View {
             }
         }
         // Outside the branches for the same reason as the hosts above.
-        .sheet(item: $duplicateEditor) { formViewModel in
+        .sheet(item: $duplicateEditor, onDismiss: openCreatedEntry) { formViewModel in
             NavigationStack {
                 EntryEditView(
                     formViewModel: formViewModel,
                     databaseViewModel: viewModel
-                ) { _ in
+                ) { completion in
+                    if case .created(let entryID) = completion {
+                        createdEntryToOpen = entryID
+                    }
                     duplicateEditor = nil
                 }
             }
         }
         .modifier(ListScopedSelectionBar(viewModel: viewModel, isHosted: onRequestDeletion == nil) { pendingMove = $0 })
+    }
+
+    /// Waits for the duplicate's sheet to finish dismissing: a push issued
+    /// while it is still up would be dropped.
+    private func openCreatedEntry() {
+        guard let entryID = createdEntryToOpen else { return }
+        createdEntryToOpen = nil
+        guard let entry = viewModel.entry(withID: entryID) else { return }
+        if let onSelectEntry {
+            onSelectEntry(entry)
+        } else {
+            viewModel.workspace.navigationPath.append(.entry(entryID))
+        }
     }
 
     /// Resolves the soft/permanent choice per entry — these lists draw from

@@ -79,7 +79,10 @@ struct MacEntriesList: View {
                 EntryEditView(
                     formViewModel: formViewModel,
                     databaseViewModel: viewModel
-                ) { _ in
+                ) { completion in
+                    if case .created(let entryID) = completion {
+                        viewModel.workspace.selectedEntryID = entryID
+                    }
                     duplicateEditor = nil
                 }
             }

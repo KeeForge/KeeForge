@@ -217,6 +217,7 @@ enum KDBXTreeAssertions {
         XCTAssertEqual(lhs.meta.maintenanceHistoryDays, rhs.meta.maintenanceHistoryDays, file: file, line: line)
         XCTAssertEqual(lhs.meta.historyMaxItems, rhs.meta.historyMaxItems, file: file, line: line)
         XCTAssertEqual(lhs.meta.historyMaxSize, rhs.meta.historyMaxSize, file: file, line: line)
+        XCTAssertEqual(lhs.meta.customIconNames, rhs.meta.customIconNames, file: file, line: line)
         XCTAssertEqual(
             normalizedOpaqueXML(lhs.meta.unknownXML),
             normalizedOpaqueXML(rhs.meta.unknownXML),

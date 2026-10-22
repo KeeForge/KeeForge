@@ -328,6 +328,21 @@ final class KDBXWriterTests: XCTestCase {
         try assertTreesEqual(parsed, reparsed)
     }
 
+    func test_writeIconTimestampWithoutNameRequiresKDBX41() throws {
+        let parsed = try parseFixture(.test)
+        let uuid = UUID()
+        var meta = parsed.meta
+        meta.unknownXML.append(xml: "<CustomIcons><Icon><UUID>\(uuid.kdbxBase64String)</UUID><Data>AQ==</Data><LastModificationTime>\(Date.now.kdbxBase64String)</LastModificationTime></Icon></CustomIcons>", insertionIndex: 0)
+        var header = parsed.header
+        header.formatVersion = .kdbx4(minor: 0)
+        let written = try KDBXWriter.write(rootGroup: parsed.rootGroup, meta: meta, compositeKey: parsed.compositeKey,
+                                           header: header, sessionKey: sessionKey)
+        XCTAssertEqual(try KDBXParser.parseFileVersion(from: written), .kdbx4(minor: 1))
+        let reopened = try parseWrittenFile(written, fixture: .test)
+        XCTAssertEqual(reopened.meta.customIcons[uuid], Data([1]))
+        XCTAssertNil(reopened.meta.customIconNames[uuid])
+    }
+
     func test_writeReusedHeader_preservesKDBX4MinorVersion() throws {
         let parsed = try parseFixture(.test)
         var kdbx41Header = parsed.header

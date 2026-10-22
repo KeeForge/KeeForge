@@ -716,6 +716,79 @@ final class KDBXMergerTests: XCTestCase {
 
     // MARK: - Custom icons
 
+    func testMergeDoesNotResurrectDeletedIconAndPreservesImportedIconName() throws {
+        let uuid = UUID()
+        var entry = try makeEntry(id: betaID, title: "Remote", modified: time(20))
+        entry.customIconUUID = uuid
+        entry.history = [entry]
+        let remoteRoot = try makeTree(work: [entry])
+        var remoteMeta = KPMeta(customIcons: [uuid: Data([1])], customIconNames: [uuid: "Remote Name"])
+        remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: .empty))
+        remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.renaming(uuid: uuid, to: "Remote Name", at: time(20), in: remoteMeta.unknownXML))
+        let remote = KDBXMerger.Side(rootGroup: remoteRoot, meta: remoteMeta)
+        let localRoot = try makeTree(work: [])
+        let imported = try mergedResult(local: .init(rootGroup: localRoot, meta: KPMeta()), remote: remote)
+        XCTAssertEqual(imported.meta.customIconNames[uuid], "Remote Name")
+        XCTAssertTrue(imported.meta.unknownXML.nodes.contains { $0.xml.contains("<Name>Remote Name</Name>") })
+        let meta = KPMeta(deletedObjects: [.init(uuid: uuid, deletionTime: time(30))])
+        let deleted = try mergedResult(local: .init(rootGroup: localRoot, meta: meta), remote: remote)
+        XCTAssertNil(deleted.meta.customIcons[uuid])
+        let merged = try XCTUnwrap(deleted.rootGroup.allEntries.first { $0.id == betaID })
+        XCTAssertNil(merged.customIconUUID)
+        XCTAssertNil(merged.history.first?.customIconUUID)
+        XCTAssertEqual(merged.title, "Remote")
+        XCTAssertEqual(remoteRoot.allEntries[0].customIconUUID, uuid)
+    }
+
+    func testMergeTakesTheNewerRenameOfAnIconBothSidesHold() throws {
+        let uuid = UUID()
+        let base = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: .empty))
+        func side(name: String?, at date: Date) throws -> KDBXMerger.Side {
+            var meta = KPMeta(customIcons: [uuid: Data([1])])
+            meta.unknownXML = base
+            if let name {
+                meta.unknownXML = try XCTUnwrap(CustomIconXML.renaming(uuid: uuid, to: name, at: date, in: base))
+                meta.customIconNames[uuid] = name
+            }
+            return KDBXMerger.Side(rootGroup: try makeTree(work: []), meta: meta)
+        }
+
+        let remote = try side(name: "Remote", at: time(20))
+        let renamed = try mergedResult(local: try side(name: "Local", at: time(10)), remote: remote)
+        XCTAssertEqual(renamed.meta.customIconNames[uuid], "Remote")
+        XCTAssertEqual(renamed.summary.customIconsUpdated, 1)
+        XCTAssertEqual(CustomIconXML.modificationTime(of: uuid, in: renamed.meta.unknownXML), time(20))
+        XCTAssertFalse(renamed.meta.unknownXML.nodes.contains { $0.xml.contains("<Name>Local</Name>") })
+        let again = try mergedResult(local: .init(rootGroup: renamed.rootGroup, meta: renamed.meta), remote: remote)
+        XCTAssertFalse(again.summary.hasChanges)
+
+        let unnamed = try mergedResult(local: try side(name: nil, at: time(0)), remote: remote)
+        XCTAssertEqual(unnamed.meta.customIconNames[uuid], "Remote")
+
+        let newerLocal = try mergedResult(local: try side(name: "Local", at: time(30)), remote: remote)
+        XCTAssertEqual(newerLocal.meta.customIconNames[uuid], "Local")
+        XCTAssertFalse(newerLocal.summary.hasChanges)
+    }
+
+    func testDeletedIconDoesNotCreateHistoryWhenMergingTheSameRemoteAgain() throws {
+        let uuid = UUID()
+        var entry = try makeEntry(id: betaID, title: "Remote", modified: time(20))
+        entry.customIconUUID = uuid
+        entry.unknownXML.append(xml: "<CustomIconUUID>\(uuid.kdbxBase64String)</CustomIconUUID>", insertionIndex: 2)
+        var remoteMeta = KPMeta(customIcons: [uuid: Data([1])])
+        remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: .empty))
+        let remote = KDBXMerger.Side(rootGroup: try makeTree(work: [entry]), meta: remoteMeta)
+        let local = KDBXMerger.Side(rootGroup: try makeTree(work: []),
+                                   meta: KPMeta(deletedObjects: [.init(uuid: uuid, deletionTime: time(30))]))
+        let first = try mergedResult(local: local, remote: remote)
+        let second = try mergedResult(local: .init(rootGroup: first.rootGroup, meta: first.meta), remote: remote)
+        XCTAssertFalse(second.summary.hasChanges)
+        let merged = try XCTUnwrap(second.rootGroup.allEntries.first { $0.id == betaID })
+        XCTAssertNil(merged.customIconUUID)
+        XCTAssertTrue(merged.history.isEmpty)
+        XCTAssertEqual(remote.rootGroup.allEntries[0].customIconUUID, uuid)
+    }
+
     func test_merge_splicesRemoteOnlyCustomIconForANewEntry() throws {
         let iconID = UUID()
         let iconData = Data([0x89, 0x50, 0x4E, 0x47])
@@ -723,6 +796,7 @@ final class KDBXMergerTests: XCTestCase {
         remoteBeta.customIconUUID = iconID
         var remoteMeta = KPMeta()
         remoteMeta.customIcons = [iconID: iconData]
+        remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: iconID, imageData: iconData, to: .empty))
 
         let merged = try mergedResult(
             local: try makeSide(work: [makeEntry(id: alphaID, title: "Alpha", modified: time(10))]),
@@ -1096,6 +1170,7 @@ final class KDBXMergerTests: XCTestCase {
         )
         var remoteMeta = KPMeta()
         remoteMeta.customIcons = [iconID: Data([0x89, 0x50, 0x4E, 0x47])]
+        remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: iconID, imageData: remoteMeta.customIcons[iconID]!, to: .empty))
         remoteMeta.deletedObjects = [KPDeletedObject(uuid: ghostID, deletionTime: time(50))]
 
         return (local, KDBXMerger.Side(rootGroup: remoteRoot, meta: remoteMeta))

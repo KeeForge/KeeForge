@@ -4,6 +4,8 @@
 
 ### New Features
 
+- Keep a newly saved entry open on iPhone, iPad, and Mac so it is immediately available without finding it again in the list (#119).
+- Rename and delete custom icons stored in a database on iPhone, iPad, and Mac, from Database Details or the entry icon picker. Entries, groups, and history versions that used a deleted icon return to their default icon. Naming an icon upgrades a KDBX 4.0 database to KDBX 4.1 (#202).
 - Protect or unprotect custom fields in the entry editor on iPhone, iPad, and Mac. Protected values stay hidden until revealed and use standard KeePass protection when saved (#217).
 - Reorder custom fields in the entry editor on iPhone, iPad, and Mac, with the chosen order retained when saving and reopening entries (#216).
 - Restore entries and groups from the Recycle Bin on iPhone, iPad, and Mac, returning them to their original group when known or choosing another destination (#223).
@@ -14,6 +16,7 @@
 
 ### Fixes
 
+- Locking a database while it reloads after a save conflict now keeps it locked on iPhone, iPad, and Mac. Before, the finished reload could reopen it, and moving the app to the background or locking the Mac screen during the reload did not lock it.
 - A credential or passkey saved through AutoFill to a cloud database is still uploaded when a later AutoFill save to that database fails, on iPhone, iPad, and Mac.
 - The Mac group sidebar keeps its resized width when locking and unlocking a database in the same window (#227).
 - On iPhone and iPad a database opens on the view you picked last (All Entries, Groups, Verification Codes, or Tags), including after locking or restarting the app, instead of always on All Entries (#230). The Recycle Bin is never where a database opens.
