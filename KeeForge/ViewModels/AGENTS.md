@@ -54,6 +54,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 
 ### Stale completions and forms
 
+- Custom-field protection follows each editor row through rename and reorder. Payloads explicitly specify protection, preserving hidden credential metadata; reusing a former protected name does not protect a new row.
 - `EntryEditViewModel.additionalURLs` owns writable `KP2A_URL_<n>` rows. Empty or protected fields remain custom fields; a new row takes the first unused name, and `customFieldsOutsideURLRows(of:)` keeps the detail screen from listing a URL twice.
 - `EntryEditViewModel` keeps imported non-Base32 TOTP bytes through unrelated edits. Explicit URI enrollment replaces those bytes even when its Base32 text matches the old field's text; later period, digit, or algorithm edits may drop the verbatim URI but must not restore the old bytes.
 - `EntrySecretAction` and `AttachmentLoadCoordinator` publish only while the request and the caller's session check are current. Invalidation allows a fresh request without letting the old completion finish or clear it.

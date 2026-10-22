@@ -2721,8 +2721,8 @@ private extension KDBXCompatibilitySupport {
         let current = ArtifactManifest.ExpectedFieldSet(
             fields: [
                 .init(name: "Renamed Secret", value: "new secret 🔑 & <value>\n第二行", isProtected: true),
-                .init(name: "Secret Custom", value: "reused protected name", isProtected: true),
-                .init(name: "Environment", value: "Production", isProtected: false),
+                .init(name: "Secret Custom", value: "reused plain name", isProtected: false),
+                .init(name: "Environment", value: "Production", isProtected: true),
                 .init(name: "Account Number", value: "42", isProtected: false),
                 .init(name: "Empty", value: "", isProtected: false),
             ],
@@ -2758,7 +2758,7 @@ private extension KDBXCompatibilitySupport {
                         notes: entry.notes,
                         customFields: fields,
                         customFieldOrder: current.fields.map(\.name),
-                        protectedCustomFieldKeys: ["Renamed Secret"],
+                        protectedCustomFieldKeys: ["Renamed Secret", "Environment"],
                         tags: entry.tags,
                         totpConfig: .init(secret: "JBSWY3DPEHPK3PXP"),
                         lastModificationTime: entry.lastModificationTime

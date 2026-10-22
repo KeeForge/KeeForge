@@ -1144,7 +1144,8 @@ struct DatabaseDraft: Sendable {
             unknownXML: originalEntry.unknownXML,
             protectedStringKeys: preservedProtectedStringKeys(
                 from: originalEntry,
-                customFields: draft.customFields
+                customFields: draft.customFields,
+                hasExplicitProtection: draft.protectedCustomFieldKeys != nil
             ).union(draftProtectedStringKeys(
                 from: draft,
                 customFields: customFields,
@@ -1295,7 +1296,8 @@ struct DatabaseDraft: Sendable {
 
     private func preservedProtectedStringKeys(
         from entry: KPEntry,
-        customFields: [String: String]
+        customFields: [String: String],
+        hasExplicitProtection: Bool
     ) -> Set<String> {
         // OTP source fields and the diverted passkey private key are
         // serialized outside customFields, so their protection flags must
@@ -1303,7 +1305,8 @@ struct DatabaseDraft: Sendable {
         let editableKeys = Set(customFields.keys)
             .union(["Title", "UserName", "URL", "Notes", "otp", "OTP", "Otp"])
             .union([PasskeyCredential.privateKeyPEMKey])
-        return entry.protectedStringKeys.intersection(editableKeys)
+        let preserved = entry.protectedStringKeys.intersection(editableKeys)
+        return hasExplicitProtection ? preserved.subtracting(customFields.keys) : preserved
     }
 
     /// Protection requested by the draft, limited to keys the entry will
@@ -1318,7 +1321,7 @@ struct DatabaseDraft: Sendable {
         if passkeyPrivateKey != nil {
             serializableKeys.insert(PasskeyCredential.privateKeyPEMKey)
         }
-        var keys = draft.protectedCustomFieldKeys.intersection(serializableKeys)
+        var keys = (draft.protectedCustomFieldKeys ?? []).intersection(serializableKeys)
         if draft.totpConfig?.otpauthURI != nil, draft.totpConfig?.keeOTPSource == nil {
             // A freshly enrolled otpauth URI serializes into the otp slot and
             // must be protected, matching how KeePassXC stores it. A KeeOTP

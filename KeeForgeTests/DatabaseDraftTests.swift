@@ -229,15 +229,30 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertTrue(created.protectedStringKeys.isEmpty)
     }
 
+    func test_updateEntryOnlyOverridesCustomFieldProtectionWhenExplicitlySupplied() throws {
+        let entry = KPEntry(title: "Entry", username: "user", customFields: ["PIN": "1234"],
+                            protectedStringKeys: ["PIN", "UserName"])
+        let root = KPGroup(name: "Root", entries: [entry])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+        var payload = EntryDraftPayload(title: entry.title, username: entry.username, customFields: entry.customFields)
+        let preserved = try draft.apply(.updateEntry(entryID: entry.id, draft: payload))
+        XCTAssertEqual(findEntry(withID: entry.id, in: preserved.rootGroup)?.protectedStringKeys, ["PIN", "UserName"])
+        payload.protectedCustomFieldKeys = []
+        let changed = try draft.apply(.updateEntry(entryID: entry.id, draft: payload))
+        XCTAssertEqual(findEntry(withID: entry.id, in: changed.rootGroup)?.protectedStringKeys, ["UserName"])
+        XCTAssertEqual(findEntry(withID: entry.id, in: changed.rootGroup)?.history.first?.protectedStringKeys,
+                       ["PIN", "UserName"])
+    }
+
     func test_updateEntry_protectedCustomFieldKeys_addProtectionForNewPasskeyFields() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: false)
         var payload = try makeDraftPayload(from: tree.parentEntry)
         payload.customFields[PasskeyCredential.credentialIDKey] = "Y3JlZA"
         payload.customFields[PasskeyCredential.userHandleKey] = "aGFuZGxl"
-        payload.protectedCustomFieldKeys = [
+        payload.protectedCustomFieldKeys = tree.parentEntry.protectedStringKeys.union([
             PasskeyCredential.credentialIDKey,
             PasskeyCredential.userHandleKey,
-        ]
+        ])
 
         let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
         let updatedDraft = try draft.apply(.updateEntry(entryID: tree.parentEntry.id, draft: payload))

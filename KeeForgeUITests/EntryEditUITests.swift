@@ -559,6 +559,47 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         add(attachment)
     }
 
+    func testCustomFieldProtectionCanBeSavedRevealedAndRemoved() {
+        unlockSuccessfully()
+        openEntry(named: discordEntryTitle, inGroup: socialGroupName)
+        let edit = app.buttons["entry-detail.edit"]
+        tapElement(edit)
+        let addField = app.buttons["entry-edit.custom-field.add"]
+        XCTAssertTrue(revealElement(addField))
+        tapElement(addField)
+        replaceText(in: app.textFields["entry-edit.custom-field.name-field.0"], with: "PIN")
+        let value = app.descendants(matching: .any)["entry-edit.custom-field.value-field.0"].firstMatch
+        XCTAssertTrue(revealElement(value))
+        replaceText(in: value, with: "1234")
+        let protect = app.switches["entry-edit.custom-field.protection.0"]
+        XCTAssertTrue(revealElement(protect))
+        protect.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertTrue(app.secureTextFields["entry-edit.custom-field.value-field.0"].waitForExistence(timeout: 5))
+        XCTAssertEqual(protect.value as? String, "1")
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "custom-field-protection"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        let save = app.buttons["entry-edit.save"]
+        tapElement(save)
+        XCTAssertTrue(waitForSaveCompletion(saveButton: save, timeout: 10))
+        let reveal = app.buttons["entry.protected-field.pin.reveal"]
+        XCTAssertTrue(revealElement(reveal))
+        XCTAssertFalse(app.staticTexts["1234"].exists)
+        tapElement(reveal)
+        XCTAssertTrue(app.staticTexts["1234"].waitForExistence(timeout: 5))
+        XCTAssertTrue(revealElement(edit))
+        tapElement(edit)
+        XCTAssertTrue(revealElement(protect))
+        XCTAssertEqual(protect.value as? String, "1")
+        protect.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertTrue(app.secureTextFields["entry-edit.custom-field.value-field.0"].waitForNonExistence(timeout: 5))
+        tapElement(save)
+        XCTAssertTrue(waitForSaveCompletion(saveButton: save, timeout: 10))
+        XCTAssertTrue(revealElement(app.buttons["entry.copy.pin"]))
+        XCTAssertFalse(reveal.exists)
+    }
+
     func testAddedCustomFieldIsSavedAndShownOnTheEntry() {
         unlockSuccessfully()
         openEntry(named: discordEntryTitle, inGroup: socialGroupName)
