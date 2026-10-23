@@ -177,7 +177,7 @@ final class PendingLocalSaveTests: XCTestCase {
 
         var environment = LocalDatabaseSaver.Environment.live
         environment.resolveLocation = { LocalDatabaseSaver.sharedCopyLocation(for: $0) }
-        environment.replaceFileAtomically = { _, _ in
+        environment.replaceFileAtomically = { _, _, _ in
             throw CocoaError(.fileWriteOutOfSpace)
         }
 
