@@ -17,6 +17,7 @@
 ### Fixes
 
 - Locking a database while it reloads after a save conflict now keeps it locked on iPhone, iPad, and Mac. Before, the finished reload could reopen it, and moving the app to the background or locking the Mac screen during the reload did not lock it.
+- A credential or passkey saved through AutoFill to a cloud database is still uploaded when a later AutoFill save to that database fails, on iPhone, iPad, and Mac.
 - The Mac group sidebar keeps its resized width when locking and unlocking a database in the same window (#227).
 - On iPhone and iPad a database opens on the view you picked last (All Entries, Groups, Verification Codes, or Tags), including after locking or restarting the app, instead of always on All Entries (#230). The Recycle Bin is never where a database opens.
 - On iPhone with larger text, the database's view title no longer gets a second view menu behind a "…" button in Groups, All Entries, Verification Codes, and Tags (#226). The title is the only view menu in every view, before and after it scrolls into the navigation bar, and the bar keeps Lock, Add, Sort, and Settings in view.

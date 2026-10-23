@@ -211,7 +211,7 @@ final class CredentialProviderSaveTests: XCTestCase {
 
         XCTAssertTrue(outcome.enqueuedPendingUpload)
         XCTAssertEqual(recorder.relativePathInputs, [expectedCacheURL])
-        XCTAssertEqual(recorder.events, ["enqueue", "dropSuperseded", "saveDraft", "finalize", "notify"])
+        XCTAssertEqual(recorder.events, ["enqueue", "saveDraft", "finalize", "dropSuperseded", "notify"])
 
         let provisionalMarker = try XCTUnwrap(recorder.enqueuedMarkers.first)
         XCTAssertEqual(recorder.enqueuedMarkers.count, 1)
@@ -270,10 +270,103 @@ final class CredentialProviderSaveTests: XCTestCase {
             XCTAssertEqual(error as? SaveError, .databaseLocationUnavailable)
         }
 
-        XCTAssertEqual(recorder.events, ["enqueue", "dropSuperseded", "drop"])
+        XCTAssertEqual(recorder.events, ["enqueue", "drop"])
         XCTAssertEqual(recorder.droppedMarkerIDs, recorder.enqueuedMarkerIDs)
         XCTAssertTrue(recorder.finalizedMarkers.isEmpty)
         XCTAssertEqual(recorder.notifyCount, 0)
+    }
+
+    func test_saveNewEntry_cloudSource_saveThrowing_keepsTheEarlierSavesMarker() async throws {
+        let reference = makeCloudReference(rev: "rev-9")
+        defer { try? PendingUploadQueue.removeAllMarkers(for: reference.id) }
+        let earlierMarker = try enqueueFinalizedMarker(for: reference, payloadSHA512: Data("open-sha".utf8))
+
+        var environment = makeQueueBackedEnvironment()
+        environment.saveDraft = { _, _, _, _ in
+            throw SaveError.databaseLocationUnavailable
+        }
+        do {
+            _ = try await saveCloudEntry(to: reference, environment: environment)
+            XCTFail("Expected the save error to propagate")
+        } catch {
+            XCTAssertEqual(error as? SaveError, .databaseLocationUnavailable)
+        }
+
+        let markers = PendingUploadQueue.listMarkers(for: reference.id)
+        XCTAssertEqual(markers.map(\.id), [earlierMarker.id], "The unchanged cache must stay covered")
+        XCTAssertEqual(markers.first?.marker.isPayloadFinalized, true)
+    }
+
+    func test_saveNewEntry_cloudSource_saved_replacesTheEarlierSavesMarker() async throws {
+        let reference = makeCloudReference(rev: "rev-9")
+        defer { try? PendingUploadQueue.removeAllMarkers(for: reference.id) }
+        let earlierMarker = try enqueueFinalizedMarker(for: reference, payloadSHA512: Data("open-sha".utf8))
+
+        var environment = makeQueueBackedEnvironment()
+        environment.saveDraft = { draft, _, _, _ in
+            .saved(
+                AutoFillSaveCoordinator.SaveOutcome(
+                    savedRootGroup: draft.rootGroup,
+                    newSHA512: Data("new-sha".utf8),
+                    enqueuedPendingUpload: false
+                )
+            )
+        }
+        _ = try await saveCloudEntry(to: reference, environment: environment)
+
+        let markers = PendingUploadQueue.listMarkers(for: reference.id)
+        XCTAssertEqual(markers.count, 1)
+        XCTAssertNotEqual(markers.first?.id, earlierMarker.id)
+        XCTAssertEqual(markers.first?.marker.openTimeSHA512, Data("new-sha".utf8))
+        XCTAssertEqual(markers.first?.marker.isPayloadFinalized, true)
+    }
+
+    private func enqueueFinalizedMarker(
+        for reference: DatabaseReference,
+        payloadSHA512: Data
+    ) throws -> PendingUploadQueue.StoredMarker {
+        try PendingUploadQueue.enqueue(
+            PendingUploadQueue.Marker(
+                databaseId: reference.id,
+                encryptedBytesCacheURL: try PendingUploadQueue.makeRelativeAppGroupPath(
+                    for: DatabaseListStore.cacheLocation(for: reference)
+                ),
+                openTimeSHA512: payloadSHA512,
+                expectedRev: reference.expectedCloudRevision,
+                createdAt: Date(timeIntervalSince1970: 1_000),
+                baseRev: reference.expectedCloudRevision,
+                isPayloadFinalized: true
+            ),
+            notifying: false
+        )
+    }
+
+    private func makeQueueBackedEnvironment() -> AutoFillSaveCoordinator.Environment {
+        var environment = AutoFillSaveCoordinator.Environment.live
+        environment.notifyPendingUploadEnqueued = {}
+        environment.populateCredentialStore = { _, _ in }
+        return environment
+    }
+
+    private func saveCloudEntry(
+        to reference: DatabaseReference,
+        environment: AutoFillSaveCoordinator.Environment
+    ) async throws -> AutoFillSaveCoordinator.SaveResult {
+        try await AutoFillSaveCoordinator.saveNewEntry(
+            draftPayload: EntryDraftPayload(
+                title: "Second Save",
+                username: "alex",
+                password: "secret",
+                url: "https://example.com"
+            ),
+            reference: reference,
+            rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
+            meta: KPMeta(),
+            sessionKey: SymmetricKey(size: .bits256),
+            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
+            openTimeSHA512: Data("open-sha".utf8),
+            environment: environment
+        )
     }
 
     func test_saveNewEntry_cloudSource_finalizeLosingCASRace_reenqueuesConservativeMarker() async throws {
@@ -321,7 +414,7 @@ final class CredentialProviderSaveTests: XCTestCase {
 
         XCTAssertEqual(
             recorder.events,
-            ["enqueue", "dropSuperseded", "saveDraft", "finalize", "resolveReference", "enqueue", "notify"]
+            ["enqueue", "saveDraft", "finalize", "resolveReference", "enqueue", "dropSuperseded", "notify"]
         )
         XCTAssertEqual(recorder.enqueuedMarkers.count, 2)
         let replacementMarker = try XCTUnwrap(recorder.enqueuedMarkers.last)
@@ -387,7 +480,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         // The provisional marker precedes the save; a conflict means the cache
         // was never rewritten, so that marker must be dropped again — and
         // neither finalized nor announced to the drainer.
-        XCTAssertEqual(recorder.events, ["enqueue", "dropSuperseded", "saveDraft", "drop"])
+        XCTAssertEqual(recorder.events, ["enqueue", "saveDraft", "drop"])
         XCTAssertEqual(recorder.droppedMarkerIDs, recorder.enqueuedMarkerIDs)
         XCTAssertTrue(recorder.finalizedMarkers.isEmpty)
         XCTAssertEqual(recorder.notifyCount, 0)
