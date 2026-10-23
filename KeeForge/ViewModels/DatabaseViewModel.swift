@@ -180,11 +180,6 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
     }
 }
 
-/// Whether lifecycle-triggered biometric auto-unlock is allowed on this
-/// platform. Only iOS on its own hardware qualifies: everywhere else
-/// `scenePhase == .active` fails to prove the window is frontmost when a lock
-/// cycle begins, so those platforms rely on the explicit biometric action in
-/// `UnlockView` instead.
 enum BiometricAutoUnlockPolicy {
     static var allowsAutomaticUnlock: Bool {
         #if os(iOS)
@@ -196,17 +191,9 @@ enum BiometricAutoUnlockPolicy {
             isiOSAppOnMac: ProcessInfo.processInfo.isiOSAppOnMac,
             isiOSAppOnVision: isiOSAppOnVision
         )
+        #elseif os(macOS)
+        return true
         #else
-        // The native Mac app never auto-unlocks. `MacLockMonitor` starts its
-        // lock cycles from screen lock, screensaver, sleep, user switching and
-        // — under the strict policy — app deactivation, all delivered
-        // synchronously while the scene can still report `.active`, so the
-        // attempt in `View.biometricAutoUnlock(_:)` would raise a Touch ID
-        // prompt for a Mac the user just walked away from, and
-        // `.promptUnavailable` hands the cycle its attempt back so it repeats.
-        // Touch ID stays one click away in `UnlockView`, and
-        // `SettingsService.autoUnlockWithFaceID` still governs the Mac
-        // AutoFill extension.
         return false
         #endif
     }
@@ -955,7 +942,7 @@ final class DatabaseViewModel {
     /// Whether this session should open itself with biometrics instead of
     /// showing the unlock form. Always false where `BiometricAutoUnlockPolicy`
     /// disallows lifecycle prompts; the attempt itself additionally requires a
-    /// foreground-active scene — see `View.biometricAutoUnlock(_:)`.
+    /// foreground-active scene on iOS or a foreground key window on Mac.
     var isEligibleForBiometricAutoUnlock: Bool {
         guard BiometricAutoUnlockPolicy.allowsAutomaticUnlock else { return false }
         guard SettingsService.autoUnlockWithFaceID else { return false }
