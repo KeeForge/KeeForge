@@ -22,7 +22,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 - **Session and workflow:** `DatabaseViewModelTests`, `AutoLockTests`, `HardwareKeyUnlockTests`, `DatabaseEditorCoordinatorTests`, `AppRoutingCoordinatorTests`.
 - **AutoFill and passkeys:** `CredentialProviderCoordinatorTests` and its `CredentialProvider*Tests` siblings (save, registration, picker creation), `CredentialMatcherTests`, `CredentialIdentityStoreManagerTests`, `AutoFillMemoryLimitTests`, `PasskeyCredentialTests`, `PasskeyCryptoTests`.
 - **Localization and bundle:** `LocalizationTests` (translation completeness and format-specifier parity for every shipped locale), `URLSchemeFormatTests` (declared URL schemes are legal after build-setting substitution).
-- **macOS only:** `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `MacQuickSearchViewModelTests`, `MacQuickAccessControllerTests`, `MacUnlockPasswordFieldTests`, `MacTransitionNoticeServiceTests`, `CredentialProviderShellMacTests`.
+- **macOS only:** `MacBiometricAutoUnlockTests`, `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `MacQuickSearchViewModelTests`, `MacQuickAccessControllerTests`, `MacUnlockPasswordFieldTests`, `MacTransitionNoticeServiceTests`, `CredentialProviderShellMacTests`.
 
 ## Invariants
 

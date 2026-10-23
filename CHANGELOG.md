@@ -4,6 +4,7 @@
 
 ### New Features
 
+- On Mac, Auto-Unlock with Touch ID now prompts when opening a database or returning to its locked window, without clicking the unlock button (#146).
 - Generate word-based passphrases on iPhone, iPad, and Mac with a chosen word count and separator. The saved mode and options also apply to iOS AutoFill generation (#187).
 - Keep a newly saved entry open on iPhone, iPad, and Mac so it is immediately available without finding it again in the list (#119).
 - Rename and delete custom icons stored in a database on iPhone, iPad, and Mac, from Database Details or the entry icon picker. Entries, groups, and history versions that used a deleted icon return to their default icon. Naming an icon upgrades a KDBX 4.0 database to KDBX 4.1 (#202).
@@ -19,6 +20,7 @@
 
 - Locking a database while it reloads after a save conflict now keeps it locked on iPhone, iPad, and Mac. Before, the finished reload could reopen it, and moving the app to the background or locking the Mac screen during the reload did not lock it.
 - A credential or passkey saved through AutoFill to a cloud database is still uploaded when a later AutoFill save to that database fails, on iPhone, iPad, and Mac.
+- When two saves to the same local database overlap, for example from the app and AutoFill, the later one now reports a save conflict instead of silently replacing the changes the other one just saved.
 - The Mac group sidebar keeps its resized width when locking and unlocking a database in the same window (#227).
 - On iPhone and iPad a database opens on the view you picked last (All Entries, Groups, Verification Codes, or Tags), including after locking or restarting the app, instead of always on All Entries (#230). The Recycle Bin is never where a database opens.
 - On iPhone with larger text, the database's view title no longer gets a second view menu behind a "…" button in Groups, All Entries, Verification Codes, and Tags (#226). The title is the only view menu in every view, before and after it scrolls into the navigation bar, and the bar keeps Lock, Add, Sort, and Settings in view.

@@ -6359,7 +6359,6 @@
       }
     },
     "Auto-Unlock with Touch ID" : {
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -6459,58 +6458,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自動填寫"
-          }
-        }
-      }
-    },
-    "AutoFill can unlock with Touch ID on its own. KeeForge itself never unlocks automatically — use the Touch ID button on the unlock screen." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AutoFill kann sich selbst mit Touch ID entsperren. KeeForge selbst entsperrt sich nie automatisch – verwende dafür die Touch-ID-Taste im Entsperrbildschirm."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "El autorrelleno puede desbloquearse por sí solo con Touch ID. KeeForge nunca se desbloquea automáticamente: usa el botón de Touch ID en la pantalla de desbloqueo."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le remplissage automatique peut se déverrouiller seul avec Touch ID. KeeForge ne se déverrouille jamais automatiquement — utilisez le bouton Touch ID de l'écran de déverrouillage."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L'inserimento automatico può sbloccarsi da solo con Touch ID. KeeForge stesso non si sblocca mai automaticamente: usa il pulsante Touch ID nella schermata di sblocco."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動入力は Touch ID だけでロックを解除できます。KeeForge 本体が自動でロックを解除することはありません。ロック解除画面の Touch ID ボタンをお使いください。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Автозаполнение может само разблокировать базу данных с Touch ID. Сам KeeForge никогда не разблокирует её автоматически — используйте кнопку Touch ID на экране разблокировки."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自动填充可以自行使用触控 ID 解锁。KeeForge 本身绝不会自动解锁——请使用解锁屏幕上的触控 ID 按钮。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動填寫可以自行使用觸控 ID 解鎖。KeeForge 本身絕不會自動解鎖——請使用解鎖畫面上的觸控 ID 按鈕。"
           }
         }
       }
@@ -6771,6 +6718,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 KeeForge 自動填寫"
+          }
+        }
+      }
+    },
+    "Automatically prompt when opening a database or returning to its locked window. AutoFill also uses Touch ID." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Öffnen einer Datenbank oder bei der Rückkehr zu ihrem gesperrten Fenster automatisch zur Entsperrung auffordern. AutoFill verwendet ebenfalls Touch ID."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solicitar la autenticación automáticamente al abrir una base de datos o volver a su ventana bloqueada. Autorrelleno también usa Touch ID."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher automatiquement une demande à l’ouverture d’une base de données ou au retour à sa fenêtre verrouillée. Le remplissage automatique utilise aussi Touch ID."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Richiedi automaticamente l’autenticazione quando apri un database o torni alla sua finestra bloccata. Anche il riempimento automatico usa Touch ID."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースを開いたときや、ロックされたウインドウに戻ったときに、自動的に認証を求めます。自動入力でも Touch ID を使用します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автоматически запрашивать аутентификацию при открытии базы данных или возврате к её заблокированному окну. Автозаполнение также использует Touch ID."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开数据库或返回其已锁定的窗口时，自动提示认证。自动填充也使用 Touch ID。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟資料庫或返回其已鎖定的視窗時，自動提示認證。自動填寫也使用 Touch ID。"
           }
         }
       }
@@ -56160,58 +56159,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解鎖資料庫以檢視群組和項目。"
-          }
-        }
-      }
-    },
-    "Unlock AutoFill with Touch ID" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AutoFill mit Touch ID entsperren"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desbloquear Autorrelleno con Touch ID"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Déverrouiller le remplissage automatique avec Touch ID"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sblocca l'inserimento automatico con Touch ID"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Touch ID で自動入力のロックを解除"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Разблокировка автозаполнения с Touch ID"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用触控 ID 解锁自动填充"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用觸控 ID 解鎖自動填寫"
           }
         }
       }
