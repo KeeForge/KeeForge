@@ -8,7 +8,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 - `KeeForgeApp` owns the optional active `DatabaseViewModel`, the shared `DatabaseListViewModel` and `AppRoutingCoordinator`, and the compact vs regular root choice. macOS always uses the regular layout.
 - Launch order, incoming URLs, pending TOTP enrollment, and Open/Close Database transitions are decided by `../ViewModels/AppRoutingCoordinator.swift` (see `../ViewModels/AGENTS.md`). `AppRootView` only adapts the result to SwiftUI presentation.
-- `.biometricAutoUnlock(_:)` adapts auto-unlock to each platform: scene activation on iOS, native foreground-window events on macOS. Eligibility is `DatabaseViewModel.isEligibleForBiometricAutoUnlock`.
+- Auto-unlock is attempted in one place per platform: `.biometricAutoUnlock(_:)` on the iOS scene shells, and `MacBiometricAutoUnlockObserver` hosted once per active session by `AppRootView` on macOS. Eligibility is `DatabaseViewModel.isEligibleForBiometricAutoUnlock`.
 - `RegularDatabaseWorkspaceView` owns the regular-width unlocked workspace: a two-column split on iPad, the three-column `macSplitView` on macOS. It hosts every sheet and confirmation its rows raise.
 - `KeeForgeCommands` (KeeForgeMac only) owns the menu bar. Items reach the session through `FocusedValues` and act through `DatabaseViewModel`; the four that need a presentation only raise a `workspace` request counter (`../ViewModels/AGENTS.md`).
 - `MacLockMonitor` is the sole lock driver on macOS; `MacWindowCloseGuard` settles unsaved work before a window close commits (`../Services/AppSupport/`).
@@ -39,6 +39,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 - On iOS, one attempt per `lockCycleID`, and only while `scenePhase == .active`: LocalAuthentication fails with `LAError.notInteractive` for a caller that is not foreground-active, which would burn the cycle's attempt on an error screen.
 - An attempt that returns `.promptUnavailable` showed no UI and gives its lock cycle back.
 - On Mac, attempt only when the session mounts in a foreground key window or that window/app returns to the foreground. Never trigger from a lock-cycle change. Defer past activation observers and recheck eligibility, window visibility, attached sheets, and the captured lock cycle before prompting. Cancellation or fallback consumes the cycle; the password form stays available. Pending work is invalidated on unmount.
+- The Mac observer lives above the locked/unlocked view switch, keyed by session. Mounting it counts as opening, so placing it inside a view that a lock replaces would prompt on every automatic lock while the window is frontmost.
 - `BiometricAutoUnlockPolicy` disables auto-unlock for the iOS build running on Mac or Vision Pro, because `active` does not prove the compatibility window is frontmost. Those keep the explicit biometric action in `UnlockView`.
 
 ### macOS workspace lists

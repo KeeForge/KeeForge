@@ -324,6 +324,14 @@ private struct AppRootView: View {
             handleOpenURL(url)
         }
         #if os(macOS)
+        // Above the locked/unlocked switch: a lock must not remount it, since
+        // mounting counts as opening the session and prompts.
+        .background {
+            if let activeDatabaseViewModel {
+                MacBiometricAutoUnlockObserver(viewModel: activeDatabaseViewModel)
+                    .id(ObjectIdentifier(activeDatabaseViewModel))
+            }
+        }
         .sheet(isPresented: $showsMacTransitionNotice) {
             MacTransitionNoticeView()
                 .frame(
@@ -778,7 +786,9 @@ private struct CompactUnlockScene: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: viewModel.state)
+        #if os(iOS)
         .biometricAutoUnlock(viewModel)
+        #endif
     }
 }
 
@@ -820,7 +830,9 @@ private struct RegularDatabaseScene: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: viewModel.state)
+        #if os(iOS)
         .biometricAutoUnlock(viewModel)
+        #endif
     }
 
     private var unlockView: some View {
@@ -886,17 +898,12 @@ private struct BiometricAutoUnlockModifier: ViewModifier {
     }
 }
 
-#endif
-
 private extension View {
     func biometricAutoUnlock(_ viewModel: DatabaseViewModel) -> some View {
-        #if os(macOS)
-        background(MacBiometricAutoUnlockObserver(viewModel: viewModel).id(ObjectIdentifier(viewModel)))
-        #else
         modifier(BiometricAutoUnlockModifier(viewModel: viewModel))
-        #endif
     }
 }
+#endif
 
 private struct LaunchRoutingView: View {
     var body: some View {
