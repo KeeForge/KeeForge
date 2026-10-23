@@ -9,15 +9,18 @@ private enum PasswordVisualStyle {
 struct PasswordDisplayRow<Actions: View>: View {
     let revealedText: String?
     private let passwordAccessibilityIdentifier: String?
+    private let maximumEntropyBits: Double
     private let actions: Actions
 
     init(
         revealedText: String?,
         passwordAccessibilityIdentifier: String? = nil,
+        maximumEntropyBits: Double = .infinity,
         @ViewBuilder actions: () -> Actions
     ) {
         self.revealedText = revealedText
         self.passwordAccessibilityIdentifier = passwordAccessibilityIdentifier
+        self.maximumEntropyBits = maximumEntropyBits
         self.actions = actions()
     }
 
@@ -52,7 +55,7 @@ struct PasswordDisplayRow<Actions: View>: View {
             }
 
             if let revealedText {
-                PasswordStrengthIndicator(password: revealedText)
+                PasswordStrengthIndicator(password: revealedText, maximumEntropyBits: maximumEntropyBits)
                     .padding(.leading, 36)
             }
         }
@@ -108,9 +111,10 @@ struct PasswordConcealedText: View {
 
 struct PasswordStrengthIndicator: View {
     let password: String
+    var maximumEntropyBits: Double = .infinity
 
     private var estimate: PasswordStrengthEstimate? {
-        PasswordStrengthEstimator.estimate(password)
+        PasswordStrengthEstimator.estimate(password, maximumEntropyBits: maximumEntropyBits)
     }
 
     var body: some View {

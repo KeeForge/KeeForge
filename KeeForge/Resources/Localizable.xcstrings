@@ -14790,6 +14790,64 @@
         }
       }
     },
+    "Creative Commons Attribution 4.0 International (CC BY 4.0)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creative Commons Namensnennung 4.0 International (CC BY 4.0)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creative Commons Attribution 4.0 International (CC BY 4.0)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creative Commons Atribución 4.0 Internacional (CC BY 4.0)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creative Commons Attribution 4.0 International (CC BY 4.0)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creative Commons Attribuzione 4.0 Internazionale (CC BY 4.0)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリエイティブ・コモンズ 表示 4.0 国際 (CC BY 4.0)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creative Commons «Атрибуция» 4.0 Всемирная (CC BY 4.0)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "知识共享 署名 4.0 国际 (CC BY 4.0)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "創用 CC 姓名標示 4.0 國際 (CC BY 4.0)"
+          }
+        }
+      }
+    },
     "Current Code" : {
       "localizations" : {
         "de" : {
@@ -18964,6 +19022,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "允許編輯"
+          }
+        }
+      }
+    },
+    "EFF's Long Wordlist" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EFF's Long Wordlist"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EFF's Long Wordlist"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EFF's Long Wordlist"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EFF's Long Wordlist"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EFF's Long Wordlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EFF's Long Wordlist"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EFF's Long Wordlist"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EFF's Long Wordlist"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EFF's Long Wordlist"
           }
         }
       }

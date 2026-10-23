@@ -16,9 +16,16 @@ enum PasswordGenerator {
         let words = contents.split(whereSeparator: \.isNewline).compactMap { line in
             line.split(separator: "\t").last.map(String.init)
         }
-        precondition(words.count == 7_776 && Set(words).count == 7_776)
-        return words
+        precondition(words.count == 7_776)
+        // Hyphenated entries (drop-down, t-shirt, ...) would blur word boundaries with a "-" separator.
+        let unhyphenated = words.filter { $0.allSatisfy(isPassphraseLetter) }
+        precondition(unhyphenated.count == 7_772 && Set(unhyphenated).count == 7_772)
+        return unhyphenated
     }()
+
+    static func isPassphraseLetter(_ character: Character) -> Bool {
+        ("a"..."z").contains(character)
+    }
 
     struct Options: Equatable, Sendable, Codable {
         var mode: Mode

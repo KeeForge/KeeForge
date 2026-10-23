@@ -7,8 +7,9 @@ final class PasswordGeneratorTests: XCTestCase {
         let url = try XCTUnwrap(Bundle.main.url(forResource: "eff_large_wordlist", withExtension: "txt"))
         let digest = SHA256.hash(data: try Data(contentsOf: url)).map { String(format: "%02x", $0) }.joined()
         XCTAssertEqual(digest, "addd35536511597a02fa0a9ff1e5284677b8883b83e986e43f15a3db996b903e")
-        XCTAssertEqual(PasswordGenerator.passphraseWords.count, 7_776)
-        XCTAssertEqual(Set(PasswordGenerator.passphraseWords).count, 7_776)
+        XCTAssertEqual(PasswordGenerator.passphraseWords.count, 7_772)
+        XCTAssertEqual(Set(PasswordGenerator.passphraseWords).count, 7_772)
+        XCTAssertTrue(PasswordGenerator.passphraseWords.allSatisfy { $0.allSatisfy(PasswordGenerator.isPassphraseLetter) })
     }
 
     func testPassphrasesUseRequestedCountSeparatorAndEFFWords() {
@@ -35,7 +36,7 @@ final class PasswordGeneratorTests: XCTestCase {
         for (requested, expected) in [(Int.min, 4), (6, 6), (Int.max, 12)] {
             let options = PasswordGenerator.Options(mode: .passphrase, wordCount: requested, separator: " ")
             XCTAssertEqual(PasswordGenerator.generate(options: options).split(separator: " ").count, expected)
-            XCTAssertEqual(PasswordGenerator.minimumEntropyBits(options: options), Double(expected) * log2(7_776), accuracy: 0.0001)
+            XCTAssertEqual(PasswordGenerator.minimumEntropyBits(options: options), Double(expected) * log2(7_772), accuracy: 0.0001)
         }
     }
 

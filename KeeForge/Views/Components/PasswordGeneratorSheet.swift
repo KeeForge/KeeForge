@@ -15,7 +15,8 @@ struct PasswordGeneratorSheet: View {
                 Section("Suggested Password") {
                     PasswordDisplayRow(
                         revealedText: generatedPassword,
-                        passwordAccessibilityIdentifier: "password-generator.password"
+                        passwordAccessibilityIdentifier: "password-generator.password",
+                        maximumEntropyBits: PasswordGenerator.minimumEntropyBits(options: options)
                     ) {
                         HStack(spacing: 16) {
                             Button {
