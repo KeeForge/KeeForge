@@ -66,6 +66,20 @@ struct AcknowledgmentsView: View {
             #endif
 
             Section {
+                Text(verbatim: """
+                    EFF's Long Wordlist, by Joseph Bonneau and the Electronic Frontier Foundation.
+                    https://www.eff.org/dice
+                    https://www.eff.org/files/2016/07/18/eff_large_wordlist.txt
+                    Creative Commons Attribution 4.0 International (CC BY 4.0)
+                    https://creativecommons.org/licenses/by/4.0/
+                    Distributed unchanged. EFF does not endorse KeeForge.
+                    """)
+                    .font(.caption)
+            } header: {
+                Text(verbatim: "EFF's Long Wordlist")
+            }
+
+            Section {
                 Text(publicSuffixListNotice)
                     .font(.caption)
                     .monospaced()

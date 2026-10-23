@@ -45,6 +45,7 @@
 
 - `AutoFillMemoryLimit.check` compares exactly one number, the header's Argon2 memory parameter, against `os_proc_available_memory`. Do not price in the file size or parse cost: a false refusal breaks a vault that opens today. It refuses only what is certain to be killed.
 - It is skipped on macOS (the API does not exist there) and for an unlimited process, and never refuses AES-KDF or an unknown KDF. It does not cover a file too large to read.
+- `PasswordGenerator` samples passphrase words independently with Swift’s uniform integer sampling and `SystemRandomNumberGenerator`. The unchanged EFF long wordlist must be bundled in all four product targets; never substitute a smaller fallback list.
 - `PasswordGenerator.Options` is persisted App Group-wide and decodes per field, so adding an option does not reset stored ones.
 - `AutoFillDiagnostics` is DEBUG-only and logs event names, flags, and counts. Never pass entry data, URLs, or secrets to it.
 

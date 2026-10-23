@@ -36,38 +36,63 @@ struct PasswordGeneratorSheet: View {
                     }
                 }
 
-                Section("Length") {
-                    Slider(
-                        value: Binding(
-                            get: { Double(options.length) },
-                            set: { options.length = Int($0.rounded()) }
-                        ),
-                        in: 8...64,
-                        step: 1
-                    )
-                    .accessibilityIdentifier("password-generator.length-slider")
-
-                    Text("\(options.length) characters")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section("Character Sets") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Toggle("Uppercase", isOn: charsetBinding(\.includeUppercase))
-                            .accessibilityIdentifier("password-generator.charset-toggle.uppercase")
-                        Toggle("Lowercase", isOn: charsetBinding(\.includeLowercase))
-                            .accessibilityIdentifier("password-generator.charset-toggle.lowercase")
-                        Toggle("Digits", isOn: charsetBinding(\.includeDigits))
-                            .accessibilityIdentifier("password-generator.charset-toggle.digits")
-                        Toggle("Symbols", isOn: charsetBinding(\.includeSymbols))
-                            .accessibilityIdentifier("password-generator.charset-toggle.symbols")
-                        Toggle("Exclude Ambiguous Characters", isOn: $options.excludeAmbiguous)
-                            .accessibilityIdentifier("password-generator.charset-toggle.ambiguous")
+                Section {
+                    Picker("Generation Mode", selection: $options.mode) {
+                        Text("Password").tag(PasswordGenerator.Mode.characters)
+                        Text("Passphrase").tag(PasswordGenerator.Mode.passphrase)
                     }
-                    .accessibilityIdentifier("password-generator.charset-toggle")
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("password-generator.mode")
                 }
 
+                if options.mode == .passphrase {
+                    Section("Passphrase Options") {
+                        Stepper("Words: \(options.wordCount)", value: $options.wordCount,
+                                in: PasswordGenerator.wordCountRange)
+                            .accessibilityIdentifier("password-generator.word-count")
+                        LabeledContent("Separator") {
+                            TextField("Separator", text: $options.separator)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .macFormFieldStyle()
+                                .macLabelsHidden()
+                                .multilineTextAlignment(.leading)
+                                .accessibilityIdentifier("password-generator.separator")
+                        }
+                    }
+                } else {
+                    Section("Length") {
+                        Slider(
+                            value: Binding(
+                                get: { Double(options.length) },
+                                set: { options.length = Int($0.rounded()) }
+                            ),
+                            in: 8...64,
+                            step: 1
+                        )
+                        .accessibilityIdentifier("password-generator.length-slider")
+
+                        Text("\(options.length) characters")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Section("Character Sets") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Toggle("Uppercase", isOn: charsetBinding(\.includeUppercase))
+                                .accessibilityIdentifier("password-generator.charset-toggle.uppercase")
+                            Toggle("Lowercase", isOn: charsetBinding(\.includeLowercase))
+                                .accessibilityIdentifier("password-generator.charset-toggle.lowercase")
+                            Toggle("Digits", isOn: charsetBinding(\.includeDigits))
+                                .accessibilityIdentifier("password-generator.charset-toggle.digits")
+                            Toggle("Symbols", isOn: charsetBinding(\.includeSymbols))
+                                .accessibilityIdentifier("password-generator.charset-toggle.symbols")
+                            Toggle("Exclude Ambiguous Characters", isOn: $options.excludeAmbiguous)
+                                .accessibilityIdentifier("password-generator.charset-toggle.ambiguous")
+                        }
+                        .accessibilityIdentifier("password-generator.charset-toggle")
+                    }
+                }
             }
             .macGroupedForm()
             .navigationTitle("Password Generator")
