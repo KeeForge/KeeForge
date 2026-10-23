@@ -1375,10 +1375,10 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
         XCTAssertFalse(revealElement(entry(named: "Discard Me")))
     }
 
-    func testPasswordGeneratorProducesNonEmptyPassword() {
+    func testPassphraseGeneratorUsesAndPersistsSuggestedValue() {
         unlockSuccessfully()
 
-        openGroup(named: workGroupName)
+        openPassphraseWorkGroup()
         tapAddEntry()
 
         let titleField = app.textFields["entry-edit.title-field"]
@@ -1389,6 +1389,12 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
         XCTAssertTrue(generatorButton.waitForExistence(timeout: 5))
         generatorButton.tap()
 
+        let passphrase = app.buttons["Passphrase"]
+        XCTAssertTrue(revealElement(passphrase))
+        passphrase.tap()
+        let separator = app.textFields["password-generator.separator"]
+        replaceText(in: separator, with: "::")
+
         // The generator sheet is a tall Form; on compact devices (iPhone SE)
         // the Regenerate / Use Password buttons sit below the fold and aren't
         // in the accessibility tree until scrolled into view.
@@ -1398,7 +1404,7 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
         let suggestion = app.staticTexts["password-generator.password"]
         XCTAssertTrue(revealElement(suggestion), "Generated password suggestion was not visible")
         let generatedPassword = suggestion.label
-        XCTAssertFalse(generatedPassword.isEmpty, "Generator showed an empty suggestion")
+        XCTAssertTrue((4...12).contains(generatedPassword.components(separatedBy: "::").count))
 
         let useButton = app.buttons["password-generator.use"]
         XCTAssertTrue(revealElement(useButton), "Use Password button was not reachable")
@@ -1421,7 +1427,8 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
             revealSidebarIfNeeded()
         }
         lockAndReopenVault()
-        openEntry(named: generatedPasswordEntryTitle, inGroup: workGroupName)
+        openPassphraseWorkGroup()
+        openEntry(named: generatedPasswordEntryTitle)
         let revealButton = app.buttons["entry.password.reveal"]
         XCTAssertTrue(revealButton.waitForExistence(timeout: 5))
         tapElement(revealButton)
@@ -1429,6 +1436,17 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
             app.staticTexts[generatedPassword].waitForExistence(timeout: Self.ciElementTimeout),
             "The saved entry did not retain the generated password after locking and reopening"
         )
+    }
+
+    private func openPassphraseWorkGroup() {
+        if app.windows.firstMatch.frame.width >= 700 {
+            revealSidebarIfNeeded()
+            let group = firstRowMatching(name: workGroupName, preferredIdentifier: "group.navlink")
+            XCTAssertTrue(revealElement(group))
+            tapElement(group)
+        } else if app.navigationBars[workGroupName].exists == false {
+            openGroup(named: workGroupName)
+        }
     }
 
     func testSaveConflictOffersMergeReloadAndConflictCopy() {

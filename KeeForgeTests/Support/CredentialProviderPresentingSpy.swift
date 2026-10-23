@@ -84,6 +84,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
     var completedOneTimeCode: String?
     var didCompleteSavePassword = false
     var completedGeneratedPasswords: [String]?
+    var generatedPasswordPrompt: (password: String, onUse: () -> Void, onRegenerate: () -> Void, onCancel: () -> Void)?
     /// The most recent `cancelRequest(withError:)` call, matching the
     /// original `PresenterSpy` semantics used throughout
     /// CredentialProviderCoordinatorTests.swift (last write wins; every test
@@ -210,7 +211,9 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         onUse: @escaping () -> Void,
         onRegenerate: @escaping () -> Void,
         onCancel: @escaping () -> Void
-    ) {}
+    ) {
+        generatedPasswordPrompt = (password, onUse, onRegenerate, onCancel)
+    }
 
     func completeRequest(withSelectedCredential credential: ASPasswordCredential) {
         onCompleteRequest?(credential)

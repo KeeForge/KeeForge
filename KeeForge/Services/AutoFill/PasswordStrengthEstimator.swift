@@ -47,19 +47,58 @@ struct PasswordStrengthEstimate: Equatable, Sendable {
 }
 
 enum PasswordStrengthEstimator {
-    static func estimate(_ password: String) -> PasswordStrengthEstimate? {
+    /// `maximumEntropyBits` caps the estimate when the caller knows how the
+    /// value was generated, such as a passphrase with a letter separator.
+    static func estimate(
+        _ password: String,
+        maximumEntropyBits: Double = .infinity
+    ) -> PasswordStrengthEstimate? {
         guard password.isEmpty == false else { return nil }
 
         let poolSize = characterPoolSize(for: password)
         guard poolSize > 0 else { return nil }
 
         let rawEntropy = Double(password.count) * log2(Double(poolSize))
-        let entropy = max(0, rawEntropy - repetitionPenalty(for: password))
+        let entropy = min(
+            max(0, rawEntropy - repetitionPenalty(for: password)),
+            passphraseEntropy(for: password) ?? .infinity,
+            maximumEntropyBits
+        )
 
         return PasswordStrengthEstimate(
             entropyBits: entropy,
             level: level(forEntropyBits: entropy)
         )
+    }
+
+    private static let passphraseWords = Set(PasswordGenerator.passphraseWords)
+
+    /// Rates EFF words joined by one repeated separator by their word count,
+    /// since the character pool would credit each letter as random.
+    private static func passphraseEntropy(for password: String) -> Double? {
+        var words: [Substring] = []
+        var separators: Set<Substring> = []
+        var index = password.startIndex
+        while index < password.endIndex {
+            let isWord = PasswordGenerator.isPassphraseLetter(password[index])
+            let end = password[index...].firstIndex {
+                PasswordGenerator.isPassphraseLetter($0) != isWord
+            } ?? password.endIndex
+            if isWord {
+                words.append(password[index..<end])
+            } else {
+                separators.insert(password[index..<end])
+            }
+            index = end
+        }
+        guard let first = password.first, let last = password.last,
+              PasswordGenerator.isPassphraseLetter(first),
+              PasswordGenerator.isPassphraseLetter(last),
+              separators.count <= 1,
+              words.allSatisfy({ passphraseWords.contains(String($0)) }) else {
+            return nil
+        }
+        return Double(words.count) * log2(Double(passphraseWords.count))
     }
 
     private static func characterPoolSize(for password: String) -> Int {

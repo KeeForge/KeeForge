@@ -306,6 +306,8 @@ targets:
       - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
       - path: KeeForge/Services/Cloud/CloudSyncModels.swift
       - path: KeeForge/Services/AutoFill/PasswordGenerator.swift
+      - path: KeeForge/Resources/eff_large_wordlist.txt
+        buildPhase: resources
       - path: KeeForge/Services/AutoFill/PasswordStrengthEstimator.swift
       - path: KeeForge/Views/Components/PasswordDisplay.swift
       - path: KeeForge/Views/Components/PasswordInputRow.swift
@@ -376,6 +378,8 @@ targets:
       - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
       - path: KeeForge/Services/Cloud/CloudSyncModels.swift
       - path: KeeForge/Services/AutoFill/PasswordGenerator.swift
+      - path: KeeForge/Resources/eff_large_wordlist.txt
+        buildPhase: resources
       - path: KeeForge/Services/AutoFill/PasswordStrengthEstimator.swift
       - path: KeeForge/Views/Components/PasswordDisplay.swift
       - path: KeeForge/Views/Components/PasswordInputRow.swift

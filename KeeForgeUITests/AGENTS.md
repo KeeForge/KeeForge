@@ -2,6 +2,7 @@
 
 **Scope:** XCUITest suites for iPhone and iPad. The Mac suite is in `../KeeForgeMacUITests/AGENTS.md`; both use the same accessibility identifiers and fixture-injection environment, so a change to either affects both.
 
+- Passphrase generation through the entry editor, including save and reopen: `EntryEditEdgeUITests`, on iPhone and iPad.
 - Restore entry/group context actions and the returned contents: the restore cases in `EntryDeleteSmokeUITests`, on iPhone and iPad.
 
 ## Running
