@@ -18,7 +18,7 @@
 - Clear AutoFill Entries does not republish the open database; the user asked for an empty store.
 - The macOS Databases footer saying suggestions come from one database at a time follows `DatabaseListViewModel.isAutoFillLimitedToOneDatabase`: more than one database selected and an enabled store that reports no incremental updates (recorded on macOS 26.5). The platform alone never shows it, and it stays hidden while the flag is unknown or the provider is off. macOS 27.0.1 reports incremental updates, so the footer is hidden there on the strength of the manager's additive save, which has not been checked against a written-to 27.0.1 store (`../../Services/AutoFill/AGENTS.md`).
 - The iOS root's AutoFill row says nothing about the system provider until its state is known, and the root refreshes that state itself.
-- The macOS Security tab's biometric label describes the AutoFill extension only; the Mac app never auto-unlocks.
+- The macOS Security tab's Auto-Unlock with Touch ID toggle governs foreground automatic prompting in the app and biometric unlock in AutoFill through the existing shared preference.
 
 ### Layout
 

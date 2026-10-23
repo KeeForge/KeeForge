@@ -4,6 +4,7 @@
 
 ### New Features
 
+- On Mac, Auto-Unlock with Touch ID now prompts when opening a database or returning to its locked window, without clicking the unlock button (#146).
 - Keep a newly saved entry open on iPhone, iPad, and Mac so it is immediately available without finding it again in the list (#119).
 - Rename and delete custom icons stored in a database on iPhone, iPad, and Mac, from Database Details or the entry icon picker. Entries, groups, and history versions that used a deleted icon return to their default icon. Naming an icon upgrades a KDBX 4.0 database to KDBX 4.1 (#202).
 - Protect or unprotect custom fields in the entry editor on iPhone, iPad, and Mac. Protected values stay hidden until revealed and use standard KeePass protection when saved (#217).

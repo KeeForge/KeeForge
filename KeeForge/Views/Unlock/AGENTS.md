@@ -23,7 +23,7 @@
 
 ### Biometrics, hardware key, padlock
 
-- On the Mac app the biometric button is only ever an explicit action, never a lifecycle auto-unlock. Its label and caption come from `DatabaseViewModel.biometricLabel` / `biometricCaption`.
+- On Mac the password form and explicit biometric retry stay available while locked. The app shell owns opt-in automatic prompting on foreground return; this view never starts a lifecycle prompt. Button text comes from `DatabaseViewModel.biometricLabel` / `biometricCaption`.
 - The Hardware Key row appears only when the device offers a transport or the database already has one stored. A YubiKey alone is a valid key, so Unlock is enabled with no password or key file. Cancel during a challenge cancels only the YubiKey request.
 - The header padlock starts shut and replays open-to-shut only when `didManuallyLock` says the user pressed Lock. Opening from the list must not animate.
 

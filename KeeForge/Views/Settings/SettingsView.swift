@@ -818,17 +818,15 @@ private struct MacSecuritySettingsTab: View {
                     }
                 }
 
-                // Governs the AutoFill extension only: the app itself never
-                // auto-unlocks on macOS (`BiometricAutoUnlockPolicy`), so a
-                // label promising that would be false.
                 if BiometricService.isAvailable {
-                    Toggle("Unlock AutoFill with Touch ID", isOn: $autoUnlockWithBiometrics)
+                    Toggle("Auto-Unlock with Touch ID", isOn: $autoUnlockWithBiometrics)
+                        .accessibilityIdentifier("settings.security.auto-unlock-toggle")
                 }
             } footer: {
                 Text("KeeForge always locks on screen lock, screensaver, system sleep, and user switching. The stricter option also locks whenever another app becomes active.")
 
                 if BiometricService.isAvailable {
-                    Text("AutoFill can unlock with Touch ID on its own. KeeForge itself never unlocks automatically — use the Touch ID button on the unlock screen.")
+                    Text("Automatically prompt when opening a database or returning to its locked window. AutoFill also uses Touch ID.")
                 }
             }
 

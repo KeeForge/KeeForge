@@ -203,6 +203,7 @@ struct KeeForgeApp: App {
         let listViewModel = self.listViewModel
 
         macLockMonitor.onLockTriggered = { _ in
+            NotificationCenter.default.post(name: MacBiometricAutoUnlockObserver.lockRequestedNotification, object: nil)
             activeViewModel.wrappedValue?.handleSceneDidEnterBackground()
         }
         macLockMonitor.onDidBecomeActive = {
@@ -789,6 +790,9 @@ private struct RegularDatabaseScene: View {
         Group {
             switch viewModel.state {
             case .locked:
+                #if os(macOS)
+                unlockView
+                #else
                 if viewModel.isEligibleForBiometricAutoUnlock {
                     DatabaseOpeningView(
                         databaseName: viewModel.databaseDisplayName,
@@ -797,20 +801,11 @@ private struct RegularDatabaseScene: View {
                     )
                     .transition(.opacity)
                 } else {
-                    UnlockView(
-                        viewModel: viewModel,
-                        onBackToDatabaseList: onReturnToList,
-                        showsChooseDifferentFileAction: false
-                    )
-                    .transition(.opacity)
+                    unlockView
                 }
+                #endif
             case .error:
-                UnlockView(
-                    viewModel: viewModel,
-                    onBackToDatabaseList: onReturnToList,
-                    showsChooseDifferentFileAction: false
-                )
-                .transition(.opacity)
+                unlockView
             case .unlocking:
                 DatabaseOpeningView(
                     databaseName: viewModel.databaseDisplayName,
@@ -827,8 +822,18 @@ private struct RegularDatabaseScene: View {
         .animation(.easeInOut(duration: 0.25), value: viewModel.state)
         .biometricAutoUnlock(viewModel)
     }
+
+    private var unlockView: some View {
+        UnlockView(
+            viewModel: viewModel,
+            onBackToDatabaseList: onReturnToList,
+            showsChooseDifferentFileAction: false
+        )
+        .transition(.opacity)
+    }
 }
 
+#if os(iOS)
 /// Runs the opt-in biometric auto-unlock at most once per lock cycle, and only
 /// while the scene is foreground-active. Platform exclusions live in
 /// `BiometricAutoUnlockPolicy`, folded into the view model's eligibility.
@@ -881,9 +886,15 @@ private struct BiometricAutoUnlockModifier: ViewModifier {
     }
 }
 
+#endif
+
 private extension View {
     func biometricAutoUnlock(_ viewModel: DatabaseViewModel) -> some View {
+        #if os(macOS)
+        background(MacBiometricAutoUnlockObserver(viewModel: viewModel).id(ObjectIdentifier(viewModel)))
+        #else
         modifier(BiometricAutoUnlockModifier(viewModel: viewModel))
+        #endif
     }
 }
 
