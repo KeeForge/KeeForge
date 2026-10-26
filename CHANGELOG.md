@@ -4,19 +4,20 @@
 
 ### New Features
 
-- On Mac, Auto-Unlock with Touch ID now prompts when opening a database or returning to its locked window, without clicking the unlock button (#146).
+- On Mac, the Touch ID setting is now Auto-Unlock with Touch ID and covers the app as well as AutoFill: it prompts when opening a database or returning to its locked window, without clicking the unlock button. If you turned it on for AutoFill, you will now see these prompts in the app too (#146).
 - Keep a newly saved entry open on iPhone, iPad, and Mac so it is immediately available without finding it again in the list (#119).
 - Rename and delete custom icons stored in a database on iPhone, iPad, and Mac, from Database Details or the entry icon picker. Entries, groups, and history versions that used a deleted icon return to their default icon. Naming an icon upgrades a KDBX 4.0 database to KDBX 4.1 (#202).
 - Protect or unprotect custom fields in the entry editor on iPhone, iPad, and Mac. Protected values stay hidden until revealed and use standard KeePass protection when saved (#217).
 - Reorder custom fields in the entry editor on iPhone, iPad, and Mac, with the chosen order retained when saving and reopening entries (#216).
-- Restore entries and groups from the Recycle Bin on iPhone, iPad, and Mac, returning them to their original group when known or choosing another destination (#223).
+- Restore entries and groups from the Recycle Bin on iPhone, iPad, and Mac, returning them to their original group when known or choosing another destination (#223). Moving an item to the Recycle Bin records its original group, which upgrades a KDBX 4.0 database to KDBX 4.1, as KeePassXC does.
 
 ### Changes
 
-- Cloud databases keep a compact Sync Now shortcut on iPhone, iPad, and Mac. Tap its status icon to see why a cloud check was skipped, the last sync time, or the latest result (#232).
+- Cloud databases keep a compact Sync Now shortcut on iPhone, iPad, and Mac. Tap or click its status icon to see why a cloud check was skipped, the last sync time, the latest result, or AutoFill changes still waiting to upload (#232).
 
 ### Fixes
 
+- Cancelling the Face ID or Touch ID prompt when unlocking now returns to the unlock screen instead of showing an error, on iPhone, iPad, and Mac.
 - Locking a database while it reloads after a save conflict now keeps it locked on iPhone, iPad, and Mac. Before, the finished reload could reopen it, and moving the app to the background or locking the Mac screen during the reload did not lock it.
 - A credential or passkey saved through AutoFill to a cloud database is still uploaded when a later AutoFill save to that database fails, on iPhone, iPad, and Mac.
 - When two saves to the same local database overlap, for example from the app and AutoFill, the later one now reports a save conflict instead of silently replacing the changes the other one just saved.
