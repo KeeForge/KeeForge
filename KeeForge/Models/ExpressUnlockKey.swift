@@ -8,7 +8,7 @@ import Foundation
 /// rotates the KDF salt. `binding` ties it to that version's KDF parameters
 /// and to the composite key it came from, so it is never offered to another
 /// version or under another master key.
-struct ExpressUnlockKey: Sendable {
+struct ExpressUnlockKey: Sendable, Equatable {
     static let serializedByteCount = 1 + bindingByteCount + keyByteCount
 
     private static let formatVersion: UInt8 = 1
@@ -109,7 +109,8 @@ struct ExpressUnlockKey: Sendable {
 }
 
 /// Opens a database with an optional `ExpressUnlockKey`, falling back to the
-/// KDF whenever the cached key does not belong to the file.
+/// KDF whenever the cached key does not belong to the file, and keeps the key
+/// of each version it opens or writes.
 enum ExpressUnlock {
     struct Outcome {
         let rootGroup: KPGroup
@@ -190,6 +191,32 @@ enum ExpressUnlock {
             keyToStore: derivedKey,
             usedCachedKey: false
         )
+    }
+
+    struct Written: Sendable {
+        let data: Data
+        /// The key for the version just written. nil when its KDF parameters
+        /// hold a value the binding cannot encode.
+        let expressKey: ExpressUnlockKey?
+    }
+
+    /// Encrypts `draft` over `header` like `DatabaseDraft.write`, keeping the
+    /// KDF output of the rotated salt so the saved version needs no KDF on its
+    /// next quick unlock.
+    static func write(
+        draft: DatabaseDraft,
+        compositeKey: SymmetricKey,
+        header: KDBXParser.Header,
+        kdfPolicy: KDFExecutionPolicy,
+        deriveKey: KeyDerivation = { try KDBXParser.deriveKey(compositeKey: $0, kdfParams: $1, kdfPolicy: $2) }
+    ) throws -> Written {
+        var expressKey: ExpressUnlockKey?
+        let data = try draft.write(header: header) { kdfParameters in
+            let derived = try derive(compositeKey, kdfParameters, kdfPolicy, deriveKey)
+            expressKey = derived.key
+            return derived.bytes
+        }
+        return Written(data: data, expressKey: expressKey)
     }
 
     private static func derive(
