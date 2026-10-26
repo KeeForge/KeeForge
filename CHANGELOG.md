@@ -6,6 +6,10 @@
 
 - On Mac, use SSH keys stored in KeeForge with `ssh`, `git`, and other SSH clients (#163). Turn on Settings → SSH Agent → "Enable SSH Agent", click "Copy SSH Configuration" and paste it into `~/.ssh/config`, then choose which keys of the unlocked database the agent offers. KeeForge uses an entry's attached OpenSSH private key, including entries set up with KeeAgent, KeePassXC, or Strongbox; Ed25519, ECDSA, and RSA keys without a passphrase are supported, and other keys are listed with the reason they can't be used. Keys are only available while their database is unlocked: locking or closing it makes them unavailable right away, and no key file is written to disk. The agent is off until you turn it on.
 
+### Changes
+
+- Unlocking a cloud database with Face ID or Touch ID is faster: KeeForge checks the cloud copy while the prompt is up instead of after it.
+
 ## v1.20.0 (2026-10-25)
 
 ### New Features

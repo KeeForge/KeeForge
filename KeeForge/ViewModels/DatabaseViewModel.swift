@@ -1108,11 +1108,16 @@ final class DatabaseViewModel {
 
         do {
             let hardwareKey = databaseReference.hardwareKey
+            // The cloud round trip needs no key, so it overlaps the prompt. A
+            // failed prompt cancels it before its result reaches the session.
+            async let prefetchedCloudResolution = prefetchCloudCopyForOpen()
             let storedKey = try await biometricCompositeKeyOperation(
                 databaseReference,
                 String(localized: "Unlock your password database")
             )
-            let readResult = try await readDatabaseData()
+            let readResult = try await readDatabaseData(
+                prefetchedCloudResolution: prefetchedCloudResolution
+            )
             let data = readResult.data
             encryptedData = data
             cloudSyncStatus = readResult.cloudSyncStatus
@@ -4361,12 +4366,29 @@ final class DatabaseViewModel {
         )
     }
 
-    private func readDatabaseData() async throws -> (url: URL, data: Data, cloudSyncStatus: CloudSyncResolution.Status?) {
+    /// Contacts the provider without touching session state, so a caller can
+    /// start it early and drop the result. nil for a local database.
+    private func prefetchCloudCopyForOpen() async throws -> CloudSyncResolution? {
+        guard databaseReference.isCloudBacked else { return nil }
+        return try await syncCloudCopyForOpen()
+    }
+
+    private func syncCloudCopyForOpen() async throws -> CloudSyncResolution {
+        try await cloudSyncOperation(databaseReference) { progress in
+            Task { @MainActor in
+                self.cloudSyncProgress = progress
+            }
+        }
+    }
+
+    private func readDatabaseData(
+        prefetchedCloudResolution: CloudSyncResolution? = nil
+    ) async throws -> (url: URL, data: Data, cloudSyncStatus: CloudSyncResolution.Status?) {
         if databaseReference.isCloudBacked {
-            let resolution = try await cloudSyncOperation(databaseReference) { progress in
-                Task { @MainActor in
-                    self.cloudSyncProgress = progress
-                }
+            let resolution = if let prefetchedCloudResolution {
+                prefetchedCloudResolution
+            } else {
+                try await syncCloudCopyForOpen()
             }
             cloudSyncProgress = nil
             cloudSyncBannerText = resolution.bannerMessage
