@@ -112,6 +112,9 @@ final class DatabaseViewModelTests: XCTestCase {
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
         await resetCredentialIdentityStoreState()
+        if let fixtureCopyDirectory {
+            try? FileManager.default.removeItem(at: fixtureCopyDirectory)
+        }
         try await super.tearDown()
     }
 
@@ -7706,8 +7709,22 @@ final class DatabaseViewModelTests: XCTestCase {
         group.entries.map(\.title) + group.groups.flatMap(allEntryTitles(in:))
     }
 
+    private var fixtureCopyDirectory: URL?
+
+    /// A per-test copy, so a save never reaches the bundled fixture.
     private func fixtureURL() throws -> URL {
-        try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: DatabaseViewModelTests.self))
+        if let fixtureCopyDirectory {
+            return fixtureCopyDirectory.appendingPathComponent("test.kdbx")
+        }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let copy = directory.appendingPathComponent("test.kdbx")
+        try FileManager.default.copyItem(
+            at: TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: DatabaseViewModelTests.self)),
+            to: copy
+        )
+        fixtureCopyDirectory = directory
+        return copy
     }
 
     private func legacyFixtureURL() throws -> URL {

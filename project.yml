@@ -421,6 +421,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.tests
         GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_NSPrincipalClass: KeeForgeTestPrincipal
         TEST_TARGET_NAME: KeeForge
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/KeeForge.app/KeeForge"
     # Copy the four RAW .xcstrings catalog sources verbatim into the built
@@ -505,6 +506,7 @@ targets:
         DEAD_CODE_STRIPPING: "YES"
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.tests
         GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_NSPrincipalClass: KeeForgeTestPrincipal
         TEST_TARGET_NAME: KeeForgeMac
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/KeeForge.app/Contents/MacOS/KeeForge"
         BUNDLE_LOADER: "$(TEST_HOST)"
