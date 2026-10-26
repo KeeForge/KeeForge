@@ -707,6 +707,8 @@ final class EntryIconPickerUITests: UnlockedDatabaseUITestCase {
         let icon = app.buttons["entry-icon-picker.standard.37"]
         XCTAssertTrue(icon.waitForExistence(timeout: 5), "Icon picker did not present")
         XCTAssertFalse(icon.isSelected, "Fixture entry should not already use icon 37")
+        // Icon 37 starts below the fold on a small iPhone.
+        XCTAssertTrue(revealElement(icon), "Icon 37 could not be scrolled into view")
         tapElement(icon)
 
         XCTAssertTrue(
