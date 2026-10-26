@@ -167,6 +167,90 @@ final class KeychainServiceTests: XCTestCase {
         }
     }
 
+    // MARK: - Express-unlock item
+
+    /// The express item was derived from the quick-unlock key, so replacing
+    /// or removing that key (including from the AutoFill extension) drops it.
+    func testReplacingTheQuickUnlockKeyDropsTheExpressItem() throws {
+        let databaseID = trackedDatabaseID()
+        try requireStore(Data("composite".utf8), for: databaseID)
+        try KeychainService.storeExpressUnlockKey(Self.expressPayload, for: databaseID)
+        XCTAssertTrue(KeychainService.hasExpressUnlockKey(for: databaseID))
+
+        try KeychainService.storeCompositeKey(SymmetricKey(data: Data("new composite".utf8)), for: databaseID)
+
+        XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: databaseID))
+        XCTAssertTrue(KeychainService.hasStoredKey(for: databaseID))
+    }
+
+    func testDeletingTheQuickUnlockKeyDropsTheExpressItem() throws {
+        let databaseID = trackedDatabaseID()
+        try requireStore(Data("composite".utf8), for: databaseID)
+        try KeychainService.storeExpressUnlockKey(Self.expressPayload, for: databaseID)
+
+        KeychainService.deleteCompositeKey(for: databaseID)
+
+        XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: databaseID))
+        let context = LAContext()
+        XCTAssertThrowsError(try KeychainService.retrieveExpressUnlockKey(for: databaseID, context: context)) { error in
+            XCTAssertTrue(KeychainService.isItemNotFound(error))
+        }
+    }
+
+    func testRemovingTheDatabaseOrTogglingItsHardwareKeyDropsTheExpressItem() throws {
+        DatabaseListStore.clearAll()
+        defer { DatabaseListStore.clearAll() }
+        let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        let reference = try DatabaseListStore.add(url: url)
+        databaseIDsToClean.append(reference.id)
+
+        try requireStore(Data("composite".utf8), for: reference.id)
+        try KeychainService.storeExpressUnlockKey(Self.expressPayload, for: reference.id)
+        DatabaseListStore.setHardwareKey(HardwareKeyConfiguration(transport: .nfc, slot: .two), for: reference)
+        XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: reference.id), "Adding a YubiKey changes what the keys mean")
+
+        try requireStore(Data("composite".utf8), for: reference.id)
+        try KeychainService.storeExpressUnlockKey(Self.expressPayload, for: reference.id)
+        DatabaseListStore.remove(id: reference.id)
+        XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: reference.id))
+    }
+
+    /// Same protection as the quick-unlock item: this device only, only while
+    /// unlocked, behind the biometric access control.
+    func testExpressItemCarriesTheQuickUnlockProtection() throws {
+        let databaseID = trackedDatabaseID()
+        try requireStore(Data("composite".utf8), for: databaseID)
+        try KeychainService.storeExpressUnlockKey(Self.expressPayload, for: databaseID)
+
+        for account in ["compositeKey:\(databaseID.uuidString)", "expressUnlockKey:\(databaseID.uuidString)"] {
+            let context = LAContext()
+            context.interactionNotAllowed = true
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: "com.keevault.app",
+                kSecAttrAccount as String: account,
+                kSecReturnAttributes as String: true,
+                kSecUseAuthenticationContext as String: context,
+                kSecUseDataProtectionKeychain as String: true,
+            ]
+            var result: AnyObject?
+            XCTAssertEqual(SecItemCopyMatching(query as CFDictionary, &result), errSecSuccess, account)
+            let attributes = try XCTUnwrap(result as? [String: Any], account)
+            XCTAssertEqual(
+                attributes[kSecAttrAccessible as String] as? String,
+                kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String,
+                account
+            )
+            XCTAssertNotNil(attributes[kSecAttrAccessControl as String], account)
+            XCTAssertNotEqual(attributes[kSecAttrSynchronizable as String] as? Bool, true, account)
+        }
+    }
+
+    private static let expressPayload = ExpressUnlockKey(
+        binding: Data(repeating: 5, count: 32),
+        transformedKey: SymmetricKey(size: .bits256)
+    ).serialized()
+
     // MARK: - Store then retrieve (biometric-gated; environment-dependent)
 
     func testStoreThenRetrieveRoundTripsWhenNonInteractiveAuthSucceedsOrElseFailsWithAnAuthError() throws {

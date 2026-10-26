@@ -162,6 +162,15 @@ does not repeat the quick unlock. The next password unlock writes a fresh item. 
 `.biometryCurrentSet` alone. Touch ID still opens them, and the next unlock
 rewrites them with the combined policy.
 
+Beside that item the app keeps an express-unlock item: the KDF output of the
+database version it last opened, bound to that version's KDF parameters and the
+composite key. It has the same access control and protection class, is read
+with the context that released the quick-unlock item and never prompts, and is
+deleted whenever the quick-unlock item is written or removed. A hardware-key
+database never gets one. Quick unlock of an unchanged file then skips the KDF;
+any save rotates the KDF salt, so the item stops matching and the next unlock
+runs the KDF and replaces it.
+
 ## Screen and clipboard privacy
 
 Password reveal and copy actions recheck their originating session, lock cycle,

@@ -292,6 +292,19 @@ enum KDBXParser {
         sessionKey: SymmetricKey,
         kdfPolicy: KDFExecutionPolicy
     ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
+        try parseKDBX4WithMetaAndHeader(data: data, sessionKey: sessionKey) { kdfParameters in
+            try deriveKey(compositeKey: compositeKey, kdfParams: kdfParameters, kdfPolicy: kdfPolicy)
+        }
+    }
+
+    /// Parses a KDBX 4 file with the KDF output supplied by `transformedKey`,
+    /// which receives the header's KDF parameters. A key that does not belong
+    /// to the file fails the header HMAC (`CryptoError.hmacMismatch`).
+    static func parseKDBX4WithMetaAndHeader(
+        data: Data,
+        sessionKey: SymmetricKey,
+        transformedKey provideTransformedKey: (_ kdfParameters: [String: Any]) throws -> Data
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
         var reader = DataReader(data: data)
 
         let version = try parseVersion(from: &reader)
@@ -318,7 +331,7 @@ enum KDBXParser {
         // 5. Derive keys
         let decryptedPayload: Data
         do {
-            var transformedKey = try deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters, kdfPolicy: kdfPolicy)
+            var transformedKey = try provideTransformedKey(header.kdfParameters)
             defer { SecureWipe.wipe(&transformedKey) }
 
             // Master key = SHA256(masterSeed + transformedKey)

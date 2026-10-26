@@ -689,7 +689,9 @@ final class AutoLockTests: XCTestCase {
                     Self.endAuthenticationPrompt(appCenter)
                     appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
                 }
-                return try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
+                return DatabaseViewModel.QuickUnlockKeys(
+                    storedKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
+                )
             }
         )
         let harness = MacTriggerHarness(viewModel: vm, appCenter: appCenter)

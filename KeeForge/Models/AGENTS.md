@@ -47,6 +47,7 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 - `EntryDraftPayload.protectedCustomFieldKeys` is the complete protection set for supplied custom fields when present; nil preserves existing protection for callers that do not edit it. Non-custom and diverted passkey protection survives. AutoFill passkey registration supplies its `KPEX_PASSKEY_*` keys.
 - The composite key travels as a `SymmetricKey`. Transient key material in `Data` or arrays is wiped with `SecureWipe`, and only buffers this code created and uniquely owns (a shared buffer copies on mutation, so the wipe misses the original).
 - Pre-size multi-append key buffers with `Data(capacity:)`, or a reallocation leaves the earlier bytes unwiped.
+- `ExpressUnlock.parse` must open exactly what the KDF path opens. It offers an `ExpressUnlockKey` only when its binding (HMAC under the composite key over the canonically encoded KDF parameters) matches, and falls back to the KDF on `hmacMismatch`. The binding must cover every parameter `KDBXParser.deriveKey` reads, with its type; a value it cannot encode means no cache. The `transformedKey:` seam of `KDBXParser.parseKDBX4WithMetaAndHeader` takes only `deriveKey` output or a key bound this way.
 - `FieldReferenceResolver` is read-side only (display, copy, AutoFill fill). Never run it on an edit, save, or export path: a resolved value written back replaces the reference with its target. Unresolvable references stay literal, as in KeePass.
 - A password import preview holds plaintext; keep it only while the import screen is open. Files over `PasswordImport.maximumFileSize` (16 MiB) are refused before parsing.
 
@@ -88,6 +89,7 @@ Classes in `../../KeeForgeTests/` are named `<Type>Tests`. Non-obvious mappings:
 
 - Any change to parse/write behaviour, draft edits, protected fields, or unknown XML also updates `KDBXCompatibilityTests` and `Support/KDBXCompatibilitySupport.swift`; see `../AGENTS.md`. Those tests emit the artifacts the external `keepassxc-cli` gate consumes.
 - Writer and serializer: `KDBXWriterTests`, `KDBXRoundTripTests`. Merge: `KDBXMergerTests` plus `KDBXMergerOracleTests` (KeePassXC reference fixtures).
+- `ExpressUnlockTests` covers `ExpressUnlockKey.swift`, including every bundled fixture opened through the cached key.
 - `ChallengeResponseKeyTests` covers `HardwareKey.swift`; `AttachmentTests` covers `BinaryPool` and the draft's attachment edits; `PasskeyCredentialTests` and `PasskeyCryptoTests` are in `PasskeyTests.swift`.
 - Fixtures that pin format behaviour are described in `../../TestFixtures/README.md`.
 
