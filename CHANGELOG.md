@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.20.0 (2026-10-25)
+
 ### New Features
 
 - On Mac, the Touch ID setting is now Auto-Unlock with Touch ID and covers the app as well as AutoFill: it prompts when opening a database or returning to its locked window, without clicking the unlock button. If you turned it on for AutoFill, you will now see these prompts in the app too (#146).
@@ -10,10 +12,6 @@
 - Protect or unprotect custom fields in the entry editor on iPhone, iPad, and Mac. Protected values stay hidden until revealed and use standard KeePass protection when saved (#217).
 - Reorder custom fields in the entry editor on iPhone, iPad, and Mac, with the chosen order retained when saving and reopening entries (#216).
 - Restore entries and groups from the Recycle Bin on iPhone, iPad, and Mac, returning them to their original group when known or choosing another destination (#223). Moving an item to the Recycle Bin records its original group, which upgrades a KDBX 4.0 database to KDBX 4.1, as KeePassXC does.
-
-### Changes
-
-- Cloud databases keep a compact Sync Now shortcut on iPhone, iPad, and Mac. Tap or click its status icon to see why a cloud check was skipped, the last sync time, the latest result, or AutoFill changes still waiting to upload (#232).
 
 ### Fixes
 
@@ -25,6 +23,10 @@
 - On iPhone and iPad a database opens on the view you picked last (All Entries, Groups, Verification Codes, or Tags), including after locking or restarting the app, instead of always on All Entries (#230). The Recycle Bin is never where a database opens.
 - On iPhone with larger text, the database's view title no longer gets a second view menu behind a "…" button in Groups, All Entries, Verification Codes, and Tags (#226). The title is the only view menu in every view, before and after it scrolls into the navigation bar, and the bar keeps Lock, Add, Sort, and Settings in view.
 - The bars at the top of an open database, such as the unsaved-changes bar, no longer show the list through them when it is scrolled up (#231).
+
+### Changes
+
+- Cloud databases keep a compact Sync Now shortcut on iPhone, iPad, and Mac. Tap or click its status icon to see why a cloud check was skipped, the last sync time, the latest result, or AutoFill changes still waiting to upload (#232).
 
 ## v1.19.0 (2026-10-19)
 

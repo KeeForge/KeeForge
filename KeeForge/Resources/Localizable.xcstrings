@@ -5526,6 +5526,58 @@
         }
       }
     },
+    "Arrange and protect custom fields" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benutzerdefinierte Felder anordnen und schützen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordena y protege campos personalizados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organisez et protégez les champs personnalisés"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordina e proteggi i campi personalizzati"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタムフィールドを並べ替えて保護"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Порядок и защита пользовательских полей"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排列和保护自定义字段"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排列和保護自訂欄位"
+          }
+        }
+      }
+    },
     "Ascending" : {
       "localizations" : {
         "de" : {
@@ -9683,6 +9735,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇上方的「新增項目」以儲存此驗證碼。"
+          }
+        }
+      }
+    },
+    "Choose Restore on an entry or group in the Recycle Bin to bring it back. It returns to the group it came from when KeeForge knows it; otherwise, pick where it goes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle bei einem Eintrag oder einer Gruppe im Papierkorb „Wiederherstellen“, um sie zurückzuholen. Sie kehren in ihre ursprüngliche Gruppe zurück, wenn KeeForge diese kennt; andernfalls wählst du das Ziel aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige Restaurar en una entrada o un grupo de la Papelera para recuperarlo. Vuelve al grupo del que procede si KeeForge lo conoce; si no, elige dónde colocarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez Restaurer sur une entrée ou un groupe de la Corbeille pour le récupérer. Il retrouve son groupe d’origine si KeeForge le connaît ; sinon, choisissez sa destination."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scegli Ripristina su una voce o un gruppo nel Cestino per recuperarlo. Torna nel gruppo di provenienza se KeeForge lo conosce; altrimenti, scegli dove spostarlo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ごみ箱のエントリやグループで「復元」を選ぶと元に戻せます。KeeForge が元のグループを把握している場合はそこへ戻り、そうでない場合は移動先を選べます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите «Восстановить» для записи или группы в Корзине, чтобы вернуть её. Она вернётся в исходную группу, если KeeForge её знает; иначе выберите, куда её поместить."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在回收站中对条目或群组选择“恢复”即可找回。如果 KeeForge 知道其原来的群组，它会回到那里；否则，由你选择放置位置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在資源回收筒中對項目或群組選擇「回復」即可找回。如果 KeeForge 知道其原本的群組，它會回到那裡；否則，由你選擇放置位置。"
           }
         }
       }
@@ -30472,6 +30576,58 @@
         }
       }
     },
+    "Manage your custom icons" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eigene Symbole verwalten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestiona tus iconos personalizados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gérez vos icônes personnalisées"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestisci le icone personalizzate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタムアイコンを管理"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Управление пользовательскими значками"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理自定义图标"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理自訂圖示"
+          }
+        }
+      }
+    },
     "Master Key" : {
       "localizations" : {
         "de" : {
@@ -39389,6 +39545,110 @@
         }
       }
     },
+    "Rename or delete a database's custom icons from Database Details or the icon picker. Anything that used a deleted icon goes back to its default." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benenne eigene Symbole einer Datenbank in den Datenbankdetails oder in der Symbolauswahl um oder lösche sie. Alles, was ein gelöschtes Symbol verwendet hat, erhält wieder sein Standardsymbol."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambia el nombre o elimina los iconos personalizados de una base de datos desde Detalles de la base de datos o el selector de iconos. Todo lo que usaba un icono eliminado vuelve a su icono predeterminado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renommez ou supprimez les icônes personnalisées d’une base de données depuis Détails de la base de données ou le sélecteur d’icônes. Tout ce qui utilisait une icône supprimée retrouve son icône par défaut."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rinomina o elimina le icone personalizzate di un database da Dettagli del database o dal selettore delle icone. Tutto ciò che usava un’icona eliminata torna all’icona predefinita."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースのカスタムアイコンの名称変更や削除を、「データベースの詳細」またはアイコン選択画面から行えます。削除したアイコンを使っていた項目は既定のアイコンに戻ります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переименовывайте или удаляйте пользовательские значки базы данных в разделе «Сведения о базе данных» или в окне выбора значка. Всё, что использовало удалённый значок, вернётся к значку по умолчанию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可在“数据库详细信息”或图标选择器中重命名或删除数据库的自定义图标。使用已删除图标的内容会恢复为默认图标。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可在「資料庫詳細資訊」或圖示選擇器中重新命名或刪除資料庫的自訂圖示。使用已刪除圖示的內容會回復為預設圖示。"
+          }
+        }
+      }
+    },
+    "Reorder custom fields while editing an entry, and protect sensitive ones so they stay hidden until you reveal them." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordne benutzerdefinierte Felder beim Bearbeiten eines Eintrags neu an und schütze vertrauliche Felder, damit sie verborgen bleiben, bis du sie einblendest."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reordena los campos personalizados al editar una entrada y protege los confidenciales para que permanezcan ocultos hasta que los muestres."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réorganisez les champs personnalisés en modifiant une entrée et protégez les champs sensibles pour qu’ils restent masqués jusqu’à ce que vous les affichiez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riordina i campi personalizzati mentre modifichi una voce e proteggi quelli sensibili, così restano nascosti finché non li mostri."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリの編集中にカスタムフィールドを並べ替えたり、機密性の高いフィールドを保護して表示するまで隠しておいたりできます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Меняйте порядок пользовательских полей при редактировании записи и защищайте конфиденциальные, чтобы они оставались скрытыми, пока вы их не покажете."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑条目时可调整自定义字段的顺序，并保护敏感字段，使其在你显示之前保持隐藏。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯項目時可調整自訂欄位的順序，並保護敏感欄位，使其在你顯示之前保持隱藏。"
+          }
+        }
+      }
+    },
     "Reorder Fields" : {
       "localizations" : {
         "de" : {
@@ -39645,6 +39905,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "回復"
+          }
+        }
+      }
+    },
+    "Restore from the Recycle Bin" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus dem Papierkorb wiederherstellen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaura desde la Papelera"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurez depuis la Corbeille"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ripristina dal Cestino"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ごみ箱から復元"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстановление из Корзины"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从回收站恢复"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從資源回收筒回復"
           }
         }
       }
@@ -54983,6 +55295,58 @@
         }
       }
     },
+    "Turn on Auto-Unlock with Touch ID in Settings to get a Touch ID prompt as soon as you open a database or return to its locked window. It applies to AutoFill too." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktiviere „Automatisch mit Touch ID entsperren“ in den Einstellungen, um eine Touch ID-Abfrage zu erhalten, sobald du eine Datenbank öffnest oder zu ihrem gesperrten Fenster zurückkehrst. Das gilt auch für AutoFill."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activa Desbloqueo automático con Touch ID en Ajustes para que se solicite Touch ID en cuanto abras una base de datos o vuelvas a su ventana bloqueada. También se aplica a Autorrelleno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activez Déverrouillage automatique avec Touch ID dans les Réglages pour qu’une demande Touch ID s’affiche dès que vous ouvrez une base de données ou revenez à sa fenêtre verrouillée. Cela s’applique aussi au remplissage automatique."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attiva Sblocco automatico con Touch ID in Impostazioni per ricevere una richiesta Touch ID appena apri un database o torni alla sua finestra bloccata. Vale anche per il riempimento automatico."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「設定」で「Touch ID で自動ロック解除」をオンにすると、データベースを開いたときやロックされたウインドウに戻ったときに、すぐに Touch ID の確認が表示されます。自動入力にも適用されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включите «Автоматическая разблокировка с Touch ID» в Настройках, чтобы запрос Touch ID появлялся сразу при открытии базы данных или возврате к её заблокированному окну. Это относится и к автозаполнению."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“设置”中打开“使用 Touch ID 自动解锁”，打开数据库或回到其已锁定的窗口时会立即显示 Touch ID 提示。此设置也适用于自动填充。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「設定」中開啟「使用 Touch ID 自動解鎖」，開啟資料庫或回到其已鎖定的視窗時會立即顯示 Touch ID 提示。此設定也適用於自動填寫。"
+          }
+        }
+      }
+    },
     "Turn On AutoFill" : {
       "localizations" : {
         "de" : {
@@ -55759,6 +56123,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解鎖資料庫以檢視群組和項目。"
+          }
+        }
+      }
+    },
+    "Unlock automatically with Touch ID" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatisch mit Touch ID entsperren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquea automáticamente con Touch ID"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillez automatiquement avec Touch ID"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sblocca automaticamente con Touch ID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID で自動的にロック解除"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автоматическая разблокировка с Touch ID"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Touch ID 自动解锁"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Touch ID 自動解鎖"
           }
         }
       }
