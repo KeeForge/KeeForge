@@ -793,6 +793,7 @@
 		E3E35E925EA40FD6E2824269 /* AttachmentPreviewFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDA78854986EA7182C73B73 /* AttachmentPreviewFileStore.swift */; };
 		E421F7A34B249C0D0B45A745 /* MoveToGroupPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA47392458DE23AA1C2D00EC /* MoveToGroupPickerView.swift */; };
 		E47156155DA9D383FF4D216D /* MacAppSuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08D6B0EFE0AE801AED5298E9 /* MacAppSuggestionService.swift */; };
+		E4C3E029F18DC8EB949E3157 /* BundledFixtureGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 954FD9102A68A39D0AA7D09F /* BundledFixtureGuard.swift */; };
 		E4D3328007354A914933E0D2 /* SecureWipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FEA60D513A06248ED78E7E9 /* SecureWipe.swift */; };
 		E4F45B8FBA394E4487C00C9D /* TagNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC4E044FDBDD9171C7DC509 /* TagNormalizer.swift */; };
 		E51993135B2AAE686FAE5C0A /* EncryptedValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6594B5A580C44B4042FE110 /* EncryptedValue.swift */; };
@@ -855,6 +856,7 @@
 		F2D09EA0783CDB56556CFADA /* CredentialProviderPresentingSpy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549786F507C78652231994C1 /* CredentialProviderPresentingSpy.swift */; };
 		F355C6075E9CE4907C582A0F /* SecureWipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FEA60D513A06248ED78E7E9 /* SecureWipe.swift */; };
 		F3EA8BF6947CF6E7E6494860 /* PendingLocalSaveStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C82F63D180F4F7F9204E3B /* PendingLocalSaveStore.swift */; };
+		F49363DB6F5F2248C431A47B /* BundledFixtureGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 954FD9102A68A39D0AA7D09F /* BundledFixtureGuard.swift */; };
 		F4AC32E3745E5514D29BFAD9 /* KDFExecutionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 234D220DDC5508AC87A4CB08 /* KDFExecutionPolicy.swift */; };
 		F506DC0C830D879AA4484A8D /* EntryCustomFieldOrderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1543CC01DAF7B249E8E5AF26 /* EntryCustomFieldOrderSheet.swift */; };
 		F59BC0D6B849EA8F5CE9ADF2 /* MacQuickSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05341319E3175BBD9F9B2CA0 /* MacQuickSearchView.swift */; };
@@ -1236,6 +1238,7 @@
 		949A21E632A57DDE3E8BDF5A /* GroupEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupEditView.swift; sourceTree = "<group>"; };
 		94BB534FB7CE421342A621AC /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		952D7703E80D468B1A3168D8 /* CredentialMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialMatcherTests.swift; sourceTree = "<group>"; };
+		954FD9102A68A39D0AA7D09F /* BundledFixtureGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledFixtureGuard.swift; sourceTree = "<group>"; };
 		96762A69A00343CFB9A58216 /* KDFPolicyTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDFPolicyTestSupport.swift; sourceTree = "<group>"; };
 		978E88C90DA5775B8C332AE7 /* PendingLocalSaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingLocalSaveTests.swift; sourceTree = "<group>"; };
 		98171453C578E034D7883CF3 /* EntryAttachmentFileLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryAttachmentFileLoaderTests.swift; sourceTree = "<group>"; };
@@ -1830,6 +1833,7 @@
 		B4F570F62D2573CE7218C152 /* Support */ = {
 			isa = PBXGroup;
 			children = (
+				954FD9102A68A39D0AA7D09F /* BundledFixtureGuard.swift */,
 				549786F507C78652231994C1 /* CredentialProviderPresentingSpy.swift */,
 				1F0EC1409DCECBCCE582C30A /* FakeCredentialIdentityStore.swift */,
 				EC423EA352CF0CC13552A212 /* FakeFTPServer.swift */,
@@ -2684,6 +2688,7 @@
 				03C0392B0DD10CAF15FBB775 /* AutoFillStatusServiceTests.swift in Sources */,
 				04421AEC9D8A96A6A75F82C9 /* AutoFillStoreInspectorGroupingTests.swift in Sources */,
 				AC3A4F535475A40584132682 /* AutoLockTests.swift in Sources */,
+				E4C3E029F18DC8EB949E3157 /* BundledFixtureGuard.swift in Sources */,
 				9FA3177734D0E996B4125988 /* ChaCha20Tests.swift in Sources */,
 				F9841AA2F4C454FD73C370A1 /* ChallengeResponseKeyTests.swift in Sources */,
 				62FB664BD88A905F2894DE5E /* CloudAccountStoreTests.swift in Sources */,
@@ -3265,6 +3270,7 @@
 				0E00E166755E9935BA8C31C4 /* AutoFillStatusServiceTests.swift in Sources */,
 				259148A788E9ADCD6DB573A1 /* AutoFillStoreInspectorGroupingTests.swift in Sources */,
 				593F3597EC5E308BE2BA67BC /* AutoLockTests.swift in Sources */,
+				F49363DB6F5F2248C431A47B /* BundledFixtureGuard.swift in Sources */,
 				70B5DFF94CC20D6BD049C9AB /* ChaCha20Tests.swift in Sources */,
 				B6447B4418955063C8F8ED6A /* ChallengeResponseKeyTests.swift in Sources */,
 				A9B666729B66843DC7CC3747 /* CloudAccountStoreTests.swift in Sources */,
@@ -3532,6 +3538,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSPrincipalClass = KeeForgeTestPrincipal;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -3690,6 +3697,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSPrincipalClass = KeeForgeTestPrincipal;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -3726,6 +3734,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSPrincipalClass = KeeForgeTestPrincipal;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -3822,6 +3831,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSPrincipalClass = KeeForgeTestPrincipal;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

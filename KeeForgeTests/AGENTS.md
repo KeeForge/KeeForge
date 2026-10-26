@@ -32,6 +32,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 - `DropboxCloudProviderTests.swift` and `OneDriveCloudProviderTests.swift` are excluded from `KeeForgeMacTests` in `project.yml`: they import SwiftyDropbox and MSAL, which the Mac app does not link. Add any new suite that imports a cloud SDK to that list. The Mac side is carried by `CloudProviderRegistryTests` and `URLSchemeFormatTests`.
 - `AutoFillStoreInspectorGroupingTests` compiles only under `DEBUG`, `SoftwareUpdateServiceTests` only under `KEEFORGE_DIRECT_DOWNLOAD` (the direct-download Mac build).
 - A new bundled fixture is added to the `UnitTestFixtures` template in `project.yml`, which both targets use.
+- Bundled fixtures are read-only inputs. A test that saves copies the fixture to a temporary directory first. `Support/BundledFixtureGuard.swift`, the bundles' principal class, fails any test that changes a bundled `.kdbx`, `.key`, or `.keyx` and restores it, because Xcode Cloud randomizes the order and a modified fixture breaks whichever test reads it next. The Studio's signed Mac bundle is read-only, so a Mac run there cannot show such a write; iOS and unsigned CI runs can.
 
 ### Isolation from real user data
 
