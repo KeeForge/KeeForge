@@ -483,15 +483,10 @@ enum LocalDatabaseSaver {
         var coordinatorError: NSError?
         var result: Result<ReplaceOutcome, Error>?
 
-        let coordinator = NSFileCoordinator()
-        coordinator.coordinate(
-            writingItemAt: url,
-            options: .forReplacing,
-            error: &coordinatorError
-        ) { coordinatedURL in
+        func replace(readingURL: URL?, coordinatedURL: URL) {
             result = Result {
-                if let expectedSHA512 {
-                    let onDiskData = try Data(contentsOf: coordinatedURL)
+                if let expectedSHA512, let readingURL {
+                    let onDiskData = try Data(contentsOf: readingURL)
                     guard KDBXCrypto.sha512(onDiskData) == expectedSHA512 else {
                         return .changed(currentData: onDiskData)
                     }
@@ -525,6 +520,29 @@ enum LocalDatabaseSaver {
                     throw error
                 }
                 return .replaced
+            }
+        }
+
+        let coordinator = NSFileCoordinator()
+        if expectedSHA512 != nil {
+            // `.forReplacing` alone tells a file provider the old contents are
+            // not needed, so the recheck read gets its own reading claim.
+            coordinator.coordinate(
+                readingItemAt: url,
+                options: [],
+                writingItemAt: url,
+                options: .forReplacing,
+                error: &coordinatorError
+            ) { readingURL, writingURL in
+                replace(readingURL: readingURL, coordinatedURL: writingURL)
+            }
+        } else {
+            coordinator.coordinate(
+                writingItemAt: url,
+                options: .forReplacing,
+                error: &coordinatorError
+            ) { coordinatedURL in
+                replace(readingURL: nil, coordinatedURL: coordinatedURL)
             }
         }
 
