@@ -22,38 +22,40 @@ struct MacSSHAgentSettingsTab: View {
                 Text("SSH clients can sign in with the keys you choose below while their database is unlocked in KeeForge. Locking or closing the database makes its keys unavailable right away.")
             }
 
-            Section {
-                LabeledContent("Socket") {
-                    Text(verbatim: controller.socketPath)
-                        .font(.caption.monospaced())
-                        .textSelection(.enabled)
-                        .multilineTextAlignment(.trailing)
+            if controller.isEnabled {
+                Section {
+                    LabeledContent("Socket") {
+                        Text(verbatim: controller.socketPath)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    Button("Copy SSH Configuration") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(controller.configurationSnippet, forType: .string)
+                    }
+                    .accessibilityIdentifier("settings.ssh-agent.copy-configuration")
+                } header: {
+                    Text("Setup")
+                } footer: {
+                    Text("Paste the copied lines into ~/.ssh/config to use the agent for every host, or set SSH_AUTH_SOCK to the socket path.")
                 }
-                Button("Copy SSH Configuration") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(controller.configurationSnippet, forType: .string)
-                }
-                .accessibilityIdentifier("settings.ssh-agent.copy-configuration")
-            } header: {
-                Text("Setup")
-            } footer: {
-                Text("Paste the copied lines into ~/.ssh/config to use the agent for every host, or set SSH_AUTH_SOCK to the socket path.")
-            }
 
-            Section {
-                keyRows
-            } header: {
-                Text("Keys")
-            } footer: {
-                Text("KeeForge offers an entry's OpenSSH private key attachment, the format ssh-keygen creates. Ed25519, ECDSA, and RSA keys without a passphrase are supported.")
+                Section {
+                    keyRows
+                } header: {
+                    Text("Keys")
+                } footer: {
+                    Text("KeeForge offers an entry's OpenSSH private key attachment, the format ssh-keygen creates. Ed25519, ECDSA, and RSA keys without a passphrase are supported.")
+                }
             }
         }
         .formStyle(.grouped)
-        .task(id: RefreshID(session: session)) {
+        .task(id: RefreshID(session: session, isAgentEnabled: controller.isEnabled)) {
             // Rows from the previous refresh may name another database's
             // entries; the toggles would bind them to this one.
             candidates = []
-            guard let session else { return }
+            guard controller.isEnabled, let session else { return }
             let refreshed = await controller.candidates(in: session)
             guard Task.isCancelled == false else { return }
             candidates = refreshed
@@ -109,16 +111,18 @@ struct MacSSHAgentSettingsTab: View {
         }
     }
 
-    /// Reloads the list when the session changes, locks or unlocks, or its
-    /// entries change.
+    /// Reloads the list when the agent is switched, the session changes, locks
+    /// or unlocks, or its entries change.
     private struct RefreshID: Equatable {
+        let isAgentEnabled: Bool
         let session: ObjectIdentifier?
         let lockCycleID: Int?
         let isUnlocked: Bool
         let contentRevision: Int?
 
         @MainActor
-        init(session: DatabaseViewModel?) {
+        init(session: DatabaseViewModel?, isAgentEnabled: Bool) {
+            self.isAgentEnabled = isAgentEnabled
             self.session = session.map(ObjectIdentifier.init)
             lockCycleID = session?.lockCycleID
             isUnlocked = session?.state == .unlocked
