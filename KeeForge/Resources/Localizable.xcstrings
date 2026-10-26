@@ -20787,6 +20787,110 @@
         }
       }
     },
+    "Every 14 Days" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle 14 Tage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada 14 días"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tous les 14 jours"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ogni 14 giorni"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "14日ごと"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каждые 14 дней"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 14 天"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 14 天"
+          }
+        }
+      }
+    },
+    "Every 30 Days" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle 30 Tage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada 30 días"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tous les 30 jours"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ogni 30 giorni"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30日ごと"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каждые 30 дней"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 30 天"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 30 天"
+          }
+        }
+      }
+    },
     "Every entry with a verification code, across all groups. Tap an entry to open it." : {
       "localizations" : {
         "de" : {
@@ -21407,6 +21511,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Face ID"
+          }
+        }
+      }
+    },
+    "Face ID and Touch ID stop unlocking a database this long after its master password was last entered, until you enter it again. This also applies to AutoFill." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So lange nach der letzten Eingabe des Master-Passworts entsperren Face ID und Touch ID eine Datenbank nicht mehr, bis du es erneut eingibst. Das gilt auch für AutoFill."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pasado este tiempo desde la última vez que introdujiste la contraseña maestra de una base de datos, Face ID y Touch ID dejan de desbloquearla hasta que la vuelvas a introducir. También se aplica al autorrelleno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passé ce délai après la dernière saisie du mot de passe principal d'une base de données, Face ID et Touch ID ne la déverrouillent plus tant que vous ne l'avez pas saisi à nouveau. Cela s'applique aussi au remplissage automatique."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trascorso questo intervallo dall'ultimo inserimento della password principale di un database, Face ID e Touch ID non lo sbloccano più finché non la inserisci di nuovo. Vale anche per l'inserimento automatico."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースのマスターパスワードを最後に入力してからこの期間が過ぎると、もう一度入力するまで Face ID と Touch ID ではロックを解除できなくなります。自動入力にも適用されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По истечении этого времени с последнего ввода мастер-пароля базы данных Face ID и Touch ID перестают её разблокировать, пока вы не введёте пароль снова. Это также относится к автозаполнению."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "距上次输入数据库主密码超过这段时间后，Face ID 和 Touch ID 将无法解锁该数据库，直到你再次输入主密码。此设置也适用于自动填充。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "距上次輸入資料庫主密碼超過這段時間後，Face ID 和 Touch ID 將無法解鎖該資料庫，直到你再次輸入主密碼。此設定也適用於自動填寫。"
           }
         }
       }
@@ -40169,6 +40325,58 @@
         }
       }
     },
+    "Require Master Password" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Master-Passwort verlangen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pedir contraseña maestra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exiger le mot de passe principal"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Richiedi password principale"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マスターパスワードを要求"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запрашивать мастер-пароль"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要求输入主密码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要求輸入主密碼"
+          }
+        }
+      }
+    },
     "Restore" : {
       "localizations" : {
         "de" : {
@@ -55551,6 +55759,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Touch ID 和 Apple Watch 目前無法使用。你仍可使用密碼和金鑰檔案。"
+          }
+        }
+      }
+    },
+    "Touch ID and Apple Watch stop unlocking a database this long after its master password was last entered, until you enter it again. This also applies to AutoFill." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So lange nach der letzten Eingabe des Master-Passworts entsperren Touch ID und Apple Watch eine Datenbank nicht mehr, bis du es erneut eingibst. Das gilt auch für AutoFill."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pasado este tiempo desde la última vez que introdujiste la contraseña maestra de una base de datos, Touch ID y el Apple Watch dejan de desbloquearla hasta que la vuelvas a introducir. También se aplica al autorrelleno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passé ce délai après la dernière saisie du mot de passe principal d'une base de données, Touch ID et l’Apple Watch ne la déverrouillent plus tant que vous ne l'avez pas saisi à nouveau. Cela s'applique aussi au remplissage automatique."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trascorso questo intervallo dall'ultimo inserimento della password principale di un database, Touch ID e Apple Watch non lo sbloccano più finché non la inserisci di nuovo. Vale anche per l'inserimento automatico."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースのマスターパスワードを最後に入力してからこの期間が過ぎると、もう一度入力するまで Touch ID と Apple Watch ではロックを解除できなくなります。自動入力にも適用されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По истечении этого времени с последнего ввода мастер-пароля базы данных Touch ID и Apple Watch перестают её разблокировать, пока вы не введёте пароль снова. Это также относится к автозаполнению."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "距上次输入数据库主密码超过这段时间后，Touch ID 和 Apple Watch 将无法解锁该数据库，直到你再次输入主密码。此设置也适用于自动填充。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "距上次輸入資料庫主密碼超過這段時間後，Touch ID 和 Apple Watch 將無法解鎖該資料庫，直到你再次輸入主密碼。此設定也適用於自動填寫。"
           }
         }
       }

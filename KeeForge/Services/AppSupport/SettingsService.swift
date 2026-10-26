@@ -9,6 +9,7 @@ enum SettingsService {
         static let clipboardTimeout = "KeeForge.clipboardTimeout"
         static let authenticationGracePeriod = "KeeForge.authenticationGracePeriod"
         static let autoUnlockWithFaceID = "KeeForge.autoUnlockWithFaceID"
+        static let quickUnlockPasswordInterval = "KeeForge.quickUnlockPasswordInterval"
         static let showWebsiteIcons = "KeeForge.showWebsiteIcons"
         static let showDatabaseUsageStats = "KeeForge.showDatabaseUsageStats"
         static let quickAutoFillEnabled = "KeeForge.quickAutoFillEnabled"
@@ -112,6 +113,32 @@ enum SettingsService {
             case .thirtySeconds: String(localized: "30 Seconds")
             case .oneMinute: String(localized: "1 Minute")
             case .fiveMinutes: String(localized: "5 Minutes")
+            }
+        }
+    }
+
+    // MARK: - Quick Unlock Password Interval
+
+    /// How long quick unlock keeps working after the master key was last
+    /// entered for a database. `QuickUnlockKeychain` enforces it.
+    enum QuickUnlockPasswordInterval: String, CaseIterable, Sendable {
+        case fourteenDays
+        case thirtyDays
+        case never
+
+        var duration: TimeInterval? {
+            switch self {
+            case .fourteenDays: 14 * 24 * 60 * 60
+            case .thirtyDays: 30 * 24 * 60 * 60
+            case .never: nil
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .fourteenDays: String(localized: "Every 14 Days")
+            case .thirtyDays: String(localized: "Every 30 Days")
+            case .never: String(localized: "Never")
             }
         }
     }
@@ -308,6 +335,19 @@ enum SettingsService {
         }
         set {
             sharedDefaults.set(newValue, forKey: Key.autoUnlockWithFaceID)
+        }
+    }
+
+    /// App Group-shared: AutoFill enforces the same interval.
+    static var quickUnlockPasswordInterval: QuickUnlockPasswordInterval {
+        get {
+            guard let raw = sharedDefaults.string(forKey: Key.quickUnlockPasswordInterval) else {
+                return .fourteenDays
+            }
+            return QuickUnlockPasswordInterval(rawValue: raw) ?? .fourteenDays
+        }
+        set {
+            sharedDefaults.set(newValue.rawValue, forKey: Key.quickUnlockPasswordInterval)
         }
     }
 

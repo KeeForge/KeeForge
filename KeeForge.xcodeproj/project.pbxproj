@@ -334,6 +334,7 @@
 		5A7AFD448B2C67EE04D999C0 /* GroupEditViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA400D126B05676FA820F6D9 /* GroupEditViewModel.swift */; };
 		5A92004811238A45D97AFE9F /* HardwareKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8652A9E62D2101C8E91A1B84 /* HardwareKey.swift */; };
 		5AF9ADE29B060A8896200120 /* UnlockKeyFileSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F715BA635B9236867617D7B7 /* UnlockKeyFileSelectionTests.swift */; };
+		5AF9C81D50966EB0B17299B9 /* QuickUnlockPasswordIntervalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20131BC9699D6BC8BE24B845 /* QuickUnlockPasswordIntervalTests.swift */; };
 		5B2C70C57069BAE039AAD884 /* kitchen-sink.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 320AC2496F42E61F67071683 /* kitchen-sink.kdbx */; };
 		5B3CC5EEB17BB75498B8FE22 /* PasswordImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 291BEEEAB56D130A36D9E9BA /* PasswordImportTests.swift */; };
 		5B9503870CDB4FDA5011E8D9 /* FieldReferenceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5262DAD579E97D03F4BBD00C /* FieldReferenceResolver.swift */; };
@@ -822,6 +823,7 @@
 		E520602AAEEE273A42625DF6 /* EncryptedValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6594B5A580C44B4042FE110 /* EncryptedValue.swift */; };
 		E547BC739F2C641888F53320 /* ReviewPromptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F440A311BC64D32980E78A /* ReviewPromptService.swift */; };
 		E55CAEF10E79208733A38AC1 /* OTPAuthURITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87DCAB3F9F5FC59CA69F02E8 /* OTPAuthURITests.swift */; };
+		E5734FC5A4C134678918BC9B /* QuickUnlockPasswordIntervalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20131BC9699D6BC8BE24B845 /* QuickUnlockPasswordIntervalTests.swift */; };
 		E60165789713375DA6CBEC01 /* FTPCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C7CE4528F3ACC4647DE8A6 /* FTPCloudProvider.swift */; };
 		E60416895805E16DEF217A8F /* KDBXCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F996FD4C85163E8005264E /* KDBXCompatibilityTests.swift */; };
 		E621CDD55CF51A9D9E615056 /* AppSettingsSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4C89F318D4F31446A5FB705 /* AppSettingsSummary.swift */; };
@@ -1079,6 +1081,7 @@
 		1F715792780CA7205B5924EE /* TOTPQRScannerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPQRScannerSheet.swift; sourceTree = "<group>"; };
 		1FCF6EB947198A5036649625 /* DocumentsVaultScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentsVaultScanner.swift; sourceTree = "<group>"; };
 		1FEA60D513A06248ED78E7E9 /* SecureWipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureWipe.swift; sourceTree = "<group>"; };
+		20131BC9699D6BC8BE24B845 /* QuickUnlockPasswordIntervalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickUnlockPasswordIntervalTests.swift; sourceTree = "<group>"; };
 		225F6ADE53ECA272B4721EFB /* EntryRowCopyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryRowCopyUITests.swift; sourceTree = "<group>"; };
 		2317B165FEAEFCF3181EE596 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		23437920ECEA26AFAA2F531F /* autofill-union.kdbx */ = {isa = PBXFileReference; path = "autofill-union.kdbx"; sourceTree = "<group>"; };
@@ -2111,6 +2114,7 @@
 				731F0A21E9D989FC97F13C23 /* PendingUploadDrainerTests.swift */,
 				335C4EA521C5C3DF112C6F9B /* PendingUploadQueueTests.swift */,
 				B4E518BDB36211236976691A /* PendingUploadRecoveryTests.swift */,
+				20131BC9699D6BC8BE24B845 /* QuickUnlockPasswordIntervalTests.swift */,
 				CE7654CB864A7BECF13483C8 /* ReviewPromptServiceTests.swift */,
 				DCB1A8E988C494C7E2A4E3B0 /* SecretAccessGateTests.swift */,
 				DDDBAD5449F808AED0A63FBE /* SecureWipeTests.swift */,
@@ -2839,6 +2843,7 @@
 				23588DC597F0E6CAF75E0F5D /* PendingUploadDrainerTests.swift in Sources */,
 				37CFCBAE63B0F180DE0F10B8 /* PendingUploadQueueTests.swift in Sources */,
 				0574D3854ABC1C4F7CF412B4 /* PendingUploadRecoveryTests.swift in Sources */,
+				5AF9C81D50966EB0B17299B9 /* QuickUnlockPasswordIntervalTests.swift in Sources */,
 				E77BF5F41D48BD25D55204A9 /* ReviewPromptServiceTests.swift in Sources */,
 				2B0A92DA68F5C01697B27056 /* SSHAgentKeyTests.swift in Sources */,
 				A794C57B84F41EE9F0556A7C /* SSHAgentRequestHandlerTests.swift in Sources */,
@@ -3438,6 +3443,7 @@
 				7B4A383B0CCBEC221D249972 /* PendingUploadDrainerTests.swift in Sources */,
 				5555BA72462AC93DE5FB30C8 /* PendingUploadQueueTests.swift in Sources */,
 				454B2D69F36565E6F43A2B30 /* PendingUploadRecoveryTests.swift in Sources */,
+				E5734FC5A4C134678918BC9B /* QuickUnlockPasswordIntervalTests.swift in Sources */,
 				BC9357DCA2D6F7054C763864 /* ReviewPromptServiceTests.swift in Sources */,
 				3C3F814CC0A8C43D77D07DC2 /* SSHAgentKeyTests.swift in Sources */,
 				58AED441B20CA67530052B1F /* SSHAgentRequestHandlerTests.swift in Sources */,

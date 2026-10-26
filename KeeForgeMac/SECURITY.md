@@ -176,6 +176,14 @@ its place, but only while the quick-unlock item holds the session's composite
 key. A save anywhere else leaves the item unmatched, so the next unlock runs the
 KDF and replaces it.
 
+Both items expire with Settings → Security → Require Master Password (14 days
+by default, 30 days, or never). The date of the last master-key entry per
+database lives in the App Group defaults; a quick unlock never moves it. Once
+it is older than the interval, or a clock set back past it, the app and
+AutoFill delete both items before they would read them and ask for the
+password. The date bounds how long a saved key lives, not an attacker who can
+already write the App Group container.
+
 ## Screen and clipboard privacy
 
 Password reveal and copy actions recheck their originating session, lock cycle,

@@ -286,8 +286,8 @@ final class CredentialProviderCoordinator {
 
     /// Writes an unlock's keys back and returns whether the quick-unlock item
     /// now holds the stored key. Injectable so tests can observe the write.
-    var persistQuickUnlockKeys: @MainActor (QuickUnlockKeys, DatabaseReference) -> Bool = { keys, reference in
-        QuickUnlockKeychain.persist(keys, for: reference)
+    var persistQuickUnlockKeys: @MainActor (QuickUnlockKeys, DatabaseReference, Bool) -> Bool = { keys, reference, masterKeyEntered in
+        QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered)
     }
 
     /// Save environment for the passkey-registration flow; injectable so unit
@@ -617,7 +617,8 @@ final class CredentialProviderCoordinator {
                 guard self.isRequestActive(generation) else { return }
                 self.persistQuickUnlockKeysIfPossible(
                     QuickUnlockKeys(storedKey: keys.storedKey, expressKey: expressKey),
-                    for: databaseReference
+                    for: databaseReference,
+                    masterKeyEntered: false
                 )
                 self.recordSuccessfulUnlock(for: databaseReference)
                 let passwordEntries = self.parsedEntries.filter { $0.hasPassword && !$0.isExpired() }
@@ -811,7 +812,8 @@ final class CredentialProviderCoordinator {
                 guard self.isRequestActive(generation) else { return }
                 self.persistQuickUnlockKeysIfPossible(
                     QuickUnlockKeys(storedKey: keys.storedKey, expressKey: expressKey),
-                    for: databaseReference
+                    for: databaseReference,
+                    masterKeyEntered: false
                 )
                 self.recordSuccessfulUnlock(for: databaseReference)
                 try self.completePasskeyRequest(request)
@@ -878,6 +880,7 @@ final class CredentialProviderCoordinator {
         // Its stored key is a pre-key that still needs the YubiKey.
         guard databaseReference.hardwareKey == nil else { return false }
         guard BiometricService.isAvailable else { return false }
+        guard QuickUnlockKeychain.expireIfDue(databaseReference) == false else { return false }
         return KeychainService.hasStoredKey(
             for: databaseReference.id,
             legacyFilename: databaseReference.legacyKeychainFilename
@@ -1178,7 +1181,8 @@ final class CredentialProviderCoordinator {
         guard isRequestActive(generation) else { return }
         persistQuickUnlockKeysIfPossible(
             QuickUnlockKeys(storedKey: compositeKey, expressKey: expressKey),
-            for: databaseReference
+            for: databaseReference,
+            masterKeyEntered: true
         )
         recordSuccessfulUnlock(for: databaseReference)
         afterUnlock()
@@ -1202,7 +1206,8 @@ final class CredentialProviderCoordinator {
         AutoFillDiagnostics.log("unlock ok entries=\(parsedEntries.count)")
         persistQuickUnlockKeysIfPossible(
             QuickUnlockKeys(storedKey: keys.storedKey, expressKey: expressKey),
-            for: databaseReference
+            for: databaseReference,
+            masterKeyEntered: false
         )
         recordSuccessfulUnlock(for: databaseReference)
         afterUnlock()
@@ -1308,8 +1313,12 @@ final class CredentialProviderCoordinator {
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
     }
 
-    private func persistQuickUnlockKeysIfPossible(_ keys: QuickUnlockKeys, for databaseReference: DatabaseReference) {
-        guard persistQuickUnlockKeys(keys, databaseReference),
+    private func persistQuickUnlockKeysIfPossible(
+        _ keys: QuickUnlockKeys,
+        for databaseReference: DatabaseReference,
+        masterKeyEntered: Bool
+    ) {
+        guard persistQuickUnlockKeys(keys, databaseReference, masterKeyEntered),
               databaseReference.legacyKeychainFilename != nil else { return }
         // The store dropped the legacy item. Re-read the pinned reference by
         // id so the in-session copy drops its legacy keychain filename too.
@@ -2301,7 +2310,8 @@ final class CredentialProviderCoordinator {
                 guard self.isRequestActive(generation) else { return }
                 self.persistQuickUnlockKeysIfPossible(
                     QuickUnlockKeys(storedKey: keys.storedKey, expressKey: expressKey),
-                    for: databaseReference
+                    for: databaseReference,
+                    masterKeyEntered: false
                 )
                 self.recordSuccessfulUnlock(for: databaseReference)
 

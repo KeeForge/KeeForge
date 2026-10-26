@@ -56,6 +56,7 @@ struct SettingsView: View {
                 macLockPolicy: $settings.macLockPolicy,
                 clipboardTimeout: $settings.clipboardTimeout,
                 authenticationGracePeriod: $settings.authenticationGracePeriod,
+                quickUnlockPasswordInterval: $settings.quickUnlockPasswordInterval,
                 autoUnlockWithBiometrics: $settings.autoUnlockWithFaceID,
                 blockScreenCapture: $settings.blockScreenCapture
             )
@@ -188,6 +189,7 @@ struct SettingsView: View {
                     lockOnBackground: $settings.lockOnBackground,
                     clipboardTimeout: $settings.clipboardTimeout,
                     authenticationGracePeriod: $settings.authenticationGracePeriod,
+                    quickUnlockPasswordInterval: $settings.quickUnlockPasswordInterval,
                     autoUnlockWithFaceID: $settings.autoUnlockWithFaceID
                 )
             } label: {
@@ -301,6 +303,7 @@ private struct SecuritySettingsView: View {
     @Binding var lockOnBackground: Bool
     @Binding var clipboardTimeout: SettingsService.ClipboardTimeout
     @Binding var authenticationGracePeriod: SettingsService.AuthenticationGracePeriod
+    @Binding var quickUnlockPasswordInterval: SettingsService.QuickUnlockPasswordInterval
     @Binding var autoUnlockWithFaceID: Bool
 
     var body: some View {
@@ -329,6 +332,17 @@ private struct SecuritySettingsView: View {
                 } else {
                     Text("When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed.")
                 }
+            }
+
+            Section {
+                Picker("Require Master Password", selection: $quickUnlockPasswordInterval) {
+                    ForEach(SettingsService.QuickUnlockPasswordInterval.allCases, id: \.self) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .accessibilityIdentifier("settings.security.require-password-picker")
+            } footer: {
+                Text("Face ID and Touch ID stop unlocking a database this long after its master password was last entered, until you enter it again. This also applies to AutoFill.")
             }
 
             Section {
@@ -810,6 +824,7 @@ private struct MacSecuritySettingsTab: View {
     @Binding var macLockPolicy: SettingsService.MacLockPolicy
     @Binding var clipboardTimeout: SettingsService.ClipboardTimeout
     @Binding var authenticationGracePeriod: SettingsService.AuthenticationGracePeriod
+    @Binding var quickUnlockPasswordInterval: SettingsService.QuickUnlockPasswordInterval
     @Binding var autoUnlockWithBiometrics: Bool
     @Binding var blockScreenCapture: Bool
 
@@ -839,6 +854,17 @@ private struct MacSecuritySettingsTab: View {
                 if BiometricService.isAvailable {
                     Text("Automatically prompt when opening a database or returning to its locked window. This setting also applies to AutoFill.")
                 }
+            }
+
+            Section {
+                Picker("Require Master Password", selection: $quickUnlockPasswordInterval) {
+                    ForEach(SettingsService.QuickUnlockPasswordInterval.allCases, id: \.self) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .accessibilityIdentifier("settings.security.require-password-picker")
+            } footer: {
+                Text("Touch ID and Apple Watch stop unlocking a database this long after its master password was last entered, until you enter it again. This also applies to AutoFill.")
             }
 
             Section {

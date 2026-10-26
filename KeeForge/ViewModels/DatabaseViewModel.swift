@@ -413,7 +413,11 @@ final class DatabaseViewModel {
         _ reason: String
     ) async throws -> QuickUnlockKeys
     /// Returns whether the quick-unlock item now holds `keys.storedKey`.
-    typealias QuickUnlockKeyPersistOperation = @MainActor (_ keys: QuickUnlockKeys, _ reference: DatabaseReference) -> Bool
+    typealias QuickUnlockKeyPersistOperation = @MainActor (
+        _ keys: QuickUnlockKeys,
+        _ reference: DatabaseReference,
+        _ masterKeyEntered: Bool
+    ) -> Bool
     /// Replaces the express-unlock item after a save; nil only drops it.
     typealias ExpressUnlockKeySaveOperation = @MainActor (_ key: ExpressUnlockKey?, _ reference: DatabaseReference) -> Void
     typealias PendingUploadMarkerCheck = @Sendable (_ reference: DatabaseReference) -> Bool
@@ -713,8 +717,8 @@ final class DatabaseViewModel {
             )
             return try QuickUnlockKeychain.retrieve(for: reference, context: context)
         },
-        quickUnlockKeyPersistOperation: @escaping QuickUnlockKeyPersistOperation = { keys, reference in
-            QuickUnlockKeychain.persist(keys, for: reference)
+        quickUnlockKeyPersistOperation: @escaping QuickUnlockKeyPersistOperation = { keys, reference, masterKeyEntered in
+            QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered)
         },
         expressUnlockKeySaveOperation: @escaping ExpressUnlockKeySaveOperation = { key, reference in
             QuickUnlockKeychain.replaceExpressKey(with: key, for: reference)
@@ -792,7 +796,8 @@ final class DatabaseViewModel {
             compositeKey: createdDatabase.compositeKey,
             quickLaunchKey: createdDatabase.compositeKey,
             usesHardwareKey: false,
-            sessionKey: createdDatabase.sessionKey
+            sessionKey: createdDatabase.sessionKey,
+            masterKeyEntered: true
         )
     }
 
@@ -959,7 +964,8 @@ final class DatabaseViewModel {
     /// Named for its iOS meaning; on the native Mac app the stored key also
     /// opens with an authorized Apple Watch (`BiometricService.quickUnlockPolicy`).
     var canUseBiometrics: Bool {
-        guard BiometricService.isQuickUnlockAvailable else { return false }
+        guard BiometricService.isQuickUnlockAvailable,
+              QuickUnlockKeychain.isMasterKeyDue(for: databaseReference.id) == false else { return false }
         return KeychainService.hasStoredKey(
             for: databaseReference.id,
             legacyFilename: databaseReference.legacyKeychainFilename
@@ -1094,7 +1100,8 @@ final class DatabaseViewModel {
                 compositeKey: compositeKey,
                 quickLaunchKey: quickLaunchKey,
                 usesHardwareKey: hardwareKey != nil,
-                sessionKey: sessionKey
+                sessionKey: sessionKey,
+                masterKeyEntered: true
             )
             sessionKeyFileData = keyFileData
             await mergePendingLocalSaves()
@@ -1114,6 +1121,8 @@ final class DatabaseViewModel {
 
     @discardableResult
     func unlockWithBiometrics() async -> BiometricUnlockOutcome {
+        // The password interval ran out since the unlock form was shown.
+        guard QuickUnlockKeychain.expireIfDue(databaseReference) == false else { return .passwordFallback }
         let failedAttemptsBeforeAttempt = failedAttempts
         let attempt = prepareForUnlock()
 
@@ -1169,7 +1178,8 @@ final class DatabaseViewModel {
                 compositeKey: compositeKey,
                 quickLaunchKey: storedKey,
                 usesHardwareKey: hardwareKey != nil,
-                sessionKey: sessionKey
+                sessionKey: sessionKey,
+                masterKeyEntered: false
             )
             await mergePendingLocalSaves()
             return .unlocked
@@ -2650,6 +2660,7 @@ final class DatabaseViewModel {
 
         do {
             try storedKeyStoreOperation(newCompositeKey, databaseReference)
+            QuickUnlockKeychain.recordMasterKeyEntry(for: databaseReference.id)
 
             if let legacyFilename = databaseReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
@@ -4206,7 +4217,8 @@ final class DatabaseViewModel {
         compositeKey: SymmetricKey,
         quickLaunchKey: SymmetricKey,
         usesHardwareKey: Bool,
-        sessionKey: SymmetricKey
+        sessionKey: SymmetricKey,
+        masterKeyEntered: Bool
     ) {
         self.rootGroup = payload.rootGroup
         self.compositeKey = compositeKey
@@ -4237,7 +4249,8 @@ final class DatabaseViewModel {
 
         let storedQuickUnlockKey = quickUnlockKeyPersistOperation(
             QuickUnlockKeys(storedKey: quickLaunchKey, expressKey: usesHardwareKey ? nil : payload.expressKey),
-            databaseReference
+            databaseReference,
+            masterKeyEntered
         )
         quickUnlockItemHoldsSessionKey = storedQuickUnlockKey && usesHardwareKey == false
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)

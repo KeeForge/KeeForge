@@ -2280,6 +2280,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         try await unlockWithBiometricsAndPresentSearch(coordinator, presenter)
 
         XCTAssertEqual(derivations.count, 0, "The express key must replace the KDF")
+        XCTAssertEqual(persisted.lastMasterKeyEntered, false, "Quick unlock must not extend the password interval")
         XCTAssertEqual(persisted.last?.storedKey, compositeKey)
         XCTAssertEqual(persisted.last?.expressKey, expressKey)
     }
@@ -2331,14 +2332,15 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let data = try KDBXTestFixture.test.data(in: bundle)
         try seedDatabaseBytes(data, for: database)
         let persisted = PersistedQuickUnlockKeys()
-        coordinator.persistQuickUnlockKeys = { keys, _ in
-            persisted.record(keys)
+        coordinator.persistQuickUnlockKeys = { keys, _, masterKeyEntered in
+            persisted.record(keys, masterKeyEntered: masterKeyEntered)
             return true
         }
 
         _ = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
 
         let compositeKey = KDBXCrypto.compositeKey(password: "testpassword123")
+        XCTAssertEqual(persisted.lastMasterKeyEntered, true, "A typed password restarts the password interval")
         XCTAssertEqual(persisted.last?.storedKey, compositeKey)
         let expressKey = try XCTUnwrap(persisted.last?.expressKey)
         XCTAssertTrue(try ExpressUnlock.parse(
@@ -2361,8 +2363,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             return QuickUnlockKeys(storedKey: SymmetricKey(size: .bits256))
         }
         let persisted = PersistedQuickUnlockKeys()
-        coordinator.persistQuickUnlockKeys = { keys, _ in
-            persisted.record(keys)
+        coordinator.persistQuickUnlockKeys = { keys, _, masterKeyEntered in
+            persisted.record(keys, masterKeyEntered: masterKeyEntered)
             return true
         }
         presenter.isPresentationActive = true
@@ -2761,8 +2763,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         coordinator.memoryBudgetOverride = 512 * 1024 * 1024
         coordinator.keyDerivationOverride = derivations.derive
         coordinator.biometricQuickUnlockKeys = { _, _ in keys }
-        coordinator.persistQuickUnlockKeys = { keys, _ in
-            persisted.record(keys)
+        coordinator.persistQuickUnlockKeys = { keys, _, masterKeyEntered in
+            persisted.record(keys, masterKeyEntered: masterKeyEntered)
             return true
         }
     }
@@ -3067,8 +3069,10 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 @MainActor
 private final class PersistedQuickUnlockKeys {
     private(set) var last: QuickUnlockKeys?
+    private(set) var lastMasterKeyEntered: Bool?
 
-    func record(_ keys: QuickUnlockKeys) {
+    func record(_ keys: QuickUnlockKeys, masterKeyEntered: Bool) {
         last = keys
+        lastMasterKeyEntered = masterKeyEntered
     }
 }

@@ -593,6 +593,7 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
         await vm.unlock(password: password)
 
         XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertEqual(persisted.lastMasterKeyEntered, true, "A typed password restarts the password interval")
         let keys = try XCTUnwrap(persisted.last)
         XCTAssertEqual(keys.storedKey, try KDBXCrypto.compositeKey(password: password, keyFileData: nil))
         let expressKey = try XCTUnwrap(keys.expressKey)
@@ -615,6 +616,7 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
 
         XCTAssertEqual(outcome, .unlocked)
         XCTAssertFalse(vm.rootGroup?.allEntries.isEmpty ?? true)
+        XCTAssertEqual(persisted.lastMasterKeyEntered, false, "Quick unlock must not extend the password interval")
         XCTAssertEqual(persisted.last?.expressKey?.binding, expressKey.binding)
         XCTAssertEqual(persisted.last?.expressKey?.transformedKey, expressKey.transformedKey)
     }
@@ -622,6 +624,30 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
     /// The common case after editing on another device: the stored key is
     /// for an older version, so the unlock runs the KDF, counts no failed
     /// attempt, and stores the current version's key.
+    func testBiometricUnlockOnceTheMasterPasswordIsDueAsksForThePassword() async throws {
+        let data = try KDBXTestFixture.test.data(in: bundle)
+        let persisted = PersistedKeys()
+        let vm = try makeViewModel(data: data, persisted: persisted) { _, _ in
+            XCTFail("No prompt and no Keychain read once the password is due")
+            throw LAError(.biometryNotAvailable)
+        }
+        let databaseID = vm.databaseReference.id
+        let previousInterval = SettingsService.quickUnlockPasswordInterval
+        SettingsService.quickUnlockPasswordInterval = .fourteenDays
+        QuickUnlockKeychain.recordMasterKeyEntry(for: databaseID, at: .now.addingTimeInterval(-15 * 24 * 60 * 60))
+        defer {
+            SettingsService.quickUnlockPasswordInterval = previousInterval
+            QuickUnlockKeychain.recordMasterKeyEntry(for: databaseID)
+        }
+
+        XCTAssertFalse(vm.canUseBiometrics)
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .passwordFallback)
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertNil(persisted.last)
+    }
+
     func testBiometricUnlockAfterTheFileChangedRefreshesTheKey() async throws {
         let original = try KDBXTestFixture.test.data(in: bundle)
         let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: nil)
@@ -903,8 +929,8 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
             localDatabaseReadOperation: { _ in DatabaseViewModel.LocalDatabaseReadResult(url: url, data: data) },
             localSaveOperation: localSave,
             biometricCompositeKeyOperation: biometricKeys,
-            quickUnlockKeyPersistOperation: { keys, _ in
-                persisted.record(keys)
+            quickUnlockKeyPersistOperation: { keys, _, masterKeyEntered in
+                persisted.record(keys, masterKeyEntered: masterKeyEntered)
                 return storesQuickUnlockKey
             },
             expressUnlockKeySaveOperation: { key, _ in expressSaves.record(key) },
@@ -980,8 +1006,10 @@ private final class ExpressKeySaves {
 @MainActor
 private final class PersistedKeys {
     private(set) var last: QuickUnlockKeys?
+    private(set) var lastMasterKeyEntered: Bool?
 
-    func record(_ keys: QuickUnlockKeys) {
+    func record(_ keys: QuickUnlockKeys, masterKeyEntered: Bool) {
         last = keys
+        lastMasterKeyEntered = masterKeyEntered
     }
 }

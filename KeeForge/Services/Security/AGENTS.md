@@ -21,6 +21,7 @@
 - The item is `WhenUnlockedThisDeviceOnly` with `quickUnlockAccessControlFlags`: `.biometryCurrentSet` on iPhone and iPad, `[.biometryCurrentSet, .or, .companion]` (Touch ID or an authorized Apple Watch) on the Mac. No flag admits the passcode or Mac login password. Keep it in step with `BiometricService.quickUnlockPolicy`.
 - On the Mac a read uses a non-interactive context, so the caller's evaluated policy is the only prompt. Without that, the Keychain could raise a Watch prompt inside biometric-only AutoFill.
 - For a database with `DatabaseReference.hardwareKey`, the stored item is the pre-key (`KDBXCrypto.preKey`), never the composite key, so quick unlock still needs the YubiKey and no response is persisted. `DatabaseListStore.setHardwareKey` deletes the item whenever a hardware key is added or removed, because its meaning changes.
+- Quick unlock lasts `SettingsService.quickUnlockPasswordInterval` (App Group-shared, default 14 days) after the master key was last entered. `QuickUnlockKeychain` keeps that date per database in the App Group defaults: a password unlock, rekey, or new database restarts it, and a quick unlock only starts it for an item that has none. Availability checks treat a due item as absent, and `expireIfDue` deletes both items where an unlock would read them (the app's biometric unlock, AutoFill's availability check, the database list refresh). A clock set back past the interval counts as due.
 - `shouldStoreQuickUnlockKey` gates writes on `BiometricService.isQuickUnlockAvailable`. On the Mac it also rewrites an existing item while neither mechanism is available, since the master key may have changed on another device.
 - Cloud credentials are not stored here. `../Cloud/CloudTokenStore` has its own items with a different protection class (`../Cloud/AGENTS.md`).
 
@@ -49,7 +50,7 @@
 
 ## Tests
 
-- `KeychainServiceTests` (express item lifetime and protection too), `KeychainMigrationTests`; `DatabaseViewModelExpressUnlockTests` for what an app unlock or save reads and stores, `CredentialProviderCoordinatorTests` for AutoFill's; `SecretAccessGateTests` with `EntrySecretActionTests` for the gate's callers.
+- `KeychainServiceTests` (express item lifetime and protection too), `KeychainMigrationTests`, `QuickUnlockPasswordIntervalTests`; `DatabaseViewModelExpressUnlockTests` for what an app unlock or save reads and stores, `CredentialProviderCoordinatorTests` for AutoFill's; `SecretAccessGateTests` with `EntrySecretActionTests` for the gate's callers.
 - `HardwareKeyUnlockTests` covers the unlock flow around `HardwareKeyService`; the NFC session itself has no unit coverage.
 - `PasskeyCryptoTests` (in `PasskeyTests.swift`) and `CredentialProviderRegistrationTests` for `PasskeyCrypto`.
 - Mac window covering is checked by hand (`../../../KeeForgeMac/SECURITY.md`); only the policy functions are unit-tested, in `SettingsServiceTests`.
