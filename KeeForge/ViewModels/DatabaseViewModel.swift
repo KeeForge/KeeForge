@@ -306,6 +306,8 @@ final class DatabaseViewModel {
         case promptUnavailable
         /// The user picked the password fallback inside the biometric prompt.
         case passwordFallback
+        /// The user, the system, or the app dismissed the prompt.
+        case cancelled
     }
 
     /// How an attempt to merge pending AutoFill saves into the file ended.
@@ -946,6 +948,9 @@ final class DatabaseViewModel {
     var isEligibleForBiometricAutoUnlock: Bool {
         guard BiometricAutoUnlockPolicy.allowsAutomaticUnlock else { return false }
         guard SettingsService.autoUnlockWithFaceID else { return false }
+        // The setting is offered only with Face ID or Touch ID, so an
+        // Apple Watch alone never prompts on its own.
+        guard BiometricService.isAvailable else { return false }
         guard hasSavedFile else { return false }
         guard canUseBiometrics else { return false }
         guard didManuallyLock == false else { return false }
@@ -1172,8 +1177,9 @@ final class DatabaseViewModel {
 
     /// LocalAuthentication results that are not unlock failures and must not
     /// reach the failure screen: the prompt was never presented because the
-    /// app was not foreground-active, or the user chose the password fallback
-    /// the prompt offers. Both leave the unlock form as the right next screen.
+    /// app was not foreground-active, the user chose the password fallback
+    /// the prompt offers, or the prompt was dismissed. Each leaves the unlock
+    /// form as the right next screen.
     private static func biometricOutcomeLeavingDatabaseLocked(
         for error: Error
     ) -> BiometricUnlockOutcome? {
@@ -1183,6 +1189,7 @@ final class DatabaseViewModel {
         switch LAError.Code(rawValue: nsError.code) {
         case .notInteractive: return .promptUnavailable
         case .userFallback: return .passwordFallback
+        case .userCancel, .systemCancel, .appCancel: return .cancelled
         default: return nil
         }
     }

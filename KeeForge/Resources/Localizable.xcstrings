@@ -6722,54 +6722,54 @@
         }
       }
     },
-    "Automatically prompt when opening a database or returning to its locked window. AutoFill also uses Touch ID." : {
+    "Automatically prompt when opening a database or returning to its locked window. This setting also applies to AutoFill." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Beim Öffnen einer Datenbank oder bei der Rückkehr zu ihrem gesperrten Fenster automatisch zur Entsperrung auffordern. AutoFill verwendet ebenfalls Touch ID."
+            "value" : "Beim Öffnen einer Datenbank oder bei der Rückkehr zu ihrem gesperrten Fenster automatisch zur Entsperrung auffordern. Diese Einstellung gilt auch für AutoFill."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Solicitar la autenticación automáticamente al abrir una base de datos o volver a su ventana bloqueada. Autorrelleno también usa Touch ID."
+            "value" : "Solicitar la autenticación automáticamente al abrir una base de datos o volver a su ventana bloqueada. Este ajuste también se aplica a Autorrelleno."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Afficher automatiquement une demande à l’ouverture d’une base de données ou au retour à sa fenêtre verrouillée. Le remplissage automatique utilise aussi Touch ID."
+            "value" : "Afficher automatiquement une demande à l’ouverture d’une base de données ou au retour à sa fenêtre verrouillée. Ce réglage s’applique aussi au remplissage automatique."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Richiedi automaticamente l’autenticazione quando apri un database o torni alla sua finestra bloccata. Anche il riempimento automatico usa Touch ID."
+            "value" : "Richiedi automaticamente l’autenticazione quando apri un database o torni alla sua finestra bloccata. Questa impostazione vale anche per il riempimento automatico."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "データベースを開いたときや、ロックされたウインドウに戻ったときに、自動的に認証を求めます。自動入力でも Touch ID を使用します。"
+            "value" : "データベースを開いたときや、ロックされたウインドウに戻ったときに、自動的に認証を求めます。この設定は自動入力にも適用されます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Автоматически запрашивать аутентификацию при открытии базы данных или возврате к её заблокированному окну. Автозаполнение также использует Touch ID."
+            "value" : "Автоматически запрашивать аутентификацию при открытии базы данных или возврате к её заблокированному окну. Этот параметр также действует для автозаполнения."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打开数据库或返回其已锁定的窗口时，自动提示认证。自动填充也使用 Touch ID。"
+            "value" : "打开数据库或返回其已锁定的窗口时，自动提示认证。此设置也适用于自动填充。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "開啟資料庫或返回其已鎖定的視窗時，自動提示認證。自動填寫也使用 Touch ID。"
+            "value" : "開啟資料庫或返回其已鎖定的視窗時，自動提示認證。此設定也適用於自動填寫。"
           }
         }
       }
@@ -7186,58 +7186,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "生物辨識解鎖目前無法使用。你仍可使用密碼和金鑰檔案。"
-          }
-        }
-      }
-    },
-    "Biometric unlock was cancelled before KeeForge could open the database." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Das biometrische Entsperren wurde abgebrochen, bevor KeeForge die Datenbank öffnen konnte."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "El desbloqueo biométrico se canceló antes de que KeeForge pudiera abrir la base de datos."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le déverrouillage biométrique a été annulé avant que KeeForge ne puisse ouvrir la base de données."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lo sblocco biometrico è stato annullato prima che KeeForge potesse aprire il database."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "データベースが開かれる前に、生体認証によるロック解除がキャンセルされました。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Биометрическая разблокировка была отменена до того, как KeeForge успел открыть базу данных."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 KeeForge 打开数据库之前，生物识别解锁已被取消。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 KeeForge 開啟資料庫之前，生物辨識解鎖已被取消。"
           }
         }
       }
@@ -30507,7 +30455,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Управление значками"
+            "value" : "Управление пользовательскими значками"
           }
         },
         "zh-Hans" : {
@@ -39372,7 +39320,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Переименовать значок"
+            "value" : "Переименовать пользовательский значок"
           }
         },
         "zh-Hans" : {

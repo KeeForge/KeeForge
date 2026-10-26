@@ -339,7 +339,7 @@ struct GroupListView: View {
                             }
                             Spacer(minLength: 0)
                             CloudSyncControls(viewModel: view.viewModel)
-                                .fixedSize(horizontal: true, vertical: false)
+                                .layoutPriority(-1)
                         }
                         .font(.title2.bold())
                         .lineLimit(1)

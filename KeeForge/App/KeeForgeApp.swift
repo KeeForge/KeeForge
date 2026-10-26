@@ -203,7 +203,7 @@ struct KeeForgeApp: App {
         let listViewModel = self.listViewModel
 
         macLockMonitor.onLockTriggered = { _ in
-            NotificationCenter.default.post(name: MacBiometricAutoUnlockObserver.lockRequestedNotification, object: nil)
+            NotificationCenter.default.post(name: MacBiometricAutoUnlockController.lockRequestedNotification, object: nil)
             activeViewModel.wrappedValue?.handleSceneDidEnterBackground()
         }
         macLockMonitor.onDidBecomeActive = {
@@ -1197,10 +1197,22 @@ struct CloudSyncControls: View {
                     .presentationCompactAdaptation(.popover)
             }
 
-            Button("Sync Now") {
+            Button {
                 Task {
                     await viewModel.syncCloudNow()
                 }
+            } label: {
+                #if os(iOS)
+                // The iPhone header's title beside these controls is the view
+                // menu, so a long translation gives way to an icon instead.
+                ViewThatFits(in: .horizontal) {
+                    Text("Sync Now")
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .accessibilityLabel("Sync Now")
+                }
+                #else
+                Text("Sync Now")
+                #endif
             }
             .font(.callout.weight(.semibold))
             .disabled(viewModel.canSyncCloudNow == false)

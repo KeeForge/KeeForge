@@ -195,6 +195,22 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.openFailure)
     }
 
+    /// Dismissing the prompt, including an automatic one, is how a user
+    /// says they will type the password instead.
+    func testBiometricUnlockStaysLockedWhenThePromptIsDismissed() async throws {
+        for code in [LAError.Code.userCancel, .systemCancel, .appCancel] {
+            let vm = try makeViewModel(
+                biometricCompositeKeyOperation: { _, _ in throw LAError(code) }
+            )
+
+            let outcome = await vm.unlockWithBiometrics()
+
+            XCTAssertEqual(outcome, .cancelled, "\(code)")
+            XCTAssertState(vm.state, is: .locked)
+            XCTAssertNil(vm.openFailure, "\(code)")
+        }
+    }
+
     func testBiometricUnlockStillSurfacesRealBiometricFailures() async throws {
         let vm = try makeViewModel(
             biometricCompositeKeyOperation: { _, _ in throw LAError(.biometryLockout) }

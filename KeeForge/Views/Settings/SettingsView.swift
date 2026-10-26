@@ -826,7 +826,7 @@ private struct MacSecuritySettingsTab: View {
                 Text("KeeForge always locks on screen lock, screensaver, system sleep, and user switching. The stricter option also locks whenever another app becomes active.")
 
                 if BiometricService.isAvailable {
-                    Text("Automatically prompt when opening a database or returning to its locked window. AutoFill also uses Touch ID.")
+                    Text("Automatically prompt when opening a database or returning to its locked window. This setting also applies to AutoFill.")
                 }
             }
 

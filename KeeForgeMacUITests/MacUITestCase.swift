@@ -39,7 +39,12 @@ class MacUITestCase: XCTestCase {
         // -ApplePersistenceIgnoreState: macOS state restoration can restore a
         // "zero windows" session (e.g. after a killed run), leaving the app
         // with no main window at all; every UI test needs a fresh window.
-        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES", "-ui-testing"]
+        // Auto-unlock would raise a Touch ID prompt XCUITest cannot answer.
+        app.launchArguments += [
+            "-ApplePersistenceIgnoreState", "YES",
+            "-KeeForge.autoUnlockWithFaceID", "NO",
+            "-ui-testing",
+        ]
 
         let payloads = try databaseFixtures.map { fixture -> [String: String] in
             let data = try fixtureData(

@@ -688,9 +688,6 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         let errorCode: String
 
         switch code {
-        case .userCancel, .appCancel, .systemCancel:
-            summary = String(localized: "Biometric unlock was cancelled before KeeForge could open the database.")
-            errorCode = "biometric.cancelled"
         case .authenticationFailed:
             #if os(macOS)
             summary = String(localized: "Touch ID or Apple Watch didn't verify, so KeeForge could not continue unlocking.")

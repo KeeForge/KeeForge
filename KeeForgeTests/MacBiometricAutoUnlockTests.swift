@@ -129,6 +129,64 @@ final class MacBiometricAutoUnlockTests: XCTestCase {
         await first.value
     }
 
+    func testEachReturnToTheWindowRequestsAnAttempt() async {
+        let centers = makeCenters()
+        let triggers: [(NotificationCenter, Notification.Name)] = [
+            (centers.app, NSApplication.didBecomeActiveNotification),
+            (centers.app, NSWindow.didBecomeKeyNotification),
+            (centers.distributed, MacBiometricAutoUnlockController.screenIsUnlockedNotification),
+            (centers.workspace, NSWorkspace.sessionDidBecomeActiveNotification),
+        ]
+        let controller = makeController()
+        controller.startObserving(window: nil, centers: centers)
+        await controller.latestAttempt?.value
+        XCTAssertEqual(attempts, 1, "Opening prompts")
+
+        for (center, name) in triggers {
+            cycle += 1
+            center.post(name: name, object: nil)
+            await controller.latestAttempt?.value
+            XCTAssertEqual(attempts, cycle + 1, name.rawValue)
+        }
+        controller.stopObserving()
+    }
+
+    func testLockRequestAndResigningActiveCancelTheQueuedPrompt() async {
+        for name in [MacBiometricAutoUnlockController.lockRequestedNotification, NSApplication.didResignActiveNotification] {
+            let centers = makeCenters()
+            let controller = makeController()
+            let before = attempts
+            controller.startObserving(window: nil, centers: centers)
+            centers.app.post(name: name, object: nil)
+            await controller.latestAttempt?.value
+            XCTAssertEqual(attempts, before, name.rawValue)
+            controller.stopObserving()
+        }
+    }
+
+    func testStoppedControllerIgnoresLaterReturns() async {
+        let centers = makeCenters()
+        let controller = makeController()
+        controller.startObserving(window: nil, centers: centers)
+        await controller.latestAttempt?.value
+        controller.stopObserving()
+        let finished = controller.latestAttempt
+
+        cycle += 1
+        centers.app.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+        await controller.latestAttempt?.value
+        XCTAssertEqual(attempts, 1)
+        XCTAssertTrue(controller.latestAttempt == finished)
+    }
+
+    private func makeCenters() -> MacBiometricAutoUnlockController.NotificationCenters {
+        MacBiometricAutoUnlockController.NotificationCenters(
+            app: NotificationCenter(),
+            workspace: NotificationCenter(),
+            distributed: NotificationCenter()
+        )
+    }
+
     private func makeController() -> MacBiometricAutoUnlockController {
         MacBiometricAutoUnlockController(
             isEligible: { self.eligible }, lockCycleID: { self.cycle },

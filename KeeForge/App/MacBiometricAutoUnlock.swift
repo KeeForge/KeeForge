@@ -4,6 +4,17 @@ import SwiftUI
 
 @MainActor
 final class MacBiometricAutoUnlockController {
+    struct NotificationCenters {
+        var app: NotificationCenter = .default
+        var workspace: NotificationCenter = NSWorkspace.shared.notificationCenter
+        var distributed: NotificationCenter = DistributedNotificationCenter.default()
+    }
+
+    static let lockRequestedNotification = Notification.Name("KeeForge.macAutoUnlockLockRequested")
+    static let screenIsUnlockedNotification = Notification.Name("com.apple.screenIsUnlocked")
+
+    private(set) var latestAttempt: Task<Void, Never>?
+    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private let isEligible: () -> Bool
     private let lockCycleID: () -> Int
     private let isForeground: () -> Bool
@@ -30,7 +41,7 @@ final class MacBiometricAutoUnlockController {
         pendingRequest += 1
         let request = pendingRequest
         // Activation observers must finish applying the lock policy first.
-        return Task { @MainActor [weak self] in
+        let attempt = Task { @MainActor [weak self] in
             guard let self, self.pendingRequest == request,
                   self.lockCycleID() == cycle, self.isForeground(), self.isEligible(),
                   self.attemptedLockCycle != cycle, !self.isUnlocking else { return }
@@ -42,16 +53,59 @@ final class MacBiometricAutoUnlockController {
                 self.attemptedLockCycle = nil
             }
         }
+        latestAttempt = attempt
+        return attempt
     }
 
     func invalidatePendingAttempt() {
         pendingRequest += 1
     }
+
+    /// Prompts on opening and on each return to the window: app activation,
+    /// the window becoming key, or the screen unlocking or the login session
+    /// returning while KeeForge stays the active app, which post neither.
+    func startObserving(window: AnyObject?, centers: NotificationCenters = NotificationCenters()) {
+        stopObserving()
+        let attemptTriggers: [(NotificationCenter, Notification.Name, AnyObject?)] = [
+            (centers.app, NSApplication.didBecomeActiveNotification, nil),
+            (centers.app, NSWindow.didBecomeKeyNotification, window),
+            (centers.distributed, Self.screenIsUnlockedNotification, nil),
+            (centers.workspace, NSWorkspace.sessionDidBecomeActiveNotification, nil),
+        ]
+        for (center, name, object) in attemptTriggers {
+            observe(center, name, object: object) { $0.requestAttempt() }
+        }
+        for name in [Self.lockRequestedNotification, NSApplication.didResignActiveNotification] {
+            observe(centers.app, name, object: nil) { $0.invalidatePendingAttempt() }
+        }
+        requestAttempt()
+    }
+
+    func stopObserving() {
+        invalidatePendingAttempt()
+        for (center, token) in observers {
+            center.removeObserver(token)
+        }
+        observers.removeAll()
+    }
+
+    private func observe(
+        _ center: NotificationCenter,
+        _ name: Notification.Name,
+        object: AnyObject?,
+        action: @escaping @MainActor (MacBiometricAutoUnlockController) -> Void
+    ) {
+        let token = center.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                action(self)
+            }
+        }
+        observers.append((center, token))
+    }
 }
 
 struct MacBiometricAutoUnlockObserver: NSViewRepresentable {
-    static let lockRequestedNotification = Notification.Name("KeeForge.macAutoUnlockLockRequested")
-
     let viewModel: DatabaseViewModel
 
     func makeNSView(context: Context) -> ObserverView {
@@ -66,7 +120,6 @@ struct MacBiometricAutoUnlockObserver: NSViewRepresentable {
 
     final class ObserverView: NSView {
         private let viewModel: DatabaseViewModel
-        private var observers: [NSObjectProtocol] = []
         private lazy var controller = MacBiometricAutoUnlockController(
             isEligible: { [weak self] in self?.viewModel.isEligibleForBiometricAutoUnlock == true },
             lockCycleID: { [weak self] in self?.viewModel.lockCycleID ?? -1 },
@@ -95,36 +148,15 @@ struct MacBiometricAutoUnlockObserver: NSViewRepresentable {
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            stop()
-            if window != nil { start() }
-        }
-
-        private func start() {
-            guard let window else { return }
-            for (name, object) in [
-                (NSApplication.didBecomeActiveNotification, nil),
-                (NSWindow.didBecomeKeyNotification, window),
-            ] as [(Notification.Name, AnyObject?)] {
-                observers.append(NotificationCenter.default.addObserver(
-                    forName: name, object: object, queue: .main
-                ) { [weak self] _ in
-                    MainActor.assumeIsolated { _ = self?.controller.requestAttempt() }
-                })
+            if let window {
+                controller.startObserving(window: window)
+            } else {
+                controller.stopObserving()
             }
-            for name in [MacBiometricAutoUnlockObserver.lockRequestedNotification, NSApplication.didResignActiveNotification] {
-                observers.append(NotificationCenter.default.addObserver(
-                    forName: name, object: nil, queue: .main
-                ) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.controller.invalidatePendingAttempt() }
-                })
-            }
-            controller.requestAttempt()
         }
 
         func stop() {
-            controller.invalidatePendingAttempt()
-            observers.forEach(NotificationCenter.default.removeObserver)
-            observers.removeAll()
+            controller.stopObserving()
         }
     }
 }
