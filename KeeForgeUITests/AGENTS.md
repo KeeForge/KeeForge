@@ -63,6 +63,7 @@ xcrun xcresulttool export attachments --path <xcresult> --output-path <fresh-dir
 - A lazy `List`/`Form` never materializes a row below the fold, so `waitForExistence` on it cannot succeed on a small screen. Anchor "did this screen open" on a navigation bar or toolbar item and `revealElement` anything lower.
 - `isHittable` on a zero-frame or off-screen element raises an Objective-C exception that ends the test. On anything mid-transition, check `hasUsableFrame` / `hasOnScreenFrame` first or go through `revealElement`.
 - `isHittable` is true for a last row whose center sits under the bottom search bar; `revealElement` then does not scroll and a long press hits the bar. Swipe the list up first and keep the assertion on the context action.
+- On iOS 18 `swipeUp()` does not scroll the entry editor while the keyboard covers a custom-field row, so `revealElement` falls back and scrolls away. Reach editor rows typed into with the keyboard up through `EntryEditUITestCase.revealFormElement`, which slow-drags until the row clears the keyboard.
 - After a save the workspace is disabled behind `database.saving-overlay` and swallows the next tap. Use `EntryEditUITestCase.waitForAutosaveAttempt()` and its retrying `openAddMenu`, `revealContextMenuButton`, and `revealSwipeDeleteButton`.
 
 ### Typing
