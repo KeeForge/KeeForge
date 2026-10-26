@@ -344,7 +344,7 @@ enum PendingUploadQueue {
         where storedMarker.id != excludedMarkerID
             && storedMarker.marker.isPayloadFinalized == true
             && storedMarker.marker.openTimeSHA512 == payloadSHA512 {
-            try? dropIfUnchanged(storedMarker, environment: environment)
+            _ = try? dropIfUnchanged(storedMarker, environment: environment)
         }
     }
 
