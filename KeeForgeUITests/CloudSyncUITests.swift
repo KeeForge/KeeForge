@@ -160,14 +160,29 @@ final class CloudUnlockSmokeUITests: CloudSyncBaseUITests {
         }
         selectDatabaseView(.allEntries)
         app.swipeUp()
-        XCTAssertTrue(sync.isHittable, "The sync shortcut must remain visible while browsing and scrolling")
+        // isHittable reports false on a small iPhone once the list scrolls under
+        // the pinned header, although the button is visible and responds.
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.frame.contains(sync.frame), "The sync shortcut must remain visible while browsing and scrolling")
+        let statusBeforeTap = details.value as? String
+        sync.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let scrolledSyncStarted = NSPredicate { _, _ in
+            sync.isEnabled == false || details.value as? String != statusBeforeTap
+        }
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: scrolledSyncStarted, object: nil)], timeout: 5),
+            .completed,
+            "Tapping the scrolled sync shortcut did not start a sync"
+        )
+        let scrolledSyncFinished = NSPredicate { _, _ in sync.isEnabled }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: scrolledSyncFinished, object: nil)], timeout: 15), .completed)
         let compact = XCTAttachment(screenshot: app.screenshot())
         compact.name = "Persistent compact sync shortcut after repeated sync"
         compact.lifetime = .keepAlways
         add(compact)
         searchForEntries(matching: "Twitter")
         XCTAssertTrue(app.staticTexts["Search"].exists)
-        XCTAssertTrue(sync.isHittable)
+        XCTAssertTrue(window.frame.contains(sync.frame))
     }
 
     func testSeededCloudDatabaseUnlocksViaMockProvider() {
