@@ -206,6 +206,7 @@ struct KeeForgeApp: App {
         let listViewModel = self.listViewModel
 
         macLockMonitor.onLockTriggered = { _ in
+            NotificationCenter.default.post(name: MacBiometricAutoUnlockController.lockRequestedNotification, object: nil)
             activeViewModel.wrappedValue?.handleSceneDidEnterBackground()
         }
         macLockMonitor.onDidBecomeActive = {
@@ -331,6 +332,14 @@ private struct AppRootView: View {
             handleOpenURL(url)
         }
         #if os(macOS)
+        // Above the locked/unlocked switch: a lock must not remount it, since
+        // mounting counts as opening the session and prompts.
+        .background {
+            if let activeDatabaseViewModel {
+                MacBiometricAutoUnlockObserver(viewModel: activeDatabaseViewModel)
+                    .id(ObjectIdentifier(activeDatabaseViewModel))
+            }
+        }
         .sheet(isPresented: $showsMacTransitionNotice) {
             MacTransitionNoticeView()
                 .frame(
@@ -785,7 +794,9 @@ private struct CompactUnlockScene: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: viewModel.state)
+        #if os(iOS)
         .biometricAutoUnlock(viewModel)
+        #endif
     }
 }
 
@@ -797,6 +808,9 @@ private struct RegularDatabaseScene: View {
         Group {
             switch viewModel.state {
             case .locked:
+                #if os(macOS)
+                unlockView
+                #else
                 if viewModel.isEligibleForBiometricAutoUnlock {
                     DatabaseOpeningView(
                         databaseName: viewModel.databaseDisplayName,
@@ -805,20 +819,11 @@ private struct RegularDatabaseScene: View {
                     )
                     .transition(.opacity)
                 } else {
-                    UnlockView(
-                        viewModel: viewModel,
-                        onBackToDatabaseList: onReturnToList,
-                        showsChooseDifferentFileAction: false
-                    )
-                    .transition(.opacity)
+                    unlockView
                 }
+                #endif
             case .error:
-                UnlockView(
-                    viewModel: viewModel,
-                    onBackToDatabaseList: onReturnToList,
-                    showsChooseDifferentFileAction: false
-                )
-                .transition(.opacity)
+                unlockView
             case .unlocking:
                 DatabaseOpeningView(
                     databaseName: viewModel.databaseDisplayName,
@@ -833,10 +838,22 @@ private struct RegularDatabaseScene: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: viewModel.state)
+        #if os(iOS)
         .biometricAutoUnlock(viewModel)
+        #endif
+    }
+
+    private var unlockView: some View {
+        UnlockView(
+            viewModel: viewModel,
+            onBackToDatabaseList: onReturnToList,
+            showsChooseDifferentFileAction: false
+        )
+        .transition(.opacity)
     }
 }
 
+#if os(iOS)
 /// Runs the opt-in biometric auto-unlock at most once per lock cycle, and only
 /// while the scene is foreground-active. Platform exclusions live in
 /// `BiometricAutoUnlockPolicy`, folded into the view model's eligibility.
@@ -894,6 +911,7 @@ private extension View {
         modifier(BiometricAutoUnlockModifier(viewModel: viewModel))
     }
 }
+#endif
 
 private struct LaunchRoutingView: View {
     var body: some View {
@@ -1187,10 +1205,22 @@ struct CloudSyncControls: View {
                     .presentationCompactAdaptation(.popover)
             }
 
-            Button("Sync Now") {
+            Button {
                 Task {
                     await viewModel.syncCloudNow()
                 }
+            } label: {
+                #if os(iOS)
+                // The iPhone header's title beside these controls is the view
+                // menu, so a long translation gives way to an icon instead.
+                ViewThatFits(in: .horizontal) {
+                    Text("Sync Now")
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .accessibilityLabel("Sync Now")
+                }
+                #else
+                Text("Sync Now")
+                #endif
             }
             .font(.callout.weight(.semibold))
             .disabled(viewModel.canSyncCloudNow == false)

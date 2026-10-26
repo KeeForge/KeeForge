@@ -57,6 +57,22 @@ final class MacSmokeUITests: MacUITestCase {
         item?.click()
     }
 
+    // Selection and sheet dismissal need the native split view.
+    func testNewEntryIsSelectedAfterSaving() {
+        unlockSuccessfully()
+        openGroup(named: "Work")
+        openEntry(named: "Email")
+        typeCommandShortcut("n")
+        let titleField = app.textFields["entry-edit.title-field"].firstMatch
+        XCTAssertTrue(titleField.waitForExistence(timeout: 10))
+        titleField.click()
+        app.typeText("ZZZ Newly Saved Entry")
+        let save = app.buttons["entry-edit.save"].firstMatch
+        save.click()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 15))
+        XCTAssertTrue(waitForDisplayText("ZZZ Newly Saved Entry", identifier: "entry-detail.title"))
+    }
+
     // MARK: - Unlock
 
     func testUnlockSucceedsWithCorrectPassword() {
@@ -77,20 +93,15 @@ final class MacSmokeUITests: MacUITestCase {
     // MARK: - Browse
 
     // Only the native split view can establish whether a recreated workspace
-    // restores the divider position after locking.
+    // restores the divider position after locking. XCUITest drags do not move
+    // split-view dividers on macOS 27, so the drag itself is a manual check and
+    // MacSidebarWidthSamplerTests covers which widths are remembered.
     func testSidebarWidthSurvivesRepeatedLockUnlockCycles() throws {
         unlockSuccessfully()
         let window = app.windows.firstMatch
         let originalWindowSize = window.frame.size
         let divider = try XCTUnwrap(sidebarDivider(), "The workspace sidebar divider is missing")
-        let originalPosition = divider.frame.midX - window.frame.minX
-        let delta: CGFloat = originalPosition < 280 ? 60 : -60
-        let start = divider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        start.press(forDuration: 0.2, thenDragTo: start.withOffset(CGVector(dx: delta, dy: 0)))
-
-        let resizedDivider = try XCTUnwrap(sidebarDivider(), "The resized sidebar divider is missing")
-        let resizedPosition = resizedDivider.frame.midX - window.frame.minX
-        XCTAssertGreaterThan(abs(resizedPosition - originalPosition), 20, "The sidebar divider did not resize")
+        let sidebarPosition = divider.frame.midX - window.frame.minX
 
         for _ in 0..<3 {
             typeCommandShortcut("l")
@@ -100,7 +111,7 @@ final class MacSmokeUITests: MacUITestCase {
 
             let restored = NSPredicate { [self] _, _ in
                 guard let divider = sidebarDivider() else { return false }
-                return abs(divider.frame.midX - window.frame.minX - resizedPosition) <= 2
+                return abs(divider.frame.midX - window.frame.minX - sidebarPosition) <= 2
             }
             let restoredExpectation = XCTNSPredicateExpectation(predicate: restored, object: nil)
             XCTAssertEqual(XCTWaiter.wait(for: [restoredExpectation], timeout: 10), .completed,
@@ -256,6 +267,59 @@ final class MacSmokeUITests: MacUITestCase {
     }
 
     // MARK: - Edit + save
+
+    func testCustomFieldProtectionPersistsInTheNativeEditor() {
+        unlockSuccessfully()
+        openGroup(named: "Social")
+        openEntry(named: "Discord")
+        clickToolbarButton(identifier: "entry-detail.edit", overflowLabel: "Edit")
+        // The editor and the entry detail are different scroll views, and a
+        // control touching the window's bottom edge is not yet clickable.
+        let window = app.windows.firstMatch
+        func reach(_ element: XCUIElement) {
+            for _ in 0..<18 {
+                if element.exists, element.isHittable, element.frame.maxY < window.frame.maxY - 60 { return }
+                let midX = element.exists ? element.frame.midX : window.frame.midX
+                let scrollView = app.scrollViews.allElementsBoundByIndex
+                    .first { $0.frame.minX <= midX && midX <= $0.frame.maxX } ?? app.scrollViews.firstMatch
+                scrollView.scroll(byDeltaX: 0, deltaY: -250)
+                RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            }
+            XCTAssertTrue(element.isHittable)
+        }
+        let add = app.buttons["entry-edit.custom-field.add"].firstMatch
+        reach(add)
+        add.click()
+        let name = app.textFields["entry-edit.custom-field.name-field.0"].firstMatch
+        reach(name)
+        name.click()
+        app.typeText("PIN")
+        let value = app.textFields["entry-edit.custom-field.value-field.0"].firstMatch
+        reach(value)
+        value.click()
+        app.typeText("1234")
+        let protect = app.switches["entry-edit.custom-field.protection.0"].firstMatch
+        reach(protect)
+        protect.click()
+        XCTAssertTrue(app.secureTextFields["entry-edit.custom-field.value-field.0"].firstMatch.exists)
+        let save = app.buttons["entry-edit.save"].firstMatch
+        save.click()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 15))
+        let reveal = app.buttons["entry.protected-field.pin.reveal"].firstMatch
+        reach(reveal)
+        // macOS exposes static text as its value, not its label.
+        let plaintext = app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", "1234", "1234")).firstMatch
+        XCTAssertFalse(plaintext.exists)
+        reveal.click()
+        XCTAssertTrue(plaintext.waitForExistence(timeout: 5))
+        clickToolbarButton(identifier: "entry-detail.edit", overflowLabel: "Edit")
+        reach(protect)
+        XCTAssertEqual(protect.value as? Int, 1)
+        protect.click()
+        save.click()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 15))
+        XCTAssertFalse(reveal.exists)
+    }
 
     func testCustomFieldMoveControlsPersistOrder() {
         unlockSuccessfully()
@@ -685,5 +749,48 @@ final class MacDatabaseListUITests: MacUITestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         }
         XCTAssertFalse(passwordField.exists, "Detail column still showed the removed database")
+    }
+}
+
+@MainActor
+final class MacCustomIconManagementUITests: MacUITestCase {
+    override var databaseFixtures: [DatabaseFixture] {
+        [DatabaseFixture(resourceName: "kitchen-sink", injectedFilename: "kitchen-sink.kdbx")]
+    }
+
+    func testRenameCancelAndDeleteStoredIcon() {
+        let uuid = "4D9C2B1E-7A35-4E68-9B0D-52F16C8A3E77"
+        unlockSuccessfully()
+        openGroup(named: "Icons")
+        openEntry(named: "Custom Badge")
+        let iconButton = app.buttons["entry-detail.icon-button"]
+        XCTAssertTrue(iconButton.waitForExistence(timeout: 10))
+        iconButton.click()
+        let manage = app.buttons["entry-icon-picker.manage"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 10))
+        manage.click()
+        let rename = app.buttons["custom-icons.rename.\(uuid)"]
+        XCTAssertTrue(rename.waitForExistence(timeout: 10))
+        rename.click()
+        let name = app.textFields["custom-icons.rename-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 10))
+        name.click()
+        name.typeText("Website Badge")
+        app.buttons["custom-icons.rename-save"].click()
+        XCTAssertTrue(waitForDisplayText("Website Badge", identifier: "custom-icons.name.\(uuid)"))
+        let delete = app.buttons["custom-icons.delete.\(uuid)"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 10))
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: delete)
+        XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 15), .completed)
+        delete.click()
+        let cancel = app.buttons["custom-icons.delete-cancel"].firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        cancel.click()
+        XCTAssertTrue(rename.exists)
+        delete.click()
+        let confirm = app.buttons["custom-icons.confirm-delete"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.click()
+        XCTAssertTrue(rename.waitForNonExistence(timeout: 15))
     }
 }

@@ -539,7 +539,7 @@ struct EntryEditView: View {
             }
 
             basicFieldRow(String(localized: "Field Value")) {
-                if formViewModel.isCustomFieldProtected(field.wrappedValue) {
+                if field.wrappedValue.isProtected {
                     PasswordInputRow(
                         title: valueLabel,
                         text: field.value,
@@ -557,6 +557,13 @@ struct EntryEditView: View {
                         .accessibilityIdentifier("entry-edit.custom-field.value-field.\(index)")
                 }
             }
+
+            Toggle("Protect Field", isOn: Binding(
+                get: { field.wrappedValue.isProtected },
+                set: { setCustomFieldProtection(id, isProtected: $0) }
+            ))
+            .accessibilityLabel(name.isEmpty ? Text("Protect Field") : Text("Protect field \(name)"))
+            .accessibilityIdentifier("entry-edit.custom-field.protection.\(index)")
 
             if let message = formViewModel.customFieldValidationMessage(for: field.wrappedValue) {
                 Text(message)
@@ -618,6 +625,30 @@ struct EntryEditView: View {
                     revealedCustomFieldIDs.remove(id)
                 }
             }
+        )
+    }
+
+    private func setCustomFieldProtection(_ id: UUID, isProtected: Bool) {
+        guard let field = formViewModel.customFields.first(where: { $0.id == id }),
+              field.isProtected != isProtected else { return }
+        let currentSession = EntrySecretAction.currentSession(databaseViewModel)
+        let update: @MainActor () -> Void = {
+            guard let index = formViewModel.customFields.firstIndex(where: { $0.id == id }) else { return }
+            revealedCustomFieldIDs.remove(id)
+            formViewModel.customFields[index].isProtected = isProtected
+        }
+        guard currentSession() else { return }
+        if isProtected || !formViewModel.requiresAuthenticationToRevealPassword
+            || !databaseViewModel.secretAccess.requiresAuthentication {
+            update()
+            return
+        }
+        secretAction.perform(
+            authenticate: {
+                try await databaseViewModel.secretAccess.authenticate(reason: String(localized: "View protected field"))
+            },
+            isCurrent: { currentSession() && formViewModel.customFields.first(where: { $0.id == id }) == field },
+            disclose: update
         )
     }
 

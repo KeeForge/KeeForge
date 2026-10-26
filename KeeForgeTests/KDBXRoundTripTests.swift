@@ -1800,6 +1800,55 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(try KDBXParser.parseFileVersion(from: written), .kdbx4(minor: 1))
     }
 
+    /// `<PreviousParentGroup>` is KDBX 4.1 too, and KeePass writes it right
+    /// before `<Times>` in an entry and right before `<Tags>` in a group.
+    func test_recyclingRaisesTheHeaderTo41AndPlacesTheRestoreReferenceLikeKeePass() throws {
+        let fixture = try parseFixtureWithHeader(.test)
+        XCTAssertEqual(fixture.header.formatVersion, .kdbx4(minor: 0), "Precondition: the fixture is a 4.0 database")
+        func findGroup(named name: String, in group: KPGroup) -> KPGroup? {
+            group.name == name ? group : group.groups.lazy.compactMap { findGroup(named: name, in: $0) }.first
+        }
+        let top = try XCTUnwrap(findGroup(named: "Work", in: fixture.rootGroup))
+        let entry = try XCTUnwrap(top.entries.first, "Precondition: the group holds an entry")
+        let group = try XCTUnwrap(
+            top.groups.first { $0.id != fixture.meta.recycleBinUUID },
+            "Precondition: the group holds a subgroup"
+        )
+
+        let updated = try DatabaseDraft(rootGroup: fixture.rootGroup, meta: fixture.meta, sessionKey: roundTripSessionKey)
+            .apply(.deleteEntry(entryID: entry.id, sendToRecycleBin: true))
+            .apply(.deleteGroup(groupID: group.id, sendToRecycleBin: true))
+        let written = try KDBXWriter.write(
+            rootGroup: updated.rootGroup,
+            meta: updated.meta,
+            compositeKey: fixture.compositeKey,
+            header: fixture.header,
+            sessionKey: roundTripSessionKey
+        )
+        XCTAssertEqual(try KDBXParser.parseFileVersion(from: written), .kdbx4(minor: 1))
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: updated.rootGroup,
+            meta: updated.meta,
+            innerStreamKey: Data("Restore Reference Inner Stream Key".utf8),
+            sessionKey: roundTripSessionKey
+        )
+        let xml = String(decoding: try serializer.serialize(), as: UTF8.self)
+        let entryReference = "<PreviousParentGroup>\(top.id.kdbxBase64String)</PreviousParentGroup>"
+        let entryXML = try XCTUnwrap(xml.range(of: "<UUID>\(entry.id.kdbxBase64String)</UUID>").map { xml[$0.lowerBound...] })
+        XCTAssertTrue(entryXML.contains(entryReference + "<Times>"), "Entry reference precedes <Times>")
+        XCTAssertFalse(xml.contains("<Entry>" + entryReference))
+        let groupXML = try XCTUnwrap(xml.range(of: "<UUID>\(group.id.kdbxBase64String)</UUID>").map { String(xml[$0.lowerBound...]) })
+        let groupReference = "<PreviousParentGroup>\(top.id.kdbxBase64String)</PreviousParentGroup>"
+        let referenceRange = try XCTUnwrap(groupXML.range(of: groupReference))
+        let timesRange = try XCTUnwrap(groupXML.range(of: "</Times>"))
+        XCTAssertLessThan(timesRange.lowerBound, referenceRange.lowerBound, "Group reference follows <Times>")
+        if let firstChild = groupXML.range(of: "<Entry>") {
+            XCTAssertLessThan(referenceRange.lowerBound, firstChild.lowerBound, "Group reference precedes its entries")
+        }
+        XCTAssertFalse(xml.contains("<Group>" + groupReference))
+    }
+
     func test_headerMinorVersion_staysAt40WhenNoGroupCarriesATag() throws {
         let fixture = try parseFixtureWithHeader(.test)
         let target = try XCTUnwrap(fixture.rootGroup.groups.first)

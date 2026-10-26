@@ -707,6 +707,8 @@ final class EntryIconPickerUITests: UnlockedDatabaseUITestCase {
         let icon = app.buttons["entry-icon-picker.standard.37"]
         XCTAssertTrue(icon.waitForExistence(timeout: 5), "Icon picker did not present")
         XCTAssertFalse(icon.isSelected, "Fixture entry should not already use icon 37")
+        // Icon 37 starts below the fold on a small iPhone.
+        XCTAssertTrue(revealElement(icon), "Icon 37 could not be scrolled into view")
         tapElement(icon)
 
         XCTAssertTrue(
@@ -755,6 +757,60 @@ final class EntryCustomIconPickerUITests: UnlockedDatabaseUITestCase {
         if name.contains("testReadOnly") {
             app.launchEnvironment["UI_TEST_DATABASE_READ_ONLY"] = "1"
         }
+    }
+
+    func testManageCustomIconsRenamesCancelsAndDeletes() {
+        let uuid = "4D9C2B1E-7A35-4E68-9B0D-52F16C8A3E77"
+        unlockSuccessfully()
+        openEntry(named: "Custom Badge", inGroup: "Icons")
+        openEntryIconPicker()
+        let manage = app.buttons["entry-icon-picker.manage"]
+        XCTAssertTrue(revealElement(manage, in: scrollableContainer(), direction: .down))
+        tapElement(manage)
+        let rename = app.buttons["custom-icons.rename.\(uuid)"]
+        XCTAssertTrue(rename.waitForExistence(timeout: 10))
+        tapElement(rename)
+        let name = app.textFields["custom-icons.rename-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        replaceText(in: name, with: "Discarded Name")
+        tapElement(app.buttons["custom-icons.rename-cancel"])
+        XCTAssertFalse(app.staticTexts["Discarded Name"].exists)
+        tapElement(rename)
+        replaceText(in: name, with: "Website Badge")
+        tapElement(app.buttons["custom-icons.rename-save"])
+        XCTAssertTrue(app.staticTexts["Website Badge"].waitForExistence(timeout: 10))
+        let delete = app.buttons["custom-icons.delete.\(uuid)"]
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: delete)
+        XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 15), .completed)
+        tapElement(delete)
+        let cancel = app.buttons["custom-icons.delete-cancel"].firstMatch
+        if cancel.waitForExistence(timeout: 2) {
+            tapElement(cancel)
+        } else {
+            // iOS 26+ omits Cancel from the confirmation popover; tapping
+            // its system dismiss region is the native cancellation action.
+            let dismissRegion = app.otherElements["PopoverDismissRegion"].firstMatch
+            XCTAssertTrue(dismissRegion.waitForExistence(timeout: 5))
+            let popover = app.popovers.firstMatch.frame
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: app.windows.firstMatch.frame.midX, dy: popover.minY - 30))
+                .tap()
+        }
+        XCTAssertTrue(rename.exists)
+        tapElement(delete)
+        let confirm = app.buttons["custom-icons.confirm-delete"].firstMatch
+        tapElement(confirm)
+        XCTAssertTrue(confirm.waitForNonExistence(timeout: 10))
+        XCTAssertTrue(rename.waitForNonExistence(timeout: 15))
+        let back = app.navigationBars.buttons["Custom Badge"].firstMatch
+        let backIsReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: back)
+        XCTAssertEqual(XCTWaiter.wait(for: [backIsReady], timeout: 10), .completed)
+        tapElement(back)
+        XCTAssertTrue(manage.waitForExistence(timeout: 10))
+        let standard = app.buttons["entry-icon-picker.standard.0"]
+        XCTAssertTrue(revealElement(standard, in: scrollableContainer(), direction: .down))
+        XCTAssertTrue(standard.isSelected)
+        XCTAssertFalse(app.buttons[customIconCellID].exists)
     }
 
     /// Round-trips a custom-icon pick the way the standard-icon test does: only an
@@ -1149,6 +1205,20 @@ final class ProtectedCustomFieldEditorAuthUITests: UnlockedDatabaseUITestCase {
 
     override func configureLaunch(app: XCUIApplication) throws {
         app.launchEnvironment["UI_TEST_DEVICE_OWNER_AUTH_PENDING"] = "1"
+    }
+
+    func testRemovingCustomFieldProtectionWaitsForAuthentication() {
+        unlockSuccessfully()
+        openFixtureEntry(groupName: "Secrets", entryName: "Protected Custom")
+        openProtectedCustomFieldInEditor()
+        let protect = app.switches["entry-edit.custom-field.protection.0"]
+        XCTAssertTrue(revealElement(protect))
+        protect.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertEqual(protect.value as? String, "1")
+        XCTAssertFalse(app.textViews["entry-edit.custom-field.value-field.0"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.textFields["entry-edit.custom-field.value-field.0"].exists)
+        XCTAssertTrue(app.secureTextFields["entry-edit.custom-field.value-field.0"].exists)
+        XCTAssertFalse(app.buttons["entry-edit.save"].isEnabled)
     }
 
     func testRevealingAProtectedCustomFieldInTheEditorWaitsForAuthentication() {

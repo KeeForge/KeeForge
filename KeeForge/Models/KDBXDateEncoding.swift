@@ -17,6 +17,13 @@ extension Date {
         return withUnsafeBytes(of: &leSeconds) { Data($0).base64EncodedString() }
     }
 
+    /// Reads only the KDBX 4 binary form; text timestamps return nil.
+    init?(kdbxBase64String string: String) {
+        guard let data = Data(base64Encoded: string), data.count == 8 else { return nil }
+        let seconds = data.withUnsafeBytes { $0.loadUnaligned(as: Int64.self).littleEndian }
+        self.init(timeIntervalSinceReferenceDate: Self.kdbxEpochOffset + TimeInterval(seconds))
+    }
+
     /// This date cut to the whole second `kdbxBase64String` keeps, which is
     /// what a parse of the written element reads back.
     var kdbxStoredDate: Date {

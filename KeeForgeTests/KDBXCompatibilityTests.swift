@@ -134,13 +134,14 @@ final class KDBXCompatibilityTests: XCTestCase {
             writtenVersions[scenario.id] = result.afterHeader.formatVersion
         }
 
-        // Group `<Tags>` is a KDBX 4.1 element, so authoring one on this 4.0
-        // fixture must bump the written header — and nothing else may. The
-        // matching artifact is opened by real KeePassXC in the external gate,
-        // which is where "the bumped file is still readable elsewhere" is
-        // proven; group tags themselves have no keepassxc-cli verb.
-        XCTAssertEqual(writtenVersions["update-group"], .kdbx4(minor: 1))
-        for (scenarioID, version) in writtenVersions where scenarioID != "update-group" {
+        // Group tags, custom-icon names, and the Recycle Bin restore reference
+        // require 4.1, as in KeePassXC. The external gate also opens these
+        // upgraded files with KeePassXC.
+        let upgradingScenarioIDs: Set = ["update-group", "rename-custom-icon", "soft-delete-entry", "soft-delete-group"]
+        for scenarioID in upgradingScenarioIDs {
+            XCTAssertEqual(writtenVersions[scenarioID], .kdbx4(minor: 1), scenarioID)
+        }
+        for (scenarioID, version) in writtenVersions where !upgradingScenarioIDs.contains(scenarioID) {
             XCTAssertEqual(
                 version,
                 .kdbx4(minor: 0),
@@ -594,6 +595,11 @@ final class KDBXCompatibilityTests: XCTestCase {
         let expiryLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
         try collector.run(KDBXCompatibilitySupport.changeEntryExpiryScenario(), on: expiryLoaded)
 
+        // restore-foreign-recycled-entry: a foreign restore reference and a
+        // foreign named icon.
+        let restoreLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
+        try collector.run(KDBXCompatibilitySupport.restoreForeignRecycledEntryScenario(), on: restoreLoaded)
+
         try collector.emit()
     }
 
@@ -730,10 +736,11 @@ final class KDBXCompatibilityTests: XCTestCase {
         let result = try collector.run(scenario, on: loaded)
 
         assertHeaderPreserved(result, loaded: loaded, scenario: scenario)
+        XCTAssertEqual(loaded.header.formatVersion, .kdbx4(minor: 0), "Fixture precondition")
         XCTAssertEqual(
             result.afterHeader.formatVersion,
-            loaded.header.formatVersion,
-            "a merge must not renegotiate the source's header version"
+            .kdbx4(minor: 1),
+            "the remotely recycled items carry 4.1 restore references"
         )
 
         try collector.emit()
@@ -811,8 +818,11 @@ final class KDBXCompatibilityTests: XCTestCase {
             "aes-baseline-rekey-add-keyfile",
             "password-keyfile-rekey-remove-keyfile",
             "\(richID)-custom-field-edits",
+            "\(richID)-rename-custom-icon",
+            "\(richID)-delete-custom-icon",
             "\(richID)-set-entry-expiry",
             "kitchen-sink-change-entry-expiry",
+            "kitchen-sink-restore-foreign-recycled-entry",
             "aes-baseline-encryption-settings-chacha20-argon2id",
             "foreign-twofish-encryption-settings-aes256-keep-kdf",
             "aes-baseline-encryption-settings-aes-kdf",
@@ -831,7 +841,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 44)
+        XCTAssertEqual(descriptors.count, 47)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {
@@ -962,7 +972,8 @@ final class KDBXCompatibilityTests: XCTestCase {
         await groupEditor.save { completions.append($0) }
         groupEditor.deactivate()
         XCTAssertNil(groupEditor.errorMessage)
-        XCTAssertEqual(completions, [.saved, .saved, .saved])
+        let createdID = try XCTUnwrap(database.rootGroup?.allEntries.first { $0.title == createForm.title }?.id)
+        XCTAssertEqual(completions, [.created(createdID), .saved, .saved])
         XCTAssertFalse(database.isDirty)
         XCTAssertFalse(database.hasUnsavedEditor)
         database.lock()
@@ -973,6 +984,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             data: writtenData, password: fixture.password, sessionKey: reopenedKey
         )
         let created = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.title == createForm.title })
+        XCTAssertEqual(created.id, createdID)
         let updated = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.id == existing.id })
         let renamed = try XCTUnwrap(reopened.rootGroup.groups.first { $0.id == group.id })
         XCTAssertEqual(reopened.rootGroup.allEntries.count, root.allEntries.count + 1)
@@ -1176,6 +1188,33 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     @MainActor
+    func test_customFieldProtectionCanBeCreatedChangedAndRemovedThroughSaveAndReopen() throws {
+        let form = EntryEditViewModel(createIn: UUID())
+        form.title = "Protected Fields"
+        form.customFields = [.init(key: "PIN", value: "1234", isProtected: true),
+                             .init(key: "Region", value: "EU")]
+        let root = KPGroup(name: "Root")
+        var draft = try DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.createEntry(parentGroupID: root.id, draft: form.entryDraftPayload))
+        var reloaded = try writeAndReload(draft)
+        XCTAssertEqual(reloaded.customFields, ["PIN": "1234", "Region": "EU"])
+        XCTAssertEqual(reloaded.protectedStringKeys.intersection(reloaded.customFields.keys), ["PIN"])
+        for protection in [false, true] {
+            let editor = EntryEditViewModel(editing: reloaded, sessionKey: entrySessionKey)
+            let index = try XCTUnwrap(editor.customFields.firstIndex { $0.key == "PIN" })
+            editor.customFields[index].isProtected = protection
+            draft = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [reloaded]),
+                                      meta: KPMeta(), sessionKey: entrySessionKey)
+                .apply(.updateEntry(entryID: reloaded.id, draft: editor.entryDraftPayload))
+            reloaded = try writeAndReload(draft)
+            XCTAssertEqual(reloaded.protectedStringKeys.contains("PIN"), protection)
+            XCTAssertEqual(reloaded.customFields["PIN"], "1234")
+            XCTAssertEqual(reloaded.history.first?.protectedStringKeys.contains("PIN"), !protection)
+            XCTAssertEqual(reloaded.history.first?.customFields["PIN"], "1234")
+        }
+    }
+
+    @MainActor
     func test_customFieldEditsInTheEditor_surviveWriteAndReloadWithProtectionIntact() throws {
         let entry = KPEntry(
             title: "Custom Fields",
@@ -1273,12 +1312,8 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(reloaded.history.first?.additionalURLs, ["https://second.example"])
     }
 
-    /// Protection is preserved by key name in `DatabaseDraft`, because callers
-    /// like the AutoFill save path do not restate it. So a name freed by a
-    /// rename and immediately reused keeps the old field's protection — the
-    /// safe direction, and the one behavior the editor cannot override.
     @MainActor
-    func test_reusingARenamedProtectedFieldsNameKeepsThatNameProtected() throws {
+    func test_reusingARenamedProtectedFieldsNameDoesNotProtectTheNewField() throws {
         let entry = KPEntry(
             title: "Audit",
             password: try EncryptedValue.encrypt("password", using: entrySessionKey),
@@ -1298,8 +1333,8 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(reloaded.customFields, ["Card PIN": "1234", "PIN": "not a secret"])
         XCTAssertEqual(
             reloaded.protectedStringKeys.intersection(reloaded.customFields.keys),
-            ["Card PIN", "PIN"],
-            "The renamed field keeps its protection, and the reused name inherits it"
+            ["Card PIN"],
+            "Protection follows field identity, not a reused name"
         )
     }
 

@@ -191,9 +191,13 @@ def add_secrets_group(kp) -> None:
 # * `Icons/Plain Entry` uses a standard icon and has no URL, so the download
 #   action renders disabled, and ships no history.
 #
-# pykeepass exposes no custom-icon API, so the icon and the entry's
-# `<CustomIconUUID>` are written straight into the XML tree; both are plain
-# base64 text elements the format defines.
+# A second icon, referenced by nothing, carries the KDBX 4.1 `<Name>` and
+# `<LastModificationTime>` KeePass 2.48+ and KeePassXC write, so renaming or
+# deleting another icon is proven to leave a foreign one byte-identical.
+#
+# pykeepass exposes no custom-icon API, so the icons and the entry's
+# `<CustomIconUUID>` are written straight into the XML tree; all are plain
+# text elements the format defines.
 # --------------------------------------------------------------------------
 
 # Hardcoded in KeeForgeUITests (accessibility identifier
@@ -229,6 +233,14 @@ def make_png() -> bytes:
 PNG_DATA = make_png()
 UUID_B64 = base64.b64encode(CUSTOM_ICON_UUID.bytes).decode()
 
+# Mirrored by KDBXCompatibilitySupport (`kitchenSinkNamedIcon*`).
+NAMED_ICON_UUID = uuid.UUID("6B1F0E3A-2C4D-4E5F-8A9B-0C1D2E3F4A5B")
+NAMED_ICON_UUID_B64 = base64.b64encode(NAMED_ICON_UUID.bytes).decode()
+NAMED_ICON_NAME = "Foreign Named Icon"
+# KDBX 4 time: little-endian int64 seconds since 0001-01-01T00:00:00Z
+# (2025-03-04T05:06:07Z).
+NAMED_ICON_MODIFIED_B64 = base64.b64encode(struct.pack("<q", 63876661567)).decode()
+
 
 def add_icons_group(kp) -> None:
     group = kp.add_group(kp.root_group, "Icons")
@@ -246,6 +258,12 @@ def add_icons_group(kp) -> None:
     icon = etree.SubElement(icons, "Icon")
     etree.SubElement(icon, "UUID").text = UUID_B64
     etree.SubElement(icon, "Data").text = base64.b64encode(PNG_DATA).decode()
+
+    named_icon = etree.SubElement(icons, "Icon")
+    etree.SubElement(named_icon, "UUID").text = NAMED_ICON_UUID_B64
+    etree.SubElement(named_icon, "Name").text = NAMED_ICON_NAME
+    etree.SubElement(named_icon, "LastModificationTime").text = NAMED_ICON_MODIFIED_B64
+    etree.SubElement(named_icon, "Data").text = base64.b64encode(PNG_DATA).decode()
 
     etree.SubElement(custom_entry._element, "CustomIconUUID").text = UUID_B64
 
@@ -546,9 +564,17 @@ def add_recycle_bin(kp) -> None:
     """Trashing creates the Recycle Bin group and sets Meta/RecycleBinUUID, so
     the fixture carries a real bin: deleting an entry must reuse it rather than
     author a new one. The bin itself deliberately gets no tags -- recycle-bin
-    tag exclusion is covered by in-memory unit tests (DatabaseViewModelTests)."""
-    trashed = kp.add_entry(kp.root_group, "Trashed Login", "trashed-user", "GroupTagTrashed5")
+    tag exclusion is covered by in-memory unit tests (DatabaseViewModelTests).
+
+    `Trashed Login` is recycled out of `Plain Group` and carries the KDBX 4.1
+    `<PreviousParentGroup>` restore reference. pykeepass does not write one, so
+    it goes in at KeePass's position, just before `<Times>`."""
+    plain_group = kp.find_groups(name="Plain Group", first=True)
+    trashed = kp.add_entry(plain_group, "Trashed Login", "trashed-user", "GroupTagTrashed5")
     kp.trash_entry(trashed)
+    reference = etree.Element("PreviousParentGroup")
+    reference.text = base64.b64encode(plain_group.uuid.bytes).decode()
+    trashed._element.find("Times").addprevious(reference)
 
 
 def raise_to_kdbx41(kp) -> None:
@@ -716,12 +742,29 @@ def verify_secrets_group(path: Path, kp) -> None:
 
 def verify_icons_group(path: Path, kp) -> None:
     icons = kp.tree.findall("Meta/CustomIcons/Icon")
-    if len(icons) != 1:
-        raise AssertionError(f"{path.name}: expected 1 custom icon, found {len(icons)}")
+    if len(icons) != 2:
+        raise AssertionError(f"{path.name}: expected 2 custom icons, found {len(icons)}")
     if icons[0].findtext("UUID") != UUID_B64:
         raise AssertionError(f"{path.name}: custom icon UUID drifted")
     if base64.b64decode(icons[0].findtext("Data")) != PNG_DATA:
         raise AssertionError(f"{path.name}: custom icon image bytes drifted")
+    named = icons[1]
+    if (named.findtext("UUID"), named.findtext("Name"), named.findtext("LastModificationTime")) != (
+        NAMED_ICON_UUID_B64,
+        NAMED_ICON_NAME,
+        NAMED_ICON_MODIFIED_B64,
+    ):
+        raise AssertionError(f"{path.name}: named custom icon metadata drifted")
+
+    trashed = kp.find_entries(title="Trashed Login", first=True)
+    plain_group = kp.find_groups(name="Plain Group", first=True)
+    if trashed is None or plain_group is None:
+        raise AssertionError(f"{path.name}: 'Trashed Login' or 'Plain Group' missing")
+    reference = trashed._element.find("PreviousParentGroup")
+    if reference is None or reference.text != base64.b64encode(plain_group.uuid.bytes).decode():
+        raise AssertionError(f"{path.name}: 'Trashed Login' restore reference does not name 'Plain Group'")
+    if reference.getnext() is None or reference.getnext().tag != "Times":
+        raise AssertionError(f"{path.name}: restore reference must precede <Times>")
 
     custom_entry = kp.find_entries(title="Custom Badge", first=True)
     if custom_entry is None:

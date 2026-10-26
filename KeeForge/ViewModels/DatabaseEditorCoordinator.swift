@@ -133,7 +133,13 @@ final class DatabaseEditorCoordinator {
 
         // Once applied, unsaved changes belong to the database draft.
         database.setEditorHasUnsavedChanges(false, editorID: editorID)
-        await persist(completion: .saved, resuming: request, onComplete: onComplete)
+        let completion: EntryEditCompletion
+        if request == nil, let stagedCreation {
+            completion = .created(stagedCreation.entryID)
+        } else {
+            completion = .saved
+        }
+        await persist(completion: completion, resuming: request, onComplete: onComplete)
     }
 
     func delete(sendToRecycleBin: Bool, onComplete: (EntryEditCompletion) -> Void) async {

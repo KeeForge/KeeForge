@@ -629,6 +629,26 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.entryDraftPayload.protectedCustomFieldKeys, ["Card PIN"])
     }
 
+    func testProtectionToggleTracksDirtyStateAndPreservesHiddenMetadata() throws {
+        let key = PasskeyCredential.credentialIDKey
+        let entry = KPEntry(title: "Entry", customFields: ["PIN": "1234", key: "credential"],
+                            protectedStringKeys: [key])
+        let form = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        XCTAssertFalse(form.isDirty)
+        form.customFields[0].isProtected = true
+        XCTAssertTrue(form.isDirty)
+        XCTAssertTrue(form.canSave)
+        XCTAssertEqual(form.entryDraftPayload.protectedCustomFieldKeys, ["PIN", key])
+        form.customFields[0].key = "Card PIN"
+        XCTAssertEqual(form.entryDraftPayload.protectedCustomFieldKeys, ["Card PIN", key])
+        form.customFields[0].isProtected = false
+        XCTAssertEqual(form.entryDraftPayload.protectedCustomFieldKeys, [key])
+        form.customFields[0].key = "PIN"
+        XCTAssertFalse(form.isDirty)
+        XCTAssertFalse(form.canSave)
+        XCTAssertEqual(entry.protectedStringKeys, [key], "Cancelling leaves the source untouched")
+    }
+
     func testAddedCustomFieldIsUnprotectedAndSavable() {
         let viewModel = EntryEditViewModel(createIn: UUID())
         viewModel.addCustomField()
@@ -767,7 +787,7 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.canSave)
     }
 
-    func testAFieldTakingANameTheEntryProtectsIsEditedAndSavedProtected() throws {
+    func testProtectionFollowsTheFieldRatherThanAReusedName() throws {
         let entry = KPEntry(
             title: "Bank",
             customFields: ["PIN": "1234", "Branch": "Main Street"],
@@ -783,11 +803,11 @@ final class EntryEditViewModelTests: XCTestCase {
         viewModel.customFields[3].key = "Region"
 
         XCTAssertEqual(
-            viewModel.customFields.map { viewModel.isCustomFieldProtected($0) },
-            [false, true, true, false],
+            viewModel.customFields.map(\.isProtected),
+            [false, true, false, false],
             "Branch, Card PIN, the reused PIN, Region"
         )
-        XCTAssertEqual(viewModel.entryDraftPayload.protectedCustomFieldKeys, ["Card PIN", "PIN"])
+        XCTAssertEqual(viewModel.entryDraftPayload.protectedCustomFieldKeys, ["Card PIN"])
     }
 
     func testANewEntryInheritsNoProtectionByName() {
@@ -795,7 +815,7 @@ final class EntryEditViewModelTests: XCTestCase {
         viewModel.addCustomField()
         viewModel.customFields[0].key = "PIN"
 
-        XCTAssertFalse(viewModel.isCustomFieldProtected(viewModel.customFields[0]))
+        XCTAssertFalse(viewModel.customFields[0].isProtected)
     }
 
     func testTheLockPromptSaysWhatBlocksSaving() {

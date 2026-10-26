@@ -2,6 +2,16 @@ import XCTest
 @testable import KeeForge
 
 final class EntryEditCompletionGateTests: XCTestCase {
+    func testCreatedEntryIdentityIsHeldUntilConflictSettles() {
+        let entryID = UUID()
+        var gate = EntryEditCompletionGate()
+
+        XCTAssertNil(gate.finish(.created(entryID), hasSaveConflict: true))
+        XCTAssertNil(gate.conflictSettled(false))
+        XCTAssertEqual(gate.conflictSettled(true), .created(entryID))
+        XCTAssertNil(gate.conflictSettled(true))
+    }
+
     func testFinishWithoutConflictReportsImmediately() {
         var gate = EntryEditCompletionGate()
 

@@ -152,15 +152,19 @@ enum AutoFillSaveCoordinator {
         //   1. enqueue provisional marker recording the BASE bytes' SHA-512
         //   2. saveDraft: SHA-check, backup, atomic cache replace
         //   3. finalize: write the payload SHA onto the marker as it is on
-        //      disk (a drain may have touched it meanwhile), then wake the drainer
-        // A crash before replacement leaves the provisional marker deferred;
-        // after replacement, the SHA mismatch surfaces a visible conflict.
+        //      disk (a drain may have touched it meanwhile)
+        //   4. once a marker covers the saved bytes, drop older markers for the
+        //      base bytes, which this save contains, then wake the drainer,
+        //      which would flag them as conflicted
+        // A crash before replacement leaves the provisional marker deferred
+        // and any older marker still uploading the base bytes; after
+        // replacement, the SHA mismatch surfaces a visible conflict.
         var provisionalMarker: PendingUploadQueue.StoredMarker?
         if reference.isCloudBacked {
             let cacheURL = DatabaseListStore.cacheLocation(for: reference)
             let relativePath = try environment.relativePathForURL(cacheURL)
             provisionalMarker = try await Task.detached(priority: .utility) {
-                let storedMarker = try environment.enqueuePendingUpload(
+                try environment.enqueuePendingUpload(
                     PendingUploadQueue.Marker(
                         databaseId: reference.id,
                         encryptedBytesCacheURL: relativePath,
@@ -171,11 +175,6 @@ enum AutoFillSaveCoordinator {
                         isPayloadFinalized: false
                     )
                 )
-                // An older marker whose payload hashes to this save's base
-                // bytes is contained in this save. Dropped only after the new
-                // marker is durable, so the cache is never left uncovered.
-                environment.dropSupersededPendingUploads(reference.id, openTimeSHA512, storedMarker.id)
-                return storedMarker
             }.value
         }
 
@@ -205,11 +204,15 @@ enum AutoFillSaveCoordinator {
                 storedMarker.marker.openTimeSHA512 = outcome.newSHA512
                 storedMarker.marker.isPayloadFinalized = true
                 await Task.detached(priority: .utility) {
-                    finalizeOrReplacePendingUpload(
+                    let isCovered = finalizeOrReplacePendingUpload(
                         storedMarker,
                         reference: reference,
                         environment: environment
                     )
+                    if isCovered {
+                        environment.dropSupersededPendingUploads(reference.id, openTimeSHA512, storedMarker.id)
+                        environment.notifyPendingUploadEnqueued()
+                    }
                 }.value
             }
 
@@ -247,27 +250,26 @@ enum AutoFillSaveCoordinator {
     /// The replacement keeps the ORIGINAL `expectedRev` and a nil `baseRev`:
     /// this path cannot prove what the remote head holds, so its push must
     /// CAS-fail into a visible conflict rather than silently overwrite an app
-    /// save that completed mid-flight.
+    /// save that completed mid-flight. Returns whether a marker now covers
+    /// the saved bytes.
     private static func finalizeOrReplacePendingUpload(
         _ storedMarker: PendingUploadQueue.StoredMarker,
         reference: DatabaseReference,
         environment: Environment
-    ) {
+    ) -> Bool {
         do {
             try environment.finalizePendingUpload(storedMarker)
-            environment.notifyPendingUploadEnqueued()
+            return true
         } catch {
             guard let refreshedReference = environment.resolveReference(reference.id),
                   refreshedReference.isCloudBacked else {
-                return
+                return false
             }
 
             var replacementMarker = storedMarker.marker
             replacementMarker.baseRev = nil
             replacementMarker.isConflicted = false
-            if (try? environment.enqueuePendingUpload(replacementMarker)) != nil {
-                environment.notifyPendingUploadEnqueued()
-            }
+            return (try? environment.enqueuePendingUpload(replacementMarker)) != nil
         }
     }
 

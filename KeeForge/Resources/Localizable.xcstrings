@@ -5526,6 +5526,58 @@
         }
       }
     },
+    "Arrange and protect custom fields" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benutzerdefinierte Felder anordnen und schützen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordena y protege campos personalizados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organisez et protégez les champs personnalisés"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordina e proteggi i campi personalizzati"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタムフィールドを並べ替えて保護"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Порядок и защита пользовательских полей"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排列和保护自定义字段"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排列和保護自訂欄位"
+          }
+        }
+      }
+    },
     "Ascending" : {
       "localizations" : {
         "de" : {
@@ -6359,7 +6411,6 @@
       }
     },
     "Auto-Unlock with Touch ID" : {
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -6459,58 +6510,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自動填寫"
-          }
-        }
-      }
-    },
-    "AutoFill can unlock with Touch ID on its own. KeeForge itself never unlocks automatically — use the Touch ID button on the unlock screen." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AutoFill kann sich selbst mit Touch ID entsperren. KeeForge selbst entsperrt sich nie automatisch – verwende dafür die Touch-ID-Taste im Entsperrbildschirm."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "El autorrelleno puede desbloquearse por sí solo con Touch ID. KeeForge nunca se desbloquea automáticamente: usa el botón de Touch ID en la pantalla de desbloqueo."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le remplissage automatique peut se déverrouiller seul avec Touch ID. KeeForge ne se déverrouille jamais automatiquement — utilisez le bouton Touch ID de l'écran de déverrouillage."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L'inserimento automatico può sbloccarsi da solo con Touch ID. KeeForge stesso non si sblocca mai automaticamente: usa il pulsante Touch ID nella schermata di sblocco."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動入力は Touch ID だけでロックを解除できます。KeeForge 本体が自動でロックを解除することはありません。ロック解除画面の Touch ID ボタンをお使いください。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Автозаполнение может само разблокировать базу данных с Touch ID. Сам KeeForge никогда не разблокирует её автоматически — используйте кнопку Touch ID на экране разблокировки."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自动填充可以自行使用触控 ID 解锁。KeeForge 本身绝不会自动解锁——请使用解锁屏幕上的触控 ID 按钮。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動填寫可以自行使用觸控 ID 解鎖。KeeForge 本身絕不會自動解鎖——請使用解鎖畫面上的觸控 ID 按鈕。"
           }
         }
       }
@@ -6771,6 +6770,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 KeeForge 自動填寫"
+          }
+        }
+      }
+    },
+    "Automatically prompt when opening a database or returning to its locked window. This setting also applies to AutoFill." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Öffnen einer Datenbank oder bei der Rückkehr zu ihrem gesperrten Fenster automatisch zur Entsperrung auffordern. Diese Einstellung gilt auch für AutoFill."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solicitar la autenticación automáticamente al abrir una base de datos o volver a su ventana bloqueada. Este ajuste también se aplica a Autorrelleno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher automatiquement une demande à l’ouverture d’une base de données ou au retour à sa fenêtre verrouillée. Ce réglage s’applique aussi au remplissage automatique."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Richiedi automaticamente l’autenticazione quando apri un database o torni alla sua finestra bloccata. Questa impostazione vale anche per il riempimento automatico."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースを開いたときや、ロックされたウインドウに戻ったときに、自動的に認証を求めます。この設定は自動入力にも適用されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автоматически запрашивать аутентификацию при открытии базы данных или возврате к её заблокированному окну. Этот параметр также действует для автозаполнения."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开数据库或返回其已锁定的窗口时，自动提示认证。此设置也适用于自动填充。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟資料庫或返回其已鎖定的視窗時，自動提示認證。此設定也適用於自動填寫。"
           }
         }
       }
@@ -7187,58 +7238,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "生物辨識解鎖目前無法使用。你仍可使用密碼和金鑰檔案。"
-          }
-        }
-      }
-    },
-    "Biometric unlock was cancelled before KeeForge could open the database." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Das biometrische Entsperren wurde abgebrochen, bevor KeeForge die Datenbank öffnen konnte."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "El desbloqueo biométrico se canceló antes de que KeeForge pudiera abrir la base de datos."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le déverrouillage biométrique a été annulé avant que KeeForge ne puisse ouvrir la base de données."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lo sblocco biometrico è stato annullato prima che KeeForge potesse aprire il database."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "データベースが開かれる前に、生体認証によるロック解除がキャンセルされました。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Биометрическая разблокировка была отменена до того, как KeeForge успел открыть базу данных."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 KeeForge 打开数据库之前，生物识别解锁已被取消。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 KeeForge 開啟資料庫之前，生物辨識解鎖已被取消。"
           }
         }
       }
@@ -9736,6 +9735,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇上方的「新增項目」以儲存此驗證碼。"
+          }
+        }
+      }
+    },
+    "Choose Restore on an entry or group in the Recycle Bin to bring it back. It returns to the group it came from when KeeForge knows it; otherwise, pick where it goes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle bei einem Eintrag oder einer Gruppe im Papierkorb „Wiederherstellen“, um sie zurückzuholen. Sie kehren in ihre ursprüngliche Gruppe zurück, wenn KeeForge diese kennt; andernfalls wählst du das Ziel aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige Restaurar en una entrada o un grupo de la Papelera para recuperarlo. Vuelve al grupo del que procede si KeeForge lo conoce; si no, elige dónde colocarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez Restaurer sur une entrée ou un groupe de la Corbeille pour le récupérer. Il retrouve son groupe d’origine si KeeForge le connaît ; sinon, choisissez sa destination."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scegli Ripristina su una voce o un gruppo nel Cestino per recuperarlo. Torna nel gruppo di provenienza se KeeForge lo conosce; altrimenti, scegli dove spostarlo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ごみ箱のエントリやグループで「復元」を選ぶと元に戻せます。KeeForge が元のグループを把握している場合はそこへ戻り、そうでない場合は移動先を選べます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите «Восстановить» для записи или группы в Корзине, чтобы вернуть её. Она вернётся в исходную группу, если KeeForge её знает; иначе выберите, куда её поместить."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在回收站中对条目或群组选择“恢复”即可找回。如果 KeeForge 知道其原来的群组，它会回到那里；否则，由你选择放置位置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在資源回收筒中對項目或群組選擇「回復」即可找回。如果 KeeForge 知道其原本的群組，它會回到那裡；否則，由你選擇放置位置。"
           }
         }
       }
@@ -16454,6 +16505,64 @@
         }
       }
     },
+    "Delete Custom Icon?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eigenes Symbol löschen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Custom Icon?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar icono personalizado?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer l’icône personnalisée ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminare l’icona personalizzata?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタムアイコンを削除しますか？"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить пользовательский значок?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除自定义图标？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除自訂圖示？"
+          }
+        }
+      }
+    },
     "Delete Entry" : {
       "localizations" : {
         "de" : {
@@ -16762,6 +16871,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已刪除的項目和群組會顯示在這裡。"
+          }
+        }
+      }
+    },
+    "Deleting an icon resets affected entries, groups, and history versions to their default icons." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Löschen eines Symbols erhalten betroffene Einträge, Gruppen und Verlaufsversionen ihre Standardsymbole zurück."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleting an icon resets affected entries, groups, and history versions to their default icons."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al eliminar un icono, las entradas, los grupos y las versiones del historial afectados vuelven a sus iconos predeterminados."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La suppression d’une icône rétablit les icônes par défaut des entrées, groupes et versions de l’historique concernés."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminando un’icona, le voci, i gruppi e le versioni della cronologia interessati tornano alle icone predefinite."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アイコンを削除すると、使用しているエントリ、グループ、履歴のバージョンはデフォルトのアイコンに戻ります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "При удалении значка затронутые записи, группы и версии истории возвращаются к значкам по умолчанию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除图标会将相关条目、群组和历史版本重置为默认图标。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除圖示會將相關項目、群組和歷史版本重設為預設圖示。"
           }
         }
       }
@@ -17906,6 +18073,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下載網站圖示"
+          }
+        }
+      }
+    },
+    "Downloaded website icons are stored in this database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heruntergeladene Website-Symbole werden in dieser Datenbank gespeichert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloaded website icons are stored in this database."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los iconos de sitios web descargados se guardan en esta base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les icônes de sites téléchargées sont stockées dans cette base de données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le icone dei siti scaricate vengono salvate in questo database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダウンロードしたウェブサイトのアイコンはこのデータベースに保存されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загруженные значки сайтов хранятся в этой базе данных."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载的网站图标存储在此数据库中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載的網站圖示儲存在此資料庫中。"
           }
         }
       }
@@ -24254,6 +24479,64 @@
         }
       }
     },
+    "Icon names require KDBX 4.1. Saving upgrades a KDBX 4.0 database; older KeePass clients may not open it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Symbolnamen erfordern KDBX 4.1. Beim Speichern wird eine KDBX-4.0-Datenbank aktualisiert; ältere KeePass-Programme können sie möglicherweise nicht öffnen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icon names require KDBX 4.1. Saving upgrades a KDBX 4.0 database; older KeePass clients may not open it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los nombres de iconos requieren KDBX 4.1. Al guardar se actualiza una base KDBX 4.0; los clientes antiguos de KeePass podrían no abrirla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les noms d’icônes nécessitent KDBX 4.1. L’enregistrement met à niveau une base KDBX 4.0 ; les anciens clients KeePass risquent de ne pas pouvoir l’ouvrir."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I nomi delle icone richiedono KDBX 4.1. Il salvataggio aggiorna un database KDBX 4.0; i client KeePass meno recenti potrebbero non aprirlo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アイコン名にはKDBX 4.1が必要です。保存するとKDBX 4.0のデータベースが更新され、古いKeePassクライアントでは開けなくなる場合があります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имена значков требуют KDBX 4.1. При сохранении база KDBX 4.0 будет обновлена; старые клиенты KeePass могут не открыть её."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图标名称需要 KDBX 4.1。保存时会升级 KDBX 4.0 数据库；旧版 KeePass 客户端可能无法打开它。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖示名稱需要 KDBX 4.1。儲存時會升級 KDBX 4.0 資料庫；舊版 KeePass 用戶端可能無法開啟。"
+          }
+        }
+      }
+    },
     "Identity" : {
       "localizations" : {
         "de" : {
@@ -30495,6 +30778,116 @@
         }
       }
     },
+    "Manage Custom Icons" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eigene Symbole verwalten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage Custom Icons"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestionar iconos personalizados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gérer les icônes personnalisées"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestisci icone personalizzate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタムアイコンを管理"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Управление пользовательскими значками"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理自定义图标"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理自訂圖示"
+          }
+        }
+      }
+    },
+    "Manage your custom icons" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eigene Symbole verwalten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestiona tus iconos personalizados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gérez vos icônes personnalisées"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestisci le icone personalizzate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタムアイコンを管理"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Управление пользовательскими значками"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理自定义图标"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理自訂圖示"
+          }
+        }
+      }
+    },
     "Master Key" : {
       "localizations" : {
         "de" : {
@@ -32415,6 +32808,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有符合此搜尋的憑證。"
+          }
+        }
+      }
+    },
+    "No Custom Icons" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine eigenen Symbole"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Custom Icons"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay iconos personalizados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune icône personnalisée"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuna icona personalizzata"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタムアイコンがありません"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет пользовательских значков"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有自定义图标"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有自訂圖示"
           }
         }
       }
@@ -36840,6 +37291,122 @@
         }
       }
     },
+    "Protect Field" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feld schützen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protect Field"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proteger campo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protéger le champ"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proteggi campo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィールドを保護"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Защитить поле"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保护字段"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保護欄位"
+          }
+        }
+      }
+    },
+    "Protect field %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feld %@ schützen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protect field %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proteger campo %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protéger le champ %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proteggi campo %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィールド「%@」を保護"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Защитить поле %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保护字段 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保護欄位 %@"
+          }
+        }
+      }
+    },
     "Provider" : {
       "localizations" : {
         "de" : {
@@ -39180,6 +39747,64 @@
         }
       }
     },
+    "Rename Custom Icon" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eigenes Symbol umbenennen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename Custom Icon"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renombrar icono personalizado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renommer l’icône personnalisée"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rinomina icona personalizzata"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタムアイコンの名前を変更"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переименовать пользовательский значок"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重命名自定义图标"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新命名自訂圖示"
+          }
+        }
+      }
+    },
     "Rename Database" : {
       "localizations" : {
         "de" : {
@@ -39228,6 +39853,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新命名資料庫"
+          }
+        }
+      }
+    },
+    "Rename or delete a database's custom icons from Database Details or the icon picker. Anything that used a deleted icon goes back to its default." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benenne eigene Symbole einer Datenbank in den Datenbankdetails oder in der Symbolauswahl um oder lösche sie. Alles, was ein gelöschtes Symbol verwendet hat, erhält wieder sein Standardsymbol."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambia el nombre o elimina los iconos personalizados de una base de datos desde Detalles de la base de datos o el selector de iconos. Todo lo que usaba un icono eliminado vuelve a su icono predeterminado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renommez ou supprimez les icônes personnalisées d’une base de données depuis Détails de la base de données ou le sélecteur d’icônes. Tout ce qui utilisait une icône supprimée retrouve son icône par défaut."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rinomina o elimina le icone personalizzate di un database da Dettagli del database o dal selettore delle icone. Tutto ciò che usava un’icona eliminata torna all’icona predefinita."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースのカスタムアイコンの名称変更や削除を、「データベースの詳細」またはアイコン選択画面から行えます。削除したアイコンを使っていた項目は既定のアイコンに戻ります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переименовывайте или удаляйте пользовательские значки базы данных в разделе «Сведения о базе данных» или в окне выбора значка. Всё, что использовало удалённый значок, вернётся к значку по умолчанию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可在“数据库详细信息”或图标选择器中重命名或删除数据库的自定义图标。使用已删除图标的内容会恢复为默认图标。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可在「資料庫詳細資訊」或圖示選擇器中重新命名或刪除資料庫的自訂圖示。使用已刪除圖示的內容會回復為預設圖示。"
+          }
+        }
+      }
+    },
+    "Reorder custom fields while editing an entry, and protect sensitive ones so they stay hidden until you reveal them." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordne benutzerdefinierte Felder beim Bearbeiten eines Eintrags neu an und schütze vertrauliche Felder, damit sie verborgen bleiben, bis du sie einblendest."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reordena los campos personalizados al editar una entrada y protege los confidenciales para que permanezcan ocultos hasta que los muestres."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réorganisez les champs personnalisés en modifiant une entrée et protégez les champs sensibles pour qu’ils restent masqués jusqu’à ce que vous les affichiez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riordina i campi personalizzati mentre modifichi una voce e proteggi quelli sensibili, così restano nascosti finché non li mostri."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリの編集中にカスタムフィールドを並べ替えたり、機密性の高いフィールドを保護して表示するまで隠しておいたりできます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Меняйте порядок пользовательских полей при редактировании записи и защищайте конфиденциальные, чтобы они оставались скрытыми, пока вы их не покажете."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑条目时可调整自定义字段的顺序，并保护敏感字段，使其在你显示之前保持隐藏。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯項目時可調整自訂欄位的順序，並保護敏感欄位，使其在你顯示之前保持隱藏。"
           }
         }
       }
@@ -39492,6 +40221,58 @@
         }
       }
     },
+    "Restore from the Recycle Bin" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus dem Papierkorb wiederherstellen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaura desde la Papelera"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurez depuis la Corbeille"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ripristina dal Cestino"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ごみ箱から復元"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстановление из Корзины"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从回收站恢复"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從資源回收筒回復"
+          }
+        }
+      }
+    },
     "Restore this version?" : {
       "localizations" : {
         "de" : {
@@ -39644,6 +40425,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "results:%lld"
+          }
+        }
+      }
+    },
+    "Retry" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut versuchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reintentar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réessayer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riprova"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再試行"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重試"
           }
         }
       }
@@ -41310,6 +42149,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存時會重新加密此資料庫檔案。它仍可用相同的主金鑰開啟，更改前建立的備份會保留先前的設定。"
+          }
+        }
+      }
+    },
+    "Saving…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird gespeichert …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardando…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrement…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvataggio…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存中…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранение…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在保存…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在儲存…"
           }
         }
       }
@@ -51884,6 +52781,64 @@
         }
       }
     },
+    "This database’s icons cannot be changed safely." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Symbole dieser Datenbank können nicht sicher geändert werden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This database’s icons cannot be changed safely."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los iconos de esta base de datos no se pueden modificar de forma segura."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les icônes de cette base de données ne peuvent pas être modifiées sans risque."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le icone di questo database non possono essere modificate in modo sicuro."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースのアイコンは安全に変更できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Значки этой базы данных нельзя изменить безопасно."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法安全地更改此数据库的图标。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法安全地變更此資料庫的圖示。"
+          }
+        }
+      }
+    },
     "This database's key derivation settings (%@ of memory × %@ iterations, %@ threads) exceed what this app can safely run. Lower the database's Argon2 settings in a desktop KeePass app and save it, then try again." : {
       "localizations" : {
         "de" : {
@@ -52868,6 +53823,122 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此群組在目前草稿中已不存在。"
+          }
+        }
+      }
+    },
+    "This icon is no longer available." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Symbol ist nicht mehr verfügbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This icon is no longer available."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este icono ya no está disponible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette icône n’est plus disponible."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa icona non è più disponibile."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアイコンは利用できなくなりました。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот значок больше недоступен."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此图标已不可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此圖示已無法使用。"
+          }
+        }
+      }
+    },
+    "This icon will be removed from the database. Entries, groups, and history versions using it will show their default icons." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Symbol wird aus der Datenbank entfernt. Einträge, Gruppen und Verlaufsversionen, die es verwenden, zeigen dann ihre Standardsymbole."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This icon will be removed from the database. Entries, groups, and history versions using it will show their default icons."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este icono se eliminará de la base de datos. Las entradas, los grupos y las versiones del historial que lo usan mostrarán sus iconos predeterminados."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette icône sera supprimée de la base de données. Les entrées, groupes et versions de l’historique qui l’utilisent afficheront leurs icônes par défaut."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’icona verrà rimossa dal database. Le voci, i gruppi e le versioni della cronologia che la usano mostreranno le icone predefinite."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアイコンはデータベースから削除されます。使用しているエントリ、グループ、履歴のバージョンにはデフォルトのアイコンが表示されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот значок будет удалён из базы данных. Записи, группы и версии истории, использующие его, будут отображать значки по умолчанию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此图标将从数据库中移除。使用它的条目、群组和历史版本将显示默认图标。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此圖示將從資料庫中移除。使用它的項目、群組和歷史版本將顯示預設圖示。"
           }
         }
       }
@@ -54848,6 +55919,58 @@
         }
       }
     },
+    "Turn on Auto-Unlock with Touch ID in Settings to get a Touch ID prompt as soon as you open a database or return to its locked window. It applies to AutoFill too." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktiviere „Automatisch mit Touch ID entsperren“ in den Einstellungen, um eine Touch ID-Abfrage zu erhalten, sobald du eine Datenbank öffnest oder zu ihrem gesperrten Fenster zurückkehrst. Das gilt auch für AutoFill."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activa Desbloqueo automático con Touch ID en Ajustes para que se solicite Touch ID en cuanto abras una base de datos o vuelvas a su ventana bloqueada. También se aplica a Autorrelleno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activez Déverrouillage automatique avec Touch ID dans les Réglages pour qu’une demande Touch ID s’affiche dès que vous ouvrez une base de données ou revenez à sa fenêtre verrouillée. Cela s’applique aussi au remplissage automatique."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attiva Sblocco automatico con Touch ID in Impostazioni per ricevere una richiesta Touch ID appena apri un database o torni alla sua finestra bloccata. Vale anche per il riempimento automatico."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「設定」で「Touch ID で自動ロック解除」をオンにすると、データベースを開いたときやロックされたウインドウに戻ったときに、すぐに Touch ID の確認が表示されます。自動入力にも適用されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включите «Автоматическая разблокировка с Touch ID» в Настройках, чтобы запрос Touch ID появлялся сразу при открытии базы данных или возврате к её заблокированному окну. Это относится и к автозаполнению."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“设置”中打开“使用 Touch ID 自动解锁”，打开数据库或回到其已锁定的窗口时会立即显示 Touch ID 提示。此设置也适用于自动填充。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「設定」中開啟「使用 Touch ID 自動解鎖」，開啟資料庫或回到其已鎖定的視窗時會立即顯示 Touch ID 提示。此設定也適用於自動填寫。"
+          }
+        }
+      }
+    },
     "Turn On AutoFill" : {
       "localizations" : {
         "de" : {
@@ -55680,54 +56803,54 @@
         }
       }
     },
-    "Unlock AutoFill with Touch ID" : {
+    "Unlock automatically with Touch ID" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AutoFill mit Touch ID entsperren"
+            "value" : "Automatisch mit Touch ID entsperren"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Desbloquear Autorrelleno con Touch ID"
+            "value" : "Desbloquea automáticamente con Touch ID"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Déverrouiller le remplissage automatique avec Touch ID"
+            "value" : "Déverrouillez automatiquement avec Touch ID"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sblocca l'inserimento automatico con Touch ID"
+            "value" : "Sblocca automaticamente con Touch ID"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Touch ID で自動入力のロックを解除"
+            "value" : "Touch ID で自動的にロック解除"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Разблокировка автозаполнения с Touch ID"
+            "value" : "Автоматическая разблокировка с Touch ID"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用触控 ID 解锁自动填充"
+            "value" : "使用 Touch ID 自动解锁"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用觸控 ID 解鎖自動填寫"
+            "value" : "使用 Touch ID 自動解鎖"
           }
         }
       }

@@ -416,11 +416,11 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let cachePath = cacheURL.standardizedFileURL.resolvingSymlinksInPath().path
         var environment = LocalDatabaseSaver.Environment.live
         let liveReplace = environment.replaceFileAtomically
-        environment.replaceFileAtomically = { data, url in
+        environment.replaceFileAtomically = { data, url, expectedSHA512 in
             if url.standardizedFileURL.resolvingSymlinksInPath().path == cachePath {
                 cacheWrites.increment()
             }
-            try liveReplace(data, url)
+            return try liveReplace(data, url, expectedSHA512)
         }
         let liveCacheCopy = environment.cacheDatabaseCopy
         environment.cacheDatabaseCopy = { data, reference in
@@ -446,6 +446,66 @@ final class LocalDatabaseSaverTests: XCTestCase {
             "Saving a cloud reference must write the shared cache exactly once"
         )
         XCTAssertEqual(KDBXCrypto.sha512(try Data(contentsOf: cacheURL)), newSHA512)
+    }
+
+    func testSaveFinishingWhileAnotherEncryptsConflictsInsteadOfOverwritingIt() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let pausedContext = try makeDirtySaveContext(databaseURL: databaseURL, entryTitle: "Paused Writer Entry")
+        let finishingContext = try makeDirtySaveContext(databaseURL: databaseURL, entryTitle: "Finishing Writer Entry")
+
+        let pausedWriterEncrypted = DispatchSemaphore(value: 0)
+        let resumePausedWriter = DispatchSemaphore(value: 0)
+        var pausedEnvironment = LocalDatabaseSaver.Environment.live
+        let liveEncrypt = pausedEnvironment.encryptDraft
+        pausedEnvironment.encryptDraft = { draft, compositeKey, header, kdfPolicy in
+            let data = try liveEncrypt(draft, compositeKey, header, kdfPolicy)
+            pausedWriterEncrypted.signal()
+            resumePausedWriter.wait()
+            return data
+        }
+
+        let pausedSave = Task {
+            try await LocalDatabaseSaver.save(
+                draft: pausedContext.draft,
+                reference: reference,
+                compositeKey: pausedContext.compositeKey,
+                openTimeSHA512: pausedContext.openTimeSHA512,
+                kdfPolicy: .mainApp,
+                environment: pausedEnvironment
+            )
+        }
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                pausedWriterEncrypted.wait()
+                continuation.resume()
+            }
+        }
+
+        let finishingResult = try await LocalDatabaseSaver.save(
+            draft: finishingContext.draft,
+            reference: reference,
+            compositeKey: finishingContext.compositeKey,
+            openTimeSHA512: finishingContext.openTimeSHA512,
+            kdfPolicy: .mainApp
+        )
+        resumePausedWriter.signal()
+        let pausedResult = try await pausedSave.value
+
+        guard case .saved(let finishingSHA512) = finishingResult else {
+            return XCTFail("The writer that finished first must save")
+        }
+        guard case .conflict(let remoteSHA512, let remoteData) = pausedResult else {
+            return XCTFail("The paused writer must not overwrite the save that landed meanwhile")
+        }
+        let onDisk = try Data(contentsOf: databaseURL)
+        XCTAssertEqual(remoteSHA512, finishingSHA512)
+        XCTAssertEqual(remoteData, onDisk)
+        XCTAssertEqual(KDBXCrypto.sha512(onDisk), finishingSHA512)
+        let titles = try KDBXParser.parse(data: onDisk, password: fixturePassword, sessionKey: SymmetricKey(size: .bits256))
+            .allEntries.map(\.title)
+        XCTAssertTrue(titles.contains("Finishing Writer Entry"))
+        XCTAssertFalse(titles.contains("Paused Writer Entry"))
     }
 
     func testSaveRemoteChangedSinceOpenReturnsConflictDoesNotWrite() async throws {
@@ -586,7 +646,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             entryTitle: "Failure Entry"
         )
         var environment = LocalDatabaseSaver.Environment.live
-        environment.replaceFileAtomically = { _, _ in
+        environment.replaceFileAtomically = { _, _, _ in
             throw CocoaError(.fileWriteOutOfSpace)
         }
 

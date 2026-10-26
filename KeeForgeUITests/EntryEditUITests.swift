@@ -24,6 +24,25 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         }
     }
 
+    /// Scrolls the entry editor with slow drags until `element` is tappable and
+    /// clear of the keyboard. On iOS 18 `swipeUp()` leaves the editor in place
+    /// while the keyboard covers a custom-field row, so `revealElement` cannot
+    /// reach it; a slow drag scrolls it as a finger would.
+    func revealFormElement(_ element: XCUIElement) -> Bool {
+        let keyboard = app.keyboards.firstMatch
+        func isReachable() -> Bool {
+            guard element.exists, element.isHittable else { return false }
+            let bottom = keyboard.exists ? keyboard.frame.minY : app.windows.firstMatch.frame.maxY
+            return element.frame.maxY <= bottom
+        }
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
+        for offset in Array(repeating: -220.0, count: 6) + Array(repeating: 220.0, count: 10) {
+            if isReachable() { return true }
+            start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: offset)), withVelocity: .slow, thenHoldForDuration: 0.3)
+        }
+        return isReachable()
+    }
+
     func openAddMenu(file: StaticString = #filePath, line: UInt = #line) {
         let addButton = app.buttons["entry-list.add-entry"]
         XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Add menu button was not visible", file: file, line: line)
@@ -432,7 +451,7 @@ class EntryEditUITestCase: KeeForgeUITestCase {
 
 @MainActor
 final class EntryCreateSmokeUITests: EntryEditUITestCase {
-    func testCreateEntryInWorkGroupSavesAndShowsInList() {
+    func testCreateEntryInWorkGroupSavesAndOpensItsDetail() {
         unlockSuccessfully()
 
         openGroup(named: workGroupName)
@@ -442,8 +461,14 @@ final class EntryCreateSmokeUITests: EntryEditUITestCase {
             password: nil
         )
 
-        tapBackButton()
-        openGroup(named: workGroupName)
+        XCTAssertTrue(app.staticTexts["entry-detail.title"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["entry-detail.title"].label, createdEntryTitle)
+        XCTAssertTrue(app.staticTexts["ui-created-user"].waitForExistence(timeout: 5))
+        if app.windows.firstMatch.frame.width < 700 {
+            tapBackButton()
+        } else {
+            revealSidebarIfNeeded()
+        }
         XCTAssertTrue(
             revealElement(entry(named: createdEntryTitle)),
             "Created entry was not visible in the Work group after saving"
@@ -559,6 +584,49 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         add(attachment)
     }
 
+    func testCustomFieldProtectionCanBeSavedRevealedAndRemoved() {
+        unlockSuccessfully()
+        openEntry(named: discordEntryTitle, inGroup: socialGroupName)
+        let edit = app.buttons["entry-detail.edit"]
+        tapElement(edit)
+        let addField = app.buttons["entry-edit.custom-field.add"]
+        XCTAssertTrue(revealElement(addField))
+        tapElement(addField)
+        let name = app.textFields["entry-edit.custom-field.name-field.0"]
+        XCTAssertTrue(revealFormElement(name))
+        replaceText(in: name, with: "PIN")
+        let value = app.descendants(matching: .any)["entry-edit.custom-field.value-field.0"].firstMatch
+        XCTAssertTrue(revealFormElement(value))
+        replaceText(in: value, with: "1234")
+        let protect = app.switches["entry-edit.custom-field.protection.0"]
+        XCTAssertTrue(revealElement(protect))
+        protect.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertTrue(app.secureTextFields["entry-edit.custom-field.value-field.0"].waitForExistence(timeout: 5))
+        XCTAssertEqual(protect.value as? String, "1")
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "custom-field-protection"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        let save = app.buttons["entry-edit.save"]
+        tapElement(save)
+        XCTAssertTrue(waitForSaveCompletion(saveButton: save, timeout: 10))
+        let reveal = app.buttons["entry.protected-field.pin.reveal"]
+        XCTAssertTrue(revealElement(reveal))
+        XCTAssertFalse(app.staticTexts["1234"].exists)
+        tapElement(reveal)
+        XCTAssertTrue(app.staticTexts["1234"].waitForExistence(timeout: 5))
+        XCTAssertTrue(revealElement(edit))
+        tapElement(edit)
+        XCTAssertTrue(revealElement(protect))
+        XCTAssertEqual(protect.value as? String, "1")
+        protect.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertTrue(app.secureTextFields["entry-edit.custom-field.value-field.0"].waitForNonExistence(timeout: 5))
+        tapElement(save)
+        XCTAssertTrue(waitForSaveCompletion(saveButton: save, timeout: 10))
+        XCTAssertTrue(revealElement(app.buttons["entry.copy.pin"]))
+        XCTAssertFalse(reveal.exists)
+    }
+
     func testAddedCustomFieldIsSavedAndShownOnTheEntry() {
         unlockSuccessfully()
         openEntry(named: discordEntryTitle, inGroup: socialGroupName)
@@ -574,7 +642,7 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         let saveButton = app.buttons["entry-edit.save"]
         // A multi-line TextField surfaces as a text view, not a text field.
         let valueField = app.descendants(matching: .any)["entry-edit.custom-field.value-field.0"].firstMatch
-        XCTAssertTrue(revealElement(valueField), "The new field's value field was not reachable")
+        XCTAssertTrue(revealFormElement(valueField), "The new field's value field was not reachable")
         replaceText(in: valueField, with: "42")
         XCTAssertTrue(
             app.staticTexts["entry-edit.custom-field.error.0"].waitForExistence(timeout: 5),
@@ -582,19 +650,23 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         )
         XCTAssertFalse(saveButton.isEnabled)
 
-        replaceText(in: app.textFields["entry-edit.custom-field.name-field.0"], with: "Account Number")
+        let firstName = app.textFields["entry-edit.custom-field.name-field.0"]
+        XCTAssertTrue(revealFormElement(firstName))
+        replaceText(in: firstName, with: "Account Number")
         XCTAssertTrue(app.staticTexts["entry-edit.custom-field.error.0"].waitForNonExistence(timeout: 5))
 
-        XCTAssertTrue(revealElement(addFieldButton))
+        XCTAssertTrue(revealFormElement(addFieldButton))
         tapElement(addFieldButton)
-        replaceText(in: app.textFields["entry-edit.custom-field.name-field.1"], with: "Zulu")
+        let secondName = app.textFields["entry-edit.custom-field.name-field.1"]
+        XCTAssertTrue(revealFormElement(secondName))
+        replaceText(in: secondName, with: "Zulu")
         let moveUp = app.buttons["entry-edit.custom-field.move-up.1"]
-        XCTAssertTrue(revealElement(moveUp))
+        XCTAssertTrue(revealFormElement(moveUp))
         tapElement(moveUp)
         XCTAssertEqual(app.textFields["entry-edit.custom-field.name-field.0"].value as? String, "Zulu")
 
         let reorder = app.buttons["entry-edit.custom-field.reorder"]
-        XCTAssertTrue(revealElement(reorder))
+        XCTAssertTrue(revealFormElement(reorder))
         tapElement(reorder)
         let firstRow = app.descendants(matching: .any)["entry-edit.custom-field.order.0"].firstMatch
         let secondRow = app.descendants(matching: .any)["entry-edit.custom-field.order.1"].firstMatch
@@ -609,7 +681,7 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         orderAttachment.lifetime = .keepAlways
         add(orderAttachment)
         tapElement(app.buttons["entry-edit.custom-field.order.done"])
-        XCTAssertTrue(revealElement(moveUp))
+        XCTAssertTrue(revealFormElement(moveUp))
         tapElement(moveUp)
 
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
@@ -1367,6 +1439,12 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
         app.buttons["entry-edit.save"].tap()
         XCTAssertTrue(waitForElementToDisappear(app.buttons["entry-edit.save"], timeout: 10))
 
+        XCTAssertTrue(app.staticTexts["entry-detail.title"].waitForExistence(timeout: 5))
+        if app.windows.firstMatch.frame.width < 700 {
+            tapBackButton()
+        } else {
+            revealSidebarIfNeeded()
+        }
         lockAndReopenVault()
         openEntry(named: generatedPasswordEntryTitle, inGroup: workGroupName)
         let revealButton = app.buttons["entry.password.reveal"]
@@ -1450,5 +1528,27 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
             app.buttons["entry-list.add-entry"].waitForExistence(timeout: 5),
             "Add entry button should return after turning read-only off"
         )
+    }
+}
+
+@MainActor
+final class EntryCreateFocusUITests: EntryEditUITestCase {
+    override var databaseFixtureName: String { "kitchen-sink" }
+
+    func testNewEntryBelowTheFoldOpensWithoutSearching() {
+        unlockSuccessfully()
+        selectDatabaseView(.allEntries)
+        selectSortOption("Title")
+        selectSortOption("Ascending")
+        createEntry(title: "ZZZ Newly Saved Entry", username: "new-entry-user", password: nil)
+
+        let title = app.staticTexts["entry-detail.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: Self.ciElementTimeout))
+        XCTAssertEqual(title.label, "ZZZ Newly Saved Entry")
+        XCTAssertTrue(app.buttons["entry.copy.username"].exists)
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "newly-created-entry-detail"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }

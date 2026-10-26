@@ -12,7 +12,7 @@ final class EntryEditViewModel {
         var value: String
         /// Carried per field rather than per key so a renamed field stays
         /// protected under its new name.
-        let isProtected: Bool
+        var isProtected: Bool
 
         init(id: UUID = UUID(), key: String = "", value: String = "", isProtected: Bool = false) {
             self.id = id
@@ -138,10 +138,7 @@ final class EntryEditViewModel {
     private let preservedCustomFields: [String: String]
     private let seededCustomFieldKeys: Set<String>
     private let originalCustomFieldOrder: [String]
-    /// `DatabaseDraft` keeps an edited entry's protection by key name, so a
-    /// field saved under one of these names comes out protected whatever its
-    /// own flag says.
-    private let protectedKeysKeptOnSave: Set<String>
+    private let originalProtectedStringKeys: Set<String>
     private let originalSnapshot: Snapshot
     private let decodedTOTPSecret: Data?
     private let keeOTPSource: KeeOTPSource?
@@ -171,7 +168,7 @@ final class EntryEditViewModel {
         editableCustomFields: [CustomField] = [],
         preservedCustomFields: [String: String] = [:],
         originalCustomFieldOrder: [String] = [],
-        protectedKeysKeptOnSave: Set<String> = [],
+        originalProtectedStringKeys: Set<String> = [],
         totpSecret: String = "",
         totpDecodedSecret: Data? = nil,
         keeOTPSource: KeeOTPSource? = nil,
@@ -198,7 +195,7 @@ final class EntryEditViewModel {
         self.preservedCustomFields = preservedCustomFields
         self.originalCustomFieldOrder = originalCustomFieldOrder
         self.seededCustomFieldKeys = Set(editableCustomFields.map(\.key))
-        self.protectedKeysKeptOnSave = protectedKeysKeptOnSave
+        self.originalProtectedStringKeys = originalProtectedStringKeys
         self.totpSecret = totpSecret
         self.decodedTOTPSecret = totpDecodedSecret
         self.keeOTPSource = keeOTPSource
@@ -301,7 +298,7 @@ final class EntryEditViewModel {
             editableCustomFields: editableCustomFields,
             preservedCustomFields: preservedCustomFields,
             originalCustomFieldOrder: entry.customFieldOrder,
-            protectedKeysKeptOnSave: entry.protectedStringKeys,
+            originalProtectedStringKeys: entry.protectedStringKeys,
             totpSecret: totpSecret,
             totpDecodedSecret: decodedTOTPSecret,
             keeOTPSource: entry.totpConfig?.keeOTPSource,
@@ -691,12 +688,11 @@ final class EntryEditViewModel {
         additionalURLs.removeAll(where: { $0.id == id })
     }
 
-    /// Numbered from 1 like KeePass2Android. A name the edited entry protects
-    /// is skipped: `DatabaseDraft` would write the URL protected under it.
+    /// Numbered from 1 like KeePass2Android. Keep protected names out of URL rows.
     private func nextFreeAdditionalURLKey() -> String {
         let takenKeys = Set(additionalURLs.map(\.key))
             .union(customFields.map { $0.key.trimmingCharacters(in: .whitespacesAndNewlines) })
-            .union(protectedKeysKeptOnSave)
+            .union(originalProtectedStringKeys)
         var index = 1
         while takenKeys.contains(Self.additionalURLKeyPrefix + String(index)) { index += 1 }
         return Self.additionalURLKeyPrefix + String(index)
@@ -745,12 +741,6 @@ final class EntryEditViewModel {
         let unsaved = String(localized: "Your entry changes haven't been saved to this database yet.")
         guard let reason = saveBlockedMessage else { return unsaved }
         return unsaved + "\n\n" + String(localized: "To save them, first fix this: \(reason)")
-    }
-
-    /// Whether `field` will be written protected, and so must be edited concealed.
-    func isCustomFieldProtected(_ field: CustomField) -> Bool {
-        field.isProtected
-            || protectedKeysKeptOnSave.contains(field.key.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     /// Why `field` cannot be saved as it stands, or nil when it can. A row
@@ -850,7 +840,8 @@ final class EntryEditViewModel {
 
     private func protectedCustomFieldKeys() -> Set<String> {
         let merged = mergedCustomFields()
-        return Set(customFields.filter(isCustomFieldProtected).compactMap {
+        let preserved = originalProtectedStringKeys.intersection(preservedCustomFields.keys)
+        return preserved.union(customFields.filter(\.isProtected).compactMap {
             let key = $0.key.trimmingCharacters(in: .whitespacesAndNewlines)
             return merged[key] == nil ? nil : key
         })

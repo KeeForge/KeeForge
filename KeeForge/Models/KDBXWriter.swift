@@ -101,7 +101,7 @@ enum KDBXWriter {
     ) throws -> Data {
         let header = try resolveHeader(
             from: headerSource,
-            requiredMinorVersion: requiredMinorVersion(for: rootGroup)
+            requiredMinorVersion: requiredMinorVersion(for: rootGroup, meta: meta)
         )
         var keys = try deriveKeys(compositeKey: compositeKey, header: header, kdfPolicy: kdfPolicy)
         defer {
@@ -161,13 +161,17 @@ enum KDBXWriter {
 
     /// The lowest KDBX 4 minor version that can represent this tree.
     ///
-    /// Group `<Tags>` is a 4.1 element; nothing else KeeForge writes is. Group
-    /// `<Notes>` exists all the way back in KDBX 3.1 and does not count.
-    private static func requiredMinorVersion(for rootGroup: KPGroup) -> UInt16 {
-        func carriesTagsElement(_ group: KPGroup) -> Bool {
-            group.hasTagsElement || !group.tags.isEmpty || group.groups.contains(where: carriesTagsElement)
+    /// Group tags, Recycle Bin restore references, and custom-icon names
+    /// require KDBX 4.1.
+    private static func requiredMinorVersion(for rootGroup: KPGroup, meta: KPMeta) -> UInt16 {
+        func requiresVersion41(_ group: KPGroup) -> Bool {
+            group.hasTagsElement || !group.tags.isEmpty
+                || PreviousParentGroupXML.isPresent(in: group.unknownXML)
+                || group.entries.contains { PreviousParentGroupXML.isPresent(in: $0.unknownXML) }
+                || group.groups.contains(where: requiresVersion41)
         }
-        return carriesTagsElement(rootGroup) ? 1 : 0
+        return requiresVersion41(rootGroup) || !meta.customIconNames.isEmpty
+            || CustomIconXML.requiresVersion41(meta.unknownXML) ? 1 : 0
     }
 
     /// Resolves the header to write, raising its minor version to whatever the

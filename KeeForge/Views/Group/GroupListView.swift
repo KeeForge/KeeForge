@@ -23,6 +23,7 @@ struct GroupListView: View {
     #endif
     @State private var showSettings = false
     @State private var activeEditor: EntryEditViewModel?
+    @State private var createdEntryToOpen: UUID?
     /// The group editor's form state, or `nil` when no editor is presented.
     @State private var activeGroupEditor: GroupEditViewModel?
     @State private var pendingDeletion: PendingDeletion?
@@ -285,6 +286,12 @@ struct GroupListView: View {
         .modifier(CloudBrowsingTitleStyle(view: self))
         .modifier(GroupListSearchModifier(view: self))
         .modifier(GroupListEditorPresentation(view: self))
+        .onAppear {
+            guard let entryID = createdEntryToOpen, activeEditor == nil else { return }
+            createdEntryToOpen = nil
+            guard viewModel.entry(withID: entryID) != nil else { return }
+            viewModel.workspace.navigationPath.append(.entry(entryID))
+        }
         .modifier(GroupListGroupEditorPresentation(view: self))
         // On the outer Group: an alert host on the `resolvedGroup` branch would
         // be stranded if the branch vanishes while the alert is up.
@@ -332,7 +339,7 @@ struct GroupListView: View {
                             }
                             Spacer(minLength: 0)
                             CloudSyncControls(viewModel: view.viewModel)
-                                .fixedSize(horizontal: true, vertical: false)
+                                .layoutPriority(-1)
                         }
                         .font(.title2.bold())
                         .lineLimit(1)
@@ -358,7 +365,10 @@ struct GroupListView: View {
                     EntryEditView(
                         formViewModel: formViewModel,
                         databaseViewModel: view.viewModel
-                    ) { _ in
+                    ) { completion in
+                        if case .created(let entryID) = completion {
+                            view.createdEntryToOpen = entryID
+                        }
                         view.activeEditor = nil
                     }
                 }

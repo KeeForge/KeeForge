@@ -8,6 +8,7 @@
 - `RestoreRowAction` shares entry/group recovery across all shells; `PendingMove.restore` hosts the fallback destination picker with a recovery title. Cancellation stages nothing.
 - `PendingRowActions.swift` is the one source of delete-confirmation wording and move state for the iOS group list, `EntryListView`, `MacEntriesList`, and the macOS workspace. The Mac menu-bar Delete builds the same `PendingDeletion`; no path deletes without it.
 - Entry-row context-menu items are the shared `EntryRowCopyActions`, `EntryRowDuplicateAction`, and `EntryRowMoveAction`. Add or change an item there, not per shell. They hand an editor or `PendingMove` back to the caller instead of presenting, because the host differs per shell.
+- A duplicate saved from the search results or tag browser opens like a new entry: iOS pushes or selects it once its sheet has dismissed, macOS selects it.
 - `EntryRowMoveAction.isAvailable` (writable, not in the recycle bin) is the shared ordinary move/duplicate gate; Restore uses the session’s separate recovery eligibility. The group-row move keeps its own gate in `../Group/GroupListView.swift` on purpose.
 - Three entry lists: `EntryListView` (iOS search results and tag browser), `MacEntriesList` (the same two on macOS), and `MacEntriesColumn` in `../../App/RegularDatabaseWorkspaceView.swift` (the Mac group column). The Mac two share `MacEntryRow`.
 
@@ -34,6 +35,11 @@
 - Return and double-click go through `DatabaseViewModel.requestEntryEdit()` so they open the one editor the workspace hosts, not a second sheet.
 - The Mac history browser exists because pushing inside that sheet loses its toolbar. Its `init`-seeded selection and `.id(selection)` list are both load-bearing; the reasons are at the sites in `EntryHistoryView.swift`.
 
+### Custom icons
+
+- `CustomIconsView` is shared by the entry picker and Database Details → General. The session stages rename/delete edits and uses its ordinary save/conflict path. Rename cancellation stages nothing; deletion requires confirmation that live items and history fall back to defaults. Read-only sessions expose no mutations.
+- Icon names are database content, not app preferences; naming upgrades KDBX 4.0 to 4.1 and the rename form explains this.
+
 ### Secrets, values, attachments
 
 - A completed password reveal survives the editor for the same mounted entry: disappearance clears the plaintext, reappearance and a same-entry password edit refresh it without a new prompt. A session-key change conceals it; selecting another entry replaces the detail's identity.
@@ -50,12 +56,12 @@
 - `EntryEditView.body` is at the limit of what the CI Xcode type-checks. Put a new presentation in a `ViewModifier` (as `EntryAttachmentImporter` does), not inline, or the build fails only on CI.
 - Every site that builds an `EntryEditViewModel` passes `knownTags` and the location's inherited tags. Both default to empty, so a missed site compiles and silently loses tag suggestions.
 - Save and Save and Lock stay disabled while attachment files are being read, and while `canSave` is false; the lock prompt must never write an invalid form.
-- Edit-mode reveals are gated by `secretAccess`; a create-mode value was typed this session and stays ungated.
+- Edit-mode reveals and turning off custom-field protection are gated by `secretAccess`; a create-mode value was typed this session and stays ungated. Turning protection on conceals any revealed value.
 
 ## Tests
 
 - Search-results delete and move: `SearchResultsDeleteUITests` and `SearchResultsMoveUITests`, both in `KeeForgeUITests/EntryEditUITests.swift`. The move gate itself: `testEntryRowMove...` in `DatabaseViewModelTests`.
-- Row menu: `EntryRowCopyUITests`, `EntryDuplicateUITests`. Editor: `EntryEditSmokeUITests`; its custom-field case covers moving and reopening, with the Mac counterpart in `MacSmokeUITests.testCustomFieldMoveControlsPersistOrder`. Tags shown on detail: `InheritedTagsUITests`.
+- Row menu: `EntryRowCopyUITests`, `EntryDuplicateUITests`. Editor: `EntryEditSmokeUITests`; its custom-field cases cover moving, protection toggles, and reopening, with counterparts in `MacSmokeUITests`. `ProtectedCustomFieldEditorAuthUITests` covers the reveal and protection-removal authentication gates. Tags shown on detail: `InheritedTagsUITests`.
 - Attachments: `EntryAttachmentsSmokeUITests` and `EntryAttachmentFileLoaderTests` (size budget). The system file picker is exercised by hand.
 - History: `EntryHistoryUITests` on iOS. The Mac shell is only captured, as `08b-entry-history` in `MacScreenshotAuditUITests`.
 - Held completion behind a save conflict: `SaveConflictMergeUITests`.

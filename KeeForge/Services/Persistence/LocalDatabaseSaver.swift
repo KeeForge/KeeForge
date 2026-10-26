@@ -96,6 +96,11 @@ enum LocalDatabaseSaver {
         var awaitsWriteBack = false
     }
 
+    enum ReplaceOutcome: Sendable, Equatable {
+        case replaced
+        case changed(currentData: Data)
+    }
+
     struct Environment: Sendable {
         var beginBackgroundTask: @MainActor @Sendable (String) -> BackgroundTaskHandle
         var endBackgroundTask: @MainActor @Sendable (BackgroundTaskHandle) -> Void
@@ -108,7 +113,10 @@ enum LocalDatabaseSaver {
         var writeBackup: @Sendable (Data, URL) throws -> Void
         var pruneBackups: @Sendable (DatabaseReference, Int) throws -> Void
         var now: @Sendable () -> Date
-        var replaceFileAtomically: @Sendable (Data, URL) throws -> Void
+        /// Replaces the file only while it still hashes to the expected
+        /// SHA-512 (nil: unconditionally), checked inside the same coordinated
+        /// write so no other coordinated writer can land in between.
+        var replaceFileAtomically: @Sendable (_ data: Data, _ url: URL, _ expectedSHA512: Data?) throws -> ReplaceOutcome
         var cacheDatabaseCopy: @Sendable (Data, DatabaseReference) throws -> Void
         var addPendingLocalSave: @Sendable (Data, DatabaseReference) throws -> PendingLocalSaveStore.PendingSave
         var removePendingLocalSave: @Sendable (PendingLocalSaveStore.PendingSave) -> Void
@@ -159,8 +167,8 @@ enum LocalDatabaseSaver {
                 try DatabaseListStore.pruneBackups(for: reference, keeping: count)
             },
             now: { .now },
-            replaceFileAtomically: { data, url in
-                try LocalDatabaseSaver.replaceFileAtomically(data, at: url)
+            replaceFileAtomically: { data, url, expectedSHA512 in
+                try LocalDatabaseSaver.replaceFileAtomically(data, at: url, expectedSHA512: expectedSHA512)
             },
             cacheDatabaseCopy: { data, reference in
                 try DatabaseListStore.cacheDatabaseCopy(data, for: reference)
@@ -297,7 +305,7 @@ enum LocalDatabaseSaver {
                 sequence: conflictSequence,
                 kdfPolicy: kdfPolicy
             )
-            try environment.replaceFileAtomically(currentData, location.url)
+            _ = try environment.replaceFileAtomically(currentData, location.url, nil)
         }
         let currentSHA512 = KDBXCrypto.sha512(currentData)
         guard baseline.covers(currentSHA512) else {
@@ -334,13 +342,21 @@ enum LocalDatabaseSaver {
         let pendingSave = location.awaitsWriteBack
             ? try environment.addPendingLocalSave(newData, reference)
             : nil
+        let replaceOutcome: ReplaceOutcome
         do {
-            try environment.replaceFileAtomically(newData, location.url)
+            replaceOutcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512)
         } catch {
             if let pendingSave {
                 environment.removePendingLocalSave(pendingSave)
             }
             throw error
+        }
+        // Another writer saved while this one encrypted; its bytes stay put.
+        if case .changed(let changedData) = replaceOutcome {
+            if let pendingSave {
+                environment.removePendingLocalSave(pendingSave)
+            }
+            return .conflict(remoteSHA512: KDBXCrypto.sha512(changedData), remoteData: changedData)
         }
         // When the save location already IS the cache file (a cloud reference
         // without a bookmark resolves straight to it), the replace above was
@@ -461,19 +477,20 @@ enum LocalDatabaseSaver {
         )
     }
 
-    private static func replaceFileAtomically(_ data: Data, at url: URL) throws {
+    private static func replaceFileAtomically(_ data: Data, at url: URL, expectedSHA512: Data?) throws -> ReplaceOutcome {
         let fileManager = FileManager.default
 
         var coordinatorError: NSError?
-        var result: Result<Void, Error>?
+        var result: Result<ReplaceOutcome, Error>?
 
-        let coordinator = NSFileCoordinator()
-        coordinator.coordinate(
-            writingItemAt: url,
-            options: .forReplacing,
-            error: &coordinatorError
-        ) { coordinatedURL in
+        func replace(readingURL: URL?, coordinatedURL: URL) {
             result = Result {
+                if let expectedSHA512, let readingURL {
+                    let onDiskData = try Data(contentsOf: readingURL)
+                    guard KDBXCrypto.sha512(onDiskData) == expectedSHA512 else {
+                        return .changed(currentData: onDiskData)
+                    }
+                }
                 let replacementDirectoryURL = try fileManager.url(
                     for: .itemReplacementDirectory,
                     in: .userDomainMask,
@@ -502,6 +519,30 @@ enum LocalDatabaseSaver {
                     try? fileManager.removeItem(at: tempURL)
                     throw error
                 }
+                return .replaced
+            }
+        }
+
+        let coordinator = NSFileCoordinator()
+        if expectedSHA512 != nil {
+            // `.forReplacing` alone tells a file provider the old contents are
+            // not needed, so the recheck read gets its own reading claim.
+            coordinator.coordinate(
+                readingItemAt: url,
+                options: [],
+                writingItemAt: url,
+                options: .forReplacing,
+                error: &coordinatorError
+            ) { readingURL, writingURL in
+                replace(readingURL: readingURL, coordinatedURL: writingURL)
+            }
+        } else {
+            coordinator.coordinate(
+                writingItemAt: url,
+                options: .forReplacing,
+                error: &coordinatorError
+            ) { coordinatedURL in
+                replace(readingURL: nil, coordinatedURL: coordinatedURL)
             }
         }
 
@@ -513,7 +554,7 @@ enum LocalDatabaseSaver {
             throw CocoaError(.fileWriteUnknown)
         }
 
-        try result.get()
+        return try result.get()
     }
 }
 

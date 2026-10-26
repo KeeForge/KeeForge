@@ -24,7 +24,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - An unlock attempt sets its outcome only while `finishUnlockAttempt` accepts its `prepareForUnlock()` token, so a late YubiKey answer or slow KDF cannot unlock behind a lock. The token is not `lockCycleID`, which paces biometric auto-unlock once per lock.
 - `secretAccess` ends on `lock`, every `lockRequest` (even one that unsaved work defers), backgrounding, and the start of each unlock attempt. An unlock that finishes in the background does not open it.
 - `isLockPending` is true from a deferred lock request, a window-close prompt, or Retry Save and Lock's write until the lock completes or is cancelled. The Mac SSH agent offers no key while it is set. `attachmentBytes(for:)` is the synchronous attachment read the agent uses; it moves the bytes off the main actor itself.
-- While Sync Now parses a fetched copy, `state` is `.unlocking` but `isReplacingWithSyncedCopy` keeps the session open to lock triggers; they must still lock.
+- While a conflict reload or Sync Now replaces the open tree, `state` is `.unlocking` but `isReplacingOpenDatabase` keeps the session open to lock triggers; they must still lock.
 - A YubiKey session (`sessionUsesHardwareKey`) is read-only: a save rotates the KDF salt and would need a fresh response. Quick Launch stores the pre-key, never the response-bearing composite key.
 - `DatabaseOpenFailure` diagnostics carry no file names, paths, or user data (`privacyNote`, `sanitized(_:)`). Hardware-key failures never count toward the lockout.
 
@@ -37,8 +37,10 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `save()` no-ops behind an in-flight save. An operation holding `isSaving` (rekey, re-encryption) flushes edits that landed behind it; `importEntries` refuses to start.
 - `syncCloudNow()` never discards unsaved work, never applies a response older than a save that finished mid-sync, never swaps a YubiKey session, and never pushes pending uploads.
 - A completion arriving while a save conflict is on screen is held by `EntryEditCompletionGate` until `isSettled`. Reporting it races the conflict alert, which presents from the editor, and loses the dismissal.
+- A successful new-entry save reports `.created` with its stable UUID; failed writes and unresolved conflicts report nothing, and Save and Lock keeps its ordinary completion without opening an entry.
 - `DatabaseEditorCoordinator` guards submission and completion by lock cycle, and completion also by editor lifetime, so an old save cannot close a new editor. A failed create keeps its entry UUID so a retry updates rather than duplicates.
 - `AppRoutingCoordinator` applies an Open/Close destination only after the source session locks; Keep Editing or a replaced source drops it.
+- Custom-icon management validates the live unlocked, writable session and refuses edits during saving or a conflict. Reads include the draft so a failed save retains visible names/deletions for retry.
 
 ### Selection, search, tags
 
@@ -55,6 +57,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 
 ### Stale completions and forms
 
+- Custom-field protection follows each editor row through rename and reorder. Payloads explicitly specify protection, preserving hidden credential metadata; reusing a former protected name does not protect a new row.
 - `EntryEditViewModel.additionalURLs` owns writable `KP2A_URL_<n>` rows. Empty or protected fields remain custom fields; a new row takes the first unused name, and `customFieldsOutsideURLRows(of:)` keeps the detail screen from listing a URL twice.
 - `EntryEditViewModel` keeps imported non-Base32 TOTP bytes through unrelated edits. Explicit URI enrollment replaces those bytes even when its Base32 text matches the old field's text; later period, digit, or algorithm edits may drop the verbatim URI but must not restore the old bytes.
 - `EntrySecretAction` and `AttachmentLoadCoordinator` publish only while the request and the caller's session check are current. Invalidation allows a fresh request without letting the old completion finish or clear it.

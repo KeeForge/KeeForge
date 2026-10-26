@@ -120,11 +120,18 @@ and on a failed or cancelled prompt, and is not extended by using it. Under the
 default lock policy, switching to another app does not lock and therefore does
 not end the period either; the strict policy ends it with the lock.
 
-The main app does not automatically raise Touch ID on activation.
-`BiometricAutoUnlockPolicy` requires explicit unlock on Mac because an active
-scene does not prove the user has returned to a foreground window. The AutoFill
-extension has its own foreground authentication flow and still honors
-`SettingsService.autoUnlockWithFaceID`.
+The opt-in Auto-Unlock with Touch ID setting prompts when a database opens in
+its foreground key window or the user returns to that window: app or window
+activation, or the screen unlocking or login session returning while KeeForge
+stays the active app. Those events, rather than scene phase or a new lock cycle,
+drive this flow. It needs Touch ID itself; an Apple Watch alone never prompts on
+its own, matching the setting, which appears only with Touch ID.
+The queued attempt rechecks the foreground window, eligibility, and lock cycle;
+a screen-lock, sleep, or other lock arriving first invalidates it. A manual lock
+stays locked until a later activation or an explicit unlock. Each lock cycle has
+at most one presented automatic prompt, so cancellation or password fallback does
+not immediately prompt again; either returns to the unlock form, not an error. The password form and explicit retry remain available.
+AutoFill continues to use the same preference for its own foreground flow.
 
 Quick unlock (#66) keeps one Keychain item per database. On the Mac its access
 control is `[.biometryCurrentSet, .or, .companion]`: Touch ID with the currently
@@ -133,8 +140,8 @@ enrolled fingerprints, or an authorized Apple Watch. It carries no
 release it. It stays `WhenUnlockedThisDeviceOnly` in the data-protection
 keychain and the shared access group; iPhone and iPad keep `.biometryCurrentSet`
 alone. The unlock screen's button evaluates
-`.deviceOwnerAuthenticationWithBiometricsOrCompanion` and is only ever an
-explicit action, never raised by a lock cycle.
+`.deviceOwnerAuthenticationWithBiometricsOrCompanion`; automatic foreground
+unlock uses that same policy and saved key.
 
 The item permits either mechanism, but AutoFill asks only for biometrics. It
 offers quick unlock only while Touch ID is available, evaluates

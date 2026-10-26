@@ -15,6 +15,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - `MacSmokeUITests` is the required local release smoke (`prepare-release` skill). Run one class per invocation.
 - `MacScreenshotAuditUITests` skips unless `TEST_RUNNER_SCREENSHOT_AUDIT=1` is set; `TEST_RUNNER_SCREENSHOT_AUDIT_DARK=1` switches its captures to dark. Both must be real environment variables on the `xcodebuild` process: a trailing `KEY=value` argument is a build-setting override that never reaches the runner, and the class skips silently.
 
+- Custom-icon management: `MacCustomIconManagementUITests` exercises rename, cancelled deletion, and confirmed deletion from the entry picker.
 - Restore entry/group context actions and split-view refresh: the restore cases in `MacSmokeUITests`. Shared policy and persistence remain unit-tested.
 
 ## Invariants
@@ -24,7 +25,8 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - `-key value` argument pairs can sit on either side of the bare `-ui-testing` flag: argument-domain parsing takes the next token as a flag's value only when it does not start with `-`.
 - `-ApplePersistenceIgnoreState YES` stays in the base launch. Without it state restoration can restore a session with no windows and no main window ever appears.
 - To capture the app's own windows, launch with `-KeeForge.blockScreenCapture NO`, placed as above. The app excludes its windows from capture by default, so a capture is blank or shows whatever is behind the app.
-- The reveal/copy device-owner gate is off under `-ui-testing`, because XCUITest cannot dismiss the system prompt. A boundary test launches with `UI_TEST_DEVICE_OWNER_AUTH_PENDING=1`, which re-arms the gate with an authentication that never completes. Without it, immediate disclosure reads as a leak.
+- Under `-ui-testing`, revealing or copying a protected value never asks for Touch ID or the login password: `BiometricService.canAuthenticateDeviceOwner` reports no device-owner authentication, so the gate is skipped, because XCUITest cannot answer the system prompt. A reveal that shows nothing in a test is therefore never a pending prompt; look for a click that missed. A boundary test launches with `UI_TEST_DEVICE_OWNER_AUTH_PENDING=1`, which re-arms the gate with an authentication that never completes. Without it, immediate disclosure reads as a leak.
+- `MacScreenshotAuditUITests` shrinks the main window to its minimum size, and macOS keeps that frame for later launches; `-ApplePersistenceIgnoreState` does not reset it. On a machine where the audit ran, later runs start in a minimum-size window.
 
 ### Queries
 
@@ -32,6 +34,10 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - Most SwiftUI `Text` reports through the AppKit `value` attribute with an empty `label`. Read text with `displayText(of:)` and wait with `waitForDisplayText(_:identifier:)`, which re-queries every pass: reading a property from an element a rebuilding view has replaced fails the test.
 - SwiftUI copies row identifiers onto zero-sized wrappers and stale navigation layers. Click only a hittable match with a real height, as the row helpers do.
 - Match a context-menu item as an enabled, hittable `menuItems` element, never `firstMatch` on its title. The menu bar holds disabled items with the same titles; `firstMatch` picks one, clicks nothing, and leaves the context menu open and the window modal.
+- A SwiftUI `Toggle` in a form is a switch, not a checkbox: query `app.switches` and read its state as a number (`value as? Int`), not the string iOS reports.
+- Scroll the scroll view that contains the target. `app.scrollViews.firstMatch` is usually the sidebar or a list, not the editor or entry detail, and scrolling it leaves the target where it was.
+- A control touching the window's bottom edge reports hittable, but a click there misses it. Scroll it clear of the edge first.
+- XCUITest drags do not move split-view dividers on macOS 27, so resizing a column is a manual check. Cover the width logic in a unit test.
 - Toolbar buttons, `lock.button` included, can collapse into the "more toolbar items" overflow, where they are menu items matched by label. Use `clickToolbarButton(identifier:overflowLabel:)`, and detect the unlocked state from vault rows as `waitForVaultToUnlock` does.
 - The Settings window reopens on the tab used last, which persists in the app's preferences across launches. Select the tab with `selectSettingsTab(named:)`; the `settings.tab.*` identifiers sit on tab content, not on the switching control.
 - Closing the last window locks the vault (`MacLockMonitor.Trigger.lastWindowClosed`). A test pressing Command-W must leave another window open.
