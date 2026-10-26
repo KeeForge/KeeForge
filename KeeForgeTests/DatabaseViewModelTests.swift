@@ -157,7 +157,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testBiometricUnlockOpensDatabaseWithTheStoredCompositeKey() async throws {
         let vm = try makeViewModel(
             biometricCompositeKeyOperation: { [fixturePassword] _, _ in
-                DatabaseViewModel.QuickUnlockKeys(
+                QuickUnlockKeys(
                     storedKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
                 )
             }
@@ -7491,7 +7491,7 @@ final class DatabaseViewModelTests: XCTestCase {
         },
         biometricCompositeKeyOperation: @escaping DatabaseViewModel.BiometricCompositeKeyOperation = { reference, reason in
             let context = try await BiometricService.authenticate(reason: reason)
-            return try DatabaseViewModel.retrieveQuickUnlockKeys(for: reference, context: context)
+            return try QuickUnlockKeychain.retrieve(for: reference, context: context)
         },
         pendingUploadRecovery: PendingUploadRecovery.Environment = .live,
         pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { reference in

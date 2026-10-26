@@ -608,7 +608,7 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
         let expressKey = try expressKey(for: data, compositeKey: compositeKey)
         let persisted = PersistedKeys()
         let vm = try makeViewModel(data: data, persisted: persisted) { _, _ in
-            DatabaseViewModel.QuickUnlockKeys(storedKey: compositeKey, expressKey: expressKey)
+            QuickUnlockKeys(storedKey: compositeKey, expressKey: expressKey)
         }
 
         let outcome = await vm.unlockWithBiometrics()
@@ -629,7 +629,7 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
         let changed = try resave(original, compositeKey: compositeKey)
         let persisted = PersistedKeys()
         let vm = try makeViewModel(data: changed, persisted: persisted) { _, _ in
-            DatabaseViewModel.QuickUnlockKeys(storedKey: compositeKey, expressKey: staleKey)
+            QuickUnlockKeys(storedKey: compositeKey, expressKey: staleKey)
         }
 
         let outcome = await vm.unlockWithBiometrics()
@@ -650,7 +650,7 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
         let damaged = ExpressUnlockKey(binding: binding, transformedKey: SymmetricKey(size: .bits256))
         let persisted = PersistedKeys()
         let vm = try makeViewModel(data: data, persisted: persisted) { _, _ in
-            DatabaseViewModel.QuickUnlockKeys(storedKey: compositeKey, expressKey: damaged)
+            QuickUnlockKeys(storedKey: compositeKey, expressKey: damaged)
         }
 
         let outcome = await vm.unlockWithBiometrics()
@@ -672,7 +672,7 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
         )
         let persisted = PersistedKeys()
         let vm = try makeViewModel(data: data, persisted: persisted) { _, _ in
-            DatabaseViewModel.QuickUnlockKeys(storedKey: oldKey, expressKey: oldExpressKey)
+            QuickUnlockKeys(storedKey: oldKey, expressKey: oldExpressKey)
         }
 
         let outcome = await vm.unlockWithBiometrics()
@@ -702,7 +702,7 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
             hardwareKey: HardwareKeyConfiguration(transport: .nfc, slot: .two),
             persisted: persisted,
             biometricKeys: { _, _ in
-                DatabaseViewModel.QuickUnlockKeys(storedKey: preKey, expressKey: workingExpressKey)
+                QuickUnlockKeys(storedKey: preKey, expressKey: workingExpressKey)
             },
             respond: { challenge, _ in
                 responderCalls += 1
@@ -734,7 +734,7 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
             hardwareKey: HardwareKeyConfiguration(transport: .nfc, slot: .two),
             persisted: persisted,
             biometricKeys: { _, _ in
-                DatabaseViewModel.QuickUnlockKeys(storedKey: preKey, expressKey: workingExpressKey)
+                QuickUnlockKeys(storedKey: preKey, expressKey: workingExpressKey)
             },
             respond: { _, _ in throw HardwareKeyError.timedOut }
         )
@@ -856,7 +856,7 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
             KeychainService.deleteCompositeKey(for: hardwareKeyReference.id)
         }
 
-        DatabaseViewModel.replaceExpressUnlockKey(with: Self.savedVersionKey, for: reference)
+        QuickUnlockKeychain.replaceExpressKey(with: Self.savedVersionKey, for: reference)
         XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: reference.id), "No quick-unlock item")
 
         for storedReference in [reference, hardwareKeyReference] {
@@ -866,12 +866,12 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
                 throw XCTSkip("Keychain writes are unavailable in the current test host: \(error)")
             }
         }
-        DatabaseViewModel.replaceExpressUnlockKey(with: Self.savedVersionKey, for: reference)
+        QuickUnlockKeychain.replaceExpressKey(with: Self.savedVersionKey, for: reference)
         XCTAssertTrue(KeychainService.hasExpressUnlockKey(for: reference.id))
-        DatabaseViewModel.replaceExpressUnlockKey(with: Self.savedVersionKey, for: hardwareKeyReference)
+        QuickUnlockKeychain.replaceExpressKey(with: Self.savedVersionKey, for: hardwareKeyReference)
         XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: hardwareKeyReference.id))
 
-        DatabaseViewModel.replaceExpressUnlockKey(with: nil, for: reference)
+        QuickUnlockKeychain.replaceExpressKey(with: nil, for: reference)
         XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: reference.id))
         XCTAssertTrue(KeychainService.hasStoredKey(for: reference.id), "Dropping the express item keeps quick unlock")
     }
@@ -979,9 +979,9 @@ private final class ExpressKeySaves {
 
 @MainActor
 private final class PersistedKeys {
-    private(set) var last: DatabaseViewModel.QuickUnlockKeys?
+    private(set) var last: QuickUnlockKeys?
 
-    func record(_ keys: DatabaseViewModel.QuickUnlockKeys) {
+    func record(_ keys: QuickUnlockKeys) {
         last = keys
     }
 }

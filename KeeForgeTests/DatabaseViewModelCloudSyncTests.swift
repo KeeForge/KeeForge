@@ -541,7 +541,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
             },
             biometricCompositeKeyOperation: { [fixturePassword] _, _ in
                 try await Self.waitUntil { syncStarted.value }
-                return DatabaseViewModel.QuickUnlockKeys(
+                return QuickUnlockKeys(
                     storedKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
                 )
             }

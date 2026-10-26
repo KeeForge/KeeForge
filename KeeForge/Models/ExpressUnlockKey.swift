@@ -122,7 +122,7 @@ enum ExpressUnlock {
         let usedCachedKey: Bool
     }
 
-    typealias KeyDerivation = (
+    typealias KeyDerivation = @Sendable (
         _ compositeKey: SymmetricKey,
         _ kdfParameters: [String: Any],
         _ kdfPolicy: KDFExecutionPolicy

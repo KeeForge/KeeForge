@@ -4,7 +4,8 @@
 
 ## Ownership
 
-- `KeychainService`: one quick-unlock item per database, shared with the AutoFill extension, plus the app's express-unlock item beside it.
+- `KeychainService`: one quick-unlock item per database, shared with the AutoFill extension, plus the express-unlock item beside it.
+- `QuickUnlockKeychain`: how the app and both AutoFill extensions read, write, and replace those two items. Neither side touches the express item through `KeychainService` directly.
 - `BiometricService`: every LocalAuthentication prompt. It also owns `isBiometricAuthInProgress`, which `../AppSupport/MacLockMonitor` reads.
 - `SecretAccessGate`: the device-owner gate and grace period in front of revealing or copying a protected value, one per database session (`DatabaseViewModel.secretAccess`). App targets only; AutoFill authenticates on its own and has no grace period.
 - `ScreenProtectionService`: both platforms' screen privacy behind `#if os(iOS)` / `#else`. The Mac design and its limits are in `../../../KeeForgeMac/SECURITY.md`.
@@ -16,7 +17,7 @@
 - `com.keevault.sharedkeychain` must stay FIRST in every target's `keychain-access-groups` (`KeeForge.entitlements`, `KeeForgeMac.entitlements`, `KeeForgeMacDirect.entitlements`, `AutoFillExtension.entitlements`, `AutoFillExtensionMac.entitlements`). `KeychainService` sets no `kSecAttrAccessGroup`, so its items land in the first listed group.
 - Reordering strands every stored quick-unlock key: the app and extension stop seeing each other's items. Today only the iOS app lists a second group (`com.microsoft.adalcache`, for MSAL); the rule holds for the single-group targets the moment a group is added.
 - Item naming is a compatibility boundary: service `com.keevault.app`, account `compositeKey:<database UUID>`, plus the legacy `compositeKey:<filename>` account that older installs still hold.
-- The express-unlock item (`expressUnlockKey:<database UUID>`) holds one file version's KDF output, from the app's last unlock or save of that database, and gets exactly the quick-unlock item's protection through the same `storeItem`. Storing or deleting the quick-unlock item by database ID deletes it first, so every key change (password unlock, rekey, AutoFill, hardware-key toggle, removal) drops it. A save writes it only beside a quick-unlock item holding the session's composite key, so it never opens a version that item could not. It is read only with the context that released the quick-unlock item and never prompts on its own; a failed read only costs the KDF. A hardware-key database never has one: it would open the vault without the YubiKey.
+- The express-unlock item (`expressUnlockKey:<database UUID>`) holds one file version's KDF output, from the last unlock (app or AutoFill) or app save of that database, and gets exactly the quick-unlock item's protection through the same `storeItem`. Storing or deleting the quick-unlock item by database ID deletes it first, so every key change (password unlock, rekey, AutoFill, hardware-key toggle, removal) drops it. A save writes it only beside a quick-unlock item holding the session's composite key, so it never opens a version that item could not. It is read only with the context that released the quick-unlock item and never prompts on its own; a failed read only costs the KDF. A hardware-key database never has one: it would open the vault without the YubiKey.
 - The item is `WhenUnlockedThisDeviceOnly` with `quickUnlockAccessControlFlags`: `.biometryCurrentSet` on iPhone and iPad, `[.biometryCurrentSet, .or, .companion]` (Touch ID or an authorized Apple Watch) on the Mac. No flag admits the passcode or Mac login password. Keep it in step with `BiometricService.quickUnlockPolicy`.
 - On the Mac a read uses a non-interactive context, so the caller's evaluated policy is the only prompt. Without that, the Keychain could raise a Watch prompt inside biometric-only AutoFill.
 - For a database with `DatabaseReference.hardwareKey`, the stored item is the pre-key (`KDBXCrypto.preKey`), never the composite key, so quick unlock still needs the YubiKey and no response is persisted. `DatabaseListStore.setHardwareKey` deletes the item whenever a hardware key is added or removed, because its meaning changes.
@@ -48,7 +49,7 @@
 
 ## Tests
 
-- `KeychainServiceTests` (express item lifetime and protection too), `KeychainMigrationTests`; `DatabaseViewModelExpressUnlockTests` for what an unlock reads and stores; `SecretAccessGateTests` with `EntrySecretActionTests` for the gate's callers.
+- `KeychainServiceTests` (express item lifetime and protection too), `KeychainMigrationTests`; `DatabaseViewModelExpressUnlockTests` for what an app unlock or save reads and stores, `CredentialProviderCoordinatorTests` for AutoFill's; `SecretAccessGateTests` with `EntrySecretActionTests` for the gate's callers.
 - `HardwareKeyUnlockTests` covers the unlock flow around `HardwareKeyService`; the NFC session itself has no unit coverage.
 - `PasskeyCryptoTests` (in `PasskeyTests.swift`) and `CredentialProviderRegistrationTests` for `PasskeyCrypto`.
 - Mac window covering is checked by hand (`../../../KeeForgeMac/SECURITY.md`); only the policy functions are unit-tested, in `SettingsServiceTests`.

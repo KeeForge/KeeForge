@@ -162,12 +162,15 @@ does not repeat the quick unlock. The next password unlock writes a fresh item. 
 `.biometryCurrentSet` alone. Touch ID still opens them, and the next unlock
 rewrites them with the combined policy.
 
-Beside that item the app keeps an express-unlock item: the KDF output of the
-database version it last opened or saved, bound to that version's KDF parameters
-and the composite key. It has the same access control and protection class, is read
-with the context that released the quick-unlock item and never prompts, and is
-deleted whenever the quick-unlock item is written or removed. A hardware-key
-database never gets one. Quick unlock of an unchanged file then skips the KDF.
+Beside that item sits an express-unlock item: the KDF output of the database
+version last opened by the app or AutoFill, or saved by the app, bound to that
+version's KDF parameters and the composite key. It has the same access control
+and protection class. The app and the AutoFill extension read it with the
+context that released the quick-unlock item, so it never prompts, and both
+write it back right after the quick-unlock item, whose every write or removal
+deletes it first. A hardware-key database never gets one. Quick unlock of an
+unchanged file then skips the KDF, in the app and in AutoFill; a key that does
+not open the file only costs the KDF.
 Every save rotates the KDF salt: an app save stores the saved version's key in
 its place, but only while the quick-unlock item holds the session's composite
 key. A save anywhere else leaves the item unmatched, so the next unlock runs the

@@ -406,14 +406,6 @@ final class DatabaseViewModel {
         _ reference: DatabaseReference,
         _ compositeKey: SymmetricKey
     ) async throws -> ReloadedDatabase
-    /// What quick unlock reads from, and an unlock writes back to, the
-    /// Keychain. `storedKey` is the composite key, or the pre-key for a
-    /// hardware-key database, which never has an `expressKey`.
-    struct QuickUnlockKeys: Sendable {
-        let storedKey: SymmetricKey
-        var expressKey: ExpressUnlockKey?
-    }
-
     /// Biometric authentication plus the keychain reads it gates, as one step:
     /// the `LAContext` that authorizes the reads never leaves the operation.
     typealias BiometricCompositeKeyOperation = @Sendable (
@@ -715,13 +707,13 @@ final class DatabaseViewModel {
                 reason: reason,
                 policy: BiometricService.quickUnlockPolicy
             )
-            return try DatabaseViewModel.retrieveQuickUnlockKeys(for: reference, context: context)
+            return try QuickUnlockKeychain.retrieve(for: reference, context: context)
         },
         quickUnlockKeyPersistOperation: @escaping QuickUnlockKeyPersistOperation = { keys, reference in
-            DatabaseViewModel.persistQuickUnlockKeys(keys, for: reference)
+            QuickUnlockKeychain.persist(keys, for: reference)
         },
         expressUnlockKeySaveOperation: @escaping ExpressUnlockKeySaveOperation = { key, reference in
-            DatabaseViewModel.replaceExpressUnlockKey(with: key, for: reference)
+            QuickUnlockKeychain.replaceExpressKey(with: key, for: reference)
         },
         pendingUploadMarkerCheck: @escaping PendingUploadMarkerCheck = { reference in
             PendingUploadQueue.listMarkers(for: reference.id).isEmpty == false
@@ -2658,7 +2650,8 @@ final class DatabaseViewModel {
         } catch {
             // A stale stored key would break biometric unlock outright; drop it
             // so unlock falls back to the new password. The legacy entry must
-            // go too — `retrieveStoredCompositeKey` falls back to it otherwise.
+            // go too — `QuickUnlockKeychain.retrieveStoredKey` falls back to
+            // it otherwise.
             storedKeyDeleteOperation(databaseReference)
             if let legacyFilename = databaseReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
@@ -4319,77 +4312,6 @@ final class DatabaseViewModel {
             canChooseDifferentFile: false,
             diagnostics: diagnostics
         )
-    }
-
-    static func persistQuickUnlockKeys(_ keys: QuickUnlockKeys, for reference: DatabaseReference) -> Bool {
-        // Silently skip when nothing could satisfy the item's access control:
-        // no enrolled biometrics (and, on the Mac, no authorized Apple Watch)
-        // is the common Mac desktop case. Password unlock stays primary,
-        // nothing is stored, no error is surfaced, and there are no retry
-        // loops. An existing Mac item is still refreshed; see
-        // `KeychainService.shouldStoreQuickUnlockKey`.
-        guard KeychainService.shouldStoreQuickUnlockKey(
-            for: reference.id,
-            legacyFilename: reference.legacyKeychainFilename
-        ) else { return false }
-
-        do {
-            try KeychainService.storeCompositeKey(keys.storedKey, for: reference.id)
-
-            if let legacyFilename = reference.legacyKeychainFilename {
-                KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
-                DatabaseListStore.clearLegacyKeychainFilename(for: reference.id)
-            }
-        } catch {
-            return false
-        }
-
-        // Written after the quick-unlock key, whose store just removed the
-        // previous express item.
-        if reference.hardwareKey == nil, let expressKey = keys.expressKey {
-            try? KeychainService.storeExpressUnlockKey(expressKey.serialized(), for: reference.id)
-        }
-        return true
-    }
-
-    /// The save rotated the KDF salt, so the item no longer opens the file.
-    /// It is replaced only while a quick-unlock item exists, which a user
-    /// who turned quick unlock off mid-session no longer has.
-    static func replaceExpressUnlockKey(with key: ExpressUnlockKey?, for reference: DatabaseReference) {
-        KeychainService.deleteExpressUnlockKey(for: reference.id)
-        guard let key,
-              reference.hardwareKey == nil,
-              KeychainService.hasStoredKey(for: reference.id) else { return }
-        try? KeychainService.storeExpressUnlockKey(key.serialized(), for: reference.id)
-    }
-
-    nonisolated static func retrieveQuickUnlockKeys(
-        for reference: DatabaseReference,
-        context: LAContext
-    ) throws -> QuickUnlockKeys {
-        let storedKey = try retrieveStoredCompositeKey(for: reference, context: context)
-        // A missing or unreadable express item only costs the KDF.
-        guard reference.hardwareKey == nil,
-              let payload = try? KeychainService.retrieveExpressUnlockKey(for: reference.id, context: context) else {
-            return QuickUnlockKeys(storedKey: storedKey)
-        }
-        return QuickUnlockKeys(storedKey: storedKey, expressKey: ExpressUnlockKey(serialized: payload))
-    }
-
-    nonisolated static func retrieveStoredCompositeKey(
-        for reference: DatabaseReference,
-        context: LAContext
-    ) throws -> SymmetricKey {
-        do {
-            return try KeychainService.retrieveCompositeKey(for: reference.id, context: context)
-        } catch {
-            guard KeychainService.isItemNotFound(error),
-                  let legacyFilename = reference.legacyKeychainFilename else {
-                throw error
-            }
-
-            return try KeychainService.retrieveLegacyCompositeKey(forFilename: legacyFilename, context: context)
-        }
     }
 
     private func refreshDatabaseReference() {

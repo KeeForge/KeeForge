@@ -261,6 +261,10 @@ final class CredentialProviderCoordinator {
     /// Stands in for the process's remaining memory so tests can drive the
     /// pre-flight in `loadEntries` without a device under real pressure.
     var memoryBudgetOverride: UInt64?
+
+    /// Stands in for the KDF so tests can tell an express unlock from one
+    /// that derived the key.
+    var keyDerivationOverride: ExpressUnlock.KeyDerivation?
     #endif
 
     #if os(iOS)
@@ -272,6 +276,19 @@ final class CredentialProviderCoordinator {
     /// process is gone by then.
     var copyToClipboard: @MainActor (String) -> Void = { ClipboardService.copy($0) }
     #endif
+
+    /// Biometric authentication plus the Keychain reads it gates, as one
+    /// step. Injectable so tests can drive quick unlock without a prompt.
+    var biometricQuickUnlockKeys: @MainActor (DatabaseReference, String) async throws -> QuickUnlockKeys = { reference, reason in
+        let context = try await BiometricService.authenticate(reason: reason)
+        return try QuickUnlockKeychain.retrieve(for: reference, context: context)
+    }
+
+    /// Writes an unlock's keys back and returns whether the quick-unlock item
+    /// now holds the stored key. Injectable so tests can observe the write.
+    var persistQuickUnlockKeys: @MainActor (QuickUnlockKeys, DatabaseReference) -> Bool = { keys, reference in
+        QuickUnlockKeychain.persist(keys, for: reference)
+    }
 
     /// Save environment for the passkey-registration flow; injectable so unit
     /// tests can record the save and drive the conflict/error paths.
@@ -590,15 +607,18 @@ final class CredentialProviderCoordinator {
             }
             do {
                 guard let self, self.isRequestActive(generation) else { return }
-                let context = try await BiometricService.authenticate(reason: String(localized: "AutoFill with KeeForge"))
-                let compositeKey = try self.retrieveCompositeKey(for: databaseReference, context: context)
-                try await self.loadEntries(
-                    compositeKey: compositeKey,
+                let keys = try await self.biometricQuickUnlockKeys(databaseReference, String(localized: "AutoFill with KeeForge"))
+                let expressKey = try await self.loadEntries(
+                    compositeKey: keys.storedKey,
+                    cachedExpressKey: keys.expressKey,
                     databaseReference: databaseReference,
                     generation: generation
                 )
                 guard self.isRequestActive(generation) else { return }
-                self.persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                self.persistQuickUnlockKeysIfPossible(
+                    QuickUnlockKeys(storedKey: keys.storedKey, expressKey: expressKey),
+                    for: databaseReference
+                )
                 self.recordSuccessfulUnlock(for: databaseReference)
                 let passwordEntries = self.parsedEntries.filter { $0.hasPassword && !$0.isExpired() }
 
@@ -781,15 +801,18 @@ final class CredentialProviderCoordinator {
             }
             do {
                 guard let self, self.isRequestActive(generation) else { return }
-                let context = try await BiometricService.authenticate(reason: String(localized: "Passkey sign-in with KeeForge"))
-                let compositeKey = try self.retrieveCompositeKey(for: databaseReference, context: context)
-                try await self.loadEntries(
-                    compositeKey: compositeKey,
+                let keys = try await self.biometricQuickUnlockKeys(databaseReference, String(localized: "Passkey sign-in with KeeForge"))
+                let expressKey = try await self.loadEntries(
+                    compositeKey: keys.storedKey,
+                    cachedExpressKey: keys.expressKey,
                     databaseReference: databaseReference,
                     generation: generation
                 )
                 guard self.isRequestActive(generation) else { return }
-                self.persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                self.persistQuickUnlockKeysIfPossible(
+                    QuickUnlockKeys(storedKey: keys.storedKey, expressKey: expressKey),
+                    for: databaseReference
+                )
                 self.recordSuccessfulUnlock(for: databaseReference)
                 try self.completePasskeyRequest(request)
             } catch {
@@ -1146,13 +1169,17 @@ final class CredentialProviderCoordinator {
         guard databaseReference.hardwareKey == nil else { throw HardwareKeyUnavailableError() }
         let keyFileData = try loadAssociatedKeyFileData(for: databaseReference)
         let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
-        try await loadEntries(
+        let expressKey = try await loadEntries(
             compositeKey: compositeKey,
+            cachedExpressKey: nil,
             databaseReference: databaseReference,
             generation: generation
         )
         guard isRequestActive(generation) else { return }
-        persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+        persistQuickUnlockKeysIfPossible(
+            QuickUnlockKeys(storedKey: compositeKey, expressKey: expressKey),
+            for: databaseReference
+        )
         recordSuccessfulUnlock(for: databaseReference)
         afterUnlock()
     }
@@ -1161,18 +1188,22 @@ final class CredentialProviderCoordinator {
         databaseReference: DatabaseReference,
         generation: Int
     ) async throws {
-        let context = try await BiometricService.authenticate(reason: String(localized: "Unlock KeeForge for AutoFill"))
-        AutoFillDiagnostics.log("biometric auth ok")
-        let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
-        AutoFillDiagnostics.log("composite key retrieved")
-        try await loadEntries(
-            compositeKey: compositeKey,
+        // Its stored key is a pre-key that still needs the YubiKey.
+        guard databaseReference.hardwareKey == nil else { throw HardwareKeyUnavailableError() }
+        let keys = try await biometricQuickUnlockKeys(databaseReference, String(localized: "Unlock KeeForge for AutoFill"))
+        AutoFillDiagnostics.log("biometric auth ok, express key \(keys.expressKey != nil)")
+        let expressKey = try await loadEntries(
+            compositeKey: keys.storedKey,
+            cachedExpressKey: keys.expressKey,
             databaseReference: databaseReference,
             generation: generation
         )
         guard isRequestActive(generation) else { return }
         AutoFillDiagnostics.log("unlock ok entries=\(parsedEntries.count)")
-        persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+        persistQuickUnlockKeysIfPossible(
+            QuickUnlockKeys(storedKey: keys.storedKey, expressKey: expressKey),
+            for: databaseReference
+        )
         recordSuccessfulUnlock(for: databaseReference)
         afterUnlock()
     }
@@ -1277,41 +1308,16 @@ final class CredentialProviderCoordinator {
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
     }
 
-    private func persistCompositeKeyIfPossible(_ compositeKey: SymmetricKey, for databaseReference: DatabaseReference) {
-        guard KeychainService.shouldStoreQuickUnlockKey(
-            for: databaseReference.id,
-            legacyFilename: databaseReference.legacyKeychainFilename
-        ) else { return }
-
-        do {
-            try KeychainService.storeCompositeKey(compositeKey, for: databaseReference.id)
-            if let legacyFilename = databaseReference.legacyKeychainFilename {
-                KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
-                DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
-                // Re-read the pinned reference by id so the in-session copy
-                // drops the just-deleted legacy keychain filename. The active
-                // pointer may legitimately be a different database now that
-                // requests resolve their owning database, so it must not be
-                // consulted here.
-                activeDatabaseReference = DatabaseListStore.databases.first { $0.id == databaseReference.id }
-                    ?? databaseReference
-            }
-        } catch {
-            return
-        }
-    }
-
-    private func retrieveCompositeKey(for databaseReference: DatabaseReference, context: LAContext) throws -> SymmetricKey {
-        do {
-            return try KeychainService.retrieveCompositeKey(for: databaseReference.id, context: context)
-        } catch {
-            guard KeychainService.isItemNotFound(error),
-                  let legacyFilename = databaseReference.legacyKeychainFilename else {
-                throw error
-            }
-
-            return try KeychainService.retrieveLegacyCompositeKey(forFilename: legacyFilename, context: context)
-        }
+    private func persistQuickUnlockKeysIfPossible(_ keys: QuickUnlockKeys, for databaseReference: DatabaseReference) {
+        guard persistQuickUnlockKeys(keys, databaseReference),
+              databaseReference.legacyKeychainFilename != nil else { return }
+        // The store dropped the legacy item. Re-read the pinned reference by
+        // id so the in-session copy drops its legacy keychain filename too.
+        // The active pointer may legitimately be a different database now
+        // that requests resolve their owning database, so it must not be
+        // consulted here.
+        activeDatabaseReference = DatabaseListStore.databases.first { $0.id == databaseReference.id }
+            ?? databaseReference
     }
 
     private func loadAssociatedKeyFileData(for databaseReference: DatabaseReference) throws -> Data? {
@@ -1334,11 +1340,15 @@ final class CredentialProviderCoordinator {
         #endif
     }
 
+    /// Returns the opened version's express-unlock key, to store beside the
+    /// quick-unlock key. A cached key that does not open the file only costs
+    /// the KDF.
     private func loadEntries(
         compositeKey: SymmetricKey,
+        cachedExpressKey: ExpressUnlockKey?,
         databaseReference: DatabaseReference,
         generation: Int
-    ) async throws {
+    ) async throws -> ExpressUnlockKey? {
         let loaded = try await loadDatabaseData(for: databaseReference)
         let data = loaded.data
         try AutoFillMemoryLimit.check(
@@ -1346,13 +1356,20 @@ final class CredentialProviderCoordinator {
             remainingBytes: remainingMemoryBytes
         )
         let key = SymmetricKey(size: .bits256)
+        // A hardware-key database never takes part: an express key would open
+        // it without the YubiKey.
+        let usesExpressUnlock = databaseReference.hardwareKey == nil
+        let cachedKey = usesExpressUnlock ? cachedExpressKey : nil
+        let deriveKey = keyDerivation
 
         let parsed = try await Task.detached {
-            try KDBXParser.parseWithMetaAndHeader(
+            try ExpressUnlock.parse(
                 data: data,
                 compositeKey: compositeKey,
+                cachedKey: cachedKey,
                 sessionKey: key,
-                kdfPolicy: .autoFillExtension
+                kdfPolicy: .autoFillExtension,
+                deriveKey: deriveKey
             )
         }.value
 
@@ -1372,6 +1389,16 @@ final class CredentialProviderCoordinator {
             excludingGroupID: parsed.rootGroup.recycleBinUUID
         )
         parsedEntries = offerableEntries.filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
+        return usesExpressUnlock ? parsed.keyToStore : nil
+    }
+
+    private var keyDerivation: ExpressUnlock.KeyDerivation {
+        #if DEBUG
+        if let keyDerivationOverride {
+            return keyDerivationOverride
+        }
+        #endif
+        return { try KDBXParser.deriveKey(compositeKey: $0, kdfParams: $1, kdfPolicy: $2) }
     }
 
     private var remainingMemoryBytes: UInt64 {
@@ -2264,15 +2291,18 @@ final class CredentialProviderCoordinator {
             }
             do {
                 guard let self, self.isRequestActive(generation) else { return }
-                let context = try await BiometricService.authenticate(reason: String(localized: "AutoFill with KeeForge"))
-                let compositeKey = try self.retrieveCompositeKey(for: databaseReference, context: context)
-                try await self.loadEntries(
-                    compositeKey: compositeKey,
+                let keys = try await self.biometricQuickUnlockKeys(databaseReference, String(localized: "AutoFill with KeeForge"))
+                let expressKey = try await self.loadEntries(
+                    compositeKey: keys.storedKey,
+                    cachedExpressKey: keys.expressKey,
                     databaseReference: databaseReference,
                     generation: generation
                 )
                 guard self.isRequestActive(generation) else { return }
-                self.persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                self.persistQuickUnlockKeysIfPossible(
+                    QuickUnlockKeys(storedKey: keys.storedKey, expressKey: expressKey),
+                    for: databaseReference
+                )
                 self.recordSuccessfulUnlock(for: databaseReference)
 
                 if #available(iOS 18.0, macOS 15.0, *) {

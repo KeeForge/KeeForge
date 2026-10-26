@@ -484,7 +484,7 @@ final class HardwareKeyUnlockTests: XCTestCase {
             databaseReference: reference,
             biometricCompositeKeyOperation: { _, _ in
                 guard let biometricKey else { throw KeychainService.KeychainError.retrieveFailed(errSecItemNotFound) }
-                return DatabaseViewModel.QuickUnlockKeys(storedKey: biometricKey)
+                return QuickUnlockKeys(storedKey: biometricKey)
             },
             hardwareKeyResponseOperation: respond,
             hardwareKeyTransportsProvider: { transports }

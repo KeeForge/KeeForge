@@ -689,7 +689,7 @@ final class AutoLockTests: XCTestCase {
                     Self.endAuthenticationPrompt(appCenter)
                     appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
                 }
-                return DatabaseViewModel.QuickUnlockKeys(
+                return QuickUnlockKeys(
                     storedKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
                 )
             }
