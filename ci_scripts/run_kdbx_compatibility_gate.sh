@@ -173,6 +173,7 @@ password_checks_verified = 0
 totp_checks_verified = 0
 custom_field_checks_verified = 0
 expiry_checks_verified = 0
+metadata_checks_verified = 0
 entry_path_cache = {}
 
 TOTP_HASHES = {"SHA1": hashlib.sha1, "SHA256": hashlib.sha256, "SHA512": hashlib.sha512}
@@ -301,6 +302,58 @@ def verify_expiries(xml, expectations):
             raise ValueError(f"{title}: ExpiryTime is {actual.isoformat()}, expected {expected['expiryTime']}")
 
 
+def find_unique_group(root, name):
+    matches = [group for group in root.iter("Group") if group.findtext("Name") == name]
+    if len(matches) != 1:
+        raise ValueError(f"expected exactly one group named {name!r}, found {len(matches)}")
+    return matches[0]
+
+
+def verify_metadata(xml, artifact):
+    # KDBX 4.1 metadata KeeForge writes: custom-icon names, deleted icons,
+    # Recycle Bin restore references, and where a restored entry landed.
+    root = ET.fromstring(xml)
+    icons = {
+        (icon.findtext("UUID") or "").strip(): icon
+        for icon in root.findall("Meta/CustomIcons/Icon")
+    }
+    checks = 0
+    for expected in artifact.get("expectedCustomIcons", []):
+        icon = icons.get(expected["uuid"])
+        if not expected["isPresent"]:
+            if icon is not None:
+                raise ValueError(f"deleted custom icon {expected['uuid']} is still present")
+        elif icon is None:
+            raise ValueError(f"custom icon {expected['uuid']} is missing")
+        elif expected.get("name") is not None:
+            # XML parsing normalizes a literal CR to LF, as for custom fields.
+            exported_name = expected["name"].replace("\r\n", "\n").replace("\r", "\n")
+            if (icon.findtext("Name") or "") != exported_name:
+                raise ValueError(f"custom icon {expected['uuid']}: Name is {icon.findtext('Name')!r}")
+        checks += 1
+    for expected in artifact.get("expectedRestoreReferences", []):
+        if expected["isGroup"]:
+            item = find_unique_group(root, expected["title"])
+        else:
+            item = find_live_entry(root, expected["title"])
+        parent = find_unique_group(root, expected["parentGroupName"])
+        if (item.findtext("PreviousParentGroup") or "").strip() != (parent.findtext("UUID") or "").strip():
+            raise ValueError(f"{expected['title']}: PreviousParentGroup does not name {expected['parentGroupName']!r}")
+        checks += 1
+    for expected in artifact.get("expectedEntryParents", []):
+        parent = find_unique_group(root, expected["parentGroupName"])
+        titles = [
+            item.findtext("Value")
+            for entry in parent.findall("Entry")
+            for item in entry.findall("String")
+            if item.findtext("Key") == "Title"
+        ]
+        if expected["entryTitle"] not in titles:
+            raise ValueError(f"{expected['entryTitle']!r} is not in {expected['parentGroupName']!r}")
+        checks += 1
+    return checks
+
+
 for artifact in artifacts:
     artifact_id = artifact["id"]
     db_path = first_existing_file(artifact["fileName"])
@@ -425,6 +478,17 @@ for artifact in artifacts:
             else:
                 expiry_checks_verified += len(expiries)
 
+    if any(artifact.get(key) for key in ("expectedCustomIcons", "expectedRestoreReferences", "expectedEntryParents")):
+        command = [keepassxc_cli, "export", *base_options, "-f", "xml", db_path]
+        result = run_keepassxc(command, artifact["password"])
+        if result.returncode != 0:
+            failures.append(f"{artifact_id}: XML export failed\nstderr: {result.stderr}")
+        else:
+            try:
+                metadata_checks_verified += verify_metadata(result.stdout, artifact)
+            except (ET.ParseError, ValueError) as error:
+                failures.append(f"{artifact_id}: {error}")
+
     # Protected values: prove an external opener can decrypt what KeeForge
     # wrote into the inner random stream. Searching by title and listing groups
     # only exercises plaintext XML, so an inner-stream implementation that is
@@ -524,13 +588,18 @@ if expiry_checks_verified == 0:
     print("error: no expiry checks ran — the expiration artifacts lost their expectations", file=sys.stderr)
     sys.exit(1)
 
+if metadata_checks_verified == 0:
+    print("error: no icon or restore-reference checks ran — the artifacts lost their expectations", file=sys.stderr)
+    sys.exit(1)
+
 print(
     f"KDBX compatibility gate passed for {len(artifacts)} artifacts "
     f"({attachment_checks_verified} attachment checks, "
     f"{password_checks_verified} protected-password checks, "
     f"{totp_checks_verified} TOTP checks, "
     f"{custom_field_checks_verified} custom-field/history checks, "
-    f"{expiry_checks_verified} expiry checks verified)."
+    f"{expiry_checks_verified} expiry checks, "
+    f"{metadata_checks_verified} icon/restore-reference checks verified)."
 )
 
 PY

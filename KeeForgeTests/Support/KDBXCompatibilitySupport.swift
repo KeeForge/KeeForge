@@ -263,6 +263,9 @@ enum KDBXCompatibilitySupport {
         var encryptionSettings: ((LoadedFixture) throws -> EncryptionSettingsChange)?
         var expectedCustomFields: [ArtifactManifest.ExpectedCustomFields] = []
         var expectedExpiries: [ArtifactManifest.ExpectedExpiry] = []
+        var expectedCustomIcons: [ArtifactManifest.ExpectedCustomIcon] = []
+        var expectedRestoreReferences: [ArtifactManifest.ExpectedRestoreReference] = []
+        var expectedEntryParents: [ArtifactManifest.ExpectedEntryParent] = []
         /// Set by scenarios that attach a file: the pool may then only grow,
         /// keeping every entry it had byte for byte at the same index.
         var appendsToBinaryPool = false
@@ -429,6 +432,28 @@ enum KDBXCompatibilitySupport {
             let expiryTime: String
         }
 
+        /// A `Meta/CustomIcons` icon as the external opener's XML export must
+        /// show it: present with this KDBX 4.1 `<Name>`, or gone.
+        struct ExpectedCustomIcon: Codable {
+            /// KDBX base64 UUID.
+            let uuid: String
+            let name: String?
+            let isPresent: Bool
+        }
+
+        /// A recycled entry's or group's `<PreviousParentGroup>`, named by the
+        /// group it points at.
+        struct ExpectedRestoreReference: Codable {
+            let title: String
+            let isGroup: Bool
+            let parentGroupName: String
+        }
+
+        struct ExpectedEntryParent: Codable {
+            let entryTitle: String
+            let parentGroupName: String
+        }
+
         struct Artifact: Codable {
             let id: String
             let fileName: String
@@ -441,6 +466,9 @@ enum KDBXCompatibilitySupport {
             var expectedTOTPs: [ExpectedTOTP] = []
             var expectedCustomFields: [ExpectedCustomFields] = []
             var expectedExpiries: [ExpectedExpiry] = []
+            var expectedCustomIcons: [ExpectedCustomIcon] = []
+            var expectedRestoreReferences: [ExpectedRestoreReference] = []
+            var expectedEntryParents: [ExpectedEntryParent] = []
         }
 
         /// Every artifact id the suite is expected to emit, repeated in every
@@ -521,6 +549,7 @@ enum KDBXCompatibilitySupport {
         "custom-field-edits",
         "set-entry-expiry",
         "change-entry-expiry",
+        "restore-foreign-recycled-entry",
         "create-group",
         "hide-group-from-autofill",
         "change-group-icon",
@@ -666,6 +695,7 @@ enum KDBXCompatibilitySupport {
     static let scenarioIDsWithoutPasswordExpectations: Set<String> = [
         "set-entry-expiry",
         "change-entry-expiry",
+        "restore-foreign-recycled-entry",
         "create-group",
         "hide-group-from-autofill",
         "change-group-icon",
@@ -752,6 +782,7 @@ enum KDBXCompatibilitySupport {
             "custom-field-edits",
             "set-entry-expiry",
             "change-entry-expiry",
+            "restore-foreign-recycled-entry",
             "create-group",
             "hide-group-from-autofill",
             "change-group-icon",
@@ -1015,6 +1046,13 @@ enum KDBXCompatibilitySupport {
                 }
                 return (draft.rootGroup, draft.meta)
             },
+            expectedCustomIcons: [
+                .init(
+                    uuid: uuid.kdbxBase64String,
+                    name: deleting ? nil : "Website & <Icon> 🗝\rName",
+                    isPresent: !deleting
+                ),
+            ],
             assertChange: { before, after, _ in
                 let entryID = try XCTUnwrap(before.entryID(titled: "Compat Untouched Entry"))
                 try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
@@ -1528,6 +1566,68 @@ enum KDBXCompatibilitySupport {
     /// included, the way KeePass and KeePassXC do. Changing the expiry has to
     /// rewrite those two elements where they stand and leave
     /// `<LastAccessTime>`, `<UsageCount>`, and the rest byte-identical.
+    /// `kitchen-sink`'s `Trashed Login` carries a pykeepass-written
+    /// `<PreviousParentGroup>` pointing at `Plain Group`, and `Meta/CustomIcons`
+    /// carries a second icon with a foreign KDBX 4.1 `<Name>` and
+    /// `<LastModificationTime>`. Restoring to the original group and deleting
+    /// the other icon must leave that icon untouched.
+    static let kitchenSinkCustomIconUUID = UUID(uuidString: "4D9C2B1E-7A35-4E68-9B0D-52F16C8A3E77")!
+    static let kitchenSinkNamedIconUUID = UUID(uuidString: "6B1F0E3A-2C4D-4E5F-8A9B-0C1D2E3F4A5B")!
+    static let kitchenSinkNamedIconName = "Foreign Named Icon"
+
+    static func restoreForeignRecycledEntryScenario() -> Scenario {
+        Scenario(
+            id: "restore-foreign-recycled-entry",
+            title: "Restore a foreign recycled entry to its original group and delete another icon",
+            artifactFileName: "kitchen-sink-restore-foreign-recycled-entry.kdbx",
+            expectedSearchTerms: ["Trashed Login"],
+            expectedGroupPaths: ["Plain Group"],
+            makeMergedTree: { loaded in
+                let trashed = try XCTUnwrap(findEntry(titled: "Trashed Login", in: loaded.rootGroup))
+                let plainGroup = try XCTUnwrap(findGroup(named: "Plain Group", in: loaded.rootGroup))
+                let originalParent = try XCTUnwrap(PreviousParentGroupXML.parentID(in: trashed.unknownXML))
+                XCTAssertEqual(originalParent, plainGroup.id, "Fixture precondition: the restore reference names Plain Group")
+                let badge = try XCTUnwrap(findEntry(titled: "Custom Badge", in: loaded.rootGroup))
+                let draft = try DatabaseDraft(
+                    rootGroup: loaded.rootGroup,
+                    meta: loaded.meta,
+                    sessionKey: loaded.sessionKey,
+                    binaryPoolFields: loaded.header.innerHeaderBinaryFields
+                )
+                .apply(.restoreEntry(entryID: trashed.id, destinationGroupID: originalParent))
+                .apply(.setEntryIcon(entryID: badge.id, icon: .standard(iconID: 0)))
+                .apply(.deleteCustomIcon(iconUUID: kitchenSinkCustomIconUUID))
+                return (draft.rootGroup, draft.meta)
+            },
+            expectedCustomIcons: [
+                .init(uuid: kitchenSinkNamedIconUUID.kdbxBase64String, name: kitchenSinkNamedIconName, isPresent: true),
+                .init(uuid: kitchenSinkCustomIconUUID.kdbxBase64String, name: nil, isPresent: false),
+            ],
+            expectedEntryParents: [.init(entryTitle: "Trashed Login", parentGroupName: "Plain Group")],
+            assertChange: { before, after, _ in
+                let trashedID = try XCTUnwrap(before.entryID(titled: "Trashed Login"))
+                let badgeID = try XCTUnwrap(before.entryID(titled: "Custom Badge"))
+                let plainGroupID = try XCTUnwrap(after.groupID(named: "Plain Group"))
+                let binID = try XCTUnwrap(after.meta.recycleBinUUID)
+                XCTAssertTrue(try XCTUnwrap(after.groups[plainGroupID]).entryIDs.contains(trashedID))
+                XCTAssertFalse(try XCTUnwrap(after.groups[binID]).entryIDs.contains(trashedID))
+                try assertUnchangedEntries(before: before, after: after, excluding: [trashedID, badgeID])
+
+                let named = kitchenSinkNamedIconUUID
+                XCTAssertEqual(before.meta.customIconNames[named], kitchenSinkNamedIconName, "Fixture precondition")
+                XCTAssertEqual(after.meta.customIcons[named], before.meta.customIcons[named])
+                XCTAssertEqual(after.meta.customIconNames[named], kitchenSinkNamedIconName)
+                XCTAssertNotNil(CustomIconXML.modificationTime(of: named, in: before.meta.unknownXML), "Fixture precondition")
+                XCTAssertEqual(
+                    CustomIconXML.modificationTime(of: named, in: after.meta.unknownXML),
+                    CustomIconXML.modificationTime(of: named, in: before.meta.unknownXML)
+                )
+                XCTAssertNil(after.meta.customIcons[kitchenSinkCustomIconUUID])
+                XCTAssertTrue(after.meta.deletedObjects.contains { $0.uuid == kitchenSinkCustomIconUUID })
+            }
+        )
+    }
+
     static func changeEntryExpiryScenario() -> Scenario {
         Scenario(
             id: "change-entry-expiry",
@@ -2057,6 +2157,9 @@ enum KDBXCompatibilitySupport {
             ArtifactDescriptor(fixture: .kitchenSink, scenario: changeEntryExpiryScenario())
         )
         descriptors.append(
+            ArtifactDescriptor(fixture: .kitchenSink, scenario: restoreForeignRecycledEntryScenario())
+        )
+        descriptors.append(
             ArtifactDescriptor(fixture: .syntheticRich, scenario: keeOTPArtifactScenario())
         )
         descriptors.append(
@@ -2268,7 +2371,10 @@ enum KDBXCompatibilitySupport {
                     expectedPasswords: try KDBXCompatibilitySupport.expectedPasswords(forScenarioID: scenario.id),
                     expectedTOTPs: try KDBXCompatibilitySupport.expectedTOTPs(forScenarioID: scenario.id),
                     expectedCustomFields: scenario.expectedCustomFields,
-                    expectedExpiries: scenario.expectedExpiries
+                    expectedExpiries: scenario.expectedExpiries,
+                    expectedCustomIcons: scenario.expectedCustomIcons,
+                    expectedRestoreReferences: scenario.expectedRestoreReferences,
+                    expectedEntryParents: scenario.expectedEntryParents
                 )
             )
         }
@@ -3026,6 +3132,9 @@ private extension KDBXCompatibilitySupport {
                 let entry = try XCTUnwrap(findEntry(titled: "Compat Soft Delete Target", in: loaded.rootGroup))
                 return .deleteEntry(entryID: entry.id, sendToRecycleBin: true)
             },
+            expectedRestoreReferences: [
+                .init(title: "Compat Soft Delete Target", isGroup: false, parentGroupName: "Compatibility Root"),
+            ],
             assertChange: { before, after, _ in
                 let entryID = try XCTUnwrap(before.entryID(titled: "Compat Soft Delete Target"))
                 // The recycled entry is exempt only because recycling is a
@@ -3084,6 +3193,9 @@ private extension KDBXCompatibilitySupport {
                 let group = try XCTUnwrap(findGroup(named: "Compat Group Delete Target", in: loaded.rootGroup))
                 return .deleteGroup(groupID: group.id, sendToRecycleBin: true)
             },
+            expectedRestoreReferences: [
+                .init(title: "Compat Group Delete Target", isGroup: true, parentGroupName: "Compatibility Root"),
+            ],
             assertChange: { before, after, _ in
                 let groupID = try XCTUnwrap(before.groupID(named: "Compat Group Delete Target"))
                 try assertUnchangedEntries(before: before, after: after)

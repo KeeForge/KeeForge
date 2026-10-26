@@ -161,12 +161,16 @@ enum KDBXWriter {
 
     /// The lowest KDBX 4 minor version that can represent this tree.
     ///
-    /// Group tags and custom-icon names require KDBX 4.1.
+    /// Group tags, Recycle Bin restore references, and custom-icon names
+    /// require KDBX 4.1.
     private static func requiredMinorVersion(for rootGroup: KPGroup, meta: KPMeta) -> UInt16 {
-        func carriesTagsElement(_ group: KPGroup) -> Bool {
-            group.hasTagsElement || !group.tags.isEmpty || group.groups.contains(where: carriesTagsElement)
+        func requiresVersion41(_ group: KPGroup) -> Bool {
+            group.hasTagsElement || !group.tags.isEmpty
+                || PreviousParentGroupXML.isPresent(in: group.unknownXML)
+                || group.entries.contains { PreviousParentGroupXML.isPresent(in: $0.unknownXML) }
+                || group.groups.contains(where: requiresVersion41)
         }
-        return carriesTagsElement(rootGroup) || !meta.customIconNames.isEmpty
+        return requiresVersion41(rootGroup) || !meta.customIconNames.isEmpty
             || CustomIconXML.requiresVersion41(meta.unknownXML) ? 1 : 0
     }
 

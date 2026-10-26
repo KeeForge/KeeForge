@@ -894,7 +894,7 @@ struct DatabaseDraft: Sendable {
         let timestamp = Date.now
         var recycledEntry = entryLocation.entry
         recycledEntry.locationChanged = timestamp
-        recycledEntry.unknownXML = PreviousParentGroupXML.setting(entryLocation.groupPath.last, in: recycledEntry.unknownXML)
+        recycledEntry.unknownXML = PreviousParentGroupXML.setting(entryLocation.groupPath.last, on: recycledEntry)
 
         switch recycleBinTarget(in: rootWithoutEntry, meta: currentMetaStorage) {
         case .existing(let recycleBinPath):
@@ -970,7 +970,7 @@ struct DatabaseDraft: Sendable {
         // and keeps its own timestamps.
         let timestamp = Date.now
         let recycledGroup = copyGroup(groupLocation.group, locationChanged: timestamp)
-        recycledGroup.unknownXML = PreviousParentGroupXML.setting(groupLocation.parentPath.last, in: recycledGroup.unknownXML)
+        recycledGroup.unknownXML = PreviousParentGroupXML.setting(groupLocation.parentPath.last, on: recycledGroup)
 
         switch recycleBinTarget(in: rootWithoutGroup, meta: currentMetaStorage) {
         case .existing(let recycleBinPath):

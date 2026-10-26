@@ -1,7 +1,28 @@
 import Foundation
 
 /// KeePass's optional recovery reference stays opaque so unrelated edits preserve it.
+/// It is a KDBX 4.1 element; `KDBXWriter` raises the header to 4.1 when a tree carries one.
 enum PreviousParentGroupXML {
+    static func isPresent(in nodes: OpaqueXMLNodes) -> Bool {
+        nodes.nodes.contains { $0.path.isEmpty && $0.elementName == "PreviousParentGroup" }
+    }
+
+    /// Sets the entry's reference where KeePass writes it, just before `<Times>`.
+    static func setting(_ parentID: UUID?, on entry: KPEntry) -> OpaqueXMLNodes {
+        let hasTags = entry.hasTagsElement || !entry.tags.isEmpty
+        return setting(parentID, in: entry.unknownXML, newInsertionIndex: 2 + (hasTags ? 1 : 0))
+    }
+
+    /// Sets the group's reference where KeePass writes it, just before `<Tags>`.
+    /// The count follows `KDBXXMLSerializer.serializeGroup`'s child order.
+    static func setting(_ parentID: UUID?, on group: KPGroup) -> OpaqueXMLNodes {
+        let hasNotes = group.hasNotesElement || !group.notes.isEmpty
+        let hasTimes = group.creationTime != nil || group.lastModificationTime != nil
+            || group.locationChanged != nil || group.unknownXML.nodes.contains { $0.path == ["Times"] }
+        let index = 4 + (hasNotes ? 1 : 0) + (hasTimes ? 1 : 0) + (group.searchingEnabled != nil ? 1 : 0)
+        return setting(parentID, in: group.unknownXML, newInsertionIndex: index)
+    }
+
     static func parentID(in nodes: OpaqueXMLNodes) -> UUID? {
         let references = nodes.nodes.filter { $0.path.isEmpty && $0.elementName == "PreviousParentGroup" }
         guard references.count == 1, let reference = references.first else { return nil }
@@ -16,11 +37,11 @@ enum PreviousParentGroupXML {
                            bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
     }
 
-    static func setting(_ parentID: UUID?, in nodes: OpaqueXMLNodes) -> OpaqueXMLNodes {
+    static func setting(_ parentID: UUID?, in nodes: OpaqueXMLNodes, newInsertionIndex: Int) -> OpaqueXMLNodes {
         guard let parentID else { return nodes }
         var updated = nodes
         let index = nodes.nodes.first { $0.path.isEmpty && $0.elementName == "PreviousParentGroup" }?.insertionIndex
-            ?? nodes.maxInsertionIndex()
+            ?? newInsertionIndex
         updated.removeDirectChildren(named: "PreviousParentGroup")
         updated.append(xml: "<PreviousParentGroup>\(parentID.kdbxBase64String)</PreviousParentGroup>", insertionIndex: index)
         return updated
