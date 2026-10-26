@@ -17,6 +17,7 @@ struct KeeForgeApp: App {
     @State private var macLockMonitor = MacLockMonitor()
     @State private var macWindowCloseGuard = MacWindowCloseGuard()
     @State private var macQuickAccess = MacQuickAccessController()
+    @State private var macSSHAgent = MacSSHAgentController()
     #else
     @State private var appSettingsPresentation = AppSettingsPresentation()
     #endif
@@ -39,6 +40,7 @@ struct KeeForgeApp: App {
         Settings {
             SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
                 .environment(macQuickAccess)
+                .environment(macSSHAgent)
                 .tint(appAccentColor)
                 .preferredColorScheme(appearanceMode.preferredColorScheme)
         }
@@ -89,7 +91,8 @@ struct KeeForgeApp: App {
         .frame(minWidth: 900, minHeight: 620)
         .focusedSceneValue(\.databaseViewModel, activeDatabaseViewModel)
         .environment(macQuickAccess)
-        .modifier(MacQuickAccessMainWindowHookup(controller: macQuickAccess, activeSession: activeDatabaseViewModel))
+        .environment(macSSHAgent)
+        .modifier(MacQuickAccessMainWindowHookup(controller: macQuickAccess, sshAgent: macSSHAgent, activeSession: activeDatabaseViewModel))
         #else
         // App-owned Settings sheet (⌘, / the Mac-compat toolbar gear),
         // above the root so it survives the lock/unlock root swap.
@@ -228,6 +231,9 @@ struct KeeForgeApp: App {
         macWindowCloseGuard.start()
 
         macQuickAccess.start()
+
+        macSSHAgent.sessionProvider = { activeViewModel.wrappedValue }
+        macSSHAgent.start()
         #endif
     }
 
@@ -246,6 +252,7 @@ struct KeeForgeApp: App {
 /// only exists inside a scene.
 private struct MacQuickAccessMainWindowHookup: ViewModifier {
     let controller: MacQuickAccessController
+    let sshAgent: MacSSHAgentController
     let activeSession: DatabaseViewModel?
     @Environment(\.openWindow) private var openWindow
 
@@ -259,6 +266,7 @@ private struct MacQuickAccessMainWindowHookup: ViewModifier {
             }
             .onChange(of: activeSession.map(ObjectIdentifier.init), initial: true) {
                 controller.activeSession = activeSession
+                sshAgent.activeSessionDidChange()
             }
     }
 }
