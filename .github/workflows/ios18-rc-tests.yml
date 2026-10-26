@@ -22,6 +22,11 @@ on:
     tags:
       - 'rc/*'
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Tag or commit to test, such as an rc/* tag (defaults to the dispatched ref)'
+        required: false
+        default: ''
 
 concurrency:
   group: ios18-rc-${{ github.ref }}
@@ -32,15 +37,17 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.deleted == false
     runs-on: macos-15
     # Full unit + UI suites on a single (non-parallel) runner run longer than
-    # Xcode Cloud's 4-way-parallel RC run and can approach two hours on a
-    # loaded runner, so keep finite headroom above that.
-    timeout-minutes: 180
+    # Xcode Cloud's 4-way-parallel RC run; v1.20.0 passed three hours, so keep
+    # headroom below the hosted runner's six-hour limit.
+    timeout-minutes: 330
     env:
       SCHEME: KeeForge
       PROJECT: KeeForge.xcodeproj
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Select Xcode
         run: |
