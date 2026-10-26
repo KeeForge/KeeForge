@@ -550,6 +550,10 @@ final class DatabaseViewModel {
     /// trigger tears the editor down and drops the typing with no prompt.
     private var unsavedEditorIDs: Set<UUID> = []
     private(set) var cloudSyncProgress: Double?
+    /// The open sync whose progress may reach `cloudSyncProgress`. A callback
+    /// from a sync running behind an unfinished prompt, or queued after its
+    /// sync was applied, carries another ID and is dropped.
+    @ObservationIgnored private var visibleCloudSyncProgressID: UUID?
     private(set) var cloudSyncBannerText: String?
     /// The open used the cached copy without checking the cloud (manual sync
     /// policy), and no Sync Now has reached the provider since.
@@ -1120,11 +1124,15 @@ final class DatabaseViewModel {
             let hardwareKey = databaseReference.hardwareKey
             // The cloud round trip needs no key, so it overlaps the prompt. A
             // failed prompt cancels it before its result reaches the session.
-            async let prefetchedCloudResolution = prefetchCloudCopyForOpen()
+            let prefetchProgressID = UUID()
+            async let prefetchedCloudResolution = prefetchCloudCopyForOpen(progressID: prefetchProgressID)
             let quickUnlockKeys = try await biometricCompositeKeyOperation(
                 databaseReference,
                 String(localized: "Unlock your password database")
             )
+            if activeUnlockAttempt == attempt {
+                visibleCloudSyncProgressID = prefetchProgressID
+            }
             let storedKey = quickUnlockKeys.storedKey
             let readResult = try await readDatabaseData(
                 prefetchedCloudResolution: prefetchedCloudResolution
@@ -2181,6 +2189,7 @@ final class DatabaseViewModel {
         pendingUploadMergeFailure = nil
         pendingLockRequest = nil
         unsavedEditorIDs.removeAll()
+        visibleCloudSyncProgressID = nil
         cloudSyncProgress = nil
         cloudSyncBannerText = nil
         resetCloudSyncStatus()
@@ -4169,6 +4178,7 @@ final class DatabaseViewModel {
         pendingLockRequest = nil
         unlockedMeta = nil
         binaryPool = nil
+        visibleCloudSyncProgressID = nil
         cloudSyncProgress = nil
         unlockStatusMessage = databaseReference.isCloudBacked
             ? Self.syncStatusMessage(for: databaseReference)
@@ -4405,17 +4415,26 @@ final class DatabaseViewModel {
 
     /// Contacts the provider without touching session state, so a caller can
     /// start it early and drop the result. nil for a local database.
-    private func prefetchCloudCopyForOpen() async throws -> CloudSyncResolution? {
+    /// Its progress shows only once `visibleCloudSyncProgressID` is set to
+    /// `progressID`.
+    private func prefetchCloudCopyForOpen(progressID: UUID) async throws -> CloudSyncResolution? {
         guard databaseReference.isCloudBacked else { return nil }
-        return try await syncCloudCopyForOpen()
+        return try await syncCloudCopyForOpen(progressID: progressID)
     }
 
-    private func syncCloudCopyForOpen() async throws -> CloudSyncResolution {
+    private func syncCloudCopyForOpen(progressID: UUID) async throws -> CloudSyncResolution {
         try await cloudSyncOperation(databaseReference) { progress in
             Task { @MainActor in
+                guard self.visibleCloudSyncProgressID == progressID else { return }
                 self.cloudSyncProgress = progress
             }
         }
+    }
+
+    private func syncCloudCopyForOpenShowingProgress() async throws -> CloudSyncResolution {
+        let progressID = UUID()
+        visibleCloudSyncProgressID = progressID
+        return try await syncCloudCopyForOpen(progressID: progressID)
     }
 
     private func readDatabaseData(
@@ -4425,8 +4444,9 @@ final class DatabaseViewModel {
             let resolution = if let prefetchedCloudResolution {
                 prefetchedCloudResolution
             } else {
-                try await syncCloudCopyForOpen()
+                try await syncCloudCopyForOpenShowingProgress()
             }
+            visibleCloudSyncProgressID = nil
             cloudSyncProgress = nil
             cloudSyncBannerText = resolution.bannerMessage
             resetCloudSyncStatus()
