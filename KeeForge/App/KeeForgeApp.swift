@@ -1141,9 +1141,6 @@ struct UnsavedChangesBanner: View {
 
 struct CloudSyncControls: View {
     @Bindable var viewModel: DatabaseViewModel
-    /// Where a header places `CloudSyncWarningLine` below these controls, the
-    /// warning moves there and the status icon only shows the other states.
-    var showsWarningIcon = true
     @State private var isShowingDetails = false
 
     static func isVisible(for viewModel: DatabaseViewModel) -> Bool {
@@ -1185,27 +1182,25 @@ struct CloudSyncControls: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if showsWarningIcon || CloudSyncWarningLine.isVisible(for: viewModel) == false {
-                Button {
-                    isShowingDetails.toggle()
-                } label: {
-                    if viewModel.isSyncingCloud {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Image(systemName: Self.showsWarning(for: viewModel) ? "exclamationmark.triangle.fill" : "info.circle")
-                            .foregroundStyle(Self.showsWarning(for: viewModel) ? Color.yellow : Color.secondary)
-                    }
+            Button {
+                isShowingDetails.toggle()
+            } label: {
+                if viewModel.isSyncingCloud {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: Self.showsWarning(for: viewModel) ? "exclamationmark.triangle.fill" : "info.circle")
+                        .foregroundStyle(Self.showsWarning(for: viewModel) ? Color.yellow : Color.secondary)
                 }
-                .frame(minWidth: 44, minHeight: 44)
-                .buttonStyle(.plain)
-                .accessibilityLabel("Cloud Sync")
-                .accessibilityValue(Self.title(for: viewModel))
-                .macHelp(String(localized: "Cloud Sync"))
-                .accessibilityIdentifier("database.cloud-sync-status.details")
-                .popover(isPresented: $isShowingDetails) {
-                    CloudSyncDetails(viewModel: viewModel) { isShowingDetails = false }
-                }
+            }
+            .frame(minWidth: 44, minHeight: 44)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Cloud Sync")
+            .accessibilityValue(Self.title(for: viewModel))
+            .macHelp(String(localized: "Cloud Sync"))
+            .accessibilityIdentifier("database.cloud-sync-status.details")
+            .popover(isPresented: $isShowingDetails) {
+                CloudSyncDetails(viewModel: viewModel) { isShowingDetails = false }
             }
 
             Button {
@@ -1214,8 +1209,8 @@ struct CloudSyncControls: View {
                 }
             } label: {
                 #if os(iOS)
-                // The iPhone header's title beside these controls is the view
-                // menu, so a long translation gives way to an icon instead.
+                // A long translation gives way to an icon where the bar
+                // beside it is narrow, as in a compact iPad toolbar.
                 ViewThatFits(in: .horizontal) {
                     Text("Sync Now")
                     Image(systemName: "arrow.triangle.2.circlepath")
@@ -1233,44 +1228,6 @@ struct CloudSyncControls: View {
         .accessibilityIdentifier("database.cloud-sync-status")
     }
 
-}
-
-/// The compact header's warning: the sync problem as a line of text under the
-/// title, opening the same details as the status icon.
-struct CloudSyncWarningLine: View {
-    @Bindable var viewModel: DatabaseViewModel
-    @State private var isShowingDetails = false
-
-    static func isVisible(for viewModel: DatabaseViewModel) -> Bool {
-        viewModel.isSyncingCloud == false && CloudSyncControls.showsWarning(for: viewModel)
-    }
-
-    var body: some View {
-        if Self.isVisible(for: viewModel) {
-            Button {
-                isShowingDetails.toggle()
-            } label: {
-                Label {
-                    Text(CloudSyncControls.title(for: viewModel))
-                        .foregroundStyle(.secondary)
-                } icon: {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(Color.yellow)
-                }
-                .font(.footnote)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Cloud Sync")
-            .accessibilityValue(CloudSyncControls.title(for: viewModel))
-            .accessibilityIdentifier("database.cloud-sync-status.details")
-            .popover(isPresented: $isShowingDetails) {
-                CloudSyncDetails(viewModel: viewModel) { isShowingDetails = false }
-            }
-        }
-    }
 }
 
 private struct CloudSyncDetails: View {

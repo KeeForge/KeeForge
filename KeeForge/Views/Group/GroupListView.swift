@@ -326,7 +326,7 @@ struct GroupListView: View {
                                         HStack(spacing: 6) {
                                             Text(mode.title)
                                             Image(systemName: "chevron.down")
-                                                .font(.caption.weight(.semibold))
+                                                .font(.title3.weight(.semibold))
                                                 .accessibilityHidden(true)
                                         }
                                         .foregroundStyle(Color.primary)
@@ -335,14 +335,16 @@ struct GroupListView: View {
                                     Text(group.name)
                                 }
                                 Spacer(minLength: 0)
-                                CloudSyncControls(viewModel: view.viewModel, showsWarningIcon: false)
-                                    .layoutPriority(-1)
                             }
-                            .font(.title2.bold())
+                            // The size of the large title local databases get,
+                            // so switching databases does not resize it.
+                            .font(.largeTitle.bold())
                             .lineLimit(1)
 
-                            CloudSyncWarningLine(viewModel: view.viewModel)
-                                .padding(.bottom, 8)
+                            HStack {
+                                Spacer(minLength: 0)
+                                CloudSyncControls(viewModel: view.viewModel)
+                            }
                         }
                         .padding(.horizontal, 16)
                         .background(Color(.systemBackground))
