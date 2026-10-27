@@ -1,4 +1,5 @@
 import CryptoKit
+import LocalAuthentication
 import XCTest
 @testable import KeeForge
 
@@ -98,6 +99,21 @@ final class QuickUnlockPasswordIntervalTests: XCTestCase {
         XCTAssertTrue(QuickUnlockKeychain.expireIfDue(reference))
         XCTAssertFalse(KeychainService.hasStoredKey(for: databaseID))
         XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: databaseID))
+    }
+
+    func testRetrieveSpendsTheAuthenticatedContext() {
+        let reference = DatabaseReference(
+            id: databaseID, nickname: nil, filename: "Spent.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false,
+            lastOpenedAt: nil, addedAt: .now, colorTag: nil, legacyKeychainFilename: nil
+        )
+        let context = LAContext()
+
+        XCTAssertThrowsError(try QuickUnlockKeychain.retrieve(for: reference, context: context))
+
+        var error: NSError?
+        XCTAssertFalse(context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error))
+        XCTAssertEqual(error?.code, LAError.invalidContext.rawValue)
     }
 
     private func isDue(_ interval: SettingsService.QuickUnlockPasswordInterval, at now: Date) -> Bool {
