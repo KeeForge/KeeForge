@@ -33,10 +33,48 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     /// otherwise a leftover value silently changes an unrelated test's meaning.
     private func resetAutoFillSettings() {
         let sharedDefaults = AppGroupContainer.defaults
+        sharedDefaults.removeObject(forKey: "KeeForge.passwordGeneratorOptions")
         sharedDefaults.removeObject(forKey: "KeeForge.quickAutoFillEnabled")
         sharedDefaults.removeObject(forKey: "KeeForge.autoFillCopyTOTP")
         sharedDefaults.removeObject(forKey: "KeeForge.autoUnlockWithFaceID")
     }
+
+    #if os(iOS)
+    @available(iOS 26.2, *)
+    func testGeneratePassphraseUsesSavedOptionsForSilentAndInteractiveRequests() throws {
+        SettingsService.passwordGeneratorOptions = .init(mode: .passphrase, wordCount: 7, separator: "::")
+        let request = ASGeneratePasswordsRequest(
+            serviceIdentifier: githubServiceIdentifier(),
+            passwordFieldPasswordRules: nil,
+            confirmPasswordFieldPasswordRules: nil,
+            passwordRulesFromQuirks: nil
+        )
+        let (coordinator, presenter) = makeCoordinator()
+        coordinator.performWithoutUserInteraction(generatePasswordsRequest: request)
+        let silent = try XCTUnwrap(presenter.completedGeneratedPasswords?.first)
+        XCTAssertEqual(silent.components(separatedBy: "::").count, 7)
+        XCTAssertNil(coordinator.sessionKey)
+
+        presenter.completedGeneratedPasswords = nil
+        coordinator.prepareInterface(for: request)
+        coordinator.presentationDidBecomeActive()
+        var prompt = try XCTUnwrap(presenter.generatedPasswordPrompt)
+        XCTAssertEqual(prompt.password.components(separatedBy: "::").count, 7)
+        prompt.onRegenerate()
+        prompt = try XCTUnwrap(presenter.generatedPasswordPrompt)
+        XCTAssertEqual(prompt.password.components(separatedBy: "::").count, 7)
+        prompt.onUse()
+        XCTAssertEqual(presenter.completedGeneratedPasswords, [prompt.password])
+        XCTAssertNil(coordinator.sessionKey)
+
+        presenter.completedGeneratedPasswords = nil
+        coordinator.prepareInterface(for: request)
+        coordinator.presentationDidBecomeActive()
+        try XCTUnwrap(presenter.generatedPasswordPrompt).onCancel()
+        XCTAssertNil(presenter.completedGeneratedPasswords)
+        XCTAssertEqual(presenter.cancelledError?.code, .userCanceled)
+    }
+    #endif
 
     func test_oldURLAdditionCallback_doesNotCancelReplacementRequest() throws {
         let (coordinator, presenter) = makeCoordinator()

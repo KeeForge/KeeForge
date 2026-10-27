@@ -66,6 +66,16 @@ struct AcknowledgmentsView: View {
             #endif
 
             Section {
+                Text(effWordlistNotice)
+                    .font(.caption)
+                    .monospaced()
+            } header: {
+                Text("EFF's Long Wordlist")
+            } footer: {
+                Text("Creative Commons Attribution 4.0 International (CC BY 4.0)")
+            }
+
+            Section {
                 Text(publicSuffixListNotice)
                     .font(.caption)
                     .monospaced()
@@ -189,6 +199,17 @@ struct AcknowledgmentsView: View {
         LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION \
         OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION \
         WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+        """
+
+    private let effWordlistNotice = """
+        EFF's Long Wordlist, by Joseph Bonneau and the Electronic Frontier \
+        Foundation.
+        https://www.eff.org/dice
+        https://www.eff.org/files/2016/07/18/eff_large_wordlist.txt
+
+        Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+
+        The wordlist file is distributed unchanged. EFF does not endorse KeeForge.
         """
 
     private let publicSuffixListNotice = """

@@ -105,6 +105,21 @@ final class CredentialProviderPickerCreationTests: XCTestCase {
         )
     }
 
+    func test_createEntryAction_generatesPassphraseUsingSavedOptions() throws {
+        let previous = SettingsService.passwordGeneratorOptions
+        defer { SettingsService.passwordGeneratorOptions = previous }
+        SettingsService.passwordGeneratorOptions = .init(mode: .passphrase, wordCount: 5, separator: ".")
+        let (coordinator, presenter) = makeCoordinator()
+        seedPickerState(coordinator, reference: makeLocalReference())
+        coordinator.presentPasswordMatchesOrFinish()
+        try XCTUnwrap(presenter.searchView?.onCreateEntry)()
+        let password = try XCTUnwrap(presenter.entryCreator).initialDraft.password
+        let words = password.components(separatedBy: ".")
+        XCTAssertEqual(words.count, 5)
+        XCTAssertTrue(words.allSatisfy(Set(PasswordGenerator.passphraseWords).contains))
+        try XCTUnwrap(presenter.entryCreator).onCancel()
+    }
+
     func test_createEntryAction_showsTheGroupTheEntryWillBeSavedTo() throws {
         let (coordinator, presenter) = makeCoordinator()
         seedPickerState(coordinator, reference: makeLocalReference())
