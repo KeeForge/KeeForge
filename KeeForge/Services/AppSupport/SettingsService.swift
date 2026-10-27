@@ -120,14 +120,17 @@ enum SettingsService {
     // MARK: - Quick Unlock Password Interval
 
     /// How long quick unlock keeps working after the master key was last
-    /// entered for a database. `QuickUnlockKeychain` enforces it.
+    /// entered for a database. `QuickUnlockKeychain` enforces it; `.always`
+    /// keeps no unlock key at all.
     enum QuickUnlockPasswordInterval: String, CaseIterable, Sendable {
+        case always
         case fourteenDays
         case thirtyDays
         case never
 
         var duration: TimeInterval? {
             switch self {
+            case .always: 0
             case .fourteenDays: 14 * 24 * 60 * 60
             case .thirtyDays: 30 * 24 * 60 * 60
             case .never: nil
@@ -136,6 +139,7 @@ enum SettingsService {
 
         var title: String {
             switch self {
+            case .always: String(localized: "Always")
             case .fourteenDays: String(localized: "Every 14 Days")
             case .thirtyDays: String(localized: "Every 30 Days")
             case .never: String(localized: "Never")

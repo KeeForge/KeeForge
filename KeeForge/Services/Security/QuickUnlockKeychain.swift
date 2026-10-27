@@ -41,6 +41,10 @@ enum QuickUnlockKeychain {
     /// starts it for an item stored before the interval existed.
     @discardableResult
     static func persist(_ keys: QuickUnlockKeys, for reference: DatabaseReference, masterKeyEntered: Bool) -> Bool {
+        guard SettingsService.quickUnlockPasswordInterval != .always else {
+            expireIfDue(reference)
+            return false
+        }
         // Silently skip when nothing could satisfy the item's access control:
         // no enrolled biometrics (and, on the Mac, no authorized Apple Watch)
         // is the common Mac desktop case. Password unlock stays primary,
@@ -96,6 +100,7 @@ enum QuickUnlockKeychain {
         now: Date = .now,
         in defaults: UserDefaults = AppGroupContainer.defaults
     ) -> Bool {
+        if interval == .always { return true }
         guard let duration = interval.duration,
               let enteredAt = defaults.dictionary(forKey: masterKeyEntriesKey)?[databaseID.uuidString] as? Date else {
             return false
@@ -113,6 +118,14 @@ enum QuickUnlockKeychain {
             KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
         }
         return true
+    }
+
+    /// After the interval was shortened or set to `.always`, so saved keys
+    /// that are now due go at once rather than at their next use.
+    static func expireDueKeys() {
+        for reference in DatabaseListStore.databases {
+            expireIfDue(reference)
+        }
     }
 
     /// After a save, which rotated the KDF salt so the item no longer opens

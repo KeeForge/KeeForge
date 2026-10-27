@@ -58,6 +58,15 @@ final class QuickUnlockPasswordIntervalTests: XCTestCase {
         XCTAssertFalse(isDue(.fourteenDays, at: now), "Entering the master key restarts the interval")
     }
 
+    /// Always keeps no saved key, so it is due whether or not an unlock has
+    /// ever recorded an entry.
+    func testAlwaysIsDueWithAndWithoutAnEntry() {
+        XCTAssertTrue(isDue(.always, at: .now))
+
+        QuickUnlockKeychain.recordMasterKeyEntry(for: databaseID, at: .now, in: defaults)
+        XCTAssertTrue(isDue(.always, at: .now))
+    }
+
     func testAClockSetBackPastTheIntervalCountsAsDue() {
         let now = Date.now
         QuickUnlockKeychain.recordMasterKeyEntry(for: databaseID, at: now.addingTimeInterval(15 * day), in: defaults)
@@ -96,6 +105,32 @@ final class QuickUnlockPasswordIntervalTests: XCTestCase {
 
         QuickUnlockKeychain.recordMasterKeyEntry(for: databaseID, at: .now.addingTimeInterval(-15 * day))
         XCTAssertTrue(QuickUnlockKeychain.expireIfDue(reference))
+        XCTAssertFalse(KeychainService.hasStoredKey(for: databaseID))
+        XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: databaseID))
+    }
+
+    func testAlwaysDeletesFreshKeysAndRefusesToStoreNew() throws {
+        let reference = DatabaseReference(
+            id: databaseID, nickname: nil, filename: "Always.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false,
+            lastOpenedAt: nil, addedAt: .now, colorTag: nil, legacyKeychainFilename: nil
+        )
+        do {
+            try KeychainService.storeCompositeKey(SymmetricKey(size: .bits256), for: databaseID)
+            try KeychainService.storeExpressUnlockKey(Data(repeating: 1, count: 65), for: databaseID)
+        } catch {
+            throw XCTSkip("Keychain writes are unavailable in the current test host: \(error)")
+        }
+        QuickUnlockKeychain.recordMasterKeyEntry(for: databaseID)
+        SettingsService.quickUnlockPasswordInterval = .always
+
+        let stored = QuickUnlockKeychain.persist(
+            QuickUnlockKeys(storedKey: SymmetricKey(size: .bits256)),
+            for: reference,
+            masterKeyEntered: true
+        )
+
+        XCTAssertFalse(stored)
         XCTAssertFalse(KeychainService.hasStoredKey(for: databaseID))
         XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: databaseID))
     }
