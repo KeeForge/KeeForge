@@ -316,9 +316,10 @@ struct GroupListView: View {
                 content
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar(removing: .title)
+                    .refreshable { await view.viewModel.syncCloudNow() }
                     .safeAreaInset(edge: .top, spacing: 0) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            HStack(spacing: 8) {
+                        HStack(spacing: 8) {
+                            Group {
                                 if view.viewModel.searchText.isEmpty == false {
                                     Text("Search")
                                 } else if let mode = view.rootViewMode {
@@ -334,18 +335,17 @@ struct GroupListView: View {
                                 } else if let group = view.resolvedGroup {
                                     Text(group.name)
                                 }
-                                Spacer(minLength: 0)
                             }
                             // The size of the large title local databases get,
                             // so switching databases does not resize it.
                             .font(.largeTitle.bold())
                             .lineLimit(1)
 
-                            HStack {
-                                Spacer(minLength: 0)
-                                CloudSyncControls(viewModel: view.viewModel)
-                            }
+                            CloudSyncStatusBadge(viewModel: view.viewModel)
+                            Spacer(minLength: 0)
                         }
+                        // Keeps the header one height whether or not the badge shows.
+                        .frame(minHeight: 44)
                         .padding(.horizontal, 16)
                         .background(Color(.systemBackground))
                     }

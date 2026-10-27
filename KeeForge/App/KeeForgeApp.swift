@@ -1230,8 +1230,43 @@ struct CloudSyncControls: View {
 
 }
 
+/// The compact header's sync status beside the title: nothing while the
+/// database is in sync, a spinner while it syncs, and a warning that opens the
+/// details with Sync Now. Pull to refresh syncs at any time.
+struct CloudSyncStatusBadge: View {
+    @Bindable var viewModel: DatabaseViewModel
+    @State private var isShowingDetails = false
+
+    var body: some View {
+        if viewModel.isSyncingCloud {
+            ProgressView()
+                .controlSize(.small)
+                .accessibilityLabel("Cloud Sync")
+                .accessibilityValue(CloudSyncControls.title(for: viewModel))
+                .accessibilityIdentifier("database.cloud-sync-status.progress")
+        } else if CloudSyncControls.showsWarning(for: viewModel) {
+            Button {
+                isShowingDetails.toggle()
+            } label: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.title2)
+                    .foregroundStyle(Color.yellow)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Cloud Sync")
+            .accessibilityValue(CloudSyncControls.title(for: viewModel))
+            .accessibilityIdentifier("database.cloud-sync-status.details")
+            .popover(isPresented: $isShowingDetails) {
+                CloudSyncDetails(viewModel: viewModel, showsSyncNow: true) { isShowingDetails = false }
+            }
+        }
+    }
+}
+
 private struct CloudSyncDetails: View {
     @Bindable var viewModel: DatabaseViewModel
+    var showsSyncNow = false
     let close: () -> Void
 
     private var lastSyncedAt: Date? {
@@ -1255,11 +1290,22 @@ private struct CloudSyncDetails: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Button("Dismiss") {
-                viewModel.dismissCloudSyncOutcome()
-                close()
+            HStack(spacing: 16) {
+                if showsSyncNow {
+                    Button("Sync Now") {
+                        close()
+                        Task { await viewModel.syncCloudNow() }
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(viewModel.canSyncCloudNow == false)
+                    .accessibilityIdentifier("database.cloud-sync-now")
+                }
+                Button("Dismiss") {
+                    viewModel.dismissCloudSyncOutcome()
+                    close()
+                }
+                .accessibilityIdentifier("database.cloud-sync-status.dismiss")
             }
-            .accessibilityIdentifier("database.cloud-sync-status.dismiss")
         }
         .fixedSize(horizontal: false, vertical: true)
         .frame(width: 260, alignment: .leading)

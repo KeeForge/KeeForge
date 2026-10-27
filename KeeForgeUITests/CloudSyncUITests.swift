@@ -114,10 +114,13 @@ final class CloudUnlockSmokeUITests: CloudSyncBaseUITests {
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
     }
 
-    func testCompactSyncDetailsAndRepeatedSync() {
+    func testCompactSyncWarningOffersSyncNowAndPullToRefreshSyncs() {
         unlockSuccessfully()
-        let sync = app.buttons["database.cloud-sync-now"]
-        XCTAssertTrue(sync.waitForExistence(timeout: 10))
+        let details = app.buttons["database.cloud-sync-status.details"]
+        let progress = app.descendants(matching: .any)["database.cloud-sync-status.progress"]
+        XCTAssertTrue(currentLockButton().waitForExistence(timeout: 10))
+        XCTAssertTrue(waitUntilSyncSettles(progress), "The open's check did not finish")
+        XCTAssertFalse(details.exists, "A checked open has nothing to warn about")
 
         tapElement(app.buttons["settings.button"])
         XCTAssertTrue(app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout))
@@ -127,18 +130,17 @@ final class CloudUnlockSmokeUITests: CloudSyncBaseUITests {
         XCTAssertEqual(policy.value as? String, "1")
         setSwitch(policy, isOn: false)
         closeDatabaseDetails()
-        XCTAssertTrue(sync.exists)
 
         currentLockButton().tap()
         XCTAssertTrue(waitForLockedState())
         unlockSuccessfully()
-        let details = app.buttons["database.cloud-sync-status.details"]
         XCTAssertTrue(details.waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["database.cloud-sync-status.title"].exists)
         let warning = XCTAttachment(screenshot: app.screenshot())
         warning.name = "Compact sync warning after a skipped check"
         warning.lifetime = .keepAlways
         add(warning)
+
         details.tap()
         let title = app.staticTexts["database.cloud-sync-status.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 10))
@@ -147,46 +149,30 @@ final class CloudUnlockSmokeUITests: CloudSyncBaseUITests {
         skipped.name = "Compact sync details after a skipped check"
         skipped.lifetime = .keepAlways
         add(skipped)
-        app.buttons["database.cloud-sync-status.dismiss"].tap()
 
-        for _ in 0..<2 {
-            XCTAssertTrue(sync.isEnabled)
-            sync.tap()
-            let finished = NSPredicate { _, _ in
-                sync.isEnabled && (details.value as? String)?.contains("up to date") == true
-            }
-            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: finished, object: nil)], timeout: 15), .completed)
-            details.tap()
-            XCTAssertTrue(title.waitForExistence(timeout: 10))
-            XCTAssertFalse(title.label.contains("Opened without checking"))
-            app.buttons["database.cloud-sync-status.dismiss"].tap()
-            XCTAssertTrue(sync.exists)
-        }
+        let sync = app.buttons["database.cloud-sync-now"]
+        XCTAssertTrue(sync.isEnabled)
+        sync.tap()
+        XCTAssertTrue(waitUntilSyncSettles(progress))
+        XCTAssertFalse(details.exists, "A successful sync clears the warning")
+
         selectDatabaseView(.allEntries)
-        app.swipeUp()
-        // isHittable reports false on a small iPhone once the list scrolls under
-        // the pinned header, although the button is visible and responds.
-        let window = app.windows.firstMatch
-        XCTAssertTrue(window.frame.contains(sync.frame), "The sync shortcut must remain visible while browsing and scrolling")
-        let statusBeforeTap = details.value as? String
-        sync.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        let scrolledSyncStarted = NSPredicate { _, _ in
-            sync.isEnabled == false || details.value as? String != statusBeforeTap
-        }
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: scrolledSyncStarted, object: nil)], timeout: 5),
-            .completed,
-            "Tapping the scrolled sync shortcut did not start a sync"
-        )
-        let scrolledSyncFinished = NSPredicate { _, _ in sync.isEnabled }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: scrolledSyncFinished, object: nil)], timeout: 15), .completed)
-        let compact = XCTAttachment(screenshot: app.screenshot())
-        compact.name = "Persistent compact sync shortcut after repeated sync"
-        compact.lifetime = .keepAlways
-        add(compact)
+        let list = scrollableContainer() ?? app.windows.firstMatch
+        list.swipeDown()
+        XCTAssertTrue(waitUntilSyncSettles(progress))
+        XCTAssertFalse(details.exists, "Pulling to refresh an up-to-date database adds no warning")
+        let synced = XCTAttachment(screenshot: app.screenshot())
+        synced.name = "Compact cloud header after syncing"
+        synced.lifetime = .keepAlways
+        add(synced)
+
         searchForEntries(matching: "Twitter")
         XCTAssertTrue(app.staticTexts["Search"].exists)
-        XCTAssertTrue(window.frame.contains(sync.frame))
+    }
+
+    private func waitUntilSyncSettles(_ progress: XCUIElement) -> Bool {
+        let settled = NSPredicate { _, _ in progress.exists == false }
+        return XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: settled, object: nil)], timeout: 15) == .completed
     }
 
     func testSeededCloudDatabaseUnlocksViaMockProvider() {
