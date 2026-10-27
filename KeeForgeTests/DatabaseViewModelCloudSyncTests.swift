@@ -608,6 +608,40 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertNil(vm.cloudSyncProgress)
     }
 
+    /// An offline provider can take its full timeout to give up, and some
+    /// ignore cancellation. A failed prompt must return to the unlock form
+    /// right away instead of waiting for it.
+    func testFailedBiometricPromptDoesNotWaitForTheOverlappingSync() async throws {
+        let openedData = try fixtureData()
+        let providerAnswers = PendingFlag(false)
+        defer { providerAnswers.value = true }
+        let vm = DatabaseViewModel(
+            databaseReference: try makeStoredManualReference(),
+            cloudSyncOperation: { reference, _ in
+                while providerAnswers.value == false {
+                    try? await Task.sleep(for: .milliseconds(10))
+                }
+                return Self.resolution(reference, data: openedData, status: .current)
+            },
+            biometricCompositeKeyOperation: { _, _ in
+                throw LAError(.userFallback)
+            }
+        )
+
+        let returned = expectation(description: "biometric unlock returned")
+        let unlock = Task {
+            let outcome = await vm.unlockWithBiometrics()
+            returned.fulfill()
+            return outcome
+        }
+        await fulfillment(of: [returned], timeout: 5)
+        providerAnswers.value = true
+
+        let outcome = await unlock.value
+        XCTAssertEqual(outcome, .passwordFallback)
+        XCTAssertEqual(vm.state, .locked)
+    }
+
     /// A progress report still queued when the sync is applied must not bring
     /// the progress bar back over the unlocked database.
     func testProgressReportedAfterTheOpenSyncWasAppliedIsDropped() async throws {
