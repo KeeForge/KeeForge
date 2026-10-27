@@ -13,8 +13,10 @@ struct QuickUnlockKeys: Sendable {
 /// The quick-unlock rules the app and both AutoFill extensions share.
 enum QuickUnlockKeychain {
     /// Reads with the context that released the quick-unlock item. A missing
-    /// or unreadable express item only costs the KDF.
+    /// or unreadable express item only costs the KDF. The context is spent
+    /// afterwards, so it cannot release either item again without a prompt.
     static func retrieve(for reference: DatabaseReference, context: LAContext) throws -> QuickUnlockKeys {
+        defer { context.invalidate() }
         let storedKey = try retrieveStoredKey(for: reference, context: context)
         guard reference.hardwareKey == nil,
               let payload = try? KeychainService.retrieveExpressUnlockKey(for: reference.id, context: context) else {
