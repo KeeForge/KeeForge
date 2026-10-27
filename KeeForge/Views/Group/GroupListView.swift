@@ -158,10 +158,6 @@ struct GroupListView: View {
                                 .accessibilityLabel("Lock")
                                 .accessibilityIdentifier("lock.button")
 
-                                if let warningText = viewModel.cloudSyncBannerText {
-                                    CloudSyncWarningButton(message: warningText)
-                                }
-
                                 if viewModel.isReadOnly {
                                     ReadOnlyIndicator(explanation: viewModel.readOnlyExplanation)
                                 }
@@ -321,28 +317,35 @@ struct GroupListView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar(removing: .title)
                     .safeAreaInset(edge: .top, spacing: 0) {
-                        HStack(spacing: 8) {
-                            if view.viewModel.searchText.isEmpty == false {
-                                Text("Search")
-                            } else if let mode = view.rootViewMode {
-                                view.viewMenu {
-                                    HStack(spacing: 6) {
-                                        Text(mode.title)
-                                        Image(systemName: "chevron.down")
-                                            .font(.caption.weight(.semibold))
-                                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 0) {
+                            HStack(spacing: 8) {
+                                if view.viewModel.searchText.isEmpty == false {
+                                    Text("Search")
+                                } else if let mode = view.rootViewMode {
+                                    view.viewMenu {
+                                        HStack(spacing: 6) {
+                                            Text(mode.title)
+                                            Image(systemName: "chevron.down")
+                                                .font(.title3.weight(.semibold))
+                                                .accessibilityHidden(true)
+                                        }
+                                        .foregroundStyle(Color.primary)
                                     }
-                                    .foregroundStyle(Color.primary)
+                                } else if let group = view.resolvedGroup {
+                                    Text(group.name)
                                 }
-                            } else if let group = view.resolvedGroup {
-                                Text(group.name)
+                                Spacer(minLength: 0)
                             }
-                            Spacer(minLength: 0)
-                            CloudSyncControls(viewModel: view.viewModel)
-                                .layoutPriority(-1)
+                            // The size of the large title local databases get,
+                            // so switching databases does not resize it.
+                            .font(.largeTitle.bold())
+                            .lineLimit(1)
+
+                            HStack {
+                                Spacer(minLength: 0)
+                                CloudSyncControls(viewModel: view.viewModel)
+                            }
                         }
-                        .font(.title2.bold())
-                        .lineLimit(1)
                         .padding(.horizontal, 16)
                         .background(Color(.systemBackground))
                     }

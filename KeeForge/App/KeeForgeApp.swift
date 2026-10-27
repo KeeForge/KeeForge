@@ -1147,9 +1147,13 @@ struct CloudSyncControls: View {
         viewModel.databaseReference.isCloudBacked
     }
 
+    /// Also carries the open's cached-copy notice, so screens with these
+    /// controls need no separate `CloudSyncWarningButton`.
     static func showsWarning(for viewModel: DatabaseViewModel) -> Bool {
         if case .failed = viewModel.cloudSyncOutcome { return true }
-        return viewModel.isCloudRefreshPending || showsPendingUploadNote(for: viewModel)
+        return viewModel.cloudSyncBannerText != nil
+            || viewModel.isCloudRefreshPending
+            || showsPendingUploadNote(for: viewModel)
     }
 
     /// A conflicted AutoFill upload is not waiting: `PendingUploadConflictBanner`
@@ -1159,25 +1163,21 @@ struct CloudSyncControls: View {
         viewModel.hasPendingCloudUploads && viewModel.hasPendingUploadConflict == false
     }
 
-    private var providerName: String {
-        viewModel.databaseReference.cloudProviderKind?.displayName ?? String(localized: "cloud")
-    }
-
-    private var title: String {
+    static func title(for viewModel: DatabaseViewModel) -> String {
+        let providerName = viewModel.databaseReference.cloudProviderKind?.displayName ?? String(localized: "cloud")
         if viewModel.isSyncingCloud {
             return String(localized: "Checking \(providerName) for changes…")
         }
         if let outcome = viewModel.cloudSyncOutcome {
             return outcome.message
         }
+        if let bannerText = viewModel.cloudSyncBannerText {
+            return bannerText
+        }
         if viewModel.isCloudRefreshPending {
             return String(localized: "Opened without checking \(providerName) for changes.")
         }
         return String(localized: "Cloud Sync")
-    }
-
-    private var lastSyncedAt: Date? {
-        viewModel.databaseReference.cloudSyncMetadata?.lastSyncedAt
     }
 
     var body: some View {
@@ -1196,14 +1196,11 @@ struct CloudSyncControls: View {
             .frame(minWidth: 44, minHeight: 44)
             .buttonStyle(.plain)
             .accessibilityLabel("Cloud Sync")
-            .accessibilityValue(title)
+            .accessibilityValue(Self.title(for: viewModel))
             .macHelp(String(localized: "Cloud Sync"))
             .accessibilityIdentifier("database.cloud-sync-status.details")
             .popover(isPresented: $isShowingDetails) {
-                syncDetails
-                    .font(.body)
-                    .lineLimit(nil)
-                    .presentationCompactAdaptation(.popover)
+                CloudSyncDetails(viewModel: viewModel) { isShowingDetails = false }
             }
 
             Button {
@@ -1212,8 +1209,8 @@ struct CloudSyncControls: View {
                 }
             } label: {
                 #if os(iOS)
-                // The iPhone header's title beside these controls is the view
-                // menu, so a long translation gives way to an icon instead.
+                // A long translation gives way to an icon where the bar
+                // beside it is narrow, as in a compact iPad toolbar.
                 ViewThatFits(in: .horizontal) {
                     Text("Sync Now")
                     Image(systemName: "arrow.triangle.2.circlepath")
@@ -1231,9 +1228,19 @@ struct CloudSyncControls: View {
         .accessibilityIdentifier("database.cloud-sync-status")
     }
 
-    private var syncDetails: some View {
+}
+
+private struct CloudSyncDetails: View {
+    @Bindable var viewModel: DatabaseViewModel
+    let close: () -> Void
+
+    private var lastSyncedAt: Date? {
+        viewModel.databaseReference.cloudSyncMetadata?.lastSyncedAt
+    }
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
+            Text(CloudSyncControls.title(for: viewModel))
                 .font(.callout.weight(.medium))
                 .accessibilityIdentifier("database.cloud-sync-status.title")
 
@@ -1243,20 +1250,23 @@ struct CloudSyncControls: View {
                     .foregroundStyle(.secondary)
             }
 
-            if Self.showsPendingUploadNote(for: viewModel) {
+            if CloudSyncControls.showsPendingUploadNote(for: viewModel) {
                 Text("Changes saved through AutoFill are still waiting to upload.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Button("Dismiss") {
                 viewModel.dismissCloudSyncOutcome()
-                isShowingDetails = false
+                close()
             }
             .accessibilityIdentifier("database.cloud-sync-status.dismiss")
         }
         .fixedSize(horizontal: false, vertical: true)
         .frame(width: 260, alignment: .leading)
         .padding(16)
+        .font(.body)
+        .lineLimit(nil)
+        .presentationCompactAdaptation(.popover)
     }
 }
 
