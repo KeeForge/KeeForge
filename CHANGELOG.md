@@ -8,7 +8,7 @@
 
 ### Fixes
 
-- In Mac AutoFill, a few error messages (such as for a database in the Trash or a damaged icon set) now appear in your language instead of English.
+- In Mac AutoFill, a few error messages (such as the one for a database in the Trash) now appear in your language instead of English.
 
 ## v1.20.0 (2026-10-25)
 
