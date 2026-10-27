@@ -74,10 +74,14 @@ final class AppSettingsViewModelTests: XCTestCase {
             clearCredentialStore: { effects += 1 },
             capturePolicyDidChange: { effects += 1 },
             authenticationGracePeriodDidChange: { effects += 1 },
+            quickUnlockPasswordIntervalDidChange: { effects += 1 },
             loadCloudAccounts: { accounts }
         )
         SettingsService.autoLockTimeout = .oneMinute
         SettingsService.authenticationGracePeriod = .oneMinute
+        let previousInterval = SettingsService.quickUnlockPasswordInterval
+        defer { SettingsService.quickUnlockPasswordInterval = previousInterval }
+        SettingsService.quickUnlockPasswordInterval = .always
         SettingsService.quickAutoFillEnabled = !model.quickAutoFillEnabled
         SettingsService.blockScreenCapture = !model.blockScreenCapture
         SettingsService.appearanceMode = .dark
@@ -89,6 +93,7 @@ final class AppSettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(model.autoLockTimeout, .oneMinute)
         XCTAssertEqual(model.authenticationGracePeriod, .oneMinute)
+        XCTAssertEqual(model.quickUnlockPasswordInterval, .always)
         XCTAssertEqual(model.quickAutoFillEnabled, SettingsService.quickAutoFillEnabled)
         XCTAssertEqual(model.blockScreenCapture, SettingsService.blockScreenCapture)
         XCTAssertEqual(model.appearanceMode, .dark)
@@ -122,6 +127,24 @@ final class AppSettingsViewModelTests: XCTestCase {
         model.authenticationGracePeriod = .alwaysAsk
 
         XCTAssertEqual(observedPeriods, [.oneMinute, .alwaysAsk])
+    }
+
+    /// Saved keys that a stricter interval makes due must go when the setting
+    /// changes, not at their next use.
+    func testPasswordIntervalPersistsBeforeExpiringDueKeys() {
+        let previousInterval = SettingsService.quickUnlockPasswordInterval
+        defer { SettingsService.quickUnlockPasswordInterval = previousInterval }
+        SettingsService.quickUnlockPasswordInterval = .fourteenDays
+        var observedIntervals: [SettingsService.QuickUnlockPasswordInterval] = []
+        let model = AppSettingsViewModel(quickUnlockPasswordIntervalDidChange: {
+            observedIntervals.append(SettingsService.quickUnlockPasswordInterval)
+        })
+
+        model.quickUnlockPasswordInterval = .always
+        model.quickUnlockPasswordInterval = .always
+        model.quickUnlockPasswordInterval = .thirtyDays
+
+        XCTAssertEqual(observedIntervals, [.always, .thirtyDays])
     }
 
     func testSortPreferencesPersistBeforeUpdatingTheOpenSession() {

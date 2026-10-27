@@ -59,6 +59,15 @@ final class QuickUnlockPasswordIntervalTests: XCTestCase {
         XCTAssertFalse(isDue(.fourteenDays, at: now), "Entering the master key restarts the interval")
     }
 
+    /// Always keeps no saved key, so it is due whether or not an unlock has
+    /// ever recorded an entry.
+    func testAlwaysIsDueWithAndWithoutAnEntry() {
+        XCTAssertTrue(isDue(.always, at: .now))
+
+        QuickUnlockKeychain.recordMasterKeyEntry(for: databaseID, at: .now, in: defaults)
+        XCTAssertTrue(isDue(.always, at: .now))
+    }
+
     func testAClockSetBackPastTheIntervalCountsAsDue() {
         let now = Date.now
         QuickUnlockKeychain.recordMasterKeyEntry(for: databaseID, at: now.addingTimeInterval(15 * day), in: defaults)
@@ -114,6 +123,32 @@ final class QuickUnlockPasswordIntervalTests: XCTestCase {
         var error: NSError?
         XCTAssertFalse(context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error))
         XCTAssertEqual(error?.code, LAError.invalidContext.rawValue)
+    }
+
+    func testAlwaysDeletesFreshKeysAndRefusesToStoreNew() throws {
+        let reference = DatabaseReference(
+            id: databaseID, nickname: nil, filename: "Always.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false,
+            lastOpenedAt: nil, addedAt: .now, colorTag: nil, legacyKeychainFilename: nil
+        )
+        do {
+            try KeychainService.storeCompositeKey(SymmetricKey(size: .bits256), for: databaseID)
+            try KeychainService.storeExpressUnlockKey(Data(repeating: 1, count: 65), for: databaseID)
+        } catch {
+            throw XCTSkip("Keychain writes are unavailable in the current test host: \(error)")
+        }
+        QuickUnlockKeychain.recordMasterKeyEntry(for: databaseID)
+        SettingsService.quickUnlockPasswordInterval = .always
+
+        let stored = QuickUnlockKeychain.persist(
+            QuickUnlockKeys(storedKey: SymmetricKey(size: .bits256)),
+            for: reference,
+            masterKeyEntered: true
+        )
+
+        XCTAssertFalse(stored)
+        XCTAssertFalse(KeychainService.hasStoredKey(for: databaseID))
+        XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: databaseID))
     }
 
     private func isDue(_ interval: SettingsService.QuickUnlockPasswordInterval, at now: Date) -> Bool {

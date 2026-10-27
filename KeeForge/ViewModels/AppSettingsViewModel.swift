@@ -33,6 +33,7 @@ final class AppSettingsViewModel {
         didSet {
             guard !isReloading, oldValue != quickUnlockPasswordInterval else { return }
             SettingsService.quickUnlockPasswordInterval = quickUnlockPasswordInterval
+            quickUnlockPasswordIntervalDidChange()
         }
     }
     var autoUnlockWithFaceID = SettingsService.autoUnlockWithFaceID {
@@ -120,6 +121,7 @@ final class AppSettingsViewModel {
     @ObservationIgnored private let clearFaviconCacheOperation: () -> Void
     @ObservationIgnored private let capturePolicyDidChange: () -> Void
     @ObservationIgnored private let authenticationGracePeriodDidChange: () -> Void
+    @ObservationIgnored private let quickUnlockPasswordIntervalDidChange: () -> Void
     @ObservationIgnored private let loadCloudAccounts: () -> [CloudAccount]
     @ObservationIgnored private let signOutOperation: (CloudAccount) -> Void
 
@@ -143,6 +145,9 @@ final class AppSettingsViewModel {
             // granted, so selecting the old period again cannot bring it back.
             SecretAccessGate.gracePeriodSettingDidChange()
         },
+        quickUnlockPasswordIntervalDidChange: @escaping () -> Void = {
+            QuickUnlockKeychain.expireDueKeys()
+        },
         loadCloudAccounts: @escaping () -> [CloudAccount] = { CloudAccountStore.accounts },
         signOut: @escaping (CloudAccount) -> Void = {
             CloudProviderRegistry.provider(for: $0.provider)?.signOut(accountId: $0.id)
@@ -156,6 +161,7 @@ final class AppSettingsViewModel {
         self.clearFaviconCacheOperation = clearFaviconCache
         self.capturePolicyDidChange = capturePolicyDidChange
         self.authenticationGracePeriodDidChange = authenticationGracePeriodDidChange
+        self.quickUnlockPasswordIntervalDidChange = quickUnlockPasswordIntervalDidChange
         self.loadCloudAccounts = loadCloudAccounts
         self.signOutOperation = signOut
         cloudAccounts = loadCloudAccounts()
