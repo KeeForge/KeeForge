@@ -1132,19 +1132,31 @@ final class DatabaseViewModel {
         do {
             let hardwareKey = databaseReference.hardwareKey
             // The cloud round trip needs no key, so it overlaps the prompt. A
-            // failed prompt cancels it before its result reaches the session.
+            // failed prompt cancels it without waiting for it: a provider that
+            // is offline or slow to honor the cancel would otherwise hold the
+            // unlock screen until its request times out.
             let prefetchProgressID = UUID()
-            async let prefetchedCloudResolution = prefetchCloudCopyForOpen(progressID: prefetchProgressID)
-            let quickUnlockKeys = try await biometricCompositeKeyOperation(
-                databaseReference,
-                String(localized: "Unlock your password database")
-            )
+            let prefetch = Task { try await self.prefetchCloudCopyForOpen(progressID: prefetchProgressID) }
+            let quickUnlockKeys: QuickUnlockKeys
+            do {
+                quickUnlockKeys = try await biometricCompositeKeyOperation(
+                    databaseReference,
+                    String(localized: "Unlock your password database")
+                )
+            } catch {
+                prefetch.cancel()
+                throw error
+            }
             if activeUnlockAttempt == attempt {
                 visibleCloudSyncProgressID = prefetchProgressID
             }
             let storedKey = quickUnlockKeys.storedKey
             let readResult = try await readDatabaseData(
-                prefetchedCloudResolution: prefetchedCloudResolution
+                prefetchedCloudResolution: try await withTaskCancellationHandler {
+                    try await prefetch.value
+                } onCancel: {
+                    prefetch.cancel()
+                }
             )
             let data = readResult.data
             encryptedData = data

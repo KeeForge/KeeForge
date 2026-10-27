@@ -1,7 +1,36 @@
 import Foundation
 
 enum PasswordGenerator {
+    enum Mode: String, Codable, Sendable {
+        case characters
+        case passphrase
+    }
+
+    static let wordCountRange = 4...12
+
+    static let passphraseWords: [String] = {
+        guard let url = Bundle.main.url(forResource: "eff_large_wordlist", withExtension: "txt"),
+              let contents = try? String(contentsOf: url, encoding: .utf8) else {
+            preconditionFailure("Missing bundled EFF wordlist")
+        }
+        let words = contents.split(whereSeparator: \.isNewline).compactMap { line in
+            line.split(separator: "\t").last.map(String.init)
+        }
+        precondition(words.count == 7_776)
+        // Hyphenated entries (drop-down, t-shirt, ...) would blur word boundaries with a "-" separator.
+        let unhyphenated = words.filter { $0.allSatisfy(isPassphraseLetter) }
+        precondition(unhyphenated.count == 7_772 && Set(unhyphenated).count == 7_772)
+        return unhyphenated
+    }()
+
+    static func isPassphraseLetter(_ character: Character) -> Bool {
+        ("a"..."z").contains(character)
+    }
+
     struct Options: Equatable, Sendable, Codable {
+        var mode: Mode
+        var wordCount: Int
+        var separator: String
         var length: Int
         var includeUppercase: Bool
         var includeLowercase: Bool
@@ -10,6 +39,9 @@ enum PasswordGenerator {
         var excludeAmbiguous: Bool
 
         init(
+            mode: Mode = .characters,
+            wordCount: Int = 6,
+            separator: String = "-",
             length: Int = 20,
             includeUppercase: Bool = true,
             includeLowercase: Bool = true,
@@ -17,6 +49,9 @@ enum PasswordGenerator {
             includeSymbols: Bool = true,
             excludeAmbiguous: Bool = true
         ) {
+            self.mode = mode
+            self.wordCount = wordCount
+            self.separator = separator
             self.length = length
             self.includeUppercase = includeUppercase
             self.includeLowercase = includeLowercase
@@ -32,6 +67,9 @@ enum PasswordGenerator {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let defaults = Options()
             self.init(
+                mode: try container.decodeIfPresent(Mode.self, forKey: .mode) ?? defaults.mode,
+                wordCount: try container.decodeIfPresent(Int.self, forKey: .wordCount) ?? defaults.wordCount,
+                separator: try container.decodeIfPresent(String.self, forKey: .separator) ?? defaults.separator,
                 length: try container.decodeIfPresent(Int.self, forKey: .length)
                     ?? defaults.length,
                 includeUppercase: try container.decodeIfPresent(Bool.self, forKey: .includeUppercase)
@@ -64,6 +102,11 @@ enum PasswordGenerator {
         using generator: inout RNG
     ) -> String {
         let normalizedOptions = normalized(options)
+        if normalizedOptions.mode == .passphrase {
+            return (0..<normalizedOptions.wordCount).map { _ in
+                passphraseWords[Int.random(in: passphraseWords.indices, using: &generator)]
+            }.joined(separator: normalizedOptions.separator)
+        }
         let characterSets = enabledCharacterSets(for: normalizedOptions)
         guard characterSets.isEmpty == false else { return "" }
 
@@ -90,6 +133,9 @@ enum PasswordGenerator {
 
     static func minimumEntropyBits(options: Options = Options()) -> Double {
         let normalizedOptions = normalized(options)
+        if normalizedOptions.mode == .passphrase {
+            return Double(normalizedOptions.wordCount) * log2(Double(passphraseWords.count))
+        }
         let poolSize = Double(enabledCharacterSets(for: normalizedOptions).joined().count)
         guard poolSize > 0 else { return 0 }
         return Double(max(normalizedOptions.length, 1)) * log2(poolSize)
@@ -123,6 +169,7 @@ enum PasswordGenerator {
     private static func normalized(_ options: Options) -> Options {
         var normalized = options
         normalized.length = max(1, options.length)
+        normalized.wordCount = min(max(options.wordCount, wordCountRange.lowerBound), wordCountRange.upperBound)
 
         if normalized.includeUppercase == false &&
             normalized.includeLowercase == false &&

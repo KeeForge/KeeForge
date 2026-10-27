@@ -11,6 +11,35 @@ import XCTest
 final class MacSmokeUITests: MacUITestCase {
     private let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
 
+    func testPassphraseGeneratorCopiesAndUsesSuggestion() throws {
+        unlockSuccessfully()
+        openGroup(named: "Work")
+        openEntry(named: "Email")
+        typeCommandShortcut("n")
+        let generator = app.buttons["entry-edit.password-generator-button"].firstMatch
+        XCTAssertTrue(generator.waitForExistence(timeout: 10))
+        generator.click()
+        let mode = app.radioButtons["Passphrase"].firstMatch
+        XCTAssertTrue(mode.waitForExistence(timeout: 5))
+        mode.click()
+        let separator = app.textFields["password-generator.separator"].firstMatch
+        XCTAssertTrue(separator.waitForExistence(timeout: 5))
+        separator.click()
+        typeCommandShortcut("a")
+        app.typeText("::")
+        app.buttons["password-generator.regenerate"].firstMatch.click()
+        let suggestion = app.staticTexts["password-generator.password"].firstMatch
+        let phrase = displayText(of: suggestion)
+        XCTAssertTrue((4...12).contains(phrase.components(separatedBy: "::").count))
+        app.buttons["password-generator.copy"].firstMatch.click()
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), phrase)
+        XCTAssertNotNil(NSPasteboard.general.data(forType: concealedType))
+        app.buttons["password-generator.use"].firstMatch.click()
+        let field = app.textFields["entry-edit.password-field"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertEqual(field.value as? String, phrase)
+    }
+
     func testRestoreEntryFromRecycleBinContextMenu() {
         unlockSuccessfully()
         openGroup(named: "Social")

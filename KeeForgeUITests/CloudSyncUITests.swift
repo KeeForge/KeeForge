@@ -135,6 +135,10 @@ final class CloudUnlockSmokeUITests: CloudSyncBaseUITests {
         let details = app.buttons["database.cloud-sync-status.details"]
         XCTAssertTrue(details.waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["database.cloud-sync-status.title"].exists)
+        let warning = XCTAttachment(screenshot: app.screenshot())
+        warning.name = "Compact sync warning after a skipped check"
+        warning.lifetime = .keepAlways
+        add(warning)
         details.tap()
         let title = app.staticTexts["database.cloud-sync-status.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 10))

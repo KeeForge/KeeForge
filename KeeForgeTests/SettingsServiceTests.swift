@@ -411,6 +411,9 @@ final class SettingsServiceTests: XCTestCase {
 
     func testPasswordGeneratorOptionsPersist() {
         let options = PasswordGenerator.Options(
+            mode: .passphrase,
+            wordCount: 8,
+            separator: "::",
             length: 42,
             includeUppercase: false,
             includeLowercase: true,
@@ -451,6 +454,9 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertFalse(options.includeUppercase)
         XCTAssertFalse(options.includeSymbols)
         XCTAssertTrue(options.excludeAmbiguous)
+        XCTAssertEqual(options.mode, .characters)
+        XCTAssertEqual(options.wordCount, 6)
+        XCTAssertEqual(options.separator, "-")
     }
 
     // MARK: - Screen Protection Policy (macOS)

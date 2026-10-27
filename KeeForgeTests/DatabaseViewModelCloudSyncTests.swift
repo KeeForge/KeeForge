@@ -608,6 +608,40 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertNil(vm.cloudSyncProgress)
     }
 
+    /// An offline provider can take its full timeout to give up, and some
+    /// ignore cancellation. A failed prompt must return to the unlock form
+    /// right away instead of waiting for it.
+    func testFailedBiometricPromptDoesNotWaitForTheOverlappingSync() async throws {
+        let openedData = try fixtureData()
+        let providerAnswers = PendingFlag(false)
+        defer { providerAnswers.value = true }
+        let vm = DatabaseViewModel(
+            databaseReference: try makeStoredManualReference(),
+            cloudSyncOperation: { reference, _ in
+                while providerAnswers.value == false {
+                    try? await Task.sleep(for: .milliseconds(10))
+                }
+                return Self.resolution(reference, data: openedData, status: .current)
+            },
+            biometricCompositeKeyOperation: { _, _ in
+                throw LAError(.userFallback)
+            }
+        )
+
+        let returned = expectation(description: "biometric unlock returned")
+        let unlock = Task {
+            let outcome = await vm.unlockWithBiometrics()
+            returned.fulfill()
+            return outcome
+        }
+        await fulfillment(of: [returned], timeout: 5)
+        providerAnswers.value = true
+
+        let outcome = await unlock.value
+        XCTAssertEqual(outcome, .passwordFallback)
+        XCTAssertEqual(vm.state, .locked)
+    }
+
     /// A progress report still queued when the sync is applied must not bring
     /// the progress bar back over the unlocked database.
     func testProgressReportedAfterTheOpenSyncWasAppliedIsDropped() async throws {
@@ -666,6 +700,28 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
 
         XCTAssertEqual(vm.databaseReference.cloudSyncPolicy, .onOpen)
         XCTAssertEqual(DatabaseListStore.databases.first(where: { $0.id == reference.id })?.cloudSyncPolicy, .onOpen)
+    }
+
+    /// The sync controls are the one place a cloud database warns, so an open
+    /// that fell back to the cached copy has to show there too.
+    func testOpenFromTheCachedCopyWarnsInTheSyncControls() async throws {
+        var reference = try makeStoredManualReference()
+        reference.cloudSyncPolicy = .onOpen
+        DatabaseListStore.update(reference)
+        let openedData = try fixtureData()
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, _ in
+                Self.resolution(reference, data: openedData, status: .offlineCached)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNil(vm.cloudSyncOutcome)
+        XCTAssertEqual(vm.cloudSyncBannerText, CloudSyncResolution.offlineCachedBannerMessage)
+        XCTAssertTrue(CloudSyncControls.showsWarning(for: vm))
+        XCTAssertEqual(CloudSyncControls.title(for: vm), CloudSyncResolution.offlineCachedBannerMessage)
     }
 
     func testSyncShortcutSurvivesChangingPolicyAfterACheckedOpen() async throws {
