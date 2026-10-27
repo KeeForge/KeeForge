@@ -112,6 +112,9 @@ final class DatabaseViewModelTests: XCTestCase {
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
         await resetCredentialIdentityStoreState()
+        if let fixtureCopyDirectory {
+            try? FileManager.default.removeItem(at: fixtureCopyDirectory)
+        }
         try await super.tearDown()
     }
 
@@ -154,7 +157,9 @@ final class DatabaseViewModelTests: XCTestCase {
     func testBiometricUnlockOpensDatabaseWithTheStoredCompositeKey() async throws {
         let vm = try makeViewModel(
             biometricCompositeKeyOperation: { [fixturePassword] _, _ in
-                try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
+                QuickUnlockKeys(
+                    storedKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
+                )
             }
         )
 
@@ -193,6 +198,22 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(outcome, .passwordFallback)
         XCTAssertState(vm.state, is: .locked)
         XCTAssertNil(vm.openFailure)
+    }
+
+    /// Dismissing the prompt, including an automatic one, is how a user
+    /// says they will type the password instead.
+    func testBiometricUnlockStaysLockedWhenThePromptIsDismissed() async throws {
+        for code in [LAError.Code.userCancel, .systemCancel, .appCancel] {
+            let vm = try makeViewModel(
+                biometricCompositeKeyOperation: { _, _ in throw LAError(code) }
+            )
+
+            let outcome = await vm.unlockWithBiometrics()
+
+            XCTAssertEqual(outcome, .cancelled, "\(code)")
+            XCTAssertState(vm.state, is: .locked)
+            XCTAssertNil(vm.openFailure, "\(code)")
+        }
     }
 
     func testBiometricUnlockStillSurfacesRealBiometricFailures() async throws {
@@ -6125,6 +6146,30 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.draft)
     }
 
+    /// The request is cleared before the retry writes, but the lock it asked
+    /// for still counts as pending until the save returns.
+    func testSaveAndLockAfterLockRequestKeepsTheLockPendingWhileItSaves() async throws {
+        let probe = LockPendingProbe()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                await probe.record()
+                return .saved(newSHA512: Data("retried-save".utf8))
+            }
+        )
+        probe.viewModel = vm
+        await vm.unlock(password: fixturePassword)
+        XCTAssertFalse(vm.isLockPending)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Retry Me")
+        vm.lockRequest()
+        XCTAssertTrue(vm.isLockPending)
+
+        await vm.saveAndLockAfterLockRequest()
+
+        XCTAssertEqual(probe.observations, [true])
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertFalse(vm.isLockPending)
+    }
+
     func testSaveAndLockAfterLockRequestKeepsThePromptWhenTheRetryFails() async throws {
         let vm = try makeViewModel(
             localSaveOperation: { _, _, _, _, _, _, _ in
@@ -7446,7 +7491,7 @@ final class DatabaseViewModelTests: XCTestCase {
         },
         biometricCompositeKeyOperation: @escaping DatabaseViewModel.BiometricCompositeKeyOperation = { reference, reason in
             let context = try await BiometricService.authenticate(reason: reason)
-            return try DatabaseViewModel.retrieveStoredCompositeKey(for: reference, context: context)
+            return try QuickUnlockKeychain.retrieve(for: reference, context: context)
         },
         pendingUploadRecovery: PendingUploadRecovery.Environment = .live,
         pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { reference in
@@ -7666,8 +7711,22 @@ final class DatabaseViewModelTests: XCTestCase {
         group.entries.map(\.title) + group.groups.flatMap(allEntryTitles(in:))
     }
 
+    private var fixtureCopyDirectory: URL?
+
+    /// A per-test copy, so a save never reaches the bundled fixture.
     private func fixtureURL() throws -> URL {
-        try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: DatabaseViewModelTests.self))
+        if let fixtureCopyDirectory {
+            return fixtureCopyDirectory.appendingPathComponent("test.kdbx")
+        }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let copy = directory.appendingPathComponent("test.kdbx")
+        try FileManager.default.copyItem(
+            at: TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: DatabaseViewModelTests.self)),
+            to: copy
+        )
+        fixtureCopyDirectory = directory
+        return copy
     }
 
     private func legacyFixtureURL() throws -> URL {
@@ -8026,6 +8085,16 @@ private final class CallTracker: @unchecked Sendable {
         lock.lock()
         callCount += 1
         lock.unlock()
+    }
+}
+
+@MainActor
+private final class LockPendingProbe {
+    weak var viewModel: DatabaseViewModel?
+    private(set) var observations: [Bool] = []
+
+    func record() {
+        observations.append(viewModel?.isLockPending ?? false)
     }
 }
 

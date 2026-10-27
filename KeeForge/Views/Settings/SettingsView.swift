@@ -13,6 +13,7 @@ struct SettingsView: View {
     #if os(macOS)
     @State private var selectedMacTab: MacSettingsTab = .security
     @Environment(MacQuickAccessController.self) private var quickAccess: MacQuickAccessController?
+    @Environment(MacSSHAgentController.self) private var sshAgent: MacSSHAgentController?
     #endif
     @State private var biometricType = BiometricService.availableType
 
@@ -55,6 +56,7 @@ struct SettingsView: View {
                 macLockPolicy: $settings.macLockPolicy,
                 clipboardTimeout: $settings.clipboardTimeout,
                 authenticationGracePeriod: $settings.authenticationGracePeriod,
+                quickUnlockPasswordInterval: $settings.quickUnlockPasswordInterval,
                 autoUnlockWithBiometrics: $settings.autoUnlockWithFaceID,
                 blockScreenCapture: $settings.blockScreenCapture
             )
@@ -87,6 +89,16 @@ struct SettingsView: View {
                     }
                     .accessibilityIdentifier("settings.tab.menu-bar")
                     .tag(MacSettingsTab.menuBar)
+            }
+
+            if let sshAgent {
+                MacSSHAgentSettingsTab(controller: sshAgent, session: viewModel)
+                    .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
+                    .tabItem {
+                        Label("SSH Agent", systemImage: "terminal")
+                    }
+                    .accessibilityIdentifier("settings.tab.ssh-agent")
+                    .tag(MacSettingsTab.sshAgent)
             }
 
             MacDisplaySettingsTab(
@@ -177,6 +189,7 @@ struct SettingsView: View {
                     lockOnBackground: $settings.lockOnBackground,
                     clipboardTimeout: $settings.clipboardTimeout,
                     authenticationGracePeriod: $settings.authenticationGracePeriod,
+                    quickUnlockPasswordInterval: $settings.quickUnlockPasswordInterval,
                     autoUnlockWithFaceID: $settings.autoUnlockWithFaceID
                 )
             } label: {
@@ -290,6 +303,7 @@ private struct SecuritySettingsView: View {
     @Binding var lockOnBackground: Bool
     @Binding var clipboardTimeout: SettingsService.ClipboardTimeout
     @Binding var authenticationGracePeriod: SettingsService.AuthenticationGracePeriod
+    @Binding var quickUnlockPasswordInterval: SettingsService.QuickUnlockPasswordInterval
     @Binding var autoUnlockWithFaceID: Bool
 
     var body: some View {
@@ -318,6 +332,17 @@ private struct SecuritySettingsView: View {
                 } else {
                     Text("When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed.")
                 }
+            }
+
+            Section {
+                Picker("Require Master Password", selection: $quickUnlockPasswordInterval) {
+                    ForEach(SettingsService.QuickUnlockPasswordInterval.allCases, id: \.self) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .accessibilityIdentifier("settings.security.require-password-picker")
+            } footer: {
+                Text("Face ID and Touch ID stop unlocking a database this long after its master password was last entered, until you enter it again. This also applies to AutoFill.")
             }
 
             Section {
@@ -779,7 +804,7 @@ private enum AppVersion {
 /// Identifies each settings tab so the window can default to Security instead
 /// of restoring whichever tab was open last.
 private enum MacSettingsTab: Hashable {
-    case security, autofill, menuBar, display, cloud, about
+    case security, autofill, menuBar, sshAgent, display, cloud, about
 }
 
 /// The size every settings tab is pinned to.
@@ -799,6 +824,7 @@ private struct MacSecuritySettingsTab: View {
     @Binding var macLockPolicy: SettingsService.MacLockPolicy
     @Binding var clipboardTimeout: SettingsService.ClipboardTimeout
     @Binding var authenticationGracePeriod: SettingsService.AuthenticationGracePeriod
+    @Binding var quickUnlockPasswordInterval: SettingsService.QuickUnlockPasswordInterval
     @Binding var autoUnlockWithBiometrics: Bool
     @Binding var blockScreenCapture: Bool
 
@@ -826,8 +852,19 @@ private struct MacSecuritySettingsTab: View {
                 Text("KeeForge always locks on screen lock, screensaver, system sleep, and user switching. The stricter option also locks whenever another app becomes active.")
 
                 if BiometricService.isAvailable {
-                    Text("Automatically prompt when opening a database or returning to its locked window. AutoFill also uses Touch ID.")
+                    Text("Automatically prompt when opening a database or returning to its locked window. This setting also applies to AutoFill.")
                 }
+            }
+
+            Section {
+                Picker("Require Master Password", selection: $quickUnlockPasswordInterval) {
+                    ForEach(SettingsService.QuickUnlockPasswordInterval.allCases, id: \.self) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .accessibilityIdentifier("settings.security.require-password-picker")
+            } footer: {
+                Text("Touch ID and Apple Watch stop unlocking a database this long after its master password was last entered, until you enter it again. This also applies to AutoFill.")
             }
 
             Section {

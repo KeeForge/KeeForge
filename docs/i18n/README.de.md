@@ -51,7 +51,7 @@ Die Verfügbarkeit der Beta kann sich zwischen iPhone, iPad und Mac unterscheide
 | **Passkeys** | Erkennen und Authentifizieren von FIDO2/WebAuthn-Passkeys, die in KeePassXC-kompatiblen benutzerdefinierten Feldern gespeichert sind. |
 | **TOTP** | Live-Anzeige, Kopierfunktion und Countdown auf allen Plattformen sowie Bestätigungscode-AutoFill ab iOS 18 und auf dem Mac. |
 | **Cloud-Sync** | WebDAV auf allen Plattformen. Dropbox und OneDrive sind derzeit auf iPhone und iPad verfügbar; auf dem Mac lassen sich synchronisierte Ordner als lokale Dateien öffnen. |
-| **Anhänge** | KeePass-Eintragsanhänge anzeigen, unterstützte Dateien per QuickLook in der Vorschau öffnen und aus kurzlebigen geschützten temporären Dateien teilen. Das Bearbeiten von Anhängen wird noch nicht unterstützt. |
+| **Anhänge** | KeePass-Eintragsanhänge anzeigen, unterstützte Dateien per QuickLook in der Vorschau öffnen und aus kurzlebigen geschützten temporären Dateien teilen. Anhänge im Eintragseditor hinzufügen und entfernen. |
 | **Nativ auf jedem Bildschirm** | Fokussierte iPhone-Navigation, ein Split-View-Arbeitsbereich auf dem iPad und eine für den Desktop optimierte native Mac-App mit Menüs, Befehlen und Touch ID. |
 | **Sicherheit** | AES-GCM-Verschlüsselung von Geheimnissen im Arbeitsspeicher, Backoff nach fehlgeschlagenen Entsperrversuchen, Limits gegen Dekompressionsbomben und HMAC-Vergleich in konstanter Zeit. |
 

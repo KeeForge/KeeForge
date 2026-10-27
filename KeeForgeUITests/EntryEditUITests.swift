@@ -24,6 +24,25 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         }
     }
 
+    /// Scrolls the entry editor with slow drags until `element` is tappable and
+    /// clear of the keyboard. On iOS 18 `swipeUp()` leaves the editor in place
+    /// while the keyboard covers a custom-field row, so `revealElement` cannot
+    /// reach it; a slow drag scrolls it as a finger would.
+    func revealFormElement(_ element: XCUIElement) -> Bool {
+        let keyboard = app.keyboards.firstMatch
+        func isReachable() -> Bool {
+            guard element.exists, element.isHittable else { return false }
+            let bottom = keyboard.exists ? keyboard.frame.minY : app.windows.firstMatch.frame.maxY
+            return element.frame.maxY <= bottom
+        }
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
+        for offset in Array(repeating: -220.0, count: 6) + Array(repeating: 220.0, count: 10) {
+            if isReachable() { return true }
+            start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: offset)), withVelocity: .slow, thenHoldForDuration: 0.3)
+        }
+        return isReachable()
+    }
+
     func openAddMenu(file: StaticString = #filePath, line: UInt = #line) {
         let addButton = app.buttons["entry-list.add-entry"]
         XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Add menu button was not visible", file: file, line: line)
@@ -573,9 +592,11 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         let addField = app.buttons["entry-edit.custom-field.add"]
         XCTAssertTrue(revealElement(addField))
         tapElement(addField)
-        replaceText(in: app.textFields["entry-edit.custom-field.name-field.0"], with: "PIN")
+        let name = app.textFields["entry-edit.custom-field.name-field.0"]
+        XCTAssertTrue(revealFormElement(name))
+        replaceText(in: name, with: "PIN")
         let value = app.descendants(matching: .any)["entry-edit.custom-field.value-field.0"].firstMatch
-        XCTAssertTrue(revealElement(value))
+        XCTAssertTrue(revealFormElement(value))
         replaceText(in: value, with: "1234")
         let protect = app.switches["entry-edit.custom-field.protection.0"]
         XCTAssertTrue(revealElement(protect))
@@ -621,7 +642,7 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         let saveButton = app.buttons["entry-edit.save"]
         // A multi-line TextField surfaces as a text view, not a text field.
         let valueField = app.descendants(matching: .any)["entry-edit.custom-field.value-field.0"].firstMatch
-        XCTAssertTrue(revealElement(valueField), "The new field's value field was not reachable")
+        XCTAssertTrue(revealFormElement(valueField), "The new field's value field was not reachable")
         replaceText(in: valueField, with: "42")
         XCTAssertTrue(
             app.staticTexts["entry-edit.custom-field.error.0"].waitForExistence(timeout: 5),
@@ -629,19 +650,23 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         )
         XCTAssertFalse(saveButton.isEnabled)
 
-        replaceText(in: app.textFields["entry-edit.custom-field.name-field.0"], with: "Account Number")
+        let firstName = app.textFields["entry-edit.custom-field.name-field.0"]
+        XCTAssertTrue(revealFormElement(firstName))
+        replaceText(in: firstName, with: "Account Number")
         XCTAssertTrue(app.staticTexts["entry-edit.custom-field.error.0"].waitForNonExistence(timeout: 5))
 
-        XCTAssertTrue(revealElement(addFieldButton))
+        XCTAssertTrue(revealFormElement(addFieldButton))
         tapElement(addFieldButton)
-        replaceText(in: app.textFields["entry-edit.custom-field.name-field.1"], with: "Zulu")
+        let secondName = app.textFields["entry-edit.custom-field.name-field.1"]
+        XCTAssertTrue(revealFormElement(secondName))
+        replaceText(in: secondName, with: "Zulu")
         let moveUp = app.buttons["entry-edit.custom-field.move-up.1"]
-        XCTAssertTrue(revealElement(moveUp))
+        XCTAssertTrue(revealFormElement(moveUp))
         tapElement(moveUp)
         XCTAssertEqual(app.textFields["entry-edit.custom-field.name-field.0"].value as? String, "Zulu")
 
         let reorder = app.buttons["entry-edit.custom-field.reorder"]
-        XCTAssertTrue(revealElement(reorder))
+        XCTAssertTrue(revealFormElement(reorder))
         tapElement(reorder)
         let firstRow = app.descendants(matching: .any)["entry-edit.custom-field.order.0"].firstMatch
         let secondRow = app.descendants(matching: .any)["entry-edit.custom-field.order.1"].firstMatch
@@ -656,7 +681,7 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         orderAttachment.lifetime = .keepAlways
         add(orderAttachment)
         tapElement(app.buttons["entry-edit.custom-field.order.done"])
-        XCTAssertTrue(revealElement(moveUp))
+        XCTAssertTrue(revealFormElement(moveUp))
         tapElement(moveUp)
 
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())

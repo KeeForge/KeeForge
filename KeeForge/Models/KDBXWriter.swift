@@ -63,13 +63,27 @@ enum KDBXWriter {
         sessionKey: SymmetricKey,
         kdfPolicy: KDFExecutionPolicy
     ) throws -> Data {
+        try write(rootGroup: rootGroup, meta: meta, header: header, sessionKey: sessionKey) { kdfParameters in
+            try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: kdfParameters, kdfPolicy: kdfPolicy)
+        }
+    }
+
+    /// Writes over `header` with the KDF output supplied by `transformedKey`,
+    /// which receives the KDF parameters the file is written with (the
+    /// rotated salt included).
+    static func write(
+        rootGroup: KPGroup,
+        meta: KPMeta,
+        header: KDBXParser.Header,
+        sessionKey: SymmetricKey,
+        transformedKey provideTransformedKey: (_ kdfParameters: [String: Any]) throws -> Data
+    ) throws -> Data {
         try write(
             rootGroup: rootGroup,
             meta: meta,
-            compositeKey: compositeKey,
             sessionKey: sessionKey,
             headerSource: .reuse(header),
-            kdfPolicy: kdfPolicy
+            provideTransformedKey: provideTransformedKey
         )
     }
 
@@ -84,26 +98,25 @@ enum KDBXWriter {
         try write(
             rootGroup: rootGroup,
             meta: meta,
-            compositeKey: compositeKey,
             sessionKey: sessionKey,
-            headerSource: .fresh(freshHeader),
-            kdfPolicy: kdfPolicy
-        )
+            headerSource: .fresh(freshHeader)
+        ) { kdfParameters in
+            try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: kdfParameters, kdfPolicy: kdfPolicy)
+        }
     }
 
     private static func write(
         rootGroup: KPGroup,
         meta: KPMeta,
-        compositeKey: SymmetricKey,
         sessionKey: SymmetricKey,
         headerSource: HeaderSource,
-        kdfPolicy: KDFExecutionPolicy
+        provideTransformedKey: (_ kdfParameters: [String: Any]) throws -> Data
     ) throws -> Data {
         let header = try resolveHeader(
             from: headerSource,
             requiredMinorVersion: requiredMinorVersion(for: rootGroup, meta: meta)
         )
-        var keys = try deriveKeys(compositeKey: compositeKey, header: header, kdfPolicy: kdfPolicy)
+        var keys = try deriveKeys(header: header, provideTransformedKey: provideTransformedKey)
         defer {
             SecureWipe.wipe(&keys.masterKey)
             SecureWipe.wipe(&keys.hmacBaseKey)
@@ -161,12 +174,16 @@ enum KDBXWriter {
 
     /// The lowest KDBX 4 minor version that can represent this tree.
     ///
-    /// Group tags and custom-icon names require KDBX 4.1.
+    /// Group tags, Recycle Bin restore references, and custom-icon names
+    /// require KDBX 4.1.
     private static func requiredMinorVersion(for rootGroup: KPGroup, meta: KPMeta) -> UInt16 {
-        func carriesTagsElement(_ group: KPGroup) -> Bool {
-            group.hasTagsElement || !group.tags.isEmpty || group.groups.contains(where: carriesTagsElement)
+        func requiresVersion41(_ group: KPGroup) -> Bool {
+            group.hasTagsElement || !group.tags.isEmpty
+                || PreviousParentGroupXML.isPresent(in: group.unknownXML)
+                || group.entries.contains { PreviousParentGroupXML.isPresent(in: $0.unknownXML) }
+                || group.groups.contains(where: requiresVersion41)
         }
-        return carriesTagsElement(rootGroup) || !meta.customIconNames.isEmpty
+        return requiresVersion41(rootGroup) || !meta.customIconNames.isEmpty
             || CustomIconXML.requiresVersion41(meta.unknownXML) ? 1 : 0
     }
 
@@ -239,15 +256,10 @@ enum KDBXWriter {
     }
 
     private static func deriveKeys(
-        compositeKey: SymmetricKey,
         header: KDBXParser.Header,
-        kdfPolicy: KDFExecutionPolicy
+        provideTransformedKey: (_ kdfParameters: [String: Any]) throws -> Data
     ) throws -> (masterKey: Data, hmacBaseKey: Data) {
-        var transformedKey = try KDBXParser.deriveKey(
-            compositeKey: compositeKey,
-            kdfParams: header.kdfParameters,
-            kdfPolicy: kdfPolicy
-        )
+        var transformedKey = try provideTransformedKey(header.kdfParameters)
         defer { SecureWipe.wipe(&transformedKey) }
 
         var masterPreKey = Data(capacity: 64)

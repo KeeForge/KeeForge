@@ -115,7 +115,7 @@ final class CredentialProviderSaveTests: XCTestCase {
                     openTimeSHA512: openTimeSHA512,
                     kdfPolicy: .autoFillExtension
                 ) {
-                case .saved(let newSHA512):
+                case .saved(let newSHA512, _):
                     return .saved(
                         AutoFillSaveCoordinator.SaveOutcome(
                             savedRootGroup: draft.rootGroup,
@@ -424,6 +424,56 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertFalse(replacementMarker.isConflicted)
         XCTAssertEqual(replacementMarker.isPayloadFinalized, true)
         XCTAssertEqual(recorder.notifyCount, 1)
+    }
+
+    func test_saveNewEntry_cloudSource_finalizeAndReplacementFailing_keepsTheEarlierSavesMarker() async throws {
+        // With no marker covering the new bytes, the earlier save's marker is
+        // the only thing that still uploads them.
+        let reference = makeCloudReference(rev: "rev-9")
+        let recorder = SaveRecorder()
+        var environment = makeEnvironment(recorder: recorder)
+        environment.finalizePendingUpload = { [recorder] _ in
+            recorder.events.append("finalize")
+            throw PendingUploadQueue.UpdateError.markerNoLongerExists
+        }
+        environment.resolveReference = { [recorder] databaseId in
+            recorder.events.append("resolveReference")
+            return databaseId == reference.id ? reference : nil
+        }
+        let provisionalEnqueue = environment.enqueuePendingUpload
+        environment.enqueuePendingUpload = { [recorder] marker in
+            if recorder.enqueuedMarkers.isEmpty {
+                return try provisionalEnqueue(marker)
+            }
+            recorder.events.append("enqueueFailed")
+            throw CocoaError(.fileWriteUnknown)
+        }
+
+        let result = try await AutoFillSaveCoordinator.saveNewEntry(
+            draftPayload: EntryDraftPayload(
+                title: "Raced",
+                username: "alex",
+                password: "secret",
+                url: "https://example.com"
+            ),
+            reference: reference,
+            rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
+            meta: KPMeta(),
+            sessionKey: SymmetricKey(size: .bits256),
+            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
+            openTimeSHA512: Data("open-sha".utf8),
+            environment: environment
+        )
+
+        guard case .saved = result else {
+            return XCTFail("Expected save to succeed")
+        }
+        XCTAssertEqual(
+            recorder.events,
+            ["enqueue", "saveDraft", "finalize", "resolveReference", "enqueueFailed"]
+        )
+        XCTAssertTrue(recorder.supersededDrops.isEmpty)
+        XCTAssertEqual(recorder.notifyCount, 0)
     }
 
     func test_activeAutoFillDatabase_retainsLocalReadOnlyFlag() {

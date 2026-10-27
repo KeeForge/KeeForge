@@ -332,6 +332,7 @@ final class DatabaseListViewModel {
         )
 
         for reference in databases {
+            QuickUnlockKeychain.expireIfDue(reference)
             let hasStoredKey = KeychainService.hasStoredKey(
                 for: reference.id,
                 legacyFilename: reference.legacyKeychainFilename

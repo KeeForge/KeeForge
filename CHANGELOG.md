@@ -4,20 +4,33 @@
 
 ### New Features
 
-- On Mac, Auto-Unlock with Touch ID now prompts when opening a database or returning to its locked window, without clicking the unlock button (#146).
+- On Mac, use SSH keys stored in KeeForge with `ssh`, `git`, and other SSH clients (#163). Turn on Settings → SSH Agent → "Enable SSH Agent", click "Copy SSH Configuration" and paste it into `~/.ssh/config`, then choose which keys of the unlocked database the agent offers. KeeForge uses an entry's attached OpenSSH private key, including entries set up with KeeAgent, KeePassXC, or Strongbox; Ed25519, ECDSA, and RSA keys without a passphrase are supported, and other keys are listed with the reason they can't be used. Keys are only available while their database is unlocked: locking or closing it makes them unavailable right away, and no key file is written to disk. The agent is off until you turn it on.
+- Face ID, Touch ID, and Apple Watch stop unlocking a database 14 days after its master password was last entered, in the app and in AutoFill, until you enter it again. This keeps a saved unlock key from staying on the device indefinitely and helps you remember the password. Choose 30 days or turn it off in Settings → Security → Require Master Password. After updating, the 14 days start with your next unlock.
 - Generate word-based passphrases on iPhone, iPad, and Mac with a chosen word count and separator. The saved mode and options also apply to iOS AutoFill generation (#187).
+
+### Changes
+
+- Unlocking a cloud database with Face ID or Touch ID is faster: KeeForge checks the cloud copy while the prompt is up instead of after it.
+- Face ID, Touch ID, and Apple Watch unlock, in the app and in AutoFill, open an unchanged database without repeating the key derivation, often the slowest part of unlocking. KeeForge keeps the derived key for the version it last opened or saved, with the same Keychain protection as the saved unlock key, and runs the full derivation again whenever the file has changed elsewhere. Databases that need a YubiKey always run it.
+
+### Fixes
+
+- In Mac AutoFill, a few error messages (such as the one for a database in the Trash) now appear in your language instead of English.
+
+## v1.20.0 (2026-10-25)
+
+### New Features
+
+- On Mac, the Touch ID setting is now Auto-Unlock with Touch ID and covers the app as well as AutoFill: it prompts when opening a database or returning to its locked window, without clicking the unlock button. If you turned it on for AutoFill, you will now see these prompts in the app too (#146).
 - Keep a newly saved entry open on iPhone, iPad, and Mac so it is immediately available without finding it again in the list (#119).
 - Rename and delete custom icons stored in a database on iPhone, iPad, and Mac, from Database Details or the entry icon picker. Entries, groups, and history versions that used a deleted icon return to their default icon. Naming an icon upgrades a KDBX 4.0 database to KDBX 4.1 (#202).
 - Protect or unprotect custom fields in the entry editor on iPhone, iPad, and Mac. Protected values stay hidden until revealed and use standard KeePass protection when saved (#217).
 - Reorder custom fields in the entry editor on iPhone, iPad, and Mac, with the chosen order retained when saving and reopening entries (#216).
-- Restore entries and groups from the Recycle Bin on iPhone, iPad, and Mac, returning them to their original group when known or choosing another destination (#223).
-
-### Changes
-
-- Cloud databases keep a compact Sync Now shortcut on iPhone, iPad, and Mac. Tap its status icon to see why a cloud check was skipped, the last sync time, or the latest result (#232).
+- Restore entries and groups from the Recycle Bin on iPhone, iPad, and Mac, returning them to their original group when known or choosing another destination (#223). Moving an item to the Recycle Bin records its original group, which upgrades a KDBX 4.0 database to KDBX 4.1, as KeePassXC does.
 
 ### Fixes
 
+- Cancelling the Face ID or Touch ID prompt when unlocking now returns to the unlock screen instead of showing an error, on iPhone, iPad, and Mac.
 - Locking a database while it reloads after a save conflict now keeps it locked on iPhone, iPad, and Mac. Before, the finished reload could reopen it, and moving the app to the background or locking the Mac screen during the reload did not lock it.
 - A credential or passkey saved through AutoFill to a cloud database is still uploaded when a later AutoFill save to that database fails, on iPhone, iPad, and Mac.
 - When two saves to the same local database overlap, for example from the app and AutoFill, the later one now reports a save conflict instead of silently replacing the changes the other one just saved.
@@ -25,6 +38,10 @@
 - On iPhone and iPad a database opens on the view you picked last (All Entries, Groups, Verification Codes, or Tags), including after locking or restarting the app, instead of always on All Entries (#230). The Recycle Bin is never where a database opens.
 - On iPhone with larger text, the database's view title no longer gets a second view menu behind a "…" button in Groups, All Entries, Verification Codes, and Tags (#226). The title is the only view menu in every view, before and after it scrolls into the navigation bar, and the bar keeps Lock, Add, Sort, and Settings in view.
 - The bars at the top of an open database, such as the unsaved-changes bar, no longer show the list through them when it is scrolled up (#231).
+
+### Changes
+
+- Cloud databases keep a compact Sync Now shortcut on iPhone, iPad, and Mac. Tap or click its status icon to see why a cloud check was skipped, the last sync time, the latest result, or AutoFill changes still waiting to upload (#232).
 
 ## v1.19.0 (2026-10-19)
 

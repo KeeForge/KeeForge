@@ -2,6 +2,7 @@
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+*.xcodeproj/xcshareddata/xcodecloud/
 xcuserdata/
 *.xcuserstate
 *.xcscmblueprint

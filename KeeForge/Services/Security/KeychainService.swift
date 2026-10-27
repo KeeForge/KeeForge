@@ -6,6 +6,7 @@ import Security
 enum KeychainService {
     private static let service = "com.keevault.app"
     private static let compositeKeyAccount = "compositeKey"
+    private static let expressUnlockKeyAccount = "expressUnlockKey"
 
     /// One quick-unlock item per database. On the native Mac app Touch ID or
     /// an authorized Apple Watch can release it; iPhone and iPad stay
@@ -27,19 +28,49 @@ enum KeychainService {
         "\(compositeKeyAccount):\(filename)"
     }
 
+    private static func expressUnlockAccountKey(for databaseID: UUID) -> String {
+        "\(expressUnlockKeyAccount):\(databaseID.uuidString)"
+    }
+
+    /// Replacing the quick-unlock key also drops the express-unlock item:
+    /// that item was derived from the key being replaced.
     static func storeCompositeKey(_ key: SymmetricKey, for databaseID: UUID) throws {
+        deleteExpressUnlockKey(for: databaseID)
         let account = accountKey(for: databaseID)
-        try storeCompositeKey(key, account: account)
+        try storeItem(key, account: account)
     }
 
     static func retrieveCompositeKey(for databaseID: UUID, context: LAContext) throws -> SymmetricKey {
         let account = accountKey(for: databaseID)
-        return try retrieveCompositeKey(account: account, context: context)
+        return try retrieveItem(account: account, context: context)
     }
 
     static func deleteCompositeKey(for databaseID: UUID) {
+        deleteExpressUnlockKey(for: databaseID)
         let account = accountKey(for: databaseID)
-        deleteCompositeKey(account: account)
+        deleteItem(account: account)
+    }
+
+    /// Same protection as the quick-unlock item: the payload opens the
+    /// database version it was derived for.
+    static func storeExpressUnlockKey(_ payload: Data, for databaseID: UUID) throws {
+        try storeItem(SymmetricKey(data: payload), account: expressUnlockAccountKey(for: databaseID))
+    }
+
+    /// Read with the context that already released the quick-unlock key. It
+    /// never prompts: if that context does not satisfy the item, the read
+    /// fails and the unlock runs the KDF instead of asking a second time.
+    static func retrieveExpressUnlockKey(for databaseID: UUID, context: LAContext) throws -> SymmetricKey {
+        context.interactionNotAllowed = true
+        return try retrieveItem(account: expressUnlockAccountKey(for: databaseID), context: context)
+    }
+
+    static func deleteExpressUnlockKey(for databaseID: UUID) {
+        deleteItem(account: expressUnlockAccountKey(for: databaseID))
+    }
+
+    static func hasExpressUnlockKey(for databaseID: UUID) -> Bool {
+        hasStoredKey(account: expressUnlockAccountKey(for: databaseID))
     }
 
     static func hasStoredKey(for databaseID: UUID, legacyFilename: String? = nil) -> Bool {
@@ -68,11 +99,11 @@ enum KeychainService {
     }
 
     static func retrieveLegacyCompositeKey(forFilename filename: String, context: LAContext) throws -> SymmetricKey {
-        try retrieveCompositeKey(account: legacyAccountKey(forFilename: filename), context: context)
+        try retrieveItem(account: legacyAccountKey(forFilename: filename), context: context)
     }
 
     static func deleteLegacyCompositeKey(forFilename filename: String) {
-        deleteCompositeKey(account: legacyAccountKey(forFilename: filename))
+        deleteItem(account: legacyAccountKey(forFilename: filename))
     }
 
     static func hasLegacyStoredKey(forFilename filename: String) -> Bool {
@@ -87,8 +118,8 @@ enum KeychainService {
         return true
     }
 
-    private static func storeCompositeKey(_ key: SymmetricKey, account: String) throws {
-        deleteCompositeKey(account: account)
+    private static func storeItem(_ key: SymmetricKey, account: String) throws {
+        deleteItem(account: account)
 
         var error: Unmanaged<CFError>?
         guard let accessControl = SecAccessControlCreateWithFlags(
@@ -122,7 +153,7 @@ enum KeychainService {
     }
 
     // The bytes CFData hands back are Security-framework owned and cannot be reliably wiped.
-    private static func retrieveCompositeKey(account: String, context: LAContext) throws -> SymmetricKey {
+    private static func retrieveItem(account: String, context: LAContext) throws -> SymmetricKey {
         #if os(macOS)
         // The caller's evaluated policy is the only prompt. The Mac item also
         // admits Apple Watch, so a Keychain-raised prompt could offer the
@@ -147,7 +178,7 @@ enum KeychainService {
         return SymmetricKey(data: data)
     }
 
-    private static func deleteCompositeKey(account: String) {
+    private static func deleteItem(account: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

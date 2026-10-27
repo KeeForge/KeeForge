@@ -23,6 +23,7 @@
 - A setting the extension reads lives in the App Group suite: `clipboardTimeout`, `autoFillCopyTOTP`, `autoUnlockWithFaceID`, `quickAutoFillEnabled`, `passwordGeneratorOptions`. `showWebsiteIcons` is shared too, but no extension code reads it today. Everything else stays in `UserDefaults.standard`. Moving one changes what shipped installs read.
 - `clipboardTimeout` is shared so the app and extension agree on expiry; its getter migrates the older app-local value on first read.
 - `AuthenticationGracePeriod` defaults to Always Ask and is bounded at five minutes; do not add an unbounded option. `../Security/SecretAccessGate` reads it.
+- The SSH agent's settings (`macSSHAgentEnabled(in:)`, `macSSHAgentSelectedEntryIDs(in:)`, and their setters) take the `UserDefaults` to use instead of reading `.standard`. `../SSHAgent/MacSSHAgentController` passes the app's own and its tests a suite of their own, so a Mac test run never changes a developer's agent.
 
 ### Clipboard
 

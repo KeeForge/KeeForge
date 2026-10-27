@@ -53,7 +53,7 @@ enum AutoFillSaveCoordinator {
                     environment: .autoFillExtension
                 )
                 switch result {
-                case .saved(let newSHA512):
+                case .saved(let newSHA512, _):
                     return .saved(
                         SaveOutcome(
                             savedRootGroup: draft.rootGroup,
@@ -153,8 +153,9 @@ enum AutoFillSaveCoordinator {
         //   2. saveDraft: SHA-check, backup, atomic cache replace
         //   3. finalize: write the payload SHA onto the marker as it is on
         //      disk (a drain may have touched it meanwhile)
-        //   4. drop older markers for the base bytes, which this save contains,
-        //      then wake the drainer, which would flag them as conflicted
+        //   4. once a marker covers the saved bytes, drop older markers for the
+        //      base bytes, which this save contains, then wake the drainer,
+        //      which would flag them as conflicted
         // A crash before replacement leaves the provisional marker deferred
         // and any older marker still uploading the base bytes; after
         // replacement, the SHA mismatch surfaces a visible conflict.
@@ -208,8 +209,8 @@ enum AutoFillSaveCoordinator {
                         reference: reference,
                         environment: environment
                     )
-                    environment.dropSupersededPendingUploads(reference.id, openTimeSHA512, storedMarker.id)
                     if isCovered {
+                        environment.dropSupersededPendingUploads(reference.id, openTimeSHA512, storedMarker.id)
                         environment.notifyPendingUploadEnqueued()
                     }
                 }.value

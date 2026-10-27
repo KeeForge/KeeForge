@@ -15,7 +15,7 @@ enum CloudDatabaseSaver {
         var cacheURL: @Sendable (DatabaseReference) -> URL
         var readData: @Sendable (URL) throws -> Data
         var extractHeader: @Sendable (Data, SymmetricKey, KDFExecutionPolicy) throws -> KDBXParser.Header
-        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXParser.Header, KDFExecutionPolicy) throws -> Data
+        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXParser.Header, KDFExecutionPolicy) throws -> ExpressUnlock.Written
         var getMetadata: @Sendable (DatabaseReference) async throws -> CloudFileMetadata
         var upload: @Sendable (DatabaseReference, Data, String?, @escaping ProgressHandler) async throws -> CloudFileMetadata
         var downloadRemoteData: @Sendable (DatabaseReference) async throws -> Data
@@ -206,7 +206,9 @@ enum CloudDatabaseSaver {
             header = encryptionSettings.applied(to: header)
         }
         let writeKey = newCompositeKey ?? compositeKey
-        let newData = try environment.encryptDraft(draft, writeKey, header, kdfPolicy)
+        let written = try environment.encryptDraft(draft, writeKey, header, kdfPolicy)
+        let newData = written.data
+        let expressKey = reference.hardwareKey == nil ? written.expressKey : nil
         if newCompositeKey != nil || encryptionSettings != nil {
             do {
                 _ = try environment.extractHeader(newData, writeKey, kdfPolicy)
@@ -233,6 +235,7 @@ enum CloudDatabaseSaver {
             return try finishSave(
                 reference: reference,
                 newData: newData,
+                expressKey: expressKey,
                 uploadedMetadata: uploadedMetadata,
                 openTimeSHA512: baseline.openTimeSHA512,
                 rekeyed: newCompositeKey != nil,
@@ -259,6 +262,7 @@ enum CloudDatabaseSaver {
                     return try finishSave(
                         reference: reference,
                         newData: newData,
+                        expressKey: expressKey,
                         uploadedMetadata: uploadedMetadata,
                         openTimeSHA512: baseline.openTimeSHA512,
                         rekeyed: newCompositeKey != nil,
@@ -279,6 +283,7 @@ enum CloudDatabaseSaver {
     private static func finishSave(
         reference: DatabaseReference,
         newData: Data,
+        expressKey: ExpressUnlockKey?,
         uploadedMetadata: CloudFileMetadata,
         openTimeSHA512: Data,
         rekeyed: Bool,
@@ -300,7 +305,7 @@ enum CloudDatabaseSaver {
         environment.dropSupersededPendingUploads(reference.id, openTimeSHA512)
         try? environment.pruneBackups(reference, 5)
 
-        return .saved(newSHA512: KDBXCrypto.sha512(newData))
+        return .saved(newSHA512: KDBXCrypto.sha512(newData), expressKey: expressKey)
     }
 
     static func pushPendingUpload(

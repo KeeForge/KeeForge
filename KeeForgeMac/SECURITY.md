@@ -121,13 +121,16 @@ default lock policy, switching to another app does not lock and therefore does
 not end the period either; the strict policy ends it with the lock.
 
 The opt-in Auto-Unlock with Touch ID setting prompts when a database opens in
-its foreground key window or the user returns to that window. Native app/window
-activation, rather than scene phase or a new lock cycle, drives this flow.
+its foreground key window or the user returns to that window: app or window
+activation, or the screen unlocking or login session returning while KeeForge
+stays the active app. Those events, rather than scene phase or a new lock cycle,
+drive this flow. It needs Touch ID itself; an Apple Watch alone never prompts on
+its own, matching the setting, which appears only with Touch ID.
 The queued attempt rechecks the foreground window, eligibility, and lock cycle;
 a screen-lock, sleep, or other lock arriving first invalidates it. A manual lock
 stays locked until a later activation or an explicit unlock. Each lock cycle has
 at most one presented automatic prompt, so cancellation or password fallback does
-not immediately prompt again. The password form and explicit retry remain available.
+not immediately prompt again; either returns to the unlock form, not an error. The password form and explicit retry remain available.
 AutoFill continues to use the same preference for its own foreground flow.
 
 Quick unlock (#66) keeps one Keychain item per database. On the Mac its access
@@ -159,6 +162,28 @@ does not repeat the quick unlock. The next password unlock writes a fresh item. 
 `.biometryCurrentSet` alone. Touch ID still opens them, and the next unlock
 rewrites them with the combined policy.
 
+Beside that item sits an express-unlock item: the KDF output of the database
+version last opened by the app or AutoFill, or saved by the app, bound to that
+version's KDF parameters and the composite key. It has the same access control
+and protection class. The app and the AutoFill extension read it with the
+context that released the quick-unlock item, so it never prompts, and both
+write it back right after the quick-unlock item, whose every write or removal
+deletes it first. A hardware-key database never gets one. Quick unlock of an
+unchanged file then skips the KDF, in the app and in AutoFill; a key that does
+not open the file only costs the KDF.
+Every save rotates the KDF salt: an app save stores the saved version's key in
+its place, but only while the quick-unlock item holds the session's composite
+key. A save anywhere else leaves the item unmatched, so the next unlock runs the
+KDF and replaces it.
+
+Both items expire with Settings → Security → Require Master Password (14 days
+by default, 30 days, or never). The date of the last master-key entry per
+database lives in the App Group defaults; a quick unlock never moves it. Once
+it is older than the interval, or a clock set back past it, the app and
+AutoFill delete both items before they would read them and ask for the
+password. The date bounds how long a saved key lives, not an attacker who can
+already write the App Group container.
+
 ## Screen and clipboard privacy
 
 Password reveal and copy actions recheck their originating session, lock cycle,
@@ -170,9 +195,12 @@ Custom-field drag reordering uses a native list of field names. Field values
 are not displayed in that list or its drag previews.
 
 [ScreenProtectionService](../KeeForge/Services/Security/ScreenProtectionService.swift)
-places a blur cover over vault-content windows when the app resigns active and
-removes it on activation. Settings is excluded from the cover because it contains
-no vault secrets. This cover is independent of the capture-blocking toggle.
+places a blur cover over all app windows, including Settings, when the app
+resigns active and removes it on activation. The SSH Agent tab also removes
+its vault-derived entry titles and key fingerprints from its view while the app
+is inactive
+([MacSSHAgentController](../KeeForge/Services/SSHAgent/MacSSHAgentController.swift)
+`concealsKeyList`). This cover is independent of the capture-blocking toggle.
 
 The default-on Block Screen Capture setting applies `NSWindow.sharingType = .none`
 to existing and newly observed windows, including Settings. Treat this as
@@ -225,6 +253,68 @@ not titled, so the resign-active blur cover skips it. Because a search usually
 starts while another app is active, the panel closes when it loses key status
 and does not rely on that cover. It applies the Block Screen Capture setting to
 itself when shown, with the same best-effort limits as the other windows.
+
+## SSH agent
+
+The optional SSH agent
+([MacSSHAgentController](../KeeForge/Services/SSHAgent/MacSSHAgentController.swift))
+is off by default. While it is on, it listens on `ssh-agent.sock` in the app's
+container home. The socket is created mode 0600 inside a container directory only
+the user can enter, and every connection is checked with `getpeereid` against the
+app's own user. At most 64 connections are open at once, since each one costs the
+app a thread; a further one takes the place of the connection that has gone longest
+without a complete request, so clients that connect and then stall, stop inside a
+message, or never read their answer cannot keep new ones out. No connection has a
+time limit of its own: below 64, an idle one stays open. It needs no extra
+entitlement and adds no network access. Turning
+the agent off or quitting removes the socket; a file left by a crash is replaced on
+the next start, and anything at that path that is not a socket is left alone and
+reported.
+
+The agent writes no keys anywhere. Which entries it serves is a per-database list of entry
+UUIDs in the app's own defaults, chosen in Settings ▸ SSH Agent. Every request
+reads those entries from the one active session at that moment, so nothing is
+offered while that session is locked, closed, or has a lock pending: one waiting
+on unsaved work or a window-close prompt, or Retry Save and Lock writing before it
+locks.
+The private key is read from the decrypted attachment pool for each request and
+parsed off the main thread. A key file over 64 KiB, several times the largest
+supported key, is refused before it is decoded, a `KeeAgent.settings` over the same
+size is not parsed, and the list of identities is cut to the 256 KiB message limit,
+so what an attachment can make one request do is bounded. A parsed key is kept in
+memory only for the same entry, the same lock cycle of the same session, and
+byte-identical key file content, so an unchanged key is not parsed for every
+request. That cache is emptied the moment the session locks or a lock becomes
+pending, when the selection changes, and when the agent is turned off; a key parsed
+from a read of the session that such an event has overtaken is not kept. After signing, the agent reads the session
+again and withholds the signature if the session's lock cycle, the selection, or the
+entry's key attachment has changed. No key file is written to disk and no key is exported.
+
+Supported keys are unencrypted OpenSSH private keys (`openssh-key-v1`) for Ed25519,
+ECDSA P-256/P-384/P-521, and RSA. RSA signs only with `rsa-sha2-256` or
+`rsa-sha2-512`; SHA-1 `ssh-rsa` requests fail. RSA keys outside OpenSSH's own
+1024 to 16384 bit range are rejected when parsed, which also bounds the arithmetic a
+crafted attachment can make a request do. Passphrase-protected keys, PEM and
+PKCS #8 files, and PuTTY keys are listed as unsupported and never served. The agent
+answers only identity listing and signing; requests to add, remove, or lock keys,
+and protocol extensions, fail.
+
+Like `ssh-agent`, the agent cannot tell one local process from another. Any process
+running as the user that can reach the socket can list the chosen public keys and
+obtain signatures while the database is unlocked, and there is no per-signature
+confirmation. That also holds for an entry whose `KeeAgent.settings` asks for a
+confirmation or a lifetime in KeeAgent or KeePassXC: KeeForge reads only the key's
+attachment name from that file, and choosing the entry in Settings is the consent. Forwarding the agent to a remote host extends the same ability to that
+host for the length of the connection. A signature is not bound to a destination
+either: `session-bind@openssh.com` is refused like every other extension.
+
+Not validated on a signed, sandboxed build: whether a client outside the container
+reaches the socket without a prompt, how the covered Settings window and capture
+block behave in Mission Control and under ScreenCaptureKit, and `ssh`, `git`, and
+a forwarded agent end to end. Not measured: lock latency while many clients send
+requests (each one reads the session on the main thread), and the time a
+16384-bit RSA signature takes. The same-user peer check has no test with a peer of
+another user.
 
 ## Plaintext attachment files and disk encryption
 

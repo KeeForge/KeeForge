@@ -2258,6 +2258,110 @@
         }
       }
     },
+    "Every 14 Days" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle 14 Tage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada 14 días"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tous les 14 jours"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ogni 14 giorni"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "14日ごと"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каждые 14 дней"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 14 天"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 14 天"
+          }
+        }
+      }
+    },
+    "Every 30 Days" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle 30 Tage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada 30 días"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tous les 30 jours"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ogni 30 giorni"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30日ごと"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каждые 30 дней"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 30 天"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 30 天"
+          }
+        }
+      }
+    },
     "Expired" : {
       "localizations" : {
         "de" : {
@@ -6320,6 +6424,58 @@
         }
       }
     },
+    "The database file is in the Trash. Restore it from the Trash in Finder, or choose the current file with Locate Database File in KeeForge." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdatei befindet sich im Papierkorb. Stellen Sie sie im Finder aus dem Papierkorb wieder her, oder wählen Sie in KeeForge mit „Datenbankdatei suchen“ die aktuelle Datei aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo de la base de datos está en la Papelera. Restáurelo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de base de données se trouve dans la Corbeille. Restaurez-le depuis la Corbeille dans le Finder, ou choisissez le fichier actuel avec « Localiser le fichier de base de données » dans KeeForge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il file del database è nel Cestino. Ripristinalo dal Cestino nel Finder oppure scegli il file attuale con Individua file del database in KeeForge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースファイルはゴミ箱にあります。Finder のゴミ箱から復元するか、KeeForge の「データベースファイルを探す」で現在のファイルを選択してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл базы данных находится в Корзине. Восстановите его из Корзины в Finder или выберите актуальный файл с помощью «Найти файл базы данных» в KeeForge."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库文件位于废纸篓中。请在 Finder 中从废纸篓恢复它，或在 KeeForge 中使用“查找数据库文件”选择当前文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫檔案位於垃圾桶中。請在 Finder 中從垃圾桶回復它，或在 KeeForge 中使用「尋找資料庫檔案」選擇目前的檔案。"
+          }
+        }
+      }
+    },
     "The database is missing key derivation metadata." : {
       "localizations" : {
         "de" : {
@@ -6524,6 +6680,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資料庫會過大，KeeForge 將無法再次開啟，因此未儲存。"
+          }
+        }
+      }
+    },
+    "The file is damaged: a quoted value that starts in row %lld never ends. Export your passwords again and retry." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datei ist beschädigt: Ein Wert in Anführungszeichen, der in Zeile %lld beginnt, endet nie. Exportiere deine Passwörter erneut und versuche es noch einmal."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo está dañado: un valor entre comillas que empieza en la fila %lld nunca termina. Vuelve a exportar tus contraseñas e inténtalo de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier est endommagé : une valeur entre guillemets qui commence à la ligne %lld ne se termine jamais. Exportez à nouveau vos mots de passe, puis réessayez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il file è danneggiato: un valore tra virgolette che inizia alla riga %lld non viene mai chiuso. Esporta di nuovo le password e riprova."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルが破損しています：%lld行目で始まる引用符付きの値が終わっていません。パスワードをもう一度書き出してからやり直してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл повреждён: значение в кавычках, начинающееся в строке %lld, нигде не заканчивается. Экспортируйте пароли заново и повторите попытку."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件已损坏：从第 %lld 行开始的带引号的值没有结束。请重新导出密码后再试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案已損毀：從第 %lld 列開始的帶引號值沒有結束。請重新匯出密碼後再試一次。"
           }
         }
       }
@@ -7316,6 +7524,64 @@
         }
       }
     },
+    "This database’s icons cannot be changed safely." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Symbole dieser Datenbank können nicht sicher geändert werden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This database’s icons cannot be changed safely."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los iconos de esta base de datos no se pueden modificar de forma segura."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les icônes de cette base de données ne peuvent pas être modifiées sans risque."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le icone di questo database non possono essere modificate in modo sicuro."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースのアイコンは安全に変更できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Значки этой базы данных нельзя изменить безопасно."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法安全地更改此数据库的图标。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法安全地變更此資料庫的圖示。"
+          }
+        }
+      }
+    },
     "This database's key derivation settings (%@ of memory × %@ iterations, %@ threads) exceed what this app can safely run. Lower the database's Argon2 settings in a desktop KeePass app and save it, then try again." : {
       "localizations" : {
         "de" : {
@@ -7364,6 +7630,214 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此資料庫的金鑰衍生設定（%@ 記憶體 × %@ 次迭代、%@ 個執行緒）超出了此 App 可安全執行的範圍。請在桌面版 KeePass App 中調低資料庫的 Argon2 設定並儲存，然後再試一次。"
+          }
+        }
+      }
+    },
+    "This export file contains no passwords." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Exportdatei enthält keine Passwörter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo de exportación no contiene contraseñas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier d’exportation ne contient aucun mot de passe."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo file di esportazione non contiene password."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この書き出しファイルにはパスワードが含まれていません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В этом файле экспорта нет паролей."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此导出文件不包含任何密码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此匯出檔案不包含任何密碼。"
+          }
+        }
+      }
+    },
+    "This file is not a text file KeeForge can read." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datei ist keine Textdatei, die KeeForge lesen kann."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo no es un archivo de texto que KeeForge pueda leer."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier n’est pas un fichier texte lisible par KeeForge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo file non è un file di testo che KeeForge può leggere."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルはKeeForgeが読み取れるテキストファイルではありません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот файл не является текстовым файлом, который KeeForge может прочитать."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此文件不是 KeeForge 可读取的文本文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此檔案不是 KeeForge 可讀取的文字檔案。"
+          }
+        }
+      }
+    },
+    "This file is not an Apple Passwords export. KeeForge can currently import only the CSV file that the Passwords app exports." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datei ist kein Export aus Apple Passwörter. KeeForge kann derzeit nur die CSV-Datei importieren, die die App „Passwörter“ exportiert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo no es una exportación de Contraseñas de Apple. Por ahora, KeeForge solo puede importar el archivo CSV que exporta la app Contraseñas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier n’est pas une exportation d’Apple Mots de passe. KeeForge ne peut actuellement importer que le fichier CSV exporté par l’app Mots de passe."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo file non è un'esportazione di Password di Apple. Al momento KeeForge può importare solo il file CSV esportato dall'app Password."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルはAppleの「パスワード」の書き出しファイルではありません。KeeForgeが現在読み込めるのは、「パスワード」App が書き出すCSVファイルだけです。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот файл не является экспортом «Паролей» Apple. Сейчас KeeForge может импортировать только CSV-файл, экспортированный приложением «Пароли»."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此文件不是 Apple“密码”的导出文件。KeeForge 目前只能导入“密码” App 导出的 CSV 文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此檔案不是 Apple「密碼」的匯出檔案。KeeForge 目前只能匯入「密碼」App 匯出的 CSV 檔案。"
+          }
+        }
+      }
+    },
+    "This file is too large to be a password export." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datei ist zu groß für einen Passwortexport."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo es demasiado grande para ser una exportación de contraseñas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier est trop volumineux pour être une exportation de mots de passe."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo file è troppo grande per essere un'esportazione di password."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルはパスワードの書き出しファイルとしては大きすぎます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот файл слишком велик для экспорта паролей."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此文件过大，不是密码导出文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此檔案過大，不是密碼匯出檔案。"
           }
         }
       }
@@ -7468,6 +7942,116 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法刪除此群組。"
+          }
+        }
+      }
+    },
+    "This icon is no longer available." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Symbol ist nicht mehr verfügbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This icon is no longer available."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este icono ya no está disponible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette icône n’est plus disponible."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa icona non è più disponibile."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアイコンは利用できなくなりました。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот значок больше недоступен."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此图标已不可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此圖示已無法使用。"
+          }
+        }
+      }
+    },
+    "This item cannot be restored to that group. Choose another destination." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Objekt kann nicht in dieser Gruppe wiederhergestellt werden. Wähle ein anderes Ziel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este elemento no se puede restaurar en ese grupo. Elige otro destino."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet élément ne peut pas être restauré dans ce groupe. Choisissez une autre destination."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo elemento non può essere ripristinato in quel gruppo. Scegli un’altra destinazione."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この項目はそのグループに復元できません。別の復元先を選んでください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Невозможно восстановить этот объект в выбранную группу. Выберите другое место."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法将此项目恢复到该群组。请选择其他目标。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法將此項目回復至該群組。請選擇其他目的地。"
           }
         }
       }

@@ -56,6 +56,35 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.20.0":
+            features = [
+                WhatsNewFeature(
+                    id: "restore-recycle-bin",
+                    title: "Restore from the Recycle Bin",
+                    detail: "Choose Restore on an entry or group in the Recycle Bin to bring it back. It returns to the group it came from when KeeForge knows it; otherwise, pick where it goes.",
+                    systemImage: "arrow.uturn.backward"
+                ),
+                WhatsNewFeature(
+                    id: "arrange-protect-custom-fields",
+                    title: "Arrange and protect custom fields",
+                    detail: "Reorder custom fields while editing an entry, and protect sensitive ones so they stay hidden until you reveal them.",
+                    systemImage: "list.bullet.rectangle"
+                ),
+                WhatsNewFeature(
+                    id: "manage-custom-icons",
+                    title: "Manage your custom icons",
+                    detail: "Rename or delete a database's custom icons from Database Details or the icon picker. Anything that used a deleted icon goes back to its default.",
+                    systemImage: "photo.on.rectangle",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "mac-touch-id-auto-unlock",
+                    title: "Unlock automatically with Touch ID",
+                    detail: "Turn on Auto-Unlock with Touch ID in Settings to get a Touch ID prompt as soon as you open a database or return to its locked window. It applies to AutoFill too.",
+                    systemImage: "touchid",
+                    platforms: [.macOS]
+                ),
+            ]
         case "1.19.0":
             features = [
                 WhatsNewFeature(

@@ -9,6 +9,7 @@ enum SettingsService {
         static let clipboardTimeout = "KeeForge.clipboardTimeout"
         static let authenticationGracePeriod = "KeeForge.authenticationGracePeriod"
         static let autoUnlockWithFaceID = "KeeForge.autoUnlockWithFaceID"
+        static let quickUnlockPasswordInterval = "KeeForge.quickUnlockPasswordInterval"
         static let showWebsiteIcons = "KeeForge.showWebsiteIcons"
         static let showDatabaseUsageStats = "KeeForge.showDatabaseUsageStats"
         static let quickAutoFillEnabled = "KeeForge.quickAutoFillEnabled"
@@ -21,6 +22,8 @@ enum SettingsService {
         static let passwordGeneratorOptions = "KeeForge.passwordGeneratorOptions"
         static let macMenuBarQuickAccess = "KeeForge.macMenuBarQuickAccess"
         static let macQuickSearchShortcut = "KeeForge.macQuickSearchShortcut"
+        static let macSSHAgentEnabled = "KeeForge.macSSHAgentEnabled"
+        static let macSSHAgentSelectedEntryIDs = "KeeForge.macSSHAgentSelectedEntryIDs"
     }
 
     static let appearanceModeDefaultsKey = Key.appearanceMode
@@ -110,6 +113,32 @@ enum SettingsService {
             case .thirtySeconds: String(localized: "30 Seconds")
             case .oneMinute: String(localized: "1 Minute")
             case .fiveMinutes: String(localized: "5 Minutes")
+            }
+        }
+    }
+
+    // MARK: - Quick Unlock Password Interval
+
+    /// How long quick unlock keeps working after the master key was last
+    /// entered for a database. `QuickUnlockKeychain` enforces it.
+    enum QuickUnlockPasswordInterval: String, CaseIterable, Sendable {
+        case fourteenDays
+        case thirtyDays
+        case never
+
+        var duration: TimeInterval? {
+            switch self {
+            case .fourteenDays: 14 * 24 * 60 * 60
+            case .thirtyDays: 30 * 24 * 60 * 60
+            case .never: nil
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .fourteenDays: String(localized: "Every 14 Days")
+            case .thirtyDays: String(localized: "Every 30 Days")
+            case .never: String(localized: "Never")
             }
         }
     }
@@ -309,6 +338,19 @@ enum SettingsService {
         }
     }
 
+    /// App Group-shared: AutoFill enforces the same interval.
+    static var quickUnlockPasswordInterval: QuickUnlockPasswordInterval {
+        get {
+            guard let raw = sharedDefaults.string(forKey: Key.quickUnlockPasswordInterval) else {
+                return .fourteenDays
+            }
+            return QuickUnlockPasswordInterval(rawValue: raw) ?? .fourteenDays
+        }
+        set {
+            sharedDefaults.set(newValue.rawValue, forKey: Key.quickUnlockPasswordInterval)
+        }
+    }
+
     static var showWebsiteIcons: Bool {
         get {
             sharedDefaults.bool(forKey: Key.showWebsiteIcons)
@@ -428,6 +470,49 @@ enum SettingsService {
             } else {
                 UserDefaults.standard.removeObject(forKey: Key.macQuickSearchShortcut)
             }
+        }
+    }
+
+    // MARK: - SSH Agent (macOS)
+    //
+    // App-local: only the Mac app runs the agent, and which entries it serves
+    // is a choice about this Mac, not something the database carries. The
+    // store is a parameter so tests never touch the agent a developer set up.
+
+    /// Off by default: serving keys to every SSH client the user runs is the
+    /// user's choice to make.
+    static func macSSHAgentEnabled(in defaults: UserDefaults) -> Bool {
+        defaults.bool(forKey: Key.macSSHAgentEnabled)
+    }
+
+    static func setMacSSHAgentEnabled(_ isEnabled: Bool, in defaults: UserDefaults) {
+        defaults.set(isEnabled, forKey: Key.macSSHAgentEnabled)
+    }
+
+    /// Entry IDs the agent serves, keyed by `DatabaseReference.id`.
+    static func macSSHAgentSelectedEntryIDs(in defaults: UserDefaults) -> [UUID: Set<UUID>] {
+        guard let stored = defaults.dictionary(forKey: Key.macSSHAgentSelectedEntryIDs) else {
+            return [:]
+        }
+        var selection: [UUID: Set<UUID>] = [:]
+        for (databaseID, entryIDs) in stored {
+            guard let databaseID = UUID(uuidString: databaseID), let entryIDs = entryIDs as? [String] else { continue }
+            let parsed = Set(entryIDs.compactMap(UUID.init(uuidString:)))
+            if parsed.isEmpty == false {
+                selection[databaseID] = parsed
+            }
+        }
+        return selection
+    }
+
+    static func setMacSSHAgentSelectedEntryIDs(_ selection: [UUID: Set<UUID>], in defaults: UserDefaults) {
+        let stored = Dictionary(uniqueKeysWithValues: selection.map { databaseID, entryIDs in
+            (databaseID.uuidString, entryIDs.map(\.uuidString).sorted())
+        })
+        if stored.isEmpty {
+            defaults.removeObject(forKey: Key.macSSHAgentSelectedEntryIDs)
+        } else {
+            defaults.set(stored, forKey: Key.macSSHAgentSelectedEntryIDs)
         }
     }
 }

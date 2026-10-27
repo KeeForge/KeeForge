@@ -38,7 +38,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 - On iOS, one attempt per `lockCycleID`, and only while `scenePhase == .active`: LocalAuthentication fails with `LAError.notInteractive` for a caller that is not foreground-active, which would burn the cycle's attempt on an error screen.
 - An attempt that returns `.promptUnavailable` showed no UI and gives its lock cycle back.
-- On Mac, attempt only when the session mounts in a foreground key window or that window/app returns to the foreground. Never trigger from a lock-cycle change. Defer past activation observers and recheck eligibility, window visibility, attached sheets, and the captured lock cycle before prompting. Cancellation or fallback consumes the cycle; the password form stays available. Pending work is invalidated on unmount.
+- On Mac, attempt only when the session mounts in a foreground key window or that window/app returns to the foreground, including a screen unlock or session switch back while KeeForge stays active (`MacBiometricAutoUnlockController.startObserving`). Never trigger from a lock-cycle change. Defer past activation observers and recheck eligibility, window visibility, attached sheets, and the captured lock cycle before prompting. Cancellation or fallback consumes the cycle; the password form stays available. Pending work is invalidated on unmount.
 - The Mac observer lives above the locked/unlocked view switch, keyed by session. Mounting it counts as opening, so placing it inside a view that a lock replaces would prompt on every automatic lock while the window is frontmost.
 - `BiometricAutoUnlockPolicy` disables auto-unlock for the iOS build running on Mac or Vision Pro, because `active` does not prove the compatibility window is frontmost. Those keep the explicit biometric action in `UnlockView`.
 
@@ -71,7 +71,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 ## Tests
 
 - Persistent cloud sync controls, repeated syncs, policy changes, and warning state: `DatabaseViewModelCloudSyncTests`. The status popover workflow is covered by `CloudUnlockSmokeUITests` and `MacWebDAVSmokeUITests`.
-- Mac automatic prompts and queued-event invalidation: `MacBiometricAutoUnlockTests`.
+- Mac automatic prompts, their trigger notifications, and queued-event invalidation: `MacBiometricAutoUnlockTests`.
 - Routing and launch order: `AppRoutingCoordinatorTests`. Menu password copy: `EntrySecretActionTests`. Lock triggers: `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `AutoLockTests`. iOS window activity forwarding: `IOSUserActivityTests`; real editor typing, scrolling, button taps, and subsequent idle locking: `AutoLockActivityUITests`.
 - Mac list selection and keyboard wiring exists only as UI: `MacSmokeUITests` (the `testDownArrow…` and double-click cases) and `MacListKeyboardNavigationUITests`.
 - Sidebar custom-icon data and recycle-bin icon projection: the macOS cases in `GroupIconViewTests`.

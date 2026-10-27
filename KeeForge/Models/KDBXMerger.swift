@@ -204,11 +204,33 @@ extension KDBXMerger {
         private var graftedEntryIDs: Set<UUID> = []
         private var graftedGroupIDs: Set<UUID> = []
 
+        /// Deleted icons that either side modified after the deletion. As in
+        /// KeePass's `MergeInCustomIcons`, the later change wins and the
+        /// tombstone is dropped.
+        private let revivedIconUUIDs: Set<UUID>
+
+        private static func iconsModifiedAfterDeletion(local: KPMeta, remote: KPMeta) -> Set<UUID> {
+            let deletions = Dictionary(
+                (local.deletedObjects + remote.deletedObjects).map { ($0.uuid, $0.deletionTime) },
+                uniquingKeysWith: max
+            )
+            return Set(deletions.compactMap { uuid, deletedAt in
+                let modified = [local, remote].compactMap { side in
+                    side.customIcons[uuid] == nil ? nil : CustomIconXML.modificationTime(of: uuid, in: side.unknownXML)
+                }.max()
+                guard let modified, modified > deletedAt else { return nil }
+                return uuid
+            })
+        }
+
         init(local: Side, remote: Side, sessionKey: SymmetricKey) {
             self.local = local
             self.remote = remote
             self.sessionKey = sessionKey
+            let revivedIcons = Self.iconsModifiedAfterDeletion(local: local.meta, remote: remote.meta)
+            self.revivedIconUUIDs = revivedIcons
             self.deletedIconUUIDs = Set((local.meta.deletedObjects + remote.meta.deletedObjects).map(\.uuid))
+                .subtracting(revivedIcons)
             self.root = local.rootGroup.deepCopy()
             self.meta = local.meta
         }
@@ -542,7 +564,8 @@ extension KDBXMerger {
             visit(root)
 
             meta.deletedObjects = order.compactMap { uuid in
-                deletionTimes[uuid].map { KPDeletedObject(uuid: uuid, deletionTime: $0) }
+                guard !revivedIconUUIDs.contains(uuid) else { return nil }
+                return deletionTimes[uuid].map { KPDeletedObject(uuid: uuid, deletionTime: $0) }
             }
 
             let localIDs = Set(local.meta.deletedObjects.map(\.uuid))
@@ -598,6 +621,16 @@ extension KDBXMerger {
                 }
             }
             CustomIconXML.removeReferences(to: deletedIcons, in: root)
+
+            for uuid in revivedIconUUIDs.sorted(by: { $0.uuidString < $1.uuidString }) where meta.customIcons[uuid] == nil {
+                guard let imageData = remote.meta.customIcons[uuid],
+                      let spliced = CustomIconXML.copying(uuid: uuid, from: remote.meta.unknownXML, to: meta.unknownXML)
+                else { continue }
+                meta.unknownXML = spliced
+                meta.customIcons[uuid] = imageData
+                meta.customIconNames[uuid] = remote.meta.customIconNames[uuid]
+                summary.customIconsSpliced += 1
+            }
 
             // An icon both sides hold takes the newer KDBX 4.1 rename, as in KeePassXC.
             for uuid in remote.meta.customIcons.keys.sorted(by: { $0.uuidString < $1.uuidString })

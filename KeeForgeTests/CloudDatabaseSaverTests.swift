@@ -88,7 +88,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
-        guard case .saved(let newSHA512) = result else {
+        guard case .saved(let newSHA512, _) = result else {
             XCTFail("Expected save to succeed.")
             return
         }

@@ -2,7 +2,9 @@ import CryptoKit
 import Foundation
 
 enum SaveResult: Sendable, Equatable {
-    case saved(newSHA512: Data)
+    /// `expressKey` opens exactly the saved version (`ExpressUnlockKey`). It
+    /// is nil for a hardware-key database.
+    case saved(newSHA512: Data, expressKey: ExpressUnlockKey? = nil)
     case conflict(remoteSHA512: Data, remoteData: Data)
 }
 
@@ -107,7 +109,7 @@ enum LocalDatabaseSaver {
         var resolveLocation: @Sendable (DatabaseReference) -> ResolvedLocation?
         var readData: @Sendable (URL) throws -> Data
         var extractHeader: @Sendable (Data, SymmetricKey, KDFExecutionPolicy) throws -> KDBXParser.Header
-        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXParser.Header, KDFExecutionPolicy) throws -> Data
+        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXParser.Header, KDFExecutionPolicy) throws -> ExpressUnlock.Written
         var backupDirectoryURL: @Sendable (DatabaseReference) -> URL
         var createDirectory: @Sendable (URL) throws -> Void
         var writeBackup: @Sendable (Data, URL) throws -> Void
@@ -144,7 +146,7 @@ enum LocalDatabaseSaver {
                 ).header
             },
             encryptDraft: { draft, compositeKey, header, kdfPolicy in
-                try draft.write(compositeKey: compositeKey, header: header, kdfPolicy: kdfPolicy)
+                try ExpressUnlock.write(draft: draft, compositeKey: compositeKey, header: header, kdfPolicy: kdfPolicy)
             },
             backupDirectoryURL: { reference in
                 DatabaseListStore.databaseBackupDirectoryURL(for: reference)
@@ -320,7 +322,8 @@ enum LocalDatabaseSaver {
             header = encryptionSettings.applied(to: header)
         }
         let writeKey = newCompositeKey ?? compositeKey
-        let newData = try environment.encryptDraft(draft, writeKey, header, kdfPolicy)
+        let written = try environment.encryptDraft(draft, writeKey, header, kdfPolicy)
+        let newData = written.data
         if newCompositeKey != nil || encryptionSettings != nil {
             do {
                 _ = try environment.extractHeader(newData, writeKey, kdfPolicy)
@@ -380,7 +383,10 @@ enum LocalDatabaseSaver {
         }
         try? environment.pruneBackups(reference, 5)
 
-        return .saved(newSHA512: KDBXCrypto.sha512(newData))
+        return .saved(
+            newSHA512: KDBXCrypto.sha512(newData),
+            expressKey: reference.hardwareKey == nil ? written.expressKey : nil
+        )
     }
 
     private static func resolveLocation(for reference: DatabaseReference) -> ResolvedLocation? {
@@ -483,15 +489,10 @@ enum LocalDatabaseSaver {
         var coordinatorError: NSError?
         var result: Result<ReplaceOutcome, Error>?
 
-        let coordinator = NSFileCoordinator()
-        coordinator.coordinate(
-            writingItemAt: url,
-            options: .forReplacing,
-            error: &coordinatorError
-        ) { coordinatedURL in
+        func replace(readingURL: URL?, coordinatedURL: URL) {
             result = Result {
-                if let expectedSHA512 {
-                    let onDiskData = try Data(contentsOf: coordinatedURL)
+                if let expectedSHA512, let readingURL {
+                    let onDiskData = try Data(contentsOf: readingURL)
                     guard KDBXCrypto.sha512(onDiskData) == expectedSHA512 else {
                         return .changed(currentData: onDiskData)
                     }
@@ -525,6 +526,29 @@ enum LocalDatabaseSaver {
                     throw error
                 }
                 return .replaced
+            }
+        }
+
+        let coordinator = NSFileCoordinator()
+        if expectedSHA512 != nil {
+            // `.forReplacing` alone tells a file provider the old contents are
+            // not needed, so the recheck read gets its own reading claim.
+            coordinator.coordinate(
+                readingItemAt: url,
+                options: [],
+                writingItemAt: url,
+                options: .forReplacing,
+                error: &coordinatorError
+            ) { readingURL, writingURL in
+                replace(readingURL: readingURL, coordinatedURL: writingURL)
+            }
+        } else {
+            coordinator.coordinate(
+                writingItemAt: url,
+                options: .forReplacing,
+                error: &coordinatorError
+            ) { coordinatedURL in
+                replace(readingURL: nil, coordinatedURL: coordinatedURL)
             }
         }
 

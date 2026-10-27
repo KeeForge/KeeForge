@@ -134,11 +134,14 @@ final class KDBXCompatibilityTests: XCTestCase {
             writtenVersions[scenario.id] = result.afterHeader.formatVersion
         }
 
-        // Group tags and custom-icon names require 4.1. The external gate
-        // also opens these upgraded files with KeePassXC.
-        XCTAssertEqual(writtenVersions["update-group"], .kdbx4(minor: 1))
-        XCTAssertEqual(writtenVersions["rename-custom-icon"], .kdbx4(minor: 1))
-        for (scenarioID, version) in writtenVersions where scenarioID != "update-group" && scenarioID != "rename-custom-icon" {
+        // Group tags, custom-icon names, and the Recycle Bin restore reference
+        // require 4.1, as in KeePassXC. The external gate also opens these
+        // upgraded files with KeePassXC.
+        let upgradingScenarioIDs: Set = ["update-group", "rename-custom-icon", "soft-delete-entry", "soft-delete-group"]
+        for scenarioID in upgradingScenarioIDs {
+            XCTAssertEqual(writtenVersions[scenarioID], .kdbx4(minor: 1), scenarioID)
+        }
+        for (scenarioID, version) in writtenVersions where !upgradingScenarioIDs.contains(scenarioID) {
             XCTAssertEqual(
                 version,
                 .kdbx4(minor: 0),
@@ -592,6 +595,11 @@ final class KDBXCompatibilityTests: XCTestCase {
         let expiryLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
         try collector.run(KDBXCompatibilitySupport.changeEntryExpiryScenario(), on: expiryLoaded)
 
+        // restore-foreign-recycled-entry: a foreign restore reference and a
+        // foreign named icon.
+        let restoreLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
+        try collector.run(KDBXCompatibilitySupport.restoreForeignRecycledEntryScenario(), on: restoreLoaded)
+
         try collector.emit()
     }
 
@@ -728,10 +736,11 @@ final class KDBXCompatibilityTests: XCTestCase {
         let result = try collector.run(scenario, on: loaded)
 
         assertHeaderPreserved(result, loaded: loaded, scenario: scenario)
+        XCTAssertEqual(loaded.header.formatVersion, .kdbx4(minor: 0), "Fixture precondition")
         XCTAssertEqual(
             result.afterHeader.formatVersion,
-            loaded.header.formatVersion,
-            "a merge must not renegotiate the source's header version"
+            .kdbx4(minor: 1),
+            "the remotely recycled items carry 4.1 restore references"
         )
 
         try collector.emit()
@@ -813,6 +822,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             "\(richID)-delete-custom-icon",
             "\(richID)-set-entry-expiry",
             "kitchen-sink-change-entry-expiry",
+            "kitchen-sink-restore-foreign-recycled-entry",
             "aes-baseline-encryption-settings-chacha20-argon2id",
             "foreign-twofish-encryption-settings-aes256-keep-kdf",
             "aes-baseline-encryption-settings-aes-kdf",
@@ -831,7 +841,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 46)
+        XCTAssertEqual(descriptors.count, 47)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

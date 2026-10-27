@@ -542,7 +542,7 @@ final class KDBXMergerTests: XCTestCase {
                                                    locationChanged: time(remoteLocationWins ? 5 : 30))
                     var remoteEntry = try makeEntry(id: alphaID, title: "Remote", modified: time(remoteContentWins ? 20 : 10),
                                                     locationChanged: time(remoteLocationWins ? 30 : 5))
-                    let stale = PreviousParentGroupXML.setting(personalID, in: .empty)
+                    let stale = PreviousParentGroupXML.setting(personalID, in: .empty, newInsertionIndex: 2)
                     localEntry.unknownXML = remoteLocationWins ? stale : reference
                     remoteEntry.unknownXML = remoteLocationWins ? reference : stale
                     localEntry.unknownXML.append(xml: "<ForegroundColor>local</ForegroundColor>", insertionIndex: 3)
@@ -580,8 +580,8 @@ final class KDBXMergerTests: XCTestCase {
                     remoteGroup.name = "Remote"
                     remoteGroup.lastModificationTime = time(remoteContentWins ? 20 : 10)
                     remoteGroup.locationChanged = time(remoteLocationWins ? 30 : 5)
-                    let reference = hasReference ? PreviousParentGroupXML.setting(workID, in: .empty) : .empty
-                    let stale = PreviousParentGroupXML.setting(personalID, in: .empty)
+                    let reference = hasReference ? PreviousParentGroupXML.setting(workID, in: .empty, newInsertionIndex: 2) : .empty
+                    let stale = PreviousParentGroupXML.setting(personalID, in: .empty, newInsertionIndex: 2)
                     localGroup.unknownXML = remoteLocationWins ? stale : reference
                     remoteGroup.unknownXML = remoteLocationWins ? reference : stale
                     localGroup.unknownXML.append(xml: "<CustomData><Item>local</Item></CustomData>", insertionIndex: 3)
@@ -608,8 +608,8 @@ final class KDBXMergerTests: XCTestCase {
     func test_merge_recoveryReferenceAloneDoesNotCreateEntryHistory() throws {
         var localEntry = try makeEntry(id: alphaID, title: "Alpha", modified: time(20), locationChanged: time(5))
         var remoteEntry = localEntry
-        localEntry.unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty)
-        remoteEntry.unknownXML = PreviousParentGroupXML.setting(workID, in: .empty)
+        localEntry.unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty, newInsertionIndex: 2)
+        remoteEntry.unknownXML = PreviousParentGroupXML.setting(workID, in: .empty, newInsertionIndex: 2)
         remoteEntry.locationChanged = time(30)
         remoteEntry.lastModificationTime = time(10)
         let merged = try mergedResult(local: makeSide(work: [localEntry]), remote: makeSide(work: [], personal: [remoteEntry]))
@@ -627,9 +627,9 @@ final class KDBXMergerTests: XCTestCase {
         let remoteWork = try XCTUnwrap(findGroup(workID, in: remote.rootGroup))
         localWork.groups.append(KPGroup(id: childID, name: "Child", lastModificationTime: time(10), locationChanged: time(5)))
         let remoteGroup = KPGroup(id: childID, name: "Child", lastModificationTime: time(10), locationChanged: time(30))
-        remoteGroup.unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty)
+        remoteGroup.unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty, newInsertionIndex: 2)
         remoteWork.groups.append(remoteGroup)
-        remoteWork.entries[0].unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty)
+        remoteWork.entries[0].unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty, newInsertionIndex: 2)
 
         let merged = try mergedResult(local: local, remote: remote)
         XCTAssertEqual(PreviousParentGroupXML.parentID(in: try XCTUnwrap(findEntry(alphaID, in: merged.rootGroup)).unknownXML), personalID)
@@ -644,8 +644,8 @@ final class KDBXMergerTests: XCTestCase {
         for location in [nil, time(30)] {
             var localEntry = try makeEntry(id: alphaID, title: "Local", modified: time(10), locationChanged: location)
             var remoteEntry = try makeEntry(id: alphaID, title: "Remote", modified: time(20), locationChanged: location)
-            localEntry.unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty)
-            remoteEntry.unknownXML = PreviousParentGroupXML.setting(workID, in: .empty)
+            localEntry.unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty, newInsertionIndex: 2)
+            remoteEntry.unknownXML = PreviousParentGroupXML.setting(workID, in: .empty, newInsertionIndex: 2)
             let local = try makeSide(work: [localEntry])
             let remote = try makeSide(work: [remoteEntry])
             let localGroup = KPGroup(id: childID, name: "Local", lastModificationTime: time(10), locationChanged: location,
@@ -768,6 +768,43 @@ final class KDBXMergerTests: XCTestCase {
         let newerLocal = try mergedResult(local: try side(name: "Local", at: time(30)), remote: remote)
         XCTAssertEqual(newerLocal.meta.customIconNames[uuid], "Local")
         XCTAssertFalse(newerLocal.summary.hasChanges)
+    }
+
+    /// KeePass's `MergeInCustomIcons`: an icon renamed after another copy
+    /// deleted it survives, and the obsolete tombstone is dropped.
+    func testMergeKeepsAnIconRenamedAfterItsDeletion() throws {
+        let uuid = UUID()
+        var entry = try makeEntry(id: betaID, title: "Remote", modified: time(40))
+        entry.customIconUUID = uuid
+        var renamedMeta = KPMeta(customIcons: [uuid: Data([1])], customIconNames: [uuid: "Renamed"])
+        renamedMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: .empty))
+        renamedMeta.unknownXML = try XCTUnwrap(
+            CustomIconXML.renaming(uuid: uuid, to: "Renamed", at: time(40), in: renamedMeta.unknownXML)
+        )
+        let renamed = KDBXMerger.Side(rootGroup: try makeTree(work: [entry]), meta: renamedMeta)
+        let deleted = KDBXMerger.Side(
+            rootGroup: try makeTree(work: []),
+            meta: KPMeta(deletedObjects: [.init(uuid: uuid, deletionTime: time(30))])
+        )
+
+        for (local, remote) in [(deleted, renamed), (renamed, deleted)] {
+            let merged = try mergedResult(local: local, remote: remote)
+            XCTAssertEqual(merged.meta.customIcons[uuid], Data([1]))
+            XCTAssertEqual(merged.meta.customIconNames[uuid], "Renamed")
+            XCTAssertFalse(merged.meta.deletedObjects.contains { $0.uuid == uuid })
+            XCTAssertEqual(merged.rootGroup.allEntries.first { $0.id == betaID }?.customIconUUID, uuid)
+        }
+
+        var olderRename = renamedMeta
+        olderRename.unknownXML = try XCTUnwrap(
+            CustomIconXML.renaming(uuid: uuid, to: "Renamed", at: time(20), in: renamedMeta.unknownXML)
+        )
+        let stillDeleted = try mergedResult(
+            local: deleted,
+            remote: .init(rootGroup: try makeTree(work: []), meta: olderRename)
+        )
+        XCTAssertNil(stillDeleted.meta.customIcons[uuid])
+        XCTAssertTrue(stillDeleted.meta.deletedObjects.contains { $0.uuid == uuid })
     }
 
     func testDeletedIconDoesNotCreateHistoryWhenMergingTheSameRemoteAgain() throws {

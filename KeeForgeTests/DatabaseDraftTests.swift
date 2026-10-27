@@ -886,7 +886,7 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(PreviousParentGroupXML.parentID(in: xml), parentID)
         xml.append(xml: "<PreviousParentGroup>invalid</PreviousParentGroup>", insertionIndex: 2)
         XCTAssertNil(PreviousParentGroupXML.parentID(in: xml))
-        let replaced = PreviousParentGroupXML.setting(parentID, in: xml)
+        let replaced = PreviousParentGroupXML.setting(parentID, in: xml, newInsertionIndex: 2)
         XCTAssertEqual(replaced.nodes.count, 1)
         XCTAssertEqual(PreviousParentGroupXML.parentID(in: replaced), parentID)
         for value in ["bad", "AAAA", "<Nested>\(parentID.kdbxBase64String)</Nested>"] {
