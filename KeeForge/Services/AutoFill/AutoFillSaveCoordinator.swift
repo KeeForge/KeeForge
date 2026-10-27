@@ -53,7 +53,7 @@ enum AutoFillSaveCoordinator {
                     environment: .autoFillExtension
                 )
                 switch result {
-                case .saved(let newSHA512):
+                case .saved(let newSHA512, _):
                     return .saved(
                         SaveOutcome(
                             savedRootGroup: draft.rootGroup,

@@ -289,6 +289,7 @@ targets:
       - path: KeeForge/Services/AutoFill/AutoFillDiagnostics.swift
       - path: KeeForge/Services/Persistence/DatabaseListStore.swift
       - path: KeeForge/Services/Security/KeychainService.swift
+      - path: KeeForge/Services/Security/QuickUnlockKeychain.swift
       - path: KeeForge/Services/AppSupport/SettingsService.swift
       - path: KeeForge/Services/Persistence/AppGroupContainer.swift
       - path: KeeForge/Services/Persistence/SharedVaultStore.swift
@@ -359,6 +360,7 @@ targets:
       - path: KeeForge/Services/AutoFill/AutoFillDiagnostics.swift
       - path: KeeForge/Services/Persistence/DatabaseListStore.swift
       - path: KeeForge/Services/Security/KeychainService.swift
+      - path: KeeForge/Services/Security/QuickUnlockKeychain.swift
       - path: KeeForge/Services/AppSupport/SettingsService.swift
       - path: KeeForge/Services/Persistence/AppGroupContainer.swift
       - path: KeeForge/Services/Persistence/SharedVaultStore.swift

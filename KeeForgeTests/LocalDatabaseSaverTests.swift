@@ -253,7 +253,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         )
         let savedData = try Data(contentsOf: databaseURL)
 
-        guard case .saved(let newSHA512) = result else {
+        guard case .saved(let newSHA512, _) = result else {
             XCTFail("Expected save to succeed.")
             return
         }
@@ -318,9 +318,13 @@ final class LocalDatabaseSaverTests: XCTestCase {
         )
 
         let savedData = try Data(contentsOf: databaseURL)
+        guard case .saved(let newSHA512, _) = result else {
+            XCTFail("Expected save to succeed.")
+            return
+        }
         XCTAssertEqual(
-            result,
-            .saved(newSHA512: KDBXCrypto.sha512(savedData)),
+            newSHA512,
+            KDBXCrypto.sha512(savedData),
             "The file is replaced, so the session must move on to its new bytes"
         )
         let reparsed = try KDBXParser.parseWithMeta(
@@ -357,7 +361,11 @@ final class LocalDatabaseSaverTests: XCTestCase {
         )
 
         let savedData = try Data(contentsOf: databaseURL)
-        XCTAssertEqual(result, .saved(newSHA512: KDBXCrypto.sha512(savedData)))
+        guard case .saved(let newSHA512, _) = result else {
+            XCTFail("Expected save to succeed.")
+            return
+        }
+        XCTAssertEqual(newSHA512, KDBXCrypto.sha512(savedData))
         XCTAssertNoThrow(
             try KDBXParser.parseWithMeta(
                 data: savedData,
@@ -392,7 +400,11 @@ final class LocalDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
-        XCTAssertEqual(result, .saved(newSHA512: KDBXCrypto.sha512(try Data(contentsOf: databaseURL))))
+        guard case .saved(let newSHA512, _) = result else {
+            XCTFail("Expected save to succeed.")
+            return
+        }
+        XCTAssertEqual(newSHA512, KDBXCrypto.sha512(try Data(contentsOf: databaseURL)))
         XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: reference))
     }
 
@@ -436,7 +448,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
-        guard case .saved(let newSHA512) = result else {
+        guard case .saved(let newSHA512, _) = result else {
             XCTFail("Expected save to succeed.")
             return
         }
@@ -492,7 +504,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         resumePausedWriter.signal()
         let pausedResult = try await pausedSave.value
 
-        guard case .saved(let finishingSHA512) = finishingResult else {
+        guard case .saved(let finishingSHA512, _) = finishingResult else {
             return XCTFail("The writer that finished first must save")
         }
         guard case .conflict(let remoteSHA512, let remoteData) = pausedResult else {
@@ -559,7 +571,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             kdfPolicy: .mainApp
         )
 
-        guard case .saved(let newSHA512) = result else {
+        guard case .saved(let newSHA512, _) = result else {
             XCTFail("A save gated on the reconciled remote must replace exactly that file.")
             return
         }
@@ -746,7 +758,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             newCompositeKey: newCompositeKey
         )
 
-        guard case .saved(let newSHA512) = result else {
+        guard case .saved(let newSHA512, _) = result else {
             XCTFail("Expected rekey save to succeed.")
             return
         }
@@ -890,7 +902,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             )
         )
 
-        guard case .saved(let newSHA512) = result else {
+        guard case .saved(let newSHA512, _) = result else {
             XCTFail("Expected the encryption settings save to succeed.")
             return
         }

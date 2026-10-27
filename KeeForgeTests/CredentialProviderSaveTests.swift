@@ -115,7 +115,7 @@ final class CredentialProviderSaveTests: XCTestCase {
                     openTimeSHA512: openTimeSHA512,
                     kdfPolicy: .autoFillExtension
                 ) {
-                case .saved(let newSHA512):
+                case .saved(let newSHA512, _):
                     return .saved(
                         AutoFillSaveCoordinator.SaveOutcome(
                             savedRootGroup: draft.rootGroup,

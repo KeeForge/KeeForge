@@ -162,6 +162,28 @@ does not repeat the quick unlock. The next password unlock writes a fresh item. 
 `.biometryCurrentSet` alone. Touch ID still opens them, and the next unlock
 rewrites them with the combined policy.
 
+Beside that item sits an express-unlock item: the KDF output of the database
+version last opened by the app or AutoFill, or saved by the app, bound to that
+version's KDF parameters and the composite key. It has the same access control
+and protection class. The app and the AutoFill extension read it with the
+context that released the quick-unlock item, so it never prompts, and both
+write it back right after the quick-unlock item, whose every write or removal
+deletes it first. A hardware-key database never gets one. Quick unlock of an
+unchanged file then skips the KDF, in the app and in AutoFill; a key that does
+not open the file only costs the KDF.
+Every save rotates the KDF salt: an app save stores the saved version's key in
+its place, but only while the quick-unlock item holds the session's composite
+key. A save anywhere else leaves the item unmatched, so the next unlock runs the
+KDF and replaces it.
+
+Both items expire with Settings → Security → Require Master Password (14 days
+by default, 30 days, or never). The date of the last master-key entry per
+database lives in the App Group defaults; a quick unlock never moves it. Once
+it is older than the interval, or a clock set back past it, the app and
+AutoFill delete both items before they would read them and ask for the
+password. The date bounds how long a saved key lives, not an attacker who can
+already write the App Group container.
+
 ## Screen and clipboard privacy
 
 Password reveal and copy actions recheck their originating session, lock cycle,

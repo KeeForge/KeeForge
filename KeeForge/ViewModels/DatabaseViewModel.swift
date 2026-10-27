@@ -406,12 +406,20 @@ final class DatabaseViewModel {
         _ reference: DatabaseReference,
         _ compositeKey: SymmetricKey
     ) async throws -> ReloadedDatabase
-    /// Biometric authentication plus the keychain read it gates, as one step:
-    /// the `LAContext` that authorizes the read never leaves the operation.
+    /// Biometric authentication plus the keychain reads it gates, as one step:
+    /// the `LAContext` that authorizes the reads never leaves the operation.
     typealias BiometricCompositeKeyOperation = @Sendable (
         _ reference: DatabaseReference,
         _ reason: String
-    ) async throws -> SymmetricKey
+    ) async throws -> QuickUnlockKeys
+    /// Returns whether the quick-unlock item now holds `keys.storedKey`.
+    typealias QuickUnlockKeyPersistOperation = @MainActor (
+        _ keys: QuickUnlockKeys,
+        _ reference: DatabaseReference,
+        _ masterKeyEntered: Bool
+    ) -> Bool
+    /// Replaces the express-unlock item after a save; nil only drops it.
+    typealias ExpressUnlockKeySaveOperation = @MainActor (_ key: ExpressUnlockKey?, _ reference: DatabaseReference) -> Void
     typealias PendingUploadMarkerCheck = @Sendable (_ reference: DatabaseReference) -> Bool
     typealias StoredKeyPresenceCheck = @Sendable (_ reference: DatabaseReference) -> Bool
     typealias StoredKeyStoreOperation = @Sendable (_ compositeKey: SymmetricKey, _ reference: DatabaseReference) throws -> Void
@@ -491,6 +499,10 @@ final class DatabaseViewModel {
     /// rotate the KDF salt and need a fresh response, which is not supported
     /// yet, so such a session is read-only.
     private(set) var sessionUsesHardwareKey = false
+    /// The quick-unlock item was written with this session's composite key,
+    /// so a save may store its express key: it opens nothing that item
+    /// could not already open.
+    @ObservationIgnored private var quickUnlockItemHoldsSessionKey = false
     /// A YubiKey challenge is outstanding; the opening screen offers Cancel.
     private(set) var isAwaitingHardwareKey = false
     @ObservationIgnored private var hardwareKeyTask: Task<Data, Error>?
@@ -542,6 +554,10 @@ final class DatabaseViewModel {
     /// trigger tears the editor down and drops the typing with no prompt.
     private var unsavedEditorIDs: Set<UUID> = []
     private(set) var cloudSyncProgress: Double?
+    /// The open sync whose progress may reach `cloudSyncProgress`. A callback
+    /// from a sync running behind an unfinished prompt, or queued after its
+    /// sync was applied, carries another ID and is dropped.
+    @ObservationIgnored private var visibleCloudSyncProgressID: UUID?
     private(set) var cloudSyncBannerText: String?
     /// The open used the cached copy without checking the cloud (manual sync
     /// policy), and no Sync Now has reached the provider since.
@@ -606,6 +622,8 @@ final class DatabaseViewModel {
     private let cloudConflictCopyOperation: CloudConflictCopyOperation
     private let reloadOperation: ReloadOperation
     private let biometricCompositeKeyOperation: BiometricCompositeKeyOperation
+    private let quickUnlockKeyPersistOperation: QuickUnlockKeyPersistOperation
+    private let expressUnlockKeySaveOperation: ExpressUnlockKeySaveOperation
     private let pendingUploadMarkerCheck: PendingUploadMarkerCheck
     private let pendingUploadRecovery: PendingUploadRecovery.Environment
     private let storedKeyPresenceCheck: StoredKeyPresenceCheck
@@ -697,7 +715,13 @@ final class DatabaseViewModel {
                 reason: reason,
                 policy: BiometricService.quickUnlockPolicy
             )
-            return try DatabaseViewModel.retrieveStoredCompositeKey(for: reference, context: context)
+            return try QuickUnlockKeychain.retrieve(for: reference, context: context)
+        },
+        quickUnlockKeyPersistOperation: @escaping QuickUnlockKeyPersistOperation = { keys, reference, masterKeyEntered in
+            QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered)
+        },
+        expressUnlockKeySaveOperation: @escaping ExpressUnlockKeySaveOperation = { key, reference in
+            QuickUnlockKeychain.replaceExpressKey(with: key, for: reference)
         },
         pendingUploadMarkerCheck: @escaping PendingUploadMarkerCheck = { reference in
             PendingUploadQueue.listMarkers(for: reference.id).isEmpty == false
@@ -742,6 +766,8 @@ final class DatabaseViewModel {
         self.cloudConflictCopyOperation = cloudConflictCopyOperation
         self.reloadOperation = reloadOperation
         self.biometricCompositeKeyOperation = biometricCompositeKeyOperation
+        self.quickUnlockKeyPersistOperation = quickUnlockKeyPersistOperation
+        self.expressUnlockKeySaveOperation = expressUnlockKeySaveOperation
         self.pendingUploadMarkerCheck = pendingUploadMarkerCheck
         self.pendingUploadRecovery = pendingUploadRecovery
         self.storedKeyPresenceCheck = storedKeyPresenceCheck
@@ -770,7 +796,8 @@ final class DatabaseViewModel {
             compositeKey: createdDatabase.compositeKey,
             quickLaunchKey: createdDatabase.compositeKey,
             usesHardwareKey: false,
-            sessionKey: createdDatabase.sessionKey
+            sessionKey: createdDatabase.sessionKey,
+            masterKeyEntered: true
         )
     }
 
@@ -937,7 +964,8 @@ final class DatabaseViewModel {
     /// Named for its iOS meaning; on the native Mac app the stored key also
     /// opens with an authorized Apple Watch (`BiometricService.quickUnlockPolicy`).
     var canUseBiometrics: Bool {
-        guard BiometricService.isQuickUnlockAvailable else { return false }
+        guard BiometricService.isQuickUnlockAvailable,
+              QuickUnlockKeychain.isMasterKeyDue(for: databaseReference.id) == false else { return false }
         return KeychainService.hasStoredKey(
             for: databaseReference.id,
             legacyFilename: databaseReference.legacyKeychainFilename
@@ -1058,21 +1086,13 @@ final class DatabaseViewModel {
             }
             let sessionKey = SymmetricKey(size: .bits256)
 
-            let unlockPayload = try await Task.detached(priority: .userInitiated) {
-                let parsed = try KDBXParser.parseWithMetaAndHeader(
-                    data: data,
-                    compositeKey: compositeKey,
-                    sessionKey: sessionKey,
-                    kdfPolicy: .mainApp
-                )
-                return UnlockPayload(
-                    rootGroup: parsed.rootGroup,
-                    meta: parsed.meta,
-                    formatVersion: parsed.header.formatVersion,
-                    openTimeSHA512: KDBXCrypto.sha512(data),
-                    binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
-                )
-            }.value
+            let unlockPayload = try await Self.openForUnlock(
+                data: data,
+                compositeKey: compositeKey,
+                sessionKey: sessionKey,
+                expressKey: nil,
+                usesHardwareKey: hardwareKey != nil
+            )
 
             guard finishUnlockAttempt(attempt) else { return }
             finalizeSuccessfulUnlock(
@@ -1080,7 +1100,8 @@ final class DatabaseViewModel {
                 compositeKey: compositeKey,
                 quickLaunchKey: quickLaunchKey,
                 usesHardwareKey: hardwareKey != nil,
-                sessionKey: sessionKey
+                sessionKey: sessionKey,
+                masterKeyEntered: true
             )
             sessionKeyFileData = keyFileData
             await mergePendingLocalSaves()
@@ -1100,6 +1121,8 @@ final class DatabaseViewModel {
 
     @discardableResult
     func unlockWithBiometrics() async -> BiometricUnlockOutcome {
+        // The password interval ran out since the unlock form was shown.
+        guard QuickUnlockKeychain.expireIfDue(databaseReference) == false else { return .passwordFallback }
         let failedAttemptsBeforeAttempt = failedAttempts
         let attempt = prepareForUnlock()
 
@@ -1108,11 +1131,21 @@ final class DatabaseViewModel {
 
         do {
             let hardwareKey = databaseReference.hardwareKey
-            let storedKey = try await biometricCompositeKeyOperation(
+            // The cloud round trip needs no key, so it overlaps the prompt. A
+            // failed prompt cancels it before its result reaches the session.
+            let prefetchProgressID = UUID()
+            async let prefetchedCloudResolution = prefetchCloudCopyForOpen(progressID: prefetchProgressID)
+            let quickUnlockKeys = try await biometricCompositeKeyOperation(
                 databaseReference,
                 String(localized: "Unlock your password database")
             )
-            let readResult = try await readDatabaseData()
+            if activeUnlockAttempt == attempt {
+                visibleCloudSyncProgressID = prefetchProgressID
+            }
+            let storedKey = quickUnlockKeys.storedKey
+            let readResult = try await readDatabaseData(
+                prefetchedCloudResolution: prefetchedCloudResolution
+            )
             let data = readResult.data
             encryptedData = data
             cloudSyncStatus = readResult.cloudSyncStatus
@@ -1129,21 +1162,13 @@ final class DatabaseViewModel {
             }
             let sessionKey = SymmetricKey(size: .bits256)
 
-            let unlockPayload = try await Task.detached(priority: .userInitiated) {
-                let parsed = try KDBXParser.parseWithMetaAndHeader(
-                    data: data,
-                    compositeKey: compositeKey,
-                    sessionKey: sessionKey,
-                    kdfPolicy: .mainApp
-                )
-                return UnlockPayload(
-                    rootGroup: parsed.rootGroup,
-                    meta: parsed.meta,
-                    formatVersion: parsed.header.formatVersion,
-                    openTimeSHA512: KDBXCrypto.sha512(data),
-                    binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
-                )
-            }.value
+            let unlockPayload = try await Self.openForUnlock(
+                data: data,
+                compositeKey: compositeKey,
+                sessionKey: sessionKey,
+                expressKey: quickUnlockKeys.expressKey,
+                usesHardwareKey: hardwareKey != nil
+            )
 
             // A superseded attempt unlocked nothing; the lock that ended it
             // owns the screen.
@@ -1153,7 +1178,8 @@ final class DatabaseViewModel {
                 compositeKey: compositeKey,
                 quickLaunchKey: storedKey,
                 usesHardwareKey: hardwareKey != nil,
-                sessionKey: sessionKey
+                sessionKey: sessionKey,
+                masterKeyEntered: false
             )
             await mergePendingLocalSaves()
             return .unlocked
@@ -2159,6 +2185,7 @@ final class DatabaseViewModel {
         sessionKey = nil
         sessionKeyFileData = nil
         sessionUsesHardwareKey = false
+        quickUnlockItemHoldsSessionKey = false
         unlockedMeta = nil
         binaryPool = nil
         draft = nil
@@ -2172,6 +2199,7 @@ final class DatabaseViewModel {
         pendingUploadMergeFailure = nil
         pendingLockRequest = nil
         unsavedEditorIDs.removeAll()
+        visibleCloudSyncProgressID = nil
         cloudSyncProgress = nil
         cloudSyncBannerText = nil
         resetCloudSyncStatus()
@@ -2467,7 +2495,8 @@ final class DatabaseViewModel {
             guard expectedLockCycleID == lockCycleID else { return }
 
             switch saveResult {
-            case .saved(let newSHA512):
+            case .saved(let newSHA512, let expressKey):
+                replaceExpressUnlockKeyAfterSave(with: expressKey)
                 rootGroup = snapshot.rootGroup
                 unlockedMeta = snapshot.meta
                 binaryPool = snapshot.binaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
@@ -2585,6 +2614,8 @@ final class DatabaseViewModel {
             // key even though the local apply failed. Point keychain and
             // association at the key the remote now needs — the stale local
             // cache reconciles through the normal sync-down path.
+            expressUnlockKeySaveOperation(nil, databaseReference)
+            quickUnlockItemHoldsSessionKey = false
             refreshStoredCompositeKeyAfterRekey(newCompositeKey)
             persistKeyFileAssociation(
                 bookmarkData: newKeyFileBookmarkData,
@@ -2594,17 +2625,20 @@ final class DatabaseViewModel {
         }
 
         switch saveResult {
-        case .saved(let newSHA512):
+        case .saved(let newSHA512, _):
             // Keychain and reference reflect the on-disk file, so they update
             // even if the session locked mid-flight; the in-memory secrets must
-            // not resurrect behind the lock screen.
-            refreshStoredCompositeKeyAfterRekey(newCompositeKey)
+            // not resurrect behind the lock screen. The express item belonged
+            // to the old key; the next unlock or save stores one again.
+            expressUnlockKeySaveOperation(nil, databaseReference)
+            let storedNewKey = refreshStoredCompositeKeyAfterRekey(newCompositeKey)
             persistKeyFileAssociation(
                 bookmarkData: newKeyFileBookmarkData,
                 filename: newKeyFileFilename
             )
             if expectedLockCycleID == lockCycleID {
                 self.compositeKey = newCompositeKey
+                quickUnlockItemHoldsSessionKey = storedNewKey
                 self.openTimeSHA512 = newSHA512
                 // Edits can land while the rekey save is in flight (the sheet
                 // is dismissible); their own save() no-ops on `isSaving`, so
@@ -2619,26 +2653,39 @@ final class DatabaseViewModel {
         }
     }
 
-    private func refreshStoredCompositeKeyAfterRekey(_ newCompositeKey: SymmetricKey) {
-        guard storedKeyPresenceCheck(databaseReference) else { return }
+    /// Returns whether the quick-unlock item now holds `newCompositeKey`.
+    @discardableResult
+    private func refreshStoredCompositeKeyAfterRekey(_ newCompositeKey: SymmetricKey) -> Bool {
+        guard storedKeyPresenceCheck(databaseReference) else { return false }
 
         do {
             try storedKeyStoreOperation(newCompositeKey, databaseReference)
+            QuickUnlockKeychain.recordMasterKeyEntry(for: databaseReference.id)
 
             if let legacyFilename = databaseReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
                 DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
             }
+            return true
         } catch {
             // A stale stored key would break biometric unlock outright; drop it
             // so unlock falls back to the new password. The legacy entry must
-            // go too — `retrieveStoredCompositeKey` falls back to it otherwise.
+            // go too — `QuickUnlockKeychain.retrieveStoredKey` falls back to
+            // it otherwise.
             storedKeyDeleteOperation(databaseReference)
             if let legacyFilename = databaseReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
                 DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
             }
+            return false
         }
+    }
+
+    /// For a save under the session's own composite key. Without a
+    /// quick-unlock item holding that key the saved version's key would open
+    /// what quick unlock cannot, so the stale item is only dropped.
+    private func replaceExpressUnlockKeyAfterSave(with key: ExpressUnlockKey?) {
+        expressUnlockKeySaveOperation(quickUnlockItemHoldsSessionKey ? key : nil, databaseReference)
     }
 
     private func persistKeyFileAssociation(bookmarkData: Data?, filename: String?) {
@@ -2724,9 +2771,11 @@ final class DatabaseViewModel {
         }
 
         switch saveResult {
-        case .saved(let newSHA512):
+        case .saved(let newSHA512, _):
             // The reference carries the new cloud revision, so it updates even
-            // if the session locked mid-flight.
+            // if the session locked mid-flight. The new KDF settings have no
+            // express key until the next unlock or save stores one.
+            expressUnlockKeySaveOperation(nil, databaseReference)
             refreshDatabaseReference()
             if expectedLockCycleID == lockCycleID {
                 self.openTimeSHA512 = newSHA512
@@ -2869,7 +2918,8 @@ final class DatabaseViewModel {
         guard expectedLockCycleID == lockCycleID else { return }
 
         switch saveResult {
-        case .saved(let newSHA512):
+        case .saved(let newSHA512, let expressKey):
+            replaceExpressUnlockKeyAfterSave(with: expressKey)
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
             binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
@@ -2998,7 +3048,7 @@ final class DatabaseViewModel {
         )
 
         switch saveResult {
-        case .saved(let newSHA512):
+        case .saved(let newSHA512, let expressKey):
             let resolvedMarkers = payloads.map(\.storedMarker)
             // Not gated on the lock cycle: the upload already happened, and
             // leaving the markers would only offer the same merge again.
@@ -3007,6 +3057,7 @@ final class DatabaseViewModel {
             }.value
             guard expectedLockCycleID == lockCycleID else { return }
 
+            replaceExpressUnlockKeyAfterSave(with: expressKey)
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
             binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
@@ -3112,7 +3163,7 @@ final class DatabaseViewModel {
                 nil,
                 nil
             )
-            guard case .saved(let newSHA512)? = saveResult else {
+            guard case .saved(let newSHA512, let expressKey)? = saveResult else {
                 if case .conflict? = saveResult {
                     return .fileChangedSinceOpen
                 }
@@ -3126,6 +3177,7 @@ final class DatabaseViewModel {
             }.value
             guard expectedLockCycleID == lockCycleID else { return .settledOrDeferred }
 
+            replaceExpressUnlockKeyAfterSave(with: expressKey)
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
             binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
@@ -3874,6 +3926,52 @@ final class DatabaseViewModel {
         let formatVersion: KDBXParser.FileVersion
         let openTimeSHA512: Data
         let binaryPool: BinaryPool
+        var expressKey: ExpressUnlockKey?
+    }
+
+    nonisolated private static func openForUnlock(
+        data: Data,
+        compositeKey: SymmetricKey,
+        sessionKey: SymmetricKey,
+        expressKey: ExpressUnlockKey?,
+        usesHardwareKey: Bool
+    ) async throws -> UnlockPayload {
+        try await Task.detached(priority: .userInitiated) {
+            // A hardware-key composite key carries the YubiKey response. Its
+            // KDF output is never reused or stored, or quick unlock would
+            // open the database without the YubiKey.
+            if usesHardwareKey {
+                let parsed = try KDBXParser.parseWithMetaAndHeader(
+                    data: data,
+                    compositeKey: compositeKey,
+                    sessionKey: sessionKey,
+                    kdfPolicy: .mainApp
+                )
+                return UnlockPayload(
+                    rootGroup: parsed.rootGroup,
+                    meta: parsed.meta,
+                    formatVersion: parsed.header.formatVersion,
+                    openTimeSHA512: KDBXCrypto.sha512(data),
+                    binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
+                )
+            }
+
+            let opened = try ExpressUnlock.parse(
+                data: data,
+                compositeKey: compositeKey,
+                cachedKey: expressKey,
+                sessionKey: sessionKey,
+                kdfPolicy: .mainApp
+            )
+            return UnlockPayload(
+                rootGroup: opened.rootGroup,
+                meta: opened.meta,
+                formatVersion: opened.header.formatVersion,
+                openTimeSHA512: KDBXCrypto.sha512(data),
+                binaryPool: BinaryPool(rawFields: opened.header.innerHeaderBinaryFields),
+                expressKey: opened.keyToStore
+            )
+        }.value
     }
 
     private func beginNewLockCycle() {
@@ -4091,6 +4189,7 @@ final class DatabaseViewModel {
         pendingLockRequest = nil
         unlockedMeta = nil
         binaryPool = nil
+        visibleCloudSyncProgressID = nil
         cloudSyncProgress = nil
         unlockStatusMessage = databaseReference.isCloudBacked
             ? Self.syncStatusMessage(for: databaseReference)
@@ -4118,7 +4217,8 @@ final class DatabaseViewModel {
         compositeKey: SymmetricKey,
         quickLaunchKey: SymmetricKey,
         usesHardwareKey: Bool,
-        sessionKey: SymmetricKey
+        sessionKey: SymmetricKey,
+        masterKeyEntered: Bool
     ) {
         self.rootGroup = payload.rootGroup
         self.compositeKey = compositeKey
@@ -4147,7 +4247,12 @@ final class DatabaseViewModel {
             secretAccess.noteSuccessfulAuthentication()
         }
 
-        persistCompositeKeyForBiometricUnlock(quickLaunchKey)
+        let storedQuickUnlockKey = quickUnlockKeyPersistOperation(
+            QuickUnlockKeys(storedKey: quickLaunchKey, expressKey: usesHardwareKey ? nil : payload.expressKey),
+            databaseReference,
+            masterKeyEntered
+        )
+        quickUnlockItemHoldsSessionKey = storedQuickUnlockKey && usesHardwareKey == false
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
         refreshDatabaseReference()
         populateCredentialStoreIfNeeded(root: payload.rootGroup)
@@ -4230,46 +4335,6 @@ final class DatabaseViewModel {
             canChooseDifferentFile: false,
             diagnostics: diagnostics
         )
-    }
-
-    private func persistCompositeKeyForBiometricUnlock(_ compositeKey: SymmetricKey) {
-        // Silently skip when nothing could satisfy the item's access control:
-        // no enrolled biometrics (and, on the Mac, no authorized Apple Watch)
-        // is the common Mac desktop case. Password unlock stays primary,
-        // nothing is stored, no error is surfaced, and there are no retry
-        // loops. An existing Mac item is still refreshed; see
-        // `KeychainService.shouldStoreQuickUnlockKey`.
-        guard KeychainService.shouldStoreQuickUnlockKey(
-            for: databaseReference.id,
-            legacyFilename: databaseReference.legacyKeychainFilename
-        ) else { return }
-
-        do {
-            try KeychainService.storeCompositeKey(compositeKey, for: databaseReference.id)
-
-            if let legacyFilename = databaseReference.legacyKeychainFilename {
-                KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
-                DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
-            }
-        } catch {
-            return
-        }
-    }
-
-    nonisolated static func retrieveStoredCompositeKey(
-        for reference: DatabaseReference,
-        context: LAContext
-    ) throws -> SymmetricKey {
-        do {
-            return try KeychainService.retrieveCompositeKey(for: reference.id, context: context)
-        } catch {
-            guard KeychainService.isItemNotFound(error),
-                  let legacyFilename = reference.legacyKeychainFilename else {
-                throw error
-            }
-
-            return try KeychainService.retrieveLegacyCompositeKey(forFilename: legacyFilename, context: context)
-        }
     }
 
     private func refreshDatabaseReference() {
@@ -4361,13 +4426,40 @@ final class DatabaseViewModel {
         )
     }
 
-    private func readDatabaseData() async throws -> (url: URL, data: Data, cloudSyncStatus: CloudSyncResolution.Status?) {
-        if databaseReference.isCloudBacked {
-            let resolution = try await cloudSyncOperation(databaseReference) { progress in
-                Task { @MainActor in
-                    self.cloudSyncProgress = progress
-                }
+    /// Contacts the provider without touching session state, so a caller can
+    /// start it early and drop the result. nil for a local database.
+    /// Its progress shows only once `visibleCloudSyncProgressID` is set to
+    /// `progressID`.
+    private func prefetchCloudCopyForOpen(progressID: UUID) async throws -> CloudSyncResolution? {
+        guard databaseReference.isCloudBacked else { return nil }
+        return try await syncCloudCopyForOpen(progressID: progressID)
+    }
+
+    private func syncCloudCopyForOpen(progressID: UUID) async throws -> CloudSyncResolution {
+        try await cloudSyncOperation(databaseReference) { progress in
+            Task { @MainActor in
+                guard self.visibleCloudSyncProgressID == progressID else { return }
+                self.cloudSyncProgress = progress
             }
+        }
+    }
+
+    private func syncCloudCopyForOpenShowingProgress() async throws -> CloudSyncResolution {
+        let progressID = UUID()
+        visibleCloudSyncProgressID = progressID
+        return try await syncCloudCopyForOpen(progressID: progressID)
+    }
+
+    private func readDatabaseData(
+        prefetchedCloudResolution: CloudSyncResolution? = nil
+    ) async throws -> (url: URL, data: Data, cloudSyncStatus: CloudSyncResolution.Status?) {
+        if databaseReference.isCloudBacked {
+            let resolution = if let prefetchedCloudResolution {
+                prefetchedCloudResolution
+            } else {
+                try await syncCloudCopyForOpenShowingProgress()
+            }
+            visibleCloudSyncProgressID = nil
             cloudSyncProgress = nil
             cloudSyncBannerText = resolution.bannerMessage
             resetCloudSyncStatus()

@@ -151,7 +151,7 @@ final class PendingLocalSaveTests: XCTestCase {
             environment: sandboxed
         )
 
-        guard case .saved(let newSHA512) = result else {
+        guard case .saved(let newSHA512, _) = result else {
             return XCTFail("Expected the save to the shared copy to succeed")
         }
         let sharedCopy = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))

@@ -2252,6 +2252,137 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(presenter.searchView).searchEntries.isEmpty)
     }
 
+    // MARK: - Express unlock
+
+    /// Quick unlock of an unchanged database uses the express key read beside
+    /// the quick-unlock key, so the extension runs no KDF, and writes both
+    /// back as the app does.
+    func test_biometricUnlock_opensWithTheExpressKeyWithoutTheKDF() async throws {
+        let bundle = Bundle(for: Self.self)
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedResolvableDefaultDatabase()
+        let data = try KDBXTestFixture.test.data(in: bundle)
+        try seedDatabaseBytes(data, for: database)
+        let compositeKey = KDBXCrypto.compositeKey(password: "testpassword123")
+        let expressKey = try XCTUnwrap(ExpressUnlock.parse(
+            data: data, compositeKey: compositeKey, cachedKey: nil,
+            sessionKey: SymmetricKey(size: .bits256), kdfPolicy: .autoFillExtension
+        ).keyToStore)
+        let derivations = DerivationCounter()
+        let persisted = PersistedQuickUnlockKeys()
+        configureQuickUnlock(
+            coordinator,
+            keys: QuickUnlockKeys(storedKey: compositeKey, expressKey: expressKey),
+            derivations: derivations,
+            persisted: persisted
+        )
+
+        try await unlockWithBiometricsAndPresentSearch(coordinator, presenter)
+
+        XCTAssertEqual(derivations.count, 0, "The express key must replace the KDF")
+        XCTAssertEqual(persisted.lastMasterKeyEntered, false, "Quick unlock must not extend the password interval")
+        XCTAssertEqual(persisted.last?.storedKey, compositeKey)
+        XCTAssertEqual(persisted.last?.expressKey, expressKey)
+    }
+
+    /// A key for an older version, or one whose bytes do not open the file,
+    /// costs only the KDF: the unlock succeeds without a prompt or error and
+    /// stores the current version's key.
+    func test_biometricUnlock_withAnExpressKeyThatDoesNotOpenTheFileFallsBackToTheKDF() async throws {
+        let bundle = Bundle(for: Self.self)
+        let data = try KDBXTestFixture.test.data(in: bundle)
+        let compositeKey = KDBXCrypto.compositeKey(password: "testpassword123")
+        let header = try ExpressUnlock.parse(
+            data: data, compositeKey: compositeKey, cachedKey: nil,
+            sessionKey: SymmetricKey(size: .bits256), kdfPolicy: .autoFillExtension
+        ).header
+        let damaged = ExpressUnlockKey(
+            binding: try XCTUnwrap(ExpressUnlockKey.binding(kdfParameters: header.kdfParameters, compositeKey: compositeKey)),
+            transformedKey: SymmetricKey(size: .bits256)
+        )
+        let olderVersion = ExpressUnlockKey(binding: Data(repeating: 1, count: 32), transformedKey: SymmetricKey(size: .bits256))
+
+        for cachedKey in [damaged, olderVersion] {
+            DatabaseListStore.clearAll()
+            let (coordinator, presenter) = makeCoordinator()
+            let database = try seedResolvableDefaultDatabase()
+            try seedDatabaseBytes(data, for: database)
+            let derivations = DerivationCounter()
+            let persisted = PersistedQuickUnlockKeys()
+            configureQuickUnlock(
+                coordinator,
+                keys: QuickUnlockKeys(storedKey: compositeKey, expressKey: cachedKey),
+                derivations: derivations,
+                persisted: persisted
+            )
+
+            try await unlockWithBiometricsAndPresentSearch(coordinator, presenter)
+
+            XCTAssertEqual(derivations.count, 1)
+            let stored = try XCTUnwrap(persisted.last?.expressKey)
+            XCTAssertNotEqual(stored, cachedKey)
+            XCTAssertTrue(stored.matches(kdfParameters: header.kdfParameters, compositeKey: compositeKey))
+        }
+    }
+
+    func test_passwordUnlock_storesTheOpenedVersionsExpressKey() async throws {
+        let bundle = Bundle(for: Self.self)
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedResolvableDefaultDatabase()
+        let data = try KDBXTestFixture.test.data(in: bundle)
+        try seedDatabaseBytes(data, for: database)
+        let persisted = PersistedQuickUnlockKeys()
+        coordinator.persistQuickUnlockKeys = { keys, _, masterKeyEntered in
+            persisted.record(keys, masterKeyEntered: masterKeyEntered)
+            return true
+        }
+
+        _ = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
+
+        let compositeKey = KDBXCrypto.compositeKey(password: "testpassword123")
+        XCTAssertEqual(persisted.lastMasterKeyEntered, true, "A typed password restarts the password interval")
+        XCTAssertEqual(persisted.last?.storedKey, compositeKey)
+        let expressKey = try XCTUnwrap(persisted.last?.expressKey)
+        XCTAssertTrue(try ExpressUnlock.parse(
+            data: data, compositeKey: compositeKey, cachedKey: expressKey,
+            sessionKey: SymmetricKey(size: .bits256), kdfPolicy: .autoFillExtension
+        ).usedCachedKey)
+    }
+
+    /// The stored key of a hardware-key database is only a pre-key. Even with
+    /// an express key that would open the file, biometrics alone must not
+    /// unlock it: nothing is read, and the YubiKey explanation is shown.
+    func test_hardwareKeyDatabase_biometricUnlockReadsNoKeysAndStaysLocked() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        var reference = try seedResolvableDefaultDatabase()
+        reference.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
+        DatabaseListStore.update(reference)
+        var keyReads = 0
+        coordinator.biometricQuickUnlockKeys = { _, _ in
+            keyReads += 1
+            return QuickUnlockKeys(storedKey: SymmetricKey(size: .bits256))
+        }
+        let persisted = PersistedQuickUnlockKeys()
+        coordinator.persistQuickUnlockKeys = { keys, _, masterKeyEntered in
+            persisted.record(keys, masterKeyEntered: masterKeyEntered)
+            return true
+        }
+        presenter.isPresentationActive = true
+
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        coordinator.presentUnlockPromptIfNeeded()
+        let prompt = try XCTUnwrap(presenter.unlockPrompt)
+        let errorPresented = expectation(description: "unlock error presented")
+        presenter.onUnlockErrorPresented = { errorPresented.fulfill() }
+        prompt.onChooseBiometrics()
+        await fulfillment(of: [errorPresented], timeout: 10)
+
+        XCTAssertTrue(try XCTUnwrap(presenter.unlockError?.message).contains("YubiKey"))
+        XCTAssertEqual(keyReads, 0)
+        XCTAssertNil(persisted.last)
+        XCTAssertNil(presenter.searchView)
+    }
+
     // MARK: - Shared copy freshness (issue #167)
 
     /// The app opens a bookmarked database from its file, so the picker must
@@ -2623,6 +2754,44 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         searchView.onSelect(entry)
     }
 
+    private func configureQuickUnlock(
+        _ coordinator: CredentialProviderCoordinator,
+        keys: QuickUnlockKeys,
+        derivations: DerivationCounter,
+        persisted: PersistedQuickUnlockKeys
+    ) {
+        coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+        coordinator.keyDerivationOverride = derivations.derive
+        coordinator.biometricQuickUnlockKeys = { _, _ in keys }
+        coordinator.persistQuickUnlockKeys = { keys, _, masterKeyEntered in
+            persisted.record(keys, masterKeyEntered: masterKeyEntered)
+            return true
+        }
+    }
+
+    /// Quick-unlocks the default database for a request matching nothing, so
+    /// the picker presents once the vault is open.
+    private func unlockWithBiometricsAndPresentSearch(
+        _ coordinator: CredentialProviderCoordinator,
+        _ presenter: CredentialProviderPresentingSpy
+    ) async throws {
+        coordinator.prepareCredentialList(
+            for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)]
+        )
+        presenter.isPresentationActive = true
+        coordinator.presentationDidBecomeActive()
+        let prompt = try XCTUnwrap(presenter.unlockPrompt)
+
+        let searchPresented = expectation(description: "search view presented")
+        presenter.onSearchViewPresented = { searchPresented.fulfill() }
+        presenter.onUnlockErrorPresented = {
+            XCTFail("Unlock must succeed: \(presenter.unlockError?.message ?? "unknown error")")
+        }
+
+        prompt.onChooseBiometrics()
+        await fulfillment(of: [searchPresented], timeout: 60)
+    }
+
     private func makeCoordinator() -> (CredentialProviderCoordinator, CredentialProviderPresentingSpy) {
         let presenter = CredentialProviderPresentingSpy()
         let coordinator = CredentialProviderCoordinator(presenter: presenter)
@@ -2894,5 +3063,16 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let derData = key.derRepresentation
         let base64 = derData.base64EncodedString(options: .lineLength64Characters)
         return "-----BEGIN PRIVATE KEY-----\n\(base64)\n-----END PRIVATE KEY-----"
+    }
+}
+
+@MainActor
+private final class PersistedQuickUnlockKeys {
+    private(set) var last: QuickUnlockKeys?
+    private(set) var lastMasterKeyEntered: Bool?
+
+    func record(_ keys: QuickUnlockKeys, masterKeyEntered: Bool) {
+        last = keys
+        lastMasterKeyEntered = masterKeyEntered
     }
 }

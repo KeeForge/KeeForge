@@ -306,7 +306,13 @@ enum KDBXCompatibilitySupport {
             let rekeyTarget = try rekey?(loaded)
             let writeKey = rekeyTarget?.compositeKey ?? loaded.compositeKey
             let writeHeader = try encryptionSettings?(loaded).applied(to: loaded.header) ?? loaded.header
-            let written = try updatedDraft.write(compositeKey: writeKey, header: writeHeader, kdfPolicy: .mainApp)
+            let saved = try ExpressUnlock.write(
+                draft: updatedDraft,
+                compositeKey: writeKey,
+                header: writeHeader,
+                kdfPolicy: .mainApp
+            )
+            let written = saved.data
             if rekeyTarget != nil {
                 XCTAssertThrowsError(
                     try KDBXParser.parseWithMetaAndHeader(
@@ -326,6 +332,18 @@ enum KDBXCompatibilitySupport {
                 data: written,
                 compositeKey: writeKey,
                 sessionKey: loaded.sessionKey
+            )
+            // The key a save keeps for the next quick unlock opens exactly these bytes.
+            let expressKey = try XCTUnwrap(saved.expressKey, "\(id): the save kept no express-unlock key")
+            XCTAssertTrue(
+                try ExpressUnlock.parse(
+                    data: written,
+                    compositeKey: writeKey,
+                    cachedKey: expressKey,
+                    sessionKey: loaded.sessionKey,
+                    kdfPolicy: .mainApp
+                ).usedCachedKey,
+                "\(id): the saved version's express-unlock key does not open it"
             )
             let afterPool = BinaryPool(rawFields: reparsed.header.innerHeaderBinaryFields)
             let after = try CompatibilitySnapshot(

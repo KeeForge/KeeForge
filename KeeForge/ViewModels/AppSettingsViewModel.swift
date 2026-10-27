@@ -29,6 +29,12 @@ final class AppSettingsViewModel {
             authenticationGracePeriodDidChange()
         }
     }
+    var quickUnlockPasswordInterval = SettingsService.quickUnlockPasswordInterval {
+        didSet {
+            guard !isReloading, oldValue != quickUnlockPasswordInterval else { return }
+            SettingsService.quickUnlockPasswordInterval = quickUnlockPasswordInterval
+        }
+    }
     var autoUnlockWithFaceID = SettingsService.autoUnlockWithFaceID {
         didSet {
             guard !isReloading, oldValue != autoUnlockWithFaceID else { return }
@@ -170,6 +176,7 @@ final class AppSettingsViewModel {
         lockOnBackground = SettingsService.lockOnBackground
         clipboardTimeout = SettingsService.clipboardTimeout
         authenticationGracePeriod = SettingsService.authenticationGracePeriod
+        quickUnlockPasswordInterval = SettingsService.quickUnlockPasswordInterval
         autoUnlockWithFaceID = SettingsService.autoUnlockWithFaceID
         showWebsiteIcons = SettingsService.showWebsiteIcons
         showDatabaseUsageStats = SettingsService.showDatabaseUsageStats

@@ -145,6 +145,17 @@ struct DatabaseDraft: Sendable {
         header: KDBXParser.Header,
         kdfPolicy: KDFExecutionPolicy
     ) throws -> Data {
+        try write(header: header) { kdfParameters in
+            try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: kdfParameters, kdfPolicy: kdfPolicy)
+        }
+    }
+
+    /// As above, with the KDF output supplied by `transformedKey`
+    /// (`KDBXWriter`'s seam).
+    func write(
+        header: KDBXParser.Header,
+        transformedKey provideTransformedKey: (_ kdfParameters: [String: Any]) throws -> Data
+    ) throws -> Data {
         var header = header
         if let currentBinaryPoolFields {
             header.innerHeaderBinaryFields = currentBinaryPoolFields
@@ -152,10 +163,9 @@ struct DatabaseDraft: Sendable {
         return try KDBXWriter.write(
             rootGroup: rootGroup,
             meta: meta,
-            compositeKey: compositeKey,
             header: header,
             sessionKey: sessionKey,
-            kdfPolicy: kdfPolicy
+            transformedKey: provideTransformedKey
         )
     }
 

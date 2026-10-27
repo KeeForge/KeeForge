@@ -1,5 +1,6 @@
 import AuthenticationServices
 import CryptoKit
+import LocalAuthentication
 import XCTest
 @testable import KeeForge
 
@@ -527,6 +528,116 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertFalse(vm.isCloudRefreshPending)
     }
 
+    /// The provider round trip needs no key, so it must not wait for the
+    /// biometric prompt to finish.
+    func testBiometricUnlockSyncsWhileThePromptIsUp() async throws {
+        let openedData = try fixtureData()
+        let syncStarted = PendingFlag(false)
+        let vm = DatabaseViewModel(
+            databaseReference: try makeStoredManualReference(),
+            cloudSyncOperation: { reference, _ in
+                syncStarted.value = true
+                return Self.resolution(reference, data: openedData, status: .current)
+            },
+            biometricCompositeKeyOperation: { [fixturePassword] _, _ in
+                try await Self.waitUntil { syncStarted.value }
+                return QuickUnlockKeys(
+                    storedKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
+                )
+            }
+        )
+
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .unlocked)
+        XCTAssertEqual(vm.state, .unlocked)
+    }
+
+    /// A sync that finished during a prompt the user then left must not
+    /// reach the session or the stored reference.
+    func testLeftBiometricPromptDropsTheOverlappingSync() async throws {
+        let openedData = try fixtureData()
+        let reference = try makeStoredManualReference()
+        let syncFinished = PendingFlag(false)
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, _ in
+                var offline = reference
+                offline.updateCloudSyncMetadata { $0.lastSyncIssue = .networkUnavailable }
+                syncFinished.value = true
+                return Self.resolution(offline, data: openedData, status: .offlineCached)
+            },
+            biometricCompositeKeyOperation: { _, _ in
+                try await Self.waitUntil { syncFinished.value }
+                throw LAError(.userFallback)
+            }
+        )
+
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .passwordFallback)
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertNil(vm.cloudSyncBannerText)
+        XCTAssertNil(vm.databaseReference.cloudSyncMetadata?.lastSyncIssue)
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertNil(stored.cloudSyncMetadata?.lastSyncIssue)
+    }
+
+    /// Progress the sync reports behind the prompt is session state too, so
+    /// a prompt the user left must not leave a progress bar behind.
+    func testLeftBiometricPromptShowsNoProgressFromTheOverlappingSync() async throws {
+        let openedData = try fixtureData()
+        let syncFinished = PendingFlag(false)
+        let vm = DatabaseViewModel(
+            databaseReference: try makeStoredManualReference(),
+            cloudSyncOperation: { reference, progress in
+                progress(0.5)
+                syncFinished.value = true
+                return Self.resolution(reference, data: openedData, status: .current)
+            },
+            biometricCompositeKeyOperation: { _, _ in
+                try await Self.waitUntil { syncFinished.value }
+                throw LAError(.userFallback)
+            }
+        )
+
+        let outcome = await vm.unlockWithBiometrics()
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(outcome, .passwordFallback)
+        XCTAssertNil(vm.cloudSyncProgress)
+    }
+
+    /// A progress report still queued when the sync is applied must not bring
+    /// the progress bar back over the unlocked database.
+    func testProgressReportedAfterTheOpenSyncWasAppliedIsDropped() async throws {
+        let openedData = try fixtureData()
+        let reportProgress = ProgressHandlerBox()
+        let vm = DatabaseViewModel(
+            databaseReference: try makeStoredManualReference(),
+            cloudSyncOperation: { reference, progress in
+                reportProgress.handler = progress
+                return Self.resolution(reference, data: openedData, status: .current)
+            },
+            biometricCompositeKeyOperation: { [fixturePassword] _, _ in
+                QuickUnlockKeys(storedKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil))
+            }
+        )
+
+        let outcome = await vm.unlockWithBiometrics()
+        XCTAssertEqual(outcome, .unlocked)
+        reportProgress.handler?(0.9)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertNil(vm.cloudSyncProgress)
+
+        vm.lock()
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.state, .unlocked)
+        reportProgress.handler?(0.9)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertNil(vm.cloudSyncProgress)
+    }
+
     func testOpenAndSyncNowReportPendingAutoFillUploads() async throws {
         let openedData = try fixtureData()
         let pending = PendingFlag(true)
@@ -815,6 +926,17 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertFalse(vm.isSyncingCloud, file: file, line: line)
     }
 
+    private struct WaitTimedOut: Error {}
+
+    nonisolated private static func waitUntil(_ condition: @Sendable () -> Bool) async throws {
+        var remainingPolls = 500
+        while condition() == false {
+            guard remainingPolls > 0 else { throw WaitTimedOut() }
+            remainingPolls -= 1
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
     nonisolated private static func resolution(
         _ reference: DatabaseReference,
         data: Data,
@@ -979,6 +1101,16 @@ private final class InMemoryRemoteProvider: CloudProvider, @unchecked Sendable {
             size: Int64(bytes.count),
             rev: rev
         )
+    }
+}
+
+private final class ProgressHandlerBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedHandler: (@Sendable (Double) -> Void)?
+
+    var handler: (@Sendable (Double) -> Void)? {
+        get { lock.withLock { storedHandler } }
+        set { lock.withLock { storedHandler = newValue } }
     }
 }
 
