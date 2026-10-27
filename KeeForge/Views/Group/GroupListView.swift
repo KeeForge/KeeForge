@@ -158,10 +158,6 @@ struct GroupListView: View {
                                 .accessibilityLabel("Lock")
                                 .accessibilityIdentifier("lock.button")
 
-                                if let warningText = viewModel.cloudSyncBannerText {
-                                    CloudSyncWarningButton(message: warningText)
-                                }
-
                                 if viewModel.isReadOnly {
                                     ReadOnlyIndicator(explanation: viewModel.readOnlyExplanation)
                                 }
