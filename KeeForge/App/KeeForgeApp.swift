@@ -1,4 +1,5 @@
 import AuthenticationServices
+import StoreKit
 import SwiftUI
 #if os(iOS)
 import UIKit
