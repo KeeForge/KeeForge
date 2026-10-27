@@ -1147,13 +1147,9 @@ struct CloudSyncControls: View {
         viewModel.databaseReference.isCloudBacked
     }
 
-    /// Also carries the open's cached-copy notice, so screens with these
-    /// controls need no separate `CloudSyncWarningButton`.
     static func showsWarning(for viewModel: DatabaseViewModel) -> Bool {
         if case .failed = viewModel.cloudSyncOutcome { return true }
-        return viewModel.cloudSyncBannerText != nil
-            || viewModel.isCloudRefreshPending
-            || showsPendingUploadNote(for: viewModel)
+        return viewModel.isCloudRefreshPending || showsPendingUploadNote(for: viewModel)
     }
 
     /// A conflicted AutoFill upload is not waiting: `PendingUploadConflictBanner`
@@ -1173,9 +1169,6 @@ struct CloudSyncControls: View {
         }
         if let outcome = viewModel.cloudSyncOutcome {
             return outcome.message
-        }
-        if let bannerText = viewModel.cloudSyncBannerText {
-            return bannerText
         }
         if viewModel.isCloudRefreshPending {
             return String(localized: "Opened without checking \(providerName) for changes.")

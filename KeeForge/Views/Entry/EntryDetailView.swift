@@ -21,9 +21,6 @@ struct EntryDetailView: View {
     /// to the split view and pops the *sidebar's* navigation stack instead.
     var popsOnClose: Bool = true
     @Environment(\.dismiss) private var dismiss
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    #endif
     @State private var activeEditor: EntryEditViewModel?
     /// Set when the editor completes a delete; the close then finishes in
     /// `onAppear`, a separate transaction from the editor pop (see `body`).
@@ -132,16 +129,6 @@ struct EntryDetailView: View {
     private var showsReadOnlyIndicator: Bool {
         #if os(iOS)
         true
-        #else
-        false
-        #endif
-    }
-
-    /// The regular layouts keep `CloudSyncControls` beside this view, and
-    /// those already carry the cached-copy warning.
-    private var showsCloudSyncWarning: Bool {
-        #if os(iOS)
-        horizontalSizeClass == .compact
         #else
         false
         #endif
@@ -284,7 +271,7 @@ struct EntryDetailView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         HStack(spacing: 12) {
-                            if showsCloudSyncWarning, let warningText = viewModel.cloudSyncBannerText {
+                            if let warningText = viewModel.cloudSyncBannerText {
                                 CloudSyncWarningButton(message: warningText)
                             }
 

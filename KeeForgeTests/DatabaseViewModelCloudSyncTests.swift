@@ -702,27 +702,6 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertEqual(DatabaseListStore.databases.first(where: { $0.id == reference.id })?.cloudSyncPolicy, .onOpen)
     }
 
-    /// The sync controls are the one place a cloud database warns, so an open
-    /// that fell back to the cached copy has to show there too.
-    func testOpenFromTheCachedCopyWarnsInTheSyncControls() async throws {
-        var reference = try makeStoredManualReference()
-        reference.cloudSyncPolicy = .onOpen
-        DatabaseListStore.update(reference)
-        let openedData = try fixtureData()
-        let vm = DatabaseViewModel(
-            databaseReference: reference,
-            cloudSyncOperation: { reference, _ in
-                Self.resolution(reference, data: openedData, status: .offlineCached)
-            }
-        )
-        await vm.unlock(password: fixturePassword)
-
-        XCTAssertEqual(vm.state, .unlocked)
-        XCTAssertNil(vm.cloudSyncOutcome)
-        XCTAssertEqual(vm.cloudSyncBannerText, CloudSyncResolution.offlineCachedBannerMessage)
-        XCTAssertTrue(CloudSyncControls.showsWarning(for: vm))
-    }
-
     func testSyncShortcutSurvivesChangingPolicyAfterACheckedOpen() async throws {
         var reference = try makeStoredManualReference()
         reference.cloudSyncPolicy = .onOpen
