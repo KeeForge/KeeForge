@@ -75,6 +75,13 @@ enum QuickUnlockKeychain {
         if reference.hardwareKey == nil, let expressKey = keys.expressKey {
             try? KeychainService.storeExpressUnlockKey(expressKey.serialized(), for: reference.id)
         }
+        // The other process may have switched to Always while these items
+        // were written. It saves the setting before `expireDueKeys`, so either
+        // its sweep sees these items or this read sees the setting.
+        guard SettingsService.quickUnlockPasswordInterval != .always else {
+            expireIfDue(reference)
+            return false
+        }
         return true
     }
 
