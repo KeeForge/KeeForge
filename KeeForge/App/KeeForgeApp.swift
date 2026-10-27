@@ -1141,15 +1141,22 @@ struct UnsavedChangesBanner: View {
 
 struct CloudSyncControls: View {
     @Bindable var viewModel: DatabaseViewModel
+    /// Where a header places `CloudSyncWarningLine` below these controls, the
+    /// warning moves there and the status icon only shows the other states.
+    var showsWarningIcon = true
     @State private var isShowingDetails = false
 
     static func isVisible(for viewModel: DatabaseViewModel) -> Bool {
         viewModel.databaseReference.isCloudBacked
     }
 
+    /// Also carries the open's cached-copy notice, so screens with these
+    /// controls need no separate `CloudSyncWarningButton`.
     static func showsWarning(for viewModel: DatabaseViewModel) -> Bool {
         if case .failed = viewModel.cloudSyncOutcome { return true }
-        return viewModel.isCloudRefreshPending || showsPendingUploadNote(for: viewModel)
+        return viewModel.cloudSyncBannerText != nil
+            || viewModel.isCloudRefreshPending
+            || showsPendingUploadNote(for: viewModel)
     }
 
     /// A conflicted AutoFill upload is not waiting: `PendingUploadConflictBanner`
@@ -1159,16 +1166,16 @@ struct CloudSyncControls: View {
         viewModel.hasPendingCloudUploads && viewModel.hasPendingUploadConflict == false
     }
 
-    private var providerName: String {
-        viewModel.databaseReference.cloudProviderKind?.displayName ?? String(localized: "cloud")
-    }
-
-    private var title: String {
+    static func title(for viewModel: DatabaseViewModel) -> String {
+        let providerName = viewModel.databaseReference.cloudProviderKind?.displayName ?? String(localized: "cloud")
         if viewModel.isSyncingCloud {
             return String(localized: "Checking \(providerName) for changes…")
         }
         if let outcome = viewModel.cloudSyncOutcome {
             return outcome.message
+        }
+        if let bannerText = viewModel.cloudSyncBannerText {
+            return bannerText
         }
         if viewModel.isCloudRefreshPending {
             return String(localized: "Opened without checking \(providerName) for changes.")
@@ -1176,34 +1183,29 @@ struct CloudSyncControls: View {
         return String(localized: "Cloud Sync")
     }
 
-    private var lastSyncedAt: Date? {
-        viewModel.databaseReference.cloudSyncMetadata?.lastSyncedAt
-    }
-
     var body: some View {
         HStack(spacing: 12) {
-            Button {
-                isShowingDetails.toggle()
-            } label: {
-                if viewModel.isSyncingCloud {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: Self.showsWarning(for: viewModel) ? "exclamationmark.triangle.fill" : "info.circle")
-                        .foregroundStyle(Self.showsWarning(for: viewModel) ? Color.yellow : Color.secondary)
+            if showsWarningIcon || CloudSyncWarningLine.isVisible(for: viewModel) == false {
+                Button {
+                    isShowingDetails.toggle()
+                } label: {
+                    if viewModel.isSyncingCloud {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: Self.showsWarning(for: viewModel) ? "exclamationmark.triangle.fill" : "info.circle")
+                            .foregroundStyle(Self.showsWarning(for: viewModel) ? Color.yellow : Color.secondary)
+                    }
                 }
-            }
-            .frame(minWidth: 44, minHeight: 44)
-            .buttonStyle(.plain)
-            .accessibilityLabel("Cloud Sync")
-            .accessibilityValue(title)
-            .macHelp(String(localized: "Cloud Sync"))
-            .accessibilityIdentifier("database.cloud-sync-status.details")
-            .popover(isPresented: $isShowingDetails) {
-                syncDetails
-                    .font(.body)
-                    .lineLimit(nil)
-                    .presentationCompactAdaptation(.popover)
+                .frame(minWidth: 44, minHeight: 44)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Cloud Sync")
+                .accessibilityValue(Self.title(for: viewModel))
+                .macHelp(String(localized: "Cloud Sync"))
+                .accessibilityIdentifier("database.cloud-sync-status.details")
+                .popover(isPresented: $isShowingDetails) {
+                    CloudSyncDetails(viewModel: viewModel) { isShowingDetails = false }
+                }
             }
 
             Button {
@@ -1231,9 +1233,57 @@ struct CloudSyncControls: View {
         .accessibilityIdentifier("database.cloud-sync-status")
     }
 
-    private var syncDetails: some View {
+}
+
+/// The compact header's warning: the sync problem as a line of text under the
+/// title, opening the same details as the status icon.
+struct CloudSyncWarningLine: View {
+    @Bindable var viewModel: DatabaseViewModel
+    @State private var isShowingDetails = false
+
+    static func isVisible(for viewModel: DatabaseViewModel) -> Bool {
+        viewModel.isSyncingCloud == false && CloudSyncControls.showsWarning(for: viewModel)
+    }
+
+    var body: some View {
+        if Self.isVisible(for: viewModel) {
+            Button {
+                isShowingDetails.toggle()
+            } label: {
+                Label {
+                    Text(CloudSyncControls.title(for: viewModel))
+                        .foregroundStyle(.secondary)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Color.yellow)
+                }
+                .font(.footnote)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Cloud Sync")
+            .accessibilityValue(CloudSyncControls.title(for: viewModel))
+            .accessibilityIdentifier("database.cloud-sync-status.details")
+            .popover(isPresented: $isShowingDetails) {
+                CloudSyncDetails(viewModel: viewModel) { isShowingDetails = false }
+            }
+        }
+    }
+}
+
+private struct CloudSyncDetails: View {
+    @Bindable var viewModel: DatabaseViewModel
+    let close: () -> Void
+
+    private var lastSyncedAt: Date? {
+        viewModel.databaseReference.cloudSyncMetadata?.lastSyncedAt
+    }
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
+            Text(CloudSyncControls.title(for: viewModel))
                 .font(.callout.weight(.medium))
                 .accessibilityIdentifier("database.cloud-sync-status.title")
 
@@ -1243,20 +1293,23 @@ struct CloudSyncControls: View {
                     .foregroundStyle(.secondary)
             }
 
-            if Self.showsPendingUploadNote(for: viewModel) {
+            if CloudSyncControls.showsPendingUploadNote(for: viewModel) {
                 Text("Changes saved through AutoFill are still waiting to upload.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Button("Dismiss") {
                 viewModel.dismissCloudSyncOutcome()
-                isShowingDetails = false
+                close()
             }
             .accessibilityIdentifier("database.cloud-sync-status.dismiss")
         }
         .fixedSize(horizontal: false, vertical: true)
         .frame(width: 260, alignment: .leading)
         .padding(16)
+        .font(.body)
+        .lineLimit(nil)
+        .presentationCompactAdaptation(.popover)
     }
 }
 

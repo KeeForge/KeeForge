@@ -642,10 +642,6 @@ struct RegularDatabaseWorkspaceView: View {
                 CloudSyncControls(viewModel: viewModel)
             }
 
-            if let warningText = viewModel.cloudSyncBannerText {
-                CloudSyncWarningButton(message: warningText)
-            }
-
             if viewModel.isReadOnly {
                 ReadOnlyIndicator(explanation: viewModel.readOnlyExplanation)
             } else {
