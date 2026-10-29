@@ -56,6 +56,38 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
         XCTAssertNil(secondPresentation)
     }
 
+    func testDisabledSettingSkipsTheReleaseWithoutClaimingIt() {
+        let disabled = WhatsNewPresentationService.releaseToPresent(
+            currentVersion: "1.10.1",
+            platform: .iOS,
+            defaults: defaults,
+            isEnabled: false,
+            uiTestingPresentationOverride: nil
+        )
+        let reenabled = WhatsNewPresentationService.releaseToPresent(
+            currentVersion: "1.10.1",
+            platform: .iOS,
+            defaults: defaults,
+            isEnabled: true,
+            uiTestingPresentationOverride: nil
+        )
+
+        XCTAssertNil(disabled)
+        XCTAssertEqual(reenabled?.version, "1.10.1")
+    }
+
+    func testUITestingOverridePresentsEvenWhenTheSettingIsOff() {
+        let release = WhatsNewPresentationService.releaseToPresent(
+            currentVersion: "1.10.1",
+            platform: .iOS,
+            defaults: defaults,
+            isEnabled: false,
+            uiTestingPresentationOverride: true
+        )
+
+        XCTAssertEqual(release?.version, "1.10.1")
+    }
+
     func testPreviouslyPresentedVersionStaysClaimedAfterAnotherVersion() {
         let history = WhatsNewPresentationHistory(defaults: defaults)
 
