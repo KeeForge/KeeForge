@@ -17,17 +17,18 @@
 - `CredentialProviderCoordinatorTests` pins a test per completion path and `CredentialProviderShellMacTests` the Mac shell's routing. This is the designated lifecycle regression gate, on iOS and macOS.
 - The Mac shell also routes `NSAlert` dismissal and window close (`viewDidDisappear` calls `cancelActiveRequestIfNeeded()`) through the coordinator; window close has no iOS analogue.
 - Mac `viewDidAppear` signals `presentationDidBecomeActive()` on a later main-loop turn, never synchronously: AppKit suppresses an `NSAlert.runModal()` started inside the window-ordering transaction, turning the unlock prompt into a silent cancel.
-- Terminal completion happens exactly once. Request generations invalidate late unlock and save continuations, including creator callbacks from an earlier request; dismissing an internal iOS modal is not cancellation. A save already in progress may commit its bytes and refresh identities, but its obsolete result must not restore cleared vault state, show alerts, or complete a replacement request.
+- Terminal completion happens exactly once. Request generations invalidate late unlock and save continuations, including picker cancellation and creator callbacks from an earlier request; dismissing an internal iOS modal is not cancellation. A save already in progress may commit its bytes and refresh identities, but its obsolete result must not restore cleared vault state, show alerts, or complete a replacement request.
 - Post-unlock UI goes through `presentWhenActive`, which defers while the shell is off screen, so a modal is never dropped.
 
 ### What may be filled
 
 - An interactive list request is never answered with an automatic fill. The key icon (`prepareCredentialList`) means "let me choose", so `presentPasswordMatchesOrFinish` completes outright only for a record identifier it resolves; everything else, even a lone strict match, presents the picker. That includes a gone entry, a `.stale` target, and the passkey list falling back to passwords.
 - Likewise `presentPasskeyList` offers a lone passkey and `presentOTCMatchesOrFinish` a lone code instead of asserting or generating. The by-identity routes (`completeInteractivePasskeyRequest`, `completeOTCRequestFromPending`) name the tapped credential and complete directly.
-- Only the silent no-UI path turns a match into a credential on its own, and only via `strictMatchedEntries`. Pickers list the broader `matchedEntries`.
+- Only the silent no-UI path turns a match into a credential on its own, and only via `strictMatchedEntries`. Password and code pickers use `interactiveMatches`: exact first-host matches, otherwise a separate possible-host section, with the complete corpus accessible through search or Show All Credentials. Rows show normalized hosts. Expanded searches replace the initial sections instead of repeating possible matches. Code pickers never offer URL addition.
 - Expired entries are excluded from proactive identities and automatic fulfilment; the picker lists them with a warning and requires a tap.
 - `completeRequest(with:)` resolves `{REF:...}` in the filled username and password over `parsedRootGroup.allEntries` (the target may be password-less or in a non-searchable group). Picker rows, identities, and every write path never resolve.
 - With `SettingsService.autoFillCopyTOTP` on, `completeRequest(with:)` copies the code before `cleanup()` drops the session key. A no-UI extension cannot reliably write the pasteboard, so the silent path escalates to `.userInteractionRequired` when the setting is on and the entry has a code.
+- On iOS, the system text-insertion menu opens a manual TOTP picker without service identifiers; selection returns the generated code through the text-insertion completion and clears the session. Its request state, unlock, database switching and code generation live in the shared coordinator and are tested on both platforms; the system callback and completion API stay in the iOS shell. The Mac shell fails closed for this unavailable completion. It remains available when a field is not recognized as a code field.
 
 ### Memory and time
 

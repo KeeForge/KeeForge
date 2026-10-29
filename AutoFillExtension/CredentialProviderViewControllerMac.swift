@@ -109,6 +109,10 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         coordinator.prepareCredentialList(for: serviceIdentifiers)
     }
 
+    override func prepareOneTimeCodeCredentialList(for serviceIdentifiers: [ASCredentialServiceIdentifier]) {
+        coordinator.prepareOneTimeCodeCredentialList(for: serviceIdentifiers)
+    }
+
     override func prepareInterfaceToProvideCredential(for credentialIdentity: ASPasswordCredentialIdentity) {
         coordinator.prepareInterfaceToProvideCredential(for: credentialIdentity)
     }
@@ -164,7 +168,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
-        onAddURLToPossible: @escaping (KPEntry) -> Void,
+        onAddURLToPossible: ((KPEntry) -> Void)?,
         onCancel: @escaping () -> Void
     ) {
         // A database switch shows the unlock alert next, so the hosted search
@@ -356,6 +360,12 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
     func completeOneTimeCodeRequest(code: String) {
         didFinishRequest = true
         completer.completeOneTimeCode(code: code)
+    }
+
+    func completeTextInsertion(_ text: String) {
+        // The system text-insertion API is unavailable on macOS.
+        assertionFailure("completeTextInsertion is unreachable on macOS")
+        cancelRequest(withError: ASExtensionError(.failed))
     }
 
     func completeSavePasswordRequest() {

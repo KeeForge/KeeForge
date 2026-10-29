@@ -83,7 +83,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             title: "github.com legacy",
             username: "octocat",
             password: try EncryptedValue.encrypt("secret", using: sessionKey),
-            url: "https://legacy.example"
+            url: "https://legacy.github.com"
         )
         coordinator.serviceIdentifiers = [githubServiceIdentifier()]
         seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
@@ -95,12 +95,53 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         coordinator.cancelRequest(code: .userCanceled)
         presenter.isPresentationActive = false
         coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
-        oldPicker.onAddURLToPossible(entry)
+        try XCTUnwrap(oldPicker.onAddURLToPossible)(entry)
 
         XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
         XCTAssertTrue(coordinator.pendingUnlock)
         XCTAssertNil(presenter.completedCredential)
         coordinator.cancelRequest(code: .userCanceled)
+    }
+
+    func test_oldPickerCancellationDoesNotCancelReplacementRequest() throws {
+        for kind in ["password", "code", "text"] {
+            let (coordinator, presenter) = makeCoordinator()
+            presenter.isPresentationActive = false
+            let key = SymmetricKey(size: .bits256)
+            let entry = KPEntry(
+                title: "GitHub", username: "user",
+                password: try EncryptedValue.encrypt("secret", using: key),
+                url: "https://github.com",
+                totpConfig: TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: key))
+            )
+            switch kind {
+            case "password": coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+            case "code": coordinator.prepareOneTimeCodeCredentialList(for: [githubServiceIdentifier()])
+            default: coordinator.prepareTextInsertion()
+            }
+            seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: key)
+            presenter.isPresentationActive = true
+            switch kind {
+            case "password": coordinator.presentPasswordMatchesOrFinish()
+            case "code": coordinator.presentOTCMatchesOrFinish()
+            default: coordinator.presentTextInsertionPicker()
+            }
+            let oldPicker = try XCTUnwrap(presenter.searchView)
+
+            presenter.isPresentationActive = false
+            coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+            seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: key)
+            oldPicker.onCancel()
+
+            XCTAssertTrue(presenter.cancelledErrorCodes.isEmpty, kind)
+            XCTAssertNotNil(coordinator.sessionKey, kind)
+            XCTAssertTrue(coordinator.pendingUnlock, kind)
+            XCTAssertFalse(coordinator.hasPendingTextInsertion, kind)
+            XCTAssertNil(presenter.insertedText, kind)
+            coordinator.cancelRequest(code: .userCanceled)
+            XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
+            assertCleanedUp(coordinator)
+        }
     }
 
     // MARK: - Required cleanup-path tests
@@ -166,8 +207,9 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         coordinator.presentationDidBecomeActive()
 
         let searchView = try XCTUnwrap(presenter.searchView, "The deferred picker must present on reactivation")
-        XCTAssertEqual(searchView.entries.map(\.title), ["Example"])
-        XCTAssertEqual(searchView.initialSearchText, "github.com")
+        XCTAssertTrue(searchView.entries.isEmpty)
+        XCTAssertEqual(searchView.searchEntries.map(\.title), ["Example"])
+        XCTAssertEqual(searchView.initialSearchText, "")
         XCTAssertEqual(presenter.cancelledErrorCodes, [])
 
         // The replayed picker is fully live: selecting still completes.
@@ -453,6 +495,116 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    func test_passwordAndCodeListsPreferExactHostAndKeepOtherEntriesSearchable() throws {
+        for isCode in [false, true] {
+            let (coordinator, presenter) = makeCoordinator()
+            let key = SymmetricKey(size: .bits256)
+            let entries = try [
+                ("Sibling", "https://other.cvmd.com.ar"),
+                ("Parent", "https://cvmd.com.ar"),
+                ("Child", "https://child.vt.cvmd.com.ar"),
+                ("No URL", ""),
+                ("Exact", "https://vt.cvmd.com.ar/login"),
+                ("Additional URL", "https://unrelated.example"),
+            ].map { title, url in
+                KPEntry(
+                    title: title,
+                    username: "user",
+                    password: try EncryptedValue.encrypt("secret", using: key),
+                    url: url,
+                    customFields: title == "Additional URL" ? ["KP2A_URL_1": "https://vt.cvmd.com.ar"] : [:],
+                    totpConfig: TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: key))
+                )
+            }
+            coordinator.serviceIdentifiers = ["vt.cvmd.com.ar", "cvmd.com.ar"].map {
+                ASCredentialServiceIdentifier(identifier: $0, type: .domain)
+            }
+            seedUnlockedVaultState(coordinator, entries: entries, sessionKey: key)
+
+            if isCode {
+                coordinator.presentOTCMatchesOrFinish()
+            } else {
+                coordinator.presentPasswordMatchesOrFinish()
+            }
+
+            let picker = try XCTUnwrap(presenter.searchView)
+            XCTAssertEqual(picker.entries.map(\.title), ["Exact", "Additional URL"])
+            XCTAssertTrue(picker.possibleEntries.isEmpty)
+            XCTAssertEqual(picker.searchEntries.map(\.id), entries.map(\.id))
+            XCTAssertNil(presenter.completedCredential)
+            XCTAssertNil(presenter.completedOneTimeCode)
+
+            picker.onSelect(entries[3])
+            if isCode {
+                XCTAssertEqual(presenter.completedOneTimeCode?.count, 6)
+            } else {
+                XCTAssertEqual(presenter.completedCredential?.password, "secret")
+            }
+            assertCleanedUp(coordinator)
+        }
+    }
+
+    func test_passwordAndCodeListsFallBackToPossibleHostsOnlyWhenExactIsMissing() throws {
+        for isCode in [false, true] {
+            let (coordinator, presenter) = makeCoordinator()
+            let key = SymmetricKey(size: .bits256)
+            let sibling = KPEntry(
+                title: "Sibling", username: "user",
+                password: try EncryptedValue.encrypt("secret", using: key),
+                url: "https://other.cvmd.com.ar",
+                totpConfig: TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: key))
+            )
+            let unrelated = KPEntry(title: "Unrelated", url: "https://unrelated.example")
+            coordinator.serviceIdentifiers = ["vt.cvmd.com.ar", "cvmd.com.ar"].map {
+                ASCredentialServiceIdentifier(identifier: $0, type: .domain)
+            }
+            seedUnlockedVaultState(coordinator, entries: [sibling, unrelated], sessionKey: key)
+
+            if isCode {
+                coordinator.presentOTCMatchesOrFinish()
+            } else {
+                coordinator.presentPasswordMatchesOrFinish()
+            }
+
+            let picker = try XCTUnwrap(presenter.searchView)
+            XCTAssertTrue(picker.entries.isEmpty)
+            XCTAssertEqual(picker.possibleEntries.map(\.id), [sibling.id])
+            if isCode { XCTAssertNil(picker.onAddURLToPossible) }
+            XCTAssertNil(presenter.completedCredential)
+            XCTAssertNil(presenter.completedOneTimeCode)
+            picker.onSelectPossible(sibling)
+            if isCode {
+                XCTAssertEqual(presenter.completedOneTimeCode?.count, 6)
+            } else {
+                XCTAssertEqual(presenter.completedCredential?.user, "user")
+            }
+            assertCleanedUp(coordinator)
+        }
+    }
+
+    func test_passwordAndCodeListsWithoutServiceIdentifiersOfferFullCorpus() throws {
+        for isCode in [false, true] {
+            let (coordinator, presenter) = makeCoordinator()
+            let key = SymmetricKey(size: .bits256)
+            let entry = KPEntry(
+                title: "No URL", username: "user",
+                password: try EncryptedValue.encrypt("secret", using: key),
+                totpConfig: TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: key))
+            )
+            seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: key)
+            if isCode {
+                coordinator.presentOTCMatchesOrFinish()
+            } else {
+                coordinator.presentPasswordMatchesOrFinish()
+            }
+            let picker = try XCTUnwrap(presenter.searchView)
+            XCTAssertEqual(picker.entries.map(\.id), [entry.id])
+            XCTAssertTrue(picker.possibleEntries.isEmpty)
+            picker.onCancel()
+            assertCleanedUp(coordinator)
+        }
+    }
+
     func test_possibleMatchesStartSeparatedButKeepFullSearchCorpus() throws {
         let (coordinator, presenter) = makeCoordinator()
         let sessionKey = SymmetricKey(size: .bits256)
@@ -519,7 +671,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertEqual(searchView.initialSearchText, "")
     }
 
-    func test_fuzzyCandidatesArePossibleAndMultipleCandidatesRemainAvailable() throws {
+    func test_relatedHostsArePossibleAndFuzzyCandidatesRequireExpandedSearch() throws {
         let (coordinator, presenter) = makeCoordinator()
         let sessionKey = SymmetricKey(size: .bits256)
         let entries = [
@@ -552,7 +704,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         let searchView = try XCTUnwrap(presenter.searchView)
         XCTAssertTrue(searchView.entries.isEmpty, "Broad fuzzy matches must not be exact results")
-        XCTAssertEqual(searchView.possibleEntries.map(\.title), ["acs.sitio.com legacy", "Sibling One", "Sibling Two"])
+        XCTAssertEqual(searchView.possibleEntries.map(\.title), ["Sibling One", "Sibling Two"])
+        XCTAssertEqual(searchView.searchEntries.count, 3)
     }
 
     func test_cleanup_runsOnExtensionConfigurationCancellation() {
@@ -649,11 +802,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
-    /// Nested-subdomain identifiers used to decide an automatic fill: the most
-    /// specific one won and its lone host match was completed outright. A list
-    /// request offers every host match under the requested domain instead, and
-    /// the choice between them is the user's (#132).
-    func test_otcList_nestedSubdomainIdentifiers_offerBothHostMatchesWithoutFilling() throws {
+    func test_otcList_nestedSubdomainIdentifiers_offerOnlyMostSpecificHostWithoutFilling() throws {
         guard #available(iOS 18.0, macOS 15.0, *) else {
             throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
         }
@@ -674,9 +823,9 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(presenter.completedOneTimeCode, "A list request must not answer itself with a code")
         let searchView = try XCTUnwrap(presenter.searchView)
         XCTAssertEqual(
-            searchView.entries.map(\.title).sorted(),
-            ["Root", "Specific"],
-            "Both hosts under the requested domain are offered"
+            searchView.entries.map(\.title),
+            ["Specific"],
+            "A parent-domain identifier must not widen an exact-host result"
         )
 
         searchView.onSelect(specific)
@@ -685,7 +834,89 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
-    func test_otcList_pickerStillOffersSubstringOnlyCandidates() throws {
+    func testTextInsertionOffersCodesAfterRealUnlockAndCleansUpAfterSelection() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let picker = try await unlockTextInsertionFixture(coordinator, presenter)
+
+        XCTAssertTrue(coordinator.hasPendingTextInsertion)
+        XCTAssertTrue(coordinator.serviceIdentifiers.isEmpty)
+        XCTAssertEqual(picker.entries.map(\.title), ["TOTP Login"])
+        XCTAssertNil(picker.onCreateEntry)
+        XCTAssertNil(picker.onAddURLToPossible)
+        XCTAssertNil(presenter.completedCredential)
+        XCTAssertNil(presenter.completedOneTimeCode)
+        picker.onSelect(try XCTUnwrap(picker.entries.first))
+        XCTAssertNil(presenter.completedOneTimeCode)
+        XCTAssertEqual(presenter.insertedText?.count, 6)
+        XCTAssertNotEqual(presenter.insertedText, "------")
+        assertCleanedUp(coordinator)
+    }
+
+    func testTextInsertionCancelAfterUnlockCleansUpWithoutReturningCode() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let picker = try await unlockTextInsertionFixture(coordinator, presenter)
+        picker.onCancel()
+        XCTAssertNil(presenter.completedCredential)
+        XCTAssertNil(presenter.completedOneTimeCode)
+        XCTAssertNil(presenter.insertedText)
+        XCTAssertEqual(presenter.cancelledError?.code, .userCanceled)
+        assertCleanedUp(coordinator)
+    }
+
+    func testTextInsertionSurvivesSuccessfulAndCancelledDatabaseSwitches() async throws {
+        for switchSucceeds in [false, true] {
+            let (coordinator, presenter) = makeCoordinator()
+            let databaseB = try makeRegisteredDatabase(named: "text-insertion-b.kdbx")
+            try seedDatabaseBytes(KDBXTestFixture.kitchenSink.data(in: Bundle(for: Self.self)), for: databaseB)
+            let oldPicker = try await unlockTextInsertionFixture(coordinator, presenter)
+            let databaseA = try XCTUnwrap(coordinator.activeDatabaseReference)
+            let switcher = try XCTUnwrap(oldPicker.databaseSwitcher)
+            switcher.onSwitch(databaseB, "TOTP")
+            let prompt = try XCTUnwrap(presenter.unlockPrompt)
+            presenter.searchView = nil
+
+            if switchSucceeds {
+                let represented = expectation(description: "text insertion re-presented after database unlock")
+                presenter.onSearchViewPresented = { represented.fulfill() }
+                prompt.onSubmitPassword("testpassword123")
+                await fulfillment(of: [represented], timeout: 60)
+            } else {
+                prompt.onCancel()
+            }
+
+            let picker = try XCTUnwrap(presenter.searchView)
+            XCTAssertTrue(coordinator.hasPendingTextInsertion)
+            XCTAssertEqual(coordinator.activeDatabaseReference?.id, switchSucceeds ? databaseB.id : databaseA.id)
+            XCTAssertEqual(picker.initialSearchText, "TOTP")
+            XCTAssertEqual(picker.entries.map(\.title), ["TOTP Login"])
+            XCTAssertNil(presenter.cancelledError)
+            XCTAssertNil(presenter.completedCredential)
+            XCTAssertNil(presenter.completedOneTimeCode)
+            if switchSucceeds {
+                oldPicker.onSelect(try XCTUnwrap(oldPicker.entries.first))
+                XCTAssertNil(presenter.insertedText, "A callback from the previous database must not fill")
+                XCTAssertNotNil(coordinator.sessionKey)
+            }
+            picker.onSelect(try XCTUnwrap(picker.entries.first))
+            XCTAssertEqual(presenter.insertedText?.count, 6)
+            XCTAssertNil(presenter.completedOneTimeCode)
+            assertCleanedUp(coordinator)
+        }
+    }
+
+    func testTextInsertionWithoutEnabledDatabaseCanBeCancelled() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        coordinator.prepareTextInsertion()
+        coordinator.presentationDidBecomeActive()
+        XCTAssertNil(presenter.unlockPrompt)
+        XCTAssertNil(presenter.searchView)
+        try XCTUnwrap(presenter.noEnabledDatabasesState).onDismiss()
+        XCTAssertNil(presenter.insertedText)
+        XCTAssertEqual(presenter.cancelledError?.code, .userCanceled)
+        assertCleanedUp(coordinator)
+    }
+
+    func test_otcList_keepsSubstringOnlyCandidatesInExpandedSearch() throws {
         guard #available(iOS 18.0, macOS 15.0, *) else {
             throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
         }
@@ -695,8 +926,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         func totp() throws -> TOTPConfig {
             TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey))
         }
-        // Two host matches force the picker; the third matches only on a title
-        // substring and must still be offered once the user is choosing anyway.
         let hostMatches = try ["GitHub", "GitHub Work"].map {
             KPEntry(title: $0, url: "https://github.com/login", totpConfig: try totp())
         }
@@ -710,8 +939,10 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let searchView = try XCTUnwrap(presenter.searchView, "Two host matches should present the picker")
         XCTAssertEqual(
             Set(searchView.entries.map(\.title)),
-            ["GitHub", "GitHub Work", "Old github.com account"]
+            ["GitHub", "GitHub Work"]
         )
+        XCTAssertTrue(searchView.possibleEntries.isEmpty)
+        XCTAssertTrue(searchView.searchEntries.contains { $0.id == substringOnly.id })
 
         searchView.onSelect(hostMatches[0])
 
@@ -752,7 +983,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
-    func test_otcList_noMatches_presentsAllTOTPEntriesWithDomainPrefilled() throws {
+    func test_otcList_noMatches_keepsAllTOTPEntriesAvailableForExpandedSearch() throws {
         guard #available(iOS 18.0, macOS 15.0, *) else {
             throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
         }
@@ -778,9 +1009,11 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         coordinator.presentOTCMatchesOrFinish()
 
-        let searchView = try XCTUnwrap(presenter.searchView, "No matches should still present the full TOTP list")
-        XCTAssertEqual(searchView.entries.map(\.title), ["Example"], "Only TOTP-capable entries belong in the OTC picker")
-        XCTAssertEqual(searchView.initialSearchText, "github.com")
+        let searchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertTrue(searchView.entries.isEmpty)
+        XCTAssertTrue(searchView.possibleEntries.isEmpty)
+        XCTAssertEqual(searchView.searchEntries.map(\.title), ["Example"], "Only TOTP-capable entries belong in expanded search")
+        XCTAssertEqual(searchView.initialSearchText, "")
 
         searchView.onSelect(totpEntry)
 
@@ -1323,7 +1556,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         await CredentialIdentityStoreManager.waitForPendingMutations()
         XCTAssertNil(presenter.completedCredential, "Expired entries are filtered from direct completion")
         let searchView = try XCTUnwrap(presenter.searchView, "The interactive fallback presents as before")
-        XCTAssertEqual(searchView.entries.map(\.id), [expiredEntry.id])
+        XCTAssertTrue(searchView.entries.isEmpty)
+        XCTAssertEqual(searchView.searchEntries.map(\.id), [expiredEntry.id])
     }
 
     func test_otcPending_missingEntryRemovesIdentityAndPresentsPicker() async throws {
@@ -1631,9 +1865,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
-    /// No match at all: the picker still opens on the full corpus with the
-    /// requested domain pre-filled, and fills nothing until something is picked.
-    func test_interactiveList_noMatches_presentsFullCorpusWithoutFilling() throws {
+    func test_interactiveList_noMatches_keepsFullCorpusAvailableWithoutFilling() throws {
         let (coordinator, presenter) = makeCoordinator()
         let sessionKey = SymmetricKey(size: .bits256)
         let unrelated = KPEntry(
@@ -1650,8 +1882,9 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         XCTAssertNil(presenter.completedCredential)
         let searchView = try XCTUnwrap(presenter.searchView)
-        XCTAssertEqual(searchView.entries.map(\.title), ["Unrelated"])
-        XCTAssertEqual(searchView.initialSearchText, "github.com")
+        XCTAssertTrue(searchView.entries.isEmpty)
+        XCTAssertEqual(searchView.searchEntries.map(\.title), ["Unrelated"])
+        XCTAssertEqual(searchView.initialSearchText, "")
         searchView.onCancel()
     }
 
@@ -1888,9 +2121,9 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         await fulfillment(of: [searchRepresented], timeout: 60)
 
         let searchView = try XCTUnwrap(scenario.presenter.searchView)
-        XCTAssertFalse(searchView.entries.isEmpty, "The re-presented search shows the new database's entries")
+        XCTAssertFalse(searchView.searchEntries.isEmpty, "The re-presented search contains the new database's entries")
         XCTAssertFalse(
-            searchView.entries.map(\.title).contains("GitHub Work"),
+            searchView.searchEntries.map(\.title).contains("GitHub Work"),
             "The previous database's seeded entries must have been replaced by the fixture's"
         )
         XCTAssertEqual(searchView.initialSearchText, "git", "The typed search text survives the switch")
@@ -2060,8 +2293,9 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(presenter.cancelledErrorCodes, [])
         let searchView = try XCTUnwrap(presenter.searchView, "Even with nothing matching, the picker presents")
-        XCTAssertEqual(searchView.entries.map(\.title), ["Unrelated"])
-        XCTAssertEqual(searchView.initialSearchText, "github.com")
+        XCTAssertTrue(searchView.entries.isEmpty)
+        XCTAssertEqual(searchView.searchEntries.map(\.title), ["Unrelated"])
+        XCTAssertEqual(searchView.initialSearchText, "")
     }
 
     /// A site with exactly one saved passkey had its assertion completed the
@@ -2880,7 +3114,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     }
 
     /// Unlocks the default AutoFill database with the fixtures' password for a
-    /// request matching nothing, so the picker lists the whole vault.
+    /// request matching nothing, so expanded search can access the whole vault.
     private func unlockDefaultDatabaseAndPresentSearch(
         _ coordinator: CredentialProviderCoordinator,
         _ presenter: CredentialProviderPresentingSpy
@@ -2889,6 +3123,25 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         coordinator.prepareCredentialList(
             for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)]
         )
+        return try await unlockPreparedRequestAndPresentSearch(coordinator, presenter)
+    }
+
+    private func unlockTextInsertionFixture(
+        _ coordinator: CredentialProviderCoordinator,
+        _ presenter: CredentialProviderPresentingSpy
+    ) async throws -> CredentialProviderPresentingSpy.SearchView {
+        let database = try seedResolvableDefaultDatabase()
+        try seedDatabaseBytes(KDBXTestFixture.kitchenSink.data(in: Bundle(for: Self.self)), for: database)
+        coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+        coordinator.persistQuickUnlockKeys = { _, _, _ in true }
+        coordinator.prepareTextInsertion()
+        return try await unlockPreparedRequestAndPresentSearch(coordinator, presenter)
+    }
+
+    private func unlockPreparedRequestAndPresentSearch(
+        _ coordinator: CredentialProviderCoordinator,
+        _ presenter: CredentialProviderPresentingSpy
+    ) async throws -> CredentialProviderPresentingSpy.SearchView {
         presenter.isPresentationActive = true
         coordinator.presentationDidBecomeActive()
         let prompt = try XCTUnwrap(presenter.unlockPrompt)
@@ -2901,6 +3154,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         prompt.onSubmitPassword("testpassword123")
         await fulfillment(of: [searchPresented], timeout: 60)
+        presenter.onSearchViewPresented = nil
         return try XCTUnwrap(presenter.searchView)
     }
 
@@ -3088,6 +3342,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.pendingPasskeyRegistrationFailureMessage, "pending passkey registration failure must be cleared", file: file, line: line)
         XCTAssertFalse(coordinator.hasPendingOTCRequest, "pending OTC flag must be cleared", file: file, line: line)
         XCTAssertFalse(coordinator.hasPendingOTCListRequest, "pending OTC list flag must be cleared", file: file, line: line)
+        XCTAssertFalse(coordinator.hasPendingTextInsertion, "pending text insertion must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingReadOnlyCancellationMessage, "pending read-only message must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingSavePasswordRequestStorage, "pending save request must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingGeneratePasswordsRequestStorage, "pending generate request must be cleared", file: file, line: line)

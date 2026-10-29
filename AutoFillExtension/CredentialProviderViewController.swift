@@ -51,6 +51,10 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         coordinator.prepareCredentialList(for: serviceIdentifiers)
     }
 
+    override func prepareInterfaceForUserChoosingTextToInsert() {
+        coordinator.prepareTextInsertion()
+    }
+
     override func prepareInterfaceToProvideCredential(for credentialIdentity: ASPasswordCredentialIdentity) {
         coordinator.prepareInterfaceToProvideCredential(for: credentialIdentity)
     }
@@ -134,7 +138,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
-        onAddURLToPossible: @escaping (KPEntry) -> Void,
+        onAddURLToPossible: ((KPEntry) -> Void)?,
         onCancel: @escaping () -> Void
     ) {
         // A database switch presents the unlock prompt next, so the search
@@ -412,6 +416,10 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
             return
         }
         extensionContext.completeOneTimeCodeRequest(using: ASOneTimeCodeCredential(code: code))
+    }
+
+    func completeTextInsertion(_ text: String) {
+        extensionContext.completeRequest(withTextToInsert: text, completionHandler: nil)
     }
 
     func completeSavePasswordRequest() {

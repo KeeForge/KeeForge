@@ -20,7 +20,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 - **Persistence and save paths:** `LocalDatabaseSaverTests`, `CloudDatabaseSaverTests`, `DatabaseListStoreTests`, `SharedVaultStoreTests`, `PendingUploadQueueTests`, `PendingUploadDrainerTests`, `PendingUploadRecoveryTests`, `KeychainServiceTests`, `AppGroupGuardrailTests`.
 - **Cloud:** `CloudSyncCoordinatorTests` (open-time sync resolution and the cache swap), `DatabaseViewModelCloudSyncTests` (Sync Now in a session), one `<Provider>CloudProviderTests` per provider, `WebDAVClientTests`, `FTPListingParserTests`.
 - **Session and workflow:** `DatabaseViewModelTests`, `AutoLockTests`, `HardwareKeyUnlockTests`, `DatabaseEditorCoordinatorTests`, `AppRoutingCoordinatorTests`.
-- **AutoFill and passkeys:** `CredentialProviderCoordinatorTests` and its `CredentialProvider*Tests` siblings (save, registration, picker creation), `CredentialMatcherTests`, `CredentialIdentityStoreManagerTests`, `AutoFillMemoryLimitTests`, `PasskeyCredentialTests`, `PasskeyCryptoTests`.
+- **AutoFill and passkeys:** `CredentialProviderCoordinatorTests` and its `CredentialProvider*Tests` siblings (save, registration, picker creation), `CredentialMatcherTests` (also covers the hosted picker's expanded search on macOS), `CredentialIdentityStoreManagerTests`, `AutoFillMemoryLimitTests`, `PasskeyCredentialTests`, `PasskeyCryptoTests`.
 - **Localization and bundle:** `LocalizationTests` (translation completeness and format-specifier parity for every shipped locale), `URLSchemeFormatTests` (declared URL schemes are legal after build-setting substitution).
 - **macOS only:** `MacBiometricAutoUnlockTests`, `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `MacQuickSearchViewModelTests`, `MacQuickAccessControllerTests`, `MacUnlockPasswordFieldTests`, `MacTransitionNoticeServiceTests`, `CredentialProviderShellMacTests`, and the SSH agent's `SSHAgentKeyTests`, `SSHAgentRequestHandlerTests`, `MacSSHAgentControllerTests`.
 
@@ -85,7 +85,7 @@ Convention: `<Type>Tests.swift` declares `<Type>Tests` and covers `<Type>`. The 
 
 Designated gates:
 
-- `AutoFillExtension/CredentialProviderCoordinator.swift`: `CredentialProviderCoordinatorTests`, on both platforms. It pins `cleanup()` on every completion path. The Mac shell's window-close and alert paths are `CredentialProviderShellMacTests`.
+- `AutoFillExtension/CredentialProviderCoordinator.swift`: `CredentialProviderCoordinatorTests`, on both platforms. It pins `cleanup()` on every completion path, including manual text insertion after a real fixture unlock, database switches, cancellation, and stale callbacks. The Mac shell's window-close and alert paths are `CredentialProviderShellMacTests`.
 - `DatabaseViewModel` is split by concern: `DatabaseViewModelTests`, `DatabaseViewModelCloudSyncTests`, `AutoLockTests`, `HardwareKeyUnlockTests`, `SecretAccessSessionTests`, `SortOrderTests`. The vault half of macOS window close is an `#if os(macOS)` section of `DatabaseViewModelTests`.
 - Rekey and re-encryption: the write is in the saver suites, the session guards in `DatabaseViewModelTests`.
 - Editor completion across a save conflict: `EntryEditCompletionGateTests` is the only non-UI coverage. Editor save and reopen against the real saver is in `KDBXCompatibilityTests`.
