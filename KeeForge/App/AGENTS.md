@@ -26,7 +26,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 ### Launch and presentation
 
-- Open cloud databases keep Sync Now beside the iOS browsing title and in the Mac database toolbar. Skipped-check, last-sync, pending-upload, and result text lives in its status popover; choosing a future sync policy never claims the current open skipped a check. Sync enablement comes from `DatabaseViewModel.canSyncCloudNow`.
+- Open cloud databases keep Sync Now below the iPad sidebar title and in the Mac database toolbar. The iPhone header shows only a status badge beside the title (a spinner while syncing, a warning whose popover offers Sync Now), and pulling a cloud list down syncs on every iOS layout. Skipped-check, last-sync, pending-upload, and result text lives in its status popover; choosing a future sync policy never claims the current open skipped a check. Sync enablement comes from `DatabaseViewModel.canSyncCloudNow`.
 - Unlock, unlocking, and unlocked are one selected-database flow. Compact presents unlock as a sheet over the list and swaps to the session once unlocked; regular renders all three states inline in the detail column.
 - Quick Launch waits until the What's New sheet (and the Mac transition notice) is dismissed, so two launch presentations never compete.
 - SwiftUI drops a presentation raised while another sheet is dismissing. That is why deferred presentations wait 450 ms and why the conflicted-upload notice is a banner, not an alert: it is due at unlock, while the compact unlock sheet is dismissing.

@@ -153,14 +153,23 @@ final class CloudUnlockSmokeUITests: CloudSyncBaseUITests {
         let sync = app.buttons["database.cloud-sync-now"]
         XCTAssertTrue(sync.isEnabled)
         sync.tap()
+        XCTAssertTrue(details.waitForNonExistence(timeout: 15), "A successful sync clears the warning")
         XCTAssertTrue(waitUntilSyncSettles(progress))
-        XCTAssertFalse(details.exists, "A successful sync clears the warning")
 
+        // The skipped check's warning stays until a sync runs, so its
+        // disappearing after the pull proves the pull started one.
+        currentLockButton().tap()
+        XCTAssertTrue(waitForLockedState())
+        unlockSuccessfully()
+        XCTAssertTrue(details.waitForExistence(timeout: 10))
         selectDatabaseView(.allEntries)
+        // A swipe flicks too fast and too short to pull past the refresh
+        // threshold. The list runs under the pinned title, so start below it.
         let list = scrollableContainer() ?? app.windows.firstMatch
-        list.swipeDown()
+        list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+            .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)), withVelocity: .slow, thenHoldForDuration: 0.5)
+        XCTAssertTrue(details.waitForNonExistence(timeout: 15), "Pulling to refresh did not sync")
         XCTAssertTrue(waitUntilSyncSettles(progress))
-        XCTAssertFalse(details.exists, "Pulling to refresh an up-to-date database adds no warning")
         let synced = XCTAttachment(screenshot: app.screenshot())
         synced.name = "Compact cloud header after syncing"
         synced.lifetime = .keepAlways
