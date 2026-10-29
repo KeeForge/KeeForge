@@ -342,7 +342,7 @@ private struct SecuritySettingsView: View {
                 }
                 .accessibilityIdentifier("settings.security.require-password-picker")
             } footer: {
-                Text("Face ID and Touch ID stop unlocking a database this long after its master password was last entered, until you enter it again. This also applies to AutoFill.")
+                Text("Face ID and Touch ID stop unlocking a database this long after its master password was last entered, until you enter it again. With Always, KeeForge saves no unlock key and asks for the master password every time. This also applies to AutoFill.")
             }
 
             Section {
@@ -864,7 +864,7 @@ private struct MacSecuritySettingsTab: View {
                 }
                 .accessibilityIdentifier("settings.security.require-password-picker")
             } footer: {
-                Text("Touch ID and Apple Watch stop unlocking a database this long after its master password was last entered, until you enter it again. This also applies to AutoFill.")
+                Text("Touch ID and Apple Watch stop unlocking a database this long after its master password was last entered, until you enter it again. With Always, KeeForge saves no unlock key and asks for the master password every time. This also applies to AutoFill.")
             }
 
             Section {

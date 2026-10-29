@@ -177,7 +177,8 @@ key. A save anywhere else leaves the item unmatched, so the next unlock runs the
 KDF and replaces it.
 
 Both items expire with Settings → Security → Require Master Password (14 days
-by default, 30 days, or never). The date of the last master-key entry per
+by default, 30 days, or never). Always keeps neither item: a password unlock
+stores nothing, and choosing it deletes every saved key. The date of the last master-key entry per
 database lives in the App Group defaults; a quick unlock never moves it. Once
 it is older than the interval, or a clock set back past it, the app and
 AutoFill delete both items before they would read them and ask for the
