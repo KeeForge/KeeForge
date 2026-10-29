@@ -91,7 +91,7 @@ protocol CredentialProviderPresenting: AnyObject {
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
-        onAddURLToPossible: @escaping (KPEntry) -> Void,
+        onAddURLToPossible: ((KPEntry) -> Void)?,
         onCancel: @escaping () -> Void
     )
 
@@ -1531,18 +1531,9 @@ final class CredentialProviderCoordinator {
             removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
         }
 
-        let strictMatches = CredentialMatcher.strictMatchedEntries(from: passwordEntries, for: serviceIdentifiers)
-        let matches = CredentialMatcher.matchedEntries(from: passwordEntries, for: serviceIdentifiers)
-        let possibleMatches: [KPEntry]
-        if strictMatches.isEmpty {
-            let siblingMatches = CredentialMatcher.possibleMatchedEntries(from: passwordEntries, for: serviceIdentifiers)
-            var seenIDs = Set<UUID>()
-            possibleMatches = (matches + siblingMatches).filter { seenIDs.insert($0.id).inserted }
-        } else {
-            possibleMatches = []
-        }
-
-        AutoFillDiagnostics.log("passwordMatches all=\(allPasswordEntries.count) strict=\(strictMatches.count) matches=\(matches.count) possible=\(possibleMatches.count)")
+        let matches = CredentialMatcher.interactiveMatches(from: passwordEntries, for: serviceIdentifiers)
+        let hasHost = serviceIdentifiers.contains { CredentialMatcher.searchTerm(for: $0) != nil }
+        AutoFillDiagnostics.log("passwordMatches all=\(allPasswordEntries.count) exact=\(matches.exact.count) possible=\(matches.possible.count)")
 
         // Nothing that reaches this point names a credential the user chose,
         // so nothing is filled on its own — not even a lone strict match.
@@ -1552,12 +1543,10 @@ final class CredentialProviderCoordinator {
         // `.stale` case, which clears the target), and `presentPasskeyList`'s
         // no-passkey fallback. The by-identity branch above still fills.
 
-        let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
-
-        if !strictMatches.isEmpty {
-            // Only strict host matches belong in the exact interactive section.
+        if !matches.exact.isEmpty {
+            // Only the first requested host belongs in the exact section.
             presentSearchView(
-                entries: strictMatches,
+                entries: matches.exact,
                 searchEntries: allPasswordEntries,
                 possibleEntries: [],
                 initialSearchText: "",
@@ -1571,10 +1560,10 @@ final class CredentialProviderCoordinator {
             // possible-match section. The full password list remains the
             // editable search corpus.
             presentSearchView(
-                entries: possibleMatches.isEmpty ? allPasswordEntries : [],
+                entries: hasHost ? [] : allPasswordEntries,
                 searchEntries: allPasswordEntries,
-                possibleEntries: possibleMatches,
-                initialSearchText: possibleMatches.isEmpty ? searchDomain : "",
+                possibleEntries: matches.possible,
+                initialSearchText: "",
                 includesDatabaseSwitcher: true,
                 includesEntryCreation: true
             ) { [weak self] entry in
@@ -1826,10 +1815,11 @@ final class CredentialProviderCoordinator {
         includesEntryCreation: Bool = false,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void = { _ in },
-        onAddURLToPossible: @escaping (KPEntry) -> Void = { _ in }
+        onAddURLToPossible: ((KPEntry) -> Void)? = nil
     ) {
         let restoredSearchText = pendingSwitchSearchText
         pendingSwitchSearchText = nil
+        let generation = requestGeneration
         presentWhenActive { [weak self] in
             guard let self else { return }
             presenter?.presentSearchView(
@@ -1844,7 +1834,8 @@ final class CredentialProviderCoordinator {
                 onSelectPossible: onSelectPossible,
                 onAddURLToPossible: onAddURLToPossible,
                 onCancel: { [weak self] in
-                    self?.cancelRequest(code: .userCanceled)
+                    guard let self, self.isRequestActive(generation) else { return }
+                    self.cancelRequest(code: .userCanceled)
                 }
             )
         }
@@ -2384,25 +2375,17 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        let matches = CredentialMatcher.matchedEntries(from: totpEntries, for: serviceIdentifiers)
-
-        let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
-
-        if !matches.isEmpty {
-            // Narrowed to matches, but the whole TOTP corpus stays the search
-            // and "Show All Credentials" set — as on the password path.
-            presentSearchView(
-                entries: matches,
-                searchEntries: allTOTPEntries,
-                initialSearchText: "",
-                includesDatabaseSwitcher: true
-            ) { [weak self] entry in
-                self?.completeOTCRequest(with: entry)
-            }
-        } else {
-            presentSearchView(entries: allTOTPEntries, initialSearchText: searchDomain, includesDatabaseSwitcher: true) { [weak self] entry in
-                self?.completeOTCRequest(with: entry)
-            }
+        let matches = CredentialMatcher.interactiveMatches(from: totpEntries, for: serviceIdentifiers)
+        let hasHost = serviceIdentifiers.contains { CredentialMatcher.searchTerm(for: $0) != nil }
+        presentSearchView(
+            entries: hasHost ? matches.exact : allTOTPEntries,
+            searchEntries: allTOTPEntries,
+            possibleEntries: matches.possible,
+            includesDatabaseSwitcher: true
+        ) { [weak self] entry in
+            self?.completeOTCRequest(with: entry)
+        } onSelectPossible: { [weak self] entry in
+            self?.completeOTCRequest(with: entry)
         }
     }
 
