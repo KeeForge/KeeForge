@@ -43,12 +43,14 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
             currentVersion: "1.10.1",
             platform: .iOS,
             defaults: defaults,
+            isEnabled: true,
             uiTestingPresentationOverride: nil
         )
         let secondPresentation = WhatsNewPresentationService.releaseToPresent(
             currentVersion: "1.10.1",
             platform: .iOS,
             defaults: defaults,
+            isEnabled: true,
             uiTestingPresentationOverride: nil
         )
 
@@ -102,6 +104,7 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
                 currentVersion: "9.9.9",
                 platform: .iOS,
                 defaults: defaults,
+                isEnabled: true,
                 uiTestingPresentationOverride: nil
             )
         )
@@ -177,6 +180,7 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
             currentVersion: "1.16.0",
             platform: .macOS,
             defaults: defaults,
+            isEnabled: true,
             uiTestingPresentationOverride: nil
         )
 
@@ -232,6 +236,7 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
                 currentVersion: "1.10.1",
                 platform: .macOS,
                 defaults: defaults,
+                isEnabled: true,
                 uiTestingPresentationOverride: false
             )
         )
@@ -241,6 +246,7 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
                 currentVersion: "1.10.1",
                 platform: .macOS,
                 defaults: defaults,
+                isEnabled: true,
                 uiTestingPresentationOverride: true
             )
         )
