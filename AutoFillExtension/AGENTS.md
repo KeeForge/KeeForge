@@ -28,6 +28,7 @@
 - Expired entries are excluded from proactive identities and automatic fulfilment; the picker lists them with a warning and requires a tap.
 - `completeRequest(with:)` resolves `{REF:...}` in the filled username and password over `parsedRootGroup.allEntries` (the target may be password-less or in a non-searchable group). Picker rows, identities, and every write path never resolve.
 - With `SettingsService.autoFillCopyTOTP` on, `completeRequest(with:)` copies the code before `cleanup()` drops the session key. A no-UI extension cannot reliably write the pasteboard, so the silent path escalates to `.userInteractionRequired` when the setting is on and the entry has a code.
+- On iOS, the system text-insertion menu opens a manual TOTP picker without service identifiers; selection returns the generated code through the text-insertion completion and clears the session. Its request state, unlock, database switching and code generation live in the shared coordinator and are tested on both platforms; the system callback and completion API stay in the iOS shell. The Mac shell fails closed for this unavailable completion. It remains available when a field is not recognized as a code field.
 
 ### Memory and time
 

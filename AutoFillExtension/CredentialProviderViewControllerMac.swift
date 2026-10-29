@@ -362,6 +362,12 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         completer.completeOneTimeCode(code: code)
     }
 
+    func completeTextInsertion(_ text: String) {
+        // The system text-insertion API is unavailable on macOS.
+        assertionFailure("completeTextInsertion is unreachable on macOS")
+        cancelRequest(withError: ASExtensionError(.failed))
+    }
+
     func completeSavePasswordRequest() {
         // Unreachable on macOS (save-password is iOS-only). Fail closed.
         assertionFailure("completeSavePasswordRequest is unreachable on macOS")

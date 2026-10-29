@@ -233,6 +233,12 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         completedOneTimeCode = code
     }
 
+    var insertedText: String?
+
+    func completeTextInsertion(_ text: String) {
+        insertedText = text
+    }
+
     func completeSavePasswordRequest() {
         didCompleteSavePassword = true
     }
