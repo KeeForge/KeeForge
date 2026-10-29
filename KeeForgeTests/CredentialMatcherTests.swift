@@ -4,6 +4,81 @@ import XCTest
 
 final class CredentialMatcherTests: XCTestCase {
 
+    func testInteractiveMatchesUseFirstWebHostAndAdditionalURLs() {
+        let entries = [
+            makeEntry(title: "Parent", url: "https://cvmd.com.ar", username: "u", password: "p"),
+            makeEntry(title: "Sibling", url: "https://other.cvmd.com.ar", username: "u", password: "p"),
+            makeEntry(title: "Child", url: "https://child.vt.cvmd.com.ar", username: "u", password: "p"),
+            makeEntry(title: "Exact", url: "https://vt.cvmd.com.ar", username: "u", password: "p"),
+            makeEntry(title: "Additional", url: "https://unrelated.example", username: "u", password: "p",
+                      customFields: ["KP2A_URL_1": "https://vt.cvmd.com.ar/login"]),
+        ]
+        let identifiers = ["vt.cvmd.com.ar", "cvmd.com.ar"].map {
+            ASCredentialServiceIdentifier(identifier: $0, type: .domain)
+        }
+        let matches = CredentialMatcher.interactiveMatches(from: entries, for: identifiers)
+        XCTAssertEqual(matches.exact.map(\.title), ["Exact", "Additional"])
+        XCTAssertTrue(matches.possible.isEmpty)
+    }
+
+    func testInteractiveMatchesExcludeExpiredExactAndDeduplicateFallback() {
+        var expired = makeEntry(title: "Expired", url: "https://vt.cvmd.com.ar", username: "u", password: "p")
+        expired.expires = true
+        expired.expiryTime = .distantPast
+        let sibling = makeEntry(title: "Sibling", url: "https://other.cvmd.com.ar", username: "u", password: "p")
+        let unrelated = makeEntry(title: "Unrelated", url: "https://cvmd.com.ar.evil.example", username: "u", password: "p")
+        let identifiers = ["vt.cvmd.com.ar", "cvmd.com.ar"].map {
+            ASCredentialServiceIdentifier(identifier: $0, type: .domain)
+        }
+        let matches = CredentialMatcher.interactiveMatches(from: [expired, sibling, unrelated], for: identifiers)
+        XCTAssertTrue(matches.exact.isEmpty)
+        XCTAssertEqual(matches.possible.map(\.id), [sibling.id])
+    }
+
+    #if os(macOS)
+    func testExpandedSearchOffersHostlessEntriesWithoutRepeatingPossibleMatches() {
+        let sibling = makeEntry(title: "Sibling", url: "https://other.cvmd.com.ar", username: "u", password: "p")
+        let hostless = makeEntry(title: "No URL", url: "", username: "u", password: "p")
+        let corpus = [sibling, hostless]
+        let initial = AutoFillSearchResults(entries: [], searchEntries: corpus, possibleEntries: [sibling], query: "", hasExpandedSearch: false)
+        XCTAssertTrue(initial.entries.isEmpty)
+        XCTAssertEqual(initial.possibleEntries.map(\.id), [sibling.id])
+        XCTAssertTrue(initial.canShowAllEntries)
+
+        let expanded = AutoFillSearchResults(entries: [], searchEntries: corpus, possibleEntries: [sibling], query: "", hasExpandedSearch: true)
+        XCTAssertEqual(expanded.entries.map(\.id), corpus.map(\.id))
+        XCTAssertTrue(expanded.possibleEntries.isEmpty)
+        XCTAssertFalse(expanded.canShowAllEntries)
+
+        let searched = AutoFillSearchResults(entries: [], searchEntries: corpus, possibleEntries: [sibling], query: "No URL", hasExpandedSearch: true)
+        XCTAssertEqual(searched.entries.map(\.id), [hostless.id])
+        XCTAssertTrue(searched.possibleEntries.isEmpty)
+        XCTAssertTrue(searched.canShowAllEntries)
+    }
+
+    func testNoMatchesStillOffersExpansionAndSearchIncludesAdditionalURLs() {
+        let entry = makeEntry(title: "Other", url: "https://unrelated.example", username: "u", password: "p",
+                              customFields: ["KP2A_URL_1": "https://vt.cvmd.com.ar/login"])
+        let empty = AutoFillSearchResults(entries: [], searchEntries: [entry], possibleEntries: [], query: "", hasExpandedSearch: false)
+        XCTAssertTrue(empty.entries.isEmpty)
+        XCTAssertTrue(empty.canShowAllEntries)
+        let searched = AutoFillSearchResults(entries: [], searchEntries: [entry], possibleEntries: [], query: "vt.cvmd.com.ar", hasExpandedSearch: true)
+        XCTAssertEqual(searched.entries.map(\.id), [entry.id])
+    }
+    #endif
+
+    func testPrioritizesExactHostAndIdentifierOrder() {
+        let entries = [
+            makeEntry(title: "Sibling", url: "https://other.example.com", username: "u", password: "p"),
+            makeEntry(title: "Child", url: "https://child.vt.example.com", username: "u", password: "p"),
+            makeEntry(title: "Exact", url: "https://vt.example.com", username: "u", password: "p"),
+        ]
+        let identifiers = ["vt.example.com", "example.com"].map {
+            ASCredentialServiceIdentifier(identifier: $0, type: .domain)
+        }
+        XCTAssertEqual(CredentialMatcher.prioritizingHosts(entries, for: identifiers).map(\.title), ["Exact", "Child", "Sibling"])
+    }
+
     // MARK: - hostFromURLString
 
     func testHostFromFullURL() {

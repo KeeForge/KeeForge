@@ -42,7 +42,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         let onCreateEntry: (() -> Void)?
         let onSelect: (KPEntry) -> Void
         let onSelectPossible: (KPEntry) -> Void
-        let onAddURLToPossible: (KPEntry) -> Void
+        let onAddURLToPossible: ((KPEntry) -> Void)?
         let onCancel: () -> Void
     }
 
@@ -119,7 +119,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
-        onAddURLToPossible: @escaping (KPEntry) -> Void,
+        onAddURLToPossible: ((KPEntry) -> Void)?,
         onCancel: @escaping () -> Void
     ) {
         searchView = SearchView(

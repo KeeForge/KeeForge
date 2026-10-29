@@ -15,6 +15,10 @@
 
 ### Fixes
 
+- Password and verification-code pickers show credentials for the exact requested host first, offer related hosts as possible matches when none match, and let you search all credentials, including entries without a URL. Rows show the associated hosts, and search includes additional URLs.
+- Fixed the Mac AutoFill extension not forwarding requests to choose a verification code.
+- Ignore late cancellation callbacks from an earlier AutoFill picker so they cannot cancel a newer request.
+
 - In Mac AutoFill, a few error messages (such as the one for a database in the Trash) now appear in your language instead of English.
 
 ## v1.20.0 (2026-10-25)

@@ -2,6 +2,38 @@ import AuthenticationServices
 import PublicSuffixList
 
 enum CredentialMatcher {
+    static func interactiveMatches(from entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> (exact: [KPEntry], possible: [KPEntry]) {
+        guard let host = identifiers.lazy.compactMap(searchTerm(for:)).compactMap(hostFromURLString).first else {
+            return ([], [])
+        }
+        let eligibleEntries = entries.filter { !$0.isExpired() }
+        let exact = eligibleEntries.filter { entry in
+            webURLs(of: entry).compactMap(hostFromURLString).contains(host)
+        }
+        guard exact.isEmpty else { return (exact, []) }
+
+        var seenIDs = Set<UUID>()
+        let possible = (strictMatchedEntries(from: eligibleEntries, for: identifiers)
+            + possibleMatchedEntries(from: eligibleEntries, for: identifiers))
+            .filter { seenIDs.insert($0.id).inserted }
+        return ([], prioritizingHosts(possible, for: identifiers))
+    }
+
+    static func prioritizingHosts(_ entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> [KPEntry] {
+        let hosts = identifiers.compactMap(searchTerm(for:)).compactMap(hostFromURLString)
+        func priority(_ entry: KPEntry) -> Int {
+            let stored = webURLs(of: entry).compactMap(hostFromURLString)
+            for (index, host) in hosts.enumerated() {
+                if stored.contains(host) { return index * 2 }
+                if stored.contains(where: { $0.hasSuffix(".\(host)") }) { return index * 2 + 1 }
+            }
+            return Int.max
+        }
+        return entries.enumerated().sorted {
+            let left = priority($0.element), right = priority($1.element)
+            return left == right ? $0.offset < $1.offset : left < right
+        }.map(\.element)
+    }
     /// Host-based matches only: a stored URL's host equals the requested
     /// domain or is a dotted subdomain of it (`login.paypal.com` matches
     /// `paypal.com`, but `mybank.com` does NOT match `bank.com`). These are
