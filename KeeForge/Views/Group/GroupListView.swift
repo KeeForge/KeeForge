@@ -316,34 +316,30 @@ struct GroupListView: View {
                 content
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar(removing: .title)
+                    .refreshable { await view.viewModel.syncCloudNow() }
                     .safeAreaInset(edge: .top, spacing: 0) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            HStack(spacing: 8) {
-                                if view.viewModel.searchText.isEmpty == false {
-                                    Text("Search")
-                                } else if let mode = view.rootViewMode {
-                                    view.viewMenu {
-                                        HStack(spacing: 6) {
-                                            Text(mode.title)
-                                            Image(systemName: "chevron.down")
-                                                .font(.title3.weight(.semibold))
-                                                .accessibilityHidden(true)
-                                        }
-                                        .foregroundStyle(Color.primary)
-                                    }
-                                } else if let group = view.resolvedGroup {
-                                    Text(group.name)
+                        Group {
+                            // The iPad sidebar has no toolbar of its own for
+                            // Sync Now, so it keeps the controls below the title.
+                            if view.onSelectEntry == nil {
+                                HStack(spacing: 8) {
+                                    title
+                                    CloudSyncStatusBadge(viewModel: view.viewModel)
+                                    Spacer(minLength: 0)
                                 }
-                                Spacer(minLength: 0)
-                            }
-                            // The size of the large title local databases get,
-                            // so switching databases does not resize it.
-                            .font(.largeTitle.bold())
-                            .lineLimit(1)
-
-                            HStack {
-                                Spacer(minLength: 0)
-                                CloudSyncControls(viewModel: view.viewModel)
+                                // Keeps the header one height whether or not the badge shows.
+                                .frame(minHeight: 44)
+                            } else {
+                                VStack(alignment: .leading, spacing: 0) {
+                                    HStack(spacing: 8) {
+                                        title
+                                        Spacer(minLength: 0)
+                                    }
+                                    HStack {
+                                        Spacer(minLength: 0)
+                                        CloudSyncControls(viewModel: view.viewModel)
+                                    }
+                                }
                             }
                         }
                         .padding(.horizontal, 16)
@@ -356,6 +352,32 @@ struct GroupListView: View {
             content
             #endif
         }
+
+        #if os(iOS)
+        private var title: some View {
+            Group {
+                if view.viewModel.searchText.isEmpty == false {
+                    Text("Search")
+                } else if let mode = view.rootViewMode {
+                    view.viewMenu {
+                        HStack(spacing: 6) {
+                            Text(mode.title)
+                            Image(systemName: "chevron.down")
+                                .font(.title3.weight(.semibold))
+                                .accessibilityHidden(true)
+                        }
+                        .foregroundStyle(Color.primary)
+                    }
+                } else if let group = view.resolvedGroup {
+                    Text(group.name)
+                }
+            }
+            // The size of the large title local databases get,
+            // so switching databases does not resize it.
+            .font(.largeTitle.bold())
+            .lineLimit(1)
+        }
+        #endif
     }
 
     /// Pushes the entry editor onto the navigation stack.
