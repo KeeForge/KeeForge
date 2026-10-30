@@ -12,6 +12,7 @@ enum SettingsService {
         static let quickUnlockPasswordInterval = "KeeForge.quickUnlockPasswordInterval"
         static let showWebsiteIcons = "KeeForge.showWebsiteIcons"
         static let showDatabaseUsageStats = "KeeForge.showDatabaseUsageStats"
+        static let showWhatsNewAfterUpdates = "KeeForge.showWhatsNewAfterUpdates"
         static let quickAutoFillEnabled = "KeeForge.quickAutoFillEnabled"
         static let autoFillCopyTOTP = "KeeForge.autoFillCopyTOTP"
         static let appearanceMode = "KeeForge.appearanceMode"
@@ -373,6 +374,18 @@ enum SettingsService {
         }
         set {
             UserDefaults.standard.set(newValue, forKey: Key.showDatabaseUsageStats)
+        }
+    }
+
+    static var showWhatsNewAfterUpdates: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: Key.showWhatsNewAfterUpdates) == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: Key.showWhatsNewAfterUpdates)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Key.showWhatsNewAfterUpdates)
         }
     }
 

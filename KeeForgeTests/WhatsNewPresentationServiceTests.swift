@@ -43,17 +43,51 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
             currentVersion: "1.10.1",
             platform: .iOS,
             defaults: defaults,
+            isEnabled: true,
             uiTestingPresentationOverride: nil
         )
         let secondPresentation = WhatsNewPresentationService.releaseToPresent(
             currentVersion: "1.10.1",
             platform: .iOS,
             defaults: defaults,
+            isEnabled: true,
             uiTestingPresentationOverride: nil
         )
 
         XCTAssertEqual(firstPresentation?.version, "1.10.1")
         XCTAssertNil(secondPresentation)
+    }
+
+    func testDisabledSettingSkipsTheReleaseWithoutClaimingIt() {
+        let disabled = WhatsNewPresentationService.releaseToPresent(
+            currentVersion: "1.10.1",
+            platform: .iOS,
+            defaults: defaults,
+            isEnabled: false,
+            uiTestingPresentationOverride: nil
+        )
+        let reenabled = WhatsNewPresentationService.releaseToPresent(
+            currentVersion: "1.10.1",
+            platform: .iOS,
+            defaults: defaults,
+            isEnabled: true,
+            uiTestingPresentationOverride: nil
+        )
+
+        XCTAssertNil(disabled)
+        XCTAssertEqual(reenabled?.version, "1.10.1")
+    }
+
+    func testUITestingOverridePresentsEvenWhenTheSettingIsOff() {
+        let release = WhatsNewPresentationService.releaseToPresent(
+            currentVersion: "1.10.1",
+            platform: .iOS,
+            defaults: defaults,
+            isEnabled: false,
+            uiTestingPresentationOverride: true
+        )
+
+        XCTAssertEqual(release?.version, "1.10.1")
     }
 
     func testPreviouslyPresentedVersionStaysClaimedAfterAnotherVersion() {
@@ -70,6 +104,7 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
                 currentVersion: "9.9.9",
                 platform: .iOS,
                 defaults: defaults,
+                isEnabled: true,
                 uiTestingPresentationOverride: nil
             )
         )
@@ -145,6 +180,7 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
             currentVersion: "1.16.0",
             platform: .macOS,
             defaults: defaults,
+            isEnabled: true,
             uiTestingPresentationOverride: nil
         )
 
@@ -200,6 +236,7 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
                 currentVersion: "1.10.1",
                 platform: .macOS,
                 defaults: defaults,
+                isEnabled: true,
                 uiTestingPresentationOverride: false
             )
         )
@@ -209,6 +246,7 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
                 currentVersion: "1.10.1",
                 platform: .macOS,
                 defaults: defaults,
+                isEnabled: true,
                 uiTestingPresentationOverride: true
             )
         )
