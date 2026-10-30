@@ -26479,6 +26479,58 @@
         }
       }
     },
+    "KeeForge can't save this login because it contains a field reference ({REF:…})." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge kann diese Anmeldedaten nicht speichern, weil sie einen Feldverweis ({REF:…}) enthalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no puede guardar este inicio de sesión porque contiene una referencia de campo ({REF:…})."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ne peut pas enregistrer cet identifiant, car il contient une référence de champ ({REF:…})."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge non può salvare questo accesso perché contiene un riferimento a un campo ({REF:…})."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このログイン情報にはフィールド参照（{REF:…}）が含まれているため、KeeForge で保存できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge не может сохранить эти данные для входа, так как они содержат ссылку на поле ({REF:…})."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法保存此登录信息，因为其中包含字段引用（{REF:…}）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法儲存此登入資訊，因為其中包含欄位參照（{REF:…}）。"
+          }
+        }
+      }
+    },
     "KeeForge can't tell which copy on this device holds the change saved through AutoFill, so nothing was merged. The change may already be in this database; otherwise look for it in the backups in Database Details and export that backup to merge it in another KeePass app. Once the change is merged, use Discard Pending Upload in the database list to clear the conflict." : {
       "localizations" : {
         "de" : {

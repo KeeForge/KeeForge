@@ -26,7 +26,7 @@
 - Likewise `presentPasskeyList` offers a lone passkey and `presentOTCMatchesOrFinish` a lone code instead of asserting or generating. The by-identity routes (`completeInteractivePasskeyRequest`, `completeOTCRequestFromPending`) name the tapped credential and complete directly.
 - Only the silent no-UI path turns a match into a credential on its own, and only via `strictMatchedEntries`. Pickers list the broader `matchedEntries`.
 - Expired entries are excluded from proactive identities and automatic fulfilment; the picker lists them with a warning and requires a tap.
-- `completeRequest(with:)` resolves `{REF:...}` in the filled username and password over `parsedRootGroup.allEntries` (the target may be password-less or in a non-searchable group). Picker rows, identities, and every write path never resolve.
+- `completeRequest(with:)` resolves `{REF:...}` in the filled username and password over `parsedRootGroup.allEntries` (the target may be password-less or in a non-searchable group). Picker rows, identities, and every write path never resolve. Because a fill resolves, no value a website or relying party supplies may be saved with a reference in it: save-password refuses one in the username or password, and passkey registration refuses one in the user name.
 - With `SettingsService.autoFillCopyTOTP` on, `completeRequest(with:)` copies the code before `cleanup()` drops the session key. A no-UI extension cannot reliably write the pasteboard, so the silent path escalates to `.userInteractionRequired` when the setting is on and the entry has a code.
 
 ### Memory and time
