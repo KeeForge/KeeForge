@@ -69,6 +69,22 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         }
     }
 
+    /// Saved as the entry's username, a reference would resolve to another
+    /// entry's value on a later password fill.
+    func test_prepare_userNameWithFieldReference_presentsDeferredFailure() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        try seedResolvableDefaultDatabase()
+
+        coordinator.prepareInterface(
+            forPasskeyRegistration: makeRegistrationRequest(userName: "{ref:P@T:Bank}")
+        )
+
+        XCTAssertEqual(coordinator.pendingPasskeyRegistrationFailureMessage, String(localized: "This passkey request isn't supported."))
+        XCTAssertNil(coordinator.pendingPasskeyRegistrationRequest)
+        XCTAssertFalse(coordinator.pendingUnlock)
+        XCTAssertNil(presenter.passkeyCreator)
+    }
+
     func test_prepare_nonES256_presentsDeferredFailure_thenCancelsFailed() throws {
         let (coordinator, presenter) = makeCoordinator()
         try seedResolvableDefaultDatabase()

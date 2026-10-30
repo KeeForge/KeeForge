@@ -453,7 +453,10 @@ final class CredentialProviderCoordinator {
         didAttemptAutoBiometricUnlock = false
         pendingUnlock = false
 
-        guard registrationRequest.supportedAlgorithms.contains(.ES256) else {
+        // The relying party chooses the user name, and a `{REF:…}` saved as
+        // the entry's username would resolve to another entry on a later fill.
+        guard registrationRequest.supportedAlgorithms.contains(.ES256),
+              !FieldReferenceResolver.containsReference(identity.userName) else {
             pendingPasskeyRegistrationFailureMessage = String(localized: "This passkey request isn't supported.")
             activatePresentationIfPossible()
             return
@@ -1243,7 +1246,7 @@ final class CredentialProviderCoordinator {
     /// iOS-only (`ASSavePasswordRequest` is `API_UNAVAILABLE(macos)`); on macOS
     /// this is always a no-op that returns `false` so the unlock flow falls
     /// through to the next branch.
-    private func handlePendingSaveRequestIfNeeded() -> Bool {
+    func handlePendingSaveRequestIfNeeded() -> Bool {
         #if os(iOS)
         guard #available(iOS 26.2, *), let savePasswordRequest = pendingSavePasswordRequest else {
             return false
@@ -2012,6 +2015,12 @@ final class CredentialProviderCoordinator {
         generation: Int
     ) async -> CredentialProviderEntrySaveOutcome {
         guard isRequestActive(generation) else { return .completed }
+        // The website supplies these values, and a fill resolves `{REF:…}`:
+        // a saved reference would hand the site another entry's secrets.
+        guard !FieldReferenceResolver.containsReference(draftPayload.username),
+              !FieldReferenceResolver.containsReference(draftPayload.password) else {
+            return .showError(String(localized: "KeeForge can't save this login because it contains a field reference ({REF:…})."))
+        }
         guard let reference = activeDatabaseReference,
               let parsedRootGroup,
               let parsedMeta,

@@ -778,14 +778,48 @@ final class CredentialProviderSaveTests: XCTestCase {
         }
     }
 
+    /// A website must not store a `{REF:…}`: the next fill on that site would
+    /// resolve it and hand over another entry's secrets.
+    func test_saveRequest_fieldReferenceFromTheWebsite_isRefusedWithoutSaving() async throws {
+        guard #available(iOS 26.2, *) else {
+            throw XCTSkip("ASSavePasswordRequest requires iOS 26.2")
+        }
+
+        for (user, password) in [("alex", "{REF:P@T:Bank}"), ("{ref:U@I:0123456789ABCDEF0123456789ABCDEF}", "secret")] {
+            let reference = makeLocalReference()
+            DatabaseListStore.update(reference)
+            DatabaseListStore.activeAutoFillDatabaseID = reference.id
+            let presenter = CredentialProviderPresentingSpy()
+            let coordinator = CredentialProviderCoordinator(presenter: presenter)
+            coordinator.prepareInterface(for: makeSavePasswordRequest(user: user, password: password))
+            coordinator.parsedRootGroup = KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")])
+            coordinator.parsedMeta = KPMeta()
+            coordinator.parsedFormatVersion = .kdbx4(minor: 0)
+            coordinator.sessionKey = SymmetricKey(size: .bits256)
+            coordinator.compositeKey = SymmetricKey(data: Data("composite-key".utf8))
+            coordinator.openTimeSHA512 = Data("open-sha".utf8)
+
+            XCTAssertTrue(coordinator.handlePendingSaveRequestIfNeeded())
+            let creator = try XCTUnwrap(presenter.entryCreator)
+            let outcome = await creator.onSave(creator.initialDraft)
+
+            guard case .showError(let message) = outcome else {
+                return XCTFail("Expected the save to be refused, got \(outcome)")
+            }
+            XCTAssertEqual(message, String(localized: "KeeForge can't save this login because it contains a field reference ({REF:…})."))
+            XCTAssertFalse(presenter.didCompleteSavePassword)
+            XCTAssertEqual(coordinator.openTimeSHA512, Data("open-sha".utf8), "Nothing may be written")
+        }
+    }
+
     @available(iOS 26.2, *)
-    private func makeSavePasswordRequest() -> ASSavePasswordRequest {
+    private func makeSavePasswordRequest(user: String = "alex", password: String = "secret") -> ASSavePasswordRequest {
         ASSavePasswordRequest(
             serviceIdentifier: ASCredentialServiceIdentifier(
                 identifier: "https://accounts.example.com/sign-in",
                 type: .URL
             ),
-            credential: ASPasswordCredential(user: "alex", password: "secret"),
+            credential: ASPasswordCredential(user: user, password: password),
             sessionID: "session-1",
             event: .userInitiated
         )
