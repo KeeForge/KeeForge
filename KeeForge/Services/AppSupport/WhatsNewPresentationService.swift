@@ -516,6 +516,7 @@ enum WhatsNewPresentationService {
         ) as? String,
         platform: WhatsNewPlatform = .current,
         defaults: UserDefaults = .standard,
+        isEnabled: Bool = SettingsService.showWhatsNewAfterUpdates,
         uiTestingPresentationOverride: Bool? = uiTestingPresentationOverride
     ) -> WhatsNewRelease? {
         if uiTestingPresentationOverride == false {
@@ -535,6 +536,9 @@ enum WhatsNewPresentationService {
         if uiTestingPresentationOverride == true {
             return release
         }
+
+        // Turned off, the version stays unclaimed: nothing was shown.
+        guard isEnabled else { return nil }
 
         let history = WhatsNewPresentationHistory(defaults: defaults)
         guard history.claimPresentation(for: currentVersion) else {

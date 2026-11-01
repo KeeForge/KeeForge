@@ -61,6 +61,7 @@
 
 - `MacTransitionNoticeService` shows its sheet when the App Group list exists or the container cannot be resolved at all. A nil container means macOS denied the group to this build (another build shares the bundle id), which is exactly when the list is empty and the user needs the instructions.
 - `MacAppSuggestionService` suggests the native app only when `ProcessInfo.isiOSAppOnMac` is true.
+- `WhatsNewPresentationService` presents nothing while Show What's New After Updates is off and leaves that version unclaimed. The UI-testing override still decides first.
 - `ReviewPromptService` no-ops outside App Store builds; macOS has no scene entry point, so the app injects `RequestReviewAction` through `requestReviewHandler`.
 - `AutoFillStatusService.requestEnableAutoFill` returns false when the prompt closed with the provider still off; callers must report that so the tap does not look like a switch that reset itself.
 

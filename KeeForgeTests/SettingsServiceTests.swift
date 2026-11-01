@@ -11,6 +11,7 @@ final class SettingsServiceTests: XCTestCase {
     private let authenticationGraceKey = "KeeForge.authenticationGracePeriod"
     private let autoUnlockWithFaceIDKey = "KeeForge.autoUnlockWithFaceID"
     private let showDatabaseUsageStatsKey = "KeeForge.showDatabaseUsageStats"
+    private let showWhatsNewAfterUpdatesKey = "KeeForge.showWhatsNewAfterUpdates"
     private let quickAutoFillEnabledKey = "KeeForge.quickAutoFillEnabled"
     private let autoFillCopyTOTPKey = "KeeForge.autoFillCopyTOTP"
     private let appearanceModeKey = "KeeForge.appearanceMode"
@@ -45,6 +46,7 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: authenticationGraceKey)
         UserDefaults.standard.removeObject(forKey: autoUnlockWithFaceIDKey)
         UserDefaults.standard.removeObject(forKey: showDatabaseUsageStatsKey)
+        UserDefaults.standard.removeObject(forKey: showWhatsNewAfterUpdatesKey)
         UserDefaults.standard.removeObject(forKey: appearanceModeKey)
         UserDefaults.standard.removeObject(forKey: appAccentColorKey)
         UserDefaults.standard.removeObject(forKey: hasTippedKey)
@@ -144,6 +146,14 @@ final class SettingsServiceTests: XCTestCase {
 
         SettingsService.autoUnlockWithFaceID = false
         XCTAssertFalse(SettingsService.autoUnlockWithFaceID)
+    }
+
+    func testShowWhatsNewAfterUpdatesDefaultsToOnAndPersists() {
+        UserDefaults.standard.removeObject(forKey: showWhatsNewAfterUpdatesKey)
+        XCTAssertTrue(SettingsService.showWhatsNewAfterUpdates)
+
+        SettingsService.showWhatsNewAfterUpdates = false
+        XCTAssertFalse(SettingsService.showWhatsNewAfterUpdates)
     }
 
     func testShowDatabaseUsageStatsPersists() {
