@@ -5124,6 +5124,11 @@ final class DatabaseViewModelTests: XCTestCase {
     func testARefusedPendingMergeNamesTheBackupInsteadOfExportCopy() throws {
         let backupURL = URL(fileURLWithPath: "/backups/20260924-080000-000000.kdbx")
         let backupDate = try XCTUnwrap(DatabaseExportService.backupDate(fromFilename: backupURL.lastPathComponent))
+        #if os(macOS)
+        let currentCopyAction = "Export Copy"
+        #else
+        let currentCopyAction = "use Share"
+        #endif
 
         for failure in [
             PendingUploadMergeFailure.changeUnreadable(.backup(backupURL)),
@@ -5131,10 +5136,11 @@ final class DatabaseViewModelTests: XCTestCase {
         ] {
             // Once the database has been opened the cache is the cloud copy,
             // so exporting it would hand over the version without the change.
-            XCTAssertFalse(failure.message.contains("Export Copy"), "\(failure)")
+            XCTAssertFalse(failure.message.contains(currentCopyAction), "\(failure)")
             XCTAssertTrue(failure.message.contains(backupDate.formatted(.dateTime)), "\(failure)")
         }
-        XCTAssertTrue(PendingUploadMergeFailure.changeUnreadable(.cache).message.contains("Export Copy"))
+        XCTAssertTrue(PendingUploadMergeFailure.changeUnreadable(.cache).message.contains(currentCopyAction))
+        XCTAssertTrue(PendingUploadMergeFailure.attachmentsDiverged(.cache).message.contains(currentCopyAction))
     }
 
     func testAnOrdinarySaveThatAbsorbsThePendingUploadHidesTheBanner() async throws {

@@ -332,7 +332,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         settle(2)
         await snap("01-database-list")
 
-        // 1a. Database row context menu (Export Copy, Share).
+        // 1a. Database row context menu.
         let databaseRow = app.buttons["database.row"].firstMatch
         if databaseRow.waitForExistence(timeout: 5), databaseRow.isHittable {
             databaseRow.rightClick()
@@ -442,9 +442,9 @@ final class MacScreenshotAuditUITests: MacUITestCase {
                 let backupsLink = app.descendants(matching: .any)["database-details.backups.link"].firstMatch
                 if backupsLink.waitForExistence(timeout: 3), backupsLink.isHittable {
                     backupsLink.click()
-                    if app.descendants(matching: .any)["database-details.share"].waitForExistence(timeout: 5) {
+                    if app.descendants(matching: .any)["database-details.export-copy"].waitForExistence(timeout: 5) {
                         settle(0.6)
-                        await snapSurface(hosting: "database-details.share", "08a-database-details-backups-export")
+                        await snapSurface(hosting: "database-details.export-copy", "08a-database-details-backups-export")
                     } else {
                         noteSkip("08a-database-details-backups-export", reason: "the Backups & Export page never opened")
                     }

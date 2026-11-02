@@ -9,7 +9,7 @@
 - The macOS workspace's Database Details button passes the live session; that is the only way Change Master Key is reachable on macOS.
 - The details root is a hub of summary rows. A new setting goes into a page's section, never onto the hub. Row wording lives in the pure `DatabaseSettingsSummary`.
 - The per-database AutoFill toggle goes through `DatabaseListViewModel.setAutoFillEnabled`, never the store directly, so disabling removes identities and enabling republishes the open session.
-- Each form's work, validation, and cancellation live in its view model (`DatabaseCreationViewModel`, `MasterKeyChangeViewModel`, `EncryptionSettingsViewModel`, `PasswordImportViewModel`). `DatabaseExportPresenter` owns the load, the `.fileExporter`, and the failure alert for every export entry point. Share is a `ShareLink` on `DatabaseShareItem`, which stages the same Export Copy bytes through `DatabaseExportService` only when a share target asks for the file; it has no presenter and no alert of its own.
+- Each form's work, validation, and cancellation live in its view model (`DatabaseCreationViewModel`, `MasterKeyChangeViewModel`, `EncryptionSettingsViewModel`, `PasswordImportViewModel`). `DatabaseExportPresenter` owns the load, the hand-off (`.fileExporter` on macOS, the share sheet on iOS), and the failure alert for every export entry point. The iOS hand-off stages a temp file that is deleted when the share sheet closes; the current-copy action is labelled Export Copy on macOS and Share on iOS (`DatabaseExportLabels`).
 
 ## Invariants
 

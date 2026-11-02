@@ -335,7 +335,7 @@ struct DatabaseListView: View {
            let reference = viewModel.databases.first(where: { $0.id == alert.databaseId }) {
             // Both follow-ups present something else; started while this alert
             // is still dismissing they are dropped silently, so wait it out.
-            Button("Export Copy…") {
+            Button(DatabaseExportLabels.currentCopy) {
                 viewModel.dismissPendingUploadAlert()
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(500))
@@ -601,16 +601,10 @@ struct DatabaseListView: View {
         )
         .accessibilityIdentifier("database-row.read-only-toggle")
 
-        Button("Export Copy…") {
+        Button(DatabaseExportLabels.currentCopy) {
             exportRequest = .currentCopy(currentReference(for: reference))
         }
         .accessibilityIdentifier("database-row.export-copy-action")
-
-        ShareLink(
-            item: DatabaseShareItem(reference: currentReference(for: reference)),
-            preview: SharePreview(reference.filename)
-        )
-        .accessibilityIdentifier("database-row.share-action")
 
         Button("Database Details") {
             detailsReference = currentReference(for: reference)

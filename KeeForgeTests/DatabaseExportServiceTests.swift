@@ -149,59 +149,38 @@ final class DatabaseExportServiceTests: XCTestCase {
 
     // MARK: - Share
 
-    func testStageShareFileWritesExportCopyBytesUnderExportCopyName() async throws {
-        let contents = Self.kdbxMagic + Data("share-bytes".utf8)
-        let reference = try makeLocalReference(filename: "work.kdbx", contents: contents)
+    func testStageShareFileWritesPayloadUnderSuggestedName() throws {
         let shareDirectory = scratchDirectory.appendingPathComponent("share", isDirectory: true)
-
-        let url = try await DatabaseExportService.stageShareFile(
-            for: reference,
-            in: shareDirectory,
-            now: Self.fixedDate,
-            timeZone: Self.utc
+        let payload = DatabaseExportService.ExportPayload(
+            data: Self.kdbxMagic + Data("share-bytes".utf8),
+            suggestedFilename: "work (KeeForge copy 2024-08-14 133530).kdbx"
         )
 
-        XCTAssertEqual(url.lastPathComponent, "work (KeeForge copy 2024-08-14 133530).kdbx")
+        let url = try DatabaseExportService.stageShareFile(payload, in: shareDirectory)
+
+        XCTAssertEqual(url.lastPathComponent, payload.suggestedFilename)
         XCTAssertTrue(url.path.hasPrefix(shareDirectory.path))
-        XCTAssertEqual(try Data(contentsOf: url), contents)
+        XCTAssertEqual(try Data(contentsOf: url), payload.data)
     }
 
-    func testStageShareFileReplacesPreviousStagedCopy() async throws {
-        let reference = makeCloudReference()
-        try DatabaseListStore.cacheDatabaseCopy(Self.kdbxMagic + Data("first".utf8), for: reference)
+    func testRemoveShareFileLeavesOtherStagedCopies() throws {
         let shareDirectory = scratchDirectory.appendingPathComponent("share", isDirectory: true)
+        let payload = DatabaseExportService.ExportPayload(data: Self.kdbxMagic, suggestedFilename: "a.kdbx")
+        let first = try DatabaseExportService.stageShareFile(payload, in: shareDirectory)
+        let second = try DatabaseExportService.stageShareFile(payload, in: shareDirectory)
 
-        let first = try await DatabaseExportService.stageShareFile(for: reference, in: shareDirectory)
-        let second = try await DatabaseExportService.stageShareFile(for: reference, in: shareDirectory)
+        DatabaseExportService.removeShareFile(first)
 
-        XCTAssertFalse(FileManager.default.fileExists(atPath: first.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: first.deletingLastPathComponent().path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: second.path))
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: shareDirectory.path).count, 1)
     }
 
-    func testStageShareFileLeavesPreviousCopyWhenReadFails() async throws {
-        let reference = makeCloudReference()
-        try DatabaseListStore.cacheDatabaseCopy(Self.kdbxMagic, for: reference)
+    func testPurgeShareFilesRemovesStagedCopies() throws {
         let shareDirectory = scratchDirectory.appendingPathComponent("share", isDirectory: true)
-        let staged = try await DatabaseExportService.stageShareFile(for: reference, in: shareDirectory)
-
-        do {
-            _ = try await DatabaseExportService.stageShareFile(
-                for: makeCloudReference(name: "uncached.kdbx"),
-                in: shareDirectory
-            )
-            XCTFail("Expected cloudCacheMissing")
-        } catch let error as DatabaseExportError {
-            XCTAssertEqual(error, .cloudCacheMissing)
-        }
-        XCTAssertTrue(FileManager.default.fileExists(atPath: staged.path))
-    }
-
-    func testPurgeShareFilesRemovesStagedCopies() async throws {
-        let reference = makeCloudReference()
-        try DatabaseListStore.cacheDatabaseCopy(Self.kdbxMagic, for: reference)
-        let shareDirectory = scratchDirectory.appendingPathComponent("share", isDirectory: true)
-        _ = try await DatabaseExportService.stageShareFile(for: reference, in: shareDirectory)
+        _ = try DatabaseExportService.stageShareFile(
+            DatabaseExportService.ExportPayload(data: Self.kdbxMagic, suggestedFilename: "a.kdbx"),
+            in: shareDirectory
+        )
 
         DatabaseExportService.purgeShareFiles(in: shareDirectory)
 

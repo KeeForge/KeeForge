@@ -555,24 +555,26 @@ struct DatabaseDetailsView: View {
 
     private var exportSection: some View {
         Section {
-            Button("Export Copy…") {
+            Button(DatabaseExportLabels.currentCopy) {
                 exportRequest = .currentCopy(currentReference)
             }
             .accessibilityIdentifier("database-details.export-copy")
-
-            ShareLink(
-                item: DatabaseShareItem(reference: currentReference),
-                preview: SharePreview(currentReference.filename)
-            )
-            .accessibilityIdentifier("database-details.share")
         } header: {
             Text("Export")
         } footer: {
+            #if os(macOS)
             if currentReference.isCloudBacked {
-                Text("Export Copy saves the locally cached copy of the database as KeeForge currently has it, and Share sends the same file with AirDrop or to another app. Use either to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
+                Text("Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
             } else {
-                Text("Export Copy saves a copy of the database as KeeForge currently has it, and Share sends the same file with AirDrop or to another app. Use either to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
+                Text("Saves a copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
             }
+            #else
+            if currentReference.isCloudBacked {
+                Text("Shares the locally cached copy of the database as KeeForge currently has it, to save in Files, send with AirDrop, or open in another app. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
+            } else {
+                Text("Shares a copy of the database as KeeForge currently has it, to save in Files, send with AirDrop, or open in another app. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
+            }
+            #endif
         }
     }
 

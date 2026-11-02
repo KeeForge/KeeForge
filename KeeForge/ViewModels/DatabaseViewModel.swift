@@ -147,7 +147,7 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
     /// save already in flight.
     case sessionUnavailable
 
-    /// Only names Export Copy while the cache still is the change: once the
+    /// Only names Export Copy (Share on iOS) while the cache still is the change: once the
     /// database has been opened, the cache is the cloud copy and exporting it
     /// would hand the user the version without their change.
     var message: String {
@@ -157,11 +157,19 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
         case .changeUnidentified:
             String(localized: "KeeForge can't tell which copy on this device holds the change saved through AutoFill, so nothing was merged. The change may already be in this database; otherwise look for it in the backups in Database Details and export that backup to merge it in another KeePass app. Once the change is merged, use Discard Pending Upload in the database list to clear the conflict.")
         case .changeUnreadable(.cache):
+            #if os(macOS)
             String(localized: "The change saved through AutoFill could not be opened with this database's master key. To merge it in another KeePass app, use Export Copy in the database list.")
+            #else
+            String(localized: "The change saved through AutoFill could not be opened with this database's master key. To merge it in another KeePass app, use Share in the database list.")
+            #endif
         case .changeUnreadable(.backup(let url)):
             String(localized: "The change saved through AutoFill could not be opened with this database's master key. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
         case .attachmentsDiverged(.cache):
+            #if os(macOS)
             String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. To merge it in another KeePass app, use Export Copy in the database list.")
+            #else
+            String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. To merge it in another KeePass app, use Share in the database list.")
+            #endif
         case .attachmentsDiverged(.backup(let url)):
             String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
         case .attachmentsDivergedFromFile(let url):

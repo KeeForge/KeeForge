@@ -21,7 +21,7 @@ enum DatabaseExportError: Error, LocalizedError, Equatable, Sendable {
 }
 
 /// Hands the raw encrypted bytes of a database (its current local copy, or one
-/// of the app-container backups) to a Files export or the share sheet. Suggested filenames carry a
+/// of the app-container backups) to a Files export (macOS) or the share sheet (iOS). Suggested filenames carry a
 /// timestamp suffix so a save into the source folder never replaces the
 /// original file.
 enum DatabaseExportService {
@@ -98,24 +98,20 @@ enum DatabaseExportService {
         FileManager.default.temporaryDirectory.appendingPathComponent("database-share", isDirectory: true)
     }
 
-    /// Writes the Export Copy bytes under the Export Copy filename for the
-    /// share sheet, which needs a file URL. Each call replaces the previous
-    /// staged copy, so at most one encrypted copy sits in the temp directory.
-    static func stageShareFile(
-        for reference: DatabaseReference,
-        in directory: URL = shareDirectory,
-        now: Date = .now,
-        timeZone: TimeZone = .current
-    ) async throws -> URL {
-        let payload = try await exportCurrentCopy(for: reference, now: now, timeZone: timeZone)
-        let fileManager = FileManager.default
-        try? fileManager.removeItem(at: directory)
+    /// Writes `payload` under its suggested filename for the share sheet,
+    /// which needs a file URL. Remove it with `removeShareFile(_:)` once the
+    /// sheet closes.
+    static func stageShareFile(_ payload: ExportPayload, in directory: URL = shareDirectory) throws -> URL {
         let url = directory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
             .appendingPathComponent(payload.suggestedFilename)
-        try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try payload.data.write(to: url, options: .atomic)
         return url
+    }
+
+    static func removeShareFile(_ url: URL) {
+        try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
     }
 
     /// Removes staged share copies left by an earlier launch.
