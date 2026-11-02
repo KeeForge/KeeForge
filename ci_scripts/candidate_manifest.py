@@ -67,7 +67,7 @@ def init(args: argparse.Namespace) -> None:
     value.update({"schemaVersion": 1, "createdAt": datetime.now(timezone.utc).isoformat(), "scope": "candidate", "artifacts": {}, "gates": {}, "iosTestFlightBuild": None, "macTestFlightBuild": None})
     write_json(out, value); print(out)
 
-REQUIRED_GATES = ("xcodeCloud", "githubMac", "kdbxIOS", "kdbxMac", "localMacSmoke", "masArtifact", "directArtifact")
+REQUIRED_GATES = ("xcodeCloud", "githubMac", "githubIPad", "kdbxIOS", "kdbxMac", "localMacSmoke", "masArtifact", "directArtifact")
 
 def evidence(gate: object, expected: dict[str, object]) -> bool:
     if not isinstance(gate, dict): return False

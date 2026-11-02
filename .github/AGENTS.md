@@ -7,7 +7,7 @@
 | When | Where | What runs |
 | --- | --- | --- |
 | Every pull request, any base branch | `workflows/tests.yml` | Jobs `unit-tests` (`KeeForgeTests`, iOS simulator) and `macos-unit-tests` (`KeeForgeMacTests`). Both are required status checks. No UI tests. |
-| `rc/*` tag push | `workflows/tests.yml` | `macos-unit-tests` (full `KeeForgeMacTests`), plus `ios-rc-tests`: the three Cloud test schemes on GitHub's `xcode-27` runner on iPhone 18 Pro and iPhone SE (3rd generation) at the newest usable iOS runtime, and the two regular-width UI classes on an iPad (A16). Seven jobs. No archives. |
+| `rc/*` tag push | `workflows/tests.yml` | `macos-unit-tests` (full `KeeForgeMacTests`), plus `ios-rc-tests`: the three Cloud test schemes on GitHub's `xcode-27` runner on iPhone 18 Pro and iPhone SE (3rd generation) at the newest usable iOS runtime, and the two regular-width UI classes on an iPad (A16). Seven jobs. No archives. `macos-unit-tests` and the iPad job are release gates (`githubMac`, `githubIPad` in the candidate manifest); the iPhone jobs are not. |
 | `rc/*` tag push | Xcode Cloud **Tests (RC)** | `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, `KeeForgeCloudUIB` on the latest runtime, plus the iOS and Mac App Store archives. |
 | Manual dispatch | `workflows/tests.yml` | The `rc/*` set against the `ref` input. |
 | Weekly (Monday) and manual dispatch | `workflows/ci-drift.yml` | Not a gate. Checks `tests.yml` against the newest stable `macos-N` image, the newest `xcode-N` image, their stable Xcodes, and whether their iOS runtimes can create the test devices. Fails with the report in the run summary on drift. |

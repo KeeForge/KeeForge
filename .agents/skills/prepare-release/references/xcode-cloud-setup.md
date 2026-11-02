@@ -163,7 +163,7 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
   authorized that named candidate beta action in the current task; otherwise obtain action-time
   confirmation. Later builds of the same platform/version
   normally distribute without re-review. External distribution remains blocked until the Xcode
-  Cloud, iOS GitHub Actions, and macOS GitHub Actions verdicts, both local KDBX gates, and local
+  Cloud, macOS GitHub Actions, and iPad GitHub Actions verdicts, both local KDBX gates, and local
   Mac smoke are accepted and the manifest maps both processed builds to the same RC SHA.
 - The build declares `ITSAppUsesNonExemptEncryption=false`; verify the actual ASC record and handle any separate legal/documentation question independently with action-time owner confirmation.
 
@@ -228,7 +228,8 @@ gate, or change the direct Mac artifact procedure.
 - Minimum-OS coverage: Xcode Cloud's iOS test action can only pin the latest runtime or iOS 16.4,
   with no iOS 18.x runtime available, and no GitHub lane runs iOS 18 either.
 - The regular-width iPad UI classes: they `XCTSkip` on both Cloud devices. The `ios-rc-tests`
-  iPad lane of `.github/workflows/tests.yml` runs them on each `rc/*` tag.
+  iPad lane of `.github/workflows/tests.yml` runs them on each `rc/*` tag, and it is a release gate
+  (`githubIPad`).
 - **All** native Mac unit coverage: GitHub Actions carries it, because Xcode Cloud cannot launch
   the Mac app at all (see "Required workflow shape"). The `macos-unit-tests` job of
   `.github/workflows/tests.yml` runs `KeeForgeMacTests` on every pull request and every `rc/*` tag
@@ -264,7 +265,7 @@ One `rc/{version}-b{repoBuild}` tag starts the workflow (or a verified manual re
 four product targets from that SHA and may receive different App Store Connect TestFlight build
 numbers. Match each processed build to the RC tag/SHA and record the pair in the candidate's
 `manifest.json` ([release artifact directory](shared.md#where-release-artifacts-live)) along with the direct build's
-`CFBundleVersion` (which equals `repoBuild`). The manifest also records the Xcode Cloud and GitHub macOS check URLs,
+`CFBundleVersion` (which equals `repoBuild`). The manifest also records the Xcode Cloud, GitHub macOS, and GitHub iPad check URLs,
 both KDBX log paths, local Mac smoke result, artifact hashes/signatures, and notarization ID. It
 must contain no credentials, tokens, passwords, private keys, keychain profiles, or cloud secret
 values. Preserve the completed non-secret manifest with the final release evidence; it is not an

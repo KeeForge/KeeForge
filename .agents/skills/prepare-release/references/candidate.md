@@ -149,13 +149,14 @@ ci_scripts/candidate_manifest.py init --rc-tag rc/{version}-b{repoBuild}
 The tag push triggers Xcode Cloud's RC workflow (iOS tests plus iOS and Mac App Store
 archives/uploads) and `.github/workflows/tests.yml`. Xcode Cloud has no Mac test action (see
 [xcode-cloud-setup.md](xcode-cloud-setup.md)); the Mac unit suite runs only in that workflow's
-`macos-unit-tests` job. Its `ios-rc-tests` jobs are an unmetered GitHub copy of the three Cloud test
-schemes plus the iPad regular-width lane; they are not a separate manifest gate. If Xcode Cloud shows no run for the tag, follow "Recovering a missing
+`macos-unit-tests` job. Its `ios-rc-tests` iPad job, `KeeForge (iPad (A16))`, runs the two regular-width UI
+classes that skip on every Cloud device and is a gate. Its iPhone jobs are an unmetered GitHub copy
+of the three Cloud test schemes and are not a separate manifest gate. If Xcode Cloud shows no run for the tag, follow "Recovering a missing
 tag-triggered run" in [xcode-cloud-setup.md](xcode-cloud-setup.md); never move or re-create the RC tag to retrigger it.
 
 ## Wait for all cloud gates and local Mac smoke
 
-The RC tag starts two cloud verdicts. Both, plus the two KDBX verdicts from [local KDBX gates](candidate.md#regenerate-and-run-the-local-kdbx-gate) and the
+The RC tag starts three cloud verdicts. All three, plus the two KDBX verdicts from [local KDBX gates](candidate.md#regenerate-and-run-the-local-kdbx-gate) and the
 local Mac smoke suite, must be accepted before either App Store build is distributed to external
 testers or the direct build is called a release candidate.
 
@@ -165,16 +166,18 @@ testers or the direct build is called a release candidate.
    gh api repos/KeeForge/KeeForge/commits/{rc-sha}/check-runs \
      --jq '.check_runs[] | select(.app.name=="Xcode Cloud") | "\(.name) | \(.status) | \(.conclusion // "-")"'
    ```
-2. Monitor the macOS GitHub Actions gate, the `macos-unit-tests` job of `tests.yml`:
+2. Monitor the two GitHub Actions gates, the `macos-unit-tests` and `KeeForge (iPad (A16))` jobs
+   of `tests.yml`:
    ```bash
    gh run list --workflow tests.yml --event push
    gh run watch <run-id>
    ```
    Find the run whose `headBranch` is the RC tag and whose `headSha` is the RC commit. The run's
-   overall conclusion also covers the `ios-rc-tests` jobs, so read the `macos-unit-tests` job's own
+   overall conclusion also covers the iPhone `ios-rc-tests` jobs, so read each gate job's own
    conclusion.
-3. Record both URLs, commit SHA, status, and conclusion in the manifest. The Xcode Cloud and Mac
-   runs must target the same RC commit.
+3. Record the Xcode Cloud URL and both job URLs, commit SHA, status, and conclusion in the manifest
+   (`gates.xcodeCloud`, `gates.githubMac`, `gates.githubIPad`). All three must target the same RC
+   commit.
    An automatic GitHub test-gate pass requires its uploaded canonical `.xcresult` summary to report
    `result=Passed`, zero failures, and at least one executed test; exit 65 is accepted only then.
    Canonical XCTest failures, including ones behind a green console summary, require the exact
