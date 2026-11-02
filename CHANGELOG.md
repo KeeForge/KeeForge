@@ -12,6 +12,7 @@
 
 ### Changes
 
+- iPhone and iPad have a new look modeled on the Passwords app. A database opens on tiles for All Entries, Verification Codes, Tags, and the Recycle Bin with their counts, above its groups; the tiles replace the view menu, so a database now always opens on this overview. Select Entries, Sync Now, and Database Details move into a More menu, and from iOS 26 search and New sit at the bottom of the screen. Entries show their icon, or their initials when they use the default key icon, and entry details list fields as label and value rows, with Lock beside Edit and a banner on expired entries. Unlocking opens as its own page from the database list. The database list and Database Details say in words when changes are waiting to upload ("1 change waiting to upload"). AutoFill uses the same look. The Mac app is unchanged.
 - Unlocking a cloud database with Face ID or Touch ID is faster: KeeForge checks the cloud copy while the prompt is up instead of after it.
 - Face ID, Touch ID, and Apple Watch unlock, in the app and in AutoFill, open an unchanged database without repeating the key derivation, often the slowest part of unlocking. KeeForge keeps the derived key for the version it last opened or saved, with the same Keychain protection as the saved unlock key, and runs the full derivation again whenever the file has changed elsewhere. Databases that need a YubiKey always run it.
 
