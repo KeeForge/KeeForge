@@ -21,6 +21,7 @@
 - In Mac AutoFill, a few error messages (such as the one for a database in the Trash) now appear in your language instead of English.
 - AutoFill no longer saves a login or passkey whose username or password from the website contains a KeePass field reference (`{REF:…}`). A website could otherwise have made a later fill send it values from your other entries, a variant of KeePassXC advisory GHSA-2vm2-vmc3-vccr.
 - On iPhone and iPad, the top of the Groups view no longer repeats "Groups" as a section header under its title (#264). Inside a group, the Groups and Entries headers still separate subgroups from entries.
+- On Mac, the privacy cover shown over KeeForge's windows while another app is active now follows the windows' rounded corners instead of sticking out past them (#263).
 
 ## v1.20.0 (2026-10-25)
 
