@@ -153,49 +153,56 @@ private struct EntryHistoryVersionFields: View {
 
     var body: some View {
         Group {
-            if !version.title.isEmpty {
-                FieldRow(
-                    label: String(localized: "Title"),
-                    value: version.title,
-                    icon: "textformat",
-                    accessibilityKey: "title",
-                    accessibilityPrefix: "entry-history"
-                )
-            }
-            if !version.username.isEmpty {
-                FieldRow(
-                    label: String(localized: "Username"),
-                    value: viewModel.resolvingFieldReferences(version.username),
-                    icon: "person",
-                    accessibilityKey: "username",
-                    accessibilityPrefix: "entry-history"
-                )
-            }
-            if version.hasPassword {
-                PasswordFieldRow(
-                    password: version.password,
-                    sessionKey: sessionKey,
-                    secretAccess: viewModel.secretAccess,
-                    resolveReferences: viewModel.resolvingFieldReferences,
-                    accessibilityPrefix: "entry-history",
-                    isCurrent: secretActionIsCurrent
-                )
-            }
-            if !version.url.isEmpty {
-                FieldRow(
-                    label: String(localized: "URL"),
-                    value: viewModel.resolvingFieldReferences(version.url),
-                    icon: "link",
-                    accessibilityKey: "url",
-                    accessibilityPrefix: "entry-history"
-                )
-            }
-            if let totpConfig = version.totpConfig {
-                TOTPSection(
-                    config: totpConfig,
-                    sessionKey: sessionKey,
-                    accessibilityPrefix: "entry-history"
-                )
+            EntryFieldsCard {
+                if !version.title.isEmpty {
+                    FieldRow(
+                        label: String(localized: "Title"),
+                        value: version.title,
+                        icon: "textformat",
+                        accessibilityKey: "title",
+                        accessibilityPrefix: "entry-history",
+                        isCardRow: PlatformDesign.followsIOSDesign
+                    )
+                }
+                if !version.username.isEmpty {
+                    FieldRow(
+                        label: String(localized: "Username"),
+                        value: viewModel.resolvingFieldReferences(version.username),
+                        icon: "person",
+                        accessibilityKey: "username",
+                        accessibilityPrefix: "entry-history",
+                        isCardRow: PlatformDesign.followsIOSDesign
+                    )
+                }
+                if version.hasPassword {
+                    PasswordFieldRow(
+                        password: version.password,
+                        sessionKey: sessionKey,
+                        secretAccess: viewModel.secretAccess,
+                        resolveReferences: viewModel.resolvingFieldReferences,
+                        accessibilityPrefix: "entry-history",
+                        isCurrent: secretActionIsCurrent,
+                        isCardRow: PlatformDesign.followsIOSDesign
+                    )
+                }
+                if !version.url.isEmpty {
+                    FieldRow(
+                        label: String(localized: "URL"),
+                        value: viewModel.resolvingFieldReferences(version.url),
+                        icon: "link",
+                        accessibilityKey: "url",
+                        accessibilityPrefix: "entry-history",
+                        isCardRow: PlatformDesign.followsIOSDesign
+                    )
+                }
+                if let totpConfig = version.totpConfig {
+                    TOTPSection(
+                        config: totpConfig,
+                        sessionKey: sessionKey,
+                        accessibilityPrefix: "entry-history",
+                        isCardRow: PlatformDesign.followsIOSDesign
+                    )
+                }
             }
             if !version.notes.isEmpty {
                 Section("Notes") {

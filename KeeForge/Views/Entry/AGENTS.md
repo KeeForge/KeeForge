@@ -14,7 +14,11 @@
 
 ## Invariants
 
-- `EntryDetailView` shows entry actions and any sync warning in its toolbar. Lock stays on the compact list or regular-width workspace toolbar, leaving room for the entry title; the list's `lock.button` remains the manual-lock path.
+- `EntryDetailView` shows entry actions and any sync warning in its toolbar. On iPhone it also offers Lock (`lock.button`) beside Edit; at regular width the sidebar's Lock sits beside it, so the detail adds none.
+
+- On iOS the detail puts its fields in one `EntryFieldsCard` of label/value rows (`isCardRow` on the field rows); macOS keeps a section per field. The history viewer shares the card.
+- Below the fields, iOS gathers Group, Tags, Created, Expires and History in one card; the Group row pushes the group only in the compact stack. A row whose content switches with state (the password reveal) keeps one top-level container: in a `List` a changed top-level view is a new row, and its `onDisappear`/`onAppear` would clear and reload the reveal without end.
+- Entry rows in `EntryListView` and the group list are buttons, not `NavigationLink`s, so they carry no chevron; they still push `DatabaseRoute.entry` in compact and select in the regular shells.
 
 ### Closing a deleted entry
 
