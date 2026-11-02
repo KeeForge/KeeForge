@@ -3,7 +3,7 @@ import PublicSuffixList
 
 enum CredentialMatcher {
     static func interactiveMatches(from entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> (exact: [KPEntry], possible: [KPEntry]) {
-        guard let host = identifiers.lazy.compactMap(searchTerm(for:)).compactMap(hostFromURLString).first else {
+        guard let host = firstWebHost(for: identifiers) else {
             return ([], [])
         }
         let eligibleEntries = entries.filter { !$0.isExpired() }
@@ -17,6 +17,10 @@ enum CredentialMatcher {
             + possibleMatchedEntries(from: eligibleEntries, for: identifiers))
             .filter { seenIDs.insert($0.id).inserted }
         return ([], prioritizingHosts(possible, for: identifiers))
+    }
+
+    static func firstWebHost(for identifiers: [ASCredentialServiceIdentifier]) -> String? {
+        identifiers.lazy.compactMap(searchTerm(for:)).compactMap(hostFromURLString).first { !$0.isEmpty }
     }
 
     static func prioritizingHosts(_ entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> [KPEntry] {

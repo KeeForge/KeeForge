@@ -159,6 +159,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
     // MARK: "Present this view"
 
     func presentSearchView(
+        isValid: @escaping () -> Bool,
         entries: [KPEntry],
         searchEntries: [KPEntry],
         possibleEntries: [KPEntry],
@@ -178,8 +179,9 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
                 databases: switcher.databases,
                 currentDatabaseID: switcher.currentDatabaseID,
                 onSwitch: { [weak self] reference, currentSearchText in
-                    self?.dismissHostedContent()
-                    switcher.onSwitch(reference, currentSearchText)
+                    self?.performPickerAction(isValid: isValid) {
+                        switcher.onSwitch(reference, currentSearchText)
+                    }
                 }
             )
         }
@@ -194,17 +196,16 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
             // coordinator only offers on iOS.
             onCreateEntry: onCreateEntry,
             onSelect: { [weak self] entry in
-                self?.dismissHostedContent()
-                onSelect(entry)
+                self?.performPickerAction(isValid: isValid) { onSelect(entry) }
             },
             onSelectPossible: { [weak self] entry in
-                self?.dismissHostedContent()
-                onSelectPossible(entry)
+                self?.performPickerAction(isValid: isValid) { onSelectPossible(entry) }
             },
-            onAddURLToPossible: onAddURLToPossible,
+            onAddURLToPossible: onAddURLToPossible.map { action in
+                { entry in guard isValid() else { return }; action(entry) }
+            },
             onCancel: { [weak self] in
-                self?.dismissHostedContent()
-                onCancel()
+                self?.performPickerAction(isValid: isValid, action: onCancel)
             }
         )
         hostContent(searchView)
@@ -405,6 +406,12 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         ])
         hostingController = host
         isShowingHostedContent = true
+    }
+
+    func performPickerAction(isValid: () -> Bool, action: () -> Void) {
+        guard isValid() else { return }
+        dismissHostedContent()
+        action()
     }
 
     private func dismissHostedContent() {

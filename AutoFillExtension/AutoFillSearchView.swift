@@ -236,7 +236,9 @@ struct AutoFillSearchView: View {
                 .accessibilityIdentifier("autofill.no-credentials-found")
         } description: {
             VStack(spacing: 8) {
-                Text("No credentials match this search.")
+                if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("No credentials match this search.")
+                }
                 if let sharedCopyDate {
                     Text("Searched KeeForge’s copy of this database from \(sharedCopyDate.formatted(date: .abbreviated, time: .shortened)). To find newer credentials, unlock this database in KeeForge. For cloud databases, use Sync Now in Database Details.")
                         .accessibilityIdentifier("autofill.shared-copy-notice")

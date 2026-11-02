@@ -110,6 +110,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
     var onCompleteRegistrationRequest: ((ASPasskeyRegistrationCredential) -> Void)?
 
     func presentSearchView(
+        isValid: @escaping () -> Bool,
         entries: [KPEntry],
         searchEntries: [KPEntry],
         possibleEntries: [KPEntry],
