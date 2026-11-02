@@ -387,6 +387,28 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNotNil(presenter.completedCredential)
     }
 
+    func test_completedFillCountsTowardReviewPromptOnce_cancelDoesNot() throws {
+        let (coordinator, _) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(
+            title: "GitHub",
+            username: "octocat",
+            password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+            url: "https://github.com/login"
+        )
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+        SettingsService.successfulAutoFillCount = 0
+        defer { SettingsService.successfulAutoFillCount = 0 }
+
+        coordinator.completeRequest(with: entry)
+        coordinator.completeRequest(with: entry)
+        XCTAssertEqual(SettingsService.successfulAutoFillCount, 1)
+
+        let (cancelledCoordinator, _) = makeCoordinator()
+        cancelledCoordinator.cancelRequest(code: .userCanceled)
+        XCTAssertEqual(SettingsService.successfulAutoFillCount, 1)
+    }
+
     func test_cancelDuringUnlockInvalidatesLateContinuation() async throws {
         let (coordinator, presenter) = makeCoordinator()
         let databaseReference = try seedResolvableDefaultDatabase()

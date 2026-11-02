@@ -12,6 +12,7 @@
 
 ### Changes
 
+- KeeForge now asks for an App Store rating at most once per version, after a few successful saves or regular AutoFill use, and never right after an error.
 - Unlocking a cloud database with Face ID or Touch ID is faster: KeeForge checks the cloud copy while the prompt is up instead of after it.
 - Face ID, Touch ID, and Apple Watch unlock, in the app and in AutoFill, open an unchanged database without repeating the key derivation, often the slowest part of unlocking. KeeForge keeps the derived key for the version it last opened or saved, with the same Keychain protection as the saved unlock key, and runs the full derivation again whenever the file has changed elsewhere. Databases that need a YubiKey always run it.
 

@@ -4,15 +4,23 @@ import StoreKit
 import UIKit
 #endif
 
+/// Asks for an App Store rating at most once per app version, and only at a
+/// success moment: a clean save, or an unlock once AutoFill has proven useful.
+/// The system throttles the prompt further on its own.
 @MainActor
 enum ReviewPromptService {
     private enum Key {
-        static let actionCount = "KeeForge.reviewPrompt.actionCount"
-        static let hasPrompted = "KeeForge.reviewPrompt.hasPrompted"
+        static let successfulSaveCount = "KeeForge.reviewPrompt.successfulSaveCount"
+        static let lastPromptedVersion = "KeeForge.reviewPrompt.lastPromptedVersion"
+        static let suppressed = "KeeForge.reviewPrompt.suppressed"
     }
 
-    nonisolated(unsafe) static var minimumActions = 10
+    nonisolated(unsafe) static var minimumSuccessfulSaves = 3
+    nonisolated(unsafe) static var minimumSuccessfulAutoFills = 5
     nonisolated(unsafe) static var defaults: UserDefaults = .standard
+
+    nonisolated(unsafe) static var currentVersion: String? =
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
 
     /// Distribution-channel gate, defaulted from the build's own channel: the
     /// StoreKit review prompt only works for an App Store install, so the
@@ -27,44 +35,59 @@ enum ReviewPromptService {
     /// prompt no-ops). When set, it takes precedence on every platform.
     nonisolated(unsafe) static var requestReviewHandler: (() -> Void)?
 
-    /// UI-test launches persist the action count, so the system prompt would
-    /// otherwise cover whichever test reaches the threshold.
-    nonisolated(unsafe) static var isSuppressedForUITesting = ProcessInfo.processInfo.arguments.contains("-ui-testing")
+    /// UI-test launches persist the counters, so the system prompt would
+    /// otherwise cover whichever test reaches a threshold. Launches without
+    /// `-ui-testing` opt out through the `KeeForge.reviewPrompt.suppressed`
+    /// argument-domain default.
+    nonisolated(unsafe) static var isSuppressedForUITesting =
+        ProcessInfo.processInfo.arguments.contains("-ui-testing")
+        || UserDefaults.standard.bool(forKey: Key.suppressed)
 
-    static var actionCount: Int {
-        get { defaults.integer(forKey: Key.actionCount) }
-        set { defaults.set(newValue, forKey: Key.actionCount) }
+    static var successfulSaveCount: Int {
+        get { defaults.integer(forKey: Key.successfulSaveCount) }
+        set { defaults.set(newValue, forKey: Key.successfulSaveCount) }
     }
 
-    static var hasPrompted: Bool {
-        get { defaults.bool(forKey: Key.hasPrompted) }
-        set { defaults.set(newValue, forKey: Key.hasPrompted) }
+    static var lastPromptedVersion: String? {
+        get { defaults.string(forKey: Key.lastPromptedVersion) }
+        set { defaults.set(newValue, forKey: Key.lastPromptedVersion) }
     }
 
-    static func recordMeaningfulAction() {
-        actionCount += 1
+    /// Recorded by the AutoFill extensions in App Group defaults; the
+    /// extension cannot present the prompt itself, so the app acts on it.
+    static var successfulAutoFillCount: Int {
+        SettingsService.successfulAutoFillCount
     }
 
-    static func shouldPrompt() -> Bool {
-        guard !hasPrompted else { return false }
-        guard actionCount >= minimumActions else { return false }
-        return true
+    static var hasPromptedForCurrentVersion: Bool {
+        guard let currentVersion else { return true }
+        return lastPromptedVersion == currentVersion
     }
 
-    static func requestReviewIfAppropriate() {
-        recordMeaningfulAction()
+    /// Call after a save that reached storage. `followsError` is true when the
+    /// save retried or resolved an error the user just saw.
+    static func noteSuccessfulSave(followsError: Bool) {
+        successfulSaveCount += 1
+        guard !followsError, successfulSaveCount >= minimumSuccessfulSaves else { return }
+        requestReviewIfNotYetPromptedForVersion()
+    }
 
-        guard shouldPrompt() else { return }
+    /// Call after an unlock. `followsError` is true when a failed attempt
+    /// preceded it.
+    static func noteSuccessfulUnlock(followsError: Bool) {
+        guard !followsError, successfulAutoFillCount >= minimumSuccessfulAutoFills else { return }
+        requestReviewIfNotYetPromptedForVersion()
+    }
 
-        hasPrompted = true
-
+    private static func requestReviewIfNotYetPromptedForVersion() {
+        guard !hasPromptedForCurrentVersion else { return }
+        // Non-App-Store builds cannot show a StoreKit review prompt.
+        guard isAppStoreBuild, !isSuppressedForUITesting else { return }
+        lastPromptedVersion = currentVersion
         presentReviewPrompt()
     }
 
     private static func presentReviewPrompt() {
-        // Non-App-Store builds cannot show a StoreKit review prompt; skip.
-        guard isAppStoreBuild, !isSuppressedForUITesting else { return }
-
         // App-injected presenter wins on every platform.
         if let requestReviewHandler {
             requestReviewHandler()
@@ -85,7 +108,7 @@ enum ReviewPromptService {
     }
 
     static func resetForTesting() {
-        defaults.removeObject(forKey: Key.actionCount)
-        defaults.removeObject(forKey: Key.hasPrompted)
+        defaults.removeObject(forKey: Key.successfulSaveCount)
+        defaults.removeObject(forKey: Key.lastPromptedVersion)
     }
 }

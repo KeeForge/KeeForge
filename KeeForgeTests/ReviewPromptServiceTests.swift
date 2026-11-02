@@ -1,166 +1,149 @@
 import XCTest
 @testable import KeeForge
 
+private final class PromptCounter {
+    var count = 0
+}
+
 @MainActor
 final class ReviewPromptServiceTests: XCTestCase {
     private let suiteName = "ReviewPromptServiceTests"
     private var testDefaults: UserDefaults!
+    private let counter = PromptCounter()
+    private var promptCount: Int { counter.count }
 
     override func setUp() {
         super.setUp()
         testDefaults = UserDefaults(suiteName: suiteName)!
         ReviewPromptService.defaults = testDefaults
         ReviewPromptService.resetForTesting()
-        ReviewPromptService.minimumActions = 10
-        ReviewPromptService.requestReviewHandler = nil
+        ReviewPromptService.minimumSuccessfulSaves = 3
+        ReviewPromptService.minimumSuccessfulAutoFills = 5
+        ReviewPromptService.currentVersion = "1.0"
         ReviewPromptService.isAppStoreBuild = true
         ReviewPromptService.isSuppressedForUITesting = false
+        SettingsService.successfulAutoFillCount = 0
+        counter.count = 0
+        let counter = counter
+        ReviewPromptService.requestReviewHandler = { counter.count += 1 }
     }
 
     override func tearDown() {
         ReviewPromptService.resetForTesting()
         ReviewPromptService.defaults = .standard
         ReviewPromptService.requestReviewHandler = nil
+        ReviewPromptService.currentVersion =
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         ReviewPromptService.isAppStoreBuild = true
         ReviewPromptService.isSuppressedForUITesting = false
+        SettingsService.successfulAutoFillCount = 0
         UserDefaults.standard.removePersistentDomain(forName: suiteName)
         super.tearDown()
     }
 
-    // MARK: - Action counting
-
-    func testActionCountStartsAtZero() {
-        XCTAssertEqual(ReviewPromptService.actionCount, 0)
+    private func save(times: Int, followsError: Bool = false) {
+        for _ in 0..<times {
+            ReviewPromptService.noteSuccessfulSave(followsError: followsError)
+        }
     }
 
-    func testRecordMeaningfulActionIncrementsCount() {
-        ReviewPromptService.recordMeaningfulAction()
-        XCTAssertEqual(ReviewPromptService.actionCount, 1)
+    // MARK: - Saves
 
-        ReviewPromptService.recordMeaningfulAction()
-        XCTAssertEqual(ReviewPromptService.actionCount, 2)
+    func testSavesBelowThresholdDoNotPrompt() {
+        save(times: 2)
+        XCTAssertEqual(ReviewPromptService.successfulSaveCount, 2)
+        XCTAssertEqual(promptCount, 0)
+        XCTAssertNil(ReviewPromptService.lastPromptedVersion)
     }
 
-    // MARK: - shouldPrompt logic
-
-    func testShouldNotPromptBelowThreshold() {
-        ReviewPromptService.actionCount = 9
-        XCTAssertFalse(ReviewPromptService.shouldPrompt())
+    func testSaveReachingThresholdPromptsAndRecordsVersion() {
+        save(times: 3)
+        XCTAssertEqual(promptCount, 1)
+        XCTAssertEqual(ReviewPromptService.lastPromptedVersion, "1.0")
     }
 
-    func testShouldPromptAtThreshold() {
-        ReviewPromptService.actionCount = 10
-        XCTAssertTrue(ReviewPromptService.shouldPrompt())
+    func testPromptsAtMostOncePerVersion() {
+        save(times: 10)
+        XCTAssertEqual(promptCount, 1)
     }
 
-    func testShouldPromptAboveThreshold() {
-        ReviewPromptService.actionCount = 25
-        XCTAssertTrue(ReviewPromptService.shouldPrompt())
+    func testNewVersionPromptsAgain() {
+        save(times: 3)
+        ReviewPromptService.currentVersion = "1.1"
+        save(times: 1)
+        XCTAssertEqual(promptCount, 2)
+        XCTAssertEqual(ReviewPromptService.lastPromptedVersion, "1.1")
     }
 
-    func testShouldNotPromptIfAlreadyPrompted() {
-        ReviewPromptService.actionCount = 20
-        ReviewPromptService.hasPrompted = true
-        XCTAssertFalse(ReviewPromptService.shouldPrompt())
+    func testSaveRightAfterErrorDoesNotPromptButStillCounts() {
+        save(times: 2)
+        save(times: 1, followsError: true)
+        XCTAssertEqual(promptCount, 0)
+        XCTAssertEqual(ReviewPromptService.successfulSaveCount, 3)
+        XCTAssertNil(ReviewPromptService.lastPromptedVersion, "A skipped prompt must not use up the version")
+
+        save(times: 1)
+        XCTAssertEqual(promptCount, 1)
     }
 
-    func testOnceEverSemantics() {
-        // First time: should prompt
-        ReviewPromptService.actionCount = 10
-        XCTAssertTrue(ReviewPromptService.shouldPrompt())
+    // MARK: - AutoFill
 
-        // Mark as prompted
-        ReviewPromptService.hasPrompted = true
+    func testUnlockPromptsOnceAutoFillThresholdReached() {
+        SettingsService.successfulAutoFillCount = 4
+        ReviewPromptService.noteSuccessfulUnlock(followsError: false)
+        XCTAssertEqual(promptCount, 0)
 
-        // Never again, even with more actions
-        ReviewPromptService.actionCount = 100
-        XCTAssertFalse(ReviewPromptService.shouldPrompt())
+        SettingsService.successfulAutoFillCount = 5
+        ReviewPromptService.noteSuccessfulUnlock(followsError: false)
+        ReviewPromptService.noteSuccessfulUnlock(followsError: false)
+        XCTAssertEqual(promptCount, 1)
     }
 
-    // MARK: - Custom threshold
-
-    func testCustomMinimumActionsThreshold() {
-        ReviewPromptService.minimumActions = 5
-        ReviewPromptService.actionCount = 4
-        XCTAssertFalse(ReviewPromptService.shouldPrompt())
-
-        ReviewPromptService.actionCount = 5
-        XCTAssertTrue(ReviewPromptService.shouldPrompt())
+    func testUnlockAfterFailedAttemptDoesNotPrompt() {
+        SettingsService.successfulAutoFillCount = 5
+        ReviewPromptService.noteSuccessfulUnlock(followsError: true)
+        XCTAssertEqual(promptCount, 0)
+        XCTAssertNil(ReviewPromptService.lastPromptedVersion)
     }
 
-    // MARK: - hasPrompted
-
-    func testHasPromptedStartsFalse() {
-        XCTAssertFalse(ReviewPromptService.hasPrompted)
+    func testUnlockWithoutAutoFillUseDoesNotPromptOnSavesAlone() {
+        save(times: 3)
+        ReviewPromptService.currentVersion = "1.1"
+        ReviewPromptService.noteSuccessfulUnlock(followsError: false)
+        XCTAssertEqual(promptCount, 1, "Unlocks prompt only on AutoFill use, not on past saves")
     }
 
-    // MARK: - resetForTesting
-
-    func testResetClearsAllState() {
-        ReviewPromptService.actionCount = 42
-        ReviewPromptService.hasPrompted = true
-
-        ReviewPromptService.resetForTesting()
-
-        XCTAssertEqual(ReviewPromptService.actionCount, 0)
-        XCTAssertFalse(ReviewPromptService.hasPrompted)
+    func testSaveAndAutoFillShareOnePromptPerVersion() {
+        SettingsService.successfulAutoFillCount = 5
+        ReviewPromptService.noteSuccessfulUnlock(followsError: false)
+        save(times: 3)
+        XCTAssertEqual(promptCount, 1)
     }
 
-    // MARK: - Presenter injection (cross-platform; macOS relies on this hook)
+    // MARK: - Gates
 
-    func testRequestReviewInvokesInjectedHandlerWhenAppropriate() {
-        var invoked = 0
-        ReviewPromptService.requestReviewHandler = { invoked += 1 }
-        ReviewPromptService.actionCount = 9 // recordMeaningfulAction pushes to 10
-
-        ReviewPromptService.requestReviewIfAppropriate()
-
-        XCTAssertEqual(invoked, 1)
-        XCTAssertTrue(ReviewPromptService.hasPrompted)
+    func testMissingVersionNeverPrompts() {
+        ReviewPromptService.currentVersion = nil
+        save(times: 3)
+        XCTAssertEqual(promptCount, 0)
     }
 
-    func testRequestReviewDoesNotInvokeHandlerBelowThreshold() {
-        var invoked = 0
-        ReviewPromptService.requestReviewHandler = { invoked += 1 }
-        ReviewPromptService.actionCount = 3
-
-        ReviewPromptService.requestReviewIfAppropriate()
-
-        XCTAssertEqual(invoked, 0)
-        XCTAssertFalse(ReviewPromptService.hasPrompted)
-    }
-
-    func testRequestReviewSkipsHandlerForNonAppStoreBuild() {
-        var invoked = 0
-        ReviewPromptService.requestReviewHandler = { invoked += 1 }
+    func testNonAppStoreBuildDoesNotPrompt() {
         ReviewPromptService.isAppStoreBuild = false
-        ReviewPromptService.actionCount = 9
-
-        ReviewPromptService.requestReviewIfAppropriate()
-
-        XCTAssertEqual(invoked, 0, "Non-App-Store builds must not present a StoreKit review prompt")
+        save(times: 3)
+        XCTAssertEqual(promptCount, 0, "Non-App-Store builds must not present a StoreKit review prompt")
     }
 
-    func testRequestReviewSkipsHandlerUnderUITesting() {
-        var invoked = 0
-        ReviewPromptService.requestReviewHandler = { invoked += 1 }
+    func testUITestingSuppressesPrompt() {
         ReviewPromptService.isSuppressedForUITesting = true
-        ReviewPromptService.actionCount = 9
-
-        ReviewPromptService.requestReviewIfAppropriate()
-
-        XCTAssertEqual(invoked, 0, "UI-test launches must not present the review prompt")
+        save(times: 3)
+        XCTAssertEqual(promptCount, 0, "UI-test launches must not present the review prompt")
     }
 
-    func testRequestReviewPromptsOnlyOnce() {
-        var invoked = 0
-        ReviewPromptService.requestReviewHandler = { invoked += 1 }
-        ReviewPromptService.actionCount = 9
-
-        ReviewPromptService.requestReviewIfAppropriate()
-        ReviewPromptService.actionCount = 100
-        ReviewPromptService.requestReviewIfAppropriate()
-
-        XCTAssertEqual(invoked, 1)
+    func testResetClearsState() {
+        save(times: 3)
+        ReviewPromptService.resetForTesting()
+        XCTAssertEqual(ReviewPromptService.successfulSaveCount, 0)
+        XCTAssertNil(ReviewPromptService.lastPromptedVersion)
     }
 }

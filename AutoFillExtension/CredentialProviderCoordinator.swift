@@ -2438,7 +2438,7 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        finishRequest { presenter in
+        finishFill { presenter in
             presenter.completeOneTimeCodeRequest(code: code)
         }
     }
@@ -2499,7 +2499,7 @@ final class CredentialProviderCoordinator {
 
         AutoFillDiagnostics.log("completing password fill")
         let credential = ASPasswordCredential(user: user, password: decryptedPassword)
-        finishRequest { presenter in
+        finishFill { presenter in
             presenter.completeRequest(withSelectedCredential: credential)
         }
     }
@@ -2630,7 +2630,7 @@ final class CredentialProviderCoordinator {
             credentialID: credentialIDData
         )
 
-        finishRequest { presenter in
+        finishFill { presenter in
             presenter.completeAssertionRequest(using: credential)
         }
     }
@@ -2642,6 +2642,14 @@ final class CredentialProviderCoordinator {
         finishRequest { presenter in
             presenter.cancelRequest(withError: ASExtensionError(code))
         }
+    }
+
+    /// `finishRequest` for a credential handed back to the caller; the count
+    /// feeds the app's review prompt.
+    private func finishFill(_ action: (any CredentialProviderPresenting) -> Void) {
+        guard !didFinishRequest else { return }
+        SettingsService.successfulAutoFillCount += 1
+        finishRequest(action)
     }
 
     /// Gates the terminal handoff exactly once and captures the presenter for

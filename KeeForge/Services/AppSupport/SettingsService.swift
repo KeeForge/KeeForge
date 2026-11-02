@@ -18,6 +18,7 @@ enum SettingsService {
         static let appearanceMode = "KeeForge.appearanceMode"
         static let appAccentColor = "KeeForge.appAccentColor"
         static let hasTipped = "KeeForge.hasTipped"
+        static let successfulAutoFillCount = "KeeForge.successfulAutoFillCount"
         static let macLockPolicy = "KeeForge.macLockPolicy"
         static let blockScreenCapture = "KeeForge.blockScreenCapture"
         static let passwordGeneratorOptions = "KeeForge.passwordGeneratorOptions"
@@ -408,6 +409,19 @@ enum SettingsService {
         }
         set {
             UserDefaults.standard.set(newValue, forKey: Key.hasTipped)
+        }
+    }
+
+    // MARK: - AutoFill Usage
+
+    /// Completed AutoFill fills, counted by the extensions in App Group
+    /// defaults so the app's review prompt can see them.
+    static var successfulAutoFillCount: Int {
+        get {
+            sharedDefaults.integer(forKey: Key.successfulAutoFillCount)
+        }
+        set {
+            sharedDefaults.set(newValue, forKey: Key.successfulAutoFillCount)
         }
     }
 
