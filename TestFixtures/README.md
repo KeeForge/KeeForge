@@ -19,6 +19,7 @@ Sample databases and key files used by unit tests, UI tests, the KDBX compatibil
 | `compatibility/foreign-twofish.kdbx` | `foreign-twofish` | KDBX 4, Twofish | `foreign_ciphers.py` |
 | `compatibility/unknown-inner-header.kdbx` | `unknown-inner-header` | KDBX 4, AES-256-CBC, Argon2d | `unknown_inner_header.py` |
 | `compatibility/argon2-high-iterations.kdbx` | `argon2-high-iterations` | KDBX 4, AES-256-CBC, Argon2d (1500 iterations, 1 MiB, parallelism 1) | `argon2_high_iterations.py` |
+| `compatibility/keepassxc-recycled.kdbx` | `keepassxc-recycled` | KDBX 4.1, AES-256-CBC, Argon2d, written by KeePassXC | `keepassxc_recycled.py` |
 
 ### `test.kdbx`
 
@@ -146,6 +147,7 @@ A compatibility ID is an artifact ID, not a file name. Three IDs read a fixture 
 | `foreign-twofish` | `compatibility/foreign-twofish.kdbx` | `foreign-twofish` | `Foreign/Foreign Entry Alpha` → `ForeignAlphaSecret1` |
 | `unknown-inner-header` | `compatibility/unknown-inner-header.kdbx` | `unknown-inner-header` | `Unknown Header/Inner Header Entry` → `UnknownHeaderSecret1` |
 | `argon2-high-iterations` | `compatibility/argon2-high-iterations.kdbx` | `argon2-high-iterations` | `High Iterations/High Iteration Entry` → `HighIterationSecret1` |
+| `keepassxc-recycled` | `compatibility/keepassxc-recycled.kdbx` | `keepassxc-recycled` | none |
 
 - After KeeForge rewrites a fixture, `run_kdbx_compatibility_gate.sh` asks `keepassxc-cli show -s -a Password` for the entry in the last column, proving a value authored by another implementation survives a KeeForge save. The pairs are mirrored in `KDBXCompatibilitySupport.fixtureEntryPasswords`; change both together.
 - The `kitchen-sink` group-tag scenarios also probe `Projects/Alpha Login` → `GroupTagAlpha1`, `Plain Group/Delta Login` → `GroupTagDelta4`, and `Projects/Client Work/Beta Login Updated` → `GroupTagBetaUpdated2` (a value KeeForge wrote). The generator's own `keepassxc-cli` pass also probes `Round Trip/Controlled Unknowns` → `roundtrip-pass`.
@@ -170,6 +172,8 @@ A compatibility ID is an artifact ID, not a file name. Three IDs read a fixture 
 - Reopening the final file with pykeepass fails with `MappingError`. That is the expected, verified outcome; KeePassXC skips unrecognized IDs and opens it normally.
 
 `argon2-high-iterations.kdbx`: a high iteration count with low memory (1.5 GiB of total work), the acceptance case for the `KDFExecutionPolicy` work budget. A per-parameter iteration cap would reject it. One `High Iterations` group with `High Iteration Entry` (`high-iteration-user` / `HighIterationSecret1`). The low memory keeps repeated derivations in the matrix and gate cheap.
+
+`keepassxc-recycled.kdbx`: pykeepass creates the empty file with light Argon2d settings, then `keepassxc-cli` makes every change, so the Recycle Bin and its `<PreviousParentGroup>` references are KeePassXC's own. `Work` ends empty; `Recycle Bin` holds `Recycled Login` (`recycled-user`) and `Recycled Projects` with `Nested Login` (`nested-user`), both recycled out of `Work`. Building it needs keepassxc-cli (`KEEPASSXC_CLI`, `PATH`, or the macOS app).
 
 Changing an entry password in `unknown-inner-header.kdbx` or `argon2-high-iterations.kdbx` means updating `KDBXCompatibilitySupport.fixtureEntryPasswords`.
 
@@ -220,7 +224,7 @@ python3 TestFixtures/generate_fixtures.py --all --check   # verify every generat
 python3 TestFixtures/generate_fixtures.py kitchen-sink    # rebuild one, then verify it
 ```
 
-Registered names: `autofill-store-alpha`, `autofill-store-bravo`, `kitchen-sink`, `argon2-high-iterations`, `challenge-response`, `challenge-response-aeskdf`, `foreign-chacha20`, `foreign-twofish`, `unknown-inner-header`. Several names can be passed in one run, for example `foreign-chacha20 foreign-twofish`.
+Registered names: `autofill-store-alpha`, `autofill-store-bravo`, `kitchen-sink`, `argon2-high-iterations`, `challenge-response`, `challenge-response-aeskdf`, `foreign-chacha20`, `foreign-twofish`, `keepassxc-recycled`, `unknown-inner-header`. Several names can be passed in one run, for example `foreign-chacha20 foreign-twofish`.
 
 - `--check` verifies only and never writes. Without it, each selected fixture is rebuilt and then verified with the same assertions.
 - `--keepassxc-cli /Applications/KeePassXC.app/Contents/MacOS/keepassxc-cli` adds an optional external-reader check: KeePassXC opens the file and lists its group. `kitchen-sink` and `unknown-inner-header` also read back entry passwords and export every attachment for a SHA-256 comparison.

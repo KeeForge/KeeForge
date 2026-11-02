@@ -64,6 +64,8 @@ targetTemplates:
         buildPhase: resources
       - path: TestFixtures/compatibility/argon2-high-iterations.kdbx
         buildPhase: resources
+      - path: TestFixtures/compatibility/keepassxc-recycled.kdbx
+        buildPhase: resources
       - path: TestFixtures/challenge-response.kdbx
         buildPhase: resources
       - path: TestFixtures/challenge-response-aeskdf.kdbx
