@@ -25,9 +25,9 @@ class EntryEditUITestCase: KeeForgeUITestCase {
     }
 
     /// Scrolls the entry editor with slow drags until `element` is tappable and
-    /// clear of the keyboard. On iOS 18 `swipeUp()` leaves the editor in place
-    /// while the keyboard covers a custom-field row, so `revealElement` cannot
-    /// reach it; a slow drag scrolls it as a finger would.
+    /// clear of the keyboard. On a small screen `swipeUp()` leaves the editor in
+    /// place while the keyboard covers a custom-field row, so `revealElement`
+    /// cannot reach it; a slow drag scrolls it as a finger would.
     func revealFormElement(_ element: XCUIElement) -> Bool {
         let keyboard = app.keyboards.firstMatch
         func isReachable() -> Bool {
