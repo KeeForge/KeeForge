@@ -21,7 +21,7 @@ Base commands and repo-wide policy (`-only-testing:` always, no full UI suite un
 
 | Setting | Effect |
 | --- | --- |
-| `-ui-testing` | Reseeds the database list from the fixture payload on every launch, skips the device-owner prompt for reveal/copy, and hides the What's New sheet and AutoFill tip. |
+| `-ui-testing` | Reseeds the database list from the fixture payload on every launch, skips the device-owner prompt for reveal/copy, and hides the What's New sheet, AutoFill tip, and App Store review prompt. |
 | `UI_TEST_VIEW_MODE` | Starting view of the database root, ahead of the stored last pick. The helpers browse from the group list, so `setUp` sets `groups`. A class testing the stored view removes the key (`DefaultViewUITests`). |
 | `UI_TEST_DATABASES_JSON`, `UI_TEST_KEYFILE_*` | Written by `setUp`. Override `databaseFixtureName`, `databaseFixtures`, or `keyFileFixtureName` instead of setting them. |
 | `UI_TEST_DATABASE_READ_ONLY=1` | Opens the database read-only. |
@@ -69,7 +69,7 @@ xcrun xcresulttool export attachments --path <xcresult> --output-path <fresh-dir
 
 ### Typing
 
-- `typeText` on an unfocused field fails the test outright and cannot be retried. Use `replaceText(in:with:)`, which scrolls the field clear of the keyboard, re-taps until focus is confirmed, and verifies the value. `XCUIElement.hasFocus` is false for a focused SwiftUI field.
+- `typeText` on an unfocused field fails the test outright and cannot be retried. Use `replaceText(in:with:)`, which scrolls the field clear of the keyboard, re-taps until focus is confirmed, moves a single-line field's caret to the end before clearing it, and verifies the value. `XCUIElement.hasFocus` is false for a focused SwiftUI field.
 - Database-creation and master-key password fields are typed through `revealPasswordTextField`, `replaceVisiblePasswordFixtureText`, and `dismissKeyboardAfterPasswordFixtureEntry`. Those helpers are for these forms only.
 - Unlock with `unlockSuccessfully()`. It retries a wrong-password result, which on parallel simulators usually means the password was typed before the field was ready.
 - A create flow that fills a password can raise the system Save Password sheet on a simulator.
@@ -82,7 +82,7 @@ xcrun xcresulttool export attachments --path <xcresult> --output-path <fresh-dir
 - On iOS 27, buttons inside a `Section` of a SwiftUI `Menu` lose their identifiers while labels survive. Use `menuButton(identifier:label:)`; an identifier-only query never resolves.
 - Search results replace the group list in place, and a focused search field covers the root even when empty. Use `searchForEntries(matching:)` and `dismissSearch()`.
 - The database root has no navigation-bar title while its large title is on screen. Use `selectDatabaseView(_:)` / `waitForDatabaseView(_:)`, not `app.navigationBars[...]`.
-- Database Details is a hub: every control is one push below it and only the hub has Close. `openDatabaseDetailsPage(_:)` before querying, `returnToDatabaseDetailsHub()` before the next page.
+- Database Details is a hub: every control is one push below it and only the hub has Close. `openDatabaseDetailsPage(_:)` before querying, `returnToDatabaseDetailsHub()` before the next page. On iOS 27.0 the hub's Close stays in the tree under a pushed page, so test for the hub with `isDatabaseDetailsHubShowing()`, not `exists`.
 - iPadOS can start the split view with its sidebar collapsed. `revealSidebarIfNeeded()` taps the system control only when it offers Show Sidebar; never force a column visibility from a test.
 - On the database list a long press opens the context menu and rows move only in Edit mode, so drive a reorder through `database.edit.button`. `DatabaseListUITests` caps its details-reopen test at 120 s so a stall between the two gestures fails fast.
 
