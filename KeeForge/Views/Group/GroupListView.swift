@@ -607,9 +607,13 @@ struct GroupListView: View {
         emptyDescription: LocalizedStringKey
     ) -> some View {
         if !visibleGroups.isEmpty {
-            Section("Groups") {
+            Section {
                 ForEach(viewModel.sortedGroups(visibleGroups).map(\.id), id: \.self) { subgroupID in
                     groupRow(for: subgroupID)
+                }
+            } header: {
+                if DatabaseWorkspaceState.ViewMode.showsGroupsHeader(in: rootViewMode) {
+                    Text("Groups")
                 }
             }
         }
