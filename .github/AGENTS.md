@@ -10,6 +10,8 @@
 | `rc/*` tag push | `workflows/tests.yml` | `macos-unit-tests` (full `KeeForgeMacTests`), plus `ios-rc-tests`: the three Cloud test schemes on GitHub's `xcode-27` runner on iPhone 18 Pro and iPhone SE (3rd generation) at the newest usable iOS runtime, and the two regular-width UI classes on an iPad (A16). Seven jobs. No archives. |
 | `rc/*` tag push | Xcode Cloud **Tests (RC)** | `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, `KeeForgeCloudUIB` on the latest runtime, plus the iOS and Mac App Store archives. |
 | Manual dispatch | `workflows/tests.yml` | The `rc/*` set against the `ref` input. |
+| Weekly (Monday) and manual dispatch | `workflows/ci-drift.yml` | Not a gate. Checks `tests.yml` against the newest stable `macos-N` image, the newest `xcode-N` image, their stable Xcodes, and whether their iOS runtimes can create the test devices. Fails with the report in the run summary on drift. |
+| Weekly | Dependabot (`dependabot.yml`) | Not a gate. One grouped PR bumping every `uses:` action to its latest release. |
 | Each release candidate, locally | `ci_scripts/run_kdbx_compatibility_gate.sh` | KeePassXC cross-validation, once per platform. |
 | Each release candidate, locally | `KeeForgeMacUITests/MacSmokeUITests` | Mac UI smoke. |
 
@@ -45,4 +47,6 @@ Three repository rulesets, all with admin bypass. They live in GitHub settings, 
 - Workflows bootstrap `BuildConfig.local.xcconfig` with the placeholder `DROPBOX_APP_KEY=ciplaceholderdropboxappkey`. It must stay alphanumeric and the app treats it as cloud sign-in disabled; the rule is in `../ci_scripts/AGENTS.md`.
 - `ios-rc-tests` runs on `xcode-27`, the only image with Xcode 27 and an iOS 27 runtime. It uses the image's default Xcode, because the newest one installed there is a beta. Xcode Cloud's test actions are metered against a monthly compute allowance and are cancelled once it is spent; this lane is not metered. Its simulator step takes the newest runtime that supports and can create each device: the image can carry a runtime newer than its default Xcode drives, which `simctl create` rejects with `Incompatible device`.
 - An existing `rc/*` tag cannot gain a workflow file. To rerun a candidate, dispatch `tests.yml` from a branch that has it and pass the tag as `ref`; the run then reports on the dispatching branch, so read the tested commit from its log.
+- `ci-drift.yml` reads image labels from the `actions/runner-images` README table and reproduces `tests.yml`'s Xcode choices in `scripts/ci_drift.py`. When a lane changes how it picks its runner, Xcode, or devices, change the script with it. A pre-release Xcode is one whose app name says beta or release candidate.
+- Dependabot PRs pass DCO because the DCO app exempts bot authors; they still need code-owner review for `.github/`.
 - This file is named `AGENTS.md` because GitHub renders a `.github/README.md` as the repository front page.

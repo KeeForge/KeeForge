@@ -45,7 +45,7 @@ jobs:
       DESTINATION: 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Select Xcode
         run: |
@@ -111,7 +111,7 @@ jobs:
 
       - name: Upload test logs and result bundles
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unit-test-results
           path: |
@@ -133,7 +133,7 @@ jobs:
       DESTINATION: 'platform=macOS'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
 
@@ -209,7 +209,7 @@ jobs:
 
       - name: Upload test logs and result bundles
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos-unit-test-results
           path: |
@@ -249,7 +249,7 @@ jobs:
       RUN_NAME: ${{ matrix.scheme }}-${{ matrix.device.slug }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
 
@@ -383,7 +383,7 @@ jobs:
 
       - name: Upload test logs and result bundle
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-rc-${{ env.RUN_NAME }}
           path: |

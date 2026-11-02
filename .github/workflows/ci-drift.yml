@@ -1,0 +1,71 @@
+name: CI drift
+
+# Weekly check that tests.yml runs on the newest stable macOS image, the
+# newest Xcode image, their newest stable Xcodes, and iOS runtimes that can
+# create its test devices. Not a gate. On drift the run fails with the report
+# in its summary; GitHub mails the owner about failed scheduled runs. Action
+# versions are Dependabot's job (.github/dependabot.yml).
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    outputs:
+      labels: ${{ steps.labels.outputs.labels }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Find the newest macOS and Xcode images
+        id: labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/actions/runner-images/contents/README.md -H 'Accept: application/vnd.github.raw' > "$RUNNER_TEMP/runner-images.md"
+          labels=$(python3 .github/scripts/ci_drift.py images "$RUNNER_TEMP/runner-images.md")
+          echo "Newest images: $labels"
+          echo "labels=$labels" >> "$GITHUB_OUTPUT"
+
+  probe:
+    needs: images
+    strategy:
+      fail-fast: false
+      matrix:
+        label: ${{ fromJSON(needs.images.outputs.labels) }}
+    runs-on: ${{ matrix.label }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Probe Xcodes and simulator runtimes
+        run: |
+          set -euo pipefail
+          mkdir -p probe
+          python3 .github/scripts/ci_drift.py probe "${{ matrix.label }}" > probe/probe.json
+          cat probe/probe.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: probe-${{ matrix.label }}
+          path: probe/probe.json
+
+  report:
+    needs: probe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: probe-*
+          path: probes
+
+      - name: Compare with tests.yml
+        run: python3 .github/scripts/ci_drift.py report probes
