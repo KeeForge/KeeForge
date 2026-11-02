@@ -8,9 +8,12 @@
 - On Mac, use SSH keys stored in KeeForge with `ssh`, `git`, and other SSH clients (#163). Turn on Settings → SSH Agent → "Enable SSH Agent", click "Copy SSH Configuration" and paste it into `~/.ssh/config`, then choose which keys of the unlocked database the agent offers. KeeForge uses an entry's attached OpenSSH private key, including entries set up with KeeAgent, KeePassXC, or Strongbox; Ed25519, ECDSA, and RSA keys without a passphrase are supported, and other keys are listed with the reason they can't be used. Keys are only available while their database is unlocked: locking or closing it makes them unavailable right away, and no key file is written to disk. The agent is off until you turn it on.
 - Face ID, Touch ID, and Apple Watch stop unlocking a database 14 days after its master password was last entered, in the app and in AutoFill, until you enter it again. This keeps a saved unlock key from staying on the device indefinitely and helps you remember the password. Choose 30 days, Always to keep no saved unlock key and enter the password every time, or Never in Settings → Security → Require Master Password. After updating, the 14 days start with your next unlock.
 - Generate word-based passphrases on iPhone, iPad, and Mac with a chosen word count and separator. The saved mode and options also apply to iOS AutoFill generation (#187).
+- On iPhone and iPad, Export Copy is now Share, in the database list, Database Details, and the stuck-upload alert. The share sheet still offers Save to Files and can also send the database with AirDrop or open it in another KeePass app; backups in Database Details are shared the same way. Mac keeps Export Copy (#117).
+- Turn off the What's New sheet that appears after an update on iPhone, iPad, and Mac in Settings → Display → "Show What's New After Updates" (#247).
 
 ### Changes
 
+- KeeForge now asks for an App Store rating at most once per version, after a few successful saves or regular AutoFill use, and never right after an error.
 - Unlocking a cloud database with Face ID or Touch ID is faster: KeeForge checks the cloud copy while the prompt is up instead of after it.
 - Face ID, Touch ID, and Apple Watch unlock, in the app and in AutoFill, open an unchanged database without repeating the key derivation, often the slowest part of unlocking. KeeForge keeps the derived key for the version it last opened or saved, with the same Keychain protection as the saved unlock key, and runs the full derivation again whenever the file has changed elsewhere. Databases that need a YubiKey always run it.
 
@@ -20,7 +23,11 @@
 - Fixed the Mac AutoFill extension not forwarding requests to choose a verification code.
 - Ignore late cancellation callbacks from an earlier AutoFill picker so they cannot cancel a newer request.
 
+- In AutoFill, Possible matches no longer offer "Add original URL to this entry" for a read-only or KDBX 3.1 database. Adding the URL there couldn't be saved and cancelled the whole fill.
 - In Mac AutoFill, a few error messages (such as the one for a database in the Trash) now appear in your language instead of English.
+- AutoFill no longer saves a login or passkey whose username or password from the website contains a KeePass field reference (`{REF:…}`). A website could otherwise have made a later fill send it values from your other entries, a variant of KeePassXC advisory GHSA-2vm2-vmc3-vccr.
+- On iPhone and iPad, the top of the Groups view no longer repeats "Groups" as a section header under its title (#264). Inside a group, the Groups and Entries headers still separate subgroups from entries.
+- On Mac, the privacy cover shown over KeeForge's windows while another app is active now follows the windows' rounded corners instead of sticking out past them (#263).
 
 ## v1.20.0 (2026-10-25)
 

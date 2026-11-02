@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # Keeps every `uses:` in .github/workflows at the latest release.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

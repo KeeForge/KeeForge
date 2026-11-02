@@ -853,7 +853,8 @@ final class PendingLocalSaveTests: XCTestCase {
 
     private func waitUntil(
         _ description: String,
-        timeout: Duration = .seconds(10),
+        // A merge is several KDF runs; shared CI simulators take 2-3x a local run.
+        timeout: Duration = .seconds(60),
         _ condition: () -> Bool
     ) async throws {
         let deadline = ContinuousClock.now.advanced(by: timeout)

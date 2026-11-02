@@ -12,14 +12,20 @@ struct EntryCustomFieldOrderSheet: ViewModifier {
                         HStack {
                             Text(field.key.isEmpty ? String(localized: "Field Name") : field.key)
                                 .accessibilityIdentifier("entry-edit.custom-field.order.\(index)")
+                            #if os(macOS)
                             Spacer()
                             Image(systemName: "line.3.horizontal")
                                 .foregroundStyle(.secondary)
                                 .accessibilityHidden(true)
+                            #endif
                         }
                     }
                     .onMove(perform: form.moveCustomFields)
                 }
+                #if os(iOS)
+                // System reorder handles drag at once and offer VoiceOver move actions.
+                .environment(\.editMode, .constant(.active))
+                #endif
                 .navigationTitle("Reorder Fields")
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {

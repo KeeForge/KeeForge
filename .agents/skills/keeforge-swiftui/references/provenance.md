@@ -10,7 +10,7 @@ This skill adapts selected guidance from **SwiftUI Pro**, created by **Paul Huds
 
 ## Local adaptation
 
-The upstream guides are condensed into three task-specific references. This version uses KeeForge's deployment targets and existing folder contracts, preserves required platform bridges and custom binding semantics, and distinguishes observed defects from modernization preferences and unverified runtime concerns. It omits SwiftData/CloudKit advice and blanket rules about type-per-file organization, GCD, bindings, and newest APIs. Localization, core security boundaries, and verification remain owned by repository guidance. Codex implicit invocation is disabled for the adoption pilot; other agents should invoke the skill explicitly as described in its entry point.
+The upstream guides are condensed into three task-specific references. This version uses KeeForge's deployment targets and existing folder contracts, preserves required platform bridges and custom binding semantics, and distinguishes observed defects from modernization preferences and unverified runtime concerns. It omits SwiftData/CloudKit advice and blanket rules about type-per-file organization, GCD, bindings, and newest APIs. Localization, core security boundaries, and verification remain owned by repository guidance. The iOS and macOS screenshot requirement for UI changes is KeeForge's own, not upstream's. Codex implicit invocation is disabled for the adoption pilot; other agents should invoke the skill explicitly as described in its entry point.
 
 ## Updating
 

@@ -1470,6 +1470,57 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(Set(vm.group(withID: emptyGroup.id)?.entries.map(\.id) ?? []), movedIDs)
     }
 
+    func testASaveRightAfterAFailedSaveDoesNotAskForAReview() async throws {
+        let suiteName = "DatabaseViewModelTests.reviewPrompt"
+        let reviewDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        reviewDefaults.removePersistentDomain(forName: suiteName)
+        let promptCounter = ReviewPromptCounter()
+        let original = (
+            version: ReviewPromptService.currentVersion,
+            isAppStoreBuild: ReviewPromptService.isAppStoreBuild,
+            suppressed: ReviewPromptService.isSuppressedForUITesting
+        )
+        ReviewPromptService.defaults = reviewDefaults
+        ReviewPromptService.minimumSuccessfulSaves = 1
+        ReviewPromptService.currentVersion = "1.0"
+        ReviewPromptService.isAppStoreBuild = true
+        ReviewPromptService.isSuppressedForUITesting = false
+        ReviewPromptService.requestReviewHandler = { promptCounter.count += 1 }
+        defer {
+            ReviewPromptService.defaults = .standard
+            ReviewPromptService.minimumSuccessfulSaves = 3
+            ReviewPromptService.currentVersion = original.version
+            ReviewPromptService.isAppStoreBuild = original.isAppStoreBuild
+            ReviewPromptService.isSuppressedForUITesting = original.suppressed
+            ReviewPromptService.requestReviewHandler = nil
+            UserDefaults.standard.removePersistentDomain(forName: suiteName)
+        }
+        let outcome = SaveOutcomeSwitch()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                if await outcome.takeFailure() { throw SaveError.databaseLocationUnavailable }
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let emptyGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Empty" }))
+        let entries = Array(socialGroup.entries.prefix(2))
+
+        try vm.moveEntries(entryIDs: [entries[0].id], toGroupID: emptyGroup.id)
+        await vm.saveHandlingError()
+        XCTAssertNotNil(vm.saveError)
+        vm.clearSaveError()
+
+        await vm.saveHandlingError()
+        XCTAssertNil(vm.saveError)
+        XCTAssertEqual(promptCounter.count, 0, "The save that recovers from an error must not prompt")
+
+        try vm.moveEntries(entryIDs: [entries[1].id], toGroupID: emptyGroup.id)
+        await vm.saveHandlingError()
+        XCTAssertEqual(promptCounter.count, 1, "The next clean save may prompt")
+    }
+
     /// The moves through the real save path, read back from the encrypted file.
     func testMovedEntriesSurviveSaveAndReopen() async throws {
         let password = "multi move save password"
@@ -5124,6 +5175,11 @@ final class DatabaseViewModelTests: XCTestCase {
     func testARefusedPendingMergeNamesTheBackupInsteadOfExportCopy() throws {
         let backupURL = URL(fileURLWithPath: "/backups/20260924-080000-000000.kdbx")
         let backupDate = try XCTUnwrap(DatabaseExportService.backupDate(fromFilename: backupURL.lastPathComponent))
+        #if os(macOS)
+        let currentCopyAction = "Export Copy"
+        #else
+        let currentCopyAction = "use Share"
+        #endif
 
         for failure in [
             PendingUploadMergeFailure.changeUnreadable(.backup(backupURL)),
@@ -5131,10 +5187,11 @@ final class DatabaseViewModelTests: XCTestCase {
         ] {
             // Once the database has been opened the cache is the cloud copy,
             // so exporting it would hand over the version without the change.
-            XCTAssertFalse(failure.message.contains("Export Copy"), "\(failure)")
+            XCTAssertFalse(failure.message.contains(currentCopyAction), "\(failure)")
             XCTAssertTrue(failure.message.contains(backupDate.formatted(.dateTime)), "\(failure)")
         }
-        XCTAssertTrue(PendingUploadMergeFailure.changeUnreadable(.cache).message.contains("Export Copy"))
+        XCTAssertTrue(PendingUploadMergeFailure.changeUnreadable(.cache).message.contains(currentCopyAction))
+        XCTAssertTrue(PendingUploadMergeFailure.attachmentsDiverged(.cache).message.contains(currentCopyAction))
     }
 
     func testAnOrdinarySaveThatAbsorbsThePendingUploadHidesTheBanner() async throws {
@@ -8119,5 +8176,18 @@ private final class MutableNowProvider: @unchecked Sendable {
 
     func advance(by interval: TimeInterval) {
         now.addTimeInterval(interval)
+    }
+}
+
+private final class ReviewPromptCounter {
+    var count = 0
+}
+
+private actor SaveOutcomeSwitch {
+    private var failNext = true
+
+    func takeFailure() -> Bool {
+        defer { failNext = false }
+        return failNext
     }
 }

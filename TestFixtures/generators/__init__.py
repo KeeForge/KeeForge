@@ -14,6 +14,7 @@ from . import (
     autofill_store,
     challenge_response,
     foreign_ciphers,
+    keepassxc_recycled,
     kitchen_sink,
     unknown_inner_header,
 )
@@ -26,6 +27,7 @@ MODULES = (
     challenge_response,
     foreign_ciphers,
     unknown_inner_header,
+    keepassxc_recycled,
 )
 
 REGISTRY: dict[str, Generator] = {

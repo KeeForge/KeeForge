@@ -96,5 +96,5 @@ Designated gates:
 
 - [Support/AGENTS.md](Support/AGENTS.md), [../TestFixtures/README.md](../TestFixtures/README.md)
 - [../ci_scripts/AGENTS.md](../ci_scripts/AGENTS.md): the external KDBX compatibility gate
-- [../AGENTS.md](../AGENTS.md): "macOS Test Strategy", including what Mac work has to test
+- [../AGENTS.md](../AGENTS.md): "macOS tests", where Mac behavior gets tested
 - [../KeeForgeUITests/AGENTS.md](../KeeForgeUITests/AGENTS.md), [../KeeForgeMacUITests/AGENTS.md](../KeeForgeMacUITests/AGENTS.md)

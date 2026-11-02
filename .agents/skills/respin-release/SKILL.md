@@ -18,7 +18,7 @@ the soak clock.
 ## Land the fix on the release branch
 
 The fix goes on the release branch **first** — that is where it is needed. Contributor fixes come
-in as PRs targeting `release/{major}.{minor}` and are gated by `pr-tests.yml` and the ruleset.
+in as PRs targeting `release/{major}.{minor}` and are gated by `tests.yml` and the ruleset.
 
 Never amend or force-push an existing release commit; the fix is always a new commit.
 Push the fix and merge it back promptly using

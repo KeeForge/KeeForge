@@ -1,6 +1,6 @@
 # KeeForgeMacUITests
 
-**Scope:** XCUITest smoke suite for the native macOS app (scheme `KeeForgeMac`). It is a thin layer by design; see "macOS Test Strategy" in `../AGENTS.md`. The fix workflow, launch environment, and fixtures are shared with `../KeeForgeUITests/AGENTS.md`.
+**Scope:** XCUITest smoke suite for the native macOS app (scheme `KeeForgeMac`). It is a thin layer by design; see "macOS tests" in `../AGENTS.md`. The fix workflow, launch environment, and fixtures are shared with `../KeeForgeUITests/AGENTS.md`.
 
 ## Running
 
@@ -56,5 +56,5 @@ The bundle holds only the shared `UITestFixtures` set listed in `../KeeForgeUITe
 
 ## See also
 
-- `../AGENTS.md`: "macOS Test Strategy", including what Mac work has to test
+- `../AGENTS.md`: "macOS tests", where Mac behavior gets tested
 - `../TestFixtures/README.md`: fixture contents and passwords

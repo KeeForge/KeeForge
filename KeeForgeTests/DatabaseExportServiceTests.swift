@@ -147,6 +147,46 @@ final class DatabaseExportServiceTests: XCTestCase {
         }
     }
 
+    // MARK: - Share
+
+    func testStageShareFileWritesPayloadUnderSuggestedName() throws {
+        let shareDirectory = scratchDirectory.appendingPathComponent("share", isDirectory: true)
+        let payload = DatabaseExportService.ExportPayload(
+            data: Self.kdbxMagic + Data("share-bytes".utf8),
+            suggestedFilename: "work (KeeForge copy 2024-08-14 133530).kdbx"
+        )
+
+        let url = try DatabaseExportService.stageShareFile(payload, in: shareDirectory)
+
+        XCTAssertEqual(url.lastPathComponent, payload.suggestedFilename)
+        XCTAssertTrue(url.path.hasPrefix(shareDirectory.path))
+        XCTAssertEqual(try Data(contentsOf: url), payload.data)
+    }
+
+    func testRemoveShareFileLeavesOtherStagedCopies() throws {
+        let shareDirectory = scratchDirectory.appendingPathComponent("share", isDirectory: true)
+        let payload = DatabaseExportService.ExportPayload(data: Self.kdbxMagic, suggestedFilename: "a.kdbx")
+        let first = try DatabaseExportService.stageShareFile(payload, in: shareDirectory)
+        let second = try DatabaseExportService.stageShareFile(payload, in: shareDirectory)
+
+        DatabaseExportService.removeShareFile(first)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: first.deletingLastPathComponent().path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: second.path))
+    }
+
+    func testPurgeShareFilesRemovesStagedCopies() throws {
+        let shareDirectory = scratchDirectory.appendingPathComponent("share", isDirectory: true)
+        _ = try DatabaseExportService.stageShareFile(
+            DatabaseExportService.ExportPayload(data: Self.kdbxMagic, suggestedFilename: "a.kdbx"),
+            in: shareDirectory
+        )
+
+        DatabaseExportService.purgeShareFiles(in: shareDirectory)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: shareDirectory.path))
+    }
+
     // MARK: - Backups
 
     func testBackupDateParsesSaverFilenameInUTC() throws {

@@ -11,6 +11,7 @@ final class SettingsServiceTests: XCTestCase {
     private let authenticationGraceKey = "KeeForge.authenticationGracePeriod"
     private let autoUnlockWithFaceIDKey = "KeeForge.autoUnlockWithFaceID"
     private let showDatabaseUsageStatsKey = "KeeForge.showDatabaseUsageStats"
+    private let showWhatsNewAfterUpdatesKey = "KeeForge.showWhatsNewAfterUpdates"
     private let quickAutoFillEnabledKey = "KeeForge.quickAutoFillEnabled"
     private let autoFillCopyTOTPKey = "KeeForge.autoFillCopyTOTP"
     private let appearanceModeKey = "KeeForge.appearanceMode"
@@ -45,6 +46,7 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: authenticationGraceKey)
         UserDefaults.standard.removeObject(forKey: autoUnlockWithFaceIDKey)
         UserDefaults.standard.removeObject(forKey: showDatabaseUsageStatsKey)
+        UserDefaults.standard.removeObject(forKey: showWhatsNewAfterUpdatesKey)
         UserDefaults.standard.removeObject(forKey: appearanceModeKey)
         UserDefaults.standard.removeObject(forKey: appAccentColorKey)
         UserDefaults.standard.removeObject(forKey: hasTippedKey)
@@ -144,6 +146,14 @@ final class SettingsServiceTests: XCTestCase {
 
         SettingsService.autoUnlockWithFaceID = false
         XCTAssertFalse(SettingsService.autoUnlockWithFaceID)
+    }
+
+    func testShowWhatsNewAfterUpdatesDefaultsToOnAndPersists() {
+        UserDefaults.standard.removeObject(forKey: showWhatsNewAfterUpdatesKey)
+        XCTAssertTrue(SettingsService.showWhatsNewAfterUpdates)
+
+        SettingsService.showWhatsNewAfterUpdates = false
+        XCTAssertFalse(SettingsService.showWhatsNewAfterUpdates)
     }
 
     func testShowDatabaseUsageStatsPersists() {
@@ -476,6 +486,46 @@ final class SettingsServiceTests: XCTestCase {
     func testPrivacyCoverAppliesToVaultAndUnknownWindows() {
         XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: nil))
         XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "com_apple_SwiftUI_Window-1"))
+    }
+
+    @MainActor
+    func testPrivacyCoverWindowTakesParentShapeAndStaysInert() {
+        let parent = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        parent.isReleasedWhenClosed = false
+        parent.toolbar = NSToolbar(identifier: "PrivacyCoverTest")
+        parent.toolbarStyle = .preference
+
+        let cover = ScreenProtectionService.makeCoverWindow(over: parent, blockCapture: true)
+
+        // Titled with the parent's toolbar style, so the system rounds it the same way.
+        XCTAssertTrue(cover.styleMask.contains(.titled))
+        XCTAssertTrue(cover.styleMask.contains(.fullSizeContentView))
+        XCTAssertNotNil(cover.toolbar)
+        XCTAssertEqual(cover.toolbarStyle, .preference)
+        XCTAssertEqual(cover.frame, parent.frame)
+        XCTAssertEqual(cover.titleVisibility, .hidden)
+        XCTAssertTrue(cover.titlebarAppearsTransparent)
+        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+            XCTAssertEqual(cover.standardWindowButton(button)?.isHidden ?? true, true)
+        }
+        // The blur fills the titlebar area too.
+        XCTAssertTrue(cover.contentView is NSVisualEffectView)
+        XCTAssertEqual(cover.contentView?.frame.size, cover.frame.size)
+
+        // It never takes focus, clicks, or a Window menu item.
+        XCTAssertFalse(cover.canBecomeKey)
+        XCTAssertFalse(cover.canBecomeMain)
+        XCTAssertTrue(cover.ignoresMouseEvents)
+        XCTAssertTrue(cover.isExcludedFromWindowsMenu)
+        XCTAssertEqual(cover.sharingType, .none)
+
+        parent.toolbar = nil
+        XCTAssertNil(ScreenProtectionService.makeCoverWindow(over: parent, blockCapture: false).toolbar)
     }
     #endif
 

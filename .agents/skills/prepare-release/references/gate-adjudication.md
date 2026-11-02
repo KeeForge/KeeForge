@@ -21,7 +21,7 @@ cancellation, or "tests did not run" failure.
 
 One `rc/*` tag starts the `Tests (RC)` workflow. It contains an iOS test action
 (**Required to Pass**) and iOS and `KeeForgeMac` App Store archive/upload actions. The Mac unit
-suite runs in `macos-rc-tests.yml`; Xcode Cloud has no macOS test action. App Store Connect
+suite runs in the `macos-unit-tests` job of `tests.yml`; Xcode Cloud has no macOS test action. App Store Connect
 may expose these as separate Xcode Cloud check runs or as one workflow summary; inspect every
 Xcode Cloud check for the RC SHA and record the URLs/statuses in the manifest. The iOS test
 action and both archive actions must reach a terminal, accepted state before external distribution.
@@ -45,19 +45,6 @@ uploaded platform build. Do not discard or distribute it yet: first adjudicate t
 failures, accept all other gates, and then use the manifest's affected-platform TestFlight build
 for its deliberate manual distribution.
 
-### 2. iOS 18 GitHub Actions workflow
-
-Match the run whose `headBranch` is the active RC tag and whose `headSha` is the RC commit:
-
-```bash
-gh run list --workflow ios18-rc-tests.yml --event push
-gh run watch <run-id> --exit-status
-```
-
-The `ios18-tests` job runs the full unit/UI suites on an iPhone SE (3rd generation) at the selected
-iOS 18 runtime, then the regular-width iPad lane for the two iPad-only UI classes. Record the run
-URL, SHA, status, and conclusion in the manifest.
-
 ### Canonical XCTest evidence
 
 Read each uploaded `.xcresult` with `xcrun xcresulttool get test-results summary --path <bundle>
@@ -68,18 +55,31 @@ that summary and adjudicate those exact failures through the local reproductions
 malformed bundle, no executed tests, or another nonzero `xcodebuild` exit is a non-test failure and
 cannot be adjudicated.
 
-### 3. macOS GitHub Actions workflow
+### 2. macOS GitHub Actions job
 
-Match the run whose `headBranch` is the active RC tag and whose `headSha` is the RC commit:
+Match the `tests.yml` run whose `headBranch` is the active RC tag and whose `headSha` is the RC
+commit, and read its `macos-unit-tests` job:
 
 ```bash
-gh run list --workflow macos-rc-tests.yml --event push
-gh run watch <run-id> --exit-status
+gh run list --workflow tests.yml --event push
+gh run view <run-id> --json jobs --jq '.jobs[] | select(.name=="macos-unit-tests") | "\(.status) \(.conclusion) \(.url)"'
 ```
 
-This is the hosted Mac unit-suite verdict. `KeeForgeMacUITests` needs an unlocked active login
+This is the hosted Mac unit-suite verdict (`gates.githubMac`). `KeeForgeMacUITests` needs an unlocked active login
 session and is covered by the required local `MacSmokeUITests` step, not by this headless workflow.
 Record the run URL, SHA, status, and conclusion in the manifest.
+
+### 3. iPad GitHub Actions job
+
+In the same `tests.yml` run, read the `KeeForge (iPad (A16))` job:
+
+```bash
+gh run view <run-id> --json jobs --jq '.jobs[] | select(.name=="KeeForge (iPad (A16))") | "\(.status) \(.conclusion) \(.url)"'
+```
+
+It runs `DatabaseCreationRegularWidthUITests` and `RegularWidthWorkspaceUITests`, which `XCTSkip`
+on every compact-width device, so no other gate executes them. Record the job URL, SHA, status, and
+conclusion as `gates.githubIPad`.
 
 ## The local gates that also must be accepted
 
@@ -109,10 +109,9 @@ and run each Xcode command through:
 
 ### iOS failures
 
-Record the failed identifier, simulator type, and exact iOS runtime. For GitHub Actions, the iOS
-18 runtime is in the `Create iOS 18 simulators` log step: iPhone SE (3rd generation), or iPad
-(10th generation) for the regular-width lane. For Xcode Cloud, read the device/OS from the failed
-destination. Confirm both with `xcrun simctl list runtimes` and `xcrun simctl list devicetypes`; an
+Record the failed identifier, simulator type, and exact iOS runtime. For Xcode Cloud, read the
+device/OS from the failed destination. For a `tests.yml` `ios-rc-tests` job, the runtime is in its
+`Create simulator` log step. Confirm both with `xcrun simctl list runtimes` and `xcrun simctl list devicetypes`; an
 unavailable exact pair cannot be called a reproduction.
 
 ```bash

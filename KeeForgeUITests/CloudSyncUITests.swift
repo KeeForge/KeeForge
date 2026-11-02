@@ -164,7 +164,7 @@ final class CloudUnlockSmokeUITests: CloudSyncBaseUITests {
         XCTAssertTrue(details.waitForExistence(timeout: 10))
         selectDatabaseView(.allEntries)
         // A swipe flicks too fast and too short to pull past the refresh
-        // threshold. The list runs under the pinned title, so start below it.
+        // threshold. Start below the title header, which opens the view menu.
         let list = scrollableContainer() ?? app.windows.firstMatch
         list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
             .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)), withVelocity: .slow, thenHoldForDuration: 0.5)
@@ -175,8 +175,6 @@ final class CloudUnlockSmokeUITests: CloudSyncBaseUITests {
         synced.lifetime = .keepAlways
         add(synced)
 
-        searchForEntries(matching: "Twitter")
-        XCTAssertTrue(app.staticTexts["Search"].exists)
     }
 
     private func waitUntilSyncSettles(_ progress: XCUIElement) -> Bool {

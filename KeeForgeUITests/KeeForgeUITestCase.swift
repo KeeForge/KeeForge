@@ -219,6 +219,11 @@ class KeeForgeUITestCase: XCTestCase {
                 continue
             }
 
+            // A centre tap can leave the caret mid-text on a narrow field, where
+            // backspaces miss everything after it.
+            if element.elementType == .textField {
+                element.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
+            }
             element.typeText(deleteSequence(for: element))
             element.typeText(text)
 
@@ -346,7 +351,8 @@ class KeeForgeUITestCase: XCTestCase {
             return "the secure field exposed an unexpected non-masked value"
         }
 
-        return "the plaintext value did not match the expected text"
+        let matched = zip(value, expected).prefix { $0 == $1 }.count
+        return "the plaintext value had \(value.count) characters, expected \(expected.count), first differing at \(matched): '\(value.dropFirst(max(0, matched - 4)).prefix(12))'"
     }
 
     /// Taps `element` to give it keyboard focus before typing. On compact
@@ -629,28 +635,36 @@ class KeeForgeUITestCase: XCTestCase {
         )
         tapElement(link)
 
-        let closeButton = app.buttons["database-details.close"]
         let deadline = Date().addingTimeInterval(5)
-        while closeButton.exists, Date() < deadline {
+        while isDatabaseDetailsHubShowing(), Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         }
-        XCTAssertFalse(closeButton.exists, "The '\(page.rawValue)' page did not open", file: file, line: line)
+        XCTAssertFalse(isDatabaseDetailsHubShowing(), "The '\(page.rawValue)' page did not open", file: file, line: line)
+    }
+
+    /// iOS 27.0 keeps the hub's Close button in the tree under a pushed page,
+    /// so only a hittable one means the hub is on screen.
+    func isDatabaseDetailsHubShowing() -> Bool {
+        let closeButton = app.buttons["database-details.close"]
+        return closeButton.exists && hasOnScreenFrame(closeButton) && closeButton.isHittable
     }
 
     /// Pops any pushed page. The hub is the only screen with the Close button,
     /// and a pushed page's navigation bar holds nothing but its back button.
     func returnToDatabaseDetailsHub(file: StaticString = #filePath, line: UInt = #line) {
-        let closeButton = app.buttons["database-details.close"]
         let deadline = Date().addingTimeInterval(10)
-        while closeButton.exists == false, Date() < deadline {
+        while isDatabaseDetailsHubShowing() == false, Date() < deadline {
             let backButton = app.navigationBars.allElementsBoundByIndex
                 .filter { $0.exists && $0.isHittable }
                 .flatMap { $0.buttons.allElementsBoundByIndex }
-                .first { $0.exists && $0.isHittable }
+                .first { $0.exists && $0.identifier != "database-details.close" && $0.isHittable }
             backButton?.tap()
-            _ = closeButton.waitForExistence(timeout: 2)
+            let pollDeadline = Date().addingTimeInterval(2)
+            while isDatabaseDetailsHubShowing() == false, Date() < pollDeadline {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+            }
         }
-        XCTAssertTrue(closeButton.exists, "Did not return to the Database Details hub", file: file, line: line)
+        XCTAssertTrue(isDatabaseDetailsHubShowing(), "Did not return to the Database Details hub", file: file, line: line)
     }
 
     func closeDatabaseDetails(file: StaticString = #filePath, line: UInt = #line) {
