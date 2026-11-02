@@ -1,0 +1,393 @@
+name: Tests
+
+# One workflow for every GitHub test lane; .github/AGENTS.md has the gate map.
+#   pull_request   unit-tests + macos-unit-tests (the required checks)
+#   rc/* tag push  macos-unit-tests + the Xcode Cloud RC test schemes
+#   dispatch       the rc/* set against `ref`
+#
+# The job ids `unit-tests` and `macos-unit-tests` are the ruleset's required
+# check names; renaming either breaks the rulesets.
+#
+# rc tags are permanent and are never moved or deleted; the deletion guards
+# keep a manually removed tag from starting a run. An existing rc tag cannot
+# gain a workflow file, so dispatch from a branch that has this file and name
+# the tag in `ref`.
+#
+# Every lane judges on the canonical xcresult summary, not xcodebuild's exit
+# code (.github/AGENTS.md, "Verdict rule").
+
+on:
+  pull_request:
+  push:
+    tags:
+      - 'rc/*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Tag, branch, or SHA to test (default is the dispatched ref)
+        required: false
+        default: ''
+
+concurrency:
+  group: tests-${{ inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    if: github.event_name == 'pull_request'
+    runs-on: macos-26
+    # The suite itself takes about half this; the rest is headroom for slow
+    # runners, which have taken the same commit from 28 to over 41 minutes.
+    timeout-minutes: 75
+    env:
+      SCHEME: KeeForge
+      PROJECT: KeeForge.xcodeproj
+      DESTINATION: 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using Xcode: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Prepare build config
+        env:
+          DROPBOX_APP_KEY: ciplaceholderdropboxappkey
+        run: BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh .
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild build-for-testing \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -skipPackagePluginValidation \
+            2>&1 | tee build/build-for-testing.log | xcpretty
+
+      - name: Run unit tests
+        run: |
+          set -uo pipefail
+          log=build/unit.log
+          result=build/unit.xcresult
+          rm -rf "$result"
+
+          # The runner's shell sets -e, which would end the step on a nonzero
+          # exit before the verdict.
+          set +e
+          xcodebuild test-without-building \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -only-testing:KeeForgeTests \
+            -retry-tests-on-failure \
+            -test-iterations 3 \
+            -resultBundlePath "$result" \
+            2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "KeeForgeTests: xcodebuild exit=$status"
+
+          python3 ci_scripts/validate_xcresult_summary.py \
+            --result-bundle "$result" --suite KeeForgeTests --xcodebuild-exit "$status"
+
+          # Retried attempts do not decide the verdict; surface them as flakes.
+          flaked=$(grep -oE "Test Case '[^']*' failed" "$log" | sort -u || true)
+          if [ -n "$flaked" ]; then
+            echo "::warning::KeeForgeTests: passed with retries; the following attempt(s) failed once then passed:"
+            echo "$flaked"
+          fi
+
+      - name: Upload test logs and result bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: |
+            build/*.log
+            build/*.xcresult
+          if-no-files-found: warn
+          retention-days: 14
+
+  macos-unit-tests:
+    if: github.event_name != 'push' || github.event.deleted == false
+    # macos-15 tops out at Xcode 26.3, whose actool crashes compiling the
+    # KeeForge.icon Icon Composer bundle for macOS. macos-26 ships Xcode 26.6,
+    # the version Xcode Cloud builds the Mac archive with.
+    runs-on: macos-26
+    timeout-minutes: 75
+    env:
+      SCHEME: KeeForgeMac
+      PROJECT: KeeForge.xcodeproj
+      DESTINATION: 'platform=macOS'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Record the tested commit
+        run: |
+          echo "Tested commit: $(git rev-parse HEAD)"
+          echo "Tested tree: $(git rev-parse 'HEAD^{tree}')"
+
+      - name: Select Xcode
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using Xcode: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+
+          # Fail loudly rather than crashing inside actool minutes later.
+          version=$(xcodebuild -version | awk 'NR==1{print $2}')
+          if [ "$(printf '%s\n26.4\n' "$version" | sort -V | head -1)" != "26.4" ]; then
+            echo "::error::Xcode $version is too old for the macOS asset-catalog build (26.3 crashes in actool on KeeForge.icon). Expected 26.4+ on this runner."
+            exit 1
+          fi
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Prepare build config
+        env:
+          DROPBOX_APP_KEY: ciplaceholderdropboxappkey
+        run: BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh .
+
+      - name: Generate project
+        run: xcodegen generate
+
+      # Runners have no signing account, so the app is ad-hoc signed with no
+      # entitlements (unsandboxed). Local runs keep automatic signing with the
+      # full sandbox entitlements — see project.yml.
+      - name: Run macOS unit tests
+        run: |
+          set -uo pipefail
+          mkdir -p build
+          log=build/macos-unit.log
+          result=build/macos-unit.xcresult
+          rm -rf "$result"
+
+          set +e
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -only-testing:KeeForgeMacTests \
+            -skipPackagePluginValidation \
+            -retry-tests-on-failure \
+            -test-iterations 3 \
+            -resultBundlePath "$result" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_ENTITLEMENTS= \
+            DEVELOPMENT_TEAM= \
+            PROVISIONING_PROFILE_SPECIFIER= \
+            2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "KeeForgeMacTests: xcodebuild exit=$status"
+
+          python3 ci_scripts/validate_xcresult_summary.py \
+            --result-bundle "$result" --suite KeeForgeMacTests --xcodebuild-exit "$status"
+
+          flaked=$(grep -oE "Test Case '[^']*' failed" "$log" | sort -u || true)
+          if [ -n "$flaked" ]; then
+            echo "::warning::KeeForgeMacTests: passed with retries; the following attempt(s) failed once then passed:"
+            echo "$flaked"
+          fi
+
+      - name: Upload test logs and result bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-unit-test-results
+          path: |
+            build/*.log
+            build/*.xcresult
+          if-no-files-found: warn
+          retention-days: 14
+
+  # The three Xcode Cloud "Tests (RC)" schemes on the same two devices at the
+  # newest usable iOS runtime. Xcode Cloud meters its test actions against a
+  # monthly compute allowance; this lane is unmetered, so a candidate still
+  # gets a latest-runtime verdict once the allowance is spent. The schemes
+  # select their own tests (ci_scripts/AGENTS.md, "Xcode Cloud test
+  # partition"). The extra iPad lane runs the two regular-width UI classes,
+  # which XCTSkip on every compact-width device.
+  ios-rc-tests:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.deleted == false)
+    # xcode-27 is the only GitHub image with Xcode 27 and an iOS 27 simulator
+    # runtime; macos-26 tops out at Xcode 26.6.
+    runs-on: xcode-27
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        scheme: [KeeForgeCloudUnitTests, KeeForgeCloudUIA, KeeForgeCloudUIB]
+        device:
+          - { name: 'iPhone 18 Pro', slug: iphone-18-pro }
+          - { name: 'iPhone SE (3rd generation)', slug: iphone-se-3 }
+        include:
+          - scheme: KeeForge
+            device: { name: 'iPad (A16)', slug: ipad-a16 }
+            only-testing: KeeForgeUITests/DatabaseCreationRegularWidthUITests KeeForgeUITests/RegularWidthWorkspaceUITests
+    name: ${{ matrix.scheme }} (${{ matrix.device.name }})
+    env:
+      SCHEME: ${{ matrix.scheme }}
+      PROJECT: KeeForge.xcodeproj
+      RUN_NAME: ${{ matrix.scheme }}-${{ matrix.device.slug }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Record the tested commit
+        run: |
+          echo "Tested ref: ${{ inputs.ref || github.ref }}"
+          echo "Tested commit: $(git rev-parse HEAD)"
+          echo "Tested tree: $(git rev-parse 'HEAD^{tree}')"
+
+      - name: Show Xcode
+        run: |
+          # The image default is its newest release Xcode, which is what Xcode
+          # Cloud's "Latest Release" uses. The newest installed one is a beta.
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Prepare build config
+        env:
+          DROPBOX_APP_KEY: ciplaceholderdropboxappkey
+        run: BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh .
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Create simulator
+        id: sim
+        env:
+          DEVICE_NAME: ${{ matrix.device.name }}
+        run: |
+          set -euo pipefail
+          echo "Installed runtimes:"
+          xcrun simctl list runtimes
+
+          DEVICE_TYPE=$(xcrun simctl list devicetypes --json | python3 -c '
+          import json, os, sys
+          name = os.environ["DEVICE_NAME"]
+          matches = [d["identifier"] for d in json.load(sys.stdin)["devicetypes"] if d["name"] == name]
+          if len(matches) != 1:
+              sys.exit(f"Expected one device type named {name!r}, found {len(matches)}.")
+          print(matches[0])
+          ')
+          echo "Using device type: $DEVICE_TYPE"
+
+          # Newest available iOS runtime that supports the device: Xcode
+          # Cloud's "Latest from Selected Xcode". The image can carry a newer
+          # runtime than its default Xcode drives, which simctl rejects with
+          # "Incompatible device", so older candidates are tried in turn.
+          RUNTIMES=$(xcrun simctl list runtimes --json | DEVICE_TYPE="$DEVICE_TYPE" python3 -c '
+          import json, os, sys
+          device = os.environ["DEVICE_TYPE"]
+          runtimes = [
+              r for r in json.load(sys.stdin)["runtimes"]
+              if r.get("isAvailable")
+              and r["identifier"].startswith("com.apple.CoreSimulator.SimRuntime.iOS-")
+              and any(d.get("identifier") == device for d in r.get("supportedDeviceTypes", []))
+          ]
+          runtimes.sort(key=lambda r: [int(p) for p in r["version"].split(".")], reverse=True)
+          print("\n".join(r["identifier"] for r in runtimes))
+          ')
+          if [ -z "$RUNTIMES" ]; then
+            echo "::error::No available iOS runtime supports $DEVICE_NAME on this runner image."
+            exit 1
+          fi
+
+          UDID=
+          for RUNTIME in $RUNTIMES; do
+            if UDID=$(xcrun simctl create "KeeForge-RC" "$DEVICE_TYPE" "$RUNTIME"); then
+              echo "Using runtime: $RUNTIME"
+              break
+            fi
+            echo "::warning::$RUNTIME could not create $DEVICE_NAME; trying the next runtime."
+            UDID=
+          done
+          if [ -z "$UDID" ]; then
+            echo "::error::No iOS runtime on this runner could create $DEVICE_NAME."
+            exit 1
+          fi
+          echo "Created simulator: $UDID"
+          xcrun simctl boot "$UDID" || true
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build for testing
+        run: |
+          mkdir -p build
+          log="build/$RUN_NAME-build-for-testing.log"
+          if ! xcodebuild build-for-testing \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -skipPackagePluginValidation \
+            >"$log" 2>&1; then
+            tail -n 200 "$log"
+            exit 1
+          fi
+          tail -n 5 "$log"
+
+      - name: Run tests
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+          ONLY_TESTING: ${{ matrix.only-testing }}
+        run: |
+          set -uo pipefail
+          log="build/$RUN_NAME.log"
+          result="build/$RUN_NAME.xcresult"
+          rm -rf "$result"
+
+          selection=()
+          for test in $ONLY_TESTING; do
+            selection+=("-only-testing:$test")
+          done
+
+          # Test timeouts are on, as in Xcode Cloud, so the suites' execution
+          # allowances are enforced.
+          set +e
+          xcodebuild test-without-building \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            ${selection[@]+"${selection[@]}"} \
+            -test-timeouts-enabled YES \
+            -resultBundlePath "$result" \
+            2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "$RUN_NAME: xcodebuild exit=$status"
+
+          python3 ci_scripts/validate_xcresult_summary.py \
+            --result-bundle "$result" --suite "$RUN_NAME" --xcodebuild-exit "$status"
+
+      - name: Upload test logs and result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-rc-${{ env.RUN_NAME }}
+          path: |
+            build/*.log
+            build/*.xcresult
+          if-no-files-found: warn
+          retention-days: 14

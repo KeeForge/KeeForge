@@ -1,6 +1,6 @@
 # Adjudicating a Failed RC Gate
 
-Read this during [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke) when any RC verdict is not green. [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke) adjudicates three cloud verdicts plus
+Read this during [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke) when any RC verdict is not green. [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke) adjudicates two cloud verdicts plus
 the two local KDBX gates and the local Mac smoke; [production shipping](../../ship-release/SKILL.md) ships an already-accepted candidate and
 does not reopen these decisions. Do not distribute either App Store build or call the direct build
 release-ready while any required verdict is unresolved.
@@ -10,7 +10,7 @@ The candidate identity is the non-secret `manifest.json` in the candidate's
 `rc/{version}-b{repoBuild}` tag and commit SHA to the iOS TestFlight build, Mac TestFlight build,
 and direct `CFBundleVersion`. Record every verdict, reproduction, adjudication, and log path there.
 
-## The three cloud verdicts
+## The two cloud verdicts
 
 Wait for all cloud runs to reach a terminal state before adjudicating any of them. A cloud verdict
 is accepted only when it is green, or when every actual XCTest failure in that verdict passes the
@@ -21,7 +21,7 @@ cancellation, or "tests did not run" failure.
 
 One `rc/*` tag starts the `Tests (RC)` workflow. It contains an iOS test action
 (**Required to Pass**) and iOS and `KeeForgeMac` App Store archive/upload actions. The Mac unit
-suite runs in `macos-rc-tests.yml`; Xcode Cloud has no macOS test action. App Store Connect
+suite runs in the `macos-unit-tests` job of `tests.yml`; Xcode Cloud has no macOS test action. App Store Connect
 may expose these as separate Xcode Cloud check runs or as one workflow summary; inspect every
 Xcode Cloud check for the RC SHA and record the URLs/statuses in the manifest. The iOS test
 action and both archive actions must reach a terminal, accepted state before external distribution.
@@ -45,19 +45,6 @@ uploaded platform build. Do not discard or distribute it yet: first adjudicate t
 failures, accept all other gates, and then use the manifest's affected-platform TestFlight build
 for its deliberate manual distribution.
 
-### 2. iOS 18 GitHub Actions workflow
-
-Match the run whose `headBranch` is the active RC tag and whose `headSha` is the RC commit:
-
-```bash
-gh run list --workflow ios18-rc-tests.yml --event push
-gh run watch <run-id> --exit-status
-```
-
-The `ios18-tests` job runs the full unit/UI suites on an iPhone SE (3rd generation) at the selected
-iOS 18 runtime, then the regular-width iPad lane for the two iPad-only UI classes. Record the run
-URL, SHA, status, and conclusion in the manifest.
-
 ### Canonical XCTest evidence
 
 Read each uploaded `.xcresult` with `xcrun xcresulttool get test-results summary --path <bundle>
@@ -68,13 +55,14 @@ that summary and adjudicate those exact failures through the local reproductions
 malformed bundle, no executed tests, or another nonzero `xcodebuild` exit is a non-test failure and
 cannot be adjudicated.
 
-### 3. macOS GitHub Actions workflow
+### 2. macOS GitHub Actions job
 
-Match the run whose `headBranch` is the active RC tag and whose `headSha` is the RC commit:
+Match the `tests.yml` run whose `headBranch` is the active RC tag and whose `headSha` is the RC
+commit, and read its `macos-unit-tests` job:
 
 ```bash
-gh run list --workflow macos-rc-tests.yml --event push
-gh run watch <run-id> --exit-status
+gh run list --workflow tests.yml --event push
+gh run view <run-id> --json jobs --jq '.jobs[] | select(.name=="macos-unit-tests") | "\(.status) \(.conclusion) \(.url)"'
 ```
 
 This is the hosted Mac unit-suite verdict. `KeeForgeMacUITests` needs an unlocked active login
@@ -92,7 +80,7 @@ KDBX_COMPAT_SCHEME=KeeForgeMac ci_scripts/run_kdbx_compatibility_gate.sh
 ```
 
 Run `KeeForgeMacUITests/MacSmokeUITests` locally on an unlocked release Mac under the Xcode lock.
-The three cloud verdicts, both KDBX gates, and this smoke suite must all be accepted before either
+The two cloud verdicts, both KDBX gates, and this smoke suite must all be accepted before either
 platform reaches external testers. Record the smoke result and result-bundle/log path in the
 manifest.
 
@@ -109,10 +97,9 @@ and run each Xcode command through:
 
 ### iOS failures
 
-Record the failed identifier, simulator type, and exact iOS runtime. For GitHub Actions, the iOS
-18 runtime is in the `Create iOS 18 simulators` log step: iPhone SE (3rd generation), or iPad
-(10th generation) for the regular-width lane. For Xcode Cloud, read the device/OS from the failed
-destination. Confirm both with `xcrun simctl list runtimes` and `xcrun simctl list devicetypes`; an
+Record the failed identifier, simulator type, and exact iOS runtime. For Xcode Cloud, read the
+device/OS from the failed destination. For a `tests.yml` `ios-rc-tests` job, the runtime is in its
+`Create simulator` log step. Confirm both with `xcrun simctl list runtimes` and `xcrun simctl list devicetypes`; an
 unavailable exact pair cannot be called a reproduction.
 
 ```bash
@@ -158,7 +145,7 @@ the unlocked login session with the same scheme/selector and retain its result b
 
 **Every failed cloud test passes locally on its exact pair** → classify those failures as CI-only
 flakes and accept that affected cloud verdict. Record the local command, result, and reason in the
-manifest. Manual distribution may be used only after all three cloud verdicts, both KDBX gates, and
+manifest. Manual distribution may be used only after both cloud verdicts, both KDBX gates, and
 local Mac smoke are accepted: identify the affected platform's TestFlight build from the manifest
 and match its marketing version, platform build number, RC tag, and commit SHA before distributing.
 Proceed with the first Beta App Review action (when required) and each platform distribution when
@@ -170,7 +157,7 @@ submission, or legal declarations. Never use the newest build by default.
 never amend or force-push the existing RC. Increment the global `repoBuild` on all four product
 targets (`KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`), run both KDBX
 gates again, rebuild all three artifacts (iOS, MAS, and direct Mac) from the new commit, and push
-the immutable `rc/{version}-b{repoBuild}` tag. Repeat all three cloud verdicts, both KDBX gates,
+the immutable `rc/{version}-b{repoBuild}` tag. Repeat both cloud verdicts, both KDBX gates,
 local Mac smoke, artifact mapping, and any required soak.
 
 ## Non-test failures always block
@@ -178,7 +165,7 @@ local Mac smoke, artifact mapping, and any required soak.
 A build, signing, configuration, archive, upload, infrastructure, cancellation, or tests-not-run
 failure cannot be overridden by a local pass. Rerun the affected workflow on the same RC SHA when
 safe, or fix the cause and create a new candidate using the respin procedure above. Do not
-distribute until all three cloud verdicts and all local gates are accepted.
+distribute until both cloud verdicts and all local gates are accepted.
 
 An archive failure complaining about `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID` means the Xcode
 Cloud workflow is missing its environment variables. This is intentional:

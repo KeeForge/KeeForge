@@ -155,7 +155,7 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
    product targets carry that repo build. Xcode Cloud's iOS and Mac TestFlight numbers may differ
    from it and from each other, so the manifest maps all three artifacts to the same SHA.
 3. **All gates are accepted before external distribution.** Accept the Xcode Cloud verdict, the
-   iOS 18 GitHub Actions verdict, the macOS GitHub Actions verdict, both local KDBX gates, and the
+   macOS GitHub Actions verdict, both local KDBX gates, and the
    local Mac smoke suite; green or explicitly adjudicated per [gate-adjudication.md](gate-adjudication.md). Before
    external distribution or direct-artifact staging, both exact exported Mac apps must also pass
    `ci_scripts/verify_mac_artifact.sh` with universal `arm64,x86_64`, unless an explicit product
@@ -170,8 +170,8 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
   `MARKETING_VERSION` and globally monotonic `CURRENT_PROJECT_VERSION`, bumped together in [release branch cut](new-release.md#commit-the-release-content-to-main-then-cut-the-branch)/[build-number selection](candidate.md#set-the-candidate-build-number)
   and every respin/patch.
 - **One release branch covers both platforms.** `release/{major}.{minor}` is not per-platform, and
-  neither is `rc/{version}-b{repoBuild}`: one candidate tag fires `ios18-rc-tests.yml`,
-  `macos-rc-tests.yml`, and the Xcode Cloud RC workflow together, and the build they all test is
+  neither is `rc/{version}-b{repoBuild}`: one candidate tag fires `tests.yml` and the
+  Xcode Cloud RC workflow together, and the build they all test is
   the build both platforms ship. Splitting the branch would mean splitting the version numbers,
   which is the thing lockstep exists to prevent. A platform-specific fix still goes onto the shared
   release branch and respins one candidate for both.
@@ -180,8 +180,8 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
   iOS is submitted; see the `publish-app-store-version` skill.
 - The KDBX compatibility gate runs **per platform**. Run it for iOS as documented, then again with
   `KDBX_COMPAT_SCHEME=KeeForgeMac` (which switches the test target to `KeeForgeMacTests` and the
-  destination to `platform=macOS`). Both must pass before external distribution, alongside all
-  three cloud verdicts and local Mac smoke.
+  destination to `platform=macOS`). Both must pass before external distribution, alongside both
+  cloud verdicts and local Mac smoke.
 - The Mac ships through **two channels**. The Mac App Store build is the default
   (`xcodegen generate`) and is archived like the iOS app. The notarized
   Developer ID build is produced by `ci_scripts/build_mac_direct.sh`, which
@@ -213,8 +213,8 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
   `notarization.json`, and `sparkle-signature.txt`; inspect and complete metadata/handoff manually.
   Do not re-run the full build into that directory.
 - `KeeForgeMacUITests` cannot run on a headless runner — it needs an unlocked, active login session
-  — so the Mac smoke suite stays a **local** pre-release step. `.github/workflows/macos-rc-tests.yml`
-  covers the Mac unit suite on each `rc/*` tag.
+  — so the Mac smoke suite stays a **local** pre-release step. The `macos-unit-tests` job of
+  `.github/workflows/tests.yml` covers the Mac unit suite on each `rc/*` tag.
 - `ITSAppUsesNonExemptEncryption=false` is declared in both `KeeForge/Info.plist` and
   `KeeForgeMac/Info.plist`; ASC may resolve the build declaration from metadata, but the actual
   platform record must be verified. Any separate legal/documentation question remains independent

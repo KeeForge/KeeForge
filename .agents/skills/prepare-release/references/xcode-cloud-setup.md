@@ -112,7 +112,7 @@ Three properties matter:
    `CODE_SIGN_ENTITLEMENTS=` (ad-hoc, unsandboxed) and `-only-testing:KeeForgeMacTests` — are
    `xcodebuild` build settings, and an Xcode Cloud test action accepts none of them. Nothing is
    lost by removing it: `KeeForgeCloudUnitTests` already runs the same shared `KeeForgeTests` sources, and
-   `.github/workflows/macos-rc-tests.yml` runs them compiled against the Mac app. Re-adding the
+   `.github/workflows/tests.yml`'s `macos-unit-tests` runs them compiled against the Mac app. Re-adding the
    action is one click if Apple ever fixes the VM, but do not re-add it speculatively — a
    permanently red Required-to-Pass action makes every candidate need adjudication.
 3. **No workflow triggers on `v*`.** The `v{version}` tag is a record of what shipped. The App Store
@@ -226,17 +226,17 @@ gate, or change the direct Mac artifact procedure.
   `KDBX_COMPAT_SCHEME=KeeForgeMac`). The local `KeeForgeMacUITests/MacSmokeUITests` suite is also
   required and needs an unlocked active login session.
 - Minimum-OS coverage: Xcode Cloud's iOS test action can only pin the latest runtime or iOS 16.4,
-  with no iOS 18.x runtime available. `.github/workflows/ios18-rc-tests.yml` on GitHub-hosted
-  `macos-15` runners covers iOS 18 and the iPad regular-width lane. That workflow stays on
-  `macos-15` because it needs the iOS 18 simulator runtimes that image carries.
+  with no iOS 18.x runtime available, and no GitHub lane runs iOS 18 either.
+- The regular-width iPad UI classes: they `XCTSkip` on both Cloud devices. The `ios-rc-tests`
+  iPad lane of `.github/workflows/tests.yml` runs them on each `rc/*` tag.
 - **All** native Mac unit coverage: GitHub Actions carries it, because Xcode Cloud cannot launch
-  the Mac app at all (see "Required workflow shape"). `pr-tests.yml`'s `macos-unit-tests` runs
-  `KeeForgeMacTests` per pull request, and `.github/workflows/macos-rc-tests.yml` runs the full
-  suite per candidate — those are the only automated gates that exercise it. Both run on
+  the Mac app at all (see "Required workflow shape"). The `macos-unit-tests` job of
+  `.github/workflows/tests.yml` runs `KeeForgeMacTests` on every pull request and every `rc/*` tag
+  — the only automated gate that exercises it. It runs on
   `macos-26` for Xcode 26.6: `macos-15`'s newest Xcode is 26.3, whose `actool` crashes compiling
   the `KeeForge.icon` Icon Composer bundle for macOS, though it compiles the same `.icon` for iOS
-  without complaint. Both fail early with an explicit message if the runner ever offers something
-  older than 26.4. Both sign ad-hoc with entitlements stripped, which is exactly what lets the app
+  without complaint. It fails early with an explicit message if the runner ever offers something
+  older than 26.4, and signs ad-hoc with entitlements stripped, which is exactly what lets the app
   launch there.
 - `ci_scripts/build_mac_direct.sh` is intentionally outside Xcode Cloud. Obtain/export the exact
   MAS `.app` from the accepted Xcode Cloud archive without rebuilding. Use App Store Connect only
@@ -264,7 +264,7 @@ One `rc/{version}-b{repoBuild}` tag starts the workflow (or a verified manual re
 four product targets from that SHA and may receive different App Store Connect TestFlight build
 numbers. Match each processed build to the RC tag/SHA and record the pair in the candidate's
 `manifest.json` ([release artifact directory](shared.md#where-release-artifacts-live)) along with the direct build's
-`CFBundleVersion` (which equals `repoBuild`). The manifest also records all three cloud check URLs,
+`CFBundleVersion` (which equals `repoBuild`). The manifest also records the Xcode Cloud and GitHub macOS check URLs,
 both KDBX log paths, local Mac smoke result, artifact hashes/signatures, and notarization ID. It
 must contain no credentials, tokens, passwords, private keys, keychain profiles, or cloud secret
 values. Preserve the completed non-secret manifest with the final release evidence; it is not an

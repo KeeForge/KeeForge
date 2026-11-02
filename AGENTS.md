@@ -108,7 +108,6 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - Always use `-only-testing:`.
 - Do not run the full UI suite unless explicitly asked.
 - `KeeForgeMacTests` compiles the `KeeForgeTests` folder; there is no `KeeForgeMacTests` directory.
-- The RC workflow (`.github/workflows/ios18-rc-tests.yml`) tests on an iOS 18 iPhone SE (3rd generation) simulator — reproduce RC failures there.
 
 ### macOS Test Strategy
 

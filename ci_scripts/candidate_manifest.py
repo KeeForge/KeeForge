@@ -67,6 +67,8 @@ def init(args: argparse.Namespace) -> None:
     value.update({"schemaVersion": 1, "createdAt": datetime.now(timezone.utc).isoformat(), "scope": "candidate", "artifacts": {}, "gates": {}, "iosTestFlightBuild": None, "macTestFlightBuild": None})
     write_json(out, value); print(out)
 
+REQUIRED_GATES = ("xcodeCloud", "githubMac", "kdbxIOS", "kdbxMac", "localMacSmoke", "masArtifact", "directArtifact")
+
 def evidence(gate: object, expected: dict[str, object]) -> bool:
     if not isinstance(gate, dict): return False
     if any(gate.get(key) != expected[key] for key in ("commitSHA", "sourceTree")):
@@ -196,8 +198,7 @@ def validate(args: argparse.Namespace) -> None:
     if drift: fail("manifest identity disagrees with RC tag: " + ", ".join(drift))
     if data.get("directCFBundleVersion") != data.get("repoBuild"): fail("directCFBundleVersion must equal repoBuild")
     gates = data.get("gates") if isinstance(data.get("gates"), dict) else {}
-    required_gates = ("xcodeCloud", "githubIOS18", "githubMac", "kdbxIOS", "kdbxMac", "localMacSmoke", "masArtifact", "directArtifact")
-    missing_evidence = [name for name in required_gates if not evidence(gates.get(name), expected)]
+    missing_evidence = [name for name in REQUIRED_GATES if not evidence(gates.get(name), expected)]
     ios_build = data.get("iosTestFlightBuild")
     mac_build = data.get("macTestFlightBuild")
     if not testflight_build(ios_build): missing_evidence.append("iosTestFlightBuild")
@@ -275,7 +276,7 @@ def self_test(_: argparse.Namespace) -> None:
                 "direct": direct,
             },
             "gates": {name: {**exact, "status": "accepted", "verdict": "passed", "log": "fixture.log"}
-                      for name in ("xcodeCloud", "githubIOS18", "githubMac", "kdbxIOS", "kdbxMac", "localMacSmoke", "masArtifact", "directArtifact")},
+                      for name in REQUIRED_GATES},
         })
         def write(value: object) -> None:
             Path(validate_args.manifest).write_text(json.dumps(value))
