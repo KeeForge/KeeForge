@@ -568,7 +568,7 @@ struct EntryEditView: View {
             if let message = formViewModel.customFieldValidationMessage(for: field.wrappedValue) {
                 Text(message)
                     .font(.subheadline)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Theme.State.danger)
                     .accessibilityIdentifier("entry-edit.custom-field.error.\(index)")
             }
 
@@ -744,7 +744,7 @@ struct EntryEditView: View {
         if let message = formViewModel.unsupportedTOTPDigitsMessage {
             Text(message)
                 .font(.subheadline)
-                .foregroundStyle(.red)
+                .foregroundStyle(Theme.State.danger)
                 .accessibilityIdentifier("entry-edit.totp.digits-error")
         }
 
@@ -811,7 +811,7 @@ struct EntryEditView: View {
             if formViewModel.isExpiryDateInPast {
                 Label("This date has passed, so the entry will show as expired.", systemImage: "exclamationmark.triangle.fill")
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Theme.State.danger)
                     .accessibilityIdentifier("entry-edit.expiry.past-warning")
             }
         }
@@ -1050,7 +1050,7 @@ private struct TOTPSetupLinkSheet: View {
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.subheadline)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Theme.State.danger)
                         .accessibilityIdentifier("entry-edit.totp.link-error")
                 }
             }

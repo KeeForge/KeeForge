@@ -259,7 +259,7 @@ struct UnlockView: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: failure.isAuthenticationFailure ? "lock.slash.fill" : "exclamationmark.triangle.fill")
                     .font(.title3)
-                    .foregroundStyle(failure.isAuthenticationFailure ? .orange : .red)
+                    .foregroundStyle(failure.isAuthenticationFailure ? Theme.State.warning : Theme.State.danger)
                     .padding(.top, 2)
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -358,7 +358,7 @@ struct UnlockView: View {
             if copiedErrorDetails {
                 Text("Error details copied.")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Theme.State.success)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -369,7 +369,7 @@ struct UnlockView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(Color.red.opacity(0.15), lineWidth: 1)
+                .strokeBorder(Theme.State.danger.opacity(0.15), lineWidth: 1)
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("unlock.error.card")

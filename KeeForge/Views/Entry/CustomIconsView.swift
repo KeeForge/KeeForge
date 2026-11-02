@@ -28,7 +28,7 @@ struct CustomIconsView: View {
             }
             if let errorMessage {
                 Section {
-                    Text(errorMessage).foregroundStyle(.red)
+                    Text(errorMessage).foregroundStyle(Theme.State.danger)
                         .accessibilityIdentifier("custom-icons.error")
                     Button("Retry") { save() }
                         .disabled(!canEdit || !viewModel.isDirty)
@@ -133,7 +133,7 @@ private struct RenameCustomIconView: View {
                 } footer: {
                     Text("Icon names require KDBX 4.1. Saving upgrades a KDBX 4.0 database; older KeePass clients may not open it.")
                 }
-                if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+                if let errorMessage { Text(errorMessage).foregroundStyle(Theme.State.danger) }
             }
             .macGroupedForm()
             .navigationTitle("Rename Custom Icon")

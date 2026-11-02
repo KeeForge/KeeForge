@@ -147,7 +147,7 @@ struct TOTPEnrollmentDestinationView: View {
         HStack(spacing: 12) {
             Image(systemName: "clock.badge.checkmark")
                 .font(.title2)
-                .foregroundStyle(.green)
+                .foregroundStyle(Theme.State.success)
 
             VStack(alignment: .leading) {
                 Text(model.summaryTitle)
