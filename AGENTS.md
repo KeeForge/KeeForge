@@ -99,26 +99,10 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 
 - Run the smallest relevant slice, always with `-only-testing:`. Do not run the full UI suite unless explicitly asked.
 
-### macOS Test Strategy
+### macOS tests
 
-Mac XCUITest is the slowest, most fragile lever: it needs an unlocked login session, takes real screen and input focus, and serializes against every other Xcode run. Reach for it last. Put Mac behavior in `@Observable` view models and cover it in `KeeForgeMacTests`, which runs headless on the shared `KeeForgeTests` sources; keep `KeeForgeMacUITests` a thin smoke layer.
-
-Find your change's row and write what it names before calling the change done:
-
-| Change | Must exist when done |
-| --- | --- |
-| View model, service, or model behavior reachable on macOS | A `KeeForgeTests/` test; it compiles into `KeeForgeMacTests` for free. The default answer. |
-| Behavior behind `#if os(macOS)` | A `#if os(macOS)` test in `KeeForgeTests/`, like `MacLockMonitorTests` and `CredentialProviderShellMacTests`. |
-| Mac-only interaction with no view-model seam (keyboard routing, first responder, window lifecycle) | Give it a seam and test that. Otherwise the smallest case in `KeeForgeMacUITests/MacSmokeUITests.swift`, noting why a unit test cannot reach it (`MacUnlockPasswordFieldTests` is the model). |
-| Layout or visual polish | No new assertions. Use previews or the `MacScreenshotAuditUITests` captures; add a screen to that walk for a new screen. |
-| A SwiftUI view the macOS AutoFill shell hosts | A manual pass in a real AutoFill panel; it has no `NSToolbar` (`AutoFillExtension/AGENTS.md`). |
-| Parser, writer, protected fields, unknown XML, or a save path | `KDBXCompatibilityTests` (rule in `KeeForge/AGENTS.md`) plus `KDBX_COMPAT_SCHEME=KeeForgeMac ci_scripts/run_kdbx_compatibility_gate.sh`. |
-| A write to the system credential identity store | A `CredentialIdentityStoreManagerTests` case with `FakeCredentialIdentityStore.supportsIncrementalUpdatesValue = false`, beside the incremental one; macOS takes that branch on releases that report no incremental updates. |
-| Entitlements, App Group container, extension boundary, or Sparkle | Refresh `KeeForgeMac/SECURITY.md`; re-run `AppGroupGuardrailTests` if the container's write surface moved. |
-
-- Shared SwiftUI is the default. A targeted AppKit view is right only where SwiftUI cannot express the interaction (`MacUnlockPasswordField`: secure event input bypasses SwiftUI key handling). Take that escape hatch deliberately, not to work around a flaky test.
-- `KeeForgeMacUITests` never runs in CI (`.github/AGENTS.md`), so behavior covered only there is uncovered for CI.
-- Every `KeeForgeTests/` test runs on both platforms; there is no `KeeForgeMacTests` directory. Keep macOS-only cases behind `#if os(macOS)`, not branched inside a shared test.
+- Put Mac behavior in `@Observable` view models and test it in `KeeForgeTests/`, which also builds as `KeeForgeMacTests` and runs headless in CI. Code behind `#if os(macOS)` gets a `#if os(macOS)` test there.
+- `KeeForgeMacUITests` never runs in CI. Use it only for interactions with no testable seam (keyboard routing, first responder, window lifecycle), and note why a unit test can't reach them. Layout changes get screenshot-audit captures, not assertions (`KeeForgeMacUITests/AGENTS.md`).
 
 ## Security Reminders
 
