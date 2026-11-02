@@ -129,8 +129,12 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             presenter.isPresentationActive = false
             coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
             seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: key)
+            oldPicker.onSelect(entry)
+            oldPicker.onSelectPossible(entry)
             oldPicker.onCancel()
 
+            XCTAssertNil(presenter.completedCredential, kind)
+            XCTAssertNil(presenter.completedOneTimeCode, kind)
             XCTAssertTrue(presenter.cancelledErrorCodes.isEmpty, kind)
             XCTAssertNotNil(coordinator.sessionKey, kind)
             XCTAssertTrue(coordinator.pendingUnlock, kind)
@@ -580,24 +584,32 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     func test_passwordAndCodeListsWithoutServiceIdentifiersOfferFullCorpus() throws {
         for isCode in [false, true] {
-            let (coordinator, presenter) = makeCoordinator()
-            let key = SymmetricKey(size: .bits256)
-            let entry = KPEntry(
-                title: "No URL", username: "user",
-                password: try EncryptedValue.encrypt("secret", using: key),
-                totpConfig: TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: key))
-            )
-            seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: key)
-            if isCode {
-                coordinator.presentOTCMatchesOrFinish()
-            } else {
-                coordinator.presentPasswordMatchesOrFinish()
+            for identifiers in [
+                [],
+                [ASCredentialServiceIdentifier(identifier: "", type: .domain)],
+                [ASCredentialServiceIdentifier(identifier: "", type: .URL)],
+                [ASCredentialServiceIdentifier(identifier: "not a url", type: .URL)],
+            ] {
+                let (coordinator, presenter) = makeCoordinator()
+                let key = SymmetricKey(size: .bits256)
+                let entry = KPEntry(
+                    title: "No URL", username: "user",
+                    password: try EncryptedValue.encrypt("secret", using: key),
+                    totpConfig: TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: key))
+                )
+                seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: key)
+                coordinator.serviceIdentifiers = identifiers
+                if isCode {
+                    coordinator.presentOTCMatchesOrFinish()
+                } else {
+                    coordinator.presentPasswordMatchesOrFinish()
+                }
+                let picker = try XCTUnwrap(presenter.searchView)
+                XCTAssertEqual(picker.entries.map(\.id), [entry.id])
+                XCTAssertTrue(picker.possibleEntries.isEmpty)
+                picker.onCancel()
+                assertCleanedUp(coordinator)
             }
-            let picker = try XCTUnwrap(presenter.searchView)
-            XCTAssertEqual(picker.entries.map(\.id), [entry.id])
-            XCTAssertTrue(picker.possibleEntries.isEmpty)
-            picker.onCancel()
-            assertCleanedUp(coordinator)
         }
     }
 
@@ -1964,7 +1976,15 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let switcher = try XCTUnwrap(scenario.presenter.searchView?.databaseSwitcher)
         let target = try XCTUnwrap(switcher.databases.first { $0.id == scenario.databaseB.id })
 
+        let oldPicker = try XCTUnwrap(scenario.presenter.searchView)
+        let oldEntry = try XCTUnwrap(oldPicker.searchEntries.first)
         switcher.onSwitch(target, "typed")
+        oldPicker.onSelect(oldEntry)
+        oldPicker.onSelectPossible(oldEntry)
+        oldPicker.onCancel()
+        switcher.onSwitch(scenario.databaseA, "obsolete")
+        XCTAssertNil(scenario.presenter.completedCredential)
+        XCTAssertNil(scenario.presenter.cancelledError)
 
         XCTAssertNotNil(scenario.presenter.unlockPrompt, "The switched-to database's unlock prompt must present")
         XCTAssertEqual(scenario.coordinator.activeDatabaseReference?.id, scenario.databaseB.id)

@@ -27,6 +27,19 @@ final class CredentialProviderShellMacTests: XCTestCase {
 
     // MARK: - Tests
 
+    func test_stalePickerActionDoesNotDismissReplacementContent() {
+        let (shell, _) = makeShell()
+        shell.presentNoEnabledDatabasesState(onDismiss: {})
+        XCTAssertTrue(shell.isDisplayingContent)
+        var called = false
+        shell.performPickerAction(isValid: { false }) { called = true }
+        XCTAssertTrue(shell.isDisplayingContent)
+        XCTAssertFalse(called)
+        shell.performPickerAction(isValid: { true }) { called = true }
+        XCTAssertFalse(shell.isDisplayingContent)
+        XCTAssertTrue(called)
+    }
+
     func test_oneTimeCodeList_forwardsServiceIdentifiersToCoordinator() throws {
         let (shell, spy) = makeShell()
         try seedResolvableDefaultDatabase()

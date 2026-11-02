@@ -105,6 +105,23 @@ final class CredentialProviderPickerCreationTests: XCTestCase {
         )
     }
 
+    func test_createEntryInvalidatesOldPickerActions() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        seedPickerState(coordinator, reference: makeLocalReference())
+        coordinator.presentPasswordMatchesOrFinish()
+        let picker = try XCTUnwrap(presenter.searchView)
+        try XCTUnwrap(picker.onCreateEntry)()
+        let creator = try XCTUnwrap(presenter.entryCreator)
+
+        picker.onSelect(KPEntry(title: "stale", username: "stale"))
+        picker.onCancel()
+        XCTAssertNil(presenter.completedCredential)
+        XCTAssertNil(presenter.cancelledError)
+        XCTAssertNotNil(coordinator.sessionKey)
+        creator.onCancel()
+        XCTAssertEqual(presenter.cancelledError?.code, .userCanceled)
+    }
+
     func test_createEntryAction_generatesPassphraseUsingSavedOptions() throws {
         let previous = SettingsService.passwordGeneratorOptions
         defer { SettingsService.passwordGeneratorOptions = previous }
