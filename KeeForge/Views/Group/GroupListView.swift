@@ -105,7 +105,7 @@ struct GroupListView: View {
             if viewModel.searchText.isEmpty {
                 if let resolvedGroup {
                     List {
-                        if hasTitleViewMenu, CloudSyncControls.isVisible(for: viewModel) == false, let rootViewMode {
+                        if hasTitleViewMenu, pinsCloudTitle == false, let rootViewMode {
                             titleViewMenu(for: rootViewMode)
                         }
                         browsingRows
@@ -316,7 +316,7 @@ struct GroupListView: View {
 
         func body(content: Content) -> some View {
             #if os(iOS)
-            if CloudSyncControls.isVisible(for: view.viewModel) {
+            if view.pinsCloudTitle {
                 content
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar(removing: .title)
@@ -452,16 +452,26 @@ struct GroupListView: View {
     private func titleViewMenu(for mode: DatabaseWorkspaceState.ViewMode) -> some View {
         let header = Section {
         } header: {
-            viewMenu {
-                HStack(spacing: 8) {
-                    Text(mode.title)
-                        .font(.largeTitle.bold())
-                        .lineLimit(1)
-                    Image(systemName: "chevron.down")
-                        .font(.title3.weight(.semibold))
-                        .accessibilityHidden(true)
+            HStack(spacing: 8) {
+                viewMenu {
+                    HStack(spacing: 8) {
+                        Text(mode.title)
+                            .font(.largeTitle.bold())
+                            .lineLimit(1)
+                        Image(systemName: "chevron.down")
+                            .font(.title3.weight(.semibold))
+                            .accessibilityHidden(true)
+                    }
+                    .foregroundStyle(Color.primary)
                 }
-                .foregroundStyle(Color.primary)
+                Spacer(minLength: 0)
+                #if os(iOS)
+                if CloudSyncControls.isVisible(for: viewModel) {
+                    CloudSyncControls(viewModel: viewModel)
+                        .font(.title3.bold())
+                        .layoutPriority(-1)
+                }
+                #endif
             }
             .textCase(nil)
             .onScrollVisibilityChange(threshold: 0.4) { isVisible in
@@ -486,7 +496,7 @@ struct GroupListView: View {
 
         func body(content: Content) -> some View {
             #if os(iOS)
-            if CloudSyncControls.isVisible(for: view.viewModel) {
+            if view.pinsCloudTitle {
                 content
             } else if view.hasTitleViewMenu, view.rootViewMode != nil {
                 content
@@ -499,6 +509,17 @@ struct GroupListView: View {
             content
             #endif
         }
+    }
+
+    /// The iPad sidebar has no toolbar of its own for Sync Now, so it keeps
+    /// the controls pinned above the list. On iPhone they scroll away with
+    /// the root title, like a local database's.
+    private var pinsCloudTitle: Bool {
+        #if os(iOS)
+        return onSelectEntry != nil && CloudSyncControls.isVisible(for: viewModel)
+        #else
+        return false
+        #endif
     }
 
     private var hasTitleViewMenu: Bool {
