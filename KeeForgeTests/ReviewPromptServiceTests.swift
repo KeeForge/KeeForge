@@ -14,6 +14,7 @@ final class ReviewPromptServiceTests: XCTestCase {
         ReviewPromptService.minimumActions = 10
         ReviewPromptService.requestReviewHandler = nil
         ReviewPromptService.isAppStoreBuild = true
+        ReviewPromptService.isSuppressedForUITesting = false
     }
 
     override func tearDown() {
@@ -21,6 +22,7 @@ final class ReviewPromptServiceTests: XCTestCase {
         ReviewPromptService.defaults = .standard
         ReviewPromptService.requestReviewHandler = nil
         ReviewPromptService.isAppStoreBuild = true
+        ReviewPromptService.isSuppressedForUITesting = false
         UserDefaults.standard.removePersistentDomain(forName: suiteName)
         super.tearDown()
     }
@@ -137,6 +139,17 @@ final class ReviewPromptServiceTests: XCTestCase {
         ReviewPromptService.requestReviewIfAppropriate()
 
         XCTAssertEqual(invoked, 0, "Non-App-Store builds must not present a StoreKit review prompt")
+    }
+
+    func testRequestReviewSkipsHandlerUnderUITesting() {
+        var invoked = 0
+        ReviewPromptService.requestReviewHandler = { invoked += 1 }
+        ReviewPromptService.isSuppressedForUITesting = true
+        ReviewPromptService.actionCount = 9
+
+        ReviewPromptService.requestReviewIfAppropriate()
+
+        XCTAssertEqual(invoked, 0, "UI-test launches must not present the review prompt")
     }
 
     func testRequestReviewPromptsOnlyOnce() {

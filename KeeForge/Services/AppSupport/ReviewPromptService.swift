@@ -27,6 +27,10 @@ enum ReviewPromptService {
     /// prompt no-ops). When set, it takes precedence on every platform.
     nonisolated(unsafe) static var requestReviewHandler: (() -> Void)?
 
+    /// UI-test launches persist the action count, so the system prompt would
+    /// otherwise cover whichever test reaches the threshold.
+    nonisolated(unsafe) static var isSuppressedForUITesting = ProcessInfo.processInfo.arguments.contains("-ui-testing")
+
     static var actionCount: Int {
         get { defaults.integer(forKey: Key.actionCount) }
         set { defaults.set(newValue, forKey: Key.actionCount) }
@@ -59,7 +63,7 @@ enum ReviewPromptService {
 
     private static func presentReviewPrompt() {
         // Non-App-Store builds cannot show a StoreKit review prompt; skip.
-        guard isAppStoreBuild else { return }
+        guard isAppStoreBuild, !isSuppressedForUITesting else { return }
 
         // App-injected presenter wins on every platform.
         if let requestReviewHandler {
