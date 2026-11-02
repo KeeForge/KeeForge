@@ -29,6 +29,7 @@ struct AutoFillSearchView: View {
     @State private var didEditSearch = false
     @State private var showsAllEntries = false
     @State private var entryPendingURLAddition: KPEntry?
+    @ScaledMetric(relativeTo: .body) private var entryIconSize = Theme.Size.entryIcon
 
     init(
         entries: [KPEntry],
@@ -101,7 +102,7 @@ struct AutoFillSearchView: View {
             entryList
                 .searchable(text: $searchText, prompt: "Search entries")
                 .navigationTitle("Choose Credential")
-                .navigationBarTitleDisplayMode(.inline)
+                .modifier(AutoFillPickerTitleStyle(service: initialSearchText))
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { onCancel() }
@@ -247,6 +248,39 @@ struct AutoFillSearchView: View {
 
     @ViewBuilder
     private func entryRow(_ entry: KPEntry) -> some View {
+        if PlatformDesign.followsIOSDesign {
+            designedEntryRow(entry)
+        } else {
+            legacyEntryRow(entry)
+        }
+    }
+
+    /// No favicon: the extension never reaches the network.
+    private func designedEntryRow(_ entry: KPEntry) -> some View {
+        HStack(spacing: Theme.Spacing.iconText) {
+            EntryIconView(entry: entry, size: entryIconSize)
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+                Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
+                    .font(Theme.Font.rowTitle)
+                    .foregroundStyle(Color.primary)
+                if !entry.username.isEmpty {
+                    Text(entry.username)
+                        .font(Theme.Font.subhead)
+                        .foregroundStyle(Theme.labelSecondary)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            if entry.isExpired() {
+                StatusBadge(text: String(localized: "Expired"), tone: .danger)
+                    .accessibilityIdentifier("autofill.entry.expired")
+            }
+        }
+    }
+
+    private func legacyEntryRow(_ entry: KPEntry) -> some View {
         HStack {
             StandardIconView(iconID: entry.iconID)
                 .font(.system(size: 16))
@@ -301,6 +335,30 @@ struct AutoFillSearchView: View {
         .accessibilityIdentifier("autofill.database-switcher")
     }
 }
+
+#if os(iOS)
+/// The large title of the KeeForge iOS design, with the requesting site below
+/// it from iOS 26.
+private struct AutoFillPickerTitleStyle: ViewModifier {
+    let service: String
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            if service.isEmpty == false {
+                content
+                    .navigationBarTitleDisplayMode(.large)
+                    .navigationSubtitle(Text(verbatim: service))
+            } else {
+                content
+                    .navigationBarTitleDisplayMode(.large)
+            }
+        } else {
+            content
+                .navigationBarTitleDisplayMode(.large)
+        }
+    }
+}
+#endif
 
 /// Empty state shown when no database participates in AutoFill (every
 /// database disabled, or none registered): tells the user to turn on

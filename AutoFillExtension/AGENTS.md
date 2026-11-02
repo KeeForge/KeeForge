@@ -55,7 +55,7 @@
 
 ### What the extension may touch
 
-- No network. The Mac extension's sandbox grants no network entitlement, `PrivacyInfo.xcprivacy` declares no collection, and `FaviconService` is compiled in but never called. Revisit the manifest's required-reason entries when the allow-list changes.
+- No network. The Mac extension's sandbox grants no network entitlement, `PrivacyInfo.xcprivacy` declares no collection, and `FaviconService` is compiled in but never called. Picker rows use `EntryIconView` without a favicon; `FaviconEntryIconView` is app-only. Revisit the manifest's required-reason entries when the allow-list changes.
 - Clipboard: only the iOS branch of `ClipboardService` is called from here (verification-code copy; the system pasteboard expiration outlives the process). The macOS branch clears with an in-process timer that dies with the extension, so the coordinator gates the copy on `#if os(iOS)`.
 - App Group writes go only through the services in `../KeeForge/Services/Persistence/AGENTS.md`.
 - `com.keevault.sharedkeychain` must stay first in both extension entitlements files (rule in `../KeeForge/Services/Security/AGENTS.md`). `KeeForgeMacAutoFill` mirrors the iOS extension's single group and enables Hardened Runtime with zero `com.apple.security.cs.*` exceptions.
