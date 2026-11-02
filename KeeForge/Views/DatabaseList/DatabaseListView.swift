@@ -274,7 +274,7 @@ struct DatabaseListView: View {
             }
         }
         .navigationTitle("KeeForge")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             // `EditButton` does not exist on macOS; list rows reorder via
             // drag and delete via context menus / swipe actions there.
@@ -368,6 +368,17 @@ struct DatabaseListView: View {
         Button {
             onSelectDatabase(reference)
         } label: {
+            #if os(iOS)
+            DatabaseListRow(
+                reference: reference,
+                status: viewModel.status(for: reference),
+                lastOpenedDescription: viewModel.lastOpenedDescription(
+                    for: reference,
+                    showsUsageStats: showDatabaseUsageStats
+                ),
+                filenameSubtitle: viewModel.detailSubtitle(for: reference)
+            )
+            #else
             DatabaseRowView(
                 reference: reference,
                 status: viewModel.status(for: reference),
@@ -377,6 +388,7 @@ struct DatabaseListView: View {
                 ),
                 filenameSubtitle: viewModel.detailSubtitle(for: reference)
             )
+            #endif
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("database.row")
