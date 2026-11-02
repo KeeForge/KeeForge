@@ -123,30 +123,22 @@ struct EntryListView: View {
     private func browsingEntryRow(for entry: KPEntry) -> some View {
         // A concrete row container lets List defer offscreen matches.
         HStack {
-            if let onSelectEntry {
-                Button {
+            // A button rather than a link: entry rows carry no chevron.
+            Button {
+                if let onSelectEntry {
                     onSelectEntry(entry)
-                } label: {
-                    EntryRow(
-                        entry: entry,
-                        username: viewModel.resolvingFieldReferences(entry.username),
-                        customIconData: viewModel.customIconData(for: entry),
-                        folderPath: viewModel.folderPath(forEntryID: entry.id)
-                    )
+                } else {
+                    viewModel.workspace.navigationPath.append(.entry(entry.id))
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("search.entry.navlink")
-            } else {
-                NavigationLink(value: DatabaseRoute.entry(entry.id)) {
-                    EntryRow(
-                        entry: entry,
-                        username: viewModel.resolvingFieldReferences(entry.username),
-                        customIconData: viewModel.customIconData(for: entry),
-                        folderPath: viewModel.folderPath(forEntryID: entry.id)
-                    )
-                }
-                .accessibilityIdentifier("search.entry.navlink")
+            } label: {
+                EntryRow(
+                    entry: entry,
+                    username: viewModel.resolvingFieldReferences(entry.username),
+                    customIconData: viewModel.customIconData(for: entry),
+                    folderPath: viewModel.folderPath(forEntryID: entry.id)
+                )
             }
+            .accessibilityIdentifier("search.entry.navlink")
         }
         .macHoverHighlight()
         .contextMenu {
@@ -178,7 +170,7 @@ struct EntryListView: View {
                 Button(deletionTitle(for: entry), role: .destructive) {
                     requestDeletion(for: entry)
                 }
-                .tint(.red)
+                .tint(Theme.State.danger)
                 .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }

@@ -15,6 +15,7 @@
 
 ### Database list
 
+- iPhone and iPad draw rows with `DatabaseListRow`, the macOS sidebar with `DatabaseRowView`. The badges and notices a row shows, in words, come from the pure `DatabaseRowStatusSummary`; keep identifiers on the same elements in both rows.
 - On iOS rows move only in Edit mode (`moveDisabled` plus the shared `EditMode` binding). Otherwise the reorder gesture competes with the long-press context menu and XCTest waits on animations. macOS reorders by drag with no Edit button.
 - `isSidebarColumn` is passed in by the host, not read from `horizontalSizeClass`, which a sidebar column reports as compact. It picks `.sidebar` over `.insetGrouped`; the grouped card renders darker than the column on iPadOS and opaque over the material on macOS.
 - On macOS the list has no `NavigationStack` of its own; one would paint over the sidebar material.
@@ -38,7 +39,7 @@
 ## Tests
 
 - UI: `DatabaseListUITests`, `DatabaseCreationCompactUITests` / `DatabaseCreationRegularWidthUITests`, `MasterKeyChangeUITests`, `EncryptionSettingsUITests`, `SaveConflictMergeUITests`.
-- Unit: the four view models' `<Type>Tests`, `DatabaseSettingsSummaryTests`. `PasswordImportViewModelTests` is in `PasswordImportTests.swift`.
+- Unit: the four view models' `<Type>Tests`, `DatabaseSettingsSummaryTests`, `DatabaseRowStatusSummaryTests`. `PasswordImportViewModelTests` is in `PasswordImportTests.swift`.
 
 ## See also
 

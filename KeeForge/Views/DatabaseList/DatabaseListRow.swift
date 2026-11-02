@@ -7,9 +7,9 @@ struct DatabaseListRow: View {
     let reference: DatabaseReference
     let status: DatabaseRowStatus
     let lastOpenedDescription: String?
-    let filenameSubtitle: String?
 
     @ScaledMetric(relativeTo: .body) private var iconSize = Theme.Size.entryIcon
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var summary: DatabaseRowStatusSummary {
         DatabaseRowStatusSummary(
@@ -24,40 +24,16 @@ struct DatabaseListRow: View {
         HStack(spacing: Theme.Spacing.iconText) {
             sourceIcon
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(reference.displayName)
-                    .font(Theme.Font.rowTitle)
-                    .foregroundStyle(Color.primary)
+            VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+                titleLine(summary.badges)
+
+                Text(sourceLine)
+                    .font(Theme.Font.subhead)
+                    .foregroundStyle(Theme.labelSecondary)
                     .lineLimit(1)
+                    .truncationMode(.middle)
 
-                if summary.badges.isEmpty == false {
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 6) { badges(summary.badges) }
-                        VStack(alignment: .leading, spacing: 4) { badges(summary.badges) }
-                    }
-                }
-
-                if let filenameSubtitle {
-                    Text(filenameSubtitle)
-                        .font(Theme.Font.subhead)
-                        .foregroundStyle(Theme.labelSecondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-
-                if let keyFileFilename = reference.keyFileFilename {
-                    Label(keyFileFilename, systemImage: "key")
-                        .font(Theme.Font.footnote)
-                        .foregroundStyle(Theme.labelSecondary)
-                        .lineLimit(1)
-                }
-
-                if let lastOpenedDescription {
-                    Text(lastOpenedDescription)
-                        .font(Theme.Font.footnote)
-                        .foregroundStyle(Theme.labelSecondary)
-                        .accessibilityIdentifier("database-row.last-opened")
-                }
+                metadataLine
 
                 ForEach(summary.notices, id: \.text) { notice in
                     noticeText(notice)
@@ -72,6 +48,65 @@ struct DatabaseListRow: View {
                 .accessibilityHidden(true)
         }
         .contentShape(Rectangle())
+    }
+
+    /// The name with its badges beside it; stacked at accessibility sizes.
+    @ViewBuilder
+    private func titleLine(_ badges: [DatabaseRowStatusSummary.Badge]) -> some View {
+        let name = Text(reference.displayName)
+            .font(Theme.Font.rowTitle)
+            .foregroundStyle(Color.primary)
+            .lineLimit(1)
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: Theme.Spacing.badgeGap) {
+                name
+                self.badges(badges)
+            }
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.badgeGap) {
+                name
+                self.badges(badges)
+            }
+        }
+    }
+
+    /// The file and where it lives: "Work.kdbx · WebDAV".
+    private var sourceLine: String {
+        SettingsSummaryText.joined([reference.filename, reference.cloudProviderKind?.displayName])
+    }
+
+    /// When it was last opened or synced, and its key file.
+    @ViewBuilder
+    private var metadataLine: some View {
+        let lastSyncedAt = reference.cloudSyncMetadata?.lastSyncedAt
+        if lastOpenedDescription != nil || lastSyncedAt != nil || reference.keyFileFilename != nil {
+            let line = Group {
+                if let lastOpenedDescription {
+                    Label(lastOpenedDescription, systemImage: "clock")
+                        .accessibilityIdentifier("database-row.last-opened")
+                }
+                if let lastSyncedAt {
+                    Label {
+                        Text("Last synced \(lastSyncedAt, format: .relative(presentation: .named))")
+                    } icon: {
+                        Image(systemName: "icloud")
+                    }
+                }
+                if let keyFileFilename = reference.keyFileFilename {
+                    Label(keyFileFilename, systemImage: "key")
+                }
+            }
+            .lineLimit(1)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Theme.Spacing.textLine) { line }
+                    .font(Theme.Font.footnote)
+                    .foregroundStyle(Theme.labelSecondary)
+            } else {
+                HStack(spacing: Theme.Spacing.badgeGap) { line }
+                    .font(Theme.Font.footnote)
+                    .foregroundStyle(Theme.labelSecondary)
+            }
+        }
     }
 
     @ViewBuilder

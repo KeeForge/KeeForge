@@ -22,7 +22,6 @@ Base commands and repo-wide policy (`-only-testing:` always, no full UI suite un
 | Setting | Effect |
 | --- | --- |
 | `-ui-testing` | Reseeds the database list from the fixture payload on every launch, skips the device-owner prompt for reveal/copy, and hides the What's New sheet, AutoFill tip, and App Store review prompt. |
-| `UI_TEST_VIEW_MODE` | Starting view of the database root, ahead of the stored last pick. The helpers browse from the group list, so `setUp` sets `groups`. A class testing the stored view removes the key (`DefaultViewUITests`). |
 | `UI_TEST_DATABASES_JSON`, `UI_TEST_KEYFILE_*` | Written by `setUp`. Override `databaseFixtureName`, `databaseFixtures`, or `keyFileFixtureName` instead of setting them. |
 | `UI_TEST_DATABASE_READ_ONLY=1` | Opens the database read-only. |
 | `UI_TEST_DEVICE_OWNER_AUTH_PENDING=1` | Re-arms the reveal/copy gate with an authentication that never completes, to assert nothing is disclosed before it succeeds. |
@@ -81,7 +80,7 @@ xcrun xcresulttool export attachments --path <xcresult> --output-path <fresh-dir
 - A confirmation dialog's action carries its identifier on two nested buttons; resolve it with `.firstMatch`.
 - On iOS 27, buttons inside a `Section` of a SwiftUI `Menu` lose their identifiers while labels survive. Use `menuButton(identifier:label:)`; an identifier-only query never resolves.
 - Search results replace the group list in place, and a focused search field covers the root even when empty. Use `searchForEntries(matching:)` and `dismissSearch()`.
-- The database root has no navigation-bar title while its large title is on screen. Use `selectDatabaseView(_:)` / `waitForDatabaseView(_:)`, not `app.navigationBars[...]`.
+- The database root is titled after the database. Use `selectDatabaseView(_:)` / `waitForDatabaseView(_:)`, which read the root's tiles and the collection titles, not `app.navigationBars[...]`.
 - Database Details is a hub: every control is one push below it and only the hub has Close. `openDatabaseDetailsPage(_:)` before querying, `returnToDatabaseDetailsHub()` before the next page. On iOS 27.0 the hub's Close stays in the tree under a pushed page, so test for the hub with `isDatabaseDetailsHubShowing()`, not `exists`.
 - iPadOS can start the split view with its sidebar collapsed. `revealSidebarIfNeeded()` taps the system control only when it offers Show Sidebar; never force a column visibility from a test.
 - On the database list a long press opens the context menu and rows move only in Edit mode, so drive a reorder through `database.edit.button`. `DatabaseListUITests` caps its details-reopen test at 120 s so a stall between the two gestures fails fast.
@@ -122,7 +121,7 @@ A test selects a bundled fixture by overriding `databaseFixtureName`, or `databa
 | `demo.kdbx` | `demo` | `AppStoreScreenshots` |
 | `demo-keyfile.kdbx` + `demo-keyfile.key` | `demo` | `KeyFileUnlockUITests` |
 | `invalid-xml.keyx` | none | `KeyFileUITests` malformed-key rejection |
-| `kitchen-sink.kdbx` | `testpassword123` | `TagBrowserUITests`, `InheritedTagsUITests`, `ViewMenuUITests`, `DefaultViewUITests`, `ViewMenuLargeTextUITests`, `EntryAttachmentsSmokeUITests`, `SaveConflictMergeDeclineUITests`, `ProtectedCustomFieldUITests`, `ProtectedCustomFieldEditorAuthUITests`, `EntryCustomIconPickerUITests`, `EntryCreateFocusUITests` |
+| `kitchen-sink.kdbx` | `testpassword123` | `TagBrowserUITests`, `InheritedTagsUITests`, `VaultHomeUITests`, `VaultLargeTextUITests`, `EntryAttachmentsSmokeUITests`, `SaveConflictMergeDeclineUITests`, `ProtectedCustomFieldUITests`, `ProtectedCustomFieldEditorAuthUITests`, `EntryCustomIconPickerUITests`, `EntryCreateFocusUITests` |
 | `autofill-union.kdbx` | `testpassword123` | `TOTPSmokeUITests`, `TOTPEnrollmentUITests`, `TOTPEnrollmentDeepLinkUITests` |
 | `autofill-store-alpha.kdbx`, `autofill-store-bravo.kdbx` | `testpassword123` | `AutoFillStoreUITests` |
 | `compatibility/legacy-kdbx31.kdbx` | `testpassword123` | `UnlockedDatabaseBrowseAndDetailUITests` read-only KDBX 3.1 case |
@@ -134,9 +133,9 @@ A test selects a bundled fixture by overriding `databaseFixtureName`, or `databa
 
 Extend a base class instead of repeating launch or unlock code, and promote a repeated flow into it.
 
-- `KeeForgeUITestCase`: launch, fixtures, unlock, search, view menu, Database Details, scrolling, typing. Start a test with `unlockSuccessfully()`.
+- `KeeForgeUITestCase`: launch, fixtures, unlock, search, the root's tiles, Database Details, scrolling, typing. Start a test with `unlockSuccessfully()`.
 - `UnlockedDatabaseUITestCase` for browse and detail (`openEntry(named:inGroup:)`, `searchResult(named:)`); `EntryEditUITestCase` for create, edit, delete, and context menus.
 - `EntryEditSmokeUITests.testAddedURLIsSavedAndShownOnTheEntry` exercises a second URL added in the editor and its detail presentation without duplicate custom-field text.
-- `UnlockedDatabaseBrowseAndDetailUITests` checks that compact entry detail omits `lock.button`, then returns to its list and locks. `TagBrowserUITests` covers the longer return path from a tagged entry to manual lock.
+- `UnlockedDatabaseBrowseAndDetailUITests` checks that compact entry detail offers `lock.button` beside Edit and that it locks. `TagBrowserUITests` locks from a tagged entry reached through the tag browser.
 - `EntrySelectionMoveUITests` covers selecting two group entries, Cancel, and moving through the shared picker. Cross-group, search, and tag selection use the same session state and need separate UI coverage.
 - Area bases: `DatabaseCreationUITestCase`, `SaveConflictMergeUITestCase`, `AppSettingsUITestCase`, `TOTPEnrollmentUITestCase`, `CloudSyncBaseUITests`, `WebDAVSyncBaseUITests`.

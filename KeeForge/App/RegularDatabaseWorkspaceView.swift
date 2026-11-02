@@ -280,7 +280,8 @@ struct RegularDatabaseWorkspaceView: View {
                     viewModel: viewModel,
                     onSelectEntry: selectEntry,
                     onCreateEntry: hostEntryEditor,
-                    onEditGroup: hostGroupEditor
+                    onEditGroup: hostGroupEditor,
+                    onOpenRoute: openSidebarRoute
                 )
                 .navigationDestination(for: DatabaseRoute.self) { destination in
                     switch destination {
@@ -290,7 +291,18 @@ struct RegularDatabaseWorkspaceView: View {
                             viewModel: viewModel,
                             onSelectEntry: selectEntry,
                             onCreateEntry: hostEntryEditor,
-                            onEditGroup: hostGroupEditor
+                            onEditGroup: hostGroupEditor,
+                            onOpenRoute: openSidebarRoute
+                        )
+                    case .collection(let collection):
+                        GroupListView(
+                            groupID: rootID,
+                            collection: collection,
+                            viewModel: viewModel,
+                            onSelectEntry: selectEntry,
+                            onCreateEntry: hostEntryEditor,
+                            onEditGroup: hostGroupEditor,
+                            onOpenRoute: openSidebarRoute
                         )
                     case .tag(let tag):
                         TagEntriesView(
@@ -323,6 +335,10 @@ struct RegularDatabaseWorkspaceView: View {
     }
 
     #if os(iOS)
+    private func openSidebarRoute(_ route: DatabaseRoute) {
+        navigationPath.append(route)
+    }
+
     /// An editor already on screen keeps its unsaved work; the sidebar's + and
     /// row menus stay reachable while it is up, unlike the compact push.
     private func hostEntryEditor(_ editor: EntryEditViewModel) {

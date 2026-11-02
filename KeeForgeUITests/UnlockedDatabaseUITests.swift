@@ -14,13 +14,13 @@ class UnlockedDatabaseUITestCase: KeeForgeUITestCase {
 
     func openGroup(named name: String, file: StaticString = #filePath, line: UInt = #line) {
         let group = groupRow(named: name)
-        XCTAssertTrue(revealElement(group), "Group '\(name)' was not visible", file: file, line: line)
+        XCTAssertTrue(revealRow(group), "Group '\(name)' was not visible", file: file, line: line)
         tapElement(group)
     }
 
     func openEntry(named name: String, file: StaticString = #filePath, line: UInt = #line) {
         let entry = entryRow(named: name)
-        XCTAssertTrue(revealElement(entry), "Entry '\(name)' was not visible", file: file, line: line)
+        XCTAssertTrue(revealRow(entry), "Entry '\(name)' was not visible", file: file, line: line)
         tapElement(entry)
     }
 
@@ -152,34 +152,26 @@ final class UnlockedDatabaseBrowseAndDetailUITests: UnlockedDatabaseUITestCase {
         urlCopy.tap()
     }
 
-    /// Lock belongs to the lists. On an open entry the navigation bar holds
-    /// only the entry's own actions, so going back is what leads to Lock.
-    func testEntryDetailHasNoLockButtonAndTheListKeepsIts() throws {
+    /// On iPhone an open entry offers Lock beside Edit, like the lists.
+    func testEntryDetailOffersLockBesideEdit() throws {
         unlockSuccessfully()
         try XCTSkipIf(
             app.windows.firstMatch.frame.width >= 700,
-            "At regular width the sidebar keeps its Lock button beside the entry"
+            "At regular width the sidebar's Lock sits beside the entry"
         )
 
         openGroup(named: "Social")
         XCTAssertTrue(revealElement(entryRow(named: "Twitter")), "Twitter entry was not visible in Social")
-        XCTAssertTrue(app.buttons["lock.button"].exists, "The entry list lost its Lock button")
-
         openEntry(named: "Twitter")
-
         XCTAssertTrue(app.buttons["entry-detail.edit"].waitForExistence(timeout: 5), "Entry detail did not open")
-        XCTAssertTrue(
-            app.buttons["lock.button"].waitForNonExistence(timeout: 5),
-            "An open entry should not offer a Lock button"
-        )
 
-        let backButton = app.navigationBars.buttons["Social"].firstMatch
-        XCTAssertTrue(backButton.waitForExistence(timeout: 5), "Could not return to the entry list")
-        tapElement(backButton)
-        let lockButton = currentLockButton()
-        XCTAssertTrue(lockButton.waitForExistence(timeout: 5), "The list should offer manual lock again")
-        tapElement(lockButton)
-        XCTAssertTrue(waitForLockedState(timeout: 10), "Manual lock did not leave the vault locked")
+        // The list below keeps its own Lock in the tree; the entry's is the
+        // one on screen.
+        let lockButton = app.buttons.matching(identifier: "lock.button").allElementsBoundByIndex
+            .first { $0.exists && $0.isHittable }
+        let entryLock = try XCTUnwrap(lockButton, "An open entry did not offer a Lock button")
+        tapElement(entryLock)
+        XCTAssertTrue(waitForLockedState(timeout: 10), "Lock on the entry did not leave the vault locked")
     }
 
     func testFixtureEntryDetailShowsTimestamps() {
@@ -199,14 +191,7 @@ final class UnlockedDatabaseBrowseAndDetailUITests: UnlockedDatabaseUITestCase {
     func testOpenDatabaseGearShowsCompleteDatabaseDetails() {
         unlockSuccessfully()
 
-        let settingsButton = app.buttons["settings.button"]
-        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "Open database gear button was not visible")
-        tapElement(settingsButton)
-
-        XCTAssertTrue(
-            app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
-            "The gear button did not open Database Details"
-        )
+        openDatabaseDetailsFromVault()
 
         // The controls each page has to hold. One dropped from its page
         // fails here.
@@ -279,14 +264,7 @@ final class UnlockedDatabaseBrowseAndDetailUITests: UnlockedDatabaseUITestCase {
     func testLegacyKDBX31DatabaseDetailsKeepsReadOnlyToggleDisabled() {
         unlockSuccessfully()
 
-        let settingsButton = app.buttons["settings.button"]
-        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "Open database gear button was not visible")
-        tapElement(settingsButton)
-
-        XCTAssertTrue(
-            app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
-            "The gear button did not open Database Details"
-        )
+        openDatabaseDetailsFromVault()
         openDatabaseDetailsPage(.general)
 
         let readOnlyToggle = app.switches["database-row.read-only-toggle"]
@@ -1014,7 +992,7 @@ final class GroupIconPickerUITests: UnlockedDatabaseUITestCase {
         line: UInt = #line
     ) {
         let group = groupRow(named: name)
-        XCTAssertTrue(revealElement(group), "Group '\(name)' was not visible", file: file, line: line)
+        XCTAssertTrue(revealRow(group), "Group '\(name)' was not visible", file: file, line: line)
         group.press(forDuration: 1.0)
 
         let changeIcon = app.buttons["group-row.change-icon-context"]

@@ -38,6 +38,14 @@ struct DatabaseListView: View {
     /// Passed in rather than read from `horizontalSizeClass`, which a sidebar
     /// column reports as compact however wide the window is.
     var isSidebarColumn = false
+    /// The compact shell's unlock, pushed onto this list's stack so its back
+    /// button leads to the list; nil in the other shells.
+    var unlockPage: UnlockPage? = nil
+
+    struct UnlockPage {
+        let isPresented: Binding<Bool>
+        let content: () -> AnyView
+    }
 
     @State private var pickerState = PickerPresentationState<PickerTarget>()
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
@@ -204,6 +212,9 @@ struct DatabaseListView: View {
         NavigationStack {
             listContent
                 .environment(\.editMode, $editMode)
+                .navigationDestination(isPresented: unlockPage?.isPresented ?? .constant(false)) {
+                    unlockPage?.content()
+                }
         }
         #endif
     }
@@ -228,18 +239,64 @@ struct DatabaseListView: View {
 
     private var databaseList: some View {
         List {
-            ForEach(viewModel.databases) { reference in
-                databaseRowButton(for: reference)
-                    #if os(iOS)
-                    // Outside Edit mode, the long press belongs to the context menu.
-                    .moveDisabled(!editMode.isEditing)
-                    #endif
-                    .modifier(
-                        DatabaseRowChrome(isSelected: reference.id == selectedDatabaseID)
-                    )
+            #if os(iOS)
+            Section {
+                databaseRows
+            } footer: {
+                if viewModel.databases.contains(where: \.isCloudBacked) {
+                    Text("Cloud databases are cached locally and refreshed whenever you open them in the main app. AutoFill uses the cached copy only.")
+                }
             }
-            .onMove(perform: viewModel.moveDatabases)
+            if tipsFollowTheList {
+                Section {
+                    tips
+                        .environment(\.isListedTip, true)
+                }
+            }
+            #else
+            databaseRows
+            #endif
         }
+    }
+
+    /// iPhone and iPad list the tips below the databases; with no databases,
+    /// and on macOS, they stay pinned above.
+    private var tipsFollowTheList: Bool {
+        PlatformDesign.followsIOSDesign && viewModel.databases.isEmpty == false
+    }
+
+    @ViewBuilder
+    private var tips: some View {
+        if viewModel.shouldShowMacAppSuggestion {
+            MacAppSuggestionBanner(
+                onOpen: {
+                    if let url = MacAppSuggestionService.appStoreURL {
+                        openURL(url)
+                    }
+                },
+                onDismiss: { viewModel.dismissMacAppSuggestion() }
+            )
+        }
+        if viewModel.shouldShowAutoFillTip {
+            AutoFillTipBanner(
+                onEnable: { Task { await viewModel.requestEnableAutoFill() } },
+                onDismiss: { viewModel.dismissAutoFillTip() }
+            )
+        }
+    }
+
+    private var databaseRows: some View {
+        ForEach(viewModel.databases) { reference in
+            databaseRowButton(for: reference)
+                #if os(iOS)
+                // Outside Edit mode, the long press belongs to the context menu.
+                .moveDisabled(!editMode.isEditing)
+                #endif
+                .modifier(
+                    DatabaseRowChrome(isSelected: reference.id == selectedDatabaseID)
+                )
+        }
+        .onMove(perform: viewModel.moveDatabases)
     }
 
     private var listContent: some View {
@@ -254,27 +311,13 @@ struct DatabaseListView: View {
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: 0) {
-                if viewModel.shouldShowMacAppSuggestion {
-                    MacAppSuggestionBanner(
-                        onOpen: {
-                            if let url = MacAppSuggestionService.appStoreURL {
-                                openURL(url)
-                            }
-                        },
-                        onDismiss: { viewModel.dismissMacAppSuggestion() }
-                    )
-                }
-                if viewModel.shouldShowAutoFillTip {
-                    AutoFillTipBanner(
-                        onEnable: { Task { await viewModel.requestEnableAutoFill() } },
-                        onDismiss: { viewModel.dismissAutoFillTip() }
-                    )
+            if tipsFollowTheList == false {
+                VStack(spacing: 0) {
+                    tips
                 }
             }
         }
-        .navigationTitle("KeeForge")
-        .navigationBarTitleDisplayMode(.large)
+        .modifier(DatabaseListTitle(count: viewModel.databases.count))
         .toolbar {
             // `EditButton` does not exist on macOS; list rows reorder via
             // drag and delete via context menus / swipe actions there.
@@ -375,8 +418,7 @@ struct DatabaseListView: View {
                 lastOpenedDescription: viewModel.lastOpenedDescription(
                     for: reference,
                     showsUsageStats: showDatabaseUsageStats
-                ),
-                filenameSubtitle: viewModel.detailSubtitle(for: reference)
+                )
             )
             #else
             DatabaseRowView(
@@ -407,7 +449,7 @@ struct DatabaseListView: View {
                     pendingRemoval = target
                 }
             }
-            .tint(.red)
+            .tint(Theme.State.danger)
         }
         // Both dialogs are attached to the row (not the List) so iOS anchors
         // them to the database they act on instead of an arbitrary popover in
@@ -707,6 +749,30 @@ struct DatabaseListView: View {
         )
     }
 
+}
+
+/// iPhone and iPad: "Databases" with the count below it from iOS 26. The
+/// macOS sidebar keeps the app's name.
+private struct DatabaseListTitle: ViewModifier {
+    let count: Int
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if #available(iOS 26.0, *) {
+            content
+                .navigationTitle("Databases")
+                .navigationBarTitleDisplayMode(.large)
+                .navigationSubtitle(Text("\(count) databases"))
+        } else {
+            content
+                .navigationTitle("Databases")
+                .navigationBarTitleDisplayMode(.large)
+        }
+        #else
+        content
+            .navigationTitle("KeeForge")
+        #endif
+    }
 }
 
 /// Selection and hover chrome for a database row.

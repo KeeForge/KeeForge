@@ -122,8 +122,7 @@ final class CloudUnlockSmokeUITests: CloudSyncBaseUITests {
         XCTAssertTrue(waitUntilSyncSettles(progress), "The open's check did not finish")
         XCTAssertFalse(details.exists, "A checked open has nothing to warn about")
 
-        tapElement(app.buttons["settings.button"])
-        XCTAssertTrue(app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout))
+        openDatabaseDetailsFromVault()
         openDatabaseDetailsPage(.cloudSync)
         let policy = app.switches["database-details.sync-on-open-toggle"]
         XCTAssertTrue(revealElement(policy, in: scrollableContainer()))
@@ -162,9 +161,8 @@ final class CloudUnlockSmokeUITests: CloudSyncBaseUITests {
         XCTAssertTrue(waitForLockedState())
         unlockSuccessfully()
         XCTAssertTrue(details.waitForExistence(timeout: 10))
-        selectDatabaseView(.allEntries)
-        // A swipe flicks too fast and too short to pull past the refresh
-        // threshold. Start below the title header, which opens the view menu.
+        // On the root, where the warning row shows. A swipe flicks too fast
+        // and too short to pull past the refresh threshold.
         let list = scrollableContainer() ?? app.windows.firstMatch
         list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
             .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)), withVelocity: .slow, thenHoldForDuration: 0.5)
@@ -186,19 +184,13 @@ final class CloudUnlockSmokeUITests: CloudSyncBaseUITests {
         unlockSuccessfully()
 
         XCTAssertTrue(app.buttons["lock.button"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["settings.button"].exists)
+        XCTAssertTrue(app.buttons["vault.more"].exists)
     }
 
     func testCloudDatabaseDetailsOffersTheCloudSyncPage() {
         unlockSuccessfully()
 
-        let settingsButton = app.buttons["settings.button"]
-        XCTAssertTrue(settingsButton.waitForExistence(timeout: 10), "Open database gear button was not visible")
-        tapElement(settingsButton)
-        XCTAssertTrue(
-            app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
-            "The gear button did not open Database Details"
-        )
+        openDatabaseDetailsFromVault()
 
         openDatabaseDetailsPage(.cloudSync)
         for identifier in ["database-details.sync-on-open-toggle", "database-details.sync-now"] {

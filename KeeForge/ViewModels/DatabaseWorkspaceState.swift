@@ -5,59 +5,75 @@ enum DatabaseRoute: Hashable, Sendable {
     case group(UUID)
     case entry(UUID)
     case tag(String)
+    case collection(DatabaseCollection)
+}
+
+/// The database-wide lists the vault root's tiles open, in tile order.
+enum DatabaseCollection: String, CaseIterable, Hashable, Sendable {
+    case allEntries
+    case verificationCodes
+    case tags
+    case recycleBin
+
+    /// The shorter name on the root's tile.
+    var tileTitle: String {
+        switch self {
+        case .allEntries:
+            String(localized: "All")
+        case .verificationCodes:
+            String(localized: "Codes")
+        case .tags, .recycleBin:
+            title
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .allEntries:
+            String(localized: "All Entries")
+        case .verificationCodes:
+            String(localized: "Verification Codes")
+        case .tags:
+            String(localized: "Tags")
+        case .recycleBin:
+            String(localized: "Recycle Bin")
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .allEntries:
+            "key"
+        case .verificationCodes:
+            "timer"
+        case .tags:
+            "tag"
+        case .recycleBin:
+            "trash"
+        }
+    }
+}
+
+/// How many items each collection holds. All Entries leaves out the recycle
+/// bin; the recycle bin counts what it lists, its entries and groups.
+struct DatabaseCollectionCounts: Equatable, Sendable {
+    var allEntries = 0
+    var verificationCodes = 0
+    var tags = 0
+    var recycleBin = 0
+
+    subscript(collection: DatabaseCollection) -> Int {
+        switch collection {
+        case .allEntries: allEntries
+        case .verificationCodes: verificationCodes
+        case .tags: tags
+        case .recycleBin: recycleBin
+        }
+    }
 }
 
 @MainActor @Observable
 final class DatabaseWorkspaceState {
-    /// What the database's root list shows, chosen from its view menu.
-    enum ViewMode: String, Sendable {
-        case groups
-        case allEntries
-        case verificationCodes
-        case tags
-        case recycleBin
-
-        /// The views of the live database, in menu order. The recycle bin is
-        /// listed apart from them.
-        static let browsingModes: [ViewMode] = [.allEntries, .groups, .verificationCodes, .tags]
-
-        var title: String {
-            switch self {
-            case .groups:
-                String(localized: "Groups")
-            case .allEntries:
-                String(localized: "All Entries")
-            case .verificationCodes:
-                String(localized: "Verification Codes")
-            case .tags:
-                String(localized: "Tags")
-            case .recycleBin:
-                String(localized: "Recycle Bin")
-            }
-        }
-
-        /// Whether a list of subgroups takes a "Groups" header. `nil` is a
-        /// pushed level; the Groups view's own title already says it.
-        static func showsGroupsHeader(in mode: ViewMode?) -> Bool {
-            mode != .groups
-        }
-
-        var systemImage: String {
-            switch self {
-            case .groups:
-                "folder"
-            case .allEntries:
-                "list.bullet.rectangle"
-            case .verificationCodes:
-                "clock"
-            case .tags:
-                "tag"
-            case .recycleBin:
-                "trash"
-            }
-        }
-    }
-
     enum Command {
         case newEntry
         case searchFocus
@@ -67,12 +83,6 @@ final class DatabaseWorkspaceState {
     }
 
     @ObservationIgnored var onInteraction: (() -> Void)?
-    @ObservationIgnored private let defaults: UserDefaults
-
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        viewMode = Self.initialViewMode(defaults: defaults)
-    }
 
     var navigationPath: [DatabaseRoute] = [] {
         didSet { onInteraction?() }
@@ -111,14 +121,6 @@ final class DatabaseWorkspaceState {
     var isSearchActive = false {
         didSet { onInteraction?() }
     }
-    var viewMode: ViewMode {
-        didSet {
-            if viewMode != .recycleBin {
-                defaults.set(viewMode.rawValue, forKey: Self.viewModeKey)
-            }
-            onInteraction?()
-        }
-    }
     private(set) var newEntryRequestID = 0
     private(set) var searchFocusRequestID = 0
     private(set) var newGroupRequestID = 0
@@ -144,6 +146,11 @@ final class DatabaseWorkspaceState {
 
     func beginEntrySelection(with entryID: UUID) {
         entrySelection = [entryID]
+    }
+
+    /// Selection mode with nothing picked yet, from the vault's More menu.
+    func beginEntrySelection() {
+        entrySelection = []
     }
 
     func toggleEntrySelection(_ entryID: UUID) {
@@ -173,7 +180,6 @@ final class DatabaseWorkspaceState {
     func resetForLock() {
         resetNavigation()
         isSearchActive = false
-        viewMode = Self.initialViewMode(defaults: defaults)
     }
 
     func reconcileSelection(
@@ -199,29 +205,5 @@ final class DatabaseWorkspaceState {
             selectedGroupID = visibleRootGroupID
         }
         // The detail host clears a vanished entry after its editor dismisses.
-    }
-
-    static let viewModeKey = "KeeForge.databaseViewMode"
-
-    /// A database opens on the browsing view picked last, All Entries the
-    /// first time; never on the recycle bin. UI tests can start on another
-    /// view through `UI_TEST_VIEW_MODE`: their helpers browse from the group
-    /// list.
-    static func initialViewMode(
-        defaults: UserDefaults = .standard,
-        arguments: [String] = ProcessInfo.processInfo.arguments,
-        environment: [String: String] = ProcessInfo.processInfo.environment
-    ) -> ViewMode {
-        if arguments.contains("-ui-testing"),
-           let rawValue = environment["UI_TEST_VIEW_MODE"],
-           let mode = ViewMode(rawValue: rawValue) {
-            return mode
-        }
-        guard let rawValue = defaults.string(forKey: viewModeKey),
-              let mode = ViewMode(rawValue: rawValue),
-              mode != .recycleBin else {
-            return .allEntries
-        }
-        return mode
     }
 }

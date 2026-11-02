@@ -1,20 +1,36 @@
 import XCTest
 
-// Coverage for the view menu on the database root's title: Groups, All
-// Entries, Verification Codes, and the Recycle Bin, plus the view a database
-// opens on (`DefaultViewUITests`). The Tags view is driven by
+// Coverage for the vault root's tiles and the screens they open: All Entries,
+// Verification Codes, and the Recycle Bin. The Tags screen is driven by
 // `TagBrowserUITests`.
 //
 // Uses `kitchen-sink.kdbx` because it ships a nested group, an entry with a
 // verification code, and a real recycle bin holding `Trashed Login`.
 // See `TestFixtures/README.md`.
 @MainActor
-final class ViewMenuUITests: UnlockedDatabaseUITestCase {
+final class VaultHomeUITests: UnlockedDatabaseUITestCase {
     override var databaseFixtureName: String { "kitchen-sink" }
 
     private let nestedEntryName = "Beta Login"
     private let codeEntryName = "TOTP Login"
     private let recycledEntryName = "Trashed Login"
+
+    func testTilesCountWhatTheirScreensList() {
+        unlockSuccessfully()
+
+        let expectedCounts: [(DatabaseView, String)] = [
+            (.allEntries, "17"),
+            (.verificationCodes, "1"),
+            (.recycleBin, "1"),
+        ]
+        for (view, count) in expectedCounts {
+            let tile = app.buttons["home-tile.\(view.rawValue)"]
+            XCTAssertTrue(tile.waitForExistence(timeout: Self.ciElementTimeout), "The root did not show the '\(view.label)' tile")
+            XCTAssertEqual(tile.label, view.label)
+            XCTAssertEqual(tile.value as? String, count, "'\(view.label)' counted the wrong number of items")
+        }
+        XCTAssertTrue(app.buttons["home-tile.tags"].exists, "The root did not show the Tags tile")
+    }
 
     func testAllEntriesListsEntriesFromEveryGroupWithTheirFolder() {
         unlockSuccessfully()
@@ -46,9 +62,18 @@ final class ViewMenuUITests: UnlockedDatabaseUITestCase {
 
         // Seventeen live entries over the nine root groups plus `Client Work`;
         // `Trashed Login` and the recycle bin count towards neither.
-        let summary = app.staticTexts["group-list.summary"]
-        XCTAssertTrue(revealElement(summary, in: list), "All Entries did not show its summary")
-        XCTAssertEqual(summary.label, "17 entries in 10 groups")
+        // The title's subtitle from iOS 26, the list's footer before.
+        let summaryText = "17 entries in 10 groups"
+        if #available(iOS 26.0, *) {
+            XCTAssertTrue(
+                app.staticTexts[summaryText].waitForExistence(timeout: Self.ciElementTimeout),
+                "All Entries did not show its summary under the title"
+            )
+        } else {
+            let summary = app.staticTexts["group-list.summary"]
+            XCTAssertTrue(revealElement(summary, in: list), "All Entries did not show its summary")
+            XCTAssertEqual(summary.label, summaryText)
+        }
         XCTAssertFalse(entryRow(named: recycledEntryName).exists, "All Entries listed a recycled entry")
 
         XCTAssertTrue(revealElement(nestedEntry, in: list, direction: .down), "Nested entry was not reachable")
@@ -74,11 +99,11 @@ final class ViewMenuUITests: UnlockedDatabaseUITestCase {
             1,
             "Verification Codes listed entries without a code"
         )
-        // The row reads its code digit by digit, between the title and the
-        // username and group.
+        // The row reads its code digit by digit, as its value.
+        let code = codeEntry.value as? String ?? ""
         XCTAssertNotNil(
-            codeEntry.label.range(of: #"\d \d \d \d \d \d"#, options: .regularExpression),
-            "Expected a six-digit code on the row, got: \(codeEntry.label)"
+            code.range(of: #"\d \d \d \d \d \d"#, options: .regularExpression),
+            "Expected a six-digit code as the row's value, got: \(code)"
         )
         XCTAssertTrue(
             codeEntry.label.contains("totp-user · Secrets"),
@@ -96,12 +121,16 @@ final class ViewMenuUITests: UnlockedDatabaseUITestCase {
         )
     }
 
-    func testRecycleBinOpensFromTheViewMenuAndNotFromTheGroupList() {
+    func testRecycleBinOpensFromItsTileAndNotFromTheGroupList() {
         unlockSuccessfully()
 
         // `Tagged` sorts last, where the bin used to be pinned below it.
         XCTAssertTrue(revealElement(groupRow(named: "Tagged")), "Root group list was not visible")
-        XCTAssertFalse(groupRow(named: "Recycle Bin").exists, "The recycle bin was still listed as a group")
+        // By identifier: `groupRow(named:)` would also match the bin's own tile.
+        let recycleBinGroupRow = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == 'group.navlink' AND label CONTAINS %@", "Recycle Bin")
+        ).firstMatch
+        XCTAssertFalse(recycleBinGroupRow.exists, "The recycle bin was still listed as a group")
 
         selectDatabaseView(.recycleBin)
 
@@ -113,52 +142,16 @@ final class ViewMenuUITests: UnlockedDatabaseUITestCase {
 
         selectDatabaseView(.groups)
 
-        XCTAssertTrue(revealElement(groupRow(named: "Archive")), "Groups view did not return")
-        XCTAssertTrue(app.buttons["entry-list.add-entry"].exists, "Add menu did not return with the Groups view")
+        XCTAssertTrue(revealElement(groupRow(named: "Archive")), "The root's groups did not return")
+        XCTAssertTrue(app.buttons["entry-list.add-entry"].exists, "Add menu did not return with the root")
     }
 }
 
-/// Every other UI class starts in Groups through `UI_TEST_VIEW_MODE`; this one
-/// clears it to see where a database really opens.
+/// Larger text widens the bar's actions. iOS 27 folds items that no longer fit
+/// beside the title into a "…" overflow button; Lock has to stay in the bar on
+/// every screen the tiles open.
 @MainActor
-final class DefaultViewUITests: UnlockedDatabaseUITestCase {
-    override var databaseFixtureName: String { "kitchen-sink" }
-
-    override func configureLaunch(app: XCUIApplication) throws {
-        app.launchEnvironment.removeValue(forKey: Self.uiTestViewModeEnv)
-    }
-
-    func testDatabaseReopensOnTheViewPickedLast() {
-        unlockSuccessfully()
-        selectDatabaseView(.tags)
-        tapElement(currentLockButton())
-        XCTAssertTrue(waitForLockedState(), "Database did not lock")
-
-        unlockSuccessfully()
-        XCTAssertTrue(waitForDatabaseView(.tags), "Unlocking again did not return to the view picked before locking")
-
-        selectDatabaseView(.verificationCodes)
-        selectDatabaseView(.recycleBin)
-        app.terminate()
-        app.launch()
-        app.activate()
-        _ = app.wait(for: .runningForeground, timeout: 30)
-        XCTAssertTrue(waitForDatabaseList(timeout: 10), "Database list did not appear after relaunching")
-
-        unlockSuccessfully()
-        XCTAssertTrue(
-            waitForDatabaseView(.verificationCodes),
-            "A relaunch did not return to the browsing view picked last"
-        )
-    }
-}
-
-/// Larger text widens the bar's actions until the app's name no longer fits
-/// beside them. iOS 27 then folded the name into a "…" overflow button that
-/// also carried the view menu, a second view switcher in every view with the
-/// add menu. The name has to give way instead, and Lock stay in the bar.
-@MainActor
-final class ViewMenuLargeTextUITests: UnlockedDatabaseUITestCase {
+final class VaultLargeTextUITests: UnlockedDatabaseUITestCase {
     override var databaseFixtureName: String { "kitchen-sink" }
 
     /// UIKit's own identifier for the overflow button it adds to a crowded bar.
@@ -167,42 +160,17 @@ final class ViewMenuLargeTextUITests: UnlockedDatabaseUITestCase {
     }
 
     override func configureLaunch(app: XCUIApplication) throws {
-        guard #available(iOS 26.0, *) else {
-            throw XCTSkip("iOS 18 to 25 keep the view menu as a toolbar button, with no app name or title menu in the bar")
-        }
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"]
     }
 
-    func testEveryViewKeepsItsBarActionsOutOfAnOverflowMenu() {
+    func testEveryScreenKeepsItsBarActionsOutOfAnOverflowMenu() {
         unlockSuccessfully()
 
-        let views: [DatabaseView] = [.allEntries, .groups, .verificationCodes, .tags, .recycleBin]
+        let views: [DatabaseView] = [.groups, .allEntries, .verificationCodes, .tags, .recycleBin]
         for view in views {
             selectDatabaseView(view)
             XCTAssertFalse(overflowButton.exists, "'\(view.label)' folded bar items into an overflow menu")
             XCTAssertTrue(currentLockButton().isHittable, "'\(view.label)' did not keep Lock in the bar")
         }
-    }
-
-    /// All Entries, because it is the fixture's one list long enough to
-    /// scroll in an iPad sidebar.
-    func testTheBarOffersTheViewMenuOnlyOnceTheTitleHasScrolledAway() {
-        unlockSuccessfully()
-        selectDatabaseView(.allEntries)
-
-        let header = app.buttons["view.menu"].firstMatch
-        let barTitleMenu = app.navigationBars.buttons.matching(
-            NSPredicate(format: "label == %@", DatabaseView.allEntries.label)
-        ).firstMatch
-        XCTAssertTrue(header.waitForExistence(timeout: Self.ciElementTimeout), "The root did not show its title menu")
-        XCTAssertFalse(barTitleMenu.exists, "The bar offered a view menu beside the title's own")
-
-        app.collectionViews.firstMatch.swipeUp()
-
-        XCTAssertTrue(barTitleMenu.waitForExistence(timeout: Self.ciElementTimeout), "The collapsed title was not the view menu")
-        XCTAssertFalse(header.exists && header.isHittable, "The title header was still on screen")
-        XCTAssertFalse(overflowButton.exists, "The collapsed bar folded items into an overflow menu")
-
-        selectDatabaseView(.groups)
     }
 }

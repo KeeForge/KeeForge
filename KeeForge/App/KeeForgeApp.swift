@@ -706,17 +706,18 @@ private struct CompactDatabaseHost: View {
                 DatabaseListView(
                     viewModel: listViewModel,
                     onSelectDatabase: onSelectDatabase,
-                    onCreateDatabase: onCreateDatabase
+                    onCreateDatabase: onCreateDatabase,
+                    unlockPage: DatabaseListView.UnlockPage(isPresented: isUnlockPresented) {
+                        AnyView(
+                            CompactUnlockScene(
+                                viewModel: viewModel,
+                                onReturnToList: onReturnToList
+                            )
+                            .navigationBarBackButtonHidden(viewModel.state == .unlocking)
+                        )
+                    }
                 )
             }
-        }
-        .sheet(isPresented: isUnlockPresented) {
-            CompactUnlockScene(
-                viewModel: viewModel,
-                onReturnToList: onReturnToList
-            )
-            .interactiveDismissDisabled(viewModel.state == .unlocking)
-            .presentationDragIndicator(.visible)
         }
         .onAppear {
             if case .unlocked = viewModel.state {
@@ -967,6 +968,10 @@ struct DatabaseNavigationView: View {
                     EntryDetailView(entryID: entryID, viewModel: viewModel)
                 case .tag(let tag):
                     TagEntriesView(tag: tag, viewModel: viewModel)
+                case .collection(let collection):
+                    if let rootID = viewModel.visibleRootGroupID {
+                        GroupListView(groupID: rootID, collection: collection, viewModel: viewModel)
+                    }
                 }
             }
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -1116,7 +1121,7 @@ struct UnsavedChangesBanner: View {
     var body: some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(Color.orange)
+                .fill(Theme.State.warning)
                 .frame(width: 8, height: 8)
             Text("Changes not saved")
                 .font(.caption.weight(.medium))
@@ -1134,7 +1139,7 @@ struct UnsavedChangesBanner: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(Color.orange.opacity(0.12))
+        .background(Theme.State.warning.opacity(0.12))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("database.unsaved-indicator")
     }
@@ -1191,7 +1196,7 @@ struct CloudSyncControls: View {
                         .controlSize(.small)
                 } else {
                     Image(systemName: Self.showsWarning(for: viewModel) ? "exclamationmark.triangle.fill" : "info.circle")
-                        .foregroundStyle(Self.showsWarning(for: viewModel) ? Color.yellow : Color.secondary)
+                        .foregroundStyle(Self.showsWarning(for: viewModel) ? Theme.State.cloudWarning : Color.secondary)
                 }
             }
             .frame(minWidth: 44, minHeight: 44)
@@ -1231,37 +1236,79 @@ struct CloudSyncControls: View {
 
 }
 
-/// The compact header's sync status beside the title: nothing while the
-/// database is in sync, a spinner while it syncs, and a warning that opens the
-/// details with Sync Now. Pull to refresh syncs at any time.
-struct CloudSyncStatusBadge: View {
+/// The vault root's sync status, in words: nothing while the database is in
+/// sync, a spinner while it syncs, and a warning that opens the details with
+/// Sync Now. Pull to refresh syncs at any time.
+struct CloudSyncStatusRow: View {
     @Bindable var viewModel: DatabaseViewModel
     @State private var isShowingDetails = false
 
+    static func isVisible(for viewModel: DatabaseViewModel) -> Bool {
+        viewModel.isSyncingCloud || CloudSyncControls.showsWarning(for: viewModel)
+    }
+
     var body: some View {
         if viewModel.isSyncingCloud {
-            ProgressView()
-                .controlSize(.small)
+            Label {
+                Text(CloudSyncControls.title(for: viewModel))
+            } icon: {
+                ProgressView()
+                    .controlSize(.small)
+            }
+            .font(Theme.Font.subhead)
+            .foregroundStyle(Theme.labelSecondary)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("database.cloud-sync-status.progress")
+        } else if CloudSyncControls.showsWarning(for: viewModel) {
+            HStack(spacing: Theme.Spacing.iconText) {
+                Button {
+                    isShowingDetails.toggle()
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+                            Text(CloudSyncControls.title(for: viewModel))
+                                .foregroundStyle(Color.primary)
+                            if let detail {
+                                Text(detail)
+                                    .font(Theme.Font.footnote)
+                                    .foregroundStyle(Theme.labelSecondary)
+                            }
+                        }
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Theme.warning)
+                    }
+                    .font(Theme.Font.subhead)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Cloud Sync")
                 .accessibilityValue(CloudSyncControls.title(for: viewModel))
-                .accessibilityIdentifier("database.cloud-sync-status.progress")
-        } else if CloudSyncControls.showsWarning(for: viewModel) {
-            Button {
-                isShowingDetails.toggle()
-            } label: {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.title2)
-                    .foregroundStyle(Color.yellow)
-                    .frame(minWidth: 44, minHeight: 44)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Cloud Sync")
-            .accessibilityValue(CloudSyncControls.title(for: viewModel))
-            .accessibilityIdentifier("database.cloud-sync-status.details")
-            .popover(isPresented: $isShowingDetails) {
-                CloudSyncDetails(viewModel: viewModel, showsSyncNow: true) { isShowingDetails = false }
+                .accessibilityIdentifier("database.cloud-sync-status.details")
+                .popover(isPresented: $isShowingDetails) {
+                    CloudSyncDetails(viewModel: viewModel, showsSyncNow: true) { isShowingDetails = false }
+                }
+
+                Button("Sync Now") {
+                    Task { await viewModel.syncCloudNow() }
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .disabled(viewModel.canSyncCloudNow == false)
+                .accessibilityIdentifier("database.cloud-sync-status.sync-now")
             }
         }
+    }
+
+    /// The second line: changes still waiting, else when it last synced.
+    private var detail: String? {
+        if CloudSyncControls.showsPendingUploadNote(for: viewModel) {
+            return String(localized: "Changes saved through AutoFill are still waiting to upload.")
+        }
+        guard let lastSyncedAt = viewModel.databaseReference.cloudSyncMetadata?.lastSyncedAt else { return nil }
+        return String(localized: "Last synced \(lastSyncedAt, format: .relative(presentation: .named))")
     }
 }
 
@@ -1404,7 +1451,7 @@ struct CloudSyncWarningButton: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.title3.weight(.semibold))
                 .symbolRenderingMode(.monochrome)
-                .foregroundStyle(Color.yellow)
+                .foregroundStyle(Theme.State.cloudWarning)
                 .frame(width: 34, height: 34)
         }
         .buttonStyle(.plain)

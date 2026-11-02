@@ -1336,6 +1336,17 @@ final class DatabaseViewModel {
         allEntries.filter { $0.totpConfig != nil }
     }
 
+    /// The counts the vault root's tiles show.
+    var collectionCounts: DatabaseCollectionCounts {
+        let recycleBin = recycleBinGroup
+        return DatabaseCollectionCounts(
+            allEntries: allEntries.count,
+            verificationCodes: allEntries.reduce(0) { $0 + ($1.totpConfig == nil ? 0 : 1) },
+            tags: allTags.count,
+            recycleBin: (recycleBin?.entries.count ?? 0) + (recycleBin?.groups.count ?? 0)
+        )
+    }
+
     /// How many groups `allEntries` is spread over at most: every group below
     /// the visible root that is not in the recycle bin.
     var allEntriesGroupCount: Int {
