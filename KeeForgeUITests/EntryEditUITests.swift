@@ -25,9 +25,9 @@ class EntryEditUITestCase: KeeForgeUITestCase {
     }
 
     /// Scrolls the entry editor with slow drags until `element` is tappable and
-    /// clear of the keyboard. On iOS 18 `swipeUp()` leaves the editor in place
-    /// while the keyboard covers a custom-field row, so `revealElement` cannot
-    /// reach it; a slow drag scrolls it as a finger would.
+    /// clear of the keyboard. On a small screen `swipeUp()` leaves the editor in
+    /// place while the keyboard covers a custom-field row, so `revealElement`
+    /// cannot reach it; a slow drag scrolls it as a finger would.
     func revealFormElement(_ element: XCUIElement) -> Bool {
         let keyboard = app.keyboards.firstMatch
         func isReachable() -> Bool {
@@ -669,13 +669,21 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         XCTAssertTrue(revealFormElement(reorder))
         tapElement(reorder)
         let firstRow = app.descendants(matching: .any)["entry-edit.custom-field.order.0"].firstMatch
-        let secondRow = app.descendants(matching: .any)["entry-edit.custom-field.order.1"].firstMatch
         XCTAssertTrue(firstRow.waitForExistence(timeout: 5))
-        firstRow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+        let handles = app.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] 'Reorder'"))
+        XCTAssertTrue(handles.element(boundBy: 1).waitForExistence(timeout: 5), "Reorder handles did not appear")
+        handles.element(boundBy: 0).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
             forDuration: 1,
-            thenDragTo: secondRow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1.5))
+            thenDragTo: handles.element(boundBy: 1).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1.0)),
+            withVelocity: .slow,
+            thenHoldForDuration: 1
         )
-        XCTAssertEqual(firstRow.label, "Account Number")
+        let reordered = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Account Number'"), object: firstRow)
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [reordered], timeout: 5),
+            .completed,
+            "Dragging the first field below the second did not reorder them"
+        )
         let orderAttachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         orderAttachment.name = "custom-field-reorder-list"
         orderAttachment.lifetime = .keepAlways

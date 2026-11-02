@@ -103,12 +103,13 @@ import AppKit
 /// so the Mac protection is layered:
 ///
 /// 1. **Deterministic blur cover on resign-active.** Whenever the app stops
-///    being frontmost (`NSApplication.didResignActiveNotification`) a borderless
-///    blur overlay is placed over every vault-content window and lifted again
-///    on `didBecomeActiveNotification`. This is unconditional — it does not
-///    depend on the capture-block toggle — so a bystander glance, Mission
-///    Control, or a screenshot of the app while it is backgrounded shows only
-///    frosted glass.
+///    being frontmost (`NSApplication.didResignActiveNotification`) a blur
+///    overlay window is placed over every vault-content window and lifted again
+///    on `didBecomeActiveNotification`. The overlay is a titled window with its
+///    titlebar hidden, so the system gives it the same rounded shape. This is
+///    unconditional — it does not depend on the capture-block toggle — so a
+///    bystander glance, Mission Control, or a screenshot of the app while it
+///    is backgrounded shows only frosted glass.
 ///
 /// 2. **Best-effort capture blocking.** A single choke point applies
 ///    `NSWindow.sharingType = .none` to every window when the "Block screen
@@ -120,9 +121,9 @@ import AppKit
 /// so it receives the same synchronous resign-active cover as vault windows.
 /// The SSH tab also removes those rows from its view while the app is inactive.
 ///
-/// Window covering is exercised manually (see `KeeForgeMac/SECURITY.md`);
-/// the pure policy decisions (`windowSharingType`, `shouldPrivacyCover`) are
-/// unit-tested.
+/// The policy decisions (`windowSharingType`, `shouldPrivacyCover`) and the
+/// overlay's configuration (`makeCoverWindow(over:blockCapture:)`) are
+/// unit-tested; how it looks is checked by hand (see `KeeForgeMac/SECURITY.md`).
 @MainActor
 final class ScreenProtectionService {
     /// Posted by Settings when the "Block screen capture" toggle changes so the
@@ -240,19 +241,39 @@ final class ScreenProtectionService {
         let key = ObjectIdentifier(window)
         guard coverWindows[key] == nil else { return }
 
-        let cover = NSWindow(
+        let cover = Self.makeCoverWindow(over: window, blockCapture: isCaptureBlocked)
+        window.addChildWindow(cover, ordered: .above)
+        cover.setFrame(window.frame, display: true)
+        coverWindows[key] = cover
+    }
+
+    /// A borderless window has square corners, and AppKit does not expose a
+    /// window's corner radius. A titled window with the same toolbar style gets
+    /// the parent's shape from the system.
+    static func makeCoverWindow(over window: NSWindow, blockCapture: Bool) -> NSWindow {
+        let cover = PrivacyCoverWindow(
             contentRect: window.frame,
-            styleMask: [.borderless],
+            styleMask: [.titled, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         cover.isReleasedWhenClosed = false
+        cover.isExcludedFromWindowsMenu = true
+        cover.titleVisibility = .hidden
+        cover.titlebarAppearsTransparent = true
+        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+            cover.standardWindowButton(button)?.isHidden = true
+        }
+        if window.toolbar != nil {
+            cover.toolbar = NSToolbar(identifier: "PrivacyCover")
+            cover.toolbarStyle = window.toolbarStyle
+        }
         cover.backgroundColor = .clear
         cover.isOpaque = false
         cover.hasShadow = false
         cover.ignoresMouseEvents = true
         cover.level = .floating
-        cover.sharingType = Self.windowSharingType(blockCapture: isCaptureBlocked)
+        cover.sharingType = windowSharingType(blockCapture: blockCapture)
 
         let effect = NSVisualEffectView()
         effect.material = .fullScreenUI
@@ -260,10 +281,7 @@ final class ScreenProtectionService {
         effect.state = .active
         effect.autoresizingMask = [.width, .height]
         cover.contentView = effect
-
-        window.addChildWindow(cover, ordered: .above)
-        cover.setFrame(window.frame, display: true)
-        coverWindows[key] = cover
+        return cover
     }
 
     // MARK: - Window classification
@@ -302,5 +320,11 @@ final class ScreenProtectionService {
         }
         observers.append(token)
     }
+}
+
+/// Titled windows can become key by default; the cover must never take focus.
+private final class PrivacyCoverWindow: NSWindow {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
 }
 #endif

@@ -30,6 +30,8 @@ struct AutoFillSearchView: View {
     let possibleEntries: [KPEntry]
     let onSelect: (KPEntry) -> Void
     let onSelectPossible: (KPEntry) -> Void
+    /// Nil when the database cannot be written (read-only or KDBX 3.1),
+    /// which hides the possible-match "add original URL" action.
     let onAddURLToPossible: ((KPEntry) -> Void)?
     let onCancel: () -> Void
     let initialSearchText: String

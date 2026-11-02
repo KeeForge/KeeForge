@@ -21,7 +21,7 @@ Base commands and repo-wide policy (`-only-testing:` always, no full UI suite un
 
 | Setting | Effect |
 | --- | --- |
-| `-ui-testing` | Reseeds the database list from the fixture payload on every launch, skips the device-owner prompt for reveal/copy, and hides the What's New sheet and AutoFill tip. |
+| `-ui-testing` | Reseeds the database list from the fixture payload on every launch, skips the device-owner prompt for reveal/copy, and hides the What's New sheet, AutoFill tip, and App Store review prompt. |
 | `UI_TEST_VIEW_MODE` | Starting view of the database root, ahead of the stored last pick. The helpers browse from the group list, so `setUp` sets `groups`. A class testing the stored view removes the key (`DefaultViewUITests`). |
 | `UI_TEST_DATABASES_JSON`, `UI_TEST_KEYFILE_*` | Written by `setUp`. Override `databaseFixtureName`, `databaseFixtures`, or `keyFileFixtureName` instead of setting them. |
 | `UI_TEST_DATABASE_READ_ONLY=1` | Opens the database read-only. |
@@ -33,7 +33,7 @@ Base commands and repo-wide policy (`-only-testing:` always, no full UI suite un
 | `-autofill-store-inspector` | DEBUG only: replaces the app root with the AutoFill store inspector. |
 | `-KeeForge.<defaultsKey> <value>` | Overrides a stored preference for one launch. The pair can sit on either side of a bare flag such as `-ui-testing`: argument-domain parsing takes the next token as a flag's value only when it does not start with `-`. |
 
-Opt-in captures are gated on the runner environment: `TEST_RUNNER_APPSTORE_SCREENSHOTS=1` for `AppStoreScreenshots` (it skips otherwise) and `TEST_RUNNER_WHATS_NEW_SCREENSHOTS=1` for `WhatsNewUITests`. Set them as real environment variables on the `xcodebuild` process; a trailing `KEY=value` argument is a build-setting override that never reaches the runner, and the class skips silently.
+Opt-in captures are gated on the runner environment: `TEST_RUNNER_APPSTORE_SCREENSHOTS=1` for `AppStoreScreenshots` (it skips otherwise; `ci_scripts/make_appstore_screenshots.py --capture` sets it and runs one capture per locale with `-testLanguage`/`-testRegion`, so the walkthrough must not depend on English control labels) and `TEST_RUNNER_WHATS_NEW_SCREENSHOTS=1` for `WhatsNewUITests`. Set them as real environment variables on the `xcodebuild` process; a trailing `KEY=value` argument is a build-setting override that never reaches the runner, and the class skips silently.
 
 ## Rules for writing and fixing UI tests
 
@@ -64,12 +64,12 @@ xcrun xcresulttool export attachments --path <xcresult> --output-path <fresh-dir
 - A lazy `List`/`Form` never materializes a row below the fold, so `waitForExistence` on it cannot succeed on a small screen. Anchor "did this screen open" on a navigation bar or toolbar item and `revealElement` anything lower.
 - `isHittable` on a zero-frame or off-screen element raises an Objective-C exception that ends the test. On anything mid-transition, check `hasUsableFrame` / `hasOnScreenFrame` first or go through `revealElement`.
 - `isHittable` is true for a last row whose center sits under the bottom search bar; `revealElement` then does not scroll and a long press hits the bar. Swipe the list up first and keep the assertion on the context action.
-- On iOS 18 `swipeUp()` does not scroll the entry editor while the keyboard covers a custom-field row, so `revealElement` falls back and scrolls away. Reach editor rows typed into with the keyboard up through `EntryEditUITestCase.revealFormElement`, which slow-drags until the row clears the keyboard.
+- On a small screen `swipeUp()` does not scroll the entry editor while the keyboard covers a custom-field row, so `revealElement` falls back and scrolls away. Reach editor rows typed into with the keyboard up through `EntryEditUITestCase.revealFormElement`, which slow-drags until the row clears the keyboard.
 - After a save the workspace is disabled behind `database.saving-overlay` and swallows the next tap. Use `EntryEditUITestCase.waitForAutosaveAttempt()` and its retrying `openAddMenu`, `revealContextMenuButton`, and `revealSwipeDeleteButton`.
 
 ### Typing
 
-- `typeText` on an unfocused field fails the test outright and cannot be retried. Use `replaceText(in:with:)`, which scrolls the field clear of the keyboard, re-taps until focus is confirmed, and verifies the value. `XCUIElement.hasFocus` is false for a focused SwiftUI field.
+- `typeText` on an unfocused field fails the test outright and cannot be retried. Use `replaceText(in:with:)`, which scrolls the field clear of the keyboard, re-taps until focus is confirmed, moves a single-line field's caret to the end before clearing it, and verifies the value. `XCUIElement.hasFocus` is false for a focused SwiftUI field.
 - Database-creation and master-key password fields are typed through `revealPasswordTextField`, `replaceVisiblePasswordFixtureText`, and `dismissKeyboardAfterPasswordFixtureEntry`. Those helpers are for these forms only.
 - Unlock with `unlockSuccessfully()`. It retries a wrong-password result, which on parallel simulators usually means the password was typed before the field was ready.
 - A create flow that fills a password can raise the system Save Password sheet on a simulator.
@@ -82,7 +82,7 @@ xcrun xcresulttool export attachments --path <xcresult> --output-path <fresh-dir
 - On iOS 27, buttons inside a `Section` of a SwiftUI `Menu` lose their identifiers while labels survive. Use `menuButton(identifier:label:)`; an identifier-only query never resolves.
 - Search results replace the group list in place, and a focused search field covers the root even when empty. Use `searchForEntries(matching:)` and `dismissSearch()`.
 - The database root has no navigation-bar title while its large title is on screen. Use `selectDatabaseView(_:)` / `waitForDatabaseView(_:)`, not `app.navigationBars[...]`.
-- Database Details is a hub: every control is one push below it and only the hub has Close. `openDatabaseDetailsPage(_:)` before querying, `returnToDatabaseDetailsHub()` before the next page.
+- Database Details is a hub: every control is one push below it and only the hub has Close. `openDatabaseDetailsPage(_:)` before querying, `returnToDatabaseDetailsHub()` before the next page. On iOS 27.0 the hub's Close stays in the tree under a pushed page, so test for the hub with `isDatabaseDetailsHubShowing()`, not `exists`.
 - iPadOS can start the split view with its sidebar collapsed. `revealSidebarIfNeeded()` taps the system control only when it offers Show Sidebar; never force a column visibility from a test.
 - On the database list a long press opens the context menu and rows move only in Edit mode, so drive a reorder through `database.edit.button`. `DatabaseListUITests` caps its details-reopen test at 120 s so a stall between the two gestures fails fast.
 

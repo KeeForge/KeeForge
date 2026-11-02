@@ -21,7 +21,7 @@ enum DatabaseExportError: Error, LocalizedError, Equatable, Sendable {
 }
 
 /// Hands the raw encrypted bytes of a database (its current local copy, or one
-/// of the app-container backups) to a Files export. Suggested filenames carry a
+/// of the app-container backups) to a Files export (macOS) or the share sheet (iOS). Suggested filenames carry a
 /// timestamp suffix so a save into the source folder never replaces the
 /// original file.
 enum DatabaseExportService {
@@ -90,6 +90,33 @@ enum DatabaseExportService {
             data: data,
             suggestedFilename: backupFilename(for: reference, backup: backup, timeZone: timeZone)
         )
+    }
+
+    // MARK: - Share
+
+    static var shareDirectory: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("database-share", isDirectory: true)
+    }
+
+    /// Writes `payload` under its suggested filename for the share sheet,
+    /// which needs a file URL. Remove it with `removeShareFile(_:)` once the
+    /// sheet closes.
+    static func stageShareFile(_ payload: ExportPayload, in directory: URL = shareDirectory) throws -> URL {
+        let url = directory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent(payload.suggestedFilename)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try payload.data.write(to: url, options: .atomic)
+        return url
+    }
+
+    static func removeShareFile(_ url: URL) {
+        try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+    }
+
+    /// Removes staged share copies left by an earlier launch.
+    static func purgeShareFiles(in directory: URL = shareDirectory) {
+        try? FileManager.default.removeItem(at: directory)
     }
 
     // MARK: - Filenames

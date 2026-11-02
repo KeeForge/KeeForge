@@ -209,6 +209,18 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         }
     }
 
+    func testOnlyTheGroupsViewRootDropsTheGroupsHeader() {
+        XCTAssertFalse(
+            DatabaseWorkspaceState.ViewMode.showsGroupsHeader(in: .groups),
+            "The Groups view's title already names its subgroups"
+        )
+        XCTAssertTrue(
+            DatabaseWorkspaceState.ViewMode.showsGroupsHeader(in: nil),
+            "A pushed group is titled after itself, so its subgroups keep the header"
+        )
+        XCTAssertTrue(DatabaseWorkspaceState.ViewMode.showsGroupsHeader(in: .recycleBin))
+    }
+
     func testEveryNavigationInteractionReportsActivity() {
         let workspace = DatabaseWorkspaceState(defaults: defaults)
         var interactions = 0

@@ -36,6 +36,12 @@ final class DatabaseWorkspaceState {
             }
         }
 
+        /// Whether a list of subgroups takes a "Groups" header. `nil` is a
+        /// pushed level; the Groups view's own title already says it.
+        static func showsGroupsHeader(in mode: ViewMode?) -> Bool {
+            mode != .groups
+        }
+
         var systemImage: String {
             switch self {
             case .groups:

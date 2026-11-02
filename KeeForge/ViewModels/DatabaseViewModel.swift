@@ -147,7 +147,7 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
     /// save already in flight.
     case sessionUnavailable
 
-    /// Only names Export Copy while the cache still is the change: once the
+    /// Only names Export Copy (Share on iOS) while the cache still is the change: once the
     /// database has been opened, the cache is the cloud copy and exporting it
     /// would hand the user the version without their change.
     var message: String {
@@ -157,11 +157,19 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
         case .changeUnidentified:
             String(localized: "KeeForge can't tell which copy on this device holds the change saved through AutoFill, so nothing was merged. The change may already be in this database; otherwise look for it in the backups in Database Details and export that backup to merge it in another KeePass app. Once the change is merged, use Discard Pending Upload in the database list to clear the conflict.")
         case .changeUnreadable(.cache):
+            #if os(macOS)
             String(localized: "The change saved through AutoFill could not be opened with this database's master key. To merge it in another KeePass app, use Export Copy in the database list.")
+            #else
+            String(localized: "The change saved through AutoFill could not be opened with this database's master key. To merge it in another KeePass app, use Share in the database list.")
+            #endif
         case .changeUnreadable(.backup(let url)):
             String(localized: "The change saved through AutoFill could not be opened with this database's master key. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
         case .attachmentsDiverged(.cache):
+            #if os(macOS)
             String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. To merge it in another KeePass app, use Export Copy in the database list.")
+            #else
+            String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. To merge it in another KeePass app, use Share in the database list.")
+            #endif
         case .attachmentsDiverged(.backup(let url)):
             String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
         case .attachmentsDivergedFromFile(let url):
@@ -543,6 +551,9 @@ final class DatabaseViewModel {
             waiters.forEach { $0.resume() }
         }
     }
+    /// The last save attempt failed or hit a conflict; a dismissed alert
+    /// clears `saveError`, so the review prompt reads this instead.
+    @ObservationIgnored private var lastSaveAttemptFailed = false
     /// Sync Now waiting out a save that is still in flight (`waitForInFlightSave`).
     @ObservationIgnored private var saveCompletionWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var pendingLockRequest: PendingLockRequest?
@@ -2427,7 +2438,12 @@ final class DatabaseViewModel {
     }
 
     func save() async throws {
-        try await saveDraft()
+        do {
+            try await saveDraft()
+        } catch {
+            lastSaveAttemptFailed = true
+            throw error
+        }
         // An unsaved edit makes `mergePendingLocalSaves` wait; this save is
         // what it was waiting for.
         await mergePendingLocalSaves()
@@ -2450,6 +2466,7 @@ final class DatabaseViewModel {
             throw SaveError.saveContextUnavailable
         }
 
+        let followsSaveError = lastSaveAttemptFailed || saveError != nil || saveConflict != nil
         isSaving = true
         saveError = nil
         saveConflict = nil
@@ -2522,18 +2539,25 @@ final class DatabaseViewModel {
 
                 guard let grown = self.draft, grown.pendingEdits != snapshot.pendingEdits else {
                     self.draft = nil
+                    lastSaveAttemptFailed = false
+                    ReviewPromptService.noteSuccessfulSave(followsError: followsSaveError)
                     return
                 }
                 // A replaced-but-pristine draft (edits discarded mid-save) has
                 // nothing to write; keep it rather than clearing state the user
                 // just chose.
-                guard grown.isDirty else { return }
+                guard grown.isDirty else {
+                    lastSaveAttemptFailed = false
+                    ReviewPromptService.noteSuccessfulSave(followsError: followsSaveError)
+                    return
+                }
                 snapshot = grown
             case .conflict(let remoteSHA512, let remoteData):
                 saveConflict = SaveConflict(
                     remoteSHA512: remoteSHA512,
                     remoteData: remoteData
                 )
+                lastSaveAttemptFailed = true
                 return
             }
         }
@@ -4244,6 +4268,7 @@ final class DatabaseViewModel {
         self.saveError = nil
         self.saveConflict = nil
         self.pendingLockRequest = nil
+        let followsFailedAttempt = failedAttempts > 0
         self.failedAttempts = 0
         self.lockoutUntil = nil
         self.state = .unlocked
@@ -4269,7 +4294,7 @@ final class DatabaseViewModel {
         refreshDatabaseReference()
         populateCredentialStoreIfNeeded(root: payload.rootGroup)
         refreshPendingUploadConflict()
-        ReviewPromptService.requestReviewIfAppropriate()
+        ReviewPromptService.noteSuccessfulUnlock(followsError: followsFailedAttempt)
     }
 
     private func hardwareKeyCompositeKey(

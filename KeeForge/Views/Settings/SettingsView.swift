@@ -104,6 +104,7 @@ struct SettingsView: View {
             MacDisplaySettingsTab(
                 showWebsiteIcons: $settings.showWebsiteIcons,
                 showDatabaseUsageStats: $settings.showDatabaseUsageStats,
+                showWhatsNewAfterUpdates: $settings.showWhatsNewAfterUpdates,
                 appearanceMode: $settings.appearanceMode,
                 appAccentColor: $settings.appAccentColor,
                 sortOrder: $settings.sortOrder,
@@ -228,6 +229,7 @@ struct SettingsView: View {
                 DisplaySettingsView(
                     showWebsiteIcons: $settings.showWebsiteIcons,
                     showDatabaseUsageStats: $settings.showDatabaseUsageStats,
+                    showWhatsNewAfterUpdates: $settings.showWhatsNewAfterUpdates,
                     appearanceMode: $settings.appearanceMode,
                     appAccentColor: $settings.appAccentColor,
                     sortOrder: $settings.sortOrder,
@@ -563,6 +565,7 @@ private struct AutoFillSettingsView: View {
 private struct DisplaySettingsView: View {
     @Binding var showWebsiteIcons: Bool
     @Binding var showDatabaseUsageStats: Bool
+    @Binding var showWhatsNewAfterUpdates: Bool
     @Binding var appearanceMode: SettingsService.AppearanceMode
     @Binding var appAccentColor: SettingsService.AppAccentColor?
     @Binding var sortOrder: DatabaseViewModel.SortOrder
@@ -574,6 +577,7 @@ private struct DisplaySettingsView: View {
             themeSection
             privacySection
             displaySection
+            whatsNewSection
             sortSection
 
             if showWebsiteIcons {
@@ -625,6 +629,13 @@ private struct DisplaySettingsView: View {
             Text("Privacy")
         } footer: {
             Text("When off, KeeForge hides last-opened activity from the locked database list.")
+        }
+    }
+
+    private var whatsNewSection: some View {
+        Section {
+            Toggle("Show What's New After Updates", isOn: $showWhatsNewAfterUpdates)
+                .accessibilityIdentifier("settings.display.whats-new-toggle")
         }
     }
 
@@ -906,6 +917,7 @@ private struct MacSecuritySettingsTab: View {
 private struct MacDisplaySettingsTab: View {
     @Binding var showWebsiteIcons: Bool
     @Binding var showDatabaseUsageStats: Bool
+    @Binding var showWhatsNewAfterUpdates: Bool
     @Binding var appearanceMode: SettingsService.AppearanceMode
     @Binding var appAccentColor: SettingsService.AppAccentColor?
     @Binding var sortOrder: DatabaseViewModel.SortOrder
@@ -950,6 +962,11 @@ private struct MacDisplaySettingsTab: View {
                 if showWebsiteIcons {
                     Text("Fetches icons from DuckDuckGo. Only the website domain is sent.")
                 }
+            }
+
+            Section {
+                Toggle("Show What's New After Updates", isOn: $showWhatsNewAfterUpdates)
+                    .accessibilityIdentifier("settings.display.whats-new-toggle")
             }
 
             Section("Entry List") {

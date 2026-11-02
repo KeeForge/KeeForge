@@ -6,7 +6,7 @@ final class AppSettingsViewModelTests: XCTestCase {
     private let keys = [
         "autoLockTimeout", "lockOnBackground", "clipboardTimeout", "authenticationGracePeriod",
         "autoUnlockWithFaceID",
-        "showWebsiteIcons", "showDatabaseUsageStats", "appearanceMode", "appAccentColor",
+        "showWebsiteIcons", "showDatabaseUsageStats", "showWhatsNewAfterUpdates", "appearanceMode", "appAccentColor",
         "quickAutoFillEnabled", "autoFillCopyTOTP", "sortOrder", "sortAscending",
         "macLockPolicy", "blockScreenCapture",
     ].map { "KeeForge.\($0)" }
@@ -202,6 +202,7 @@ final class AppSettingsViewModelTests: XCTestCase {
         model.autoUnlockWithFaceID = true
         model.showWebsiteIcons = true
         model.showDatabaseUsageStats = false
+        model.showWhatsNewAfterUpdates = false
         model.appearanceMode = .dark
         model.appAccentColor = .init(red: 0.25, green: 0.5, blue: 0.75)
         model.autoFillCopyTOTP = !model.autoFillCopyTOTP
@@ -213,6 +214,7 @@ final class AppSettingsViewModelTests: XCTestCase {
         XCTAssertTrue(reopened.autoUnlockWithFaceID)
         XCTAssertTrue(reopened.showWebsiteIcons)
         XCTAssertFalse(reopened.showDatabaseUsageStats)
+        XCTAssertFalse(reopened.showWhatsNewAfterUpdates)
         XCTAssertEqual(reopened.appearanceMode, .dark)
         XCTAssertEqual(reopened.appAccentColor, model.appAccentColor)
         XCTAssertEqual(reopened.autoFillCopyTOTP, model.autoFillCopyTOTP)

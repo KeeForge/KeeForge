@@ -72,7 +72,7 @@ The [macOS security model](SECURITY.md) covers secrets, shared storage, lock beh
 
 ## What Mac Work Has To Test
 
-Moved to `../AGENTS.md` ("macOS Test Strategy"), with the build and test commands. CI coverage is in `../.github/AGENTS.md`.
+See "macOS tests" in `../AGENTS.md`, with the build and test commands. CI coverage is in `../.github/AGENTS.md`.
 
 ## Distribution Channels
 

@@ -54,6 +54,12 @@ final class AppSettingsViewModel {
             SettingsService.showDatabaseUsageStats = showDatabaseUsageStats
         }
     }
+    var showWhatsNewAfterUpdates = SettingsService.showWhatsNewAfterUpdates {
+        didSet {
+            guard !isReloading, oldValue != showWhatsNewAfterUpdates else { return }
+            SettingsService.showWhatsNewAfterUpdates = showWhatsNewAfterUpdates
+        }
+    }
     var appearanceMode = SettingsService.appearanceMode {
         didSet {
             guard !isReloading, oldValue != appearanceMode else { return }
@@ -186,6 +192,7 @@ final class AppSettingsViewModel {
         autoUnlockWithFaceID = SettingsService.autoUnlockWithFaceID
         showWebsiteIcons = SettingsService.showWebsiteIcons
         showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
+        showWhatsNewAfterUpdates = SettingsService.showWhatsNewAfterUpdates
         appearanceMode = SettingsService.appearanceMode
         appAccentColor = SettingsService.appAccentColor
         quickAutoFillEnabled = SettingsService.quickAutoFillEnabled

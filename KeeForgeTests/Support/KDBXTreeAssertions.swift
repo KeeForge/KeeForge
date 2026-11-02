@@ -104,6 +104,16 @@ struct KDBXTestFixture {
         keyFileName: nil,
         keyFileExtension: nil
     )
+    /// KDBX 4.1 fixture whose entry and group `keepassxc-cli` recycled out of
+    /// `Work`, with KeePassXC's own `<PreviousParentGroup>` references. See
+    /// `TestFixtures/generators/keepassxc_recycled.py`.
+    static let keepassxcRecycled = KDBXTestFixture(
+        name: "keepassxc-recycled",
+        subdirectory: "compatibility",
+        password: "keepassxc-recycled",
+        keyFileName: nil,
+        keyFileExtension: nil
+    )
     /// Foreign-authored (pykeepass) KDBX4 fixture whose Argon2 KDF uses a high
     /// iteration count with low memory (1500 x 1 MiB, above the retired fixed
     /// 1000-iteration cap), the acceptance case for the `KDFExecutionPolicy`

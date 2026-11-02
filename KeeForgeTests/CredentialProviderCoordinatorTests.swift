@@ -144,6 +144,47 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         }
     }
 
+    func test_possibleMatchAddURL_offeredOnlyForWritableDatabases() throws {
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(
+            title: "Sibling",
+            username: "sibling",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey),
+            url: "https://tro.sitio.com/login"
+        )
+        let writable = try seedResolvableDefaultDatabase()
+        var readOnly = writable
+        readOnly.isReadOnly = true
+        let cases: [(name: String, reference: DatabaseReference, format: KDBXParser.FileVersion, offersAddURL: Bool)] = [
+            ("writable KDBX 4", writable, .kdbx4(minor: 0), true),
+            ("read-only reference", readOnly, .kdbx4(minor: 0), false),
+            ("legacy KDBX 3.1", writable, .kdbx3_1, false)
+        ]
+
+        for testCase in cases {
+            let (coordinator, presenter) = makeCoordinator()
+            coordinator.serviceIdentifiers = [
+                ASCredentialServiceIdentifier(identifier: "https://acs.sitio.com", type: .URL)
+            ]
+            seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+            coordinator.activeDatabaseReference = testCase.reference
+            coordinator.parsedFormatVersion = testCase.format
+
+            coordinator.presentPasswordMatchesOrFinish()
+
+            let searchView = try XCTUnwrap(presenter.searchView, testCase.name)
+            XCTAssertEqual(searchView.possibleEntries.map(\.id), [entry.id], testCase.name)
+            XCTAssertEqual(searchView.onAddURLToPossible != nil, testCase.offersAddURL, testCase.name)
+
+            searchView.onSelectPossible(entry)
+            XCTAssertEqual(
+                presenter.completedCredential?.user,
+                "sibling",
+                "Selecting a possible match must still fill: \(testCase.name)"
+            )
+        }
+    }
+
     // MARK: - Required cleanup-path tests
 
     func test_requestPreparedBeforeAppearance_waitsForActivePresentation() throws {
@@ -386,6 +427,28 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(presenter.cancelledErrorCodes, [], "A completed request must not be cancelled again")
         XCTAssertNotNil(presenter.completedCredential)
+    }
+
+    func test_completedFillCountsTowardReviewPromptOnce_cancelDoesNot() throws {
+        let (coordinator, _) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(
+            title: "GitHub",
+            username: "octocat",
+            password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+            url: "https://github.com/login"
+        )
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+        SettingsService.successfulAutoFillCount = 0
+        defer { SettingsService.successfulAutoFillCount = 0 }
+
+        coordinator.completeRequest(with: entry)
+        coordinator.completeRequest(with: entry)
+        XCTAssertEqual(SettingsService.successfulAutoFillCount, 1)
+
+        let (cancelledCoordinator, _) = makeCoordinator()
+        cancelledCoordinator.cancelRequest(code: .userCanceled)
+        XCTAssertEqual(SettingsService.successfulAutoFillCount, 1)
     }
 
     func test_cancelDuringUnlockInvalidatesLateContinuation() async throws {

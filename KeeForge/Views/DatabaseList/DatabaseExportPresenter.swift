@@ -14,9 +14,21 @@ enum DatabaseExportRequest: Identifiable, Equatable {
     }
 }
 
+/// The current-copy action is a Files save on macOS and the share sheet on iOS.
+enum DatabaseExportLabels {
+    static var currentCopy: String {
+        #if os(macOS)
+        String(localized: "Export Copy…")
+        #else
+        String(localized: "Share…")
+        #endif
+    }
+}
+
 extension View {
-    /// Loads the requested database bytes and hands them to a Files export.
-    /// Sets `request` back to nil once the exporter closes or loading fails.
+    /// Loads the requested database bytes and hands them on: a Files save
+    /// panel on macOS, the share sheet on iOS (which offers Save to Files).
+    /// Sets `request` back to nil once that closes or loading fails.
     func databaseExporter(request: Binding<DatabaseExportRequest?>) -> some View {
         modifier(DatabaseExportPresenter(request: request))
     }
@@ -27,6 +39,7 @@ private struct DatabaseExportPresenter: ViewModifier {
 
     @State private var payload: DatabaseExportService.ExportPayload?
     @State private var isExporterPresented = false
+    @State private var shareURL: URL?
     @State private var errorMessage: String?
 
     func body(content: Content) -> some View {
@@ -35,6 +48,7 @@ private struct DatabaseExportPresenter: ViewModifier {
                 guard let request else { return }
                 await load(request)
             }
+            #if os(macOS)
             .fileExporter(
                 isPresented: $isExporterPresented,
                 document: payload.map { KDBXExportDocument(data: $0.data) },
@@ -53,6 +67,13 @@ private struct DatabaseExportPresenter: ViewModifier {
                     finish()
                 }
             }
+            #else
+            .background {
+                DatabaseShareSheet(fileURL: shareURL) {
+                    finish()
+                }
+            }
+            #endif
             .alert(
                 "Couldn’t Export Database",
                 isPresented: Binding(
@@ -79,8 +100,19 @@ private struct DatabaseExportPresenter: ViewModifier {
                 loaded = try await DatabaseExportService.exportBackup(backup, for: reference)
             }
             guard !Task.isCancelled else { return }
+            #if os(macOS)
             payload = loaded
             isExporterPresented = true
+            #else
+            let staged = try await Task.detached {
+                try DatabaseExportService.stageShareFile(loaded)
+            }.value
+            guard !Task.isCancelled else {
+                DatabaseExportService.removeShareFile(staged)
+                return
+            }
+            shareURL = staged
+            #endif
         } catch {
             guard !Task.isCancelled else { return }
             errorMessage = error.localizedDescription
@@ -91,6 +123,58 @@ private struct DatabaseExportPresenter: ViewModifier {
     private func finish() {
         isExporterPresented = false
         payload = nil
+        if let shareURL {
+            DatabaseExportService.removeShareFile(shareURL)
+        }
+        shareURL = nil
         request = nil
     }
 }
+
+#if os(iOS)
+/// Presents `UIActivityViewController` for `fileURL` from the view it backs,
+/// so it lands in whatever sheet hosts that view. SwiftUI's `ShareLink` cannot
+/// be opened programmatically, and the bytes load only after the tap.
+private struct DatabaseShareSheet: UIViewControllerRepresentable {
+    let fileURL: URL?
+    let onComplete: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        UIViewController()
+    }
+
+    func updateUIViewController(_ host: UIViewController, context: Context) {
+        context.coordinator.onComplete = onComplete
+        guard let fileURL, context.coordinator.presentedURL != fileURL else { return }
+        context.coordinator.presentedURL = fileURL
+        guard host.view.window != nil, host.presentedViewController == nil else {
+            let onComplete = onComplete
+            Task { @MainActor in onComplete() }
+            return
+        }
+
+        let controller = UIActivityViewController(activityItems: [fileURL], applicationActivities: nil)
+        let coordinator = context.coordinator
+        controller.completionWithItemsHandler = { _, _, _, _ in
+            coordinator.presentedURL = nil
+            coordinator.onComplete()
+        }
+        // iPad shows it as a popover; the host spans the whole list or form,
+        // so center it rather than pointing an arrow at nothing in particular.
+        if let popover = controller.popoverPresentationController {
+            popover.sourceView = host.view
+            popover.sourceRect = CGRect(x: host.view.bounds.midX, y: host.view.bounds.midY, width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
+        host.present(controller, animated: true)
+    }
+
+    @MainActor
+    final class Coordinator {
+        var presentedURL: URL?
+        var onComplete: () -> Void = {}
+    }
+}
+#endif

@@ -456,7 +456,10 @@ final class CredentialProviderCoordinator {
         didAttemptAutoBiometricUnlock = false
         pendingUnlock = false
 
-        guard registrationRequest.supportedAlgorithms.contains(.ES256) else {
+        // The relying party chooses the user name, and a `{REF:…}` saved as
+        // the entry's username would resolve to another entry on a later fill.
+        guard registrationRequest.supportedAlgorithms.contains(.ES256),
+              !FieldReferenceResolver.containsReference(identity.userName) else {
             pendingPasskeyRegistrationFailureMessage = String(localized: "This passkey request isn't supported.")
             activatePresentationIfPossible()
             return
@@ -1248,7 +1251,7 @@ final class CredentialProviderCoordinator {
     /// iOS-only (`ASSavePasswordRequest` is `API_UNAVAILABLE(macos)`); on macOS
     /// this is always a no-op that returns `false` so the unlock flow falls
     /// through to the next branch.
-    private func handlePendingSaveRequestIfNeeded() -> Bool {
+    func handlePendingSaveRequestIfNeeded() -> Bool {
         #if os(iOS)
         guard #available(iOS 26.2, *), let savePasswordRequest = pendingSavePasswordRequest else {
             return false
@@ -1570,14 +1573,17 @@ final class CredentialProviderCoordinator {
                 possibleEntries: matches.possible,
                 initialSearchText: "",
                 includesDatabaseSwitcher: true,
-                includesEntryCreation: true
-            ) { [weak self] entry in
-                self?.completeRequest(with: entry)
-            } onSelectPossible: { [weak self] entry in
-                self?.completeRequest(with: entry)
-            } onAddURLToPossible: { [weak self] entry in
-                self?.addOriginalRequestURL(to: entry, generation: generation)
-            }
+                includesEntryCreation: true,
+                onSelect: { [weak self] entry in
+                    self?.completeRequest(with: entry)
+                },
+                onSelectPossible: { [weak self] entry in
+                    self?.completeRequest(with: entry)
+                },
+                onAddURLToPossible: canWriteActiveDatabase ? { [weak self] entry in
+                    self?.addOriginalRequestURL(to: entry, generation: generation)
+                } : nil
+            )
         }
     }
 
@@ -1883,15 +1889,21 @@ final class CredentialProviderCoordinator {
         ).name
     }
 
+    /// Whether picker actions that write to the database may be offered: the
+    /// reference is not read-only and the file is not legacy KDBX 3.1, which
+    /// `KDBXWriter` cannot save.
+    private var canWriteActiveDatabase: Bool {
+        guard let reference = activeDatabaseReference else { return false }
+        return reference.isReadOnly == false && parsedFormatVersion?.requiresReadOnlyMode != true
+    }
+
     /// The picker's "create a new credential" action, or nil when this request
     /// cannot produce one: creation writes to the database, so it needs iOS, a
-    /// writable database, a KDBX 4 file, and a service identifier to derive the
-    /// entry's name and URL from.
+    /// writable database, and a service identifier to derive the entry's name
+    /// and URL from.
     private func makeEntryCreationAction() -> (() -> Void)? {
         #if os(iOS)
-        guard let reference = activeDatabaseReference,
-              reference.isReadOnly == false,
-              parsedFormatVersion?.requiresReadOnlyMode != true,
+        guard canWriteActiveDatabase,
               let serviceIdentifier = serviceIdentifiers.first else {
             return nil
         }
@@ -2035,6 +2047,12 @@ final class CredentialProviderCoordinator {
         generation: Int
     ) async -> CredentialProviderEntrySaveOutcome {
         guard isRequestActive(generation) else { return .completed }
+        // The website supplies these values, and a fill resolves `{REF:…}`:
+        // a saved reference would hand the site another entry's secrets.
+        guard !FieldReferenceResolver.containsReference(draftPayload.username),
+              !FieldReferenceResolver.containsReference(draftPayload.password) else {
+            return .showError(String(localized: "KeeForge can't save this login because it contains a field reference ({REF:…})."))
+        }
         guard let reference = activeDatabaseReference,
               let parsedRootGroup,
               let parsedMeta,
@@ -2435,7 +2453,7 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        finishRequest { presenter in
+        finishFill { presenter in
             presenter.completeOneTimeCodeRequest(code: code)
         }
     }
@@ -2497,7 +2515,7 @@ final class CredentialProviderCoordinator {
 
         AutoFillDiagnostics.log("completing password fill")
         let credential = ASPasswordCredential(user: user, password: decryptedPassword)
-        finishRequest { presenter in
+        finishFill { presenter in
             presenter.completeRequest(withSelectedCredential: credential)
         }
     }
@@ -2628,7 +2646,7 @@ final class CredentialProviderCoordinator {
             credentialID: credentialIDData
         )
 
-        finishRequest { presenter in
+        finishFill { presenter in
             presenter.completeAssertionRequest(using: credential)
         }
     }
@@ -2640,6 +2658,14 @@ final class CredentialProviderCoordinator {
         finishRequest { presenter in
             presenter.cancelRequest(withError: ASExtensionError(code))
         }
+    }
+
+    /// `finishRequest` for a credential handed back to the caller; the count
+    /// feeds the app's review prompt.
+    private func finishFill(_ action: (any CredentialProviderPresenting) -> Void) {
+        guard !didFinishRequest else { return }
+        SettingsService.successfulAutoFillCount += 1
+        finishRequest(action)
     }
 
     /// Gates the terminal handoff exactly once and captures the presenter for

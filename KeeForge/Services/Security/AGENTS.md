@@ -46,14 +46,14 @@
 ### Screen privacy
 
 - macOS capture blocking goes through one choke point (`ScreenProtectionService.windowSharingType(blockCapture:)`). A window the key-window sweep cannot reach, such as the quick-search panel, must apply that value itself.
-- The Mac blur cover on resign-active is unconditional and skips only the secret-free Settings window (`shouldPrivacyCover(windowIdentifier:)`). Capture blocking is best-effort; do not describe it as a guarantee.
+- The Mac blur cover on resign-active is unconditional and covers every titled window, Settings included (`shouldPrivacyCover(windowIdentifier:)`). It is a titled child window with a hidden titlebar and the parent's toolbar style, so the system gives it the parent's rounded shape; never add views to a window's frame view (AppKit warns about unknown subviews there). Capture blocking is best-effort; do not describe it as a guarantee.
 
 ## Tests
 
 - `KeychainServiceTests` (express item lifetime and protection too), `KeychainMigrationTests`, `QuickUnlockPasswordIntervalTests`; `DatabaseViewModelExpressUnlockTests` for what an app unlock or save reads and stores, `CredentialProviderCoordinatorTests` for AutoFill's; `SecretAccessGateTests` with `EntrySecretActionTests` for the gate's callers.
 - `HardwareKeyUnlockTests` covers the unlock flow around `HardwareKeyService`; the NFC session itself has no unit coverage.
 - `PasskeyCryptoTests` (in `PasskeyTests.swift`) and `CredentialProviderRegistrationTests` for `PasskeyCrypto`.
-- Mac window covering is checked by hand (`../../../KeeForgeMac/SECURITY.md`); only the policy functions are unit-tested, in `SettingsServiceTests`.
+- The Mac policy functions and the cover window's configuration (`makeCoverWindow(over:blockCapture:)`) are unit-tested in `SettingsServiceTests`; how the cover looks is checked by hand (`../../../KeeForgeMac/SECURITY.md`).
 
 ## See also
 

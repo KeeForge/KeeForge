@@ -600,6 +600,23 @@ final class KDBXCompatibilityTests: XCTestCase {
         let restoreLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
         try collector.run(KDBXCompatibilitySupport.restoreForeignRecycledEntryScenario(), on: restoreLoaded)
 
+        // merge-icon-renamed-after-deletion: a foreign icon rename beats an
+        // older local tombstone.
+        let mergeLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
+        try collector.run(KDBXCompatibilitySupport.mergeIconRenamedAfterDeletionScenario(), on: mergeLoaded)
+
+        try collector.emit()
+    }
+
+    /// KeePassXC's own Recycle Bin restore references, from `keepassxc-cli rm`
+    /// and `rmdir`, lead KeeForge back to the original group.
+    func test_keepassxcRecycledItems_restoreToTheGroupKeePassXCRecorded() throws {
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
+        let loaded = try KDBXCompatibilitySupport.load(.keepassxcRecycled, bundle: bundle)
+        XCTAssertEqual(loaded.header.formatVersion, .kdbx4(minor: 1), "Fixture precondition: KeePassXC wrote 4.1")
+        let scenario = KDBXCompatibilitySupport.restoreKeePassXCRecycledItemsScenario()
+        let result = try collector.run(scenario, on: loaded)
+        assertHeaderPreserved(result, loaded: loaded, scenario: scenario)
         try collector.emit()
     }
 
@@ -823,6 +840,8 @@ final class KDBXCompatibilityTests: XCTestCase {
             "\(richID)-set-entry-expiry",
             "kitchen-sink-change-entry-expiry",
             "kitchen-sink-restore-foreign-recycled-entry",
+            "kitchen-sink-merge-icon-renamed-after-deletion",
+            "keepassxc-recycled-restore-keepassxc-recycled",
             "aes-baseline-encryption-settings-chacha20-argon2id",
             "foreign-twofish-encryption-settings-aes256-keep-kdf",
             "aes-baseline-encryption-settings-aes-kdf",
@@ -841,7 +860,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 47)
+        XCTAssertEqual(descriptors.count, 49)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

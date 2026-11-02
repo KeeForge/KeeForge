@@ -149,6 +149,12 @@ enum KDBXCompatibilitySupport {
             source: .bundled(.unknownInnerHeader)
         )
 
+        static let keepassxcRecycled = Fixture(
+            id: "keepassxc-recycled",
+            displayName: "KeePassXC-recycled items fixture",
+            source: .bundled(.keepassxcRecycled)
+        )
+
         static let argon2HighIterations = Fixture(
             id: "argon2-high-iterations",
             displayName: "Argon2 high-iteration KDF fixture",
@@ -568,6 +574,8 @@ enum KDBXCompatibilitySupport {
         "set-entry-expiry",
         "change-entry-expiry",
         "restore-foreign-recycled-entry",
+        "merge-icon-renamed-after-deletion",
+        "restore-keepassxc-recycled",
         "create-group",
         "hide-group-from-autofill",
         "change-group-icon",
@@ -714,6 +722,8 @@ enum KDBXCompatibilitySupport {
         "set-entry-expiry",
         "change-entry-expiry",
         "restore-foreign-recycled-entry",
+        "merge-icon-renamed-after-deletion",
+        "restore-keepassxc-recycled",
         "create-group",
         "hide-group-from-autofill",
         "change-group-icon",
@@ -801,6 +811,8 @@ enum KDBXCompatibilitySupport {
             "set-entry-expiry",
             "change-entry-expiry",
             "restore-foreign-recycled-entry",
+            "merge-icon-renamed-after-deletion",
+            "restore-keepassxc-recycled",
             "create-group",
             "hide-group-from-autofill",
             "change-group-icon",
@@ -1593,6 +1605,118 @@ enum KDBXCompatibilitySupport {
     static let kitchenSinkNamedIconUUID = UUID(uuidString: "6B1F0E3A-2C4D-4E5F-8A9B-0C1D2E3F4A5B")!
     static let kitchenSinkNamedIconName = "Foreign Named Icon"
 
+    /// `keepassxc-recycled`: `keepassxc-cli rm` and `rmdir` recycled an entry
+    /// and a group out of `Work`, writing KeePassXC's own
+    /// `<PreviousParentGroup>`. Restoring each to the group that reference
+    /// names must put both back in `Work`.
+    static func restoreKeePassXCRecycledItemsScenario() -> Scenario {
+        Scenario(
+            id: "restore-keepassxc-recycled",
+            title: "Restore items KeePassXC recycled to their original group",
+            artifactFileName: "keepassxc-recycled-restore.kdbx",
+            expectedSearchTerms: ["Recycled Login", "Nested Login"],
+            expectedGroupPaths: ["Work", "Work/Recycled Projects"],
+            makeMergedTree: { loaded in
+                let work = try XCTUnwrap(findGroup(named: "Work", in: loaded.rootGroup))
+                let entry = try XCTUnwrap(findEntry(titled: "Recycled Login", in: loaded.rootGroup))
+                let group = try XCTUnwrap(findGroup(named: "Recycled Projects", in: loaded.rootGroup))
+                let entryParent = try XCTUnwrap(PreviousParentGroupXML.parentID(in: entry.unknownXML))
+                let groupParent = try XCTUnwrap(PreviousParentGroupXML.parentID(in: group.unknownXML))
+                XCTAssertEqual(entryParent, work.id, "Fixture precondition: KeePassXC named Work")
+                XCTAssertEqual(groupParent, work.id, "Fixture precondition: KeePassXC named Work")
+                let draft = try DatabaseDraft(
+                    rootGroup: loaded.rootGroup,
+                    meta: loaded.meta,
+                    sessionKey: loaded.sessionKey,
+                    binaryPoolFields: loaded.header.innerHeaderBinaryFields
+                )
+                .apply(.restoreEntry(entryID: entry.id, destinationGroupID: entryParent))
+                .apply(.restoreGroup(groupID: group.id, destinationGroupID: groupParent))
+                return (draft.rootGroup, draft.meta)
+            },
+            expectedEntryParents: [
+                .init(entryTitle: "Recycled Login", parentGroupName: "Work"),
+                .init(entryTitle: "Nested Login", parentGroupName: "Recycled Projects"),
+            ],
+            assertChange: { before, after, _ in
+                let workID = try XCTUnwrap(after.groupID(named: "Work"))
+                let binID = try XCTUnwrap(after.meta.recycleBinUUID)
+                let entryID = try XCTUnwrap(before.entryID(titled: "Recycled Login"))
+                let groupID = try XCTUnwrap(before.groupID(named: "Recycled Projects"))
+                let work = try XCTUnwrap(after.groups[workID])
+                let bin = try XCTUnwrap(after.groups[binID])
+                XCTAssertTrue(work.entryIDs.contains(entryID))
+                XCTAssertTrue(work.groupIDs.contains(groupID))
+                XCTAssertFalse(bin.entryIDs.contains(entryID))
+                XCTAssertFalse(bin.groupIDs.contains(groupID))
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
+                assertOnlyLocationChangedDiffers(before: try XCTUnwrap(before.entries[entryID]), after: try XCTUnwrap(after.entries[entryID]))
+                assertOnlyLocationChangedDiffers(before: try XCTUnwrap(before.groups[groupID]), after: try XCTUnwrap(after.groups[groupID]))
+                assertMetaUnchanged(before: before, after: after)
+            }
+        )
+    }
+
+    /// As in KeePass's `MergeInCustomIcons`: a local tombstone older than the
+    /// foreign `<LastModificationTime>` on `kitchen-sink`'s named icon loses to
+    /// it, so the merge keeps the icon and drops the tombstone. A newer
+    /// tombstone still deletes it.
+    static func mergeIconRenamedAfterDeletionScenario() -> Scenario {
+        let named = kitchenSinkNamedIconUUID
+        func merged(_ loaded: LoadedFixture, deletedAt: Date) throws -> KDBXMerger.Merged {
+            var deleted = try DatabaseDraft(
+                rootGroup: loaded.rootGroup,
+                meta: loaded.meta,
+                sessionKey: loaded.sessionKey,
+                binaryPoolFields: loaded.header.innerHeaderBinaryFields
+            )
+            .apply(.deleteCustomIcon(iconUUID: named))
+            .meta
+            deleted.deletedObjects = deleted.deletedObjects.map {
+                $0.uuid == named ? KPDeletedObject(uuid: named, deletionTime: deletedAt) : $0
+            }
+            let outcome = try KDBXMerger.merge(
+                local: .init(rootGroup: loaded.rootGroup.deepCopy(), meta: deleted,
+                             binaryPoolFields: loaded.header.innerHeaderBinaryFields),
+                remote: .init(rootGroup: loaded.rootGroup, meta: loaded.meta,
+                              binaryPoolFields: loaded.header.innerHeaderBinaryFields),
+                sessionKey: loaded.sessionKey
+            )
+            guard case .merged(let result) = outcome else { throw MergeScenarioError.declined }
+            return result
+        }
+
+        return Scenario(
+            id: "merge-icon-renamed-after-deletion",
+            title: "Merge keeps a foreign icon renamed after its local deletion",
+            artifactFileName: "kitchen-sink-merge-icon-renamed-after-deletion.kdbx",
+            expectedSearchTerms: ["Custom Badge"],
+            expectedGroupPaths: ["Icons"],
+            makeMergedTree: { loaded in
+                let renamedAt = try XCTUnwrap(CustomIconXML.modificationTime(of: named, in: loaded.meta.unknownXML))
+                let newerDeletion = try merged(loaded, deletedAt: renamedAt.addingTimeInterval(60))
+                XCTAssertNil(newerDeletion.meta.customIcons[named], "A newer tombstone still deletes the icon")
+                XCTAssertTrue(newerDeletion.meta.deletedObjects.contains { $0.uuid == named })
+
+                let olderDeletion = try merged(loaded, deletedAt: renamedAt.addingTimeInterval(-60))
+                return (olderDeletion.rootGroup, olderDeletion.meta)
+            },
+            expectedCustomIcons: [
+                .init(uuid: named.kdbxBase64String, name: kitchenSinkNamedIconName, isPresent: true),
+            ],
+            assertChange: { before, after, _ in
+                try assertUnchangedEntries(before: before, after: after)
+                XCTAssertEqual(after.meta.customIcons[named], before.meta.customIcons[named])
+                XCTAssertEqual(after.meta.customIconNames[named], kitchenSinkNamedIconName)
+                XCTAssertEqual(
+                    CustomIconXML.modificationTime(of: named, in: after.meta.unknownXML),
+                    CustomIconXML.modificationTime(of: named, in: before.meta.unknownXML)
+                )
+                XCTAssertFalse(after.meta.deletedObjects.contains { $0.uuid == named }, "The obsolete tombstone is dropped")
+            }
+        )
+    }
+
     static func restoreForeignRecycledEntryScenario() -> Scenario {
         Scenario(
             id: "restore-foreign-recycled-entry",
@@ -2176,6 +2300,12 @@ enum KDBXCompatibilitySupport {
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .kitchenSink, scenario: restoreForeignRecycledEntryScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .kitchenSink, scenario: mergeIconRenamedAfterDeletionScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .keepassxcRecycled, scenario: restoreKeePassXCRecycledItemsScenario())
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .syntheticRich, scenario: keeOTPArtifactScenario())

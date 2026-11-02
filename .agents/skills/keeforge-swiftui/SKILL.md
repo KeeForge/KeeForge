@@ -1,6 +1,6 @@
 ---
 name: keeforge-swiftui
-description: Review KeeForge SwiftUI views for accessibility, state, navigation, and rendering problems, or apply that guidance to a requested UI change. Invoke explicitly during the adoption pilot.
+description: Review KeeForge SwiftUI views for accessibility, state, navigation, and rendering problems, or apply that guidance to a requested UI change, including iOS and macOS screenshots. Invoke explicitly during the adoption pilot.
 license: MIT
 ---
 
@@ -21,6 +21,12 @@ Load only the reference relevant to the task:
 - [View structure and performance](references/views.md): view identity, observation scope, rendering work, and API modernization.
 
 For text changes, follow [resource guidance](../../../KeeForge/Resources/README.md) and the repository's translation, catalog normalization, and localization-test rules. Preserve the existing catalog key convention. For implementation work, use the existing verification rules, including the Mac test-strategy table; this skill introduces no new build or test commands.
+
+## Screenshots for UI changes
+
+A UI change is not done until it has screenshots on iOS and macOS for each affected scenario: relevant states (empty, error, long content), light and dark, iPad when layout differs, and AutoFill when that surface hosts the view. These fill the Screenshots table in the [PR template](../../../.github/PULL_REQUEST_TEMPLATE.md). A platform the change cannot reach gets a one-line reason in place of a screenshot.
+
+Capture iOS from a simulator or the test device, labeled with device and OS. Capture macOS with previews or `MacScreenshotAuditUITests`; read its environment-variable and window-size rules in [KeeForgeMacUITests/AGENTS.md](../../../KeeForgeMacUITests/AGENTS.md) first, and add a new screen to its walk. Save captures in the main checkout's `scratch/` and show them to the user before calling the change done.
 
 ## Review standard
 
