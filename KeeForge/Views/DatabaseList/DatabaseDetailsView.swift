@@ -250,20 +250,35 @@ struct DatabaseDetailsView: View {
                         cloudSyncSection(cloudState, metadata: metadata)
                     }
                 } label: {
-                    HStack {
+                    if PlatformDesign.followsIOSDesign {
+                        let status = listViewModel.status(for: reference)
+                        let pendingUploads = status.pendingUploadCount + status.pendingUploadConflictCount
                         SettingsSummaryRow(
                             title: "Cloud Sync",
                             systemImage: "arrow.triangle.2.circlepath",
-                            summary: DatabaseSettingsSummary.cloudSync(cloudState, lastSyncedAt: metadata.lastSyncedAt)
+                            summary: DatabaseSettingsSummary.cloudSync(
+                                cloudState,
+                                lastSyncedAt: metadata.lastSyncedAt,
+                                pendingUploadCount: status.pendingUploadCount
+                            ),
+                            needsAttention: cloudState.warningText != nil || pendingUploads > 0
                         )
+                    } else {
+                        HStack {
+                            SettingsSummaryRow(
+                                title: "Cloud Sync",
+                                systemImage: "arrow.triangle.2.circlepath",
+                                summary: DatabaseSettingsSummary.cloudSync(cloudState, lastSyncedAt: metadata.lastSyncedAt)
+                            )
 
-                        Spacer()
+                            Spacer()
 
-                        // The summary already says it in words.
-                        Circle()
-                            .fill(cloudState.warningText == nil ? Color.green : Color.orange)
-                            .frame(width: 8, height: 8)
-                            .accessibilityHidden(true)
+                            // The summary already says it in words.
+                            Circle()
+                                .fill(cloudState.warningText == nil ? Color.green : Color.orange)
+                                .frame(width: 8, height: 8)
+                                .accessibilityHidden(true)
+                        }
                     }
                 }
                 .accessibilityIdentifier("database-details.cloud-sync.link")

@@ -185,6 +185,25 @@ final class DatabaseSettingsSummaryTests: XCTestCase {
         )
     }
 
+    func testCloudSyncNamesChangesWaitingToUploadInWords() {
+        let healthy = makeCloudState(warningText: nil)
+        let lastSyncedAt = Date.now.addingTimeInterval(-3_600)
+
+        XCTAssertEqual(
+            DatabaseSettingsSummary.cloudSync(healthy, lastSyncedAt: lastSyncedAt, pendingUploadCount: 1),
+            "WebDAV · 1 change waiting to upload"
+        )
+        XCTAssertEqual(
+            DatabaseSettingsSummary.cloudSync(healthy, lastSyncedAt: nil, pendingUploadCount: 3),
+            "WebDAV · 3 changes waiting to upload"
+        )
+        XCTAssertEqual(
+            DatabaseSettingsSummary.cloudSync(makeCloudState(warningText: "Disconnected"), lastSyncedAt: nil, pendingUploadCount: 2),
+            "WebDAV · Disconnected",
+            "A cloud warning outranks the waiting changes"
+        )
+    }
+
     func testBackupsCountsThemAndDatesTheNewest() {
         XCTAssertEqual(DatabaseSettingsSummary.backups([]), "No backups on this device.")
 
