@@ -95,12 +95,53 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         coordinator.cancelRequest(code: .userCanceled)
         presenter.isPresentationActive = false
         coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
-        oldPicker.onAddURLToPossible(entry)
+        try XCTUnwrap(oldPicker.onAddURLToPossible)(entry)
 
         XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
         XCTAssertTrue(coordinator.pendingUnlock)
         XCTAssertNil(presenter.completedCredential)
         coordinator.cancelRequest(code: .userCanceled)
+    }
+
+    func test_possibleMatchAddURL_offeredOnlyForWritableDatabases() throws {
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(
+            title: "Sibling",
+            username: "sibling",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey),
+            url: "https://tro.sitio.com/login"
+        )
+        let writable = try seedResolvableDefaultDatabase()
+        var readOnly = writable
+        readOnly.isReadOnly = true
+        let cases: [(name: String, reference: DatabaseReference, format: KDBXParser.FileVersion, offersAddURL: Bool)] = [
+            ("writable KDBX 4", writable, .kdbx4(minor: 0), true),
+            ("read-only reference", readOnly, .kdbx4(minor: 0), false),
+            ("legacy KDBX 3.1", writable, .kdbx3_1, false)
+        ]
+
+        for testCase in cases {
+            let (coordinator, presenter) = makeCoordinator()
+            coordinator.serviceIdentifiers = [
+                ASCredentialServiceIdentifier(identifier: "https://acs.sitio.com", type: .URL)
+            ]
+            seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+            coordinator.activeDatabaseReference = testCase.reference
+            coordinator.parsedFormatVersion = testCase.format
+
+            coordinator.presentPasswordMatchesOrFinish()
+
+            let searchView = try XCTUnwrap(presenter.searchView, testCase.name)
+            XCTAssertEqual(searchView.possibleEntries.map(\.id), [entry.id], testCase.name)
+            XCTAssertEqual(searchView.onAddURLToPossible != nil, testCase.offersAddURL, testCase.name)
+
+            searchView.onSelectPossible(entry)
+            XCTAssertEqual(
+                presenter.completedCredential?.user,
+                "sibling",
+                "Selecting a possible match must still fill: \(testCase.name)"
+            )
+        }
     }
 
     // MARK: - Required cleanup-path tests

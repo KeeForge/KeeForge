@@ -6,7 +6,9 @@ struct AutoFillSearchView: View {
     let possibleEntries: [KPEntry]
     let onSelect: (KPEntry) -> Void
     let onSelectPossible: (KPEntry) -> Void
-    let onAddURLToPossible: (KPEntry) -> Void
+    /// Nil when the database cannot be written (read-only or KDBX 3.1),
+    /// which hides the possible-match "add original URL" action.
+    let onAddURLToPossible: ((KPEntry) -> Void)?
     let onCancel: () -> Void
     let initialSearchText: String
     /// When the entries come from KeeForge's shared copy of the database
@@ -38,7 +40,7 @@ struct AutoFillSearchView: View {
         onCreateEntry: (() -> Void)? = nil,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void = { _ in },
-        onAddURLToPossible: @escaping (KPEntry) -> Void = { _ in },
+        onAddURLToPossible: ((KPEntry) -> Void)? = nil,
         onCancel: @escaping () -> Void
     ) {
         self.entries = entries
@@ -124,7 +126,7 @@ struct AutoFillSearchView: View {
             set: { if !$0 { entryPendingURLAddition = nil } }
         )) {
             Button("Add URL") {
-                if let entry = entryPendingURLAddition { onAddURLToPossible(entry) }
+                if let entry = entryPendingURLAddition { onAddURLToPossible?(entry) }
                 entryPendingURLAddition = nil
             }
             Button("Cancel", role: .cancel) { entryPendingURLAddition = nil }
@@ -179,9 +181,11 @@ struct AutoFillSearchView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Button { onSelectPossible(entry) } label: { entryRow(entry) }
                                 .accessibilityIdentifier("autofill.entry.possible.use")
-                            Button("Add original URL to this entry") { entryPendingURLAddition = entry }
-                                .font(.caption)
-                                .accessibilityIdentifier("autofill.entry.possible.add-url")
+                            if onAddURLToPossible != nil {
+                                Button("Add original URL to this entry") { entryPendingURLAddition = entry }
+                                    .font(.caption)
+                                    .accessibilityIdentifier("autofill.entry.possible.add-url")
+                            }
                         }
                     }
                 }

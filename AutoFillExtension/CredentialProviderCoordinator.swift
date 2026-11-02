@@ -91,7 +91,7 @@ protocol CredentialProviderPresenting: AnyObject {
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
-        onAddURLToPossible: @escaping (KPEntry) -> Void,
+        onAddURLToPossible: ((KPEntry) -> Void)?,
         onCancel: @escaping () -> Void
     )
 
@@ -1579,14 +1579,17 @@ final class CredentialProviderCoordinator {
                 possibleEntries: possibleMatches,
                 initialSearchText: possibleMatches.isEmpty ? searchDomain : "",
                 includesDatabaseSwitcher: true,
-                includesEntryCreation: true
-            ) { [weak self] entry in
-                self?.completeRequest(with: entry)
-            } onSelectPossible: { [weak self] entry in
-                self?.completeRequest(with: entry)
-            } onAddURLToPossible: { [weak self] entry in
-                self?.addOriginalRequestURL(to: entry, generation: generation)
-            }
+                includesEntryCreation: true,
+                onSelect: { [weak self] entry in
+                    self?.completeRequest(with: entry)
+                },
+                onSelectPossible: { [weak self] entry in
+                    self?.completeRequest(with: entry)
+                },
+                onAddURLToPossible: canWriteActiveDatabase ? { [weak self] entry in
+                    self?.addOriginalRequestURL(to: entry, generation: generation)
+                } : nil
+            )
         }
     }
 
@@ -1829,7 +1832,7 @@ final class CredentialProviderCoordinator {
         includesEntryCreation: Bool = false,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void = { _ in },
-        onAddURLToPossible: @escaping (KPEntry) -> Void = { _ in }
+        onAddURLToPossible: ((KPEntry) -> Void)? = nil
     ) {
         let restoredSearchText = pendingSwitchSearchText
         pendingSwitchSearchText = nil
@@ -1863,15 +1866,21 @@ final class CredentialProviderCoordinator {
         ).name
     }
 
+    /// Whether picker actions that write to the database may be offered: the
+    /// reference is not read-only and the file is not legacy KDBX 3.1, which
+    /// `KDBXWriter` cannot save.
+    private var canWriteActiveDatabase: Bool {
+        guard let reference = activeDatabaseReference else { return false }
+        return reference.isReadOnly == false && parsedFormatVersion?.requiresReadOnlyMode != true
+    }
+
     /// The picker's "create a new credential" action, or nil when this request
     /// cannot produce one: creation writes to the database, so it needs iOS, a
-    /// writable database, a KDBX 4 file, and a service identifier to derive the
-    /// entry's name and URL from.
+    /// writable database, and a service identifier to derive the entry's name
+    /// and URL from.
     private func makeEntryCreationAction() -> (() -> Void)? {
         #if os(iOS)
-        guard let reference = activeDatabaseReference,
-              reference.isReadOnly == false,
-              parsedFormatVersion?.requiresReadOnlyMode != true,
+        guard canWriteActiveDatabase,
               let serviceIdentifier = serviceIdentifiers.first else {
             return nil
         }

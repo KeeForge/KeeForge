@@ -134,7 +134,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
-        onAddURLToPossible: @escaping (KPEntry) -> Void,
+        onAddURLToPossible: ((KPEntry) -> Void)?,
         onCancel: @escaping () -> Void
     ) {
         // A database switch presents the unlock prompt next, so the search
