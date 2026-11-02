@@ -33,7 +33,7 @@ Base commands and repo-wide policy (`-only-testing:` always, no full UI suite un
 | `-autofill-store-inspector` | DEBUG only: replaces the app root with the AutoFill store inspector. |
 | `-KeeForge.<defaultsKey> <value>` | Overrides a stored preference for one launch. The pair can sit on either side of a bare flag such as `-ui-testing`: argument-domain parsing takes the next token as a flag's value only when it does not start with `-`. |
 
-Opt-in captures are gated on the runner environment: `TEST_RUNNER_APPSTORE_SCREENSHOTS=1` for `AppStoreScreenshots` (it skips otherwise) and `TEST_RUNNER_WHATS_NEW_SCREENSHOTS=1` for `WhatsNewUITests`. Set them as real environment variables on the `xcodebuild` process; a trailing `KEY=value` argument is a build-setting override that never reaches the runner, and the class skips silently.
+Opt-in captures are gated on the runner environment: `TEST_RUNNER_APPSTORE_SCREENSHOTS=1` for `AppStoreScreenshots` (it skips otherwise; `ci_scripts/make_appstore_screenshots.py --capture` sets it and runs one capture per locale with `-testLanguage`/`-testRegion`, so the walkthrough must not depend on English control labels) and `TEST_RUNNER_WHATS_NEW_SCREENSHOTS=1` for `WhatsNewUITests`. Set them as real environment variables on the `xcodebuild` process; a trailing `KEY=value` argument is a build-setting override that never reaches the runner, and the class skips silently.
 
 ## Rules for writing and fixing UI tests
 

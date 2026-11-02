@@ -16,9 +16,9 @@ import XCTest
 /// trailing bare `KEY=value` argument does not work; verified empirically,
 /// that form is silently ignored and the test skips as if unset.
 ///
-/// Export the resulting attachments into `build/screenshots`, then run
-/// `ci_scripts/make_appstore_screenshots.py` to composite the App Store-ready
-/// images (see that script's header comment for the exact env var).
+/// `ci_scripts/make_appstore_screenshots.py --capture` runs this once per
+/// shipped locale (`-testLanguage`/`-testRegion`), exports each run into
+/// `build/screenshots/<locale>/`, and composites the captioned listings.
 @MainActor
 final class AppStoreScreenshots: KeeForgeUITestCase {
     override func setUp() async throws {
@@ -220,6 +220,27 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         add(attachment)
     }
 
+    /// typeText only produces characters on the active software keyboard, and the demo
+    /// password and search term are Latin, so a Cyrillic keyboard would type nothing.
+    /// Cycles the globe key: the lowest unidentified button on the keyboard's left
+    /// half (Shift and Go carry identifiers), since its label is localized.
+    private func switchToLatinKeyboard() {
+        let keyboard = app.keyboards.firstMatch
+        guard keyboard.waitForExistence(timeout: 3) else { return }
+        for _ in 0..<3 where !keyboard.keys["d"].exists {
+            let keyboardFrame = keyboard.frame
+            let globe = app.buttons.allElementsBoundByIndex
+                .filter { button in
+                    button.identifier.isEmpty && button.frame.midY > keyboardFrame.minY
+                        && button.frame.midX < keyboardFrame.midX
+                }
+                .max { $0.frame.midY < $1.frame.midY }
+            guard let globe else { return }
+            globe.tap()
+            sleep(1)
+        }
+    }
+
     private func tapBackButton() {
         let toolbarIdentifiers = Set(["lock.button", "settings.button", "sort.menu", "Done"])
 
@@ -255,6 +276,8 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         XCTAssertTrue(openFirstDatabaseFromListIfNeeded(), "Unlock sheet should appear after opening the first database")
         let passwordField = app.secureTextFields["unlock.password.field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 5), "Password field should appear in unlock sheet")
+        passwordField.tap()
+        switchToLatinKeyboard()
         replaceText(in: passwordField, with: demoPassword)
         saveScreenshot(.unlockScreen)
 
@@ -332,6 +355,7 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
             activeSearchField.tap()
             sleep(1)
         }
+        switchToLatinKeyboard()
         activeSearchField.typeText("git")
         sleep(2)
         saveScreenshot(.search)
