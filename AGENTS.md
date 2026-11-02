@@ -21,20 +21,7 @@ Entry point for coding agents working on KeeForge. This file holds the repo-wide
 
 ## Find The Right Doc
 
-Before changing a folder, read its `AGENTS.md` and each parent's `AGENTS.md` up to this file. These docs are not on that path:
-
-- `docs/threat-model.md`: living threat model; required review for major product or architecture changes
-- `docs/README.md`: doc index and maintenance rules (specs, audits, and notes are historical)
-- `KeeForgeMac/README.md`: Mac target constraints, distribution channels
-- `KeeForgeMac/SECURITY.md`: Mac security boundaries and platform limits
-- `TestFixtures/README.md`: bundled databases, passwords, key files
-- `KeeForge/Resources/README.md`: string catalog map, assets
-- `.github/AGENTS.md`: CI workflow gating map (not a README, which GitHub would render as the repo front page)
-- `ci_scripts/AGENTS.md`: Xcode Cloud bootstrap and `run_kdbx_compatibility_gate.sh`, the required KDBX compatibility gate
-- `scripts/README.md`: local dev tooling
-- `Vendor/KeeForgeTwofish/README.md`: vendored Twofish package
-
-Repository skills are in `.agents/skills/`: `prepare-release`, `respin-release`, `ship-release`, `pre-release-review`, `publish-app-store-version`, `test-audit`, `triage-feedback`, `keeforge-swiftui`, `keeforge-github-issues`.
+Before changing a folder, read its `AGENTS.md` and each parent's up to this file, or its `README.md` where it has no `AGENTS.md` (`KeeForgeMac/` also has `SECURITY.md`). `docs/README.md` indexes `docs/`; local dev tooling is in `scripts/README.md`.
 
 ## Repo-Wide Rules
 
