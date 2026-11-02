@@ -8,8 +8,7 @@ Entry point for coding agents working on KeeForge. This file holds the repo-wide
 - Choose the simplest implementation that fully meets the current requirements. Avoid speculative abstractions, configuration, and indirection.
 - Grow the system in layers. Start from the smallest version that works end to end, and add each new capability on top of a product that already works. Never trade a working product for unfinished complexity.
 - Keep components modular and concerns clearly separated.
-- Prefer established, well-maintained libraries when they reduce overall complexity or improve reliability. Do not reimplement common functionality without a clear reason.
-- Lean on the dependencies already in the project before writing your own implementation or adding packages. Do not assume a library lacks a capability without checking its documentation and types.
+- Use the project's existing dependencies first, then established, well-maintained libraries, before writing your own. Check a library's documentation and types before assuming it lacks a capability.
 - Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
 
 ## Project Snapshot
@@ -46,7 +45,7 @@ Repository skills are in `.agents/skills/`: `prepare-release`, `respin-release`,
 - Keep crypto, parsing, and secret handling off the main thread.
 - Treat these `KeeForge/Models/` files as stable core: `KDBXParser.swift`, `KDBX3Parser.swift`, `KDBXWriter.swift`, `KDBXXMLSerializer.swift`, `KDBXCrypto.swift`, `KDBXOuterCipher.swift`, `OpaqueXMLNodes.swift`, `DatabaseDraft.swift`, `EntryEdit.swift`, `Entry.swift`, `Group.swift`, `EncryptedValue.swift`, `TOTPGenerator.swift`. Change them only for real bugs or intentional format/security work, and add focused tests.
 - No force unwraps outside tests.
-- Keep comments minimal. A comment is only warranted when the code cannot explain itself — a non-obvious constraint, a format/platform quirk, or the reason behind a surprising choice. Don't restate what the code already says, don't narrate control flow, and don't leave changelog-style notes ("was X, now Y") or review/audit chatter in the source; that belongs in the commit message. Prefer one short line over a paragraph.
+- Comment only what the code cannot say: a non-obvious constraint, a format or platform quirk, or the reason for a surprising choice. One short line, never a restatement, control-flow narration, or change history ("was X, now Y"); that belongs in the commit message.
 
 ### Workflows
 
@@ -55,12 +54,14 @@ Repository skills are in `.agents/skills/`: `prepare-release`, `respin-release`,
 - Update the folder's `AGENTS.md` when an invariant, ownership boundary, or test mapping changes. Do not add file maps, identifier lists, or history. Leave historical `docs/specs` alone unless explicitly asked.
 - Preserve accessibility identifiers or update the relevant UI tests in the same change. `KeeForgeUITests` and `KeeForgeMacUITests` share one identifier surface, so update both.
 - Add concise, user-facing changes to `CHANGELOG.md` under `## Unreleased`; fixes for unreleased features may skip it.
+- Every commit must be DCO signed off (`git commit -s`); the "DCO" status check is required.
+- For reference implementations, consult `https://github.com/keepassium/keepassium` and `https://github.com/strongbox-password-safe/Strongbox`.
 
 ### Localization
 
 - UI text uses Xcode String Catalogs (`.xcstrings`), source language `en`. Shipped locales: `en`, `de`, `fr`, `es`, `zh-Hans`, `zh-Hant`, `ja`, `it`, `ru`.
 - Reach user-facing strings via `String(localized:)` (or SwiftUI's automatic catalog lookup) — never hardcode display text. This includes `String` values a view renders, such as labels and captions returned by view models.
-- Every English key needs a translation in each shipped locale. Run `KeeForgeTests/LocalizationTests.swift` (it also runs in `KeeForgeMacTests`) after touching any catalog.
+- Every English key needs a translation in each shipped locale. Run `LocalizationTests` after touching any catalog.
 - Xcode reserializes catalogs in its own canonical style, so after any programmatic edit run `swift scripts/normalize-xcstrings.swift` (no args = all catalogs; `--check` verifies) to avoid a large reordering diff.
 - The catalog file map is in `KeeForge/Resources/README.md`.
 - A new locale spans this repo and the website, and ships only when all of these are done:
@@ -69,14 +70,6 @@ Repository skills are in `.agents/skills/`: `prepare-release`, `respin-release`,
   - `docs/i18n/` has `README.<locale>.md` and `CONTRIBUTING.<locale>.md`, and the language switcher row in the root files and every translation links them.
   - The separate `keeforge.com` repo ships the locale in the same release, following the "Adding a locale" checklist in its README. That covers the pages, routing, Feedback Worker, and tests.
   - `CHANGELOG.md` notes the locale. App Store listing locales are a separate owner decision (`publish-app-store-version`).
-
-### Research Notes
-
-- When asked for reference implementations, consult `https://github.com/keepassium/keepassium` and `https://github.com/strongbox-password-safe/Strongbox`.
-
-### Version Control Notes
-
-- Every commit must be DCO signed off (`git commit -s`); the "DCO" status check is required.
 
 ## Code Review
 
@@ -104,10 +97,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
   -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
 ```
 
-- Always prefer the smallest relevant test slice.
-- Always use `-only-testing:`.
-- Do not run the full UI suite unless explicitly asked.
-- `KeeForgeMacTests` compiles the `KeeForgeTests` folder; there is no `KeeForgeMacTests` directory.
+- Run the smallest relevant slice, always with `-only-testing:`. Do not run the full UI suite unless explicitly asked.
 
 ### macOS Test Strategy
 
@@ -128,11 +118,11 @@ Find your change's row and write what it names before calling the change done:
 
 - Shared SwiftUI is the default. A targeted AppKit view is right only where SwiftUI cannot express the interaction (`MacUnlockPasswordField`: secure event input bypasses SwiftUI key handling). Take that escape hatch deliberately, not to work around a flaky test.
 - `KeeForgeMacUITests` never runs in CI (`.github/AGENTS.md`), so behavior covered only there is uncovered for CI.
-- Every `KeeForgeTests/` test runs on both platforms. Keep macOS-only cases behind `#if os(macOS)`, not branched inside a shared test.
+- Every `KeeForgeTests/` test runs on both platforms; there is no `KeeForgeMacTests` directory. Keep macOS-only cases behind `#if os(macOS)`, not branched inside a shared test.
 
 ## Security Reminders
 
-- **Keep [docs/threat-model.md](docs/threat-model.md) up to date.** It is a living document, exempt from archive rules. Review it for every major product or architecture change and update it in the same change whenever architecture, data flows, protected assets, trust boundaries, security controls, assumptions, or limitations change. Keep its source references accurate; maintenance requirements are detailed in `docs/README.md`.
+- **Keep [docs/threat-model.md](docs/threat-model.md) up to date.** Update it in the same change whenever architecture, data flows, protected assets, trust boundaries, security controls, assumptions, or limitations change; the full maintenance rules are in `docs/README.md`.
 - Secrets are re-encrypted in memory with a per-session `SymmetricKey`; lock clears the session key and invalidates `EncryptedValue` access.
 - Composite keys live in Keychain, not raw master passwords.
 - Local saves compare the open-time SHA-512 before overwrite, create timestamped backups, and refresh the shared cached copy for AutoFill.
