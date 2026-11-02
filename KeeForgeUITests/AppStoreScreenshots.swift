@@ -113,6 +113,7 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
     }
 
     override func configureLaunch(app: XCUIApplication) throws {
+        app.launchEnvironment["UI_TEST_HIDE_SEARCH_RESULTS_COUNT"] = "1"
         let fixtureData = try fixtureData(resourceName: "demo", resourceExtension: "kdbx")
         let fixtureBase64 = fixtureData.base64EncodedString()
 
@@ -220,14 +221,38 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         add(attachment)
     }
 
-    /// typeText only produces characters on the active software keyboard, and the demo
-    /// password and search term are Latin, so a Cyrillic keyboard would type nothing.
-    /// Cycles the globe key: the lowest unidentified button on the keyboard's left
-    /// half (Shift and Go carry identifiers), since its label is localized.
+    /// Types Latin `text` (the demo password, the search term), switching keyboards only
+    /// if it did not arrive: typeText types nothing on a Cyrillic keyboard, while kana,
+    /// Zhuyin and Latin keyboards take it as is, and every globe tap risks an English
+    /// "Quickly Change Keyboards" tip in the capture.
+    private func typeLatin(_ text: String, into field: XCUIElement) {
+        field.typeText(text)
+        if !fieldShows(text, field) {
+            switchToLatinKeyboard()
+            replaceText(in: field, with: text)
+        }
+    }
+
+    private func fieldShows(_ text: String, _ field: XCUIElement) -> Bool {
+        let deadline = Date().addingTimeInterval(3)
+        repeat {
+            if let value = field.value as? String,
+               value == text || (field.elementType == .secureTextField && value.count == text.count && value.allSatisfy { $0 == "•" }) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+        return false
+    }
+
+    /// Cycles the globe key until a Latin letter keyboard shows. The globe is the lowest
+    /// unidentified button on the keyboard's left half (Shift and Go carry identifiers),
+    /// since its label is localized.
     private func switchToLatinKeyboard() {
         let keyboard = app.keyboards.firstMatch
         guard keyboard.waitForExistence(timeout: 3) else { return }
-        for _ in 0..<3 where !keyboard.keys["d"].exists {
+        let latinLetter = keyboard.keys.matching(NSPredicate(format: "label ==[c] 'd'")).firstMatch
+        for _ in 0..<3 where !latinLetter.waitForExistence(timeout: 1) {
             let keyboardFrame = keyboard.frame
             let globe = app.buttons.allElementsBoundByIndex
                 .filter { button in
@@ -237,7 +262,6 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
                 .max { $0.frame.midY < $1.frame.midY }
             guard let globe else { return }
             globe.tap()
-            sleep(1)
         }
     }
 
@@ -277,8 +301,7 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         let passwordField = app.secureTextFields["unlock.password.field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 5), "Password field should appear in unlock sheet")
         passwordField.tap()
-        switchToLatinKeyboard()
-        replaceText(in: passwordField, with: demoPassword)
+        typeLatin(demoPassword, into: passwordField)
         saveScreenshot(.unlockScreen)
 
         let unlockButton = app.buttons["unlock.button"]
@@ -355,8 +378,7 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
             activeSearchField.tap()
             sleep(1)
         }
-        switchToLatinKeyboard()
-        activeSearchField.typeText("git")
+        typeLatin("git", into: activeSearchField)
         sleep(2)
         saveScreenshot(.search)
     }
