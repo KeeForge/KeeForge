@@ -559,13 +559,19 @@ struct DatabaseDetailsView: View {
                 exportRequest = .currentCopy(currentReference)
             }
             .accessibilityIdentifier("database-details.export-copy")
+
+            ShareLink(
+                item: DatabaseShareItem(reference: currentReference),
+                preview: SharePreview(currentReference.filename)
+            )
+            .accessibilityIdentifier("database-details.share")
         } header: {
             Text("Export")
         } footer: {
             if currentReference.isCloudBacked {
-                Text("Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
+                Text("Export Copy saves the locally cached copy of the database as KeeForge currently has it, and Share sends the same file with AirDrop or to another app. Use either to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
             } else {
-                Text("Saves a copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
+                Text("Export Copy saves a copy of the database as KeeForge currently has it, and Share sends the same file with AirDrop or to another app. Use either to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
             }
         }
     }

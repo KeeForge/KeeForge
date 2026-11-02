@@ -21579,6 +21579,110 @@
         }
       }
     },
+    "Export Copy saves a copy of the database as KeeForge currently has it, and Share sends the same file with AirDrop or to another app. Use either to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Kopie exportieren“ speichert eine Kopie der Datenbank in dem Stand, den KeeForge derzeit hat, und „Teilen“ sendet dieselbe Datei per AirDrop oder an eine andere App. Verwenden Sie eine der beiden Optionen, um Änderungen mit einer anderen KeePass-App in Ihre Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar copia guarda una copia de la base de datos tal como la tiene KeeForge actualmente, y Compartir envía el mismo archivo con AirDrop o a otra app. Use cualquiera de las dos para combinar los cambios en su archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporter une copie enregistre une copie de la base de données telle que KeeForge la possède actuellement, et Partager envoie le même fichier via AirDrop ou vers une autre app. Utilisez l'une ou l'autre pour fusionner les modifications dans votre fichier principal avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esporta copia salva una copia del database così come si trova attualmente in KeeForge, e Condividi invia lo stesso file con AirDrop o a un'altra app. Usa l'una o l'altra per unire le modifiche al tuo file principale con un'altra app KeePass quando un caricamento sul cloud è bloccato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「コピーを書き出す」は KeeForge が現在保持している状態のデータベースのコピーを保存し、「共有」は同じファイルを AirDrop または他の App に送信します。クラウドへのアップロードが滞っているときに、いずれかを使って他の KeePass App でメインのファイルに変更を統合できます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Экспортировать копию» сохраняет копию базы данных в том виде, в каком она сейчас есть в KeeForge, а «Поделиться» отправляет тот же файл через AirDrop или в другое приложение. Используйте любой из вариантов, чтобы объединить изменения с основным файлом в другом приложении KeePass, если облачная отправка застряла."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“导出副本”会保存 KeeForge 当前所持有的数据库副本，“共享”会通过隔空投送或向其他 App 发送同一文件。当云端上传卡住时，可用其中任一方式在其他 KeePass App 中将更改合并到你的主文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「匯出副本」會儲存 KeeForge 目前所持有的資料庫副本，「分享」會透過 AirDrop 或向其他 App 傳送同一檔案。當雲端上傳卡住時，可用其中任一方式在其他 KeePass App 中將變更合併到你的主檔案。"
+          }
+        }
+      }
+    },
+    "Export Copy saves the locally cached copy of the database as KeeForge currently has it, and Share sends the same file with AirDrop or to another app. Use either to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Kopie exportieren“ speichert die lokal zwischengespeicherte Kopie der Datenbank in dem Stand, den KeeForge derzeit hat, und „Teilen“ sendet dieselbe Datei per AirDrop oder an eine andere App. Verwenden Sie eine der beiden Optionen, um Änderungen mit einer anderen KeePass-App in Ihre Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar copia guarda la copia almacenada localmente en caché de la base de datos tal como la tiene KeeForge actualmente, y Compartir envía el mismo archivo con AirDrop o a otra app. Use cualquiera de las dos para combinar los cambios en su archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporter une copie enregistre la copie mise en cache localement de la base de données telle que KeeForge la possède actuellement, et Partager envoie le même fichier via AirDrop ou vers une autre app. Utilisez l'une ou l'autre pour fusionner les modifications dans votre fichier principal avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esporta copia salva la copia del database nella cache locale così come si trova attualmente in KeeForge, e Condividi invia lo stesso file con AirDrop o a un'altra app. Usa l'una o l'altra per unire le modifiche al tuo file principale con un'altra app KeePass quando un caricamento sul cloud è bloccato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「コピーを書き出す」は KeeForge が現在保持している、ローカルにキャッシュされたデータベースのコピーを保存し、「共有」は同じファイルを AirDrop または他の App に送信します。クラウドへのアップロードが滞っているときに、いずれかを使って他の KeePass App でメインのファイルに変更を統合できます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Экспортировать копию» сохраняет локальную кэшированную копию базы данных в том виде, в каком она сейчас есть в KeeForge, а «Поделиться» отправляет тот же файл через AirDrop или в другое приложение. Используйте любой из вариантов, чтобы объединить изменения с основным файлом в другом приложении KeePass, если облачная отправка застряла."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“导出副本”会保存 KeeForge 当前所持有的数据库本地缓存副本，“共享”会通过隔空投送或向其他 App 发送同一文件。当云端上传卡住时，可用其中任一方式在其他 KeePass App 中将更改合并到你的主文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「匯出副本」會儲存 KeeForge 目前所持有的資料庫本機快取副本，「分享」會透過 AirDrop 或向其他 App 傳送同一檔案。當雲端上傳卡住時，可用其中任一方式在其他 KeePass App 中將變更合併到你的主檔案。"
+          }
+        }
+      }
+    },
     "Export Copy…" : {
       "localizations" : {
         "de" : {
@@ -42387,110 +42491,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已儲存的解鎖金鑰無法使用"
-          }
-        }
-      }
-    },
-    "Saves a copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Speichert eine Kopie der Datenbank in dem Stand, den KeeForge derzeit hat. Verwenden Sie sie, um Änderungen mit einer anderen KeePass-App in Ihre Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Guarda una copia de la base de datos tal como la tiene KeeForge actualmente. Úsela para combinar los cambios en su archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enregistre une copie de la base de données telle que KeeForge la possède actuellement. Utilisez-la pour fusionner les modifications dans votre fichier principal avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Salva una copia del database così come si trova attualmente in KeeForge. Usala per unire le modifiche al tuo file principale con un'altra app KeePass quando un caricamento sul cloud è bloccato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge が現在保持している状態のデータベースのコピーを保存します。クラウドへのアップロードが滞っているときに、他の KeePass App でメインのファイルに変更を統合するために使用できます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сохраняет копию базы данных в том виде, в каком она сейчас есть в KeeForge. Используйте её, чтобы объединить изменения с основным файлом в другом приложении KeePass, если облачная отправка застряла."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存 KeeForge 当前所持有的数据库副本。当云端上传卡住时，可用它在其他 KeePass App 中将更改合并到你的主文件。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "儲存 KeeForge 目前所持有的資料庫副本。當雲端上傳卡住時，可用它在其他 KeePass App 中將變更合併到你的主檔案。"
-          }
-        }
-      }
-    },
-    "Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Speichert die lokal zwischengespeicherte Kopie der Datenbank in dem Stand, den KeeForge derzeit hat. Verwenden Sie sie, um Änderungen mit einer anderen KeePass-App in Ihre Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Guarda la copia almacenada localmente en caché de la base de datos tal como la tiene KeeForge actualmente. Úsela para combinar los cambios en su archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enregistre la copie mise en cache localement de la base de données telle que KeeForge la possède actuellement. Utilisez-la pour fusionner les modifications dans votre fichier principal avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Salva la copia del database nella cache locale così come si trova attualmente in KeeForge. Usala per unire le modifiche al tuo file principale con un'altra app KeePass quando un caricamento sul cloud è bloccato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge が現在保持している、ローカルにキャッシュされたデータベースのコピーを保存します。クラウドへのアップロードが滞っているときに、他の KeePass App でメインのファイルに変更を統合するために使用できます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сохраняет локальную кэшированную копию базы данных в том виде, в каком она сейчас есть в KeeForge. Используйте её, чтобы объединить изменения с основным файлом в другом приложении KeePass, если облачная отправка застряла."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存 KeeForge 当前所持有的数据库本地缓存副本。当云端上传卡住时，可用它在其他 KeePass App 中将更改合并到你的主文件。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "儲存 KeeForge 目前所持有的資料庫本機快取副本。當雲端上傳卡住時，可用它在其他 KeePass App 中將變更合併到你的主檔案。"
           }
         }
       }

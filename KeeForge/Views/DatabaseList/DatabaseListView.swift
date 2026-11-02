@@ -606,6 +606,12 @@ struct DatabaseListView: View {
         }
         .accessibilityIdentifier("database-row.export-copy-action")
 
+        ShareLink(
+            item: DatabaseShareItem(reference: currentReference(for: reference)),
+            preview: SharePreview(reference.filename)
+        )
+        .accessibilityIdentifier("database-row.share-action")
+
         Button("Database Details") {
             detailsReference = currentReference(for: reference)
         }

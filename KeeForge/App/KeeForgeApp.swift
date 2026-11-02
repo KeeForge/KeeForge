@@ -140,6 +140,7 @@ struct KeeForgeApp: App {
             // Plaintext preview files orphaned by a process that died
             // without locking; must run before this session writes any.
             AttachmentPreviewFileStore.purgeOrphanedFiles()
+            DatabaseExportService.purgeShareFiles()
             // At launch, not on Tip Jar open, so out-of-app completions
             // (Ask to Buy, deferred SCA) are still delivered and finished.
             // The direct target compiles this path out because it has no

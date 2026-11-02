@@ -332,6 +332,23 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         settle(2)
         await snap("01-database-list")
 
+        // 1a. Database row context menu (Export Copy, Share).
+        let databaseRow = app.buttons["database.row"].firstMatch
+        if databaseRow.waitForExistence(timeout: 5), databaseRow.isHittable {
+            databaseRow.rightClick()
+            let rowMenu = app.menus.firstMatch
+            if rowMenu.waitForExistence(timeout: 3) {
+                settle(0.4)
+                await snapWindow(rowMenu, "01a-database-row-menu")
+            } else {
+                noteSkip("01a-database-row-menu", reason: "the context menu never opened")
+            }
+            app.typeKey(.escape, modifierFlags: [])
+            settle(0.4)
+        } else {
+            noteSkip("01a-database-row-menu", reason: "the database row was not hittable")
+        }
+
         // 2. Unlock screen
         _ = openFirstDatabaseFromListIfNeeded()
         settle()
@@ -422,7 +439,29 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             if app.buttons["database-details.close"].waitForExistence(timeout: 8) {
                 settle(0.6)
                 await snapSurface(hosting: "database-details.close", "08a-database-details")
-                app.buttons["database-details.close"].firstMatch.click()
+                let backupsLink = app.descendants(matching: .any)["database-details.backups.link"].firstMatch
+                if backupsLink.waitForExistence(timeout: 3), backupsLink.isHittable {
+                    backupsLink.click()
+                    if app.descendants(matching: .any)["database-details.share"].waitForExistence(timeout: 5) {
+                        settle(0.6)
+                        await snapSurface(hosting: "database-details.share", "08a-database-details-backups-export")
+                    } else {
+                        noteSkip("08a-database-details-backups-export", reason: "the Backups & Export page never opened")
+                    }
+                } else {
+                    noteSkip("08a-database-details-backups-export", reason: "the Backups & Export row was not hittable")
+                }
+                // Only the hub has Close; Escape pops the pushed page first.
+                let closeButton = app.buttons["database-details.close"].firstMatch
+                if !closeButton.waitForExistence(timeout: 1) {
+                    app.typeKey(.escape, modifierFlags: [])
+                    settle(0.6)
+                }
+                if closeButton.waitForExistence(timeout: 3) {
+                    closeButton.click()
+                } else {
+                    app.typeKey(.escape, modifierFlags: [])
+                }
                 settle()
             } else {
                 noteSkip("08a-database-details", reason: "the details sheet never opened")
