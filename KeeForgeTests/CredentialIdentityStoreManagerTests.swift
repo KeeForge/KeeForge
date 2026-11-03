@@ -1817,6 +1817,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         let entryA = makeEntry(title: "A", url: "https://a-site.com", username: "a-user", hasPassword: true)
         let refresh = expectMutations(1, on: fake, description: "Additive save")
         CredentialIdentityStoreManager.populate(with: [entryA], for: databaseA)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         await fulfillment(of: [refresh], timeout: 1)
 
         XCTAssertEqual(fake.calls, ["saveCredentialIdentities"])
