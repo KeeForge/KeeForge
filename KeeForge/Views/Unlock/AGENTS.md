@@ -15,6 +15,10 @@
 - Initial focus on macOS belongs to `MacInitialFocus`. It re-applies only while the responder it displaced (the sidebar, after a row click) still holds focus, so a deliberate focus change is never undone.
 - `@FocusState passwordFocused` is bound on iOS only. Setting it on macOS does nothing; do not rely on it to move focus there.
 
+### Page layout
+
+- iPhone and iPad draw the design's unlock page: the database centred under its padlock, the password field, Key File and Hardware Key in one card, then Unlock, the biometric button, and Choose Different File. macOS keeps its form. Both layouts share the password input and the hardware-key menu, so a behaviour change goes in one place.
+
 ### Failure screen and pickers
 
 - iPhone and iPad draw the failure as the design's error page, macOS keeps its card; both offer the same actions under the same identifiers.

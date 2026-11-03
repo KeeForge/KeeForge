@@ -22,6 +22,8 @@ struct UnlockView: View {
     @State private var isSealed = true
     @FocusState private var passwordFocused: Bool
     @ScaledMetric(relativeTo: .body) private var keyFileNameMinimumWidth: CGFloat = 100
+    @ScaledMetric(relativeTo: .largeTitle) private var unlockIconSize = Theme.Size.unlockIcon
+    @ScaledMetric(relativeTo: .body) private var unlockFieldHeight = Theme.Size.unlockField
 
     /// Plays the shackle closing on the screen the user actually lands on after
     /// pressing Lock. The lock itself already happened — this rides the arrival
@@ -37,7 +39,11 @@ struct UnlockView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
-                headerCard
+                if PlatformDesign.followsIOSDesign {
+                    designedHeader
+                } else {
+                    headerCard
+                }
 
                 contentSection
             }
@@ -144,10 +150,10 @@ struct UnlockView: View {
             failureSection(failure)
 
             if failure.canRetryUnlock {
-                passwordSection
+                credentialsSection
             }
         } else if viewModel.hasSavedFile {
-            passwordSection
+            credentialsSection
         } else {
             unavailableSection
         }
@@ -161,59 +167,7 @@ struct UnlockView: View {
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 12) {
-                    #if os(macOS)
-                    // A focused NSSecureTextField enables secure event input,
-                    // which routes keystrokes straight to its field editor and
-                    // bypasses every app-level key hook (NSEvent local monitors,
-                    // .keyboardShortcut, .onExitCommand, .onKeyPress). Owning the
-                    // field lets us catch Return/Escape at the field editor's
-                    // doCommandBySelector — the only layer that reliably sees
-                    // them here. See MacUnlockPasswordField.
-                    MacUnlockPasswordField(
-                        text: $password,
-                        isSecure: !isPasswordVisible,
-                        placeholder: String(localized: "Enter password"),
-                        accessibilityIdentifier: "unlock.password.field",
-                        focusOnAppear: true,
-                        onSubmit: unlockWithPassword,
-                        onEscape: {
-                            guard isUnlocking == false else { return }
-                            onBackToDatabaseList()
-                        }
-                    )
-                    .id(isPasswordVisible)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 21)
-                    #else
-                    Group {
-                        if isPasswordVisible {
-                            TextField("Enter password", text: $password)
-                        } else {
-                            SecureField("Enter password", text: $password)
-                        }
-                    }
-                    .passwordInputStyle()
-                    .focused($passwordFocused)
-                    .submitLabel(.go)
-                    .onSubmit(unlockWithPassword)
-                    .accessibilityIdentifier("unlock.password.field")
-                    #endif
-
-                    Button {
-                        isPasswordVisible.toggle()
-                        passwordFocused = true
-                    } label: {
-                        Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
-                            .frame(width: 30, height: 30)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(isPasswordVisible ? "Hide master password" : "Show master password")
-                    .accessibilityIdentifier("unlock.password-visibility-button")
-                    .macHelp(
-                        isPasswordVisible
-                            ? String(localized: "Hide master password")
-                            : String(localized: "Show master password")
-                    )
+                    passwordInput
                 }
                 .modifier(UnlockPasswordRowContainer())
             }
@@ -252,6 +206,230 @@ struct UnlockView: View {
                 .accessibilityIdentifier("unlock.choose-different")
             }
         }
+    }
+
+
+    /// The field and its show/hide button; macOS owns the field itself.
+    @ViewBuilder
+    private var passwordInput: some View {
+        #if os(macOS)
+        // A focused NSSecureTextField enables secure event input,
+        // which routes keystrokes straight to its field editor and
+        // bypasses every app-level key hook (NSEvent local monitors,
+        // .keyboardShortcut, .onExitCommand, .onKeyPress). Owning the
+        // field lets us catch Return/Escape at the field editor's
+        // doCommandBySelector — the only layer that reliably sees
+        // them here. See MacUnlockPasswordField.
+        MacUnlockPasswordField(
+            text: $password,
+            isSecure: !isPasswordVisible,
+            placeholder: String(localized: "Enter password"),
+            accessibilityIdentifier: "unlock.password.field",
+            focusOnAppear: true,
+            onSubmit: unlockWithPassword,
+            onEscape: {
+                guard isUnlocking == false else { return }
+                onBackToDatabaseList()
+            }
+        )
+        .id(isPasswordVisible)
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: 21)
+        #else
+        Group {
+            if isPasswordVisible {
+                TextField("Enter password", text: $password)
+            } else {
+                SecureField("Enter password", text: $password)
+            }
+        }
+        .passwordInputStyle()
+        .focused($passwordFocused)
+        .submitLabel(.go)
+        .onSubmit(unlockWithPassword)
+        .accessibilityIdentifier("unlock.password.field")
+        #endif
+
+        Button {
+            isPasswordVisible.toggle()
+            passwordFocused = true
+        } label: {
+            Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isPasswordVisible ? "Hide master password" : "Show master password")
+        .accessibilityIdentifier("unlock.password-visibility-button")
+        .macHelp(
+            isPasswordVisible
+                ? String(localized: "Hide master password")
+                : String(localized: "Show master password")
+        )
+    }
+
+    @ViewBuilder
+    private var credentialsSection: some View {
+        if PlatformDesign.followsIOSDesign {
+            designedCredentialsSection
+        } else {
+            passwordSection
+        }
+    }
+
+    /// The design's unlock page head: the database centred under its lock.
+    private var designedHeader: some View {
+        VStack(spacing: Theme.Spacing.textLine) {
+            Image(systemName: isSealed ? "lock.fill" : "lock.open.fill")
+                .font(Theme.Font.unlockGlyph)
+                .foregroundStyle(.tint)
+                .contentTransition(.symbolEffect(.replace.downUp))
+                .frame(width: unlockIconSize, height: unlockIconSize)
+                .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                .accessibilityHidden(true)
+                .onAppear(perform: sealShutIfArrivingFromLock)
+                .padding(.bottom, Theme.Spacing.cardGap)
+
+            Text("Open Database")
+                .font(Theme.Font.footnote.weight(.semibold))
+                .foregroundStyle(Theme.labelSecondary)
+                .textCase(.uppercase)
+
+            Text(viewModel.databaseDisplayName)
+                .font(Theme.Font.unlockTitle)
+                .multilineTextAlignment(.center)
+
+            Text(viewModel.databaseFilename)
+                .font(Theme.Font.subhead)
+                .foregroundStyle(Theme.labelSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var designedCredentialsSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.cardGap) {
+            designedFieldLabel("Master Password")
+
+            HStack(spacing: Theme.Spacing.iconText) {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(Theme.labelSecondary)
+                    .accessibilityHidden(true)
+                passwordInput
+            }
+            .padding(.horizontal, Theme.Spacing.side)
+            .frame(minHeight: unlockFieldHeight)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                    .strokeBorder(.tint, lineWidth: Theme.Size.focusRing)
+                    .opacity(passwordFocused ? 1 : 0)
+            }
+
+            designedFieldLabel("Key File")
+
+            VStack(spacing: 0) {
+                designedKeyFileRow
+
+                if viewModel.availableHardwareKeyTransports.isEmpty == false || viewModel.hardwareKey != nil {
+                    Divider()
+                    designedHardwareKeyRow
+                }
+            }
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+
+            VStack(spacing: Theme.Spacing.cardGap) {
+                Button(action: unlockWithPassword) {
+                    Label("Unlock Database", systemImage: "lock.open.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .controlSize(.large)
+                .disabled(hasKeyComponent == false || isUnlocking || keyFileSelection.isLoading)
+                .accessibilityIdentifier("unlock.button")
+
+                if viewModel.canUseBiometrics {
+                    Button(action: unlockWithBiometrics) {
+                        Label(viewModel.biometricLabel, systemImage: viewModel.biometricIcon)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
+                    .disabled(isUnlocking)
+                }
+
+                if showsChooseDifferentFileAction {
+                    Button("Choose Different File") {
+                        onBackToDatabaseList()
+                    }
+                    .font(Theme.Font.subhead)
+                    .accessibilityIdentifier("unlock.choose-different")
+                }
+            }
+            .padding(.top, Theme.Spacing.textLine)
+        }
+    }
+
+    private func designedFieldLabel(_ title: LocalizedStringKey) -> some View {
+        Text(title)
+            .font(Theme.Font.subhead.weight(.semibold))
+            .foregroundStyle(Theme.labelSecondary)
+            .padding(.leading, Theme.Spacing.side)
+    }
+
+    private var designedKeyFileRow: some View {
+        // Stacks once the value and its controls cannot share a line.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.Spacing.iconText) {
+                Label {
+                    keyFileValue
+                        .frame(idealWidth: keyFileName == nil ? nil : keyFileNameMinimumWidth)
+                } icon: {
+                    Image(systemName: "doc")
+                        .foregroundStyle(.tint)
+                }
+
+                Spacer(minLength: 0)
+
+                keyFileClearButton
+                keyFileSelectControls
+            }
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+                HStack(spacing: Theme.Spacing.iconText) {
+                    keyFileValue
+                    Spacer(minLength: 0)
+                    keyFileClearButton
+                }
+                HStack(spacing: Theme.Spacing.iconText) {
+                    keyFileSelectControls
+                }
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.side)
+        .frame(minHeight: unlockFieldHeight)
+    }
+
+    private var designedHardwareKeyRow: some View {
+        Menu {
+            hardwareKeyMenuItems
+        } label: {
+            LabeledContent {
+                HStack(spacing: Theme.Spacing.badgeGap) {
+                    hardwareKeyValue
+                    hardwareKeyChevron
+                }
+            } label: {
+                Text("Hardware Key")
+                    .foregroundStyle(Color.primary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("unlock.hardware-key.picker")
+        .padding(.horizontal, Theme.Spacing.side)
+        .frame(minHeight: unlockFieldHeight)
     }
 
     @ViewBuilder
@@ -618,27 +796,7 @@ struct UnlockView: View {
                 .foregroundStyle(.secondary)
 
             Menu {
-                Button {
-                    viewModel.setHardwareKey(nil)
-                } label: {
-                    if viewModel.hardwareKey == nil {
-                        Label("None", systemImage: "checkmark")
-                    } else {
-                        Text("None")
-                    }
-                }
-
-                ForEach(hardwareKeyOptions, id: \.self) { option in
-                    Button {
-                        viewModel.setHardwareKey(option)
-                    } label: {
-                        if viewModel.hardwareKey == option {
-                            Label(hardwareKeyTitle(option), systemImage: "checkmark")
-                        } else {
-                            Text(hardwareKeyTitle(option))
-                        }
-                    }
-                }
+                hardwareKeyMenuItems
             } label: {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 12) {
@@ -668,6 +826,31 @@ struct UnlockView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("unlock.hardware-key.picker")
             .modifier(UnlockInputContainer())
+        }
+    }
+
+    @ViewBuilder
+    private var hardwareKeyMenuItems: some View {
+        Button {
+            viewModel.setHardwareKey(nil)
+        } label: {
+            if viewModel.hardwareKey == nil {
+                Label("None", systemImage: "checkmark")
+            } else {
+                Text("None")
+            }
+        }
+
+        ForEach(hardwareKeyOptions, id: \.self) { option in
+            Button {
+                viewModel.setHardwareKey(option)
+            } label: {
+                if viewModel.hardwareKey == option {
+                    Label(hardwareKeyTitle(option), systemImage: "checkmark")
+                } else {
+                    Text(hardwareKeyTitle(option))
+                }
+            }
         }
     }
 
@@ -1035,9 +1218,11 @@ struct DatabaseOpeningView: View {
     }
 }
 
+/// Grouped on iPhone and iPad, where the design's cards sit on it; macOS keeps
+/// its plain window background.
 struct UnlockViewBackground: View {
     var body: some View {
-        Color(.systemBackground)
+        (PlatformDesign.followsIOSDesign ? Color(.systemGroupedBackground) : Color(.systemBackground))
             .ignoresSafeArea()
     }
 }
