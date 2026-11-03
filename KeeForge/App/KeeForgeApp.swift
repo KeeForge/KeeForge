@@ -1119,29 +1119,87 @@ struct UnsavedChangesBanner: View {
     @Bindable var viewModel: DatabaseViewModel
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(Theme.State.warning)
-                .frame(width: 8, height: 8)
-            Text("Changes not saved")
-                .font(.caption.weight(.medium))
-
-            Spacer(minLength: 12)
-
-            Button("Retry Save") {
-                Task {
-                    await viewModel.saveHandlingError()
+        if PlatformDesign.followsIOSDesign {
+            HStack(spacing: Theme.Spacing.iconText) {
+                Circle()
+                    .fill(Theme.warning)
+                    .frame(width: Theme.Size.statusDot, height: Theme.Size.statusDot)
+                    .accessibilityHidden(true)
+                Text("Changes not saved")
+                    .font(Theme.Font.subhead.weight(.semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Retry Save") {
+                    Task {
+                        await viewModel.saveHandlingError()
+                    }
                 }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .disabled(viewModel.isSaving)
             }
-            .font(.caption.weight(.semibold))
-            .disabled(viewModel.isSaving)
+            .vaultNoticeCard()
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("database.unsaved-indicator")
+        } else {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Theme.State.warning)
+                    .frame(width: 8, height: 8)
+                Text("Changes not saved")
+                    .font(.caption.weight(.medium))
+
+                Spacer(minLength: 12)
+
+                Button("Retry Save") {
+                    Task {
+                        await viewModel.saveHandlingError()
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .disabled(viewModel.isSaving)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Theme.State.warning.opacity(0.12))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("database.unsaved-indicator")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Theme.State.warning.opacity(0.12))
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("database.unsaved-indicator")
+    }
+}
+
+extension View {
+    /// A notice above the vault: the design's card on iPhone and iPad, the
+    /// outlined card macOS has always drawn.
+    func vaultNoticeCard() -> some View {
+        modifier(VaultNoticeCard())
+    }
+}
+
+private struct VaultNoticeCard: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if PlatformDesign.followsIOSDesign {
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(Theme.Spacing.side)
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                .padding(.horizontal, Theme.Spacing.side)
+        } else {
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color(.secondarySystemBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color(.separator), lineWidth: 0.5)
+                )
+                .padding(.horizontal, 12)
+        }
     }
 }
 
@@ -1389,19 +1447,10 @@ struct PendingUploadConflictBanner: View {
                 }
             }
             .buttonStyle(.borderedProminent)
+            .buttonBorderShape(PlatformDesign.followsIOSDesign ? .capsule : .automatic)
             .accessibilityIdentifier("pending-upload-banner.merge")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color(.separator), lineWidth: 0.5)
-        )
-        .padding(.horizontal, 12)
+        .vaultNoticeCard()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("pending-upload-banner")
     }
@@ -1418,20 +1467,11 @@ struct CloudReauthBanner: View {
                 .font(.subheadline.weight(.semibold))
             Button("Reconnect \(providerName)", action: onReconnect)
                 .buttonStyle(.borderedProminent)
+                .buttonBorderShape(PlatformDesign.followsIOSDesign ? .capsule : .automatic)
                 .disabled(isReconnectInFlight)
                 .accessibilityIdentifier("cloud-reauth-banner.reconnect")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color(.separator), lineWidth: 0.5)
-        )
-        .padding(.horizontal, 12)
+        .vaultNoticeCard()
         .accessibilityIdentifier("cloud-reauth-banner")
     }
 }
