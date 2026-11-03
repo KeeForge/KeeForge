@@ -92,10 +92,16 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let oldPicker = try XCTUnwrap(presenter.searchView)
         XCTAssertEqual(oldPicker.possibleEntries.map(\.id), [entry.id])
 
+        coordinator.presentPasswordMatchesOrFinish()
+        coordinator.parsedMeta = nil
+        try XCTUnwrap(oldPicker.urlAddition).onAdd(entry)
+        XCTAssertNil(presenter.cancelledError, "An obsolete confirmation must not affect the replacement picker")
+        XCTAssertNotNil(coordinator.sessionKey)
+
         coordinator.cancelRequest(code: .userCanceled)
         presenter.isPresentationActive = false
         coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
-        try XCTUnwrap(oldPicker.onAddURLToPossible)(entry)
+        try XCTUnwrap(oldPicker.urlAddition).onAdd(entry)
 
         XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
         XCTAssertTrue(coordinator.pendingUnlock)
@@ -178,7 +184,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
             let searchView = try XCTUnwrap(presenter.searchView, testCase.name)
             XCTAssertEqual(searchView.possibleEntries.map(\.id), [entry.id], testCase.name)
-            XCTAssertEqual(searchView.onAddURLToPossible != nil, testCase.offersAddURL, testCase.name)
+            XCTAssertEqual(searchView.urlAddition != nil, testCase.offersAddURL, testCase.name)
 
             searchView.onSelectPossible(entry)
             XCTAssertEqual(
@@ -187,6 +193,181 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
                 "Selecting a possible match must still fill: \(testCase.name)"
             )
         }
+    }
+
+    // MARK: - Adding the requested website to a chosen entry (#122)
+
+    /// The reporter's case: a credential stored without the site's URL, found
+    /// through search. Confirming saves only the request's scheme and host as
+    /// the next `KP2A_URL_<n>`, leaves every other field alone, and fills.
+    func test_searchSelectedEntry_addURL_savesTheRequestedHostAndFills() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedResolvableDefaultDatabase()
+        try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
+        defer { PendingLocalSaveStore.removeAll(for: database.id) }
+
+        let searchView = try await unlockDefaultDatabaseAndPresentSearch(
+            coordinator,
+            presenter,
+            serviceIdentifier: ASCredentialServiceIdentifier(
+                identifier: "https://Login.Example.test/signin?next=%2Fhome",
+                type: .URL
+            )
+        )
+        XCTAssertTrue(searchView.possibleEntries.isEmpty, "The entry is reachable only through search")
+        let twitter = try XCTUnwrap(searchView.searchEntries.first { $0.title == "Twitter" })
+        XCTAssertTrue(twitter.additionalURLs.isEmpty)
+        let addition = try XCTUnwrap(searchView.urlAddition)
+        XCTAssertEqual(addition.host, "login.example.test")
+        XCTAssertEqual(addition.url, "https://login.example.test")
+        XCTAssertFalse(addition.isStored(on: twitter))
+
+        let finished = expectation(description: "request finished")
+        presenter.onCompleteRequest = { _ in finished.fulfill() }
+        presenter.onCancelRequest = { _ in finished.fulfill() }
+        addition.onAdd(twitter)
+        await fulfillment(of: [finished], timeout: 60)
+
+        XCTAssertTrue(presenter.cancelledErrorCodes.isEmpty)
+        XCTAssertEqual(presenter.completedCredential?.user, twitter.username)
+        XCTAssertEqual(presenter.completedCredential?.password, "twitterpass123")
+
+        #if os(iOS)
+        let savedFile = try XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: database))
+        #else
+        let savedFile = DatabaseListStore.cacheLocation(for: database)
+        #endif
+        let sessionKey = SymmetricKey(size: .bits256)
+        let savedRoot = try KDBXParser.parse(
+            data: Data(contentsOf: savedFile),
+            password: "testpassword123",
+            sessionKey: sessionKey
+        )
+        let saved = try XCTUnwrap(savedRoot.allEntries.first { $0.id == twitter.id })
+        var expectedFields = twitter.customFields
+        expectedFields["KP2A_URL_1"] = "https://login.example.test"
+        XCTAssertEqual(saved.customFields, expectedFields)
+        XCTAssertEqual(saved.title, twitter.title)
+        XCTAssertEqual(saved.username, twitter.username)
+        XCTAssertEqual(saved.url, twitter.url)
+        XCTAssertEqual(saved.notes, twitter.notes)
+        XCTAssertEqual(saved.tags, twitter.tags)
+        XCTAssertEqual(try saved.password.decrypt(using: sessionKey), "twitterpass123")
+    }
+
+    /// An entry that already stores the host, here as an additional URL with
+    /// a `www.` prefix, gets no action, and a stale confirmation fills without
+    /// writing. The database holds placeholder bytes, so any save would fail.
+    func test_urlAddition_entryAlreadyStoringTheHost_isNotOfferedAndFillsWithoutSaving() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(
+            title: "Login",
+            username: "alex",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey),
+            url: "https://example.org",
+            customFields: ["KP2A_URL_1": "https://WWW.login.example.test/account"]
+        )
+        coordinator.serviceIdentifiers = [
+            ASCredentialServiceIdentifier(identifier: "https://login.example.test/signin", type: .URL)
+        ]
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+        let database = try seedResolvableDefaultDatabase()
+        coordinator.activeDatabaseReference = database
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let searchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertEqual(searchView.entries.map(\.id), [entry.id])
+        let addition = try XCTUnwrap(searchView.urlAddition)
+        XCTAssertTrue(addition.isStored(on: entry), "The picker hides the action for this entry")
+
+        let finished = expectation(description: "request finished")
+        presenter.onCompleteRequest = { _ in finished.fulfill() }
+        presenter.onCancelRequest = { _ in finished.fulfill() }
+        addition.onAdd(entry)
+        await fulfillment(of: [finished], timeout: 10)
+
+        XCTAssertTrue(presenter.cancelledErrorCodes.isEmpty)
+        XCTAssertEqual(presenter.completedCredential?.user, "alex")
+        let fileURL = try XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: database))
+        XCTAssertEqual(try Data(contentsOf: fileURL), Data("fixture".utf8), "Nothing may be written")
+    }
+
+    /// Search results get the action under the same rule as possible
+    /// matches: a writable KDBX 4 database and a request naming a website.
+    func test_searchResultAddURL_offeredOnlyForWritableDatabasesAndWebsites() throws {
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(
+            title: "Unrelated",
+            username: "user",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey),
+            url: "https://unrelated.test"
+        )
+        let website = ASCredentialServiceIdentifier(identifier: "https://login.example.test", type: .URL)
+        let writable = try seedResolvableDefaultDatabase()
+        var readOnly = writable
+        readOnly.isReadOnly = true
+        let cases: [(name: String, reference: DatabaseReference, format: KDBXParser.FileVersion, identifiers: [ASCredentialServiceIdentifier], offersAddURL: Bool)] = [
+            ("writable KDBX 4", writable, .kdbx4(minor: 0), [website], true),
+            ("read-only reference", readOnly, .kdbx4(minor: 0), [website], false),
+            ("legacy KDBX 3.1", writable, .kdbx3_1, [website], false),
+            ("no service identifier", writable, .kdbx4(minor: 0), [], false)
+        ]
+
+        for testCase in cases {
+            let (coordinator, presenter) = makeCoordinator()
+            coordinator.serviceIdentifiers = testCase.identifiers
+            seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+            coordinator.activeDatabaseReference = testCase.reference
+            coordinator.parsedFormatVersion = testCase.format
+
+            coordinator.presentPasswordMatchesOrFinish()
+
+            let searchView = try XCTUnwrap(presenter.searchView, testCase.name)
+            XCTAssertTrue(searchView.possibleEntries.isEmpty, testCase.name)
+            XCTAssertEqual(searchView.searchEntries.map(\.id), [entry.id], testCase.name)
+            XCTAssertEqual(searchView.urlAddition != nil, testCase.offersAddURL, testCase.name)
+        }
+    }
+
+    func test_urlAddition_takesOnlySchemeHostAndPortFromTheServiceIdentifier() {
+        let cases: [(identifier: ASCredentialServiceIdentifier, host: String?, url: String?)] = [
+            (.init(identifier: "https://Login.Example.com/path?token=abc#frag", type: .URL), "login.example.com", "https://login.example.com"),
+            (.init(identifier: "example.com.", type: .domain), "example.com", "https://example.com"),
+            (.init(identifier: "http://intranet.local:8080/login", type: .URL), "intranet.local:8080", "http://intranet.local:8080"),
+            (.init(identifier: "login.example.com/signin", type: .URL), "login.example.com", "https://login.example.com"),
+            (.init(identifier: "", type: .URL), nil, nil)
+        ]
+        for testCase in cases {
+            let website = AutoFillURLAddition.requestedWebsite(in: [testCase.identifier])
+            XCTAssertEqual(website?.host, testCase.host, testCase.identifier.identifier)
+            XCTAssertEqual(website?.url, testCase.url, testCase.identifier.identifier)
+        }
+        XCTAssertNil(AutoFillURLAddition.requestedWebsite(in: []))
+    }
+
+    /// The confirmation's caution line appears when no saved URL shares the
+    /// host's registrable domain, the case a lookalike phishing page produces.
+    func test_urlAddition_sharesRegistrableDomainOnlyWithRelatedSavedURLs() throws {
+        let addition = AutoFillURLAddition(host: "login.example.com", url: "https://login.example.com") { _ in }
+        let sessionKey = SymmetricKey(size: .bits256)
+        func entry(url: String, extra: [String: String] = [:]) throws -> KPEntry {
+            KPEntry(
+                title: "Entry",
+                username: "user",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: url,
+                customFields: extra
+            )
+        }
+
+        XCTAssertTrue(addition.sharesRegistrableDomain(with: try entry(url: "https://www.example.com/account")))
+        XCTAssertTrue(addition.sharesRegistrableDomain(with: try entry(url: "https://other.test", extra: ["KP2A_URL_1": "https://example.com"])))
+        XCTAssertFalse(addition.sharesRegistrableDomain(with: try entry(url: "https://examp1e.com")))
+        XCTAssertFalse(addition.sharesRegistrableDomain(with: try entry(url: "https://example.com.evil.test")))
+        let noURLs = try entry(url: "")
+        XCTAssertTrue(addition.savedURLs(of: noURLs).isEmpty, "An entry with no websites shows no caution")
+        XCTAssertFalse(addition.isStored(on: noURLs))
     }
 
     // MARK: - Required cleanup-path tests
@@ -636,7 +817,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             let picker = try XCTUnwrap(presenter.searchView)
             XCTAssertTrue(picker.entries.isEmpty)
             XCTAssertEqual(picker.possibleEntries.map(\.id), [sibling.id])
-            if isCode { XCTAssertNil(picker.onAddURLToPossible) }
+            if isCode { XCTAssertNil(picker.urlAddition) }
             XCTAssertNil(presenter.completedCredential)
             XCTAssertNil(presenter.completedOneTimeCode)
             picker.onSelectPossible(sibling)
@@ -917,7 +1098,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertTrue(coordinator.serviceIdentifiers.isEmpty)
         XCTAssertEqual(picker.entries.map(\.title), ["TOTP Login"])
         XCTAssertNil(picker.onCreateEntry)
-        XCTAssertNil(picker.onAddURLToPossible)
+        XCTAssertNil(picker.urlAddition)
         XCTAssertNil(presenter.completedCredential)
         XCTAssertNil(presenter.completedOneTimeCode)
         picker.onSelect(try XCTUnwrap(picker.entries.first))
@@ -3204,12 +3385,14 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     /// request matching nothing, so expanded search can access the whole vault.
     private func unlockDefaultDatabaseAndPresentSearch(
         _ coordinator: CredentialProviderCoordinator,
-        _ presenter: CredentialProviderPresentingSpy
+        _ presenter: CredentialProviderPresentingSpy,
+        serviceIdentifier: ASCredentialServiceIdentifier = ASCredentialServiceIdentifier(
+            identifier: "no-such-service.example",
+            type: .domain
+        )
     ) async throws -> CredentialProviderPresentingSpy.SearchView {
         coordinator.memoryBudgetOverride = 512 * 1024 * 1024
-        coordinator.prepareCredentialList(
-            for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)]
-        )
+        coordinator.prepareCredentialList(for: [serviceIdentifier])
         return try await unlockPreparedRequestAndPresentSearch(coordinator, presenter)
     }
 

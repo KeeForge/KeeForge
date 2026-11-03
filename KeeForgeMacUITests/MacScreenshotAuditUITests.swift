@@ -43,8 +43,14 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     // The bundled test database under a presentable name, since the database
     // list and window titles show the injected filename in listing captures.
     override var databaseFixtures: [DatabaseFixture] {
-        [DatabaseFixture(resourceName: "test", injectedFilename: "Personal.kdbx")]
+        if capturesEntryRowCodes {
+            // The only Mac fixture with a TOTP entry.
+            return [DatabaseFixture(resourceName: "kitchen-sink", injectedFilename: "Personal.kdbx")]
+        }
+        return [DatabaseFixture(resourceName: "test", injectedFilename: "Personal.kdbx")]
     }
+
+    private var capturesEntryRowCodes: Bool { name.contains("EntryRowCodes") }
 
     override func setUp() async throws {
         guard ProcessInfo.processInfo.environment["SCREENSHOT_AUDIT"] == "1" else {
@@ -67,6 +73,10 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         // would not reach it.
         let appearance = ProcessInfo.processInfo.environment["SCREENSHOT_AUDIT_DARK"] == "1" ? "dark" : "light"
         insertLaunchArguments(["-KeeForge.appearanceMode", appearance], into: app)
+
+        if capturesEntryRowCodes {
+            insertLaunchArguments(["-KeeForge.showCodesInEntryLists", "YES"], into: app)
+        }
 
         // The `results:N` overlay is a UI-test hook, not app UI.
         app.launchEnvironment["UI_TEST_HIDE_SEARCH_RESULTS_COUNT"] = "1"
@@ -499,6 +509,30 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         settle()
         await snap("10-minimum-width")
 
+        attachCaptureReport()
+    }
+
+    /// Entry rows with the Display setting "Show Verification Codes" on: the
+    /// group column, then search results (`MacEntriesList`).
+    func testCaptureEntryRowCodes() async {
+        unlockSuccessfully()
+        openGroup(named: "Secrets")
+        openEntry(named: "TOTP Login")
+        let copyButton = app.buttons["entry-row.copy-code"].firstMatch
+        XCTAssertTrue(copyButton.waitForExistence(timeout: 10), "The row's copy button did not appear")
+        settle()
+        await snap("11-entry-row-codes")
+
+        if typeAppShortcut("f") {
+            app.typeText("Login")
+            if rowQuery(identifier: "search.entry.navlink").firstMatch.waitForExistence(timeout: 8) == false {
+                noteSkip("11a-search-row-codes", reason: "no results appeared for \"Login\"")
+            }
+            settle()
+            await snap("11a-search-row-codes")
+        } else {
+            noteSkip("11a-search-row-codes", reason: "⌘F could not be delivered")
+        }
         attachCaptureReport()
     }
 

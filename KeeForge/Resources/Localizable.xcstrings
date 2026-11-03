@@ -3030,6 +3030,58 @@
         }
       }
     },
+    "Add %@ to this entry" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ zu diesem Eintrag hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir %@ a esta entrada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter %@ à cette entrée"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi %@ a questa voce"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このエントリに %@ を追加"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить %@ в эту запись"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 %@ 添加到此条目"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將 %@ 加入此項目"
+          }
+        }
+      }
+    },
     "Add a cloud database from the database list to connect an account." : {
       "localizations" : {
         "de" : {
@@ -3706,110 +3758,6 @@
         }
       }
     },
-    "Add original URL to this entry" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ursprüngliche URL zu diesem Eintrag hinzufügen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Añadir la URL original a esta entrada"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ajouter l’URL d’origine à cette entrée"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aggiungi l'URL originale a questa voce"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このエントリに元の URL を追加"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Добавить исходный URL к этой записи"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "将原始 URL 添加到此条目"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "將原始 URL 加入此項目"
-          }
-        }
-      }
-    },
-    "Add Original URL?" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ursprüngliche URL hinzufügen?"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "¿Añadir URL original?"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ajouter l’URL d’origine ?"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aggiungere l'URL originale?"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "元の URL を追加しますか？"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Добавить исходный URL?"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加原始 URL？"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "加入原始 URL？"
-          }
-        }
-      }
-    },
     "Add tag %@" : {
       "localizations" : {
         "de" : {
@@ -3862,58 +3810,6 @@
         }
       }
     },
-    "Add URL" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "URL hinzufügen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Añadir URL"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ajouter l’URL"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aggiungi URL"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "URL を追加"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Добавить URL"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加 URL"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "加入 URL"
-          }
-        }
-      }
-    },
     "Add Verification Code" : {
       "localizations" : {
         "de" : {
@@ -3962,6 +3858,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增驗證碼"
+          }
+        }
+      }
+    },
+    "Add Website" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Website hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir sitio web"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter le site web"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi sito web"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Web サイトを追加"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить сайт"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加网站"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入網站"
+          }
+        }
+      }
+    },
+    "Add Website to Entry?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Website zum Eintrag hinzufügen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Añadir sitio web a la entrada?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter le site web à l’entrée ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungere il sito web alla voce?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Web サイトをエントリに追加しますか？"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить сайт в запись?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将网站添加到条目？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將網站加入項目？"
           }
         }
       }
@@ -7862,6 +7862,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "類別"
+          }
+        }
+      }
+    },
+    "Caution: “%@” isn’t related to any website saved in this entry. If it’s a lookalike site, adding it lets AutoFill offer this password there." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Achtung: „%@“ hat nichts mit den in diesem Eintrag gespeicherten Websites zu tun. Handelt es sich um eine nachgeahmte Website, würde AutoFill dieses Passwort nach dem Hinzufügen dort anbieten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atención: «%@» no está relacionado con ningún sitio web guardado en esta entrada. Si es un sitio que imita a otro, al añadirlo Autorrelleno ofrecerá allí esta contraseña."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attention : « %@ » n’a aucun rapport avec les sites web enregistrés dans cette entrée. S’il s’agit d’un site d’imitation, l’ajouter permettrait au Remplissage automatique d’y proposer ce mot de passe."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attenzione: “%@” non è collegato a nessun sito web salvato in questa voce. Se è un sito che ne imita un altro, aggiungendolo l'inserimento automatico vi proporrà questa password."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "注意：「%@」は、このエントリに保存されているどの Web サイトとも関係がありません。偽装サイトの場合、追加するとそのサイトで自動入力がこのパスワードを提示するようになります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Внимание: «%@» не связан ни с одним сайтом, сохранённым в этой записи. Если это поддельный сайт, после добавления автозаполнение будет предлагать там этот пароль."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "注意：“%@”与此条目中保存的任何网站都无关。如果这是仿冒网站，添加后自动填充会在该网站上提供此密码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "注意：「%@」與此項目中儲存的任何網站都無關。如果這是仿冒網站，加入後自動填寫會在該網站上提供此密碼。"
           }
         }
       }
@@ -42391,6 +42443,58 @@
         }
       }
     },
+    "Saved websites:" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gespeicherte Websites:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sitios web guardados:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sites web enregistrés :"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Siti web salvati:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存済みの Web サイト："
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранённые сайты:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存的网站："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已儲存的網站："
+          }
+        }
+      }
+    },
     "Saves a copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
       "localizations" : {
         "de" : {
@@ -45575,6 +45679,58 @@
         }
       }
     },
+    "Show Verification Codes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestätigungscodes anzeigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar códigos de verificación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher les codes de vérification"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostra codici di verifica"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認コードを表示"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывать коды проверки"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示验证码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示驗證碼"
+          }
+        }
+      }
+    },
     "Show What's New After Updates" : {
       "localizations" : {
         "de" : {
@@ -45623,6 +45779,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新後顯示新功能"
+          }
+        }
+      }
+    },
+    "Shows each entry's current code and a copy button on its row. Anyone who can see your screen can read the codes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeigt in der Zeile jedes Eintrags seinen aktuellen Code und eine Schaltfläche zum Kopieren. Wer Ihren Bildschirm sieht, kann die Codes lesen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muestra en la fila de cada entrada su código actual y un botón para copiarlo. Cualquiera que vea tu pantalla podrá leer los códigos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Affiche sur la ligne de chaque entrée son code actuel et un bouton pour le copier. Toute personne qui voit votre écran peut lire les codes."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostra nella riga di ogni voce il codice attuale e un pulsante per copiarlo. Chiunque veda lo schermo può leggere i codici."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各エントリの行に現在のコードとコピーボタンを表示します。画面が見える人は誰でもコードを読み取れます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывает в строке каждой записи её текущий код и кнопку копирования. Любой, кто видит ваш экран, сможет прочитать коды."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在每个条目的行中显示其当前验证码和拷贝按钮。能看到你屏幕的人都能读到这些验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在每個項目的列中顯示其目前驗證碼和拷貝按鈕。能看到你螢幕的人都能讀到這些驗證碼。"
           }
         }
       }
@@ -52291,54 +52499,60 @@
         }
       }
     },
-    "This adds the original request URL to the selected credential. The database will be changed only if you confirm." : {
+    "This adds “%@” to “%@” so AutoFill suggests the entry on that website next time. Check the address before adding it." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die ursprüngliche Anfrage-URL wird dem ausgewählten Zugang hinzugefügt. Die Datenbank wird nur nach Ihrer Bestätigung geändert."
+            "value" : "Dadurch wird „%1$@“ zu „%2$@“ hinzugefügt, damit AutoFill den Eintrag künftig auf dieser Website vorschlägt. Prüfen Sie die Adresse, bevor Sie sie hinzufügen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This adds “%1$@” to “%2$@” so AutoFill suggests the entry on that website next time. Check the address before adding it."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esto añade la URL de la solicitud original a la credencial seleccionada. La base de datos solo se modificará si usted confirma."
+            "value" : "Esto añade «%1$@» a «%2$@» para que Autorrelleno sugiera la entrada en ese sitio web la próxima vez. Compruebe la dirección antes de añadirla."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ceci ajoute l’URL de la requête d’origine à l’identifiant sélectionné. La base de données ne sera modifiée qu’après votre confirmation."
+            "value" : "Ceci ajoute « %1$@ » à « %2$@ » afin que le Remplissage automatique propose l’entrée sur ce site web la prochaine fois. Vérifiez l’adresse avant de l’ajouter."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "L'URL originale della richiesta viene aggiunto alla credenziale selezionata. Il database verrà modificato solo se confermi."
+            "value" : "“%1$@” verrà aggiunto a “%2$@”, così l'inserimento automatico suggerirà la voce su quel sito web la prossima volta. Controlla l'indirizzo prima di aggiungerlo."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した認証情報に、元のリクエスト URL を追加します。データベースが変更されるのは、確認した場合のみです。"
+            "value" : "「%2$@」に「%1$@」を追加し、次回からその Web サイトで自動入力がこのエントリを候補に表示するようにします。追加する前にアドレスを確認してください。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "К выбранным учётным данным будет добавлен исходный URL запроса. База данных изменится, только если вы подтвердите."
+            "value" : "«%1$@» будет добавлен в «%2$@», чтобы в следующий раз автозаполнение предлагало эту запись на этом сайте. Проверьте адрес перед добавлением."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这会将原始请求 URL 添加到所选凭据。只有在你确认后，数据库才会被更改。"
+            "value" : "这会将“%1$@”添加到“%2$@”，以便下次在该网站上自动填充时推荐此条目。添加前请核对地址。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這會將原始請求 URL 加入所選的憑證。只有在你確認後，資料庫才會變更。"
+            "value" : "這會將「%1$@」加入「%2$@」，以便下次在該網站上自動填寫時建議此項目。加入前請核對網址。"
           }
         }
       }
@@ -54119,6 +54333,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此項目已過期"
+          }
+        }
+      }
+    },
+    "This entry has no saved websites yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für diesen Eintrag sind noch keine Websites gespeichert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta entrada aún no tiene sitios web guardados."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun site web n’est encore enregistré dans cette entrée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa voce non ha ancora siti web salvati."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このエントリにはまだ Web サイトが保存されていません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В этой записи пока нет сохранённых сайтов."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此条目尚未保存任何网站。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此項目尚未儲存任何網站。"
           }
         }
       }
