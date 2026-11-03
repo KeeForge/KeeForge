@@ -6,6 +6,7 @@ final class ScreenProtectionService {
     private weak var windowScene: UIWindowScene?
     private var shieldWindow: UIWindow?
     private var capturedObservation: NSObjectProtocol?
+    private var hideAnimator: UIViewPropertyAnimator?
 
     init(windowScene: UIWindowScene? = nil) {
         self.windowScene = windowScene
@@ -51,35 +52,61 @@ final class ScreenProtectionService {
             shieldWindow = window
         }
 
+        // Instant, never faded in: the app switcher snapshot is taken right away.
+        hideAnimator?.stopAnimation(true)
+        hideAnimator = nil
+        shieldWindow?.alpha = 1
         shieldWindow?.isHidden = false
     }
 
+    /// Fades out so returning to the app does not cut straight from the
+    /// cover to the content.
     func hideShield() {
-        shieldWindow?.isHidden = true
+        guard let window = shieldWindow, window.isHidden == false else { return }
+        hideAnimator?.stopAnimation(true)
+        let animator = UIViewPropertyAnimator(duration: Self.revealDuration, curve: .easeOut) {
+            window.alpha = 0
+        }
+        animator.addCompletion { [weak self] position in
+            guard position == .end else { return }
+            window.isHidden = true
+            window.alpha = 1
+            self?.hideAnimator = nil
+        }
+        hideAnimator = animator
+        animator.startAnimation()
     }
+
+    private static let revealDuration: TimeInterval = 0.3
 }
 
 private final class ScreenProtectionViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemChromeMaterial))
+        let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
         blur.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(blur)
 
+        // The glyph carries its own rounded corners; the shadow lifts it off the blur.
         let icon = UIImageView(image: UIImage(named: "LaunchGlyph"))
-        icon.tintColor = .label
         icon.contentMode = .scaleAspectFit
+        icon.layer.shadowColor = UIColor.black.cgColor
+        icon.layer.shadowOpacity = 0.25
+        icon.layer.shadowRadius = 12
+        icon.layer.shadowOffset = CGSize(width: 0, height: 6)
         icon.translatesAutoresizingMaskIntoConstraints = false
         blur.contentView.addSubview(icon)
 
         let title = UILabel()
         title.text = "KeeForge"
-        title.font = .preferredFont(forTextStyle: .headline)
-        title.textColor = .secondaryLabel
+        title.font = UIFontMetrics(forTextStyle: .title3).scaledFont(for: .systemFont(ofSize: 19, weight: .semibold))
+        title.adjustsFontForContentSizeCategory = true
+        title.textColor = .label
         title.translatesAutoresizingMaskIntoConstraints = false
         blur.contentView.addSubview(title)
 
+        // Matches LaunchScreen.storyboard, so launch and the cover look the same.
         NSLayoutConstraint.activate([
             blur.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             blur.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -87,9 +114,9 @@ private final class ScreenProtectionViewController: UIViewController {
             blur.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
             icon.centerXAnchor.constraint(equalTo: blur.contentView.centerXAnchor),
-            icon.centerYAnchor.constraint(equalTo: blur.contentView.centerYAnchor, constant: -16),
-            icon.widthAnchor.constraint(equalToConstant: 64),
-            icon.heightAnchor.constraint(equalToConstant: 64),
+            icon.centerYAnchor.constraint(equalTo: blur.contentView.centerYAnchor, constant: -12),
+            icon.widthAnchor.constraint(equalToConstant: 96),
+            icon.heightAnchor.constraint(equalToConstant: 96),
 
             title.topAnchor.constraint(equalTo: icon.bottomAnchor, constant: 12),
             title.centerXAnchor.constraint(equalTo: blur.contentView.centerXAnchor),

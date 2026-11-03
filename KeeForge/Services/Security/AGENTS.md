@@ -45,6 +45,7 @@
 
 ### Screen privacy
 
+- The iOS cover matches `LaunchScreen.storyboard` (the rounded `LaunchGlyph` and title), so launching and returning look the same. It appears instantly and only fades on the way out: the app switcher snapshot is taken as the app leaves, so a fade-in could expose content.
 - macOS capture blocking goes through one choke point (`ScreenProtectionService.windowSharingType(blockCapture:)`). A window the key-window sweep cannot reach, such as the quick-search panel, must apply that value itself.
 - The Mac blur cover on resign-active is unconditional and covers every titled window, Settings included (`shouldPrivacyCover(windowIdentifier:)`). It is a titled child window with a hidden titlebar and the parent's toolbar style, so the system gives it the parent's rounded shape; never add views to a window's frame view (AppKit warns about unknown subviews there). Capture blocking is best-effort; do not describe it as a guarantee.
 
