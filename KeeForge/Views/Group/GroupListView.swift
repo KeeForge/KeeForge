@@ -40,6 +40,16 @@ struct GroupListView: View {
     @State private var pendingIconChange: PendingIconChange?
     /// The entry or group whose Move-to-Group picker is presented, or `nil`.
     @State private var pendingMove: PendingMove?
+    @State private var isShowingQRScanner = false
+    /// A scanned code waits here until the scanner has dismissed, then opens
+    /// the enrollment, which offers the entry to add it to.
+    @State private var scannedCode: ScannedCode?
+    @State private var codeToEnroll: ScannedCode?
+
+    struct ScannedCode: Identifiable {
+        let id = UUID()
+        let uri: OTPAuthURI
+    }
 
     private var resolvedGroup: KPGroup? {
         viewModel.group(withID: groupID)
@@ -260,6 +270,34 @@ struct GroupListView: View {
         }
         // Covers the inline search results as well as this level's own rows.
         .entrySelectionBar(viewModel: viewModel) { pendingMove = $0 }
+        .modifier(GroupListCodeEnrollment(view: self))
+    }
+
+    /// New › Scan QR Code: the scanner, then the same enrollment an
+    /// `otpauth://` link opens. On the outer container like the other hosts.
+    private struct GroupListCodeEnrollment: ViewModifier {
+        let view: GroupListView
+
+        func body(content: Content) -> some View {
+            #if os(iOS)
+            content
+                .sheet(isPresented: view.$isShowingQRScanner, onDismiss: {
+                    view.codeToEnroll = view.scannedCode
+                    view.scannedCode = nil
+                }) {
+                    TOTPQRScannerSheet { uri in
+                        view.scannedCode = ScannedCode(uri: uri)
+                    }
+                }
+                .sheet(item: view.$codeToEnroll) { code in
+                    TOTPEnrollmentDestinationView(databaseViewModel: view.viewModel, uri: code.uri) {
+                        view.codeToEnroll = nil
+                    }
+                }
+            #else
+            content
+            #endif
+        }
     }
 
     /// Actions other than sorting. A divider, not a `Section`: iOS 27 drops
@@ -322,6 +360,15 @@ struct GroupListView: View {
                 newGroupName = ""
                 isShowingNewGroupSheet = true
             }
+
+            #if os(iOS)
+            Divider()
+
+            Button("Scan QR Code", systemImage: "qrcode.viewfinder") {
+                isShowingQRScanner = true
+            }
+            .accessibilityIdentifier("entry-list.scan-qr")
+            #endif
         } label: {
             Image(systemName: "plus")
         }
