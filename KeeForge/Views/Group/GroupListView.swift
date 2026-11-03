@@ -579,7 +579,6 @@ struct GroupListView: View {
         case .verificationCodes:
             flatEntriesSection(
                 viewModel.verificationCodeEntries,
-                showsVerificationCodes: true,
                 summary: String(
                     localized: "Every entry with a verification code, across all groups. Tap an entry to open it."
                 ),
@@ -640,7 +639,6 @@ struct GroupListView: View {
     @ViewBuilder
     private func flatEntriesSection(
         _ entries: [KPEntry],
-        showsVerificationCodes: Bool = false,
         summary: String,
         emptyTitle: LocalizedStringKey,
         emptyDescription: LocalizedStringKey
@@ -654,7 +652,7 @@ struct GroupListView: View {
         } else {
             Section {
                 ForEach(viewModel.sortedEntries(entries)) { entry in
-                    entryRow(for: entry, showsFolderPath: true, showsVerificationCode: showsVerificationCodes)
+                    entryRow(for: entry, showsFolderPath: true)
                 }
             } footer: {
                 Text(summary)
@@ -733,11 +731,7 @@ struct GroupListView: View {
     }
 
     @ViewBuilder
-    private func entryRow(
-        for entry: KPEntry,
-        showsFolderPath: Bool = false,
-        showsVerificationCode: Bool = false
-    ) -> some View {
+    private func entryRow(for entry: KPEntry, showsFolderPath: Bool = false) -> some View {
         let row = EntryRow(
             entry: entry,
             username: viewModel.resolvingFieldReferences(entry.username),
@@ -751,22 +745,37 @@ struct GroupListView: View {
                 }
                 .macHoverHighlight()
             } else {
-                browsingEntryRow(for: entry, row: row, showsVerificationCode: showsVerificationCode)
+                browsingEntryRow(for: entry, row: row)
             }
         }
     }
 
-    private func browsingEntryRow(for entry: KPEntry, row: EntryRow, showsVerificationCode: Bool) -> some View {
+    private func browsingEntryRow(for entry: KPEntry, row: EntryRow) -> some View {
         // A concrete row container lets List defer offscreen rows.
         HStack {
-            if showsVerificationCode, let config = entry.totpConfig, let sessionKey = viewModel.sessionKey {
-                VerificationCodeRow(
-                    title: entry.title.isEmpty ? String(localized: "(untitled)") : entry.title,
-                    detail: verificationCodeDetail(for: entry),
-                    config: config,
-                    sessionKey: sessionKey
-                ) {
-                    open(entry)
+            if viewModel.showsVerificationCodeOnRow(for: entry, in: rootViewMode),
+               let config = entry.totpConfig,
+               let sessionKey = viewModel.sessionKey {
+                if rootViewMode == .verificationCodes {
+                    VerificationCodeRow(
+                        title: entry.title.isEmpty ? String(localized: "(untitled)") : entry.title,
+                        detail: verificationCodeDetail(for: entry),
+                        config: config,
+                        sessionKey: sessionKey
+                    ) {
+                        open(entry)
+                    }
+                } else {
+                    LiveCodeEntryRow(
+                        entry: entry,
+                        username: row.username,
+                        customIconData: row.customIconData,
+                        folderPath: row.folderPath,
+                        config: config,
+                        sessionKey: sessionKey
+                    ) {
+                        open(entry)
+                    }
                 }
             } else if let onSelectEntry {
                 Button {
@@ -1113,6 +1122,8 @@ struct EntryRow: View {
     var username: String
     var customIconData: Data? = nil
     var folderPath: String? = nil
+    /// Set by `LiveCodeEntryRow`; the code and countdown take the badge's place.
+    var verificationCode: TOTPViewModel? = nil
 
     var body: some View {
         HStack {
@@ -1122,10 +1133,12 @@ struct EntryRow: View {
             VStack(alignment: .leading) {
                 Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
                     .font(.body)
+                    .lineLimit(verificationCode == nil ? nil : 1)
                 if !username.isEmpty {
                     Text(username)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(verificationCode == nil ? nil : 1)
                 }
                 if let folderPath, folderPath.isEmpty == false {
                     HStack(spacing: 4) {
@@ -1159,7 +1172,21 @@ struct EntryRow: View {
                     .accessibilityIdentifier("entry-row.passkey")
             }
 
-            if entry.totpConfig != nil {
+            if let verificationCode {
+                HStack(spacing: 8) {
+                    VerificationCodeText(totpVM: verificationCode, font: .title3.weight(.semibold))
+                        .fixedSize()
+                    // The seconds inside the ring: a row has no width to spare.
+                    CountdownRing(progress: verificationCode.progress, seconds: verificationCode.secondsRemaining)
+                        .frame(width: 24, height: 24)
+                        .accessibilityLabel(
+                            Text(
+                                Duration.seconds(verificationCode.secondsRemaining)
+                                    .formatted(.units(allowed: [.seconds], width: .wide))
+                            )
+                        )
+                }
+            } else if entry.totpConfig != nil {
                 Image(systemName: "clock")
                     .font(.caption)
                     .foregroundStyle(.green)

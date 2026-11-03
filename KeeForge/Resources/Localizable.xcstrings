@@ -45679,6 +45679,58 @@
         }
       }
     },
+    "Show Verification Codes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestätigungscodes anzeigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar códigos de verificación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher les codes de vérification"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostra codici di verifica"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認コードを表示"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывать коды проверки"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示验证码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示驗證碼"
+          }
+        }
+      }
+    },
     "Show What's New After Updates" : {
       "localizations" : {
         "de" : {
@@ -45727,6 +45779,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新後顯示新功能"
+          }
+        }
+      }
+    },
+    "Shows each entry's current code and a copy button on its row. Anyone who can see your screen can read the codes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeigt in der Zeile jedes Eintrags seinen aktuellen Code und eine Schaltfläche zum Kopieren. Wer Ihren Bildschirm sieht, kann die Codes lesen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muestra en la fila de cada entrada su código actual y un botón para copiarlo. Cualquiera que vea tu pantalla podrá leer los códigos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Affiche sur la ligne de chaque entrée son code actuel et un bouton pour le copier. Toute personne qui voit votre écran peut lire les codes."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostra nella riga di ogni voce il codice attuale e un pulsante per copiarlo. Chiunque veda lo schermo può leggere i codici."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各エントリの行に現在のコードとコピーボタンを表示します。画面が見える人は誰でもコードを読み取れます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывает в строке каждой записи её текущий код и кнопку копирования. Любой, кто видит ваш экран, сможет прочитать коды."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在每个条目的行中显示其当前验证码和拷贝按钮。能看到你屏幕的人都能读到这些验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在每個項目的列中顯示其目前驗證碼和拷貝按鈕。能看到你螢幕的人都能讀到這些驗證碼。"
           }
         }
       }
