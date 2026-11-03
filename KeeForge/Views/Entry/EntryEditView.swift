@@ -61,70 +61,7 @@ struct EntryEditView: View {
 
     private var editorForm: some View {
         Form {
-            Section("Basics") {
-                basicFieldRow("Title") {
-                    TextField("Title", text: $formViewModel.title)
-                        .textInputAutocapitalization(.words)
-                        .accessibilityIdentifier("entry-edit.title-field")
-                }
-
-                basicFieldRow("Username") {
-                    TextField("Username", text: $formViewModel.username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .accessibilityIdentifier("entry-edit.username-field")
-                }
-
-                basicFieldRow("Password") {
-                    PasswordInputRow(
-                        title: String(localized: "Password"),
-                        text: $formViewModel.password,
-                        isVisible: $isPasswordVisible,
-                        fieldAccessibilityIdentifier: "entry-edit.password-field",
-                        visibilityAccessibilityIdentifier: "entry-edit.password-visibility-button",
-                        onVisibilityToggle: togglePasswordVisibility
-                    ) {
-                        Button {
-                            showPasswordGenerator = true
-                        } label: {
-                            Image(systemName: "dice.fill")
-                                .frame(width: 30, height: 30)
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("Generate password")
-                        .accessibilityIdentifier("entry-edit.password-generator-button")
-                        .macHelp(String(localized: "Generate password"))
-                    }
-
-                    PasswordStrengthIndicator(password: formViewModel.password)
-                }
-
-                basicFieldRow("URL") {
-                    TextField("URL", text: $formViewModel.url)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
-                        .textContentType(.URL)
-                        .accessibilityIdentifier("entry-edit.url-field")
-                }
-
-                additionalURLRows
-
-                basicFieldRow("Tags") {
-                    appliedTagStrip
-
-                    // Single-line on purpose: Return has to submit the tag
-                    // rather than insert a newline, which is the only visible
-                    // hint that tags are committed one at a time.
-                    TextField("Add a tag", text: $formViewModel.pendingTagText)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .onSubmit { formViewModel.commitPendingTag() }
-                        .accessibilityIdentifier("entry-edit.tags-field")
-
-                    tagSuggestionStrip
-                }
-            }
+            basicsSections
 
             if formViewModel.createDestinationGroupID != nil {
                 Section("Group") {
@@ -146,22 +83,7 @@ struct EntryEditView: View {
                     .accessibilityIdentifier("entry-edit.notes-field")
             }
 
-            Section("Custom Fields") {
-                ForEach($formViewModel.customFields) { $field in
-                    customFieldRow($field)
-                }
-
-                Button {
-                    formViewModel.addCustomField()
-                } label: {
-                    Label("Add Field", systemImage: "plus")
-                }
-                .accessibilityIdentifier("entry-edit.custom-field.add")
-
-                Button("Reorder Fields") { showCustomFieldOrder = true }
-                    .disabled(formViewModel.customFields.count < 2)
-                    .accessibilityIdentifier("entry-edit.custom-field.reorder")
-            }
+            customFieldsSection
 
             EntryEditAttachmentsSection(
                 formViewModel: formViewModel,
@@ -498,7 +420,7 @@ struct EntryEditView: View {
         let title = String(localized: "URL \(index + 2)")
         let removeLabel = String(localized: "Remove URL \(index + 2)")
 
-        return basicFieldRow(title) {
+        return basicFieldRow(title, inline: true) {
             HStack {
                 TextField(title, text: additionalURL.value)
                     .textInputAutocapitalization(.never)
@@ -698,7 +620,7 @@ struct EntryEditView: View {
     @ViewBuilder
     private var totpConfigurationRows: some View {
         if let preview = formViewModel.totpPreview {
-            basicFieldRow(String(localized: "Current Code")) {
+            basicFieldRow(String(localized: "Current Code"), inline: true) {
                 TOTPPreviewRow(preview: preview)
             }
         } else if hasTOTPConfiguration, formViewModel.unsupportedTOTPDigitsMessage == nil {
@@ -720,7 +642,7 @@ struct EntryEditView: View {
             )
         }
 
-        basicFieldRow(String(localized: "Period (Seconds)")) {
+        basicFieldRow(String(localized: "Period (Seconds)"), inline: true) {
             TextField(String(localized: "Period (Seconds)"), text: $totpPeriodText)
                 .keyboardType(.numberPad)
                 .focused($isTOTPPeriodFieldFocused)
@@ -945,21 +867,177 @@ struct EntryEditView: View {
         return databaseViewModel.group(withID: groupID)?.name ?? ""
     }
 
+    /// iOS splits Basics into the design's cards: the fields, the URLs, and the
+    /// tags; macOS keeps one section.
+    @ViewBuilder
+    private var basicsSections: some View {
+        if PlatformDesign.followsIOSDesign {
+            Section("Basics") {
+                identityFields
+            }
+            Section {
+                urlFields
+            }
+            Section("Tags") {
+                tagFields
+            }
+        } else {
+            Section("Basics") {
+                identityFields
+                urlFields
+                tagFields
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var identityFields: some View {
+        basicFieldRow("Title") {
+            TextField("Title", text: $formViewModel.title)
+                .textInputAutocapitalization(.words)
+                .accessibilityIdentifier("entry-edit.title-field")
+        }
+
+        basicFieldRow("Username", inline: true) {
+            TextField("Username", text: $formViewModel.username)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("entry-edit.username-field")
+        }
+
+        basicFieldRow("Password") {
+            PasswordInputRow(
+                title: String(localized: "Password"),
+                text: $formViewModel.password,
+                isVisible: $isPasswordVisible,
+                fieldAccessibilityIdentifier: "entry-edit.password-field",
+                visibilityAccessibilityIdentifier: "entry-edit.password-visibility-button",
+                onVisibilityToggle: togglePasswordVisibility
+            ) {
+                Button {
+                    showPasswordGenerator = true
+                } label: {
+                    Image(systemName: PlatformDesign.followsIOSDesign ? "wand.and.stars" : "dice.fill")
+                        .frame(width: 30, height: 30)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Generate password")
+                .accessibilityIdentifier("entry-edit.password-generator-button")
+                .macHelp(String(localized: "Generate password"))
+            }
+
+            PasswordStrengthIndicator(password: formViewModel.password)
+        }
+    }
+
+    @ViewBuilder
+    private var urlFields: some View {
+        basicFieldRow("URL", inline: true) {
+            TextField("URL", text: $formViewModel.url)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.URL)
+                .textContentType(.URL)
+                .accessibilityIdentifier("entry-edit.url-field")
+        }
+
+        additionalURLRows
+    }
+
+    /// The field's own label stays on macOS, where the section is shared.
+    @ViewBuilder
+    private var tagFields: some View {
+        if PlatformDesign.followsIOSDesign {
+            tagFieldContent
+        } else {
+            basicFieldRow("Tags") {
+                tagFieldContent
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var tagFieldContent: some View {
+        appliedTagStrip
+
+        // Single-line on purpose: Return has to submit the tag rather than
+        // insert a newline, which is the only visible hint that tags are
+        // committed one at a time.
+        TextField("Add a tag", text: $formViewModel.pendingTagText)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .onSubmit { formViewModel.commitPendingTag() }
+            .accessibilityIdentifier("entry-edit.tags-field")
+
+        tagSuggestionStrip
+    }
+
+    /// iOS puts Reorder in the section header, as the design does; macOS keeps
+    /// it as the section's last row.
+    @ViewBuilder
+    private var customFieldsSection: some View {
+        let reorder = Button("Reorder Fields") { showCustomFieldOrder = true }
+            .disabled(formViewModel.customFields.count < 2)
+            .accessibilityIdentifier("entry-edit.custom-field.reorder")
+        Section {
+            ForEach($formViewModel.customFields) { $field in
+                customFieldRow($field)
+            }
+
+            Button {
+                formViewModel.addCustomField()
+            } label: {
+                Label("Add Field", systemImage: "plus")
+            }
+            .accessibilityIdentifier("entry-edit.custom-field.add")
+
+            if PlatformDesign.followsIOSDesign == false {
+                reorder
+            }
+        } header: {
+            if PlatformDesign.followsIOSDesign {
+                HStack {
+                    Text("Custom Fields")
+                    Spacer()
+                    reorder
+                        .font(Theme.Font.subhead)
+                        .textCase(nil)
+                }
+            } else {
+                Text("Custom Fields")
+            }
+        }
+    }
+
+    /// `inline` sets a short field as a label/value row on iOS, the design's
+    /// row for a fact with a short value.
+    @ViewBuilder
     private func basicFieldRow<Content: View>(
         _ title: String,
+        inline: Bool = false,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        if inline, PlatformDesign.followsIOSDesign {
+            LabeledContent {
+                content()
+                    .multilineTextAlignment(.trailing)
+                    .foregroundStyle(Theme.labelSecondary)
+            } label: {
+                Text(title)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-            content()
-                .macLabelsHidden()
-                .macFormFieldStyle()
+                content()
+                    .macLabelsHidden()
+                    .macFormFieldStyle()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 2)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 2)
     }
 
     private func cancelTapped() {
@@ -990,27 +1068,49 @@ private struct TOTPPreviewRow: View {
     /// Ticks start on a whole second so the code changes on its period
     /// boundary instead of up to a second late.
     private let tickStart = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
+    @ScaledMetric(relativeTo: .title3) private var ringSize = Theme.Size.badge
 
     var body: some View {
         TimelineView(.periodic(from: tickStart, by: 1)) { context in
             let code = preview.code(at: context.date)
             let secondsRemaining = preview.secondsRemaining(at: context.date)
-            HStack {
-                CountdownRing(
-                    progress: Double(secondsRemaining) / Double(preview.period),
-                    seconds: secondsRemaining
-                )
-                .frame(width: 40, height: 40)
+            if PlatformDesign.followsIOSDesign {
+                HStack(spacing: Theme.Spacing.tileGap) {
+                    CountdownRing(
+                        progress: Double(secondsRemaining) / Double(preview.period),
+                        seconds: secondsRemaining,
+                        showsSeconds: false
+                    )
+                    .frame(width: ringSize, height: ringSize)
+                    .accessibilityLabel(Text("\(secondsRemaining) seconds remaining"))
 
-                Text(code)
-                    .font(.title.monospaced().bold())
-                    .contentTransition(.numericText())
-                    .accessibilityIdentifier("entry-edit.totp.preview-code")
+                    Text(code)
+                        .font(Theme.Font.codeRow)
+                        .foregroundStyle(.tint)
+                        .contentTransition(.numericText())
+                        .accessibilityIdentifier("entry-edit.totp.preview-code")
 
-                Spacer()
+                    CopyButton(text: code, accessibilityID: "entry-edit.totp.preview-copy")
+                        .accessibilityLabel("Copy Verification Code")
+                }
+            } else {
+                HStack {
+                    CountdownRing(
+                        progress: Double(secondsRemaining) / Double(preview.period),
+                        seconds: secondsRemaining
+                    )
+                    .frame(width: 40, height: 40)
 
-                CopyButton(text: code, accessibilityID: "entry-edit.totp.preview-copy")
-                    .accessibilityLabel("Copy Verification Code")
+                    Text(code)
+                        .font(.title.monospaced().bold())
+                        .contentTransition(.numericText())
+                        .accessibilityIdentifier("entry-edit.totp.preview-code")
+
+                    Spacer()
+
+                    CopyButton(text: code, accessibilityID: "entry-edit.totp.preview-copy")
+                        .accessibilityLabel("Copy Verification Code")
+                }
             }
         }
     }

@@ -57,6 +57,7 @@
 - Custom field reordering uses a native List sheet containing field names only, plus named move controls in the form. Field values never appear in reorder rows. The view model owns order, including dirty tracking and save payloads.
 
 - `EntryEditView` draws additional URL rows in Basics using `EntryEditViewModel.additionalURLs`, with a named remove action for VoiceOver. Field names are stored as `KP2A_URL_<n>` but are not shown to the user; `EntryDetailView` displays those URLs once, outside Custom Fields.
+- On iOS the editor splits Basics into the fields, the URLs and the tags, and short fields are label/value rows (`basicFieldRow(_:inline:)`); macOS keeps one Basics section.
 - `EntryEditView.body` is at the limit of what the CI Xcode type-checks. Put a new presentation in a `ViewModifier` (as `EntryAttachmentImporter` does), not inline, or the build fails only on CI.
 - Every site that builds an `EntryEditViewModel` passes `knownTags` and the location's inherited tags. Both default to empty, so a missed site compiles and silently loses tag suggestions.
 - Save and Save and Lock stay disabled while attachment files are being read, and while `canSave` is false; the lock prompt must never write an invalid form.

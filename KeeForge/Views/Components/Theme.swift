@@ -85,6 +85,8 @@ enum Theme {
         static let entryHeaderIcon: CGFloat = 64
         static let badge: CGFloat = 22
         static let statusDot: CGFloat = 8
+        static let navButton: CGFloat = 44
+        static let failureBadge: CGFloat = 56
         static let meterSegment = CGSize(width: 16, height: 4)
     }
 

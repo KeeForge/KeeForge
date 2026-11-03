@@ -243,6 +243,7 @@ struct EntryDetailView: View {
                                         value: viewModel.resolvingFieldReferences(value),
                                         secretAccess: viewModel.secretAccess,
                                         showsInlineLabel: true,
+                                        isCardRow: PlatformDesign.followsIOSDesign,
                                         isCurrent: secretActionIsCurrent
                                     )
                                 } else {
@@ -250,7 +251,8 @@ struct EntryDetailView: View {
                                         label: key,
                                         value: viewModel.resolvingFieldReferences(value),
                                         icon: "text.justify.left",
-                                        showsInlineLabel: true
+                                        showsInlineLabel: true,
+                                        isCardRow: PlatformDesign.followsIOSDesign
                                     )
                                 }
                             }
@@ -1021,6 +1023,8 @@ struct ProtectedFieldRow: View {
     let secretAccess: SecretAccessGate
     var accessibilityPrefix: String = "entry"
     var showsInlineLabel: Bool = false
+    /// A label/value row inside a card the caller supplies (iOS).
+    var isCardRow: Bool = false
     var isCurrent: @MainActor () -> Bool
     @State private var revealed = false
     @State private var secretAction = EntrySecretAction()
@@ -1028,7 +1032,9 @@ struct ProtectedFieldRow: View {
     @ViewBuilder
     var body: some View {
         Group {
-            if showsInlineLabel {
+            if isCardRow {
+                cardRow
+            } else if showsInlineLabel {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(label)
                         .font(.caption)
@@ -1043,6 +1049,35 @@ struct ProtectedFieldRow: View {
         }
         .onChange(of: value) { invalidateReveal() }
         .onDisappear { invalidateReveal() }
+    }
+
+    /// Concealed beside its label, revealed below it. One container for both,
+    /// so a reveal does not make the `List` swap rows (see `PasswordFieldRow`).
+    private var cardRow: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+            if revealed {
+                Text(label)
+                    .font(Theme.Font.footnote)
+                    .foregroundStyle(Theme.labelSecondary)
+                HStack(spacing: 0) {
+                    Text(value)
+                        .font(.body.monospaced())
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Theme.Spacing.iconText)
+                    controls
+                }
+            } else {
+                LabeledContent {
+                    HStack(spacing: 0) {
+                        PasswordConcealedText(accessibilityLabel: String(localized: "Hidden protected field"))
+                        controls
+                    }
+                } label: {
+                    Text(label)
+                }
+            }
+        }
     }
 
     private var fieldContent: some View {
@@ -1062,25 +1097,30 @@ struct ProtectedFieldRow: View {
 
             Spacer(minLength: 12)
 
-            Button(action: toggleReveal) {
-                Image(systemName: revealed ? "eye.slash.fill" : "eye.fill")
-                    .font(.body)
-            }
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
-            .disabled(secretAction.isAuthenticating)
-            .accessibilityIdentifier("\(accessibilityPrefix).protected-field.\(normalizedLabel).reveal")
-            .macHelp(revealed ? String(localized: "Hide \(label)") : String(localized: "Show \(label)"))
-
-            CopyButton(
-                text: value,
-                secretAccess: secretAccess,
-                authenticationReason: String(localized: "Copy protected field"),
-                accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)",
-                secretAction: secretAction,
-                isCurrent: isCurrent
-            )
+            controls
         }
+    }
+
+    @ViewBuilder
+    private var controls: some View {
+        Button(action: toggleReveal) {
+            Image(systemName: revealed ? "eye.slash.fill" : "eye.fill")
+                .font(.body)
+        }
+        .frame(width: 44, height: 44)
+        .contentShape(Rectangle())
+        .disabled(secretAction.isAuthenticating)
+        .accessibilityIdentifier("\(accessibilityPrefix).protected-field.\(normalizedLabel).reveal")
+        .macHelp(revealed ? String(localized: "Hide \(label)") : String(localized: "Show \(label)"))
+
+        CopyButton(
+            text: value,
+            secretAccess: secretAccess,
+            authenticationReason: String(localized: "Copy protected field"),
+            accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)",
+            secretAction: secretAction,
+            isCurrent: isCurrent
+        )
     }
 
     private var normalizedLabel: String {

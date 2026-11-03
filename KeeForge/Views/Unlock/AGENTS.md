@@ -17,6 +17,7 @@
 
 ### Failure screen and pickers
 
+- iPhone and iPad draw the failure as the design's error page, macOS keeps its card; both offer the same actions under the same identifiers.
 - The password form stays below the failure whenever `DatabaseOpenFailure.canRetryUnlock` holds, which includes every biometric failure. Try Again repeats quick unlock only while `canRetryQuickUnlock`, so an unreadable saved key sends the user to the password.
 - The key-file picker and Locate Database File share one `.fileImporter` through `PickerPresentationState<FilePickerTarget>`; a second importer on the same view does not present reliably. The target outlives dismissal so the completion still knows what was picked.
 - Locate Database File shows only while `canRelinkDatabaseFile`. That includes any non-timeout failure while `DatabaseReference.hasUnverifiedRelink`, because a wrong pick fails as a wrong password.

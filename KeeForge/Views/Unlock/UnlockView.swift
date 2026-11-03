@@ -254,7 +254,156 @@ struct UnlockView: View {
         }
     }
 
+    @ViewBuilder
     private func failureSection(_ failure: DatabaseOpenFailure) -> some View {
+        if PlatformDesign.followsIOSDesign {
+            designedFailureSection(failure)
+        } else {
+            legacyFailureSection(failure)
+        }
+    }
+
+    /// The design's error page: what went wrong in words, the code as a row,
+    /// the two ways forward, then the rest as links.
+    private func designedFailureSection(_ failure: DatabaseOpenFailure) -> some View {
+        VStack(spacing: Theme.Spacing.cardGap) {
+            VStack(spacing: Theme.Spacing.badgeGap) {
+                Image(systemName: failure.isAuthenticationFailure ? "lock.fill" : "exclamationmark.triangle.fill")
+                    .font(.title2)
+                    .foregroundStyle(failure.isAuthenticationFailure ? Theme.danger : Theme.warning)
+                    .frame(width: Theme.Size.failureBadge, height: Theme.Size.failureBadge)
+                    .background(
+                        failure.isAuthenticationFailure ? AnyShapeStyle(Theme.dangerSoft) : AnyShapeStyle(Theme.fill),
+                        in: Circle()
+                    )
+                    .accessibilityHidden(true)
+
+                Text(failure.title)
+                    .font(.title3.weight(.bold))
+                    .multilineTextAlignment(.center)
+
+                Text(failure.summary)
+                    .font(Theme.Font.subhead)
+                    .foregroundStyle(Theme.labelSecondary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("unlock.error.label")
+            }
+            .frame(maxWidth: .infinity)
+
+            LabeledContent("Error Code") {
+                Text(failure.errorCode)
+                    .font(.subheadline.monospaced())
+                    .foregroundStyle(Theme.labelSecondary)
+            }
+            .padding(Theme.Spacing.side)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+
+            Button(action: retryUnlock) {
+                Label("Try Again", systemImage: "arrow.clockwise")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+            .accessibilityIdentifier("unlock.retry.button")
+
+            if viewModel.canRelinkDatabaseFile {
+                Button {
+                    selectionAlert = nil
+                    filePickerState.present(.databaseFile)
+                } label: {
+                    Label("Locate Database File", systemImage: "doc.text.magnifyingglass")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .accessibilityIdentifier("unlock.relink")
+            }
+
+            VStack(alignment: .leading, spacing: 0) {
+                if failure.isAuthenticationFailure == false, showsChooseDifferentFileAction {
+                    failureLink(
+                        failure.canChooseDifferentFile ? "Choose Different File" : "Back to Database List",
+                        systemImage: "folder",
+                        identifier: "unlock.choose-different"
+                    ) {
+                        onBackToDatabaseList()
+                    }
+                    Divider()
+                }
+                failureLink("Copy Error Details", systemImage: "doc.on.doc", identifier: "unlock.copy-error") {
+                    copyErrorDetails(failure)
+                }
+                Divider()
+                failureLink("Send Feedback", systemImage: "paperplane", identifier: "unlock.send-feedback") {
+                    feedbackContext = .databaseOpenFailure(failure)
+                }
+                if viewModel.canRemoveMissingDocumentsFile {
+                    Divider()
+                    removeMissingDocumentsLink
+                }
+            }
+            .padding(.horizontal, Theme.Spacing.side)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+
+            Label(failure.privacyNote, systemImage: "shield.lefthalf.filled")
+                .font(Theme.Font.footnote)
+                .foregroundStyle(Theme.labelSecondary)
+
+            if copiedErrorDetails {
+                Text("Error details copied.")
+                    .font(Theme.Font.footnote.weight(.medium))
+                    .foregroundStyle(Theme.success)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("unlock.error.card")
+    }
+
+    private func failureLink(
+        _ title: LocalizedStringKey,
+        systemImage: String,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .frame(maxWidth: .infinity, minHeight: Theme.Size.navButton, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.tint)
+        .accessibilityIdentifier(identifier)
+    }
+
+    /// Its dialog stays on the button, so iPad anchors the popover to it.
+    private var removeMissingDocumentsLink: some View {
+        Button(role: .destructive) {
+            showRemoveMissingConfirmation = true
+        } label: {
+            Label("Remove from List", systemImage: "trash")
+                .frame(maxWidth: .infinity, minHeight: Theme.Size.navButton, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.danger)
+        .accessibilityIdentifier("unlock.remove-missing")
+        .confirmationDialog(
+            "Remove Database?",
+            isPresented: $showRemoveMissingConfirmation
+        ) {
+            Button("Remove", role: .destructive) {
+                viewModel.removeMissingDocumentsDatabase()
+                onBackToDatabaseList()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("“\(viewModel.databaseDisplayName)” will be removed from KeeForge, including its cached copy and saved biometric key.")
+        }
+    }
+
+    private func legacyFailureSection(_ failure: DatabaseOpenFailure) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: failure.isAuthenticationFailure ? "lock.slash.fill" : "exclamationmark.triangle.fill")
