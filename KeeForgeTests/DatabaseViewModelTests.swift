@@ -1476,23 +1476,29 @@ final class DatabaseViewModelTests: XCTestCase {
         reviewDefaults.removePersistentDomain(forName: suiteName)
         let promptCounter = ReviewPromptCounter()
         let original = (
+            defaults: ReviewPromptService.defaults,
+            minimumSuccessfulSaves: ReviewPromptService.minimumSuccessfulSaves,
+            minimumSuccessfulAutoFills: ReviewPromptService.minimumSuccessfulAutoFills,
             version: ReviewPromptService.currentVersion,
             isAppStoreBuild: ReviewPromptService.isAppStoreBuild,
-            suppressed: ReviewPromptService.isSuppressedForUITesting
+            suppressed: ReviewPromptService.isSuppressedForUITesting,
+            requestReviewHandler: ReviewPromptService.requestReviewHandler
         )
         ReviewPromptService.defaults = reviewDefaults
         ReviewPromptService.minimumSuccessfulSaves = 1
+        ReviewPromptService.minimumSuccessfulAutoFills = .max
         ReviewPromptService.currentVersion = "1.0"
         ReviewPromptService.isAppStoreBuild = true
         ReviewPromptService.isSuppressedForUITesting = false
         ReviewPromptService.requestReviewHandler = { promptCounter.count += 1 }
         defer {
-            ReviewPromptService.defaults = .standard
-            ReviewPromptService.minimumSuccessfulSaves = 3
+            ReviewPromptService.defaults = original.defaults
+            ReviewPromptService.minimumSuccessfulSaves = original.minimumSuccessfulSaves
+            ReviewPromptService.minimumSuccessfulAutoFills = original.minimumSuccessfulAutoFills
             ReviewPromptService.currentVersion = original.version
             ReviewPromptService.isAppStoreBuild = original.isAppStoreBuild
             ReviewPromptService.isSuppressedForUITesting = original.suppressed
-            ReviewPromptService.requestReviewHandler = nil
+            ReviewPromptService.requestReviewHandler = original.requestReviewHandler
             UserDefaults.standard.removePersistentDomain(forName: suiteName)
         }
         let outcome = SaveOutcomeSwitch()
@@ -1503,6 +1509,7 @@ final class DatabaseViewModelTests: XCTestCase {
             }
         )
         await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(promptCounter.count, 0, "Unlock must not consume the save review prompt")
         let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
         let emptyGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Empty" }))
         let entries = Array(socialGroup.entries.prefix(2))
