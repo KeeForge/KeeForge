@@ -20,6 +20,7 @@
 
 ### Fixes
 
+- On iPhone and iPad, KeeForge stays covered during a screen recording, mirroring, or AirPlay after you close Control Center or return to the app. Before, coming back to the app removed the cover while the recording kept running, and a recording started before opening KeeForge was never covered.
 - In AutoFill, Possible matches no longer offer "Add original URL to this entry" for a read-only or KDBX 3.1 database. Adding the URL there couldn't be saved and cancelled the whole fill.
 - In Mac AutoFill, a few error messages (such as the one for a database in the Trash) now appear in your language instead of English.
 - AutoFill no longer saves a login or passkey whose username or password from the website contains a KeePass field reference (`{REF:…}`). A website could otherwise have made a later fill send it values from your other entries, a variant of KeePassXC advisory GHSA-2vm2-vmc3-vccr.
