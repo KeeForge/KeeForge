@@ -38,6 +38,8 @@ struct AutoFillPickerHarnessView: View {
                 entries: [],
                 searchEntries: searchEntries,
                 possibleEntries: possibleEntries,
+                sharedCopyDate: Date(timeIntervalSinceReferenceDate: 0),
+                onCreateEntry: { result = "create" },
                 onSelect: { result = "selected \($0.title)" },
                 onSelectPossible: { result = "selected \($0.title)" },
                 urlAddition: AutoFillURLAddition(host: "login.example.com", url: "https://login.example.com") {

@@ -72,6 +72,27 @@ final class AutoFillPickerUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["autofill-harness.result"].label, "none", "Cancelling must not add anything")
     }
 
+    func testSearchMatchingNoPossibleMatchDropsTheirHeading() {
+        let heading = app.staticTexts["Possible matches"]
+        XCTAssertTrue(heading.waitForExistence(timeout: 10), "The harness lists a possible match before searching")
+
+        search(for: "Bank")
+
+        XCTAssertTrue(app.buttons["autofill.entry.exact"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertFalse(heading.exists, "No possible match fits the search, so the heading must go")
+    }
+
+    func testSearchWithoutResultsOffersCreatingACredentialAndExplainsTheSharedCopy() {
+        search(for: "zzz")
+
+        XCTAssertTrue(app.descendants(matching: .any)["autofill.no-credentials-found"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["autofill.shared-copy-notice"].exists)
+        let create = app.buttons["autofill.create-entry.empty-state"]
+        XCTAssertTrue(create.exists)
+        create.tap()
+        XCTAssertEqual(app.staticTexts["autofill-harness.result"].label, "create")
+    }
+
     private func search(for query: String, file: StaticString = #filePath, line: UInt = #line) {
         let searchField = app.searchFields["Search entries"].firstMatch
         XCTAssertTrue(searchField.waitForExistence(timeout: 15), "Search field was not visible", file: file, line: line)

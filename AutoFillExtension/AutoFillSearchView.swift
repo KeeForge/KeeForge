@@ -205,7 +205,7 @@ struct AutoFillSearchView: View {
             } header: {
                 if !filteredEntries.isEmpty { Text("Matches") }
             }
-            if !possibleEntries.isEmpty {
+            if !filteredPossibleEntries.isEmpty {
                 Section("Possible matches") {
                     ForEach(filteredPossibleEntries) { entry in
                         VStack(alignment: .leading, spacing: 8) {
@@ -243,28 +243,90 @@ struct AutoFillSearchView: View {
         }
     }
 
+    @ViewBuilder
     private var noCredentialsFoundView: some View {
-        ContentUnavailableView {
-            Label("No Credentials Found", systemImage: "magnifyingglass")
-                .accessibilityIdentifier("autofill.no-credentials-found")
-        } description: {
-            VStack(spacing: 8) {
-                Text("No credentials match this search.")
-                if let sharedCopyDate {
-                    Text("Searched KeeForge’s copy of this database from \(sharedCopyDate.formatted(date: .abbreviated, time: .shortened)). To find newer credentials, unlock this database in KeeForge. For cloud databases, use Sync Now in Database Details.")
-                        .accessibilityIdentifier("autofill.shared-copy-notice")
+        if PlatformDesign.followsIOSDesign {
+            designedNoCredentialsFoundView
+        } else {
+            ContentUnavailableView {
+                noCredentialsFoundLabel
+            } description: {
+                VStack(spacing: 8) {
+                    Text("No credentials match this search.")
+                    if let sharedCopyDate {
+                        sharedCopyNotice(sharedCopyDate)
+                    }
+                }
+            } actions: {
+                if canShowAllEntries {
+                    Button("Show All Credentials", action: showAllEntries)
+                        .accessibilityIdentifier("autofill.show-all-entries.empty-state")
+                }
+                if let onCreateEntry {
+                    Button("Create New Credential", action: onCreateEntry)
+                        .accessibilityIdentifier("autofill.create-entry.empty-state")
                 }
             }
+        }
+    }
+
+    /// The database list's empty state: one prominent action, the other bordered,
+    /// and the shared-copy note under them in small type.
+    private var designedNoCredentialsFoundView: some View {
+        ContentUnavailableView {
+            noCredentialsFoundLabel
+        } description: {
+            Text("No credentials match this search.")
         } actions: {
-            if canShowAllEntries {
-                Button("Show All Credentials", action: showAllEntries)
+            VStack(spacing: Theme.Spacing.tileGap) {
+                if canShowAllEntries {
+                    Button(action: showAllEntries) {
+                        Label("Show All Credentials", systemImage: "list.bullet")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                     .accessibilityIdentifier("autofill.show-all-entries.empty-state")
-            }
-            if let onCreateEntry {
-                Button("Create New Credential", action: onCreateEntry)
-                    .accessibilityIdentifier("autofill.create-entry.empty-state")
+                }
+                if let onCreateEntry {
+                    if canShowAllEntries {
+                        createCredentialButton(onCreateEntry)
+                            .buttonStyle(.bordered)
+                    } else {
+                        createCredentialButton(onCreateEntry)
+                            .buttonStyle(.borderedProminent)
+                    }
+                }
+                if let sharedCopyDate {
+                    Label {
+                        sharedCopyNotice(sharedCopyDate)
+                    } icon: {
+                        Image(systemName: "info.circle")
+                    }
+                    .font(Theme.Font.footnote)
+                    .foregroundStyle(Theme.labelSecondary)
+                    .multilineTextAlignment(.leading)
+                    .padding(.top, Theme.Spacing.tileGap)
+                }
             }
         }
+    }
+
+    private func createCredentialButton(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label("Create New Credential", systemImage: "plus")
+        }
+        .controlSize(.large)
+        .accessibilityIdentifier("autofill.create-entry.empty-state")
+    }
+
+    private var noCredentialsFoundLabel: some View {
+        Label("No Credentials Found", systemImage: "magnifyingglass")
+            .accessibilityIdentifier("autofill.no-credentials-found")
+    }
+
+    private func sharedCopyNotice(_ date: Date) -> some View {
+        Text("Searched KeeForge’s copy of this database from \(date.formatted(date: .abbreviated, time: .shortened)). To find newer credentials, unlock this database in KeeForge. For cloud databases, use Sync Now in Database Details.")
+            .accessibilityIdentifier("autofill.shared-copy-notice")
     }
 
     private var filteredPossibleEntries: [KPEntry] {
