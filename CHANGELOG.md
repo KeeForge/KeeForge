@@ -9,9 +9,11 @@
 - Generate word-based passphrases on iPhone, iPad, and Mac with a chosen word count and separator. The saved mode and options also apply to iOS AutoFill generation (#187).
 - On iPhone and iPad, Export Copy is now Share, in the database list, Database Details, and the stuck-upload alert. The share sheet still offers Save to Files and can also send the database with AirDrop or open it in another KeePass app; backups in Database Details are shared the same way. Mac keeps Export Copy (#117).
 - Turn off the What's New sheet that appears after an update on iPhone, iPad, and Mac in Settings → Display → "Show What's New After Updates" (#247).
+- Show each entry's current verification code, with its countdown and a copy button, right on its row in Groups, All Entries, search, and tags on iPhone and iPad, and in entry lists on Mac (#261). Turn it on in Settings → Display → Entry List → "Show Verification Codes"; it is off by default because it puts codes on screen more often.
 
 ### Changes
 
+- In AutoFill on iPhone, iPad, and Mac, an entry you find through search or Show All Credentials can now remember the website you're on, so it's suggested there next time (#122). Tap "Add … to this entry" under the entry. The confirmation shows the exact website address next to the entry's saved URLs and warns when the address isn't related to any of them, which is what a lookalike phishing site looks like. Possible matches use the same confirmation, and the action now saves only the site's address, not the full page URL.
 - KeeForge now asks for an App Store rating at most once per version, after a few successful saves or regular AutoFill use, and never right after an error.
 - Unlocking a cloud database with Face ID or Touch ID is faster: KeeForge checks the cloud copy while the prompt is up instead of after it.
 - Face ID, Touch ID, and Apple Watch unlock, in the app and in AutoFill, open an unchanged database without repeating the key derivation, often the slowest part of unlocking. KeeForge keeps the derived key for the version it last opened or saved, with the same Keychain protection as the saved unlock key, and runs the full derivation again whenever the file has changed elsewhere. Databases that need a YubiKey always run it.

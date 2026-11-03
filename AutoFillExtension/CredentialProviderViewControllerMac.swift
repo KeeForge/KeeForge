@@ -169,7 +169,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
-        onAddURLToPossible: ((KPEntry) -> Void)?,
+        urlAddition: AutoFillURLAddition?,
         onCancel: @escaping () -> Void
     ) {
         // A database switch shows the unlock alert next, so the hosted search
@@ -201,8 +201,11 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
             onSelectPossible: { [weak self] entry in
                 self?.performPickerAction(isValid: isValid) { onSelectPossible(entry) }
             },
-            onAddURLToPossible: onAddURLToPossible.map { action in
-                { entry in guard isValid() else { return }; action(entry) }
+            urlAddition: urlAddition.map { addition in
+                AutoFillURLAddition(host: addition.host, url: addition.url) { entry in
+                    guard isValid() else { return }
+                    addition.onAdd(entry)
+                }
             },
             onCancel: { [weak self] in
                 self?.performPickerAction(isValid: isValid, action: onCancel)

@@ -135,7 +135,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
-        onAddURLToPossible: ((KPEntry) -> Void)?,
+        urlAddition: AutoFillURLAddition?,
         onCancel: @escaping () -> Void
     ) {
         let dismissThen: (@escaping () -> Void) -> Void = { [weak self] action in
@@ -162,8 +162,11 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
             onCreateEntry: onCreateEntry.map { action in { dismissThen(action) } },
             onSelect: { entry in dismissThen { onSelect(entry) } },
             onSelectPossible: { entry in dismissThen { onSelectPossible(entry) } },
-            onAddURLToPossible: onAddURLToPossible.map { action in
-                { entry in guard isValid() else { return }; action(entry) }
+            urlAddition: urlAddition.map { addition in
+                AutoFillURLAddition(host: addition.host, url: addition.url) { entry in
+                    guard isValid() else { return }
+                    addition.onAdd(entry)
+                }
             },
             onCancel: { dismissThen(onCancel) }
         )

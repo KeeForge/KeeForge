@@ -13,6 +13,7 @@ enum SettingsService {
         static let showWebsiteIcons = "KeeForge.showWebsiteIcons"
         static let showDatabaseUsageStats = "KeeForge.showDatabaseUsageStats"
         static let showWhatsNewAfterUpdates = "KeeForge.showWhatsNewAfterUpdates"
+        static let showCodesInEntryLists = "KeeForge.showCodesInEntryLists"
         static let quickAutoFillEnabled = "KeeForge.quickAutoFillEnabled"
         static let autoFillCopyTOTP = "KeeForge.autoFillCopyTOTP"
         static let appearanceMode = "KeeForge.appearanceMode"
@@ -376,6 +377,12 @@ enum SettingsService {
         set {
             UserDefaults.standard.set(newValue, forKey: Key.showDatabaseUsageStats)
         }
+    }
+
+    /// Off by default: codes on every list are easier to read over a shoulder.
+    static var showCodesInEntryLists: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.showCodesInEntryLists) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.showCodesInEntryLists) }
     }
 
     static var showWhatsNewAfterUpdates: Bool {

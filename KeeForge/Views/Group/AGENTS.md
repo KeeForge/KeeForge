@@ -24,6 +24,7 @@
 - `databaseActionsPlacement` pins the trailing items where the SDK allows, or an iOS 27 build folds Lock into an overflow menu behind a long inline title.
 - `GroupListView.entryRow(for:)` keeps its row-kind branch (verification code, selection, navigation) inside a concrete row container so `List` builds only the rows it shows. Wrapped in a `Group`, every entry of the group or view is constructed up front.
 - `VerificationCodeRow` is two sibling buttons; the opening one keeps `entry.navlink` and does what the link would in each shell (select in the regular workspace, append to `workspace.navigationPath` in compact).
+- `DatabaseViewModel.showsVerificationCodeOnRow(for:in:)` alone decides whether an entry row shows its live code: always in Verification Codes, elsewhere only with the Display setting (`showsCodesInEntryLists`, off by default for shoulder-surfing), never for a recycled entry, a locked session, or a row in bulk selection. Those rows are `LiveCodeEntryRow` on iOS, iPadOS, and the Mac lists (`MacEntryRow`); it builds on the same code, countdown, and visible-only timer as `VerificationCodeRow`, keeps the list's opening identifier, and adds `entry-row.copy-code`. A row without a code is the plain `EntryRow`.
 - The group editor never previews a custom icon: the payload carries only a standard `iconID`, and the draft leaves a custom icon alone unless a different standard one is picked.
 - The group editor's tag row mirrors the entry editor's, with one intended difference: suggestions do not exclude inherited tags, because restating an ancestor's tag on a child group is legitimate.
 - `MoveToGroupPickerView` is also the New Entry destination picker, with its own title. Options are resolved when the sheet is built, not when the menu was tapped.
@@ -34,6 +35,7 @@
 - `ViewMenuUITests`, `DefaultViewUITests`, `ViewMenuLargeTextUITests`, `TagBrowserUITests` for the root views; `GroupEditUITests`, `GroupIconPickerUITests` for the editor and picker.
 - `KeeForgeUITestCase.selectDatabaseView` is the supported way to switch views in a test.
 - Cloud title-menu placement, the iPhone sync warning and its Sync Now, pull to refresh, and the status popover: `CloudUnlockSmokeUITests`.
+- When a row shows its code: `testEntryRowsShowTheirCodeInVerificationCodesAndElsewhereOnlyWithTheSetting` in `DatabaseViewModelTests`; the setting reaching the open session: `AppSettingsViewModelTests`.
 - Row laziness of the group, All Entries, Verification Codes, and Recycle Bin lists: `testBrowseListsDoNotResolveOffscreenRows` in `DatabaseViewModelTests` (iOS only).
 
 ## See also
