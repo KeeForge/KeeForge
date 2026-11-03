@@ -11,6 +11,9 @@ struct EntryListView: View {
     /// hosting it. Nil where this list is its own pushed screen (the tag
     /// browser), which keeps the host below.
     var onRequestDeletion: ((PendingDeletion) -> Void)? = nil
+    /// Search names its count above the results and how it searches below.
+    var header: String? = nil
+    var footer: String? = nil
     @State private var pendingDeletion: PendingDeletion?
     /// The entry whose Move-to-Group picker is presented, or `nil` when none is.
     @State private var pendingMove: PendingMove?
@@ -26,11 +29,24 @@ struct EntryListView: View {
             if entries.isEmpty {
                 ContentUnavailableView.search
             } else {
-                List(entries) { entry in
-                    // `KPEntry` equality is by ID, so after an edit that keeps
-                    // the same matches (adding a TOTP code) Observation treats
-                    // the caller's array as unchanged and `entries` is stale.
-                    entryRow(for: viewModel.entry(withID: entry.id) ?? entry)
+                List {
+                    Section {
+                        ForEach(entries) { entry in
+                            // `KPEntry` equality is by ID, so after an edit that
+                            // keeps the same matches (adding a TOTP code)
+                            // Observation treats the caller's array as unchanged
+                            // and `entries` is stale.
+                            entryRow(for: viewModel.entry(withID: entry.id) ?? entry)
+                        }
+                    } header: {
+                        if let header {
+                            Text(header)
+                        }
+                    } footer: {
+                        if let footer {
+                            Text(footer)
+                        }
+                    }
                 }
                 .id(viewModel.contentRevision)
             }
