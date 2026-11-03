@@ -134,7 +134,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
-        onAddURLToPossible: ((KPEntry) -> Void)?,
+        urlAddition: AutoFillURLAddition?,
         onCancel: @escaping () -> Void
     ) {
         // A database switch presents the unlock prompt next, so the search
@@ -184,7 +184,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
             onSelectPossible: { [weak self] entry in
                 self?.dismiss(animated: false) { onSelectPossible(entry) }
             },
-            onAddURLToPossible: onAddURLToPossible,
+            urlAddition: urlAddition,
             onCancel: { [weak self] in
                 guard let self else {
                     onCancel()

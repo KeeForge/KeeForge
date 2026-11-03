@@ -12,6 +12,7 @@
 
 ### Changes
 
+- In AutoFill on iPhone, iPad, and Mac, an entry you find through search or Show All Credentials can now remember the website you're on, so it's suggested there next time (#122). Tap "Add … to this entry" under the entry. The confirmation shows the exact website address next to the entry's saved URLs and warns when the address isn't related to any of them, which is what a lookalike phishing site looks like. Possible matches use the same confirmation, and the action now saves only the site's address, not the full page URL.
 - KeeForge now asks for an App Store rating at most once per version, after a few successful saves or regular AutoFill use, and never right after an error.
 - Unlocking a cloud database with Face ID or Touch ID is faster: KeeForge checks the cloud copy while the prompt is up instead of after it.
 - Face ID, Touch ID, and Apple Watch unlock, in the app and in AutoFill, open an unchanged database without repeating the key derivation, often the slowest part of unlocking. KeeForge keeps the derived key for the version it last opened or saved, with the same Keychain protection as the saved unlock key, and runs the full derivation again whenever the file has changed elsewhere. Databases that need a YubiKey always run it.

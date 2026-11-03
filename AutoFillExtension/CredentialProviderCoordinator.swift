@@ -30,6 +30,63 @@ struct CredentialProviderDatabaseSwitcherContext {
     let onSwitch: (DatabaseReference, String) -> Void
 }
 
+/// The picker's offer to save the requesting website on an entry the user
+/// chose. The host comes only from the request's service identifier, never
+/// from page content, and is shown in full before anything is written, so a
+/// lookalike phishing domain is visible. Nil when the database cannot be
+/// written or the request names no website.
+struct AutoFillURLAddition {
+    /// Shown to the user, e.g. `login.example.com`.
+    let host: String
+    /// Saved as the entry's next `KP2A_URL_<n>` field.
+    let url: String
+    let onAdd: (KPEntry) -> Void
+
+    /// The first web service identifier, reduced to scheme, host, and port.
+    static func requestedWebsite(in identifiers: [ASCredentialServiceIdentifier]) -> (host: String, url: String)? {
+        guard let identifier = identifiers.first(where: { !CredentialMatcher.isAppIdentifier($0) }) else { return nil }
+        let raw = identifier.identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsed = identifier.type == .URL ? URLComponents(string: raw) : nil
+        let components = parsed?.host?.isEmpty == false ? parsed : URLComponents(string: "https://\(raw)")
+        guard var host = components?.host?.lowercased() else { return nil }
+        while host.hasSuffix(".") { host.removeLast() }
+        guard !host.isEmpty else { return nil }
+
+        var website = URLComponents()
+        website.scheme = components?.scheme?.lowercased() == "http" ? "http" : "https"
+        website.host = host
+        website.port = components?.port
+        guard let url = website.string else { return nil }
+        let displayHost = components?.port.map { "\(host):\($0)" } ?? host
+        return (displayHost, url)
+    }
+
+    /// The entry's website URLs, as the confirmation lists them.
+    func savedURLs(of entry: KPEntry) -> [String] {
+        CredentialMatcher.webURLs(of: entry).filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    /// Whether the entry already stores this host, by the same host rule
+    /// matching uses, so adding it again would change nothing.
+    func isStored(on entry: KPEntry) -> Bool {
+        guard let requested = CredentialMatcher.hostFromURLString(url) else { return false }
+        return savedURLs(of: entry).contains { CredentialMatcher.hostFromURLString($0) == requested }
+    }
+
+    /// Whether the host shares a registrable domain with any URL already on
+    /// the entry. A phishing page that tricks the user into this action
+    /// produces exactly the case where it does not.
+    func sharesRegistrableDomain(with entry: KPEntry) -> Bool {
+        guard let requested = CredentialMatcher.hostFromURLString(url) else { return false }
+        let requestedDomain = CredentialMatcher.registrableDomain(for: requested)
+        return savedURLs(of: entry).contains { storedURL in
+            guard let stored = CredentialMatcher.hostFromURLString(storedURL) else { return false }
+            guard let requestedDomain else { return stored == requested }
+            return CredentialMatcher.registrableDomain(for: stored) == requestedDomain
+        }
+    }
+}
+
 /// What the passkey-registration confirmation sheet shows: the relying party
 /// and user name from the request, the database the passkey will be saved
 /// into, and the editable entry title's initial value. The sheet's save
@@ -91,7 +148,7 @@ protocol CredentialProviderPresenting: AnyObject {
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
-        onAddURLToPossible: ((KPEntry) -> Void)?,
+        urlAddition: AutoFillURLAddition?,
         onCancel: @escaping () -> Void
     )
 
@@ -1565,7 +1622,8 @@ final class CredentialProviderCoordinator {
                 possibleEntries: [],
                 initialSearchText: "",
                 includesDatabaseSwitcher: true,
-                includesEntryCreation: true
+                includesEntryCreation: true,
+                urlAddition: makeURLAddition(generation: generation)
             ) { [weak self] entry in
                 self?.completeRequest(with: entry)
             }
@@ -1580,20 +1638,28 @@ final class CredentialProviderCoordinator {
                 initialSearchText: possibleMatches.isEmpty ? searchDomain : "",
                 includesDatabaseSwitcher: true,
                 includesEntryCreation: true,
+                urlAddition: makeURLAddition(generation: generation),
                 onSelect: { [weak self] entry in
                     self?.completeRequest(with: entry)
                 },
                 onSelectPossible: { [weak self] entry in
                     self?.completeRequest(with: entry)
-                },
-                onAddURLToPossible: canWriteActiveDatabase ? { [weak self] entry in
-                    self?.addOriginalRequestURL(to: entry, generation: generation)
-                } : nil
+                }
             )
         }
     }
 
-    private func addOriginalRequestURL(to entry: KPEntry, generation: Int) {
+    /// The picker's add-website action, offered only for a writable database
+    /// and a request that names a website.
+    private func makeURLAddition(generation: Int) -> AutoFillURLAddition? {
+        guard canWriteActiveDatabase,
+              let website = AutoFillURLAddition.requestedWebsite(in: serviceIdentifiers) else { return nil }
+        return AutoFillURLAddition(host: website.host, url: website.url) { [weak self] entry in
+            self?.addRequestedWebsite(website.url, to: entry, generation: generation)
+        }
+    }
+
+    private func addRequestedWebsite(_ requestURL: String, to entry: KPEntry, generation: Int) {
         guard isRequestActive(generation) else { return }
         guard let rootGroup = parsedRootGroup,
               let meta = parsedMeta,
@@ -1601,7 +1667,7 @@ final class CredentialProviderCoordinator {
               let compositeKey,
               let openTimeSHA512,
               let reference = activeDatabaseReference,
-              let requestURL = serviceIdentifiers.first(where: { !CredentialMatcher.isAppIdentifier($0) })?.identifier else {
+              canWriteActiveDatabase else {
             cancelRequest(code: .failed)
             return
         }
@@ -1830,9 +1896,9 @@ final class CredentialProviderCoordinator {
         initialSearchText: String = "",
         includesDatabaseSwitcher: Bool = false,
         includesEntryCreation: Bool = false,
+        urlAddition: AutoFillURLAddition? = nil,
         onSelect: @escaping (KPEntry) -> Void,
-        onSelectPossible: @escaping (KPEntry) -> Void = { _ in },
-        onAddURLToPossible: ((KPEntry) -> Void)? = nil
+        onSelectPossible: @escaping (KPEntry) -> Void = { _ in }
     ) {
         let restoredSearchText = pendingSwitchSearchText
         pendingSwitchSearchText = nil
@@ -1848,7 +1914,7 @@ final class CredentialProviderCoordinator {
                 onCreateEntry: includesEntryCreation ? makeEntryCreationAction() : nil,
                 onSelect: onSelect,
                 onSelectPossible: onSelectPossible,
-                onAddURLToPossible: onAddURLToPossible,
+                urlAddition: urlAddition,
                 onCancel: { [weak self] in
                     self?.cancelRequest(code: .userCanceled)
                 }
