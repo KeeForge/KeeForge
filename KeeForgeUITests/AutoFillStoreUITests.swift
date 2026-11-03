@@ -52,14 +52,14 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
 
     /// UserDefaults argument-domain overrides applied to every launch so
     /// one-shot system/app overlays cannot land mid-flow on the long-lived
-    /// test device: the StoreKit review prompt (`hasPrompted` counts
-    /// unlocks in standard defaults, which persist across runs) and the
+    /// test device: the StoreKit review prompt (its save and AutoFill counts
+    /// persist across runs) and the
     /// AutoFill tip banner (irrelevant while the provider is enabled, but the
     /// dismissal flag keeps argument-free launches deterministic), and the
     /// Face ID prompt a relaunch raises for a database unlocked earlier in the
     /// test, which XCUITest cannot answer.
     private static let launchDefaultsOverrides = [
-        "-KeeForge.reviewPrompt.hasPrompted", "YES",
+        "-KeeForge.reviewPrompt.suppressed", "YES",
         "-KeeForge.autoFillTip.dismissed", "YES",
         "-KeeForge.autoUnlockWithFaceID", "NO",
     ]

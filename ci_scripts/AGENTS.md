@@ -81,7 +81,7 @@ Only the scripts whose names do not explain them. Usage is in each script's head
 - `restore_pre_ui_state.sh`: backs up (`--backup`) and restores the Mac App Group and defaults around the local Mac UI smoke. With neither flag it only inspects; restoring needs `--execute --confirm RESTORE_PRE_UI_STATE`. Fixtures: `test_restore_pre_ui_state.sh`.
 - `release_dir.sh`: prints the main checkout's `build/releases` directory, or one version's or candidate's directory under it, from any worktree. Release scripts and skills take their artifact locations from it. `--self-test` covers it.
 - `build_mac_direct.sh`, `verify_mac_artifact.sh`, `verify_sparkle_ed25519.swift`, `release_direct_artifact.sh`, `generate_appcast.py`: the Developer ID direct-download channel only; the Mac App Store build never goes through `build_mac_direct.sh`.
-- `make_appstore_screenshots.py` (Mac layout in `mac_screenshot_design.py`): composes App Store listing images from UI-test captures. It does not capture them; its header gives the opt-in capture commands.
+- `make_appstore_screenshots.py` (Mac layout in `mac_screenshot_design.py`): composes App Store listing images from UI-test captures. The iPhone listing is 6.9" only, one set per shipped locale, captioned from `appstore_captions.json`; a new shipped locale needs a caption set there and an entry in the script's `LOCALES`, and `--self-test` fails on a missing caption, a missing glyph, or a caption that does not fit. `--capture` runs the iPhone capture on a local simulator, once per locale; the Mac listing is English and captured by hand. Its header gives the commands.
 
 ## Release procedures
 

@@ -105,6 +105,7 @@ struct SettingsView: View {
                 showWebsiteIcons: $settings.showWebsiteIcons,
                 showDatabaseUsageStats: $settings.showDatabaseUsageStats,
                 showWhatsNewAfterUpdates: $settings.showWhatsNewAfterUpdates,
+                showCodesInEntryLists: $settings.showCodesInEntryLists,
                 appearanceMode: $settings.appearanceMode,
                 appAccentColor: $settings.appAccentColor,
                 sortOrder: $settings.sortOrder,
@@ -230,6 +231,7 @@ struct SettingsView: View {
                     showWebsiteIcons: $settings.showWebsiteIcons,
                     showDatabaseUsageStats: $settings.showDatabaseUsageStats,
                     showWhatsNewAfterUpdates: $settings.showWhatsNewAfterUpdates,
+                    showCodesInEntryLists: $settings.showCodesInEntryLists,
                     appearanceMode: $settings.appearanceMode,
                     appAccentColor: $settings.appAccentColor,
                     sortOrder: $settings.sortOrder,
@@ -566,6 +568,7 @@ private struct DisplaySettingsView: View {
     @Binding var showWebsiteIcons: Bool
     @Binding var showDatabaseUsageStats: Bool
     @Binding var showWhatsNewAfterUpdates: Bool
+    @Binding var showCodesInEntryLists: Bool
     @Binding var appearanceMode: SettingsService.AppearanceMode
     @Binding var appAccentColor: SettingsService.AppAccentColor?
     @Binding var sortOrder: DatabaseViewModel.SortOrder
@@ -653,7 +656,7 @@ private struct DisplaySettingsView: View {
     }
 
     private var sortSection: some View {
-        Section("Entry List") {
+        Section {
             Picker("Default Sort Order", selection: $sortOrder) {
                 ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
                     Text(order.title).tag(order)
@@ -664,6 +667,13 @@ private struct DisplaySettingsView: View {
                 Text("Ascending").tag(true)
                 Text("Descending").tag(false)
             }
+
+            Toggle("Show Verification Codes", isOn: $showCodesInEntryLists)
+                .accessibilityIdentifier("settings.display.list-codes-toggle")
+        } header: {
+            Text("Entry List")
+        } footer: {
+            Text("Shows each entry's current code and a copy button on its row. Anyone who can see your screen can read the codes.")
         }
     }
 }
@@ -918,6 +928,7 @@ private struct MacDisplaySettingsTab: View {
     @Binding var showWebsiteIcons: Bool
     @Binding var showDatabaseUsageStats: Bool
     @Binding var showWhatsNewAfterUpdates: Bool
+    @Binding var showCodesInEntryLists: Bool
     @Binding var appearanceMode: SettingsService.AppearanceMode
     @Binding var appAccentColor: SettingsService.AppAccentColor?
     @Binding var sortOrder: DatabaseViewModel.SortOrder
@@ -969,7 +980,7 @@ private struct MacDisplaySettingsTab: View {
                     .accessibilityIdentifier("settings.display.whats-new-toggle")
             }
 
-            Section("Entry List") {
+            Section {
                 Picker("Default Sort Order", selection: $sortOrder) {
                     ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
                         Text(order.title).tag(order)
@@ -980,6 +991,13 @@ private struct MacDisplaySettingsTab: View {
                     Text("Ascending").tag(true)
                     Text("Descending").tag(false)
                 }
+
+                Toggle("Show Verification Codes", isOn: $showCodesInEntryLists)
+                    .accessibilityIdentifier("settings.display.list-codes-toggle")
+            } header: {
+                Text("Entry List")
+            } footer: {
+                Text("Shows each entry's current code and a copy button on its row. Anyone who can see your screen can read the codes.")
             }
 
             if showWebsiteIcons {

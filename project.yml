@@ -164,8 +164,11 @@ targets:
       - path: KeeForge/Resources
         excludes: ["README.md", "AGENTS.md"]
       # Platform-neutral AutoFill coordinator is compiled into the app target
-      # too so KeeForgeTests (hosted by the app) can unit-test it.
+      # too so KeeForgeTests (hosted by the app) can unit-test it. The picker
+      # view comes along for the DEBUG-only UI-test harness
+      # (`AutoFillPickerHarnessView`).
       - path: AutoFillExtension/CredentialProviderCoordinator.swift
+      - path: AutoFillExtension/AutoFillSearchView.swift
       - path: KeeForge.icon
         buildPhase: resources
 
@@ -244,7 +247,8 @@ targets:
       # The macOS AutoFill shell (and the picker view it hosts) are compiled into
       # the app target as well so KeeForgeMacTests can exercise the shell's
       # cleanup routing (shell lifecycle tests). Both are `#if os(macOS)` / macOS-
-      # compatible; nothing in the app references them at runtime.
+      # compatible; only the DEBUG-only `AutoFillPickerHarnessView` references
+      # the picker at runtime.
       - path: AutoFillExtension/CredentialProviderViewControllerMac.swift
       - path: AutoFillExtension/AutoFillSearchView.swift
       - path: AutoFillExtension/AutoFillPasskeyCreatorView.swift

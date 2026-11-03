@@ -42,7 +42,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         let onCreateEntry: (() -> Void)?
         let onSelect: (KPEntry) -> Void
         let onSelectPossible: (KPEntry) -> Void
-        let onAddURLToPossible: ((KPEntry) -> Void)?
+        let urlAddition: AutoFillURLAddition?
         let onCancel: () -> Void
     }
 
@@ -99,6 +99,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
     var onUnlockErrorPresented: (() -> Void)?
     var onUnlockPromptPresented: (() -> Void)?
     var onCompleteRequest: ((ASPasswordCredential) -> Void)?
+    var onCancelRequest: ((ASExtensionError) -> Void)?
     /// Fired after every `presentSearchView` recording, mirroring
     /// `onUnlockErrorPresented` — lets async flows (a real unlock task)
     /// await the re-presented search with an expectation.
@@ -119,7 +120,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
-        onAddURLToPossible: ((KPEntry) -> Void)?,
+        urlAddition: AutoFillURLAddition?,
         onCancel: @escaping () -> Void
     ) {
         searchView = SearchView(
@@ -132,7 +133,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
             onCreateEntry: onCreateEntry,
             onSelect: onSelect,
             onSelectPossible: onSelectPossible,
-            onAddURLToPossible: onAddURLToPossible,
+            urlAddition: urlAddition,
             onCancel: onCancel
         )
         onSearchViewPresented?()
@@ -244,5 +245,6 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
     func cancelRequest(withError error: ASExtensionError) {
         cancelledError = error
         cancelledErrorCodes.append(error.code)
+        onCancelRequest?(error)
     }
 }

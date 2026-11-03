@@ -3,25 +3,30 @@
 
 Two listings, two platforms, one entry point:
 
-    ci_scripts/make_appstore_screenshots.py            # iPhone (default)
+    ci_scripts/make_appstore_screenshots.py --capture  # iPhone: capture + composite every locale
+    ci_scripts/make_appstore_screenshots.py            # iPhone: composite existing captures
     ci_scripts/make_appstore_screenshots.py --platform mac [--input-dir DIR] [--output-dir DIR]
 
-The iPhone listing puts a tagline over a coloured gradient. The Mac listing uses the
-light design in mac_screenshot_design.py and writes seven numbered story images plus
-layout-report.json.
+iPhone -- one listing per shipped locale. Captions live in appstore_captions.json
+(locale -> listing image -> caption, explicit line breaks). Raw captures are read
+from build/screenshots/<locale>/ and listings written to build/appstore/<locale>/,
+6.9" (1320x2868) only. Every caption must fit the canvas in its locale's font with
+no missing glyphs, or the run fails before writing anything.
 
-Prerequisite (not automated by this script): capture the raw screenshots with
-the opt-in UI test class for that platform and export its attachments into the
-platform's input directory.
-
-iPhone -- `KeeForgeUITests/AppStoreScreenshots` into `build/screenshots`:
+`--capture` runs `KeeForgeUITests/AppStoreScreenshots` once per locale on a 6.9"
+simulator (created if missing) with `-testLanguage`/`-testRegion`, so the app
+chrome matches the captions, and exports each run's attachments into
+build/screenshots/<locale>/. It drives local Xcode; on a shared machine run it
+under the repo's Xcode lock. `--locale` narrows either step. By hand, one locale:
 
     TEST_RUNNER_APPSTORE_SCREENSHOTS=1 xcodebuild test -project KeeForge.xcodeproj \\
-        -scheme KeeForge -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \\
-        -only-testing:KeeForgeUITests/AppStoreScreenshots
-    xcrun xcresulttool export attachments --path <xcresult> --output-path build/screenshots
+        -scheme KeeForge -destination 'platform=iOS Simulator,name=iPhone 18 Pro Max' \\
+        -testLanguage de -testRegion DE -only-testing:KeeForgeUITests/AppStoreScreenshots
+    xcrun xcresulttool export attachments --path <xcresult> --output-path build/screenshots/de
 
-Mac -- `KeeForgeMacUITests/MacScreenshotAuditUITests` into `build/screenshots-mac`:
+Mac -- English only. Capture `KeeForgeMacUITests/MacScreenshotAuditUITests` into
+`build/screenshots-mac`; the light design in mac_screenshot_design.py writes seven
+numbered story images plus layout-report.json:
 
     TEST_RUNNER_SCREENSHOT_AUDIT=1 xcodebuild test -project KeeForge.xcodeproj \\
         -scheme KeeForgeMac -destination 'platform=macOS,arch=arm64' \\
@@ -32,28 +37,34 @@ The export can be used as-is. xcresulttool writes UUID-named files plus a
 manifest.json index; when that index is present, each expected screen is found
 through its `suggestedHumanReadableName` (`01-database-list_0_<UUID>.png`).
 Plainly named files (`01-database-list.png`) also work. `--input-dir` overrides
-the platform's default input directory.
+the platform's default input directory (for iPhone, the parent of the locale
+directories).
 
 Both classes skip by default (see their doc comments), and both gate variables
 must be real environment variables on the xcodebuild process -- Xcode strips the
 TEST_RUNNER_ prefix and forwards them into the test runner, whereas a trailing
 bare KEY=value argument becomes a build-setting override that never arrives and
-the class silently skips. Without them this script has nothing to composite.
+the class silently skips. `--capture` sets it and fails on a short export.
 
 The Mac audit harness additionally needs Screen Recording permission for
 `KeeForgeMacUITests-Runner`, and reports anything it could not capture in its
 `00-skipped-captures` attachment (see KeeForgeMacUITests/AGENTS.md). A short
 export is a harness problem, not a missing screen, so the Mac listing refuses to
 write anything when that evidence is present or any screen is missing or
-ambiguous. The iPhone listing still warns and composites what it has.
+ambiguous. Compositing existing iPhone captures still warns and composites what
+it has.
 
-`--self-test` checks input resolution and Mac layout against disposable fixtures.
+`--self-test` checks input resolution, every locale's captions, and Mac layout
+against disposable fixtures.
 """
 
 import argparse
 import hashlib
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -69,22 +80,26 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # listing; 2880x1800 is the largest and downscales cleanly to the rest.
 PLATFORMS = {
     "iphone": {
-        # App Store 6.9" display size (iPhone 15/16 Pro Max)
+        # App Store 6.9" display size (iPhone 16/17/18 Pro Max)
         "canvas": (1320, 2868),
         "input_dir": REPO_ROOT / "build" / "screenshots",
         "output_dir": REPO_ROOT / "build" / "appstore",
         "corner_radius": 44,
         "font_size": 88,
+        "min_font_size": 64,
+        "text_margin": 80,
         "strict": False,
+        # (AppStoreScreenshots attachment, listing file, gradient top, gradient bottom),
+        # in listing order. The caption for each listing file is in CAPTIONS_PATH.
         "screens": [
-            ("01-database-list.png", "Local + Cloud Vaults,\nOne Home Screen", (26, 31, 61), (18, 22, 48)),
-            ("02-unlock-screen.png", "Unlock Fast,\nStay Secure", (41, 98, 255), (30, 70, 220)),
-            ("03-vault-groups.png", "Organize Everything\nin One Place", (0, 150, 136), (0, 110, 100)),
-            ("04-database-settings.png", "Tune Each Vault\nYour Way", (31, 94, 58), (20, 63, 38)),
-            ("05-entry-list.png", "All Your Accounts,\nAlways Accessible", (130, 80, 220), (90, 40, 180)),
-            ("06-entry-detail.png", "Reveal Passwords,\nCopy What You Need", (220, 80, 60), (180, 40, 30)),
-            ("07-entry-edit.png", "Create and Edit\nEntries on iPhone", (60, 60, 60), (30, 30, 30)),
-            ("08-search.png", "Search Your Vault\nin Seconds", (30, 130, 230), (20, 90, 190)),
+            ("03-vault-groups.png", "01-free.png", (26, 31, 61), (18, 22, 48)),
+            ("06-entry-detail.png", "02-autofill.png", (41, 98, 255), (30, 70, 220)),
+            ("01-database-list.png", "03-keepassxc.png", (0, 150, 136), (0, 110, 100)),
+            ("02-unlock-screen.png", "04-unlock.png", (220, 80, 60), (180, 40, 30)),
+            ("05-entry-list.png", "05-entries.png", (130, 80, 220), (90, 40, 180)),
+            ("08-search.png", "06-search.png", (30, 130, 230), (20, 90, 190)),
+            ("07-entry-edit.png", "07-edit.png", (60, 60, 60), (30, 30, 30)),
+            ("04-database-settings.png", "08-settings.png", (31, 94, 58), (20, 63, 38)),
         ],
     },
     "mac": {
@@ -115,6 +130,32 @@ PLATFORMS = {
     },
 }
 
+
+CAPTIONS_PATH = Path(__file__).resolve().with_name("appstore_captions.json")
+SYSTEM_FONTS = Path("/System/Library/Fonts")
+# Caption fonts by script: (file, collection index, weight axis or None, stroke px).
+# macOS ships no bold Traditional Chinese face on disk, so Heiti TC Medium gets a
+# stroke to match the other locales' weight.
+SF_ROUNDED_BOLD = (SYSTEM_FONTS / "SFNSRounded.ttf", 0, 700, 0)
+FONTS = {
+    "ja": (SYSTEM_FONTS / "ヒラギノ角ゴシック W7.ttc", 0, None, 0),
+    "zh-Hans": (SYSTEM_FONTS / "Hiragino Sans GB.ttc", 2, None, 0),
+    "zh-Hant": (SYSTEM_FONTS / "STHeiti Medium.ttc", 0, None, 2),
+}
+# Shipped app locales -> xcodebuild -testRegion, in App Store review order.
+LOCALES = {
+    "en": "US",
+    "de": "DE",
+    "fr": "FR",
+    "es": "ES",
+    "zh-Hans": "CN",
+    "zh-Hant": "TW",
+    "ja": "JP",
+    "it": "IT",
+    "ru": "RU",
+}
+CAPTURE_DEVICE = "iPhone 18 Pro Max"
+CAPTURE_TEST = "KeeForgeUITests/AppStoreScreenshots"
 
 SKIPPED_CAPTURES_STEM = "00-skipped-captures"
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".heic", ".tiff"}
@@ -214,62 +255,103 @@ def add_shadow(img, offset=15, blur_radius=30, opacity=80):
     return shadow
 
 
-def load_font(size):
-    """Load the best available font."""
-    font_paths = [
-        Path("/System/Library/Fonts/Supplemental/Arial Rounded Bold.ttf"),
-        Path("/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
-        Path("/Library/Fonts/Arial Bold.ttf"),
-    ]
-    for path in font_paths:
-        if path.exists():
-            return ImageFont.truetype(str(path), size)
-    return ImageFont.load_default()
+class CaptionError(Exception):
+    pass
 
 
-def create_screenshot(screen_path, tagline, color_top, color_bottom, output_path, spec):
-    """Create a single polished App Store screenshot."""
+def load_caption_font(locale, size):
+    path, index, weight, _ = FONTS.get(locale, SF_ROUNDED_BOLD)
+    font = ImageFont.truetype(str(path), size, index=index)
+    if weight is not None:
+        font.set_variation_by_axes([400, weight])  # SF axes: GRAD, Weight
+    return font
+
+
+def caption_options(locale, font):
+    """multiline_text keyword arguments shared by layout and drawing."""
+    stroke = FONTS.get(locale, SF_ROUNDED_BOLD)[3]
+    return {"font": font, "align": "center", "spacing": round(font.size * 0.18), "stroke_width": stroke}
+
+
+def missing_glyphs(font, text):
+    """Characters the font draws as its .notdef box (tofu)."""
+    def mask(ch):
+        image = font.getmask(ch)
+        return image.size, bytes(image)
+
+    notdef = mask("\U000F0000")  # Supplementary Private Use, in no caption font
+    return sorted({ch for ch in text if not ch.isspace() and mask(ch) == notdef})
+
+
+def load_captions(locales, spec):
+    """Returns {locale: {listing stem: caption}}, insisting every listing image has one."""
+    table = json.loads(CAPTIONS_PATH.read_text(encoding="utf-8"))
+    expected = {Path(screen[1]).stem for screen in spec["screens"]}
+    problems = []
+    for locale in LOCALES:
+        keys = set(table.get(locale, {}))
+        if keys != expected:
+            problems.append(f"{locale}: missing {sorted(expected - keys)}, unexpected {sorted(keys - expected)}")
+    unknown = sorted(set(table) - set(LOCALES))
+    if unknown:
+        problems.append(f"captions for unshipped locales {unknown}")
+    if problems:
+        raise CaptionError(f"{CAPTIONS_PATH.name}: " + "; ".join(problems))
+    return {locale: table[locale] for locale in locales}
+
+
+def plan_font(locale, captions, spec):
+    """Largest font size at which every caption of a locale fits, so one listing shares one size."""
+    max_width = spec["canvas"][0] - 2 * spec["text_margin"] - 2 * FONTS.get(locale, SF_ROUNDED_BOLD)[3]
+    for caption in captions.values():
+        lines = caption.split("\n")
+        if len(lines) > 3 or any(not line.strip() for line in lines):
+            raise CaptionError(f"{locale}: {caption!r} must be 1-3 non-empty lines")
+        missing = missing_glyphs(load_caption_font(locale, spec["font_size"]), caption)
+        if missing:
+            raise CaptionError(f"{locale}: font has no glyph for {''.join(missing)!r} in {caption!r}")
+    for size in range(spec["font_size"], spec["min_font_size"] - 1, -2):
+        font = load_caption_font(locale, size)
+        if all(font.getlength(line) <= max_width for caption in captions.values() for line in caption.split("\n")):
+            return font
+    widest = max((line for caption in captions.values() for line in caption.split("\n")), key=font.getlength)
+    raise CaptionError(f"{locale}: {widest!r} is wider than {max_width}px even at {spec['min_font_size']}px")
+
+
+def place(image_size, options, caption, spec):
+    """Returns (screenshot size, screenshot origin, caption origin); the caption must clear the top margin."""
     canvas_w, canvas_h = spec["canvas"]
-    canvas = make_gradient(canvas_w, canvas_h, color_top, color_bottom).convert("RGBA")
+    scale = min(canvas_w * 0.92 / image_size[0], canvas_h * 0.82 / image_size[1])
+    shot_size = (int(image_size[0] * scale), int(image_size[1] * scale))
+    shadow_pad = 25 * 2
+    shot_origin = ((canvas_w - shot_size[0] - shadow_pad) // 2, canvas_h - shot_size[1] - shadow_pad + 80)
 
+    left, top, right, bottom = ImageDraw.Draw(Image.new("L", (1, 1))).multiline_textbbox(
+        (0, 0), caption, **options
+    )
+    text_origin = ((canvas_w - (right - left)) // 2 - left, shot_origin[1] - (bottom - top) - 80 - top)
+    if text_origin[1] + top < spec["text_margin"]:
+        raise CaptionError(f"{caption!r} is too tall for the space above the screenshot")
+    return shot_size, shot_origin, text_origin
+
+
+def create_screenshot(screen_path, caption, options, color_top, color_bottom, output_path, spec):
+    """Create a single polished App Store screenshot."""
+    canvas = make_gradient(*spec["canvas"], color_top, color_bottom).convert("RGBA")
     screenshot = Image.open(screen_path).convert("RGBA")
+    shot_size, shot_origin, text_origin = place(screenshot.size, options, caption, spec)
 
-    max_screenshot_w = int(canvas_w * 0.92)
-    max_screenshot_h = int(canvas_h * 0.82)
-
-    scale = min(max_screenshot_w / screenshot.width, max_screenshot_h / screenshot.height)
-    new_w = int(screenshot.width * scale)
-    new_h = int(screenshot.height * scale)
-    screenshot = screenshot.resize((new_w, new_h), Image.LANCZOS)
-
+    screenshot = screenshot.resize(shot_size, Image.LANCZOS)
     screenshot = add_rounded_corners(screenshot, radius=spec["corner_radius"])
     screenshot_with_shadow = add_shadow(screenshot, offset=12, blur_radius=25, opacity=60)
+    canvas.paste(screenshot_with_shadow, shot_origin, screenshot_with_shadow)
 
-    x = (canvas_w - screenshot_with_shadow.width) // 2
-    y = canvas_h - screenshot_with_shadow.height + 80
-    canvas.paste(screenshot_with_shadow, (x, y), screenshot_with_shadow)
-
-    font = load_font(spec["font_size"])
     draw = ImageDraw.Draw(canvas)
+    shadow, white = (0, 0, 0, 60), (255, 255, 255)
+    draw.multiline_text((text_origin[0] + 3, text_origin[1] + 3), caption, fill=shadow, stroke_fill=shadow, **options)
+    draw.multiline_text(text_origin, caption, fill=white, stroke_fill=white, **options)
 
-    text_bbox = draw.multiline_textbbox((0, 0), tagline, font=font, align="center")
-    text_w = text_bbox[2] - text_bbox[0]
-    text_h = text_bbox[3] - text_bbox[1]
-    text_x = (canvas_w - text_w) // 2
-    text_y = y - text_h - 80
-
-    shadow_offset = 3
-    draw.multiline_text(
-        (text_x + shadow_offset, text_y + shadow_offset),
-        tagline,
-        font=font,
-        fill=(0, 0, 0, 60),
-        align="center",
-    )
-    draw.multiline_text((text_x, text_y), tagline, font=font, fill=(255, 255, 255), align="center")
-
-    canvas = canvas.convert("RGB")
-    canvas.save(output_path, quality=95)
+    canvas.convert("RGB").save(output_path, quality=95)
     print(f"Created {display_path(output_path)} ({canvas.width}x{canvas.height})")
 
 
@@ -277,44 +359,127 @@ def display_path(path):
     return path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path
 
 
-def composite(platform, input_dir, output_dir):
-    """Composites one listing; returns a process exit code."""
+def composite(platform, input_dir, output_dir, locales=None):
+    """Composites one listing (every requested locale for iPhone); returns a process exit code."""
     spec = PLATFORMS[platform]
+    if platform == "iphone":
+        return composite_iphone(spec, input_dir, output_dir, locales or list(LOCALES))
+
     filenames = [screen[0] for screen in spec["screens"]]
     try:
         resolved, problems = resolve_inputs(input_dir, filenames, spec["strict"])
     except InputError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
-
-    if spec["strict"] and problems:
+    if problems:
         for problem in problems:
             print(f"error: {problem}", file=sys.stderr)
         print(f"error: refusing to write a partial {platform} listing from {display_path(input_dir)}", file=sys.stderr)
         return 1
+    return composite_mac(spec, resolved, input_dir, output_dir)
 
-    if platform == "mac":
-        return composite_mac(spec, resolved, input_dir, output_dir)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for filename, tagline, color_top, color_bottom in spec["screens"]:
-        if filename in resolved:
-            create_screenshot(resolved[filename], tagline, color_top, color_bottom, output_dir / filename, spec)
-        else:
-            print(f"Skipping {filename} -- not usable")
+def composite_iphone(spec, input_root, output_root, locales):
+    """Plans every locale's captions against its captures, then writes build/appstore/<locale>/."""
+    filenames = [screen[0] for screen in spec["screens"]]
+    plans = {}
+    warnings = []
+    try:
+        captions = load_captions(locales, spec)
+        for locale in locales:
+            resolved, problems = resolve_inputs(input_root / locale, filenames, strict=False)
+            warnings += [f"{locale}: {problem}" for problem in problems]
+            options = caption_options(locale, plan_font(locale, captions[locale], spec))
+            for source, output, *_ in spec["screens"]:
+                if source in resolved:
+                    with Image.open(resolved[source]) as image:
+                        place(image.size, options, captions[locale][Path(output).stem], spec)
+            plans[locale] = (resolved, options)
+    except (InputError, CaptionError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
 
-    print(f"\nDone! Screenshots in {display_path(output_dir)}/")
-    if problems:
+    for locale, (resolved, options) in plans.items():
+        output_dir = output_root / locale
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for source, output, color_top, color_bottom in spec["screens"]:
+            if source in resolved:
+                caption = captions[locale][Path(output).stem]
+                create_screenshot(resolved[source], caption, options, color_top, color_bottom, output_dir / output, spec)
+        print(f"{locale}: {options['font'].size}px captions, {len(resolved)} of {len(filenames)} screens")
+
+    print(f"\nDone! Screenshots in {display_path(output_root)}/<locale>/")
+    if warnings:
         # Said out loud rather than left to the eye: a listing short a screen
         # because an export was incomplete looks exactly like one that was
         # meant to be short.
-        for problem in problems:
-            print(f"warning: {problem}")
-        print(
-            f"warning: {len(problems)} of {len(filenames)} screens were not usable from "
-            f"{display_path(input_dir)}/ -- re-export the capture run before uploading."
-        )
+        for warning in warnings:
+            print(f"warning: {warning}")
+        print(f"warning: {len(warnings)} screens were not usable -- re-capture before uploading.")
     return 0
+
+
+def run(argv, **kwargs):
+    print("+ " + " ".join(str(arg) for arg in argv), flush=True)
+    return subprocess.run([str(arg) for arg in argv], check=True, **kwargs)
+
+
+def capture_simulator(device):
+    """Returns the UDID of an available simulator named `device`, creating it on the newest iOS runtime that supports it."""
+    def simctl_json(*args):
+        return json.loads(subprocess.run(
+            ["xcrun", "simctl", "list", "--json", *args], check=True, capture_output=True, text=True
+        ).stdout)
+
+    runtimes = sorted(
+        (runtime for runtime in simctl_json("runtimes")["runtimes"]
+         if runtime.get("isAvailable") and runtime.get("platform") == "iOS"
+         and any(kind["name"] == device for kind in runtime.get("supportedDeviceTypes", []))),
+        key=lambda runtime: [int(part) for part in runtime["version"].split(".")],
+    )
+    if not runtimes:
+        raise SystemExit(f"error: no installed iOS simulator runtime supports {device}")
+    devices = simctl_json("devices", "available")["devices"]
+    for runtime in reversed(runtimes):
+        for candidate in devices.get(runtime["identifier"], []):
+            if candidate["name"] == device:
+                return candidate["udid"]
+    runtime = runtimes[-1]
+    kind = next(kind for kind in runtime["supportedDeviceTypes"] if kind["name"] == device)
+    return subprocess.run(
+        ["xcrun", "simctl", "create", device, kind["identifier"], runtime["identifier"]],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+
+
+def capture(locales, device, input_root):
+    """Runs AppStoreScreenshots once per locale and exports each run into input_root/<locale>/."""
+    udid = capture_simulator(device)
+    subprocess.run(["xcrun", "simctl", "boot", udid], capture_output=True)
+    run(["xcrun", "simctl", "bootstatus", udid])
+    run(["xcrun", "simctl", "status_bar", udid, "override", "--time", "9:41", "--dataNetwork", "wifi",
+         "--wifiMode", "active", "--wifiBars", "3", "--cellularMode", "active", "--cellularBars", "4",
+         "--batteryState", "charged", "--batteryLevel", "100"])
+
+    derived_data = REPO_ROOT / "build" / "screenshots-derived-data"
+    common = ["xcodebuild", "-project", REPO_ROOT / "KeeForge.xcodeproj", "-scheme", "KeeForge",
+              "-destination", f"platform=iOS Simulator,id={udid}", "-derivedDataPath", derived_data]
+    run(common + ["build-for-testing"])
+    environment = dict(os.environ, TEST_RUNNER_APPSTORE_SCREENSHOTS="1")
+    filenames = [screen[0] for screen in PLATFORMS["iphone"]["screens"]]
+    for locale in locales:
+        bundle = input_root / f"{locale}.xcresult"
+        export = input_root / locale
+        shutil.rmtree(bundle, ignore_errors=True)
+        shutil.rmtree(export, ignore_errors=True)
+        run(common + ["test-without-building", f"-only-testing:{CAPTURE_TEST}",
+                      "-testLanguage", locale, "-testRegion", LOCALES[locale], "-resultBundlePath", bundle],
+            env=environment)
+        run(["xcrun", "xcresulttool", "export", "attachments", "--path", bundle, "--output-path", export])
+        _, problems = resolve_inputs(export, filenames, strict=True)
+        if problems:
+            raise SystemExit(f"error: {locale} capture is incomplete: " + "; ".join(problems))
+    run(["xcrun", "simctl", "status_bar", udid, "clear"])
 
 
 def composite_mac(spec, resolved, input_dir, output_dir):
@@ -440,14 +605,31 @@ def self_test():
         resolved, problems = resolve_inputs(plain, mac_names, strict=True)
         assert problems == [] and resolved[mac_names[0]] == plain / mac_names[0], problems
 
-        # The iPhone listing keeps compositing a short set, with a warning.
-        iphone_names = [screen[0] for screen in PLATFORMS["iphone"]["screens"]]
+        # Every locale's captions fit a device-shaped capture in its own font; a
+        # short iPhone set still composites, with a warning, under <locale>/.
+        spec = PLATFORMS["iphone"]
+        captions = load_captions(list(LOCALES), spec)
+        for locale, table in captions.items():
+            options = caption_options(locale, plan_font(locale, table, spec))
+            for caption in table.values():
+                place((1320, 2868), options, caption, spec)
+        latin = load_caption_font("en", 88)
+        assert missing_glyphs(latin, "Ab·Жё") == [] and missing_glyphs(latin, "保管庫") == ["保", "庫", "管"]
+        for caption in ["One\nTwo\nThree\nFour", " ".join(["Unbreakable"] * 6)]:
+            try:
+                plan_font("en", {"01-free": caption}, spec)
+            except CaptionError:
+                pass
+            else:
+                raise AssertionError(f"{caption!r} must fail caption layout")
+
+        iphone_names = [screen[0] for screen in spec["screens"]]
         iphone = root / "iphone"
-        iphone.mkdir()
-        Image.new("RGB", (100, 200)).save(iphone / iphone_names[0])
+        (iphone / "de").mkdir(parents=True)
+        Image.new("RGB", (1320, 2868)).save(iphone / "de" / iphone_names[0])
         output = root / "out-iphone"
-        assert composite("iphone", iphone, output) == 0
-        assert [path.name for path in output.iterdir()] == [iphone_names[0]]
+        assert composite("iphone", iphone, output, ["de"]) == 0
+        assert [path.relative_to(output).as_posix() for path in output.rglob("*.png")] == [f"de/{spec['screens'][0][1]}"]
 
     print("self-test passed")
 
@@ -470,16 +652,32 @@ def main():
         type=Path,
         help="where to write the listing (default: the platform's output directory)",
     )
-    parser.add_argument("--self-test", action="store_true", help="check input resolution and Mac layout on disposable fixtures and exit")
+    parser.add_argument(
+        "--locale",
+        action="append",
+        choices=list(LOCALES),
+        help="iPhone only: limit capture and compositing to this locale (repeatable; default: every shipped locale)",
+    )
+    parser.add_argument(
+        "--capture",
+        action="store_true",
+        help="iPhone only: run AppStoreScreenshots per locale on a local simulator before compositing",
+    )
+    parser.add_argument("--device", default=CAPTURE_DEVICE, help=f"simulator for --capture (default: {CAPTURE_DEVICE})")
+    parser.add_argument("--self-test", action="store_true", help="check input resolution, captions and Mac layout on disposable fixtures and exit")
     args = parser.parse_args()
 
     if args.self_test:
         self_test()
         return 0
+    if args.platform != "iphone" and (args.locale or args.capture):
+        parser.error("--locale and --capture apply to the iPhone listing only")
 
     spec = PLATFORMS[args.platform]
     input_dir = (args.input_dir or spec["input_dir"]).resolve()
-    return composite(args.platform, input_dir, (args.output_dir or spec["output_dir"]).resolve())
+    if args.capture:
+        capture(args.locale or list(LOCALES), args.device, input_dir)
+    return composite(args.platform, input_dir, (args.output_dir or spec["output_dir"]).resolve(), args.locale)
 
 
 if __name__ == "__main__":

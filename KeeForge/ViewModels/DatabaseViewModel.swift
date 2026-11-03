@@ -490,6 +490,8 @@ final class DatabaseViewModel {
     var sortOrder: SortOrder {
         didSet { Self.persistSortOrder(sortOrder) }
     }
+    /// Live copy of the Display setting; Settings pushes changes here.
+    var showsCodesInEntryLists = SettingsService.showCodesInEntryLists
 
     private(set) var failedAttempts = 0
     private(set) var lockoutUntil: Date?
@@ -551,6 +553,9 @@ final class DatabaseViewModel {
             waiters.forEach { $0.resume() }
         }
     }
+    /// The last save attempt failed or hit a conflict; a dismissed alert
+    /// clears `saveError`, so the review prompt reads this instead.
+    @ObservationIgnored private var lastSaveAttemptFailed = false
     /// Sync Now waiting out a save that is still in flight (`waitForInFlightSave`).
     @ObservationIgnored private var saveCompletionWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var pendingLockRequest: PendingLockRequest?
@@ -1512,6 +1517,16 @@ final class DatabaseViewModel {
         return entryFolderPaths[entryID]
     }
 
+    /// Whether an entry row shows the entry's live verification code.
+    /// `collection` is the collection the row is listed in, `nil` for a group
+    /// or any other list. Verification Codes always does; elsewhere it follows
+    /// the Display setting. Deleted entries never do.
+    func showsVerificationCodeOnRow(for entry: KPEntry, in collection: DatabaseCollection?) -> Bool {
+        guard entry.totpConfig != nil, sessionKey != nil else { return false }
+        if collection == .verificationCodes { return true }
+        return showsCodesInEntryLists && isEntryInRecycleBin(entryID: entry.id) == false
+    }
+
     func isEntryInRecycleBin(entryID: UUID) -> Bool {
         recycleBinEntryIDs.contains(entryID)
     }
@@ -2446,7 +2461,12 @@ final class DatabaseViewModel {
     }
 
     func save() async throws {
-        try await saveDraft()
+        do {
+            try await saveDraft()
+        } catch {
+            lastSaveAttemptFailed = true
+            throw error
+        }
         // An unsaved edit makes `mergePendingLocalSaves` wait; this save is
         // what it was waiting for.
         await mergePendingLocalSaves()
@@ -2469,6 +2489,7 @@ final class DatabaseViewModel {
             throw SaveError.saveContextUnavailable
         }
 
+        let followsSaveError = lastSaveAttemptFailed || saveError != nil || saveConflict != nil
         isSaving = true
         saveError = nil
         saveConflict = nil
@@ -2541,18 +2562,25 @@ final class DatabaseViewModel {
 
                 guard let grown = self.draft, grown.pendingEdits != snapshot.pendingEdits else {
                     self.draft = nil
+                    lastSaveAttemptFailed = false
+                    ReviewPromptService.noteSuccessfulSave(followsError: followsSaveError)
                     return
                 }
                 // A replaced-but-pristine draft (edits discarded mid-save) has
                 // nothing to write; keep it rather than clearing state the user
                 // just chose.
-                guard grown.isDirty else { return }
+                guard grown.isDirty else {
+                    lastSaveAttemptFailed = false
+                    ReviewPromptService.noteSuccessfulSave(followsError: followsSaveError)
+                    return
+                }
                 snapshot = grown
             case .conflict(let remoteSHA512, let remoteData):
                 saveConflict = SaveConflict(
                     remoteSHA512: remoteSHA512,
                     remoteData: remoteData
                 )
+                lastSaveAttemptFailed = true
                 return
             }
         }
@@ -4263,6 +4291,7 @@ final class DatabaseViewModel {
         self.saveError = nil
         self.saveConflict = nil
         self.pendingLockRequest = nil
+        let followsFailedAttempt = failedAttempts > 0
         self.failedAttempts = 0
         self.lockoutUntil = nil
         self.state = .unlocked
@@ -4288,7 +4317,7 @@ final class DatabaseViewModel {
         refreshDatabaseReference()
         populateCredentialStoreIfNeeded(root: payload.rootGroup)
         refreshPendingUploadConflict()
-        ReviewPromptService.requestReviewIfAppropriate()
+        ReviewPromptService.noteSuccessfulUnlock(followsError: followsFailedAttempt)
     }
 
     private func hardwareKeyCompositeKey(

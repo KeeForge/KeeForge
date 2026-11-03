@@ -164,7 +164,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
-        onAddURLToPossible: ((KPEntry) -> Void)?,
+        urlAddition: AutoFillURLAddition?,
         onCancel: @escaping () -> Void
     ) {
         // A database switch shows the unlock alert next, so the hosted search
@@ -197,7 +197,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
                 self?.dismissHostedContent()
                 onSelectPossible(entry)
             },
-            onAddURLToPossible: onAddURLToPossible,
+            urlAddition: urlAddition,
             onCancel: { [weak self] in
                 self?.dismissHostedContent()
                 onCancel()

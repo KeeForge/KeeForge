@@ -132,7 +132,7 @@ enum CredentialMatcher {
         return result
     }
 
-    private static func registrableDomain(for host: String) -> String? {
+    static func registrableDomain(for host: String) -> String? {
         PublicSuffixList.effectiveTLDPlusOne(normalizeHost(host))
     }
 }

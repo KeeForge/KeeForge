@@ -63,6 +63,7 @@
 - `MacAppSuggestionService` suggests the native app only when `ProcessInfo.isiOSAppOnMac` is true.
 - `WhatsNewPresentationService` presents nothing while Show What's New After Updates is off and leaves that version unclaimed. The UI-testing override still decides first.
 - `ReviewPromptService` no-ops outside App Store builds; macOS has no scene entry point, so the app injects `RequestReviewAction` through `requestReviewHandler`.
+- `ReviewPromptService` asks at most once per `CFBundleShortVersionString`, only after a clean save or, once the AutoFill extensions have counted enough fills in `SettingsService.successfulAutoFillCount`, a clean unlock (the extension cannot present the prompt). A success that follows an error the user just saw never prompts and does not use up the version.
 - `AutoFillStatusService.requestEnableAutoFill` returns false when the prompt closed with the provider still off; callers must report that so the tap does not look like a switch that reset itself.
 
 ## Tests

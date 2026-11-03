@@ -13,11 +13,13 @@ enum SettingsService {
         static let showWebsiteIcons = "KeeForge.showWebsiteIcons"
         static let showDatabaseUsageStats = "KeeForge.showDatabaseUsageStats"
         static let showWhatsNewAfterUpdates = "KeeForge.showWhatsNewAfterUpdates"
+        static let showCodesInEntryLists = "KeeForge.showCodesInEntryLists"
         static let quickAutoFillEnabled = "KeeForge.quickAutoFillEnabled"
         static let autoFillCopyTOTP = "KeeForge.autoFillCopyTOTP"
         static let appearanceMode = "KeeForge.appearanceMode"
         static let appAccentColor = "KeeForge.appAccentColor"
         static let hasTipped = "KeeForge.hasTipped"
+        static let successfulAutoFillCount = "KeeForge.successfulAutoFillCount"
         static let macLockPolicy = "KeeForge.macLockPolicy"
         static let blockScreenCapture = "KeeForge.blockScreenCapture"
         static let passwordGeneratorOptions = "KeeForge.passwordGeneratorOptions"
@@ -377,6 +379,12 @@ enum SettingsService {
         }
     }
 
+    /// Off by default: codes on every list are easier to read over a shoulder.
+    static var showCodesInEntryLists: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.showCodesInEntryLists) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.showCodesInEntryLists) }
+    }
+
     static var showWhatsNewAfterUpdates: Bool {
         get {
             if UserDefaults.standard.object(forKey: Key.showWhatsNewAfterUpdates) == nil {
@@ -408,6 +416,19 @@ enum SettingsService {
         }
         set {
             UserDefaults.standard.set(newValue, forKey: Key.hasTipped)
+        }
+    }
+
+    // MARK: - AutoFill Usage
+
+    /// Completed AutoFill fills, counted by the extensions in App Group
+    /// defaults so the app's review prompt can see them.
+    static var successfulAutoFillCount: Int {
+        get {
+            sharedDefaults.integer(forKey: Key.successfulAutoFillCount)
+        }
+        set {
+            sharedDefaults.set(newValue, forKey: Key.successfulAutoFillCount)
         }
     }
 

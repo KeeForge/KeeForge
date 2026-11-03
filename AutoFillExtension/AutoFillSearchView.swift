@@ -6,9 +6,9 @@ struct AutoFillSearchView: View {
     let possibleEntries: [KPEntry]
     let onSelect: (KPEntry) -> Void
     let onSelectPossible: (KPEntry) -> Void
-    /// Nil when the database cannot be written (read-only or KDBX 3.1),
-    /// which hides the possible-match "add original URL" action.
-    let onAddURLToPossible: ((KPEntry) -> Void)?
+    /// Nil when the database cannot be written (read-only or KDBX 3.1) or
+    /// the request names no website, which hides the add-website action.
+    let urlAddition: AutoFillURLAddition?
     let onCancel: () -> Void
     let initialSearchText: String
     /// When the entries come from KeeForge's shared copy of the database
@@ -41,7 +41,7 @@ struct AutoFillSearchView: View {
         onCreateEntry: (() -> Void)? = nil,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void = { _ in },
-        onAddURLToPossible: ((KPEntry) -> Void)? = nil,
+        urlAddition: AutoFillURLAddition? = nil,
         onCancel: @escaping () -> Void
     ) {
         self.entries = entries
@@ -53,7 +53,7 @@ struct AutoFillSearchView: View {
         self.onCreateEntry = onCreateEntry
         self.onSelect = onSelect
         self.onSelectPossible = onSelectPossible
-        self.onAddURLToPossible = onAddURLToPossible
+        self.urlAddition = urlAddition
         self.onCancel = onCancel
         self._searchText = State(initialValue: initialSearchText)
     }
@@ -122,18 +122,37 @@ struct AutoFillSearchView: View {
                 }
             #endif
         }
-        .alert("Add Original URL?", isPresented: Binding(
+        .alert("Add Website to Entry?", isPresented: Binding(
             get: { entryPendingURLAddition != nil },
             set: { if !$0 { entryPendingURLAddition = nil } }
         )) {
-            Button("Add URL") {
-                if let entry = entryPendingURLAddition { onAddURLToPossible?(entry) }
+            Button("Add Website") {
+                if let entry = entryPendingURLAddition { urlAddition?.onAdd(entry) }
                 entryPendingURLAddition = nil
             }
             Button("Cancel", role: .cancel) { entryPendingURLAddition = nil }
         } message: {
-            Text("This adds the original request URL to the selected credential. The database will be changed only if you confirm.")
+            if let entry = entryPendingURLAddition, let urlAddition {
+                Text(urlAdditionMessage(for: entry, addition: urlAddition))
+            }
         }
+    }
+
+    /// Names the exact host next to the entry's saved URLs, and cautions
+    /// when the host is unrelated to all of them.
+    private func urlAdditionMessage(for entry: KPEntry, addition: AutoFillURLAddition) -> String {
+        let title = entry.title.isEmpty ? String(localized: "(untitled)") : entry.title
+        var parts = [String(localized: "This adds “\(addition.host)” to “\(title)” so AutoFill suggests the entry on that website next time. Check the address before adding it.")]
+        let savedURLs = addition.savedURLs(of: entry)
+        if savedURLs.isEmpty {
+            parts.append(String(localized: "This entry has no saved websites yet."))
+        } else {
+            parts.append(([String(localized: "Saved websites:")] + savedURLs).joined(separator: "\n"))
+            if !addition.sharesRegistrableDomain(with: entry) {
+                parts.append(String(localized: "Caution: “\(addition.host)” isn’t related to any website saved in this entry. If it’s a lookalike site, adding it lets AutoFill offer this password there."))
+            }
+        }
+        return parts.joined(separator: "\n\n")
     }
 
     #if os(macOS)
@@ -170,8 +189,18 @@ struct AutoFillSearchView: View {
             }
             Section {
                 ForEach(filteredEntries) { entry in
-                    Button { onSelect(entry) } label: { entryRow(entry) }
-                        .accessibilityIdentifier("autofill.entry.exact")
+                    if let urlAddition, !urlAddition.isStored(on: entry) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Button { onSelect(entry) } label: { entryRow(entry) }
+                                .buttonStyle(.borderless)
+                                .accessibilityIdentifier("autofill.entry.exact")
+                            addURLButton(for: entry, host: urlAddition.host)
+                                .accessibilityIdentifier("autofill.entry.add-url")
+                        }
+                    } else {
+                        Button { onSelect(entry) } label: { entryRow(entry) }
+                            .accessibilityIdentifier("autofill.entry.exact")
+                    }
                 }
             } header: {
                 if !filteredEntries.isEmpty { Text("Matches") }
@@ -181,10 +210,10 @@ struct AutoFillSearchView: View {
                     ForEach(filteredPossibleEntries) { entry in
                         VStack(alignment: .leading, spacing: 8) {
                             Button { onSelectPossible(entry) } label: { entryRow(entry) }
+                                .buttonStyle(.borderless)
                                 .accessibilityIdentifier("autofill.entry.possible.use")
-                            if onAddURLToPossible != nil {
-                                Button("Add original URL to this entry") { entryPendingURLAddition = entry }
-                                    .font(.caption)
+                            if let urlAddition, !urlAddition.isStored(on: entry) {
+                                addURLButton(for: entry, host: urlAddition.host)
                                     .accessibilityIdentifier("autofill.entry.possible.add-url")
                             }
                         }
@@ -244,6 +273,18 @@ struct AutoFillSearchView: View {
         return possibleEntries.filter { entry in
             entry.title.lowercased().contains(query) || entry.username.lowercased().contains(query) || entry.url.lowercased().contains(query) || entry.notes.lowercased().contains(query)
         }
+    }
+
+    /// Borderless, like the row's selection button beside it: two
+    /// default-style buttons in one List row share a tap target.
+    private func addURLButton(for entry: KPEntry, host: String) -> some View {
+        Button {
+            entryPendingURLAddition = entry
+        } label: {
+            Label("Add \(host) to this entry", systemImage: "link.badge.plus")
+        }
+        .buttonStyle(.borderless)
+        .font(PlatformDesign.followsIOSDesign ? Theme.Font.subhead : .caption)
     }
 
     @ViewBuilder
@@ -306,6 +347,7 @@ struct AutoFillSearchView: View {
                     .accessibilityIdentifier("autofill.entry.expired")
             }
         }
+        .contentShape(Rectangle())
     }
 
     /// Lightweight per-database picker: lists AutoFill-enabled databases only,

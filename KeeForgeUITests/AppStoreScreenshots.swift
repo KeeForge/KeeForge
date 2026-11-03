@@ -16,9 +16,9 @@ import XCTest
 /// trailing bare `KEY=value` argument does not work; verified empirically,
 /// that form is silently ignored and the test skips as if unset.
 ///
-/// Export the resulting attachments into `build/screenshots`, then run
-/// `ci_scripts/make_appstore_screenshots.py` to composite the App Store-ready
-/// images (see that script's header comment for the exact env var).
+/// `ci_scripts/make_appstore_screenshots.py --capture` runs this once per
+/// shipped locale (`-testLanguage`/`-testRegion`), exports each run into
+/// `build/screenshots/<locale>/`, and composites the captioned listings.
 @MainActor
 final class AppStoreScreenshots: KeeForgeUITestCase {
     override func setUp() async throws {
@@ -113,6 +113,7 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
     }
 
     override func configureLaunch(app: XCUIApplication) throws {
+        app.launchEnvironment["UI_TEST_HIDE_SEARCH_RESULTS_COUNT"] = "1"
         let fixtureData = try fixtureData(resourceName: "demo", resourceExtension: "kdbx")
         let fixtureBase64 = fixtureData.base64EncodedString()
 
@@ -220,6 +221,50 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         add(attachment)
     }
 
+    /// Types Latin `text` (the demo password, the search term), switching keyboards only
+    /// if it did not arrive: typeText types nothing on a Cyrillic keyboard, while kana,
+    /// Zhuyin and Latin keyboards take it as is, and every globe tap risks an English
+    /// "Quickly Change Keyboards" tip in the capture.
+    private func typeLatin(_ text: String, into field: XCUIElement) {
+        field.typeText(text)
+        if !fieldShows(text, field) {
+            switchToLatinKeyboard()
+            replaceText(in: field, with: text)
+        }
+    }
+
+    private func fieldShows(_ text: String, _ field: XCUIElement) -> Bool {
+        let deadline = Date().addingTimeInterval(3)
+        repeat {
+            if let value = field.value as? String,
+               value == text || (field.elementType == .secureTextField && value.count == text.count && value.allSatisfy { $0 == "•" }) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+        return false
+    }
+
+    /// Cycles the globe key until a Latin letter keyboard shows. The globe is the lowest
+    /// unidentified button on the keyboard's left half (Shift and Go carry identifiers),
+    /// since its label is localized.
+    private func switchToLatinKeyboard() {
+        let keyboard = app.keyboards.firstMatch
+        guard keyboard.waitForExistence(timeout: 3) else { return }
+        let latinLetter = keyboard.keys.matching(NSPredicate(format: "label ==[c] 'd'")).firstMatch
+        for _ in 0..<3 where !latinLetter.waitForExistence(timeout: 1) {
+            let keyboardFrame = keyboard.frame
+            let globe = app.buttons.allElementsBoundByIndex
+                .filter { button in
+                    button.identifier.isEmpty && button.frame.midY > keyboardFrame.minY
+                        && button.frame.midX < keyboardFrame.midX
+                }
+                .max { $0.frame.midY < $1.frame.midY }
+            guard let globe else { return }
+            globe.tap()
+        }
+    }
+
     private func tapBackButton() {
         let toolbarIdentifiers = Set(["lock.button", "settings.button", "vault.more", "sort.menu", "Done"])
 
@@ -255,7 +300,8 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         XCTAssertTrue(openFirstDatabaseFromListIfNeeded(), "Unlock sheet should appear after opening the first database")
         let passwordField = app.secureTextFields["unlock.password.field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 5), "Password field should appear in unlock sheet")
-        replaceText(in: passwordField, with: demoPassword)
+        passwordField.tap()
+        typeLatin(demoPassword, into: passwordField)
         saveScreenshot(.unlockScreen)
 
         let unlockButton = app.buttons["unlock.button"]
@@ -329,7 +375,7 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
             activeSearchField.tap()
             sleep(1)
         }
-        activeSearchField.typeText("git")
+        typeLatin("git", into: activeSearchField)
         sleep(2)
         saveScreenshot(.search)
     }

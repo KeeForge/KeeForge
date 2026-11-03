@@ -159,13 +159,16 @@ struct KeeForgeApp: App {
 
     /// Root content for the main window. In DEBUG builds the
     /// `-autofill-store-inspector` launch argument replaces the normal database
-    /// list with the AutoFill store inspector (developer tooling); Release
-    /// builds always show the normal root.
+    /// list with the AutoFill store inspector, and `-autofill-picker-harness`
+    /// with the AutoFill picker (developer tooling); Release builds always
+    /// show the normal root.
     @ViewBuilder
     private var rootView: some View {
         #if DEBUG
         if AutoFillStoreInspectorView.isPresentationRequested {
             AutoFillStoreInspectorView()
+        } else if AutoFillPickerHarnessView.isPresentationRequested {
+            AutoFillPickerHarnessView()
         } else {
             AppRootView(
                 listViewModel: listViewModel,
