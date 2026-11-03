@@ -11,6 +11,8 @@ enum Theme {
     static let labelSecondary = Color("LabelSecondary")
     static let card = Color("Card")
     static let card2 = Color("Card2")
+    /// A card on the iPad sidebar, whose dark ground is as dark as `card`.
+    static let cardRaised = Color("CardRaised")
     static let fill = Color("Fill")
     static let success = Color("Success")
     static let warning = Color("Warning")

@@ -405,7 +405,7 @@ struct GroupListView: View {
             }
         }
         Section {
-            VaultHomeTiles(counts: viewModel.collectionCounts) { collection in
+            VaultHomeTiles(counts: viewModel.collectionCounts, isInSidebar: onOpenRoute != nil) { collection in
                 openRoute(.collection(collection))
             }
             .listRowInsets(EdgeInsets())
@@ -1158,7 +1158,23 @@ struct EntryRow: View {
         entry.title.isEmpty ? String(localized: "(untitled)") : entry.title
     }
 
+    @ViewBuilder
     private var designedRow: some View {
+        if let verificationCode {
+            // Beside a long title the code would cut it short, so it moves under the row.
+            ViewThatFits(in: .horizontal) {
+                designedRow(code: verificationCode, codeBelow: false)
+                VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+                    designedRow(code: verificationCode, codeBelow: true)
+                    liveCode(verificationCode)
+                }
+            }
+        } else {
+            designedRow(code: nil, codeBelow: false)
+        }
+    }
+
+    private func designedRow(code: TOTPViewModel?, codeBelow: Bool) -> some View {
         HStack(spacing: Theme.Spacing.iconText) {
             FaviconEntryIconView(entry: entry, customIconData: customIconData, size: iconSize)
 
@@ -1166,12 +1182,12 @@ struct EntryRow: View {
                 Text(title)
                     .font(Theme.Font.rowTitle)
                     .foregroundStyle(Color.primary)
-                    .lineLimit(verificationCode == nil ? nil : 1)
+                    .lineLimit(code == nil || codeBelow ? nil : 1)
                 if !username.isEmpty {
                     Text(username)
                         .font(Theme.Font.subhead)
                         .foregroundStyle(Theme.labelSecondary)
-                        .lineLimit(verificationCode == nil ? nil : 1)
+                        .lineLimit(code == nil || codeBelow ? nil : 1)
                 }
                 if let folderPath, folderPath.isEmpty == false {
                     Text(folderPath)
@@ -1196,15 +1212,9 @@ struct EntryRow: View {
                     .accessibilityIdentifier("entry-row.passkey")
             }
 
-            if let verificationCode {
-                HStack(spacing: Theme.Spacing.badgeGap) {
-                    VerificationCodeText(totpVM: verificationCode, font: Theme.Font.codeRow)
-                        .foregroundStyle(.tint)
-                        .fixedSize()
-                    // The seconds inside the ring: a row has no width to spare.
-                    CountdownRing(progress: verificationCode.progress, seconds: verificationCode.secondsRemaining)
-                        .frame(width: ringSize, height: ringSize)
-                        .accessibilityLabel(secondsRemaining(of: verificationCode))
+            if let code {
+                if codeBelow == false {
+                    liveCode(code)
                 }
             } else if entry.totpConfig != nil {
                 EntryRowBadge(systemImage: "timer")
@@ -1214,6 +1224,18 @@ struct EntryRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+    }
+
+    private func liveCode(_ code: TOTPViewModel) -> some View {
+        HStack(spacing: Theme.Spacing.badgeGap) {
+            VerificationCodeText(totpVM: code, font: Theme.Font.codeRow)
+                .foregroundStyle(.tint)
+                .fixedSize()
+            // The seconds inside the ring: a row has no width to spare.
+            CountdownRing(progress: code.progress, seconds: code.secondsRemaining)
+                .frame(width: ringSize, height: ringSize)
+                .accessibilityLabel(secondsRemaining(of: code))
+        }
     }
 
     private var macRow: some View {

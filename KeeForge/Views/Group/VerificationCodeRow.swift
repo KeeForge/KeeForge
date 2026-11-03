@@ -18,6 +18,7 @@ struct VerificationCodeRow: View {
     @State private var totpVM: TOTPViewModel
     @ScaledMetric(relativeTo: .body) private var iconSize = Theme.Size.entryIcon
     @ScaledMetric(relativeTo: .subheadline) private var ringSize = Theme.Size.badge
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(
         entry: KPEntry,
@@ -46,13 +47,13 @@ struct VerificationCodeRow: View {
                         Text(title)
                             .font(Theme.Font.rowTitle)
                             .foregroundStyle(Color.primary)
-                            .lineLimit(1)
+                            .lineLimit(textLineLimit)
 
                         if detail.isEmpty == false {
                             Text(detail)
                                 .font(Theme.Font.subhead)
                                 .foregroundStyle(Theme.labelSecondary)
-                                .lineLimit(1)
+                                .lineLimit(textLineLimit)
                                 .truncationMode(.middle)
                         }
                     }
@@ -106,6 +107,11 @@ struct VerificationCodeRow: View {
         }
         .onAppear { totpVM.start() }
         .onDisappear { totpVM.stop() }
+    }
+
+    /// One line keeps the rows even; accessibility sizes leave too little width for that.
+    private var textLineLimit: Int? {
+        dynamicTypeSize.isAccessibilitySize ? nil : 1
     }
 }
 

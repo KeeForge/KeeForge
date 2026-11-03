@@ -4,6 +4,7 @@ import SwiftUI
 /// Recycle Bin with their counts. Two columns, one at accessibility sizes.
 struct VaultHomeTiles: View {
     let counts: DatabaseCollectionCounts
+    var isInSidebar = false
     let open: (DatabaseCollection) -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -15,7 +16,7 @@ struct VaultHomeTiles: View {
         )
         LazyVGrid(columns: columns, spacing: Theme.Spacing.tileGap) {
             ForEach(DatabaseCollection.allCases, id: \.self) { collection in
-                VaultHomeTile(collection: collection, count: counts[collection]) {
+                VaultHomeTile(collection: collection, count: counts[collection], isInSidebar: isInSidebar) {
                     open(collection)
                 }
             }
@@ -26,6 +27,7 @@ struct VaultHomeTiles: View {
 private struct VaultHomeTile: View {
     let collection: DatabaseCollection
     let count: Int
+    let isInSidebar: Bool
     let action: () -> Void
 
     @ScaledMetric(relativeTo: .body) private var circleSize = Theme.Size.tileCircle
@@ -52,7 +54,7 @@ private struct VaultHomeTile: View {
             }
             .padding(Theme.Spacing.tile)
             .frame(maxWidth: .infinity, minHeight: Theme.Size.tile, alignment: .leading)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+            .background(isInSidebar ? Theme.cardRaised : Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
         }
         .buttonStyle(.plain)
