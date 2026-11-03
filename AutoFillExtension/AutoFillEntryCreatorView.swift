@@ -67,14 +67,14 @@ struct AutoFillEntryCreatorView: View {
                 }
 
                 Section("Basics") {
-                    basicFieldRow(String(localized: "Title")) {
+                    basicFieldRow(String(localized: "Title"), inline: true) {
                         TextField("Title", text: $draft.title)
                             .textInputAutocapitalization(.words)
                             .autocorrectionDisabled()
                             .accessibilityIdentifier("autofill-entry-creator.title-field")
                     }
 
-                    basicFieldRow(String(localized: "Username")) {
+                    basicFieldRow(String(localized: "Username"), inline: true) {
                         TextField("Username", text: $draft.username)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
@@ -99,7 +99,7 @@ struct AutoFillEntryCreatorView: View {
                                             options: SettingsService.passwordGeneratorOptions
                                         )
                                     } label: {
-                                        Image(systemName: "dice.fill")
+                                        Image(systemName: "wand.and.stars")
                                             .frame(width: 30, height: 30)
                                     }
                                     .buttonStyle(.borderless)
@@ -107,6 +107,7 @@ struct AutoFillEntryCreatorView: View {
                                     .accessibilityIdentifier("autofill-entry-creator.password-generator-button")
                                 }
                             )
+                            PasswordStrengthIndicator(password: draft.password)
                         } else {
                             SecureField("Password", text: $draft.password)
                                 .passwordInputStyle()
@@ -115,7 +116,7 @@ struct AutoFillEntryCreatorView: View {
                         }
                     }
 
-                    basicFieldRow(String(localized: "URL")) {
+                    basicFieldRow(String(localized: "URL"), inline: true) {
                         TextField("URL", text: $draft.url)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
@@ -171,18 +172,31 @@ struct AutoFillEntryCreatorView: View {
         }
     }
 
+    /// `inline` sets a short field as the design's label/value row.
+    @ViewBuilder
     private func basicFieldRow<Content: View>(
         _ title: String,
+        inline: Bool = false,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        if inline {
+            LabeledContent {
+                content()
+                    .multilineTextAlignment(.trailing)
+                    .foregroundStyle(Theme.labelSecondary)
+            } label: {
+                Text(title)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-            content()
+                content()
+            }
+            .padding(.vertical, 2)
         }
-        .padding(.vertical, 2)
     }
 
     private func save() async {
