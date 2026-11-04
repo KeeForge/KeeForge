@@ -20,6 +20,7 @@
 
 ### Fixes
 
+- On iPhone and iPad, cancelling the Face ID or Touch ID prompt that opens a database by itself now shows the unlock page, so you can enter the password or try again. Before, KeeForge kept showing the opening screen until you swiped it away (#268).
 - In AutoFill, Possible matches no longer offer "Add original URL to this entry" for a read-only or KDBX 3.1 database. Adding the URL there couldn't be saved and cancelled the whole fill.
 - In AutoFill, a search that matches none of the possible matches no longer leaves an empty "Possible matches" heading.
 - In Mac AutoFill, a few error messages (such as the one for a database in the Trash) now appear in your language instead of English.

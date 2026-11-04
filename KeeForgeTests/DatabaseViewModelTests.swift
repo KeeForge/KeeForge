@@ -144,6 +144,35 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(BiometricAutoUnlockPolicy.allowsAutomaticUnlock)
     }
 
+    /// A cancelled auto-unlock prompt used to leave the opening screen up
+    /// for good (#268): the cycle's one attempt was spent, so nothing else
+    /// would replace it with the unlock form.
+    func testCancelledAutoUnlockPromptHandsTheScreenToTheUnlockForm() async throws {
+        let vm = try makeViewModel(biometricCompositeKeyOperation: { _, _ in throw LAError(.userCancel) })
+
+        XCTAssertTrue(vm.claimBiometricAutoUnlockAttempt())
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .cancelled)
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertTrue(vm.hasAttemptedBiometricAutoUnlockThisLockCycle)
+        XCTAssertFalse(vm.isAwaitingBiometricAutoUnlock)
+        XCTAssertFalse(vm.claimBiometricAutoUnlockAttempt(), "The cycle must not prompt a second time")
+    }
+
+    func testEachLockCycleGetsOneAutoUnlockAttempt() async throws {
+        let vm = try makeViewModel()
+
+        XCTAssertTrue(vm.claimBiometricAutoUnlockAttempt())
+        vm.releaseBiometricAutoUnlockAttempt()
+        XCTAssertFalse(vm.hasAttemptedBiometricAutoUnlockThisLockCycle, "An attempt that showed no prompt is given back")
+
+        XCTAssertTrue(vm.claimBiometricAutoUnlockAttempt())
+        vm.lock()
+        XCTAssertFalse(vm.hasAttemptedBiometricAutoUnlockThisLockCycle, "A new lock cycle starts without an attempt")
+        XCTAssertTrue(vm.claimBiometricAutoUnlockAttempt())
+    }
+
     func testUnlockWithCorrectPasswordTransitionsToUnlocked() async throws {
         let vm = try makeViewModel()
 

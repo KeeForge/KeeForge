@@ -467,6 +467,10 @@ final class DatabaseViewModel {
 
     private(set) var state: State = .locked
     private(set) var lockCycleID = 0
+    /// The lock cycle whose biometric auto-unlock has been tried. Observed, so
+    /// the opening screen that stands in for the unlock form leaves once the
+    /// attempt ends without unlocking.
+    private var biometricAutoUnlockAttemptedLockCycle: Int?
     var didManuallyLock = false
     private(set) var rootGroup: KPGroup? {
         didSet { rebuildDerivedState() }
@@ -1014,6 +1018,30 @@ final class DatabaseViewModel {
         guard didManuallyLock == false else { return false }
         guard case .locked = state else { return false }
         return true
+    }
+
+    var hasAttemptedBiometricAutoUnlockThisLockCycle: Bool {
+        biometricAutoUnlockAttemptedLockCycle == lockCycleID
+    }
+
+    /// Whether the locked database should show the opening screen instead of
+    /// the unlock form: its auto-unlock is due and has not been tried yet. A
+    /// cancelled or failed prompt ends it, so the unlock form takes over.
+    var isAwaitingBiometricAutoUnlock: Bool {
+        isEligibleForBiometricAutoUnlock && hasAttemptedBiometricAutoUnlockThisLockCycle == false
+    }
+
+    /// Takes this lock cycle's one auto-unlock attempt. Returns false when it
+    /// was already taken.
+    func claimBiometricAutoUnlockAttempt() -> Bool {
+        guard hasAttemptedBiometricAutoUnlockThisLockCycle == false else { return false }
+        biometricAutoUnlockAttemptedLockCycle = lockCycleID
+        return true
+    }
+
+    /// Gives the attempt back when no prompt could be shown.
+    func releaseBiometricAutoUnlockAttempt() {
+        biometricAutoUnlockAttemptedLockCycle = nil
     }
 
     var biometricLabel: String {

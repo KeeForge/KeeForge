@@ -765,7 +765,7 @@ private struct CompactUnlockScene: View {
         Group {
             switch viewModel.state {
             case .locked:
-                if viewModel.isEligibleForBiometricAutoUnlock {
+                if viewModel.isAwaitingBiometricAutoUnlock {
                     DatabaseOpeningView(viewModel: viewModel)
                         .transition(.opacity)
                 } else {
@@ -808,7 +808,7 @@ private struct RegularDatabaseScene: View {
                 #if os(macOS)
                 unlockView
                 #else
-                if viewModel.isEligibleForBiometricAutoUnlock {
+                if viewModel.isAwaitingBiometricAutoUnlock {
                     DatabaseOpeningView(viewModel: viewModel)
                     .transition(.opacity)
                 } else {
@@ -857,7 +857,6 @@ private struct BiometricAutoUnlockModifier: ViewModifier {
     let viewModel: DatabaseViewModel
 
     @Environment(\.scenePhase) private var scenePhase
-    @State private var attemptedLockCycle: Int?
 
     func body(content: Content) -> some View {
         content
@@ -881,14 +880,12 @@ private struct BiometricAutoUnlockModifier: ViewModifier {
     private func attemptIfNeeded() {
         guard scenePhase == .active else { return }
         guard viewModel.isEligibleForBiometricAutoUnlock else { return }
-        guard attemptedLockCycle != viewModel.lockCycleID else { return }
-
-        attemptedLockCycle = viewModel.lockCycleID
+        guard viewModel.claimBiometricAutoUnlockAttempt() else { return }
 
         Task {
             if await viewModel.unlockWithBiometrics() == .promptUnavailable {
                 // Nothing was presented, so this lock cycle keeps its attempt.
-                attemptedLockCycle = nil
+                viewModel.releaseBiometricAutoUnlockAttempt()
             }
         }
     }
