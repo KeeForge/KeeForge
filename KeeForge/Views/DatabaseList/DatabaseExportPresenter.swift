@@ -23,6 +23,14 @@ enum DatabaseExportLabels {
         String(localized: "Share…")
         #endif
     }
+
+    static var failureTitle: String {
+        #if os(macOS)
+        String(localized: "Couldn’t Export Database")
+        #else
+        String(localized: "Couldn’t Share Database")
+        #endif
+    }
 }
 
 extension View {
@@ -75,7 +83,7 @@ private struct DatabaseExportPresenter: ViewModifier {
             }
             #endif
             .alert(
-                "Couldn’t Export Database",
+                DatabaseExportLabels.failureTitle,
                 isPresented: Binding(
                     get: { errorMessage != nil },
                     set: { if !$0 { errorMessage = nil } }
