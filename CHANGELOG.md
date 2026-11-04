@@ -13,15 +13,16 @@
 ### Changes
 
 - In AutoFill on iPhone, iPad, and Mac, an entry you find through search or Show All Credentials can now remember the website you're on, so it's suggested there next time (#122). Tap "Add … to this entry" under the entry. The confirmation shows the exact website address next to the entry's saved URLs and warns when the address isn't related to any of them, which is what a lookalike phishing site looks like. Possible matches use the same confirmation, and the action now saves only the site's address, not the full page URL.
+- When AutoFill saves a new login or creates an entry, the entry's URL is now the site's address (such as `https://accounts.example.com`) instead of the full page URL with its path and query.
 - KeeForge now asks for an App Store rating at most once per version, after a few successful saves or regular AutoFill use, and never right after an error.
 - Unlocking a cloud database with Face ID or Touch ID is faster: KeeForge checks the cloud copy while the prompt is up instead of after it.
 - Face ID, Touch ID, and Apple Watch unlock, in the app and in AutoFill, open an unchanged database without repeating the key derivation, often the slowest part of unlocking. KeeForge keeps the derived key for the version it last opened or saved, with the same Keychain protection as the saved unlock key, and runs the full derivation again whenever the file has changed elsewhere. Databases that need a YubiKey always run it.
 
 ### Fixes
 
-- In AutoFill, Possible matches no longer offer "Add original URL to this entry" for a read-only or KDBX 3.1 database. Adding the URL there couldn't be saved and cancelled the whole fill.
+- In AutoFill, Possible matches no longer offer to add the website to an entry of a read-only or KDBX 3.1 database. Adding the URL there couldn't be saved and cancelled the whole fill.
 - In Mac AutoFill, a few error messages (such as the one for a database in the Trash) now appear in your language instead of English.
-- AutoFill no longer saves a login or passkey whose username or password from the website contains a KeePass field reference (`{REF:…}`). A website could otherwise have made a later fill send it values from your other entries, a variant of KeePassXC advisory GHSA-2vm2-vmc3-vccr.
+- AutoFill no longer saves a login or passkey whose username or password from the website contains a KeePass field reference (`{REF:…}`), and never takes one into a new entry's title or URL. A website could otherwise have made a later fill send it values from your other entries, a variant of KeePassXC advisory GHSA-2vm2-vmc3-vccr.
 - On iPhone and iPad, the top of the Groups view no longer repeats "Groups" as a section header under its title (#264). Inside a group, the Groups and Entries headers still separate subgroups from entries.
 - On Mac, the privacy cover shown over KeeForge's windows while another app is active now follows the windows' rounded corners instead of sticking out past them (#263).
 

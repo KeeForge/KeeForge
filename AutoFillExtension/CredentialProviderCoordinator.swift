@@ -45,20 +45,7 @@ struct AutoFillURLAddition {
     /// The first web service identifier, reduced to scheme, host, and port.
     static func requestedWebsite(in identifiers: [ASCredentialServiceIdentifier]) -> (host: String, url: String)? {
         guard let identifier = identifiers.first(where: { !CredentialMatcher.isAppIdentifier($0) }) else { return nil }
-        let raw = identifier.identifier.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parsed = identifier.type == .URL ? URLComponents(string: raw) : nil
-        let components = parsed?.host?.isEmpty == false ? parsed : URLComponents(string: "https://\(raw)")
-        guard var host = components?.host?.lowercased() else { return nil }
-        while host.hasSuffix(".") { host.removeLast() }
-        guard !host.isEmpty else { return nil }
-
-        var website = URLComponents()
-        website.scheme = components?.scheme?.lowercased() == "http" ? "http" : "https"
-        website.host = host
-        website.port = components?.port
-        guard let url = website.string else { return nil }
-        let displayHost = components?.port.map { "\(host):\($0)" } ?? host
-        return (displayHost, url)
+        return CredentialMatcher.website(for: identifier)
     }
 
     /// The entry's website URLs, as the confirmation lists them.

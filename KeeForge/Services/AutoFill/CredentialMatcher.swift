@@ -80,6 +80,26 @@ enum CredentialMatcher {
         return hostFromURLString(identifier.identifier) ?? identifier.identifier
     }
 
+    /// A web service identifier reduced to scheme, host, and port. The page's
+    /// path and query are the website's to choose, so they never reach an entry.
+    static func website(for identifier: ASCredentialServiceIdentifier) -> (host: String, url: String)? {
+        guard !isAppIdentifier(identifier) else { return nil }
+        let raw = identifier.identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsed = identifier.type == .URL ? URLComponents(string: raw) : nil
+        let components = parsed?.host?.isEmpty == false ? parsed : URLComponents(string: "https://\(raw)")
+        guard var host = components?.host?.lowercased() else { return nil }
+        while host.hasSuffix(".") { host.removeLast() }
+        guard !host.isEmpty else { return nil }
+
+        var website = URLComponents()
+        website.scheme = components?.scheme?.lowercased() == "http" ? "http" : "https"
+        website.host = host
+        website.port = components?.port
+        guard let url = website.string else { return nil }
+        let displayHost = components?.port.map { "\(host):\($0)" } ?? host
+        return (displayHost, url)
+    }
+
     /// An App ID (`TEAMID.com.example.app`) is reverse-DNS, so parsing it as
     /// a host would match the unrelated website `example.app`.
     static func isAppIdentifier(_ identifier: ASCredentialServiceIdentifier) -> Bool {
