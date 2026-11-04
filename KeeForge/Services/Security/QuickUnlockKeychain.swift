@@ -101,6 +101,12 @@ enum QuickUnlockKeychain {
         defaults.set(entries, forKey: masterKeyEntriesKey)
     }
 
+    static func removeMasterKeyEntry(for databaseID: UUID, in defaults: UserDefaults = AppGroupContainer.defaults) {
+        guard var entries = defaults.dictionary(forKey: masterKeyEntriesKey),
+              entries.removeValue(forKey: databaseID.uuidString) != nil else { return }
+        defaults.set(entries, forKey: masterKeyEntriesKey)
+    }
+
     /// A clock set back past the interval counts as due too, so moving the
     /// date cannot keep quick unlock alive.
     static func isMasterKeyDue(

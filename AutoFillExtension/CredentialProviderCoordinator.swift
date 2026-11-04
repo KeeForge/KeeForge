@@ -45,20 +45,7 @@ struct AutoFillURLAddition {
     /// The first web service identifier, reduced to scheme, host, and port.
     static func requestedWebsite(in identifiers: [ASCredentialServiceIdentifier]) -> (host: String, url: String)? {
         guard let identifier = identifiers.first(where: { !CredentialMatcher.isAppIdentifier($0) }) else { return nil }
-        let raw = identifier.identifier.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parsed = identifier.type == .URL ? URLComponents(string: raw) : nil
-        let components = parsed?.host?.isEmpty == false ? parsed : URLComponents(string: "https://\(raw)")
-        guard var host = components?.host?.lowercased() else { return nil }
-        while host.hasSuffix(".") { host.removeLast() }
-        guard !host.isEmpty else { return nil }
-
-        var website = URLComponents()
-        website.scheme = components?.scheme?.lowercased() == "http" ? "http" : "https"
-        website.host = host
-        website.port = components?.port
-        guard let url = website.string else { return nil }
-        let displayHost = components?.port.map { "\(host):\($0)" } ?? host
-        return (displayHost, url)
+        return CredentialMatcher.website(for: identifier)
     }
 
     /// The entry's website URLs, as the confirmation lists them.
@@ -256,6 +243,10 @@ final class CredentialProviderCoordinator {
     var parsedRootGroup: KPGroup?
     var parsedMeta: KPMeta?
     var parsedFormatVersion: KDBXParser.FileVersion?
+    /// Set when the header's KDF exceeds `.autoFillExtension`. An express-unlock
+    /// key opens such a file without running the KDF, but every save derives
+    /// under that policy and would fail.
+    var kdfWriteRefusalMessage: String?
     var sessionKey: SymmetricKey?
     var compositeKey: SymmetricKey?
     var openTimeSHA512: Data?
@@ -341,15 +332,30 @@ final class CredentialProviderCoordinator {
         return try QuickUnlockKeychain.retrieve(for: reference, context: context)
     }
 
+    /// Deletes a quick-unlock item whose master password is due and returns
+    /// whether it did. Injectable so tests can make the interval run out.
+    var expireQuickUnlockIfDue: @MainActor (DatabaseReference) -> Bool = { reference in
+        QuickUnlockKeychain.expireIfDue(reference)
+    }
+
+    /// Whether biometrics are available and a quick-unlock item exists.
+    /// Injectable because test runs have no enrolled biometrics.
+    var hasQuickUnlockKey: @MainActor (DatabaseReference) -> Bool = { reference in
+        BiometricService.isAvailable && KeychainService.hasStoredKey(
+            for: reference.id,
+            legacyFilename: reference.legacyKeychainFilename
+        )
+    }
+
     /// Writes an unlock's keys back and returns whether the quick-unlock item
     /// now holds the stored key. Injectable so tests can observe the write.
     var persistQuickUnlockKeys: @MainActor (QuickUnlockKeys, DatabaseReference, Bool) -> Bool = { keys, reference, masterKeyEntered in
         QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered)
     }
 
-    /// Save environment for the passkey-registration flow; injectable so unit
-    /// tests can record the save and drive the conflict/error paths.
-    var passkeySaveEnvironment: AutoFillSaveCoordinator.Environment = .live
+    /// Save environment for every write this extension makes; injectable so
+    /// unit tests can record the save and drive the conflict/error paths.
+    var saveEnvironment: AutoFillSaveCoordinator.Environment = .live
 
     /// Reads a registration request's excluded credential IDs. Injectable
     /// because `ASPasskeyCredentialRequest.excludedCredentials` is read-only
@@ -939,12 +945,8 @@ final class CredentialProviderCoordinator {
     private func canUseBiometrics(for databaseReference: DatabaseReference) -> Bool {
         // Its stored key is a pre-key that still needs the YubiKey.
         guard databaseReference.hardwareKey == nil else { return false }
-        guard BiometricService.isAvailable else { return false }
-        guard QuickUnlockKeychain.expireIfDue(databaseReference) == false else { return false }
-        return KeychainService.hasStoredKey(
-            for: databaseReference.id,
-            legacyFilename: databaseReference.legacyKeychainFilename
-        )
+        guard expireQuickUnlockIfDue(databaseReference) == false else { return false }
+        return hasQuickUnlockKey(databaseReference)
     }
 
     // MARK: - Request-to-database resolution
@@ -1198,6 +1200,13 @@ final class CredentialProviderCoordinator {
     }
 
     private func unlockWithBiometrics() {
+        // The password interval may have run out since the prompt offered
+        // biometrics; ask for the password instead of reading the item.
+        if let databaseReference = try? currentDatabaseReference(),
+           expireQuickUnlockIfDue(databaseReference) {
+            presentUnlockPromptIfNeeded()
+            return
+        }
         isUnlockInProgress = true
         let generation = requestGeneration
         unlockTask = Task { [weak self] in
@@ -1309,10 +1318,8 @@ final class CredentialProviderCoordinator {
             return false
         }
         pendingSavePasswordRequest = nil
-        if parsedFormatVersion?.requiresReadOnlyMode == true {
-            presentReadOnlyAlertAndCancel(
-                message: String(localized: "Legacy KDBX 3.1 databases can be opened, but KeeForge only allows them in read-only mode.")
-            )
+        if let writeRefusalMessage {
+            presentReadOnlyAlertAndCancel(message: writeRefusalMessage)
             return true
         }
         presentEntryCreator(for: savePasswordRequest)
@@ -1327,10 +1334,8 @@ final class CredentialProviderCoordinator {
     func handlePendingPasskeyRegistrationIfNeeded() -> Bool {
         guard let request = pendingPasskeyRegistrationRequest else { return false }
         pendingPasskeyRegistrationRequest = nil
-        if parsedFormatVersion?.requiresReadOnlyMode == true {
-            presentReadOnlyAlertAndCancel(
-                message: String(localized: "Legacy KDBX 3.1 databases can be opened, but KeeForge only allows them in read-only mode.")
-            )
+        if let writeRefusalMessage {
+            presentReadOnlyAlertAndCancel(message: writeRefusalMessage)
             return true
         }
         guard let identity = request.credentialIdentity as? ASPasskeyCredentialIdentity else {
@@ -1453,12 +1458,22 @@ final class CredentialProviderCoordinator {
         self.parsedRootGroup = parsed.rootGroup
         self.parsedMeta = parsed.meta
         self.parsedFormatVersion = parsed.header.formatVersion
+        self.kdfWriteRefusalMessage = Self.kdfWriteRefusal(for: parsed.header)
 
         let offerableEntries = parsed.rootGroup.autoFillEntries(
             excludingGroupID: parsed.rootGroup.recycleBinUUID
         )
         parsedEntries = offerableEntries.filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
         return usesExpressUnlock ? parsed.keyToStore : nil
+    }
+
+    private static func kdfWriteRefusal(for header: KDBXParser.Header) -> String? {
+        do {
+            try KDFExecutionPolicy.autoFillExtension.validate(kdfParameters: header.kdfParameters)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
     }
 
     private var keyDerivation: ExpressUnlock.KeyDerivation {
@@ -1683,7 +1698,7 @@ final class CredentialProviderCoordinator {
             } catch {
                 guard isRequestActive(generation),
                       activeDatabaseReference?.id == reference.id else { return }
-                cancelRequest(code: .failed)
+                fillWithoutAddingWebsite(entry, reason: "draft \((error as NSError).domain)#\((error as NSError).code)")
                 return
             }
             guard isRequestActive(generation),
@@ -1702,12 +1717,13 @@ final class CredentialProviderCoordinator {
                     sessionKey: sessionKey,
                     compositeKey: compositeKey,
                     openTimeSHA512: openTimeSHA512,
+                    environment: saveEnvironment,
                     edit: .updateEntry(entryID: entry.id, draft: draft)
                 )
                 guard isRequestActive(generation),
                       activeDatabaseReference?.id == reference.id else { return }
                 guard case .saved(let outcome) = result else {
-                    cancelRequest(code: .failed)
+                    fillWithoutAddingWebsite(entry, reason: "conflict")
                     return
                 }
                 parsedRootGroup = outcome.savedRootGroup
@@ -1716,9 +1732,16 @@ final class CredentialProviderCoordinator {
             } catch {
                 guard isRequestActive(generation),
                       activeDatabaseReference?.id == reference.id else { return }
-                cancelRequest(code: .failed)
+                fillWithoutAddingWebsite(entry, reason: "save \((error as NSError).domain)#\((error as NSError).code)")
             }
         }
+    }
+
+    /// The fill is what the user asked for; the website is secondary, so a
+    /// failed addition still fills the chosen entry as it was opened.
+    private func fillWithoutAddingWebsite(_ entry: KPEntry, reason: String) {
+        AutoFillDiagnostics.log("add website failed (\(reason)); filling without it")
+        completeRequest(with: entry)
     }
 
     /// Builds the update draft that appends `requestURL` as the next free
@@ -1933,11 +1956,20 @@ final class CredentialProviderCoordinator {
     }
 
     /// Whether picker actions that write to the database may be offered: the
-    /// reference is not read-only and the file is not legacy KDBX 3.1, which
-    /// `KDBXWriter` cannot save.
+    /// reference is not read-only and the open file can be saved from here.
     private var canWriteActiveDatabase: Bool {
         guard let reference = activeDatabaseReference else { return false }
-        return reference.isReadOnly == false && parsedFormatVersion?.requiresReadOnlyMode != true
+        return reference.isReadOnly == false && writeRefusalMessage == nil
+    }
+
+    /// Why the open file cannot be saved from here, whatever the reference
+    /// allows: `KDBXWriter` cannot write KDBX 3.1, and a KDF over the
+    /// extension's budget fails at save time.
+    private var writeRefusalMessage: String? {
+        if parsedFormatVersion?.requiresReadOnlyMode == true {
+            return String(localized: "Legacy KDBX 3.1 databases can be opened, but KeeForge only allows them in read-only mode.")
+        }
+        return kdfWriteRefusalMessage
     }
 
     /// The picker's "create a new credential" action, or nil when this request
@@ -2029,7 +2061,8 @@ final class CredentialProviderCoordinator {
                 meta: parsedMeta,
                 sessionKey: sessionKey,
                 compositeKey: compositeKey,
-                openTimeSHA512: openTimeSHA512
+                openTimeSHA512: openTimeSHA512,
+                environment: saveEnvironment
             )
 
             guard isRequestActive(generation) else { return .completed }
@@ -2113,7 +2146,8 @@ final class CredentialProviderCoordinator {
                 meta: parsedMeta,
                 sessionKey: sessionKey,
                 compositeKey: compositeKey,
-                openTimeSHA512: openTimeSHA512
+                openTimeSHA512: openTimeSHA512,
+                environment: saveEnvironment
             )
 
             guard isRequestActive(generation) else { return .completed }
@@ -2225,7 +2259,7 @@ final class CredentialProviderCoordinator {
             return .showError(SaveError.saveContextUnavailable.localizedDescription)
         }
 
-        let saveEnvironment = passkeySaveEnvironment
+        let saveEnvironment = self.saveEnvironment
         let material: PasskeyRegistrationMaterial
         do {
             material = try await Task.detached(priority: .userInitiated) {
@@ -2519,6 +2553,7 @@ final class CredentialProviderCoordinator {
         parsedRootGroup = nil
         parsedMeta = nil
         parsedFormatVersion = nil
+        kdfWriteRefusalMessage = nil
         sessionKey = nil
         compositeKey = nil
         openTimeSHA512 = nil

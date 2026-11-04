@@ -622,19 +622,9 @@ enum KDBXParser {
             throw ParseError.kdfParameterOutOfRange("unsupported Argon2 version 0x\(String(argon2Version, radix: 16))")
         }
 
-        // Resource-budget validation — run exact stored values or reject, never clamp.
         // Runs before the UInt32 conversions so absurd values get the actionable
         // resource-limit error, not a generic parse failure.
-        guard memory <= kdfPolicy.maxPeakMemoryBytes else {
-            throw ParseError.kdfResourceLimitExceeded(iterations: iterations, memoryBytes: memory, parallelism: parallelism)
-        }
-        let (totalWork, overflow) = memory.multipliedReportingOverflow(by: iterations)
-        guard !overflow, totalWork <= kdfPolicy.maxTotalWorkBytes else {
-            throw ParseError.kdfResourceLimitExceeded(iterations: iterations, memoryBytes: memory, parallelism: parallelism)
-        }
-        guard parallelism <= kdfPolicy.maxParallelism else {
-            throw ParseError.kdfResourceLimitExceeded(iterations: iterations, memoryBytes: memory, parallelism: parallelism)
-        }
+        try kdfPolicy.validate(iterations: iterations, memoryBytes: memory, parallelism: parallelism)
 
         // Unreachable under any policy whose budgets fit UInt32 KiB/iterations;
         // kept as defense for synthetic policies.

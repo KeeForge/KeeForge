@@ -7,6 +7,8 @@ enum SSHAgentSocketError: Error, Equatable {
     case pathTooLong
     /// Something other than a socket already exists at the path.
     case pathOccupied
+    /// Another agent, such as a second copy of the app, listens on the path.
+    case socketInUse
     case system(errno: Int32)
 }
 
@@ -30,9 +32,17 @@ final class SSHAgentSocketServer: Sendable {
 
     private struct State {
         var listener: (any DispatchSourceRead)?
+        /// The socket file this server bound, so `stop()` never removes one
+        /// that another agent has since put at the path.
+        var boundFile: FileIdentity?
         /// Each open connection and when it last sent a complete request, or
         /// was accepted if it has sent none.
         var connections: [Int32: ContinuousClock.Instant] = [:]
+    }
+
+    private struct FileIdentity: Equatable {
+        let device: dev_t
+        let inode: ino_t
     }
 
     init(
@@ -53,8 +63,9 @@ final class SSHAgentSocketServer: Sendable {
         guard state.withLockUnchecked({ $0.listener == nil }) else { return }
         let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
         guard descriptor >= 0 else { throw SSHAgentSocketError.system(errno: errno) }
+        let boundFile: FileIdentity
         do {
-            try bindSocket(descriptor)
+            boundFile = try bindSocket(descriptor)
             guard listen(descriptor, SOMAXCONN) == 0,
                   fcntl(descriptor, F_SETFL, fcntl(descriptor, F_GETFL) | O_NONBLOCK) == 0
             else { throw SSHAgentSocketError.system(errno: errno) }
@@ -70,40 +81,47 @@ final class SSHAgentSocketServer: Sendable {
         listener.setCancelHandler {
             close(descriptor)
         }
-        state.withLockUnchecked { $0.listener = listener }
+        state.withLockUnchecked {
+            $0.listener = listener
+            $0.boundFile = boundFile
+        }
         listener.resume()
     }
 
-    /// Stops listening, removes the socket file, and ends every open
-    /// connection; a request already being answered gets no reply.
+    /// Stops listening, removes the socket file if it is still the one this
+    /// server bound, and ends every open connection; a request already being
+    /// answered gets no reply.
     func stop() {
-        let listener = state.withLockUnchecked { state -> (any DispatchSourceRead)? in
+        let (listener, boundFile) = state.withLockUnchecked { state -> ((any DispatchSourceRead)?, FileIdentity?) in
             // Shut down under the lock: `serve` deregisters a descriptor under
             // the same lock before closing it, so none of these can have been
             // closed and reused for another file.
             for connection in state.connections.keys {
                 shutdown(connection, SHUT_RDWR)
             }
-            defer { state.listener = nil }
-            return state.listener
+            defer {
+                state.listener = nil
+                state.boundFile = nil
+            }
+            return (state.listener, state.boundFile)
         }
         guard let listener else { return }
         listener.cancel()
-        unlink(path)
+        if let boundFile, Self.fileIdentity(at: path) == boundFile {
+            unlink(path)
+        }
     }
 
-    private func bindSocket(_ descriptor: Int32) throws {
-        var address = sockaddr_un()
-        let pathBytes = Array(path.utf8CString)
-        guard pathBytes.count <= MemoryLayout.size(ofValue: address.sun_path) else {
-            throw SSHAgentSocketError.pathTooLong
-        }
+    private static func fileIdentity(at path: String) -> FileIdentity? {
+        var status = stat()
+        guard lstat(path, &status) == 0 else { return nil }
+        return FileIdentity(device: status.st_dev, inode: status.st_ino)
+    }
+
+    /// Binds `descriptor` at `path` and returns the socket file it created.
+    private func bindSocket(_ descriptor: Int32) throws -> FileIdentity {
+        var address = try Self.address(path)
         try removeStaleSocket()
-        address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
-        address.sun_family = sa_family_t(AF_UNIX)
-        withUnsafeMutableBytes(of: &address.sun_path) { destination in
-            pathBytes.withUnsafeBytes { destination.copyMemory(from: $0) }
-        }
         let result = withUnsafePointer(to: &address) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 Darwin.bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
@@ -111,19 +129,54 @@ final class SSHAgentSocketServer: Sendable {
         }
         guard result == 0 else { throw SSHAgentSocketError.system(errno: errno) }
         // Owner-only whatever the umask; the container directory already is.
-        guard chmod(path, S_IRUSR | S_IWUSR) == 0 else {
+        guard chmod(path, S_IRUSR | S_IWUSR) == 0, let boundFile = Self.fileIdentity(at: path) else {
             let error = errno
             unlink(path)
             throw SSHAgentSocketError.system(errno: error)
         }
+        return boundFile
     }
 
-    /// A socket left by a previous run that did not stop cleanly.
+    private static func address(_ path: String) throws -> sockaddr_un {
+        var address = sockaddr_un()
+        let pathBytes = Array(path.utf8CString)
+        guard pathBytes.count <= MemoryLayout.size(ofValue: address.sun_path) else {
+            throw SSHAgentSocketError.pathTooLong
+        }
+        address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
+        address.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &address.sun_path) { destination in
+            pathBytes.withUnsafeBytes { destination.copyMemory(from: $0) }
+        }
+        return address
+    }
+
+    /// A socket left by a previous run that did not stop cleanly: nothing
+    /// accepts a connection on it.
     private func removeStaleSocket() throws {
         var status = stat()
         guard lstat(path, &status) == 0 else { return }
         guard status.st_mode & S_IFMT == S_IFSOCK else { throw SSHAgentSocketError.pathOccupied }
-        unlink(path)
+        let probe = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard probe >= 0 else { throw SSHAgentSocketError.system(errno: errno) }
+        defer { close(probe) }
+        var address = try Self.address(path)
+        let connected = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.connect(probe, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        if connected == 0 {
+            throw SSHAgentSocketError.socketInUse
+        }
+        switch errno {
+        case ECONNREFUSED:
+            unlink(path)
+        case ENOENT:
+            break
+        default:
+            throw SSHAgentSocketError.system(errno: errno)
+        }
     }
 
     private func acceptConnections(from listener: Int32) {

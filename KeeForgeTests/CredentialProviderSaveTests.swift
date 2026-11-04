@@ -34,7 +34,38 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(draft.title, "accounts.example.com")
         XCTAssertEqual(draft.username, "alex")
         XCTAssertEqual(draft.password, " supplied-secret ")
-        XCTAssertEqual(draft.url, "https://accounts.example.com/sign-in")
+        XCTAssertEqual(draft.url, "https://accounts.example.com", "Only the site is saved, never the page path or query")
+    }
+
+    /// A fill resolves `{REF:…}` in an entry's URL and title, so the website
+    /// or app must not be able to plant one there.
+    func test_prepareDraft_fieldReferenceInPageURL_isNotSaved() {
+        let serviceIdentifier = ASCredentialServiceIdentifier(
+            identifier: "https://evil.example:8443/login?next={REF:P@T:Bank}#{REF:U@T:Bank}",
+            type: .URL
+        )
+
+        let draft = AutoFillSaveCoordinator.initialDraft(for: serviceIdentifier, username: "alex", password: "secret")
+
+        // Whether raw braces parse depends on the OS's URL parser.
+        XCTAssertTrue(["https://evil.example:8443", ""].contains(draft.url), draft.url)
+        XCTAssertFalse(FieldReferenceResolver.containsReference(draft.title), draft.title)
+    }
+
+    func test_prepareDraft_fieldReferenceInAppDisplayName_leavesTitleEmpty() throws {
+        guard #available(iOS 26.2, macOS 26.2, *) else {
+            throw XCTSkip("App service identifiers require iOS 26.2 / macOS 26.2")
+        }
+        let serviceIdentifier = ASCredentialServiceIdentifier(
+            identifier: "A1B2C3D4E5.com.evil.app",
+            type: .app,
+            displayName: "{REF:P@T:Bank}"
+        )
+
+        let draft = AutoFillSaveCoordinator.initialDraft(for: serviceIdentifier, username: "", password: "secret")
+
+        XCTAssertEqual(draft.title, "")
+        XCTAssertEqual(draft.url, "")
     }
 
     func test_prepareDraft_appIdentifier_usesDisplayNameAndNoURL() throws {
