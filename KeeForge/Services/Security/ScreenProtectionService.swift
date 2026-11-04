@@ -51,6 +51,8 @@ final class ScreenProtectionService {
             window.rootViewController = ScreenProtectionViewController()
             shieldWindow = window
         }
+        (shieldWindow?.rootViewController as? ScreenProtectionViewController)?
+            .showsCaptureNotice = UIScreen.main.isCaptured
 
         // Instant, never faded in: the app switcher snapshot is taken right away.
         hideAnimator?.stopAnimation(true)
@@ -81,14 +83,21 @@ final class ScreenProtectionService {
 }
 
 private final class ScreenProtectionViewController: UIViewController {
+    private let captureNotice = UIView()
+
+    /// Recording, mirroring and AirPlay leave the app blank on the other
+    /// screen; the notice says why. The app switcher shows the plain cover.
+    var showsCaptureNotice = false {
+        didSet { captureNotice.isHidden = showsCaptureNotice == false }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
-        blur.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(blur)
+        // Opaque, like LaunchScreen.storyboard: nothing of the app shows through.
+        view.backgroundColor = .systemGroupedBackground
 
-        // The glyph carries its own rounded corners; the shadow lifts it off the blur.
+        // The glyph carries its own rounded corners; the shadow lifts it off the ground.
         let icon = UIImageView(image: UIImage(named: "LaunchGlyph"))
         icon.contentMode = .scaleAspectFit
         icon.layer.shadowColor = UIColor.black.cgColor
@@ -96,7 +105,7 @@ private final class ScreenProtectionViewController: UIViewController {
         icon.layer.shadowRadius = 12
         icon.layer.shadowOffset = CGSize(width: 0, height: 6)
         icon.translatesAutoresizingMaskIntoConstraints = false
-        blur.contentView.addSubview(icon)
+        view.addSubview(icon)
 
         let title = UILabel()
         title.text = "KeeForge"
@@ -104,22 +113,63 @@ private final class ScreenProtectionViewController: UIViewController {
         title.adjustsFontForContentSizeCategory = true
         title.textColor = .label
         title.translatesAutoresizingMaskIntoConstraints = false
-        blur.contentView.addSubview(title)
+        view.addSubview(title)
+
+        buildCaptureNotice()
 
         // Matches LaunchScreen.storyboard, so launch and the cover look the same.
         NSLayoutConstraint.activate([
-            blur.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            blur.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            blur.topAnchor.constraint(equalTo: view.topAnchor),
-            blur.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-            icon.centerXAnchor.constraint(equalTo: blur.contentView.centerXAnchor),
-            icon.centerYAnchor.constraint(equalTo: blur.contentView.centerYAnchor, constant: -12),
+            icon.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            icon.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -12),
             icon.widthAnchor.constraint(equalToConstant: 96),
             icon.heightAnchor.constraint(equalToConstant: 96),
 
             title.topAnchor.constraint(equalTo: icon.bottomAnchor, constant: 12),
-            title.centerXAnchor.constraint(equalTo: blur.contentView.centerXAnchor),
+            title.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
+            captureNotice.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            captureNotice.leadingAnchor.constraint(greaterThanOrEqualTo: view.layoutMarginsGuide.leadingAnchor),
+            captureNotice.trailingAnchor.constraint(lessThanOrEqualTo: view.layoutMarginsGuide.trailingAnchor),
+            captureNotice.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24),
+        ])
+    }
+
+    private func buildCaptureNotice() {
+        captureNotice.backgroundColor = .secondarySystemGroupedBackground
+        captureNotice.layer.cornerRadius = 20
+        captureNotice.layer.cornerCurve = .continuous
+        captureNotice.isHidden = showsCaptureNotice == false
+        captureNotice.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(captureNotice)
+
+        let dot = UIView()
+        dot.backgroundColor = .systemRed
+        dot.layer.cornerRadius = 5
+        dot.translatesAutoresizingMaskIntoConstraints = false
+
+        let label = UILabel()
+        label.text = String(localized: "Hidden while recording or sharing")
+        label.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(for: .systemFont(ofSize: 15, weight: .semibold))
+        label.adjustsFontForContentSizeCategory = true
+        label.textColor = .label
+        label.numberOfLines = 0
+        label.textAlignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        let row = UIStackView(arrangedSubviews: [dot, label])
+        row.axis = .horizontal
+        row.alignment = .center
+        row.spacing = 8
+        row.translatesAutoresizingMaskIntoConstraints = false
+        captureNotice.addSubview(row)
+
+        NSLayoutConstraint.activate([
+            dot.widthAnchor.constraint(equalToConstant: 10),
+            dot.heightAnchor.constraint(equalToConstant: 10),
+            row.topAnchor.constraint(equalTo: captureNotice.topAnchor, constant: 10),
+            row.bottomAnchor.constraint(equalTo: captureNotice.bottomAnchor, constant: -10),
+            row.leadingAnchor.constraint(equalTo: captureNotice.leadingAnchor, constant: 16),
+            row.trailingAnchor.constraint(equalTo: captureNotice.trailingAnchor, constant: -16),
         ])
     }
 }
