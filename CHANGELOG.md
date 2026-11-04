@@ -9,7 +9,6 @@
 - Generate word-based passphrases on iPhone, iPad, and Mac with a chosen word count and separator. The saved mode and options also apply to iOS AutoFill generation (#187).
 - On iPhone and iPad, Export Copy is now Share, in the database list, Database Details, and the stuck-upload alert. The share sheet still offers Save to Files and can also send the database with AirDrop or open it in another KeePass app; backups in Database Details are shared the same way. Mac keeps Export Copy (#117).
 - Turn off the What's New sheet that appears after an update on iPhone, iPad, and Mac in Settings → Display → "Show What's New After Updates" (#247).
-- Show each entry's current verification code, with its countdown and a copy button, right on its row in Groups, All Entries, search, and tags on iPhone and iPad, and in entry lists on Mac (#261). Turn it on in Settings → Display → Entry List → "Show Verification Codes"; it is off by default because it puts codes on screen more often.
 
 ### Changes
 
