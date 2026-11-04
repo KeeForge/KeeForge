@@ -1562,7 +1562,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             return result
         }
         environment.populateCredentialStore = { _, _ in }
-        coordinator.passkeySaveEnvironment = environment
+        coordinator.saveEnvironment = environment
         let identity = ASPasskeyCredentialIdentity(
             relyingPartyIdentifier: "example.com",
             userName: "alice",
