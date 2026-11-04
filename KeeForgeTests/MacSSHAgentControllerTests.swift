@@ -333,7 +333,7 @@ final class MacSSHAgentControllerTests: XCTestCase {
         controller.start()
         let path = controller.socketPath
 
-        XCTAssertFalse(controller.isUnavailable)
+        XCTAssertNil(controller.unavailability)
         let attributes = try FileManager.default.attributesOfItem(atPath: path)
         XCTAssertEqual(attributes[.type] as? FileAttributeType, .typeSocket)
         XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
@@ -414,7 +414,7 @@ final class MacSSHAgentControllerTests: XCTestCase {
         controller.isEnabled = false
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: controller.socketPath))
-        XCTAssertFalse(controller.isUnavailable)
+        XCTAssertNil(controller.unavailability)
     }
 
     /// A run that ends without stopping the agent leaves its socket file
@@ -427,7 +427,7 @@ final class MacSSHAgentControllerTests: XCTestCase {
         controller.isEnabled = true
         controller.start()
 
-        XCTAssertFalse(controller.isUnavailable)
+        XCTAssertNil(controller.unavailability)
         let answer = try await Self.exchange([Self.requestIdentities], at: controller.socketPath)
         XCTAssertEqual(try Self.identities(in: answer[0]), [])
     }
@@ -494,8 +494,124 @@ final class MacSSHAgentControllerTests: XCTestCase {
         controller.isEnabled = true
         controller.start()
 
-        XCTAssertTrue(controller.isUnavailable)
+        XCTAssertEqual(controller.unavailability, .failed)
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: controller.socketPath)), Data("keep me".utf8))
+    }
+
+    /// A second copy of the app, such as a test host on a development Mac,
+    /// must neither take over a socket another agent listens on nor remove
+    /// it when it quits.
+    func testALiveAgentAtTheSocketPathIsNotTakenOver() async throws {
+        let controller = try makeController()
+        let path = controller.socketPath
+        let running = SSHAgentSocketServer(path: path, handler: SSHAgentRequestHandler { [] })
+        try running.start()
+        defer { running.stop() }
+
+        controller.isEnabled = true
+        controller.start()
+
+        XCTAssertEqual(controller.unavailability, .socketInUse)
+        XCTAssertThrowsError(try SSHAgentSocketServer(path: path, handler: SSHAgentRequestHandler { [] }).start()) {
+            XCTAssertEqual($0 as? SSHAgentSocketError, .socketInUse)
+        }
+        controller.stop()
+        let answers = try await Self.exchange([Self.requestIdentities], at: path)
+        XCTAssertEqual(answers.count, 1)
+    }
+
+    /// The socket file at the path when the agent stops may belong to an
+    /// agent that started after this one; only its own file is removed.
+    func testStoppingLeavesASocketThatAnotherAgentBoundSinceInPlace() async throws {
+        let controller = try makeController()
+        let path = controller.socketPath
+        let first = SSHAgentSocketServer(path: path, handler: SSHAgentRequestHandler { [] })
+        try first.start()
+        unlink(path)
+        let second = SSHAgentSocketServer(path: path, handler: SSHAgentRequestHandler { [] })
+        try second.start()
+
+        first.stop()
+
+        let answers = try await Self.exchange([Self.requestIdentities], at: path)
+        XCTAssertEqual(answers.count, 1)
+        second.stop()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: path))
+    }
+
+    // MARK: - Framing
+
+    /// An empty message or one past OpenSSH's 256 KiB limit ends the
+    /// connection unanswered; a message at the limit is still read.
+    func testMessageLengthsOutsideTheProtocolEndTheConnection() async throws {
+        let path = try makeController().socketPath
+        let server = SSHAgentSocketServer(path: path, handler: SSHAgentRequestHandler { [] })
+        try server.start()
+        defer { server.stop() }
+
+        let limit = SSHAgentRequestHandler.maximumMessageLength
+        let failure = Self.failure
+        try await Task.detached {
+            for length in [0, limit + 1] {
+                let connection = try SSHAgentTestClient.connect(at: path)
+                defer { close(connection) }
+                var prefix = SSHWireWriter()
+                prefix.writeUInt32(UInt32(length))
+                try SSHAgentTestClient.send(prefix.data, on: connection)
+
+                XCTAssertTrue(SSHAgentTestClient.isClosedByTheAgent(connection), "\(length)")
+            }
+
+            let atTheLimit = Data([0xFF]) + Data(repeating: 0, count: limit - 1)
+            XCTAssertEqual(try SSHAgentTestClient.exchange([atTheLimit], at: path), [failure])
+        }.value
+    }
+
+    /// A client that ends its side inside a message gets no answer, and the
+    /// agent keeps serving others.
+    func testTruncatedMessageIsNotAnswered() async throws {
+        let path = try makeController().socketPath
+        let server = SSHAgentSocketServer(path: path, handler: SSHAgentRequestHandler { [] })
+        try server.start()
+        defer { server.stop() }
+
+        let request = Self.requestIdentities
+        try await Task.detached {
+            for partial in [Data([0, 0]), Data([0, 0, 0, 5, 11, 0])] {
+                let connection = try SSHAgentTestClient.connect(at: path)
+                defer { close(connection) }
+                try SSHAgentTestClient.send(partial, on: connection)
+                shutdown(connection, SHUT_WR)
+
+                XCTAssertTrue(SSHAgentTestClient.isClosedByTheAgent(connection), "\(Array(partial))")
+            }
+            XCTAssertEqual(try SSHAgentTestClient.exchange([request], at: path).count, 1)
+        }.value
+    }
+
+    /// A client that disconnects inside a request gives up its place at
+    /// once, so the next client needs no other connection to make room.
+    func testClientDisconnectingMidRequestFreesItsPlace() async throws {
+        let path = try makeController().socketPath
+        let server = SSHAgentSocketServer(path: path, handler: SSHAgentRequestHandler { [] }, maximumConnections: 2)
+        try server.start()
+        defer { server.stop() }
+
+        let request = Self.requestIdentities
+        try await Task.detached {
+            let idle = try SSHAgentTestClient.connect(at: path)
+            defer { close(idle) }
+            XCTAssertEqual(try SSHAgentTestClient.exchange([request], on: idle).count, 1)
+
+            let leaving = try SSHAgentTestClient.connect(at: path)
+            try SSHAgentTestClient.send(Data([0, 0, 0, 5, 11]), on: leaving)
+            close(leaving)
+            // The agent's thread for it notices the end of stream on its own.
+            usleep(500_000)
+
+            XCTAssertEqual(try SSHAgentTestClient.exchange([request], at: path).count, 1)
+            XCTAssertEqual(try SSHAgentTestClient.exchange([request], on: idle).count, 1)
+        }.value
     }
 
     // MARK: - Helpers

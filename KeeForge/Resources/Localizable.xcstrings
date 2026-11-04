@@ -51667,6 +51667,58 @@
         }
       }
     },
+    "The SSH agent could not start because another app is already using its socket." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der SSH-Agent konnte nicht gestartet werden, weil eine andere App seinen Socket bereits verwendet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo iniciar el agente SSH porque otra app ya está usando su socket."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'agent SSH n'a pas pu démarrer, car une autre app utilise déjà son socket."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile avviare l'agente SSH perché un'altra app sta già usando il suo socket."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別のアプリがソケットを使用中のため、SSH エージェントを開始できませんでした。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось запустить SSH-агент: его сокет уже использует другое приложение."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法启动 SSH 代理，因为另一个 App 正在使用它的套接字。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法啟動 SSH 代理程式，因為另一個 App 正在使用它的通訊端。"
+          }
+        }
+      }
+    },
     "The SSH agent could not start." : {
       "localizations" : {
         "de" : {
