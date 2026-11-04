@@ -136,31 +136,12 @@ struct MacEntryRow: View {
             if isSelectable {
                 EntrySelectionIndicator(isSelected: isSelected)
             }
-            let username = viewModel.resolvingFieldReferences(entry.username)
-            let folderPath = showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil
-            if selection == nil,
-               viewModel.showsVerificationCodeOnRow(for: entry, in: nil),
-               let config = entry.totpConfig,
-               let sessionKey = viewModel.sessionKey {
-                LiveCodeEntryRow(
-                    entry: entry,
-                    username: username,
-                    customIconData: viewModel.customIconData(for: entry),
-                    folderPath: folderPath,
-                    config: config,
-                    sessionKey: sessionKey
-                )
-                // The code's state is built from the config once; a fresh
-                // identity picks up an edited secret.
-                .id(viewModel.contentRevision)
-            } else {
-                EntryRow(
-                    entry: entry,
-                    username: username,
-                    customIconData: viewModel.customIconData(for: entry),
-                    folderPath: folderPath
-                )
-            }
+            EntryRow(
+                entry: entry,
+                username: viewModel.resolvingFieldReferences(entry.username),
+                customIconData: viewModel.customIconData(for: entry),
+                folderPath: showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())

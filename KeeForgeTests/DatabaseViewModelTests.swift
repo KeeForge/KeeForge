@@ -2710,41 +2710,6 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.verificationCodeEntries.map(\.title), ["Code"])
     }
 
-    func testEntryRowsShowTheirCodeInVerificationCodesAndElsewhereOnlyWithTheSetting() async throws {
-        let totpConfig = TOTPConfig(secret: EncryptedValue(sealedData: Data([0]), hasValue: true))
-        let withCode = KPEntry(title: "Code", totpConfig: totpConfig)
-        let withoutCode = KPEntry(title: "No Code")
-        let recycled = KPEntry(title: "Recycled Code", totpConfig: totpConfig)
-        let recycleBin = KPGroup(name: "Recycle Bin", entries: [recycled])
-        let root = KPGroup(
-            name: "Root",
-            entries: [withCode, withoutCode],
-            groups: [recycleBin],
-            recycleBinUUID: recycleBin.id
-        )
-        let vm = try await makeInjectedViewModel(rootGroup: root)
-        // `nil` is a group's own list, search, and any other list.
-        let lists: [DatabaseCollection?] = [.allEntries, .tags, nil]
-
-        vm.showsCodesInEntryLists = false
-        XCTAssertTrue(vm.showsVerificationCodeOnRow(for: withCode, in: .verificationCodes))
-        for list in lists {
-            XCTAssertFalse(vm.showsVerificationCodeOnRow(for: withCode, in: list), "Setting off, \(String(describing: list))")
-        }
-
-        vm.showsCodesInEntryLists = true
-        for list in lists {
-            XCTAssertTrue(vm.showsVerificationCodeOnRow(for: withCode, in: list), "Setting on, \(String(describing: list))")
-            XCTAssertFalse(vm.showsVerificationCodeOnRow(for: withoutCode, in: list), "No code, \(String(describing: list))")
-        }
-        XCTAssertFalse(vm.showsVerificationCodeOnRow(for: withoutCode, in: .verificationCodes))
-        XCTAssertFalse(vm.showsVerificationCodeOnRow(for: recycled, in: .recycleBin), "A deleted entry's row stays plain")
-        XCTAssertFalse(vm.showsVerificationCodeOnRow(for: recycled, in: nil))
-
-        vm.lock()
-        XCTAssertFalse(vm.showsVerificationCodeOnRow(for: withCode, in: nil), "No session key, no code")
-    }
-
     func testCollectionCountsLeaveTheRecycleBinOutOfAllEntries() async throws {
         let totpConfig = TOTPConfig(secret: EncryptedValue(sealedData: Data([0]), hasValue: true))
         let recycleBin = KPGroup(

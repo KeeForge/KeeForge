@@ -136,45 +136,25 @@ struct EntryListView: View {
         }
     }
 
-    private func select(_ entry: KPEntry) {
-        if let onSelectEntry {
-            onSelectEntry(entry)
-        } else {
-            viewModel.workspace.navigationPath.append(.entry(entry.id))
-        }
-    }
-
     private func browsingEntryRow(for entry: KPEntry) -> some View {
         // A concrete row container lets List defer offscreen matches.
         HStack {
-            if viewModel.showsVerificationCodeOnRow(for: entry, in: nil),
-               let config = entry.totpConfig,
-               let sessionKey = viewModel.sessionKey {
-                LiveCodeEntryRow(
+            // A button rather than a link: entry rows carry no chevron.
+            Button {
+                if let onSelectEntry {
+                    onSelectEntry(entry)
+                } else {
+                    viewModel.workspace.navigationPath.append(.entry(entry.id))
+                }
+            } label: {
+                EntryRow(
                     entry: entry,
                     username: viewModel.resolvingFieldReferences(entry.username),
                     customIconData: viewModel.customIconData(for: entry),
-                    folderPath: viewModel.folderPath(forEntryID: entry.id),
-                    config: config,
-                    sessionKey: sessionKey,
-                    openIdentifier: "search.entry.navlink"
-                ) {
-                    select(entry)
-                }
-            } else {
-                // A button rather than a link: entry rows carry no chevron.
-                Button {
-                    select(entry)
-                } label: {
-                    EntryRow(
-                        entry: entry,
-                        username: viewModel.resolvingFieldReferences(entry.username),
-                        customIconData: viewModel.customIconData(for: entry),
-                        folderPath: viewModel.folderPath(forEntryID: entry.id)
-                    )
-                }
-                .accessibilityIdentifier("search.entry.navlink")
+                    folderPath: viewModel.folderPath(forEntryID: entry.id)
+                )
             }
+            .accessibilityIdentifier("search.entry.navlink")
         }
         .macHoverHighlight()
         .contextMenu {

@@ -490,8 +490,6 @@ final class DatabaseViewModel {
     var sortOrder: SortOrder {
         didSet { Self.persistSortOrder(sortOrder) }
     }
-    /// Live copy of the Display setting; Settings pushes changes here.
-    var showsCodesInEntryLists = SettingsService.showCodesInEntryLists
 
     private(set) var failedAttempts = 0
     private(set) var lockoutUntil: Date?
@@ -1515,16 +1513,6 @@ final class DatabaseViewModel {
     func folderPath(forEntryID entryID: UUID) -> String? {
         _ = contentRevision
         return entryFolderPaths[entryID]
-    }
-
-    /// Whether an entry row shows the entry's live verification code.
-    /// `collection` is the collection the row is listed in, `nil` for a group
-    /// or any other list. Verification Codes always does; elsewhere it follows
-    /// the Display setting. Deleted entries never do.
-    func showsVerificationCodeOnRow(for entry: KPEntry, in collection: DatabaseCollection?) -> Bool {
-        guard entry.totpConfig != nil, sessionKey != nil else { return false }
-        if collection == .verificationCodes { return true }
-        return showsCodesInEntryLists && isEntryInRecycleBin(entryID: entry.id) == false
     }
 
     func isEntryInRecycleBin(entryID: UUID) -> Bool {
