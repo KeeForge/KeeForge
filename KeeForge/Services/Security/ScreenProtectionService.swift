@@ -6,11 +6,34 @@ final class ScreenProtectionService {
     private weak var windowScene: UIWindowScene?
     private var shieldWindow: UIWindow?
     private var capturedObservation: NSObjectProtocol?
+    private let isScreenCaptured: @MainActor () -> Bool
+    private var isSceneActive = false
     private var hideAnimator: UIViewPropertyAnimator?
 
-    init(windowScene: UIWindowScene? = nil) {
+    init(
+        windowScene: UIWindowScene? = nil,
+        isScreenCaptured: @escaping @MainActor () -> Bool = { UIScreen.main.isCaptured }
+    ) {
         self.windowScene = windowScene
+        self.isScreenCaptured = isScreenCaptured
         startMonitoringScreenCapture()
+    }
+
+    /// A shield that is fading out already counts as down.
+    var isShieldVisible: Bool {
+        shieldWindow?.isHidden == false && hideAnimator == nil
+    }
+
+    /// Recording, mirroring and AirPlay keep the shield up while the scene is
+    /// active: the capture notification fires once, and activation must not
+    /// take back what it showed.
+    nonisolated static func showsShield(sceneIsActive: Bool, isScreenCaptured: Bool) -> Bool {
+        sceneIsActive == false || isScreenCaptured
+    }
+
+    func update(sceneIsActive: Bool) {
+        isSceneActive = sceneIsActive
+        applyShieldPolicy()
     }
 
     func updateScene(_ scene: UIWindowScene?) {
@@ -24,20 +47,20 @@ final class ScreenProtectionService {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.handleScreenCaptureChange()
+                self?.applyShieldPolicy()
             }
         }
     }
 
-    private func handleScreenCaptureChange() {
-        if UIScreen.main.isCaptured {
+    private func applyShieldPolicy() {
+        if Self.showsShield(sceneIsActive: isSceneActive, isScreenCaptured: isScreenCaptured()) {
             showShield()
         } else {
             hideShield()
         }
     }
 
-    func showShield() {
+    private func showShield() {
         guard let scene = windowScene ?? UIApplication.shared.connectedScenes
             .first(where: { $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive }) as? UIWindowScene else {
             return
@@ -52,7 +75,7 @@ final class ScreenProtectionService {
             shieldWindow = window
         }
         (shieldWindow?.rootViewController as? ScreenProtectionViewController)?
-            .showsCaptureNotice = UIScreen.main.isCaptured
+            .showsCaptureNotice = isScreenCaptured()
 
         // Instant, never faded in: the app switcher snapshot is taken right away.
         hideAnimator?.stopAnimation(true)
@@ -63,7 +86,7 @@ final class ScreenProtectionService {
 
     /// Fades out so returning to the app does not cut straight from the
     /// cover to the content.
-    func hideShield() {
+    private func hideShield() {
         guard let window = shieldWindow, window.isHidden == false else { return }
         hideAnimator?.stopAnimation(true)
         let animator = UIViewPropertyAnimator(duration: Self.revealDuration, curve: .easeOut) {
@@ -227,6 +250,10 @@ final class ScreenProtectionService {
     }
 
     // MARK: - Public API (called from the shared scenePhase hooks in KeeForgeApp)
+
+    func update(sceneIsActive: Bool) {
+        if sceneIsActive { hideShield() } else { showShield() }
+    }
 
     func showShield() { showCovers() }
 

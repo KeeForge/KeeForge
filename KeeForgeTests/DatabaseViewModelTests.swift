@@ -1511,6 +1511,9 @@ final class DatabaseViewModelTests: XCTestCase {
         )
         ReviewPromptService.defaults = reviewDefaults
         ReviewPromptService.minimumSuccessfulSaves = 1
+        // The unlock below may prompt from the shared AutoFill count that
+        // other tests leave behind; only the saves are under test here.
+        ReviewPromptService.minimumSuccessfulAutoFills = .max
         ReviewPromptService.currentVersion = "1.0"
         ReviewPromptService.isAppStoreBuild = true
         ReviewPromptService.isSuppressedForUITesting = false
@@ -1518,6 +1521,7 @@ final class DatabaseViewModelTests: XCTestCase {
         defer {
             ReviewPromptService.defaults = .standard
             ReviewPromptService.minimumSuccessfulSaves = 3
+            ReviewPromptService.minimumSuccessfulAutoFills = 5
             ReviewPromptService.currentVersion = original.version
             ReviewPromptService.isAppStoreBuild = original.isAppStoreBuild
             ReviewPromptService.isSuppressedForUITesting = original.suppressed

@@ -113,7 +113,7 @@ struct KeeForgeApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .active:
-                screenProtectionService.hideShield()
+                screenProtectionService.update(sceneIsActive: true)
                 activeDatabaseViewModel?.didManuallyLock = false
                 activeDatabaseViewModel?.handleSceneDidBecomeActive()
                 activeDatabaseViewModel?.refreshSharedDatabaseCacheIfPossible()
@@ -124,7 +124,7 @@ struct KeeForgeApp: App {
             case .inactive:
                 break
             case .background:
-                screenProtectionService.showShield()
+                screenProtectionService.update(sceneIsActive: false)
                 // macOS: the scene phase moves to .background on window
                 // minimize / app hide, which must not lock under the
                 // default policy. MacLockMonitor is the sole lock driver
@@ -133,10 +133,12 @@ struct KeeForgeApp: App {
                 activeDatabaseViewModel?.handleSceneDidEnterBackground()
                 #endif
             @unknown default:
-                screenProtectionService.showShield()
+                screenProtectionService.update(sceneIsActive: false)
             }
         }
         .task {
+            // A recording already running at launch sends no change notification.
+            screenProtectionService.update(sceneIsActive: scenePhase != .background)
             // Plaintext preview files orphaned by a process that died
             // without locking; must run before this session writes any.
             AttachmentPreviewFileStore.purgeOrphanedFiles()
