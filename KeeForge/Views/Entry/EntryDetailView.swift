@@ -527,7 +527,7 @@ struct EntryDetailView: View {
                 }
             }
         } footer: {
-            if entry.isExpired(), viewModel.isReadOnly == false {
+            if PlatformDesign.followsIOSDesign == false, entry.isExpired(), viewModel.isReadOnly == false {
                 Text("Set a new expiry date, or turn expiry off, under Edit.")
             }
         }

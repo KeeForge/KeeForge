@@ -664,7 +664,9 @@ struct GroupListView: View {
                 emptyTitle: "Recycle Bin Is Empty",
                 emptyDescription: "Deleted entries and groups appear here."
             )
-            if visibleGroups.isEmpty == false || visibleEntries.isEmpty == false, viewModel.isReadOnly == false {
+            if PlatformDesign.followsIOSDesign == false,
+               visibleGroups.isEmpty == false || visibleEntries.isEmpty == false,
+               viewModel.isReadOnly == false {
                 Section {
                 } footer: {
                     Text("Touch and hold to restore or delete permanently.")
@@ -730,7 +732,7 @@ struct GroupListView: View {
                     entryRow(for: entry, showsFolderPath: true, showsVerificationCode: showsVerificationCodes)
                 }
             } footer: {
-                if showsSummaryAsSubtitle == false || collection == .verificationCodes {
+                if showsSummaryAsSubtitle == false {
                     Text(summary)
                         .accessibilityIdentifier("group-list.summary")
                 }

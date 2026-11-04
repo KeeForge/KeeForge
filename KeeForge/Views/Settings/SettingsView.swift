@@ -628,7 +628,9 @@ private struct DisplaySettingsView: View {
         } header: {
             Text("Privacy")
         } footer: {
-            Text("When off, KeeForge hides last-opened activity from the locked database list.")
+            if PlatformDesign.followsIOSDesign == false {
+                Text("When off, KeeForge hides last-opened activity from the locked database list.")
+            }
         }
     }
 
