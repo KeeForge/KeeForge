@@ -632,6 +632,7 @@ enum KDBXCompatibilitySupport {
         Fixture.foreignTwofish.id: .init(entryTitle: "Foreign Entry Alpha", password: "ForeignAlphaSecret1"),
         Fixture.unknownInnerHeader.id: .init(entryTitle: "Inner Header Entry", password: "UnknownHeaderSecret1"),
         Fixture.argon2HighIterations.id: .init(entryTitle: "High Iteration Entry", password: "HighIterationSecret1"),
+        Fixture.keepassxcRecycled.id: .init(entryTitle: "Recycled Login", password: "RecycledLoginSecret1"),
     ]
 
     /// Expected protected-value checks keyed by scenario id. Every smoke
@@ -643,7 +644,8 @@ enum KDBXCompatibilitySupport {
         table["restore-rich-group"] = [.init(entryTitle: "Controlled Unknowns", password: "roundtrip-pass")]
         table["restore-recycled-entry"] = [.init(entryTitle: "Compat Recycled Entry", password: "recycled-password")]
         table["restore-recycled-group"] = [.init(entryTitle: "Compat Recycled Nested Entry", password: "recycled-nested-password")]
-        for (fixtureID, existingEntry) in fixtureEntryPasswords {
+        // keepassxc-recycled has no smoke scenario; its probe rides on its restore artifact.
+        for (fixtureID, existingEntry) in fixtureEntryPasswords where fixtureID != Fixture.keepassxcRecycled.id {
             table["fixture-smoke-\(fixtureID)"] = [
                 .init(
                     entryTitle: fixtureSmokeCreatedTitle(fixtureID: fixtureID),
@@ -711,6 +713,7 @@ enum KDBXCompatibilitySupport {
         table["encryption-settings-chacha20-argon2id"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["encryption-settings-aes256-keep-kdf"] = [fixtureEntryPasswords[Fixture.foreignTwofish.id]!]
         table["encryption-settings-aes-kdf"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
+        table["restore-keepassxc-recycled"] = [fixtureEntryPasswords[Fixture.keepassxcRecycled.id]!]
         return table
     }()
 
@@ -723,7 +726,6 @@ enum KDBXCompatibilitySupport {
         "change-entry-expiry",
         "restore-foreign-recycled-entry",
         "merge-icon-renamed-after-deletion",
-        "restore-keepassxc-recycled",
         "create-group",
         "hide-group-from-autofill",
         "change-group-icon",
