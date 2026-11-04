@@ -766,11 +766,7 @@ private struct CompactUnlockScene: View {
             switch viewModel.state {
             case .locked:
                 if viewModel.isEligibleForBiometricAutoUnlock {
-                    DatabaseOpeningView(
-                        databaseName: viewModel.databaseDisplayName,
-                        statusMessage: viewModel.unlockStatusMessage,
-                        progress: viewModel.cloudSyncProgress
-                    )
+                    DatabaseOpeningView(viewModel: viewModel)
                         .transition(.opacity)
                 } else {
                     UnlockView(
@@ -786,12 +782,7 @@ private struct CompactUnlockScene: View {
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             case .unlocking:
-                DatabaseOpeningView(
-                    databaseName: viewModel.databaseDisplayName,
-                    statusMessage: viewModel.unlockStatusMessage,
-                    progress: viewModel.cloudSyncProgress,
-                    onCancel: hardwareKeyCancelAction(for: viewModel)
-                )
+                DatabaseOpeningView(viewModel: viewModel, onCancel: hardwareKeyCancelAction(for: viewModel))
                     .transition(.opacity)
             case .unlocked:
                 // The compact sheet dismisses as soon as unlock succeeds.
@@ -818,11 +809,7 @@ private struct RegularDatabaseScene: View {
                 unlockView
                 #else
                 if viewModel.isEligibleForBiometricAutoUnlock {
-                    DatabaseOpeningView(
-                        databaseName: viewModel.databaseDisplayName,
-                        statusMessage: viewModel.unlockStatusMessage,
-                        progress: viewModel.cloudSyncProgress
-                    )
+                    DatabaseOpeningView(viewModel: viewModel)
                     .transition(.opacity)
                 } else {
                     unlockView
@@ -831,12 +818,7 @@ private struct RegularDatabaseScene: View {
             case .error:
                 unlockView
             case .unlocking:
-                DatabaseOpeningView(
-                    databaseName: viewModel.databaseDisplayName,
-                    statusMessage: viewModel.unlockStatusMessage,
-                    progress: viewModel.cloudSyncProgress,
-                    onCancel: hardwareKeyCancelAction(for: viewModel)
-                )
+                DatabaseOpeningView(viewModel: viewModel, onCancel: hardwareKeyCancelAction(for: viewModel))
                 .transition(.opacity)
             case .unlocked:
                 RegularDatabaseWorkspaceView(viewModel: viewModel)

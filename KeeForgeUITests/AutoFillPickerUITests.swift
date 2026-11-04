@@ -93,6 +93,24 @@ final class AutoFillPickerUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["autofill-harness.result"].label, "create")
     }
 
+    /// A request whose domain matches nothing lands on its pre-filled search;
+    /// the empty state then names the site and offers a login for it.
+    func testUnmatchedSiteOffersALoginForThatSite() {
+        app.terminate()
+        app.launchEnvironment["UI_TEST_AUTOFILL_HARNESS_SEARCH"] = "login.zeit.de"
+        app.launch()
+
+        let title = app.staticTexts["autofill.no-credentials-found"]
+        XCTAssertTrue(title.waitForExistence(timeout: 15))
+        XCTAssertEqual(title.label, "Nothing for this site yet")
+        XCTAssertTrue(app.staticTexts["login.zeit.de"].exists, "The empty state must name the site")
+        XCTAssertTrue(app.buttons["autofill.show-all-entries.empty-state"].exists)
+        let create = app.buttons["autofill.create-entry.empty-state"]
+        XCTAssertTrue(create.exists)
+        create.tap()
+        XCTAssertEqual(app.staticTexts["autofill-harness.result"].label, "create")
+    }
+
     private func search(for query: String, file: StaticString = #filePath, line: UInt = #line) {
         let searchField = app.searchFields["Search entries"].firstMatch
         XCTAssertTrue(searchField.waitForExistence(timeout: 15), "Search field was not visible", file: file, line: line)

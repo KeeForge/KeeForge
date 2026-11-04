@@ -10,6 +10,9 @@ import SwiftUI
 struct AutoFillPickerHarnessView: View {
     static let launchArgument = "-autofill-picker-harness"
 
+    /// Pre-fills the search, as the coordinator does with a request's domain.
+    static let initialSearchEnvironmentKey = "UI_TEST_AUTOFILL_HARNESS_SEARCH"
+
     static var isPresentationRequested: Bool {
         ProcessInfo.processInfo.arguments.contains(launchArgument)
     }
@@ -38,6 +41,7 @@ struct AutoFillPickerHarnessView: View {
                 entries: [],
                 searchEntries: searchEntries,
                 possibleEntries: possibleEntries,
+                initialSearchText: ProcessInfo.processInfo.environment[Self.initialSearchEnvironmentKey] ?? "",
                 sharedCopyDate: Date(timeIntervalSinceReferenceDate: 0),
                 onCreateEntry: { result = "create" },
                 onSelect: { result = "selected \($0.title)" },

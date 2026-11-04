@@ -33,9 +33,9 @@ struct DatabaseListRow: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
 
-                metadataLine
+                statusLine(cloudWarning: cloudWarning(in: summary.notices))
 
-                ForEach(summary.notices, id: \.text) { notice in
+                ForEach(summary.notices.filter { cloudWarning(in: [$0]) == nil }, id: \.text) { notice in
                     noticeText(notice)
                 }
             }
@@ -75,38 +75,36 @@ struct DatabaseListRow: View {
         SettingsSummaryText.joined([reference.filename, reference.cloudProviderKind?.displayName])
     }
 
-    /// When it was last opened or synced, and its key file.
+    /// One line on the database's state: a cloud warning takes the place of
+    /// its last sync, and a local file says when it was last opened.
     @ViewBuilder
-    private var metadataLine: some View {
-        let lastSyncedAt = reference.cloudSyncMetadata?.lastSyncedAt
-        if lastOpenedDescription != nil || lastSyncedAt != nil || reference.keyFileFilename != nil {
-            let line = Group {
-                if let lastOpenedDescription {
-                    Label(lastOpenedDescription, systemImage: "clock")
-                        .accessibilityIdentifier("database-row.last-opened")
+    private func statusLine(cloudWarning: String?) -> some View {
+        Group {
+            if let cloudWarning {
+                Label(cloudWarning, systemImage: "exclamationmark.icloud")
+                    .foregroundStyle(Theme.warning)
+            } else if let lastSyncedAt = reference.cloudSyncMetadata?.lastSyncedAt {
+                Label {
+                    Text("Last synced \(lastSyncedAt, format: .relative(presentation: .named))")
+                } icon: {
+                    Image(systemName: "icloud")
                 }
-                if let lastSyncedAt {
-                    Label {
-                        Text("Last synced \(lastSyncedAt, format: .relative(presentation: .named))")
-                    } icon: {
-                        Image(systemName: "icloud")
-                    }
-                }
-                if let keyFileFilename = reference.keyFileFilename {
-                    Label(keyFileFilename, systemImage: "key")
-                }
-            }
-            .lineLimit(1)
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: Theme.Spacing.textLine) { line }
-                    .font(Theme.Font.footnote)
+                .foregroundStyle(Theme.labelSecondary)
+            } else if let lastOpenedDescription {
+                Label(lastOpenedDescription, systemImage: "clock")
                     .foregroundStyle(Theme.labelSecondary)
-            } else {
-                HStack(spacing: Theme.Spacing.badgeGap) { line }
-                    .font(Theme.Font.footnote)
-                    .foregroundStyle(Theme.labelSecondary)
+                    .accessibilityIdentifier("database-row.last-opened")
             }
         }
+        .font(Theme.Font.footnote)
+        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+    }
+
+    private func cloudWarning(in notices: [DatabaseRowStatusSummary.Notice]) -> String? {
+        for case .cloudWarning(let text) in notices {
+            return text
+        }
+        return nil
     }
 
     @ViewBuilder

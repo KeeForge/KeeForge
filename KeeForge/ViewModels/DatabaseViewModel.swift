@@ -812,6 +812,22 @@ final class DatabaseViewModel {
         )
     }
 
+    /// Where an unlock in progress is, for the opening screen's steps. A cloud
+    /// database syncs first; a hardware key prompt belongs to decrypting.
+    enum OpeningStep: Equatable {
+        case syncing
+        case decrypting
+    }
+
+    var openingStep: OpeningStep {
+        guard databaseReference.isCloudBacked,
+              isAwaitingHardwareKey == false,
+              unlockStatusMessage != Self.decryptingStatusMessage else {
+            return .decrypting
+        }
+        return .syncing
+    }
+
     var databaseDisplayName: String {
         databaseReference.displayName
     }

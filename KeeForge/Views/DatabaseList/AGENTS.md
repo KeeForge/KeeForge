@@ -15,7 +15,8 @@
 
 ### Database list
 
-- iPhone and iPad draw rows with `DatabaseListRow`, the macOS sidebar with `DatabaseRowView`. The badges and notices a row shows, in words, come from the pure `DatabaseRowStatusSummary`; keep identifiers on the same elements in both rows.
+- Outside Edit mode, iPhone and iPad draw an overview: the spotlight card (`DatabaseListViewModel.spotlightDatabase`: Quick Launch, else the one opened last, else the first; with usage stats hidden it never picks by last opened) above a grid of tiles for the rest. Edit mode and macOS draw plain rows, `DatabaseListRow` on iOS and `DatabaseRowView` on macOS, so reordering and swipe Remove work only on rows. The overview is a `ScrollView`, not a `List`: a list cell holding several tiles gives them one shared context menu.
+- The card, tiles, and iOS rows say one line about a database, from the pure `DatabaseStatusLine`; the badges and notices behind it come from `DatabaseRowStatusSummary`, which the macOS row uses directly. Keep identifiers on the same elements across all of them.
 - On iOS rows move only in Edit mode (`moveDisabled` plus the shared `EditMode` binding). Otherwise the reorder gesture competes with the long-press context menu and XCTest waits on animations. macOS reorders by drag with no Edit button.
 - `isSidebarColumn` is passed in by the host, not read from `horizontalSizeClass`, which a sidebar column reports as compact. It picks `.sidebar` over `.insetGrouped`; the grouped card renders darker than the column on iPadOS and opaque over the material on macOS.
 - On macOS the list has no `NavigationStack` of its own; one would paint over the sidebar material.
@@ -39,7 +40,7 @@
 ## Tests
 
 - UI: `DatabaseListUITests`, `DatabaseCreationCompactUITests` / `DatabaseCreationRegularWidthUITests`, `MasterKeyChangeUITests`, `EncryptionSettingsUITests`, `SaveConflictMergeUITests`.
-- Unit: the four view models' `<Type>Tests`, `DatabaseSettingsSummaryTests`, `DatabaseRowStatusSummaryTests`. `PasswordImportViewModelTests` is in `PasswordImportTests.swift`.
+- Unit: the four view models' `<Type>Tests`, `DatabaseSettingsSummaryTests`, `DatabaseRowStatusSummaryTests`, `DatabaseOverviewTests` (spotlight choice, status line, opening steps). `PasswordImportViewModelTests` is in `PasswordImportTests.swift`.
 
 ## See also
 

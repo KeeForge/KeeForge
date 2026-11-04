@@ -19,6 +19,8 @@
 
 - iPhone and iPad draw the design's unlock page: the database centred under its padlock, the password field, Key File and Hardware Key in one card, then Unlock, the biometric button, and Choose Different File. macOS keeps its form. Both layouts share the password input and the hardware-key menu, so a behaviour change goes in one place.
 
+- While a database opens, iPhone and iPad show `DatabaseOpeningView` with the database's own source tile and its steps (sync for a cloud database, decrypt, open), driven by `DatabaseViewModel.openingStep`. It only reports progress; it never changes how the database opens.
+
 ### Failure screen and pickers
 
 - iPhone and iPad draw the failure as the design's error page, macOS keeps its card; both offer the same actions under the same identifiers.
@@ -34,7 +36,7 @@
 
 ## Tests
 
-- `MacUnlockPasswordFieldTests` (focus and field-editor routing), `UnlockKeyFileSelectionTests`, `HardwareKeyUnlockTests`.
+- `MacUnlockPasswordFieldTests` (focus and field-editor routing), `UnlockKeyFileSelectionTests`, `HardwareKeyUnlockTests`, `DatabaseOverviewTests` (opening steps).
 - UI: `UnlockFlowUITests`, `KeyFileUnlockUITests`, `LockUnlockUITests`.
 
 ## See also

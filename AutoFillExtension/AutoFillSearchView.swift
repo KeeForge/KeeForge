@@ -270,53 +270,128 @@ struct AutoFillSearchView: View {
         }
     }
 
-    /// The database list's empty state: one prominent action, the other bordered,
-    /// and the shared-copy note under them in small type.
+    /// The site the request came from, while its search is still the one
+    /// KeeForge filled in; a search the user typed has no site to name.
+    private var requestedSite: String? {
+        guard didEditSearch == false, searchText == initialSearchText else { return nil }
+        let site = initialSearchText.isEmpty ? urlAddition?.host : initialSearchText
+        return site?.isEmpty == false ? site : nil
+    }
+
+    /// Names the site when there is one, offers creating a login for it and
+    /// listing everything as one card, and keeps the shared-copy note short.
     private var designedNoCredentialsFoundView: some View {
-        ContentUnavailableView {
-            noCredentialsFoundLabel
-        } description: {
-            Text("No credentials match this search.")
-        } actions: {
-            VStack(spacing: Theme.Spacing.tileGap) {
-                if canShowAllEntries {
-                    Button(action: showAllEntries) {
-                        Label("Show All Credentials", systemImage: "list.bullet")
+        ScrollView {
+            VStack(spacing: Theme.Spacing.cardGap) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(.title, weight: .semibold))
+                    .foregroundStyle(.tint)
+                    .frame(width: 76, height: 76)
+                    .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                    .accessibilityHidden(true)
+
+                if let requestedSite {
+                    Text("Nothing for this site yet")
+                        .font(Theme.Font.entryTitle)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("autofill.no-credentials-found")
+                    HStack(spacing: 6) {
+                        Image(systemName: "globe")
+                            .accessibilityHidden(true)
+                        Text(requestedSite)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .accessibilityIdentifier("autofill.show-all-entries.empty-state")
+                    .font(Theme.Font.subhead)
+                    .padding(.horizontal, Theme.Spacing.iconText)
+                    .padding(.vertical, 6)
+                    .background(Theme.fill, in: Capsule())
+                } else {
+                    Text("No Credentials Found")
+                        .font(Theme.Font.entryTitle)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("autofill.no-credentials-found")
+                    Text("No credentials match this search.")
+                        .font(Theme.Font.subhead)
+                        .foregroundStyle(Theme.labelSecondary)
+                        .multilineTextAlignment(.center)
                 }
-                if let onCreateEntry {
-                    if canShowAllEntries {
-                        createCredentialButton(onCreateEntry)
-                            .buttonStyle(.bordered)
-                    } else {
-                        createCredentialButton(onCreateEntry)
-                            .buttonStyle(.borderedProminent)
+
+                if onCreateEntry != nil || canShowAllEntries {
+                    VStack(spacing: 0) {
+                        if let onCreateEntry {
+                            emptyStateAction(
+                                requestedSite == nil ? String(localized: "Create New Credential") : String(localized: "Create Login for This Site"),
+                                systemImage: "plus",
+                                tint: Theme.accent,
+                                identifier: "autofill.create-entry.empty-state",
+                                action: onCreateEntry
+                            )
+                        }
+                        if onCreateEntry != nil, canShowAllEntries {
+                            Divider().padding(.leading, 60)
+                        }
+                        if canShowAllEntries {
+                            emptyStateAction(
+                                String(localized: "Show All Credentials"),
+                                systemImage: "list.bullet",
+                                tint: Theme.labelSecondary,
+                                identifier: "autofill.show-all-entries.empty-state",
+                                action: showAllEntries
+                            )
+                        }
                     }
+                    .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                    .padding(.top, Theme.Spacing.tileGap)
                 }
+
                 if let sharedCopyDate {
                     Label {
-                        sharedCopyNotice(sharedCopyDate)
+                        Text("Searched the copy from \(sharedCopyDate.formatted(date: .abbreviated, time: .shortened)). Unlock this database in KeeForge to refresh it.")
+                            .accessibilityIdentifier("autofill.shared-copy-notice")
                     } icon: {
                         Image(systemName: "info.circle")
                     }
                     .font(Theme.Font.footnote)
                     .foregroundStyle(Theme.labelSecondary)
-                    .multilineTextAlignment(.leading)
-                    .padding(.top, Theme.Spacing.tileGap)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Theme.Spacing.iconText)
                 }
             }
+            .padding(Theme.Spacing.side)
+            .padding(.top, 40)
+            .frame(maxWidth: 520)
+            .frame(maxWidth: .infinity)
         }
+        .scrollIndicators(.hidden)
     }
 
-    private func createCredentialButton(_ action: @escaping () -> Void) -> some View {
+    /// A row of the empty state's action card: a tinted square, the title, a chevron.
+    private func emptyStateAction(
+        _ title: String,
+        systemImage: String,
+        tint: Color,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
-            Label("Create New Credential", systemImage: "plus")
+            HStack(spacing: Theme.Spacing.iconText) {
+                Image(systemName: systemImage)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.tileGlyph)
+                    .frame(width: 32, height: 32)
+                    .background(tint, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                Text(title)
+                    .foregroundStyle(Color.primary)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, Theme.Spacing.side)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
         }
-        .controlSize(.large)
-        .accessibilityIdentifier("autofill.create-entry.empty-state")
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
     }
 
     private var noCredentialsFoundLabel: some View {

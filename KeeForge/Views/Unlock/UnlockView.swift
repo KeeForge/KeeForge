@@ -1168,11 +1168,118 @@ extension View {
 
 struct DatabaseOpeningView: View {
     let databaseName: String
+    var filename: String? = nil
     let statusMessage: String
     var progress: Double? = nil
     var onCancel: (() -> Void)? = nil
+    var step: DatabaseViewModel.OpeningStep = .decrypting
+    var provider: CloudProviderKind? = nil
+    var isCloudBacked = false
+
+    @ScaledMetric(relativeTo: .largeTitle) private var iconSize = Theme.Size.unlockIcon
 
     var body: some View {
+        if PlatformDesign.followsIOSDesign {
+            designedBody
+        } else {
+            macBody
+        }
+    }
+
+    /// Laid out like the unlock page's header, with the database's tile from
+    /// the list, so neither hand-over moves it.
+    private var designedBody: some View {
+        ScrollView {
+            VStack(spacing: 22) {
+                VStack(spacing: Theme.Spacing.textLine) {
+                    #if os(iOS)
+                    DatabaseSourceTile(
+                        name: databaseName,
+                        provider: provider,
+                        isCloudBacked: isCloudBacked,
+                        size: iconSize
+                    )
+                    .padding(.bottom, Theme.Spacing.cardGap)
+                    #endif
+
+                    Text(databaseName)
+                        .font(Theme.Font.unlockTitle)
+                        .multilineTextAlignment(.center)
+
+                    if let sourceLine {
+                        Text(sourceLine)
+                            .font(Theme.Font.subhead)
+                            .foregroundStyle(Theme.labelSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text("Opening \(databaseName)"))
+
+                VStack(spacing: 0) {
+                    ForEach(Array(steps.enumerated()), id: \.offset) { index, item in
+                        if index > 0 {
+                            Divider().padding(.leading, 44)
+                        }
+                        OpeningStepRow(title: item.title, state: item.state, detail: item.detail)
+                    }
+                }
+                .padding(.horizontal, Theme.Spacing.side)
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+
+                if let onCancel {
+                    // Only a hardware key prompt can be cancelled; it says what to do.
+                    Text(statusMessage)
+                        .font(Theme.Font.subhead)
+                        .foregroundStyle(Theme.labelSecondary)
+                        .multilineTextAlignment(.center)
+
+                    Button(action: onCancel) {
+                        Text("Cancel")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
+                    .accessibilityIdentifier("unlock.hardware-key.cancel")
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 24)
+            .padding(.bottom, 20)
+            // The unlock page's content width, so both pages line up.
+            .frame(maxWidth: 520)
+            .frame(maxWidth: .infinity)
+        }
+        .scrollIndicators(.hidden)
+        .background(UnlockViewBackground())
+    }
+
+    private var sourceLine: String? {
+        let line = SettingsSummaryText.joined([
+            filename == databaseName ? nil : filename,
+            provider?.displayName,
+        ])
+        return line.isEmpty ? nil : line
+    }
+
+    private var steps: [(title: String, state: OpeningStepRow.State, detail: String?)] {
+        var steps: [(title: String, state: OpeningStepRow.State, detail: String?)] = []
+        if isCloudBacked {
+            let providerName = provider?.displayName ?? String(localized: "cloud")
+            steps.append((
+                String(localized: "Sync with \(providerName)"),
+                step == .syncing ? .current : .done,
+                step == .syncing ? progress.map { $0.formatted(.percent.precision(.fractionLength(0))) } : nil
+            ))
+        }
+        steps.append((String(localized: "Decrypt Database"), step == .decrypting ? .current : .upcoming, nil))
+        steps.append((String(localized: "Open Database"), .upcoming, nil))
+        return steps
+    }
+
+    private var macBody: some View {
         VStack(spacing: 18) {
             Spacer()
 
@@ -1215,6 +1322,71 @@ struct DatabaseOpeningView: View {
         }
         .frame(maxWidth: .infinity)
         .background(UnlockViewBackground())
+    }
+}
+
+extension DatabaseOpeningView {
+    init(viewModel: DatabaseViewModel, onCancel: (() -> Void)? = nil) {
+        self.init(
+            databaseName: viewModel.databaseDisplayName,
+            filename: viewModel.databaseFilename,
+            statusMessage: viewModel.unlockStatusMessage,
+            progress: viewModel.cloudSyncProgress,
+            onCancel: onCancel,
+            step: viewModel.openingStep,
+            provider: viewModel.databaseReference.cloudProviderKind,
+            isCloudBacked: viewModel.databaseReference.isCloudBacked
+        )
+    }
+}
+
+/// One step of the opening screen: done, in progress, or still to come.
+private struct OpeningStepRow: View {
+    enum State {
+        case done
+        case current
+        case upcoming
+    }
+
+    let title: String
+    let state: State
+    let detail: String?
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.iconText) {
+            indicator
+                .frame(width: 28, height: 28)
+            Text(title)
+                .font(.body)
+                .foregroundStyle(state == .upcoming ? Theme.labelSecondary : Color.primary)
+            Spacer(minLength: 0)
+            if let detail {
+                Text(detail)
+                    .font(Theme.Font.subhead.monospacedDigit())
+                    .foregroundStyle(.tint)
+            }
+        }
+        .padding(.vertical, 14)
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var indicator: some View {
+        switch state {
+        case .done:
+            Image(systemName: "checkmark")
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(Theme.tileGlyph)
+                .frame(width: 28, height: 28)
+                .background(Theme.State.success, in: Circle())
+                .accessibilityLabel(Text("Done"))
+        case .current:
+            ProgressView()
+                .controlSize(.small)
+        case .upcoming:
+            Circle()
+                .strokeBorder(Theme.labelSecondary.opacity(0.4), lineWidth: 2)
+        }
     }
 }
 
