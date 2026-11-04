@@ -25,7 +25,7 @@
 - On iPhone and iPad, the top of the Groups view no longer repeats "Groups" as a section header under its title (#264). Inside a group, the Groups and Entries headers still separate subgroups from entries.
 - On Mac, the privacy cover shown over KeeForge's windows while another app is active now follows the windows' rounded corners instead of sticking out past them (#263).
 
-## v1.20.0 (2026-10-25)
+## v1.20.0 (2026-11-02)
 
 ### New Features
 
