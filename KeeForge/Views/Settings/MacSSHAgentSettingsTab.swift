@@ -15,9 +15,15 @@ struct MacSSHAgentSettingsTab: View {
                 Toggle("Enable SSH Agent", isOn: $controller.isEnabled)
                     .accessibilityIdentifier("settings.ssh-agent.toggle")
             } footer: {
-                if controller.isUnavailable {
+                switch controller.unavailability {
+                case .socketInUse:
+                    Text("The SSH agent could not start because another app is already using its socket.")
+                        .foregroundStyle(.red)
+                case .failed:
                     Text("The SSH agent could not start.")
                         .foregroundStyle(.red)
+                case nil:
+                    EmptyView()
                 }
                 Text("SSH clients can sign in with the keys you choose below while their database is unlocked in KeeForge. Locking or closing the database makes its keys unavailable right away.")
             }

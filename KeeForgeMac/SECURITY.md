@@ -268,9 +268,10 @@ without a complete request, so clients that connect and then stall, stop inside 
 message, or never read their answer cannot keep new ones out. No connection has a
 time limit of its own: below 64, an idle one stays open. It needs no extra
 entitlement and adds no network access. Turning
-the agent off or quitting removes the socket; a file left by a crash is replaced on
-the next start, and anything at that path that is not a socket is left alone and
-reported.
+the agent off or quitting removes the socket, unless another agent has replaced
+it since; a file left by a crash is replaced on the next start. A socket another
+agent listens on, such as a second copy of the app, and anything at that path that
+is not a socket are left alone and reported.
 
 The agent writes no keys anywhere. Which entries it serves is a per-database list of entry
 UUIDs in the app's own defaults, chosen in Settings ▸ SSH Agent. Every request

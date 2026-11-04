@@ -327,6 +327,7 @@ enum DatabaseListStore {
             if let legacyFilename = removedReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
             }
+            QuickUnlockKeychain.removeMasterKeyEntry(for: removedReference.id)
 
             try? FileManager.default.removeItem(at: cacheLocation(for: removedReference))
             try? FileManager.default.removeItem(at: databaseBackupDirectoryURL(for: removedReference))

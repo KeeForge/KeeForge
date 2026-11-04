@@ -38,7 +38,14 @@ struct VerificationCodeRow: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
 
-                        VerificationCodeText(totpVM: totpVM, font: .title.bold())
+                        Text(totpVM.groupedCode)
+                            .font(.title.bold().monospacedDigit())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .contentTransition(.numericText())
+                            // Digit by digit; the grouped text would be read
+                            // as two numbers.
+                            .accessibilityLabel(Text(verbatim: totpVM.code.map(String.init).joined(separator: " ")))
 
                         if detail.isEmpty == false {
                             Text(detail)
@@ -51,7 +58,22 @@ struct VerificationCodeRow: View {
 
                     Spacer(minLength: 8)
 
-                    VerificationCodeCountdown(totpVM: totpVM, ringSize: 22)
+                    HStack(spacing: 6) {
+                        CountdownRing(
+                            progress: totpVM.progress,
+                            seconds: totpVM.secondsRemaining,
+                            showsSeconds: false
+                        )
+                        .frame(width: 22, height: 22)
+                        .accessibilityHidden(true)
+
+                        Text(
+                            Duration.seconds(totpVM.secondsRemaining)
+                                .formatted(.units(allowed: [.seconds], width: .narrow))
+                        )
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -64,110 +86,5 @@ struct VerificationCodeRow: View {
         }
         .onAppear { totpVM.start() }
         .onDisappear { totpVM.stop() }
-    }
-}
-
-/// An entry row in Groups, All Entries, search, and tags with the entry's live
-/// code, shown when the Display setting is on. Same parts and timer lifecycle
-/// as `VerificationCodeRow`, laid out as the ordinary entry row.
-///
-/// The copy button sits beside the row's own content for the same reason as
-/// there. `onOpen` nil leaves the content plain, for the Mac lists, whose rows
-/// handle taps themselves.
-struct LiveCodeEntryRow: View {
-    let entry: KPEntry
-    let username: String
-    var customIconData: Data?
-    var folderPath: String?
-    var openIdentifier = "entry.navlink"
-    var onOpen: (() -> Void)?
-    @State private var totpVM: TOTPViewModel
-
-    init(
-        entry: KPEntry,
-        username: String,
-        customIconData: Data?,
-        folderPath: String?,
-        config: TOTPConfig,
-        sessionKey: SymmetricKey,
-        openIdentifier: String = "entry.navlink",
-        onOpen: (() -> Void)? = nil
-    ) {
-        self.entry = entry
-        self.username = username
-        self.customIconData = customIconData
-        self.folderPath = folderPath
-        self.openIdentifier = openIdentifier
-        self.onOpen = onOpen
-        self._totpVM = State(initialValue: TOTPViewModel(config: config, sessionKey: sessionKey))
-    }
-
-    var body: some View {
-        HStack(spacing: 4) {
-            if let onOpen {
-                Button(action: onOpen) { row }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier(openIdentifier)
-            } else {
-                row
-            }
-
-            CopyButton(text: totpVM.code, accessibilityID: "entry-row.copy-code")
-                .accessibilityLabel("Copy Verification Code")
-        }
-        .onAppear { totpVM.start() }
-        .onDisappear { totpVM.stop() }
-    }
-
-    private var row: some View {
-        EntryRow(
-            entry: entry,
-            username: username,
-            customIconData: customIconData,
-            folderPath: folderPath,
-            verificationCode: totpVM
-        )
-    }
-}
-
-/// The live code, grouped for reading.
-struct VerificationCodeText: View {
-    let totpVM: TOTPViewModel
-    let font: Font
-
-    var body: some View {
-        Text(totpVM.groupedCode)
-            .font(font.monospacedDigit())
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .contentTransition(.numericText())
-            // Digit by digit; the grouped text would be read as two numbers.
-            .accessibilityLabel(Text(verbatim: totpVM.code.map(String.init).joined(separator: " ")))
-    }
-}
-
-/// The ring and the seconds left beside it.
-struct VerificationCodeCountdown: View {
-    let totpVM: TOTPViewModel
-    let ringSize: CGFloat
-
-    var body: some View {
-        HStack(spacing: 6) {
-            CountdownRing(
-                progress: totpVM.progress,
-                seconds: totpVM.secondsRemaining,
-                showsSeconds: false
-            )
-            .frame(width: ringSize, height: ringSize)
-            .accessibilityHidden(true)
-
-            Text(
-                Duration.seconds(totpVM.secondsRemaining)
-                    .formatted(.units(allowed: [.seconds], width: .narrow))
-            )
-            .font(.subheadline.monospacedDigit())
-            .foregroundStyle(.secondary)
-            .fixedSize()
-        }
     }
 }

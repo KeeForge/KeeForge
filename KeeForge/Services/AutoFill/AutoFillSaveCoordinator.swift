@@ -104,16 +104,19 @@ enum AutoFillSaveCoordinator {
         environment: Environment = .live
     ) -> EntryDraftPayload {
         let isApp = CredentialMatcher.isAppIdentifier(serviceIdentifier)
-        let title = isApp
+        let suppliedTitle = isApp
             ? appDisplayName(for: serviceIdentifier)
             : CredentialMatcher.searchTerm(for: serviceIdentifier) ?? serviceIdentifier.identifier
+        // A fill resolves `{REF:…}` in the title when the username is empty,
+        // and the requesting app or website chose this value.
+        let title = FieldReferenceResolver.containsReference(suppliedTitle) ? "" : suppliedTitle
         return EntryDraftPayload(
             title: title,
             username: username ?? "",
             password: password?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
                 ? password ?? ""
                 : environment.generatePassword(),
-            url: isApp ? "" : serviceIdentifier.identifier,
+            url: CredentialMatcher.website(for: serviceIdentifier)?.url ?? "",
             notes: ""
         )
     }
