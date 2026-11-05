@@ -48,6 +48,7 @@ extension Image {
 extension NSColor {
     static var systemBackground: NSColor { .windowBackgroundColor }
     static var secondarySystemBackground: NSColor { .underPageBackgroundColor }
+    static var systemGroupedBackground: NSColor { .windowBackgroundColor }
     static var secondarySystemGroupedBackground: NSColor { .controlBackgroundColor }
     static var separator: NSColor { .separatorColor }
     static var placeholderText: NSColor { .placeholderTextColor }
@@ -333,6 +334,20 @@ extension Data.WritingOptions {
         [.atomic, .completeFileProtection]
         #else
         [.atomic]
+        #endif
+    }
+}
+
+// MARK: - Design
+
+/// iPhone and iPad follow the KeeForge iOS design; macOS keeps its own
+/// layout in the views the two share.
+enum PlatformDesign {
+    static var followsIOSDesign: Bool {
+        #if os(iOS)
+        true
+        #else
+        false
         #endif
     }
 }

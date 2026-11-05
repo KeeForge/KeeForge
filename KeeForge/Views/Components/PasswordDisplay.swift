@@ -10,17 +10,21 @@ struct PasswordDisplayRow<Actions: View>: View {
     let revealedText: String?
     private let passwordAccessibilityIdentifier: String?
     private let maximumEntropyBits: Double
+    /// The generator's suggestion: the design's larger password style on iOS.
+    private let isProminent: Bool
     private let actions: Actions
 
     init(
         revealedText: String?,
         passwordAccessibilityIdentifier: String? = nil,
         maximumEntropyBits: Double = .infinity,
+        isProminent: Bool = false,
         @ViewBuilder actions: () -> Actions
     ) {
         self.revealedText = revealedText
         self.passwordAccessibilityIdentifier = passwordAccessibilityIdentifier
         self.maximumEntropyBits = maximumEntropyBits
+        self.isProminent = isProminent
         self.actions = actions()
     }
 
@@ -38,10 +42,10 @@ struct PasswordDisplayRow<Actions: View>: View {
                     // CopyButton -> ClipboardService.copy is the only copy path.
                     Group {
                         if let passwordAccessibilityIdentifier {
-                            PasswordDisplayText(revealedText)
+                            PasswordDisplayText(revealedText, isProminent: isProminent)
                                 .accessibilityIdentifier(passwordAccessibilityIdentifier)
                         } else {
-                            PasswordDisplayText(revealedText)
+                            PasswordDisplayText(revealedText, isProminent: isProminent)
                         }
                     }
                     .lineLimit(nil)
@@ -64,14 +68,16 @@ struct PasswordDisplayRow<Actions: View>: View {
 
 struct PasswordDisplayText: View {
     let password: String
+    var isProminent = false
 
-    init(_ password: String) {
+    init(_ password: String, isProminent: Bool = false) {
         self.password = password
+        self.isProminent = isProminent
     }
 
     var body: some View {
         Text(styledPassword)
-            .font(.body.monospaced())
+            .font(isProminent && PlatformDesign.followsIOSDesign ? Theme.Font.password : .body.monospaced())
             .accessibilityLabel(Text(verbatim: password))
     }
 
@@ -91,9 +97,9 @@ struct PasswordDisplayText: View {
         if character.isLetter {
             return .primary
         } else if character.isNumber {
-            return .blue
+            return PlatformDesign.followsIOSDesign ? Theme.digit : .blue
         } else {
-            return .orange
+            return PlatformDesign.followsIOSDesign ? Theme.symbol : .orange
         }
     }
 }
@@ -119,33 +125,96 @@ struct PasswordStrengthIndicator: View {
 
     var body: some View {
         if let estimate {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 3) {
-                    ForEach(0..<PasswordVisualStyle.segmentCount, id: \.self) { index in
-                        Capsule()
-                            .fill(index < estimate.level.filledSegments ? color(for: estimate.level) : Color.secondary.opacity(0.2))
-                            .frame(height: 4)
-                    }
-                }
-                .accessibilityHidden(true)
-
-                Text(estimate.summary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if PlatformDesign.followsIOSDesign {
+                StrengthRow(estimate: estimate, color: color(for: estimate.level))
+            } else {
+                legacyIndicator(estimate)
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Password strength: \(estimate.summary)")
         }
+    }
+
+    private func legacyIndicator(_ estimate: PasswordStrengthEstimate) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 3) {
+                ForEach(0..<PasswordVisualStyle.segmentCount, id: \.self) { index in
+                    Capsule()
+                        .fill(index < estimate.level.filledSegments ? color(for: estimate.level) : Color.secondary.opacity(0.2))
+                        .frame(height: 4)
+                }
+            }
+            .accessibilityHidden(true)
+
+            Text(estimate.summary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Password strength: \(estimate.summary)")
     }
 
     private func color(for level: PasswordStrengthEstimate.Level) -> Color {
         switch level {
         case .veryWeak:
-            .red
+            Theme.State.danger
         case .weak:
-            .orange
+            Theme.State.warning
         case .good, .veryGood:
-            .green
+            Theme.State.success
         }
+    }
+}
+
+/// Password strength as one row: "Strength", a four-segment meter, and the
+/// rating in its color, so the color never stands alone.
+private struct StrengthRow: View {
+    let estimate: PasswordStrengthEstimate
+    let color: Color
+
+    @ScaledMetric(relativeTo: .subheadline) private var segmentWidth = Theme.Size.meterSegment.width
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+                    label
+                    HStack(spacing: Theme.Spacing.tileGap) {
+                        meter
+                        rating
+                    }
+                }
+            } else {
+                HStack(spacing: Theme.Spacing.tileGap) {
+                    label
+                    Spacer(minLength: 0)
+                    meter
+                    rating
+                }
+            }
+        }
+        .font(Theme.Font.subhead)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Password strength: \(estimate.summary)")
+    }
+
+    private var label: some View {
+        Text("Strength")
+            .foregroundStyle(Theme.labelSecondary)
+    }
+
+    private var meter: some View {
+        HStack(spacing: Theme.Spacing.meterSegment) {
+            ForEach(0..<PasswordVisualStyle.segmentCount, id: \.self) { index in
+                Capsule()
+                    .fill(index < estimate.level.filledSegments ? color : Theme.fill)
+                    .frame(width: segmentWidth, height: Theme.Size.meterSegment.height)
+            }
+        }
+    }
+
+    private var rating: some View {
+        Text(estimate.summary)
+            .fontWeight(.semibold)
+            .foregroundStyle(color)
     }
 }

@@ -266,7 +266,7 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
     }
 
     private func tapBackButton() {
-        let toolbarIdentifiers = Set(["lock.button", "settings.button", "sort.menu", "Done"])
+        let toolbarIdentifiers = Set(["lock.button", "settings.button", "vault.more", "sort.menu", "Done"])
 
         let backButton = app.navigationBars.buttons.allElementsBoundByIndex.first { button in
             guard button.exists && button.isHittable else { return false }
@@ -312,11 +312,8 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
 
         saveScreenshot(.vaultGroups)
 
-        let settingsButton = app.buttons["settings.button"]
-        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "Database settings button should be visible after unlock")
-        settingsButton.tap()
+        openDatabaseDetailsFromVault()
         let closeButton = app.buttons["database-details.close"]
-        XCTAssertTrue(closeButton.waitForExistence(timeout: 5), "Database details screen should open")
         sleep(1)
         saveScreenshot(.databaseSettings)
 

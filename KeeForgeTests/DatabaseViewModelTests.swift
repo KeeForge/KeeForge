@@ -144,6 +144,35 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(BiometricAutoUnlockPolicy.allowsAutomaticUnlock)
     }
 
+    /// A cancelled auto-unlock prompt used to leave the opening screen up
+    /// for good (#268): the cycle's one attempt was spent, so nothing else
+    /// would replace it with the unlock form.
+    func testCancelledAutoUnlockPromptHandsTheScreenToTheUnlockForm() async throws {
+        let vm = try makeViewModel(biometricCompositeKeyOperation: { _, _ in throw LAError(.userCancel) })
+
+        XCTAssertTrue(vm.claimBiometricAutoUnlockAttempt())
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .cancelled)
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertTrue(vm.hasAttemptedBiometricAutoUnlockThisLockCycle)
+        XCTAssertFalse(vm.isAwaitingBiometricAutoUnlock)
+        XCTAssertFalse(vm.claimBiometricAutoUnlockAttempt(), "The cycle must not prompt a second time")
+    }
+
+    func testEachLockCycleGetsOneAutoUnlockAttempt() async throws {
+        let vm = try makeViewModel()
+
+        XCTAssertTrue(vm.claimBiometricAutoUnlockAttempt())
+        vm.releaseBiometricAutoUnlockAttempt()
+        XCTAssertFalse(vm.hasAttemptedBiometricAutoUnlockThisLockCycle, "An attempt that showed no prompt is given back")
+
+        XCTAssertTrue(vm.claimBiometricAutoUnlockAttempt())
+        vm.lock()
+        XCTAssertFalse(vm.hasAttemptedBiometricAutoUnlockThisLockCycle, "A new lock cycle starts without an attempt")
+        XCTAssertTrue(vm.claimBiometricAutoUnlockAttempt())
+    }
+
     func testUnlockWithCorrectPasswordTransitionsToUnlocked() async throws {
         let vm = try makeViewModel()
 
@@ -1482,6 +1511,9 @@ final class DatabaseViewModelTests: XCTestCase {
         )
         ReviewPromptService.defaults = reviewDefaults
         ReviewPromptService.minimumSuccessfulSaves = 1
+        // The unlock below may prompt from the shared AutoFill count that
+        // other tests leave behind; only the saves are under test here.
+        ReviewPromptService.minimumSuccessfulAutoFills = .max
         ReviewPromptService.currentVersion = "1.0"
         ReviewPromptService.isAppStoreBuild = true
         ReviewPromptService.isSuppressedForUITesting = false
@@ -1489,6 +1521,7 @@ final class DatabaseViewModelTests: XCTestCase {
         defer {
             ReviewPromptService.defaults = .standard
             ReviewPromptService.minimumSuccessfulSaves = 3
+            ReviewPromptService.minimumSuccessfulAutoFills = 5
             ReviewPromptService.currentVersion = original.version
             ReviewPromptService.isAppStoreBuild = original.isAppStoreBuild
             ReviewPromptService.isSuppressedForUITesting = original.suppressed
@@ -2710,54 +2743,30 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.verificationCodeEntries.map(\.title), ["Code"])
     }
 
-    func testLockAndReopenKeepTheViewPickedLast() async throws {
-        let key = DatabaseWorkspaceState.viewModeKey
-        let saved = UserDefaults.standard.object(forKey: key)
-        defer { UserDefaults.standard.set(saved, forKey: key) }
-        UserDefaults.standard.removeObject(forKey: key)
-
-        let vm = try makeViewModel()
-        XCTAssertEqual(vm.workspace.viewMode, .allEntries)
-
-        await vm.unlock(password: fixturePassword)
-        vm.workspace.viewMode = .verificationCodes
-        vm.lock()
-
-        XCTAssertEqual(vm.workspace.viewMode, .verificationCodes, "Locking returned to All Entries")
-        XCTAssertEqual(try makeViewModel().workspace.viewMode, .verificationCodes, "A relaunch returned to All Entries")
-    }
-
-    func testInitialViewModeHonorsTheOverrideOnlyUnderUITesting() throws {
-        let suiteName = "DatabaseViewModelTests.viewMode.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        defaults.set("tags", forKey: DatabaseWorkspaceState.viewModeKey)
-
-        XCTAssertEqual(DatabaseWorkspaceState.initialViewMode(defaults: defaults, arguments: [], environment: [:]), .tags)
-        XCTAssertEqual(
-            DatabaseWorkspaceState.initialViewMode(
-                defaults: defaults,
-                arguments: ["-ui-testing"],
-                environment: ["UI_TEST_VIEW_MODE": "groups"]
-            ),
-            .groups
+    func testCollectionCountsLeaveTheRecycleBinOutOfAllEntries() async throws {
+        let totpConfig = TOTPConfig(secret: EncryptedValue(sealedData: Data([0]), hasValue: true))
+        let recycleBin = KPGroup(
+            name: "Recycle Bin",
+            entries: [KPEntry(title: "Recycled Code", tags: ["Old"], totpConfig: totpConfig)],
+            groups: [KPGroup(name: "Recycled Group")]
         )
-        XCTAssertEqual(
-            DatabaseWorkspaceState.initialViewMode(
-                defaults: defaults,
-                arguments: [],
-                environment: ["UI_TEST_VIEW_MODE": "groups"]
-            ),
-            .tags,
-            "Outside UI testing the environment cannot change where a database opens"
+        let root = KPGroup(
+            name: "Root",
+            entries: [KPEntry(title: "Root Entry", tags: ["Home"])],
+            groups: [
+                KPGroup(name: "Work", entries: [
+                    KPEntry(title: "Code", tags: ["Work", "Home"], totpConfig: totpConfig),
+                    KPEntry(title: "Plain"),
+                ]),
+                recycleBin,
+            ],
+            recycleBinUUID: recycleBin.id
         )
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
         XCTAssertEqual(
-            DatabaseWorkspaceState.initialViewMode(
-                defaults: defaults,
-                arguments: ["-ui-testing"],
-                environment: ["UI_TEST_VIEW_MODE": "no-such-view"]
-            ),
-            .tags
+            vm.collectionCounts,
+            DatabaseCollectionCounts(allEntries: 3, verificationCodes: 1, tags: 2, recycleBin: 2)
         )
     }
 
@@ -3672,23 +3681,23 @@ final class DatabaseViewModelTests: XCTestCase {
                 groups: [KPGroup(id: binID, name: "Recycle Bin", entries: makeEntries())],
                 recycleBinUUID: binID
             ))
-            let modes: [DatabaseWorkspaceState.ViewMode] = [.groups, .allEntries, .verificationCodes, .recycleBin]
-            for mode in modes {
+            let collections: [DatabaseCollection?] = [nil, .allEntries, .verificationCodes, .recycleBin]
+            for collection in collections {
                 for usesSelection in [false, true] {
                     // Drops the reference cache the previous list may have built.
                     try await vm.reloadDiscardingDraft()
-                    vm.workspace.viewMode = mode
                     // In a window, so the list also builds the rows it shows.
                     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 375, height: 650))
                     window.rootViewController = UIHostingController(rootView: GroupListView(
                         groupID: try XCTUnwrap(vm.visibleRootGroupID),
+                        collection: collection,
                         viewModel: vm,
                         onSelectEntry: usesSelection ? { _ in } : nil
                     ))
                     window.isHidden = false
                     window.layoutIfNeeded()
                     XCTAssertEqual(try hasBuiltFieldReferenceCache(vm), rowCount == 3,
-                                   "List must build only the rows it shows, mode=\(mode.rawValue) selection=\(usesSelection) rows=\(rowCount)")
+                                   "List must build only the rows it shows, collection=\(collection?.rawValue ?? "root") selection=\(usesSelection) rows=\(rowCount)")
                     window.isHidden = true
                     window.rootViewController = nil
                 }

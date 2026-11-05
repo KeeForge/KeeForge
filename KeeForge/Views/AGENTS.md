@@ -39,6 +39,12 @@ All of these shims live in `../Extensions/PlatformCompat.swift`.
 - Entry rows render `DatabaseViewModel.entry(withID:)`, not the entry they were handed. `KPEntry` compares equal by ID, so a caller's array looks unchanged after an edit and the row would show the pre-edit entry.
 - On macOS, a `List(selection:)` row with a tap gesture sets the selection itself instead of relying on the list to still select under the gesture (it does on macOS 27.0; earlier releases are unverified). Details in `Entry/AGENTS.md`.
 
+### Design
+
+- iPhone and iPad follow the KeeForge iOS design; the Mac keeps its own look. Colors, spacing, radii, sizes and the Dynamic Type mapping come from `Components/Theme.swift` (colors in `Resources/Theme.xcassets`), never literals in a view.
+- A view macOS shares branches on `PlatformDesign.followsIOSDesign` (in `../Extensions/PlatformCompat.swift`), and state colors there come from `Theme.State`, which keeps the Mac's system colors.
+- Status is said in words; a color or dot only repeats it.
+
 ### Secrets on screen
 
 - Every reveal and authenticated copy goes through `EntrySecretAction` and the session's `secretAccess` gate. Controls invalidate it on disappearance and when their source value or session key changes.

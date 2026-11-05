@@ -6,24 +6,42 @@ struct SettingsSummaryRow: View {
     let title: LocalizedStringKey
     let systemImage: String
     var summary: String?
+    /// Adds a warning dot on iPhone and iPad. The summary has to say what
+    /// needs attention; the dot never stands alone.
+    var needsAttention = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .subheadline) private var dotSize = Theme.Size.statusDot
 
     var body: some View {
-        Label {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+        HStack {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
 
-                if let summary, summary.isEmpty == false {
-                    Text(summary)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(Self.summaryLineLimit(for: dynamicTypeSize))
+                    if let summary, summary.isEmpty == false {
+                        Text(summary)
+                            .font(.subheadline)
+                            .foregroundStyle(summaryStyle)
+                            .lineLimit(Self.summaryLineLimit(for: dynamicTypeSize))
+                    }
                 }
+            } icon: {
+                Image(systemName: systemImage)
             }
-        } icon: {
-            Image(systemName: systemImage)
+
+            if needsAttention, PlatformDesign.followsIOSDesign {
+                Spacer(minLength: Theme.Spacing.iconText)
+                Circle()
+                    .fill(Theme.warning)
+                    .frame(width: dotSize, height: dotSize)
+                    .accessibilityHidden(true)
+            }
         }
+    }
+
+    private var summaryStyle: AnyShapeStyle {
+        PlatformDesign.followsIOSDesign ? AnyShapeStyle(Theme.labelSecondary) : AnyShapeStyle(.secondary)
     }
 
     /// Two lines keep the rows even at standard sizes; at accessibility sizes

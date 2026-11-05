@@ -11,6 +11,9 @@ struct EntryListView: View {
     /// hosting it. Nil where this list is its own pushed screen (the tag
     /// browser), which keeps the host below.
     var onRequestDeletion: ((PendingDeletion) -> Void)? = nil
+    /// Search names its count above the results and how it searches below.
+    var header: String? = nil
+    var footer: String? = nil
     @State private var pendingDeletion: PendingDeletion?
     /// The entry whose Move-to-Group picker is presented, or `nil` when none is.
     @State private var pendingMove: PendingMove?
@@ -26,11 +29,24 @@ struct EntryListView: View {
             if entries.isEmpty {
                 ContentUnavailableView.search
             } else {
-                List(entries) { entry in
-                    // `KPEntry` equality is by ID, so after an edit that keeps
-                    // the same matches (adding a TOTP code) Observation treats
-                    // the caller's array as unchanged and `entries` is stale.
-                    entryRow(for: viewModel.entry(withID: entry.id) ?? entry)
+                List {
+                    Section {
+                        ForEach(entries) { entry in
+                            // `KPEntry` equality is by ID, so after an edit that
+                            // keeps the same matches (adding a TOTP code)
+                            // Observation treats the caller's array as unchanged
+                            // and `entries` is stale.
+                            entryRow(for: viewModel.entry(withID: entry.id) ?? entry)
+                        }
+                    } header: {
+                        if let header {
+                            Text(header)
+                        }
+                    } footer: {
+                        if let footer {
+                            Text(footer)
+                        }
+                    }
                 }
                 .id(viewModel.contentRevision)
             }
@@ -123,30 +139,22 @@ struct EntryListView: View {
     private func browsingEntryRow(for entry: KPEntry) -> some View {
         // A concrete row container lets List defer offscreen matches.
         HStack {
-            if let onSelectEntry {
-                Button {
+            // A button rather than a link: entry rows carry no chevron.
+            Button {
+                if let onSelectEntry {
                     onSelectEntry(entry)
-                } label: {
-                    EntryRow(
-                        entry: entry,
-                        username: viewModel.resolvingFieldReferences(entry.username),
-                        customIconData: viewModel.customIconData(for: entry),
-                        folderPath: viewModel.folderPath(forEntryID: entry.id)
-                    )
+                } else {
+                    viewModel.workspace.navigationPath.append(.entry(entry.id))
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("search.entry.navlink")
-            } else {
-                NavigationLink(value: DatabaseRoute.entry(entry.id)) {
-                    EntryRow(
-                        entry: entry,
-                        username: viewModel.resolvingFieldReferences(entry.username),
-                        customIconData: viewModel.customIconData(for: entry),
-                        folderPath: viewModel.folderPath(forEntryID: entry.id)
-                    )
-                }
-                .accessibilityIdentifier("search.entry.navlink")
+            } label: {
+                EntryRow(
+                    entry: entry,
+                    username: viewModel.resolvingFieldReferences(entry.username),
+                    customIconData: viewModel.customIconData(for: entry),
+                    folderPath: viewModel.folderPath(forEntryID: entry.id)
+                )
             }
+            .accessibilityIdentifier("search.entry.navlink")
         }
         .macHoverHighlight()
         .contextMenu {
@@ -178,7 +186,7 @@ struct EntryListView: View {
                 Button(deletionTitle(for: entry), role: .destructive) {
                     requestDeletion(for: entry)
                 }
-                .tint(.red)
+                .tint(Theme.State.danger)
                 .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }

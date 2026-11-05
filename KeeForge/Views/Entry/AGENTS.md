@@ -14,7 +14,11 @@
 
 ## Invariants
 
-- `EntryDetailView` shows entry actions and any sync warning in its toolbar. Lock stays on the compact list or regular-width workspace toolbar, leaving room for the entry title; the list's `lock.button` remains the manual-lock path.
+- `EntryDetailView` shows entry actions and any sync warning in its toolbar. On iPhone it also offers Lock (`lock.button`) beside Edit; at regular width the sidebar's Lock sits beside it, so the detail adds none.
+
+- On iOS the detail puts its fields in one `EntryFieldsCard` of label/value rows (`isCardRow` on the field rows); macOS keeps a section per field. The history viewer shares the card.
+- Below the fields, iOS gathers Group, Tags, Created, Expires and History in one card; the Group row pushes the group only in the compact stack. A row whose content switches with state (the password reveal) keeps one top-level container: in a `List` a changed top-level view is a new row, and its `onDisappear`/`onAppear` would clear and reload the reveal without end.
+- Entry rows in `EntryListView` and the group list are buttons, not `NavigationLink`s, so they carry no chevron; they still push `DatabaseRoute.entry` in compact and select in the regular shells.
 
 ### Closing a deleted entry
 
@@ -53,6 +57,7 @@
 - Custom field reordering uses a native List sheet containing field names only, plus named move controls in the form. Field values never appear in reorder rows. The view model owns order, including dirty tracking and save payloads.
 
 - `EntryEditView` draws additional URL rows in Basics using `EntryEditViewModel.additionalURLs`, with a named remove action for VoiceOver. Field names are stored as `KP2A_URL_<n>` but are not shown to the user; `EntryDetailView` displays those URLs once, outside Custom Fields.
+- On iOS the editor splits Basics into the fields, the URLs and the tags, and short fields are label/value rows (`basicFieldRow(_:inline:)`); macOS keeps one Basics section.
 - `EntryEditView.body` is at the limit of what the CI Xcode type-checks. Put a new presentation in a `ViewModifier` (as `EntryAttachmentImporter` does), not inline, or the build fails only on CI.
 - Every site that builds an `EntryEditViewModel` passes `knownTags` and the location's inherited tags. Both default to empty, so a missed site compiles and silently loses tag suggestions.
 - Save and Save and Lock stay disabled while attachment files are being read, and while `canSave` is false; the lock prompt must never write an invalid form.

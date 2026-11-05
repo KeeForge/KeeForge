@@ -109,7 +109,7 @@ struct AutoFillPasskeyCreatorView: View {
             if let inlineWarningMessage {
                 Section {
                     Text(inlineWarningMessage)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Theme.State.warning)
                         .accessibilityIdentifier("autofill-passkey-creator.database-changed-warning")
                 }
             }

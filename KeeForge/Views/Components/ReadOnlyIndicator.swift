@@ -23,9 +23,9 @@ struct ReadOnlyIndicator: View {
             isShowingExplanation = true
         } label: {
             Image(systemName: "eyeglasses")
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.State.warning)
         }
-        .tint(.orange)
+        .tint(Theme.State.warning)
         .macHelp(String(localized: "Read-only database"))
         .accessibilityLabel("Read-only database")
         .accessibilityIdentifier("database.read-only-indicator")
