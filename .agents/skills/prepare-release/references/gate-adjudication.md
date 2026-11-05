@@ -105,7 +105,7 @@ and result bundle in the candidate's `evidence/` directory (they are what the ad
 and run each Xcode command through:
 
 ```bash
-/Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- ...
+scripts/with-repo-lock.sh xcode -- ...
 ```
 
 ### iOS failures
@@ -119,7 +119,7 @@ unavailable exact pair cannot be called a reproduction.
 xcodegen generate
 CANDIDATE="$(ci_scripts/release_dir.sh {version}-b{repoBuild})"
 LOG="$CANDIDATE/evidence/repro-ios-{name}.log"
-/Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- \
+scripts/with-repo-lock.sh xcode -- \
   xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
     -destination 'platform=iOS Simulator,name={exact device},OS={exact version}' \
     -resultBundlePath "$CANDIDATE/evidence/repro-ios-{name}.xcresult" \
@@ -139,7 +139,7 @@ an iOS simulator, or a broad test run:
 xcodegen generate
 CANDIDATE="$(ci_scripts/release_dir.sh {version}-b{repoBuild})"
 LOG="$CANDIDATE/evidence/repro-mac-{name}.log"
-/Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- \
+scripts/with-repo-lock.sh xcode -- \
   xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
     -destination 'platform=macOS' \
     -resultBundlePath "$CANDIDATE/evidence/repro-mac-{name}.xcresult" \

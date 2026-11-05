@@ -199,7 +199,7 @@ testers or the direct build is called a release candidate.
    only directly under `scratch/release-session`.
 
    When driving this multi-step native UI sequence through Codex tools, keep a single supervised
-   `/Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- bash` session open from the backup
+   `scripts/with-repo-lock.sh xcode -- bash` session open from the backup
    through restoration. Allocate a PTY (`tty: true`) and send every command through that retained
    execution session. Exit or interrupt it only after
    restoration completes so the wrapper releases the lock. Do not use the detached `acquire` mode
@@ -273,7 +273,7 @@ in App Store Connect, independently for iOS and Mac.
    other Xcode work. Follow the [owner-readiness preflight](shared.md#candidate-owner-readiness) if `sign_update` requests Keychain
    authentication:
    ```bash
-   /Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- \
+   scripts/with-repo-lock.sh xcode -- \
      ci_scripts/build_mac_direct.sh --archive-export --rc-tag rc/{version}-b{repoBuild} \
      > "$CANDIDATE/evidence/direct-archive-export.log" 2>&1
    ci_scripts/build_mac_direct.sh --finalize --rc-tag rc/{version}-b{repoBuild} \

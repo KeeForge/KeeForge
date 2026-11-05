@@ -33,7 +33,7 @@ Both phases require a clean checkout exactly at `rc/{version}-b{repoBuild}` and 
 `build/releases/{version}/b{repoBuild}/direct` in the main checkout, including when the build runs
 from a linked release worktree.
 
-- `--archive-export` runs under `/Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode --`. It
+- `--archive-export` runs under `scripts/with-repo-lock.sh xcode --`. It
   regenerates from `project-direct.yml`, archives and exports, restores the App Store project and
   the exact `Package.resolved` state, then atomically publishes `export-ready.json`.
 - `--finalize` runs only after that ready checkpoint exists, and without the Xcode lock. It
