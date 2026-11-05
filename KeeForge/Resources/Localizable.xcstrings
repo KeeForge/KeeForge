@@ -14945,6 +14945,58 @@
         }
       }
     },
+    "Create passwords made of random words, and choose how many words and the separator between them. AutoFill uses the same settings." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erstelle Passwörter aus zufälligen Wörtern und wähle die Anzahl der Wörter und das Trennzeichen zwischen ihnen. AutoFill verwendet dieselben Einstellungen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crea contraseñas formadas por palabras aleatorias y elige cuántas palabras usar y el separador entre ellas. Autorrelleno usa los mismos ajustes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créez des mots de passe composés de mots aléatoires, et choisissez le nombre de mots et le séparateur entre eux. Le remplissage automatique utilise les mêmes réglages."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crea password formate da parole casuali e scegli quante parole usare e il separatore tra di esse. Il riempimento automatico usa le stesse impostazioni."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ランダムな単語でできたパスワードを作成し、単語数と単語間の区切り文字を選べます。自動入力でも同じ設定が使われます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создавайте пароли из случайных слов и выбирайте количество слов и разделитель между ними. Автозаполнение использует те же настройки."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建由随机单词组成的密码，并选择单词数量和单词之间的分隔符。自动填充使用相同的设置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建立由隨機單字組成的密碼，並選擇單字數量和單字之間的分隔符號。自動填寫使用相同的設定。"
+          }
+        }
+      }
+    },
     "Created" : {
       "localizations" : {
         "de" : {
@@ -21683,6 +21735,58 @@
         }
       }
     },
+    "Export Copy is now Share. Save a copy to Files, send it with AirDrop, or open it in another KeePass app." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus „Kopie exportieren“ wird „Teilen“. Sichere eine Kopie in „Dateien“, sende sie per AirDrop oder öffne sie in einer anderen KeePass-App."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar copia ahora es Compartir. Guarda una copia en Archivos, envíala con AirDrop o ábrela en otra app de KeePass."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporter une copie devient Partager. Enregistrez une copie dans Fichiers, envoyez-la avec AirDrop ou ouvrez-la dans une autre app KeePass."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esporta copia ora si chiama Condividi. Salva una copia in File, inviala con AirDrop o aprila in un’altra app KeePass."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「コピーを書き出す」は「共有」になりました。コピーを「ファイル」に保存したり、AirDrop で送信したり、ほかの KeePass App で開いたりできます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Экспортировать копию» теперь называется «Поделиться». Сохраните копию в «Файлы», отправьте её через AirDrop или откройте в другом приложении KeePass."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“导出副本”现在改为“共享”。可将副本存储到“文件”、通过隔空投送发送，或在其他 KeePass App 中打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「匯出副本」現在改為「分享」。可將副本儲存到「檔案」、透過 AirDrop 傳送，或在其他 KeePass App 中打開。"
+          }
+        }
+      }
+    },
     "Export Copy…" : {
       "localizations" : {
         "de" : {
@@ -23395,6 +23499,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "一般"
+          }
+        }
+      }
+    },
+    "Generate passphrases" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passphrasen erzeugen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Genera frases de contraseña"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Générez des phrases secrètes"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Genera passphrase"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスフレーズを生成"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создавайте парольные фразы"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生成密码短语"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "產生密碼片語"
           }
         }
       }
@@ -45211,6 +45367,58 @@
         }
       }
     },
+    "Share your database" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbank teilen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comparte tu base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partagez votre base de données"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Condividi il database"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースを共有"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Делитесь базой данных"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共享你的数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享你的資料庫"
+          }
+        }
+      }
+    },
     "Share…" : {
       "localizations" : {
         "de" : {
@@ -57417,6 +57625,58 @@
         }
       }
     },
+    "Turn on Settings → SSH Agent so `ssh`, `git`, and other tools can use the SSH keys in your unlocked database. Keys stop working as soon as the database locks, and none are written to disk." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktiviere Einstellungen → SSH-Agent, damit `ssh`, `git` und andere Tools die SSH-Schlüssel deiner entsperrten Datenbank verwenden können. Die Schlüssel funktionieren nicht mehr, sobald die Datenbank gesperrt wird, und keiner wird auf die Festplatte geschrieben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activa Ajustes → Agente SSH para que `ssh`, `git` y otras herramientas puedan usar las claves SSH de tu base de datos desbloqueada. Las claves dejan de funcionar en cuanto se bloquea la base de datos, y ninguna se escribe en el disco."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activez Réglages → Agent SSH pour que `ssh`, `git` et d’autres outils puissent utiliser les clés SSH de votre base de données déverrouillée. Les clés cessent de fonctionner dès que la base de données se verrouille, et aucune n’est écrite sur le disque."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attiva Impostazioni → Agente SSH perché `ssh`, `git` e altri strumenti possano usare le chiavi SSH del database sbloccato. Le chiavi smettono di funzionare appena il database si blocca e nessuna viene scritta su disco."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「設定」→「SSH エージェント」をオンにすると、`ssh`、`git` などのツールで、ロック解除したデータベースの SSH 鍵を使えます。データベースがロックされるとすぐに鍵は使えなくなり、ディスクに書き出されることはありません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включите Настройки → SSH-агент, чтобы `ssh`, `git` и другие инструменты могли использовать SSH-ключи из разблокированной базы данных. Ключи перестают работать, как только база данных блокируется, и ни один из них не записывается на диск."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开“设置”→“SSH 代理”，`ssh`、`git` 等工具即可使用已解锁数据库中的 SSH 密钥。数据库一锁定，密钥就立即失效，且不会写入磁盘。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟「設定」→「SSH 代理程式」，`ssh`、`git` 等工具即可使用已解鎖資料庫中的 SSH 金鑰。資料庫一鎖定，金鑰就會立即失效，且不會寫入磁碟。"
+          }
+        }
+      }
+    },
     "Turn On…" : {
       "localizations" : {
         "de" : {
@@ -58297,6 +58557,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解鎖失敗"
+          }
+        }
+      }
+    },
+    "Unlock faster with Face ID and Touch ID" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schneller entsperren mit Face ID und Touch ID"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquea más rápido con Face ID y Touch ID"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillez plus vite avec Face ID et Touch ID"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sblocca più velocemente con Face ID e Touch ID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Face ID と Touch ID ですばやくロック解除"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Быстрая разблокировка с Face ID и Touch ID"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Face ID 和 Touch ID 更快解锁"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Face ID 和 Touch ID 更快解鎖"
+          }
+        }
+      }
+    },
+    "Unlock faster with Touch ID" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schneller entsperren mit Touch ID"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquea más rápido con Touch ID"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillez plus vite avec Touch ID"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sblocca più velocemente con Touch ID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID ですばやくロック解除"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Быстрая разблокировка с Touch ID"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Touch ID 更快解锁"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Touch ID 更快解鎖"
           }
         }
       }
@@ -60537,6 +60901,58 @@
         }
       }
     },
+    "Use your SSH keys from KeeForge" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH-Schlüssel aus KeeForge verwenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa tus claves SSH desde KeeForge"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez vos clés SSH depuis KeeForge"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa le tue chiavi SSH da KeeForge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge の SSH 鍵を使用"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Используйте SSH-ключи из KeeForge"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 KeeForge 中的 SSH 密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 KeeForge 中的 SSH 金鑰"
+          }
+        }
+      }
+    },
     "Username" : {
       "localizations" : {
         "de" : {
@@ -61781,6 +62197,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 新功能"
+          }
+        }
+      }
+    },
+    "When a database hasn't changed since you last opened it, Face ID, Touch ID, and Apple Watch unlock it much faster, in the app and in AutoFill." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn sich eine Datenbank seit dem letzten Öffnen nicht geändert hat, entsperren Face ID, Touch ID und die Apple Watch sie viel schneller – in der App und in AutoFill."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si una base de datos no ha cambiado desde la última vez que la abriste, Face ID, Touch ID y el Apple Watch la desbloquean mucho más rápido, en la app y en Autorrelleno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lorsqu’une base de données n’a pas changé depuis sa dernière ouverture, Face ID, Touch ID et l’Apple Watch la déverrouillent bien plus vite, dans l’app comme dans le remplissage automatique."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se un database non è cambiato dall’ultima apertura, Face ID, Touch ID e Apple Watch lo sbloccano molto più velocemente, nell’app e nel riempimento automatico."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前回開いたときからデータベースが変更されていなければ、Face ID、Touch ID、Apple Watch でのロック解除がずっと速くなります。App でも自動入力でも同様です。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если база данных не изменилась с момента последнего открытия, Face ID, Touch ID и Apple Watch разблокируют её гораздо быстрее — в приложении и в автозаполнении."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果数据库自上次打开后没有更改，使用 Face ID、Touch ID 和 Apple Watch 解锁会快得多，在 App 和自动填充中均是如此。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果資料庫自上次打開後沒有變更，使用 Face ID、Touch ID 和 Apple Watch 解鎖會快得多，在 App 和自動填寫中皆是如此。"
+          }
+        }
+      }
+    },
+    "When a database hasn't changed since you last opened it, Touch ID and Apple Watch unlock it much faster, in the app and in AutoFill." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn sich eine Datenbank seit dem letzten Öffnen nicht geändert hat, entsperren Touch ID und die Apple Watch sie viel schneller – in der App und in AutoFill."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si una base de datos no ha cambiado desde la última vez que la abriste, Touch ID y el Apple Watch la desbloquean mucho más rápido, en la app y en Autorrelleno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lorsqu’une base de données n’a pas changé depuis sa dernière ouverture, Touch ID et l’Apple Watch la déverrouillent bien plus vite, dans l’app comme dans le remplissage automatique."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se un database non è cambiato dall’ultima apertura, Touch ID e Apple Watch lo sbloccano molto più velocemente, nell’app e nel riempimento automatico."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前回開いたときからデータベースが変更されていなければ、Touch ID と Apple Watch でのロック解除がずっと速くなります。App でも自動入力でも同様です。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если база данных не изменилась с момента последнего открытия, Touch ID и Apple Watch разблокируют её гораздо быстрее — в приложении и в автозаполнении."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果数据库自上次打开后没有更改，使用 Touch ID 和 Apple Watch 解锁会快得多，在 App 和自动填充中均是如此。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果資料庫自上次打開後沒有變更，使用 Touch ID 和 Apple Watch 解鎖會快得多，在 App 和自動填寫中皆是如此。"
           }
         }
       }
