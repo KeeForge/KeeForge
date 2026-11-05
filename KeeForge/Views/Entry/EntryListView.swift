@@ -123,25 +123,7 @@ struct EntryListView: View {
     private func browsingEntryRow(for entry: KPEntry) -> some View {
         // A concrete row container lets List defer offscreen matches.
         HStack {
-            if viewModel.showsVerificationCodeOnRow(for: entry, in: nil),
-               let config = entry.totpConfig,
-               let sessionKey = viewModel.sessionKey {
-                LiveCodeEntryRow(
-                    entry: entry,
-                    username: viewModel.resolvingFieldReferences(entry.username),
-                    customIconData: viewModel.customIconData(for: entry),
-                    folderPath: viewModel.folderPath(forEntryID: entry.id),
-                    config: config,
-                    sessionKey: sessionKey,
-                    openIdentifier: "search.entry.navlink"
-                ) {
-                    if let onSelectEntry {
-                        onSelectEntry(entry)
-                    } else {
-                        viewModel.workspace.navigationPath.append(.entry(entry.id))
-                    }
-                }
-            } else if let onSelectEntry {
+            if let onSelectEntry {
                 Button {
                     onSelectEntry(entry)
                 } label: {

@@ -55,7 +55,7 @@ struct SSHAgentKey {
         case p256(P256.Signing.PrivateKey)
         case p384(P384.Signing.PrivateKey)
         case p521(P521.Signing.PrivateKey)
-        case rsa(RSAComponents)
+        case rsa(SecKey)
     }
 
     private static let header = "-----BEGIN OPENSSH PRIVATE KEY-----"
@@ -137,10 +137,10 @@ struct SSHAgentKey {
             Self.writeECDSASignature(try key.signature(for: data).rawRepresentation, curve: "nistp384", to: &writer)
         case .p521(let key):
             Self.writeECDSASignature(try key.signature(for: data).rawRepresentation, curve: "nistp521", to: &writer)
-        case .rsa(let components):
+        case .rsa(let key):
             let (name, algorithm) = try Self.rsaSignatureAlgorithm(flags: flags)
             writer.writeString(name)
-            writer.writeString(try components.signature(for: data, algorithm: algorithm))
+            writer.writeString(try Self.rsaSignature(for: data, key: key, algorithm: algorithm))
         }
         return writer.data
     }
@@ -154,6 +154,15 @@ struct SSHAgentKey {
             return ("rsa-sha2-512", .rsaSignatureMessagePKCS1v15SHA512)
         }
         throw SSHAgentKeyError.unsupportedSignatureAlgorithm
+    }
+
+    private static func rsaSignature(for data: Data, key: SecKey, algorithm: SecKeyAlgorithm) throws -> Data {
+        var error: Unmanaged<CFError>?
+        guard let signature = SecKeyCreateSignature(key, algorithm, data as CFData, &error) else {
+            _ = error?.takeRetainedValue()
+            throw SSHAgentKeyError.signingFailed
+        }
+        return signature as Data
     }
 
     private static func decodeArmor(_ file: Data) throws -> Data {
@@ -212,10 +221,10 @@ struct SSHAgentKey {
                 prime1: try section.readMPInt(),
                 prime2: try section.readMPInt()
             )
-            guard components.isUsable else { throw SSHAgentKeyError.malformed }
+            guard components.isUsable, let key = components.secKey() else { throw SSHAgentKeyError.malformed }
             publicKey.writeMPInt(components.publicExponent)
             publicKey.writeMPInt(components.modulus)
-            return (.rsa(bits: components.modulusBitCount), .rsa(components), publicKey.data)
+            return (.rsa(bits: components.modulusBitCount), .rsa(key), publicKey.data)
 
         default:
             throw SSHAgentKeyError.unsupportedKeyType(keyType)
@@ -253,7 +262,7 @@ struct SSHAgentKey {
 }
 
 /// The RSA fields of an OpenSSH private key, as unsigned big-endian magnitudes.
-private struct RSAComponents: Sendable {
+private struct RSAComponents {
     let modulus: Data
     let publicExponent: Data
     let privateExponent: Data
@@ -280,19 +289,23 @@ private struct RSAComponents: Sendable {
         return modulus.count * 8 - first.leadingZeroBitCount
     }
 
-    func signature(for data: Data, algorithm: SecKeyAlgorithm) throws -> Data {
+    /// The signing key, or `nil` if these numbers are not a working RSA key.
+    /// `SecKeyCreateWithData` imports any numbers; only a private-key
+    /// operation checks them, so one test signature here makes a broken key
+    /// fail parsing (unsupported in Settings) rather than every sign request.
+    func secKey() -> SecKey? {
         let attributes: [CFString: Any] = [
             kSecAttrKeyType: kSecAttrKeyTypeRSA,
             kSecAttrKeyClass: kSecAttrKeyClassPrivate,
         ]
         var error: Unmanaged<CFError>?
         guard let key = SecKeyCreateWithData(pkcs1DER() as CFData, attributes as CFDictionary, &error),
-              let signature = SecKeyCreateSignature(key, algorithm, data as CFData, &error)
+              SecKeyCreateSignature(key, .rsaSignatureMessagePKCS1v15SHA256, Data() as CFData, &error) != nil
         else {
             _ = error?.takeRetainedValue()
-            throw SSHAgentKeyError.signingFailed
+            return nil
         }
-        return signature as Data
+        return key
     }
 
     /// PKCS#1 `RSAPrivateKey`, the only RSA private-key encoding

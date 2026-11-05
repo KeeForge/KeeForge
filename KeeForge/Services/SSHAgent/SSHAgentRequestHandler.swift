@@ -99,7 +99,7 @@ enum KeeAgentSettings {
 
 /// Parsed keys of the entries the agent serves, kept so a request does not
 /// parse an unchanged key file again; for RSA that parse derives the CRT
-/// exponents. A key is reused only for the same entry under the same lease
+/// exponents, builds the `SecKey`, and signs once to validate it. A key is reused only for the same entry under the same lease
 /// with byte-identical key file content. Nothing outlives the lease: the
 /// controller empties the cache when the session locks, the selection
 /// changes, or the agent stops, and each request drops what its own read of

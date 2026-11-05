@@ -13,29 +13,6 @@ final class TOTPSmokeUITests: UnlockedDatabaseUITestCase {
     // (`testpassword123`), the default `unlockSuccessfully()` uses.
     override var databaseFixtureName: String { "autofill-union" }
 
-    override func configureLaunch(app: XCUIApplication) throws {
-        if name.contains("RowCode") {
-            app.launchArguments += ["-KeeForge.showCodesInEntryLists", "YES"]
-        }
-    }
-
-    /// With the Display setting on, a group's entry row shows its code and a
-    /// copy button; "Union Bank", which has no code, keeps the plain row.
-    func testGroupEntryRowCodeAndCopyControlWithTheSettingOn() {
-        unlockSuccessfully()
-        selectDatabaseView(.groups)
-        openGroup(named: "Union")
-
-        let copyButton = app.buttons["entry-row.copy-code"]
-        XCTAssertTrue(copyButton.waitForExistence(timeout: 10), "The row's copy button did not appear")
-        XCTAssertTrue(copyButton.isHittable, "The row's copy button should be hittable")
-        XCTAssertEqual(app.buttons.matching(identifier: "entry-row.copy-code").count, 1, "Only the entry with a code gets one")
-        XCTAssertEqual(
-            app.buttons.matching(identifier: "entry.navlink").count, 3,
-            "Every row keeps the entry identifier"
-        )
-    }
-
     func testTOTPCodeRendersAndCopyControlIsPresent() {
         unlockSuccessfully()
 

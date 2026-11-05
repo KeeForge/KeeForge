@@ -97,7 +97,7 @@ final class CredentialProviderPickerCreationTests: XCTestCase {
             "The account does not exist yet, so its password must be editable and generatable"
         )
         XCTAssertEqual(creator.initialDraft.title, "github.com")
-        XCTAssertEqual(creator.initialDraft.url, "github.com")
+        XCTAssertEqual(creator.initialDraft.url, "https://github.com")
         XCTAssertTrue(creator.initialDraft.username.isEmpty)
         XCTAssertFalse(
             creator.initialDraft.password.isEmpty,

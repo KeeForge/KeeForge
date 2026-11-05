@@ -560,7 +560,11 @@ struct DatabaseDetailsView: View {
             }
             .accessibilityIdentifier("database-details.export-copy")
         } header: {
+            #if os(macOS)
             Text("Export")
+            #else
+            Text("Share")
+            #endif
         } footer: {
             #if os(macOS)
             if currentReference.isCloudBacked {

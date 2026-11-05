@@ -6,7 +6,7 @@ final class AppSettingsViewModelTests: XCTestCase {
     private let keys = [
         "autoLockTimeout", "lockOnBackground", "clipboardTimeout", "authenticationGracePeriod",
         "autoUnlockWithFaceID",
-        "showWebsiteIcons", "showDatabaseUsageStats", "showWhatsNewAfterUpdates", "showCodesInEntryLists", "appearanceMode", "appAccentColor",
+        "showWebsiteIcons", "showDatabaseUsageStats", "showWhatsNewAfterUpdates", "appearanceMode", "appAccentColor",
         "quickAutoFillEnabled", "autoFillCopyTOTP", "sortOrder", "sortAscending",
         "macLockPolicy", "blockScreenCapture",
     ].map { "KeeForge.\($0)" }
@@ -166,25 +166,6 @@ final class AppSettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(observedOrders, [.createdDate])
         XCTAssertEqual(observedDirections, [false])
-    }
-
-    func testListCodesAreOffByDefaultAndTurningThemOnReachesTheOpenSession() {
-        let reference = DatabaseReference(
-            id: UUID(), nickname: nil, filename: "list-codes.kdbx", bookmarkData: nil,
-            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false,
-            lastOpenedAt: nil, addedAt: Date(), colorTag: nil, legacyKeychainFilename: nil
-        )
-        let session = DatabaseViewModel(databaseReference: reference)
-        let model = AppSettingsViewModel()
-        model.connect(to: session)
-        XCTAssertFalse(model.showCodesInEntryLists)
-        XCTAssertFalse(session.showsCodesInEntryLists)
-
-        model.showCodesInEntryLists = true
-
-        XCTAssertTrue(SettingsService.showCodesInEntryLists)
-        XCTAssertTrue(session.showsCodesInEntryLists)
-        XCTAssertTrue(DatabaseViewModel(databaseReference: reference).showsCodesInEntryLists, "A new session starts from the saved setting")
     }
 
     func testConnectingAnotherSessionAndDisconnectingStopsUpdatingThePreviousSession() {

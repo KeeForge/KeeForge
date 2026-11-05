@@ -48,6 +48,21 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(DatabaseListStore.databases.count, 1)
     }
 
+    func testRemoveDropsOnlyThatDatabasesMasterPasswordDate() throws {
+        let removed = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "removed.kdbx"))
+        let kept = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "kept.kdbx"))
+        defer { QuickUnlockKeychain.removeMasterKeyEntry(for: kept.id) }
+        let typedLongAgo = Date.now.addingTimeInterval(-30 * 24 * 60 * 60)
+        QuickUnlockKeychain.recordMasterKeyEntry(for: removed.id, at: typedLongAgo)
+        QuickUnlockKeychain.recordMasterKeyEntry(for: kept.id, at: typedLongAgo)
+
+        DatabaseListStore.remove(id: removed.id)
+
+        // A missing date never counts as due, so due-ness shows whether the entry survived.
+        XCTAssertFalse(QuickUnlockKeychain.isMasterKeyDue(for: removed.id, interval: .fourteenDays))
+        XCTAssertTrue(QuickUnlockKeychain.isMasterKeyDue(for: kept.id, interval: .fourteenDays))
+    }
+
     /// The iPad-on-Mac transition note tells people to do exactly this pair,
     /// so both halves are load-bearing: removal must leave the user's file on
     /// disk, and re-adding it must produce a usable reference. Re-adding

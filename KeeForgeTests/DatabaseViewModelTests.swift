@@ -2717,40 +2717,6 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.verificationCodeEntries.map(\.title), ["Code"])
     }
 
-    func testEntryRowsShowTheirCodeInVerificationCodesAndElsewhereOnlyWithTheSetting() async throws {
-        let totpConfig = TOTPConfig(secret: EncryptedValue(sealedData: Data([0]), hasValue: true))
-        let withCode = KPEntry(title: "Code", totpConfig: totpConfig)
-        let withoutCode = KPEntry(title: "No Code")
-        let recycled = KPEntry(title: "Recycled Code", totpConfig: totpConfig)
-        let recycleBin = KPGroup(name: "Recycle Bin", entries: [recycled])
-        let root = KPGroup(
-            name: "Root",
-            entries: [withCode, withoutCode],
-            groups: [recycleBin],
-            recycleBinUUID: recycleBin.id
-        )
-        let vm = try await makeInjectedViewModel(rootGroup: root)
-        let listModes: [DatabaseWorkspaceState.ViewMode?] = [.groups, .allEntries, .tags, nil]
-
-        vm.showsCodesInEntryLists = false
-        XCTAssertTrue(vm.showsVerificationCodeOnRow(for: withCode, in: .verificationCodes))
-        for mode in listModes {
-            XCTAssertFalse(vm.showsVerificationCodeOnRow(for: withCode, in: mode), "Setting off, \(String(describing: mode))")
-        }
-
-        vm.showsCodesInEntryLists = true
-        for mode in listModes {
-            XCTAssertTrue(vm.showsVerificationCodeOnRow(for: withCode, in: mode), "Setting on, \(String(describing: mode))")
-            XCTAssertFalse(vm.showsVerificationCodeOnRow(for: withoutCode, in: mode), "No code, \(String(describing: mode))")
-        }
-        XCTAssertFalse(vm.showsVerificationCodeOnRow(for: withoutCode, in: .verificationCodes))
-        XCTAssertFalse(vm.showsVerificationCodeOnRow(for: recycled, in: .recycleBin), "A deleted entry's row stays plain")
-        XCTAssertFalse(vm.showsVerificationCodeOnRow(for: recycled, in: nil))
-
-        vm.lock()
-        XCTAssertFalse(vm.showsVerificationCodeOnRow(for: withCode, in: .groups), "No session key, no code")
-    }
-
     func testLockAndReopenKeepTheViewPickedLast() async throws {
         let key = DatabaseWorkspaceState.viewModeKey
         let saved = UserDefaults.standard.object(forKey: key)

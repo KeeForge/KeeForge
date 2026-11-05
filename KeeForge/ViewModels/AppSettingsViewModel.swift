@@ -54,13 +54,6 @@ final class AppSettingsViewModel {
             SettingsService.showDatabaseUsageStats = showDatabaseUsageStats
         }
     }
-    var showCodesInEntryLists = SettingsService.showCodesInEntryLists {
-        didSet {
-            guard !isReloading, oldValue != showCodesInEntryLists else { return }
-            SettingsService.showCodesInEntryLists = showCodesInEntryLists
-            codesInEntryListsChanged(showCodesInEntryLists)
-        }
-    }
     var showWhatsNewAfterUpdates = SettingsService.showWhatsNewAfterUpdates {
         didSet {
             guard !isReloading, oldValue != showWhatsNewAfterUpdates else { return }
@@ -130,7 +123,6 @@ final class AppSettingsViewModel {
     @ObservationIgnored private var refreshCredentials: () -> Void
     @ObservationIgnored private var sortOrderChanged: (DatabaseViewModel.SortOrder) -> Void
     @ObservationIgnored private var sortDirectionChanged: (Bool) -> Void
-    @ObservationIgnored private var codesInEntryListsChanged: (Bool) -> Void
     @ObservationIgnored private let clearCredentialStore: () -> Void
     @ObservationIgnored private let clearFaviconCacheOperation: () -> Void
     @ObservationIgnored private let capturePolicyDidChange: () -> Void
@@ -144,7 +136,6 @@ final class AppSettingsViewModel {
         refreshCredentials: @escaping () -> Void = {},
         sortOrderChanged: @escaping (DatabaseViewModel.SortOrder) -> Void = { _ in },
         sortDirectionChanged: @escaping (Bool) -> Void = { _ in },
-        codesInEntryListsChanged: @escaping (Bool) -> Void = { _ in },
         clearCredentialStore: @escaping () -> Void = { CredentialIdentityStoreManager.clearStore() },
         clearFaviconCache: @escaping () -> Void = { FaviconService.clearCache() },
         capturePolicyDidChange: @escaping () -> Void = {
@@ -172,7 +163,6 @@ final class AppSettingsViewModel {
         self.refreshCredentials = refreshCredentials
         self.sortOrderChanged = sortOrderChanged
         self.sortDirectionChanged = sortDirectionChanged
-        self.codesInEntryListsChanged = codesInEntryListsChanged
         self.clearCredentialStore = clearCredentialStore
         self.clearFaviconCacheOperation = clearFaviconCache
         self.capturePolicyDidChange = capturePolicyDidChange
@@ -188,7 +178,6 @@ final class AppSettingsViewModel {
         refreshCredentials = { [weak database] in database?.populateCredentialStoreIfUnlocked() }
         sortOrderChanged = { [weak database] in database?.sortOrder = $0 }
         sortDirectionChanged = { [weak database] in database?.sortAscending = $0 }
-        codesInEntryListsChanged = { [weak database] in database?.showsCodesInEntryLists = $0 }
     }
 
     func reload() {
@@ -203,7 +192,6 @@ final class AppSettingsViewModel {
         autoUnlockWithFaceID = SettingsService.autoUnlockWithFaceID
         showWebsiteIcons = SettingsService.showWebsiteIcons
         showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
-        showCodesInEntryLists = SettingsService.showCodesInEntryLists
         showWhatsNewAfterUpdates = SettingsService.showWhatsNewAfterUpdates
         appearanceMode = SettingsService.appearanceMode
         appAccentColor = SettingsService.appAccentColor

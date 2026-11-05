@@ -306,7 +306,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         seedUnlockedVaultState(coordinator, sessionKey: sessionKey)
         coordinator.activeDatabaseReference = reference
         let recorder = Recorder()
-        coordinator.passkeySaveEnvironment = makeRecordingEnvironment(recorder)
+        coordinator.saveEnvironment = makeRecordingEnvironment(recorder)
         presenter.onCompleteRegistrationRequest = { _ in
             recorder.events.append("completeRegistration")
         }
@@ -389,7 +389,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         seedUnlockedVaultState(coordinator)
         coordinator.activeDatabaseReference = reference
         let recorder = Recorder()
-        coordinator.passkeySaveEnvironment = makeRecordingEnvironment(
+        coordinator.saveEnvironment = makeRecordingEnvironment(
             recorder,
             saveDraft: { [recorder] _, _, _, _ in
                 recorder.events.append("saveDraft")
@@ -425,7 +425,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         seedUnlockedVaultState(coordinator)
         coordinator.activeDatabaseReference = reference
         let recorder = Recorder()
-        coordinator.passkeySaveEnvironment = makeRecordingEnvironment(
+        coordinator.saveEnvironment = makeRecordingEnvironment(
             recorder,
             saveDraft: { _, _, _, _ in
                 throw SaveError.databaseLocationUnavailable
@@ -469,7 +469,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         seedUnlockedVaultState(coordinator)
         coordinator.activeDatabaseReference = reference
         let recorder = Recorder()
-        coordinator.passkeySaveEnvironment = makeRecordingEnvironment(recorder)
+        coordinator.saveEnvironment = makeRecordingEnvironment(recorder)
         coordinator.pendingPasskeyRegistrationRequest = makeRegistrationRequest()
         XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
         let oldCreator = try XCTUnwrap(presenter.passkeyCreator)
@@ -506,7 +506,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         let recorder = Recorder()
         let gate = SaveGate()
         let saveStarted = expectation(description: "save suspended")
-        coordinator.passkeySaveEnvironment = makeRecordingEnvironment(
+        coordinator.saveEnvironment = makeRecordingEnvironment(
             recorder,
             saveDraft: { draft, _, _, _ in
                 await gate.wait(started: saveStarted)
