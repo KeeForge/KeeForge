@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 TESTS_YML = Path(".github/workflows/tests.yml")
+RC_YML = Path(".github/workflows/ios-rc-tests.yml")
 MIN_MAC_XCODE = (26, 4)  # Xcode 26.3's actool crashes on KeeForge.icon for macOS.
 PRERELEASE = re.compile(r"beta|release.?candidate|_rc\b", re.I)
 
@@ -26,7 +27,7 @@ def run(*args, env=None):
 
 
 def test_devices():
-    text = TESTS_YML.read_text()
+    text = TESTS_YML.read_text() + RC_YML.read_text()
     names = re.findall(r"name: '([^']+)', slug:", text) + re.findall(r"name=([^,']+)", text)
     return list(dict.fromkeys(names))
 
@@ -117,6 +118,7 @@ def probe(label):
 def report(probe_dir):
     tests = json.loads(run("yq", "-o=json", ".", str(TESTS_YML)).stdout)
     jobs = tests["jobs"]
+    jobs["ios-rc-tests"] = json.loads(run("yq", "-o=json", ".", str(RC_YML)).stdout)["jobs"]["ios-rc-tests"]
     rc_devices = [d["name"] for d in jobs["ios-rc-tests"]["strategy"]["matrix"]["device"]]
     rc_devices += [i["device"]["name"] for i in jobs["ios-rc-tests"]["strategy"]["matrix"].get("include", [])]
     unit_device = re.search(r"name=([^,]+)", jobs["unit-tests"]["env"]["DESTINATION"]).group(1)

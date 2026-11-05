@@ -71,10 +71,10 @@ Record the run URL, SHA, status, and conclusion in the manifest.
 
 ### 3. iPad GitHub Actions job
 
-In the same `tests.yml` run, read the `KeeForge (iPad (A16))` job:
+In the same `tests.yml` run, read the `ios-rc-tests / KeeForge (iPad (A16))` job:
 
 ```bash
-gh run view <run-id> --json jobs --jq '.jobs[] | select(.name=="KeeForge (iPad (A16))") | "\(.status) \(.conclusion) \(.url)"'
+gh run view <run-id> --json jobs --jq '.jobs[] | select(.name=="ios-rc-tests / KeeForge (iPad (A16))") | "\(.status) \(.conclusion) \(.url)"'
 ```
 
 It runs `DatabaseCreationRegularWidthUITests` and `RegularWidthWorkspaceUITests`, which `XCTSkip`

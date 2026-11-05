@@ -149,7 +149,7 @@ ci_scripts/candidate_manifest.py init --rc-tag rc/{version}-b{repoBuild}
 The tag push triggers Xcode Cloud's RC workflow (iOS tests plus iOS and Mac App Store
 archives/uploads) and `.github/workflows/tests.yml`. Xcode Cloud has no Mac test action (see
 [xcode-cloud-setup.md](xcode-cloud-setup.md)); the Mac unit suite runs only in that workflow's
-`macos-unit-tests` job. Its `ios-rc-tests` iPad job, `KeeForge (iPad (A16))`, runs the two regular-width UI
+`macos-unit-tests` job. Its iPad job, `ios-rc-tests / KeeForge (iPad (A16))`, runs the two regular-width UI
 classes that skip on every Cloud device and is a gate. Its iPhone jobs are an unmetered GitHub copy
 of the three Cloud test schemes and are not a separate manifest gate. If Xcode Cloud shows no run for the tag, follow "Recovering a missing
 tag-triggered run" in [xcode-cloud-setup.md](xcode-cloud-setup.md); never move or re-create the RC tag to retrigger it.
@@ -166,7 +166,7 @@ testers or the direct build is called a release candidate.
    gh api repos/KeeForge/KeeForge/commits/{rc-sha}/check-runs \
      --jq '.check_runs[] | select(.app.name=="Xcode Cloud") | "\(.name) | \(.status) | \(.conclusion // "-")"'
    ```
-2. Monitor the two GitHub Actions gates, the `macos-unit-tests` and `KeeForge (iPad (A16))` jobs
+2. Monitor the two GitHub Actions gates, the `macos-unit-tests` and `ios-rc-tests / KeeForge (iPad (A16))` jobs
    of `tests.yml`:
    ```bash
    gh run list --workflow tests.yml --event push

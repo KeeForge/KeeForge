@@ -1,8 +1,8 @@
 name: CI drift
 
-# Weekly check that tests.yml runs on the newest stable macOS image, the
-# newest Xcode image, their newest stable Xcodes, and iOS runtimes that can
-# create its test devices. Not a gate. On drift the run fails with the report
+# Weekly check that tests.yml and ios-rc-tests.yml run on the newest stable
+# macOS image, the newest Xcode image, their newest stable Xcodes, and iOS
+# runtimes that can create their test devices. Not a gate. On drift the run fails with the report
 # in its summary; GitHub mails the owner about failed scheduled runs. Action
 # versions are Dependabot's job (.github/dependabot.yml).
 
