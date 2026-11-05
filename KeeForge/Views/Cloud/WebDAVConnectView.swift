@@ -81,10 +81,10 @@ struct WebDAVConnectView: View {
                     Section {
                         Label {
                             Text(errorMessage)
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Theme.State.danger)
                         } icon: {
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Theme.State.danger)
                         }
                         .accessibilityIdentifier("webdav.connect.error")
                     }

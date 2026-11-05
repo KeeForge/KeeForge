@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --verify-only skips xcodebuild and cross-checks an existing KDBX_COMPAT_RESULT_BUNDLE,
+# for runners that execute KDBXCompatibilityTests themselves.
+VERIFY_ONLY=0
+case "${1:-}" in
+  "") ;;
+  --verify-only) VERIFY_ONLY=1 ;;
+  *) echo "usage: $0 [--verify-only]" >&2; exit 64 ;;
+esac
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
@@ -31,16 +40,25 @@ else
   DESTINATION="${KDBX_COMPAT_DESTINATION:-platform=iOS Simulator,name=iPhone 18 Pro}"
 fi
 
-rm -rf "${RESULT_BUNDLE}" "${ATTACHMENT_DIR}"
-mkdir -p "$(dirname "${RESULT_BUNDLE}")" "${ATTACHMENT_DIR}"
-
 cd "${REPO_ROOT}"
 
-xcodebuild test -project KeeForge.xcodeproj -scheme "${SCHEME}" \
-  -destination "${DESTINATION}" \
-  -only-testing:"${TEST_TARGET}/KDBXCompatibilityTests" \
-  -resultBundlePath "${RESULT_BUNDLE}" \
-  -quiet
+if (( VERIFY_ONLY )); then
+  if [[ ! -d "${RESULT_BUNDLE}" ]]; then
+    echo "error: --verify-only needs an existing result bundle at ${RESULT_BUNDLE}" >&2
+    exit 1
+  fi
+  rm -rf "${ATTACHMENT_DIR}"
+  mkdir -p "${ATTACHMENT_DIR}"
+else
+  rm -rf "${RESULT_BUNDLE}" "${ATTACHMENT_DIR}"
+  mkdir -p "$(dirname "${RESULT_BUNDLE}")" "${ATTACHMENT_DIR}"
+
+  xcodebuild test -project KeeForge.xcodeproj -scheme "${SCHEME}" \
+    -destination "${DESTINATION}" \
+    -only-testing:"${TEST_TARGET}/KDBXCompatibilityTests" \
+    -resultBundlePath "${RESULT_BUNDLE}" \
+    -quiet
+fi
 
 xcrun xcresulttool export attachments \
   --path "${RESULT_BUNDLE}" \

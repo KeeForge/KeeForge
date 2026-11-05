@@ -187,7 +187,7 @@ class EntryEditUITestCase: KeeForgeUITestCase {
 
     func openGroup(named name: String, file: StaticString = #filePath, line: UInt = #line) {
         let group = firstRowMatching(name: name, preferredIdentifier: "group.navlink")
-        XCTAssertTrue(revealElement(group), "Group '\(name)' was not visible", file: file, line: line)
+        XCTAssertTrue(revealRow(group), "Group '\(name)' was not visible", file: file, line: line)
         tapElement(group)
 
         // A freshly rebuilt list — e.g. immediately after `reloadDiscardingDraft`
@@ -211,7 +211,7 @@ class EntryEditUITestCase: KeeForgeUITestCase {
             } while Date() < deadline
         }
         XCTAssertTrue(
-            revealElement(retry),
+            revealRow(retry),
             "Group '\(name)' was not visible to retry opening it",
             file: file,
             line: line
@@ -285,7 +285,7 @@ class EntryEditUITestCase: KeeForgeUITestCase {
 
     func openEntry(named name: String, file: StaticString = #filePath, line: UInt = #line) {
         let entry = firstRowMatching(name: name, preferredIdentifier: "entry.navlink")
-        XCTAssertTrue(revealElement(entry), "Entry '\(name)' was not visible", file: file, line: line)
+        XCTAssertTrue(revealRow(entry), "Entry '\(name)' was not visible", file: file, line: line)
         tapElement(entry)
     }
 
@@ -408,6 +408,7 @@ class EntryEditUITestCase: KeeForgeUITestCase {
             "lock.button",
             "sort.menu",
             "settings.button",
+            "vault.more",
             "entry-detail.edit",
             "entry-edit.cancel",
             "entry-edit.save",

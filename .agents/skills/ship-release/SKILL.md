@@ -10,7 +10,7 @@ Read [the shared release contract](../prepare-release/references/shared.md) and
 
 Use this skill when the user decides to ship, after the [soak guidance](../prepare-release/references/soak.md#candidate-soak) signals have been reported to them.
 
-**Do not re-check the CI gates here.** All cloud gates and local gates were read and adjudicated in [candidate gates](../prepare-release/references/candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke), and accepting
+**Do not re-check the CI gates here.** All cloud gates and owner-run gates were read and adjudicated in [candidate gates](../prepare-release/references/candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke), and accepting
 them is what allowed the build to reach external testers in the first place (invariant 3). That
 verdict is [release preparation](../prepare-release/SKILL.md)'s job and it is final: do not poll Xcode Cloud or GitHub Actions check runs for
 the RC commit, do not reopen [gate-adjudication.md](../prepare-release/references/gate-adjudication.md), and do not treat a test action that was red but

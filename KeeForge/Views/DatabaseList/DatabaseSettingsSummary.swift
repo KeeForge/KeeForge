@@ -39,8 +39,14 @@ enum DatabaseSettingsSummary {
         return SettingsSummaryText.joined([summary.cipherDisplayName, summary.keyDerivationDisplayName])
     }
 
-    static func cloudSync(_ cloudState: CloudRowState, lastSyncedAt: Date?) -> String {
+    /// Changes still waiting to upload outrank when the database last synced:
+    /// they are what the user may need to act on.
+    static func cloudSync(_ cloudState: CloudRowState, lastSyncedAt: Date?, pendingUploadCount: Int = 0) -> String {
+        let waiting = pendingUploadCount > 0
+            ? DatabaseRowStatusSummary.Notice.waitingToUpload(pendingUploadCount).text
+            : nil
         let status = cloudState.warningText
+            ?? waiting
             ?? lastSyncedAt.map { String(localized: "Last synced \($0.formatted(.relative(presentation: .named)))") }
             ?? String(localized: "Healthy")
         return SettingsSummaryText.joined([cloudState.providerName, status])

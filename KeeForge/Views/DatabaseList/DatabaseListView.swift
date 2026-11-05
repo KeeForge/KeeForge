@@ -38,6 +38,14 @@ struct DatabaseListView: View {
     /// Passed in rather than read from `horizontalSizeClass`, which a sidebar
     /// column reports as compact however wide the window is.
     var isSidebarColumn = false
+    /// The compact shell's unlock, pushed onto this list's stack so its back
+    /// button leads to the list; nil in the other shells.
+    var unlockPage: UnlockPage? = nil
+
+    struct UnlockPage {
+        let isPresented: Binding<Bool>
+        let content: () -> AnyView
+    }
 
     @State private var pickerState = PickerPresentationState<PickerTarget>()
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
@@ -55,6 +63,7 @@ struct DatabaseListView: View {
     @Environment(\.openURL) private var openURL
     #if os(iOS)
     @State private var editMode: EditMode = .inactive
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     #endif
 
     var body: some View {
@@ -204,6 +213,9 @@ struct DatabaseListView: View {
         NavigationStack {
             listContent
                 .environment(\.editMode, $editMode)
+                .navigationDestination(isPresented: unlockPage?.isPresented ?? .constant(false)) {
+                    unlockPage?.content()
+                }
         }
         #endif
     }
@@ -226,20 +238,119 @@ struct DatabaseListView: View {
         }
     }
 
+    @ViewBuilder
     private var databaseList: some View {
-        List {
-            ForEach(viewModel.databases) { reference in
-                databaseRowButton(for: reference)
-                    #if os(iOS)
-                    // Outside Edit mode, the long press belongs to the context menu.
-                    .moveDisabled(!editMode.isEditing)
-                    #endif
-                    .modifier(
-                        DatabaseRowChrome(isSelected: reference.id == selectedDatabaseID)
-                    )
+        #if os(iOS)
+        // Reordering needs rows. The overview sits in a scroll view, not a
+        // List: a list cell holding several tiles takes one context menu and
+        // one lift preview for all of them.
+        if editMode.isEditing || PlatformDesign.followsIOSDesign == false {
+            List {
+                Section {
+                    databaseRows
+                }
+                if tipsFollowTheList {
+                    Section {
+                        tips
+                            .environment(\.isListedTip, true)
+                    }
+                }
             }
-            .onMove(perform: viewModel.moveDatabases)
+        } else {
+            databaseOverview
         }
+        #else
+        List {
+            databaseRows
+        }
+        #endif
+    }
+
+    /// iPhone and iPad list the tips below the databases; with no databases,
+    /// and on macOS, they stay pinned above.
+    private var tipsFollowTheList: Bool {
+        PlatformDesign.followsIOSDesign && viewModel.databases.isEmpty == false
+    }
+
+    #if os(iOS)
+    /// The spotlight database's card, then every other database as a tile.
+    private var databaseOverview: some View {
+        let spotlight = DatabaseListViewModel.spotlightDatabase(
+            in: viewModel.databases,
+            showsUsageStats: showDatabaseUsageStats
+        )
+        let others = viewModel.databases.filter { $0.id != spotlight?.id }
+        return ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Spacing.tileGap) {
+                if let spotlight {
+                    databaseRowButton(for: spotlight, style: .spotlight)
+                }
+                if others.isEmpty == false {
+                    Text("Other Databases")
+                        .font(Theme.Font.subhead)
+                        .foregroundStyle(Theme.labelSecondary)
+                        .padding(.horizontal, Theme.Spacing.side)
+                        .padding(.top, Theme.Spacing.side)
+                        .accessibilityAddTraits(.isHeader)
+                    LazyVGrid(
+                        columns: Array(
+                            repeating: GridItem(.flexible(), spacing: Theme.Spacing.tileGap, alignment: .top),
+                            count: dynamicTypeSize.isAccessibilitySize ? 1 : 2
+                        ),
+                        spacing: Theme.Spacing.tileGap
+                    ) {
+                        ForEach(others) { reference in
+                            databaseRowButton(for: reference, style: .tile)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, Theme.Spacing.side)
+            .padding(.top, Theme.Spacing.cardGap)
+            if tipsFollowTheList {
+                tips
+            }
+        }
+        .background {
+            if isSidebarColumn == false {
+                Color(.systemGroupedBackground).ignoresSafeArea()
+            }
+        }
+    }
+    #endif
+
+    @ViewBuilder
+    private var tips: some View {
+        if viewModel.shouldShowMacAppSuggestion {
+            MacAppSuggestionBanner(
+                onOpen: {
+                    if let url = MacAppSuggestionService.appStoreURL {
+                        openURL(url)
+                    }
+                },
+                onDismiss: { viewModel.dismissMacAppSuggestion() }
+            )
+        }
+        if viewModel.shouldShowAutoFillTip {
+            AutoFillTipBanner(
+                onEnable: { Task { await viewModel.requestEnableAutoFill() } },
+                onDismiss: { viewModel.dismissAutoFillTip() }
+            )
+        }
+    }
+
+    private var databaseRows: some View {
+        ForEach(viewModel.databases) { reference in
+            databaseRowButton(for: reference)
+                #if os(iOS)
+                // Outside Edit mode, the long press belongs to the context menu.
+                .moveDisabled(!editMode.isEditing)
+                #endif
+                .modifier(
+                    DatabaseRowChrome(isSelected: reference.id == selectedDatabaseID)
+                )
+        }
+        .onMove(perform: viewModel.moveDatabases)
     }
 
     private var listContent: some View {
@@ -254,27 +365,13 @@ struct DatabaseListView: View {
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: 0) {
-                if viewModel.shouldShowMacAppSuggestion {
-                    MacAppSuggestionBanner(
-                        onOpen: {
-                            if let url = MacAppSuggestionService.appStoreURL {
-                                openURL(url)
-                            }
-                        },
-                        onDismiss: { viewModel.dismissMacAppSuggestion() }
-                    )
-                }
-                if viewModel.shouldShowAutoFillTip {
-                    AutoFillTipBanner(
-                        onEnable: { Task { await viewModel.requestEnableAutoFill() } },
-                        onDismiss: { viewModel.dismissAutoFillTip() }
-                    )
+            if tipsFollowTheList == false {
+                VStack(spacing: 0) {
+                    tips
                 }
             }
         }
-        .navigationTitle("KeeForge")
-        .navigationBarTitleDisplayMode(.inline)
+        .modifier(DatabaseListTitle(count: viewModel.databases.count))
         .toolbar {
             // `EditButton` does not exist on macOS; list rows reorder via
             // drag and delete via context menus / swipe actions there.
@@ -364,10 +461,42 @@ struct DatabaseListView: View {
         }
     }
 
-    private func databaseRowButton(for reference: DatabaseReference) -> some View {
+    /// How a database is drawn: a row in Edit mode and on macOS, the
+    /// overview's card or one of its tiles otherwise.
+    private enum DatabaseEntryStyle {
+        case row
+        case spotlight
+        case tile
+    }
+
+    private func databaseRowButton(for reference: DatabaseReference, style: DatabaseEntryStyle = .row) -> some View {
         Button {
             onSelectDatabase(reference)
         } label: {
+            #if os(iOS)
+            let status = viewModel.status(for: reference)
+            let lastOpened = viewModel.lastOpenedDescription(for: reference, showsUsageStats: showDatabaseUsageStats)
+            switch style {
+            case .row:
+                DatabaseListRow(reference: reference, status: status, lastOpenedDescription: lastOpened)
+            case .spotlight:
+                DatabaseSpotlightCard(
+                    reference: reference,
+                    status: status,
+                    lastOpenedDescription: lastOpened,
+                    isSelected: reference.id == selectedDatabaseID
+                )
+                .environment(\.isSidebarColumnContent, isSidebarColumn)
+            case .tile:
+                DatabaseTile(
+                    reference: reference,
+                    status: status,
+                    lastOpenedDescription: lastOpened,
+                    isSelected: reference.id == selectedDatabaseID
+                )
+                .environment(\.isSidebarColumnContent, isSidebarColumn)
+            }
+            #else
             DatabaseRowView(
                 reference: reference,
                 status: viewModel.status(for: reference),
@@ -377,25 +506,19 @@ struct DatabaseListView: View {
                 ),
                 filenameSubtitle: viewModel.detailSubtitle(for: reference)
             )
+            #endif
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("database.row")
+        .modifier(CardContextMenuPreview(isCard: style != .row))
         .contextMenu {
             contextMenu(for: reference)
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button("Remove", role: .destructive) {
-                // Defer until the swipe cell has closed: the confirmation
-                // dialog below is anchored to this row, and presenting it
-                // while the row is still translated by the open swipe
-                // actions fails silently on iOS 26.
-                let target = reference
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(500))
-                    pendingRemoval = target
-                }
+            // Cards and tiles sit outside a List; Remove stays in their menu.
+            if style == .row {
+                removeSwipeAction(for: reference)
             }
-            .tint(.red)
         }
         // Both dialogs are attached to the row (not the List) so iOS anchors
         // them to the database they act on instead of an arbitrary popover in
@@ -448,6 +571,21 @@ struct DatabaseListView: View {
         } message: { target in
             Text("The pending change for “\(target.displayName)” could not be uploaded because the copy in the cloud changed. KeeForge keeps a timestamped backup on this device before discarding it.")
         }
+    }
+
+    private func removeSwipeAction(for reference: DatabaseReference) -> some View {
+        Button("Remove", role: .destructive) {
+            // Defer until the swipe cell has closed: the confirmation
+            // dialog is anchored to this row, and presenting it
+            // while the row is still translated by the open swipe
+            // actions fails silently on iOS 26.
+            let target = reference
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(500))
+                pendingRemoval = target
+            }
+        }
+        .tint(Theme.State.danger)
     }
 
     private func refreshUsageStatsVisibility() {
@@ -697,6 +835,30 @@ struct DatabaseListView: View {
 
 }
 
+/// iPhone and iPad: "Databases" with the count below it from iOS 26. The
+/// macOS sidebar keeps the app's name.
+private struct DatabaseListTitle: ViewModifier {
+    let count: Int
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if #available(iOS 26.0, *) {
+            content
+                .navigationTitle("Databases")
+                .navigationBarTitleDisplayMode(.large)
+                .navigationSubtitle(Text("\(count) databases"))
+        } else {
+            content
+                .navigationTitle("Databases")
+                .navigationBarTitleDisplayMode(.large)
+        }
+        #else
+        content
+            .navigationTitle("KeeForge")
+        #endif
+    }
+}
+
 /// Selection and hover chrome for a database row.
 ///
 /// The branch lives inside a modifier rather than inside the `ForEach` body so
@@ -721,5 +883,23 @@ private struct DatabaseRowChrome: ViewModifier {
             content
                 .macHoverHighlight()
         }
+    }
+}
+
+/// A card or tile lifts its own rounded shape for the context menu.
+private struct CardContextMenuPreview: ViewModifier {
+    let isCard: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if isCard {
+            content.contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
     }
 }

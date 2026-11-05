@@ -82,6 +82,26 @@ final class DatabaseListViewModel {
         newDatabaseRequestID += 1
     }
 
+    /// The database the iPhone and iPad list puts first: the Quick Launch one,
+    /// else the one opened last, else the first in the user's order. Last opened
+    /// counts only while usage stats are shown, so the list reveals no more
+    /// activity than its rows would.
+    static func spotlightDatabase(
+        in databases: [DatabaseReference],
+        showsUsageStats: Bool
+    ) -> DatabaseReference? {
+        if let quickLaunch = databases.first(where: \.isQuickLaunch) {
+            return quickLaunch
+        }
+        if showsUsageStats,
+           let lastOpened = databases
+            .filter({ $0.lastOpenedAt != nil })
+            .max(by: { ($0.lastOpenedAt ?? .distantPast) < ($1.lastOpenedAt ?? .distantPast) }) {
+            return lastOpened
+        }
+        return databases.first
+    }
+
     func databaseToAutoOpenOnLaunch() -> DatabaseReference? {
         guard didConsumeInitialLaunchSelection == false else { return nil }
         didConsumeInitialLaunchSelection = true

@@ -25,6 +25,11 @@ struct EntryHistoryView: View {
                     EntryHistoryEmptyState()
                 } else {
                     List {
+                        if PlatformDesign.followsIOSDesign, let current = viewModel.entry(withID: entryID) {
+                            Section {
+                                CurrentVersionRow(entry: current, customIconData: viewModel.customIconData(for: current))
+                            }
+                        }
                         Section {
                             ForEach(Array(versions.enumerated()), id: \.element.id) { position, version in
                                 NavigationLink {
@@ -39,6 +44,10 @@ struct EntryHistoryView: View {
                                 }
                                 .accessibilityIdentifier("entry-history.version.\(position)")
                             }
+                        } header: {
+                            if PlatformDesign.followsIOSDesign {
+                                Text("Earlier Versions")
+                            }
                         } footer: {
                             Text(EntryHistoryStrings.retentionFootnote)
                         }
@@ -46,7 +55,7 @@ struct EntryHistoryView: View {
                 }
             }
             .navigationTitle("History")
-            .navigationBarTitleDisplayMode(.inline)
+            .modifier(EntryHistoryTitleStyle(subtitle: historySubtitle))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -56,7 +65,59 @@ struct EntryHistoryView: View {
         }
         #endif
     }
+
+    /// "GitHub · 4 earlier versions" under the large title.
+    private var historySubtitle: String {
+        let title = viewModel.entry(withID: entryID)?.title ?? ""
+        return SettingsSummaryText.joined([
+            title,
+            String(localized: "\(viewModel.history(forEntryID: entryID).count) earlier versions"),
+        ])
+    }
 }
+
+#if os(iOS)
+/// iPhone and iPad: a large title with the entry and its version count
+/// below it from iOS 26; the sheet's own inline title before.
+private struct EntryHistoryTitleStyle: ViewModifier {
+    let subtitle: String
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .navigationBarTitleDisplayMode(.large)
+                .navigationSubtitle(Text(subtitle))
+        } else {
+            content
+                .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+/// The entry as it is now, above the versions it replaced.
+private struct CurrentVersionRow: View {
+    let entry: KPEntry
+    let customIconData: Data?
+
+    @ScaledMetric(relativeTo: .body) private var iconSize = Theme.Size.entryIcon
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.iconText) {
+            FaviconEntryIconView(entry: entry, customIconData: customIconData, size: iconSize)
+            VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+                Text("Current Version")
+                    .font(Theme.Font.rowTitle)
+                Text(entry.historyTimestampText)
+                    .font(Theme.Font.subhead)
+                    .foregroundStyle(Theme.labelSecondary)
+            }
+            Spacer(minLength: 0)
+            StatusBadge(text: String(localized: "Current"), tone: .accent)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+#endif
 
 // MARK: - Shared pieces
 
@@ -89,11 +150,25 @@ private struct VersionRow: View {
     let version: KPEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(version.historyTimestampText)
-            Text(version.title.isEmpty ? String(localized: "(untitled)") : version.title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        if PlatformDesign.followsIOSDesign {
+            Label {
+                VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+                    Text(version.historyTimestampText)
+                    Text(version.title.isEmpty ? String(localized: "(untitled)") : version.title)
+                        .font(Theme.Font.footnote)
+                        .foregroundStyle(Theme.labelSecondary)
+                }
+            } icon: {
+                Image(systemName: "clock.arrow.circlepath")
+                    .foregroundStyle(Theme.labelSecondary)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(version.historyTimestampText)
+                Text(version.title.isEmpty ? String(localized: "(untitled)") : version.title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
@@ -153,49 +228,56 @@ private struct EntryHistoryVersionFields: View {
 
     var body: some View {
         Group {
-            if !version.title.isEmpty {
-                FieldRow(
-                    label: String(localized: "Title"),
-                    value: version.title,
-                    icon: "textformat",
-                    accessibilityKey: "title",
-                    accessibilityPrefix: "entry-history"
-                )
-            }
-            if !version.username.isEmpty {
-                FieldRow(
-                    label: String(localized: "Username"),
-                    value: viewModel.resolvingFieldReferences(version.username),
-                    icon: "person",
-                    accessibilityKey: "username",
-                    accessibilityPrefix: "entry-history"
-                )
-            }
-            if version.hasPassword {
-                PasswordFieldRow(
-                    password: version.password,
-                    sessionKey: sessionKey,
-                    secretAccess: viewModel.secretAccess,
-                    resolveReferences: viewModel.resolvingFieldReferences,
-                    accessibilityPrefix: "entry-history",
-                    isCurrent: secretActionIsCurrent
-                )
-            }
-            if !version.url.isEmpty {
-                FieldRow(
-                    label: String(localized: "URL"),
-                    value: viewModel.resolvingFieldReferences(version.url),
-                    icon: "link",
-                    accessibilityKey: "url",
-                    accessibilityPrefix: "entry-history"
-                )
-            }
-            if let totpConfig = version.totpConfig {
-                TOTPSection(
-                    config: totpConfig,
-                    sessionKey: sessionKey,
-                    accessibilityPrefix: "entry-history"
-                )
+            EntryFieldsCard {
+                if !version.title.isEmpty {
+                    FieldRow(
+                        label: String(localized: "Title"),
+                        value: version.title,
+                        icon: "textformat",
+                        accessibilityKey: "title",
+                        accessibilityPrefix: "entry-history",
+                        isCardRow: PlatformDesign.followsIOSDesign
+                    )
+                }
+                if !version.username.isEmpty {
+                    FieldRow(
+                        label: String(localized: "Username"),
+                        value: viewModel.resolvingFieldReferences(version.username),
+                        icon: "person",
+                        accessibilityKey: "username",
+                        accessibilityPrefix: "entry-history",
+                        isCardRow: PlatformDesign.followsIOSDesign
+                    )
+                }
+                if version.hasPassword {
+                    PasswordFieldRow(
+                        password: version.password,
+                        sessionKey: sessionKey,
+                        secretAccess: viewModel.secretAccess,
+                        resolveReferences: viewModel.resolvingFieldReferences,
+                        accessibilityPrefix: "entry-history",
+                        isCurrent: secretActionIsCurrent,
+                        isCardRow: PlatformDesign.followsIOSDesign
+                    )
+                }
+                if !version.url.isEmpty {
+                    FieldRow(
+                        label: String(localized: "URL"),
+                        value: viewModel.resolvingFieldReferences(version.url),
+                        icon: "link",
+                        accessibilityKey: "url",
+                        accessibilityPrefix: "entry-history",
+                        isCardRow: PlatformDesign.followsIOSDesign
+                    )
+                }
+                if let totpConfig = version.totpConfig {
+                    TOTPSection(
+                        config: totpConfig,
+                        sessionKey: sessionKey,
+                        accessibilityPrefix: "entry-history",
+                        isCardRow: PlatformDesign.followsIOSDesign
+                    )
+                }
             }
             if !version.notes.isEmpty {
                 Section("Notes") {
@@ -218,6 +300,7 @@ private struct EntryHistoryVersionFields: View {
                                 secretAccess: viewModel.secretAccess,
                                 accessibilityPrefix: "entry-history",
                                 showsInlineLabel: true,
+                                isCardRow: PlatformDesign.followsIOSDesign,
                                 isCurrent: secretActionIsCurrent
                             )
                         } else {
@@ -226,7 +309,8 @@ private struct EntryHistoryVersionFields: View {
                                 value: viewModel.resolvingFieldReferences(value),
                                 icon: "text.justify.left",
                                 accessibilityPrefix: "entry-history",
-                                showsInlineLabel: true
+                                showsInlineLabel: true,
+                                isCardRow: PlatformDesign.followsIOSDesign
                             )
                         }
                     }

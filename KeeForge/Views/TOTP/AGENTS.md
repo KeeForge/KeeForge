@@ -6,6 +6,7 @@
 
 - URI parsing and validation live in `OTPAuthURI` and `EntryEditViewModel.applyOTPAuthURI(_:)`; every enrollment path funnels through them. Destination filtering and decisions live in `TOTPEnrollmentViewModel`. Keep both out of the views so they stay unit-tested.
 - The destination picker opens the normal `EntryEditView` with the URI already applied (pushed on iOS, a sheet on macOS). The user reviews and saves through the standard editor flow.
+- Two ways in: an `otpauth://` link, and on iOS the vault's New › Scan QR Code, which opens the destination picker once the scanner sheet has dismissed (a presentation started while another dismisses is dropped).
 
 ## Invariants
 

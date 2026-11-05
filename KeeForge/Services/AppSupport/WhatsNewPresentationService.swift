@@ -56,6 +56,43 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.21.0":
+            features = [
+                WhatsNewFeature(
+                    id: "mac-ssh-agent",
+                    title: "Use your SSH keys from KeeForge",
+                    detail: "Turn on Settings → SSH Agent so `ssh`, `git`, and other tools can use the SSH keys in your unlocked database. Keys stop working as soon as the database locks, and none are written to disk.",
+                    systemImage: "terminal",
+                    platforms: [.macOS]
+                ),
+                WhatsNewFeature(
+                    id: "generate-passphrases",
+                    title: "Generate passphrases",
+                    detail: "Create passwords made of random words, and choose how many words and the separator between them. AutoFill uses the same settings.",
+                    systemImage: "text.word.spacing"
+                ),
+                WhatsNewFeature(
+                    id: "share-database",
+                    title: "Share your database",
+                    detail: "Export Copy is now Share. Save a copy to Files, send it with AirDrop, or open it in another KeePass app.",
+                    systemImage: "square.and.arrow.up",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "faster-biometric-unlock",
+                    title: "Unlock faster with Face ID and Touch ID",
+                    detail: "When a database hasn't changed since you last opened it, Face ID, Touch ID, and Apple Watch unlock it much faster, in the app and in AutoFill.",
+                    systemImage: "bolt",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "faster-biometric-unlock-mac",
+                    title: "Unlock faster with Touch ID",
+                    detail: "When a database hasn't changed since you last opened it, Touch ID and Apple Watch unlock it much faster, in the app and in AutoFill.",
+                    systemImage: "bolt",
+                    platforms: [.macOS]
+                ),
+            ]
         case "1.20.0":
             features = [
                 WhatsNewFeature(

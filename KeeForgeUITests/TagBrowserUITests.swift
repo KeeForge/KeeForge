@@ -1,6 +1,6 @@
 import XCTest
 
-// Happy-path smoke coverage for the tag browser: view menu → Tags → that
+// Happy-path smoke coverage for the tag browser: Tags tile → Tags → that
 // tag's entries → entry detail → the tag chip that got you there.
 //
 // Uses `kitchen-sink.kdbx` (password `testpassword123`, the default
@@ -23,7 +23,7 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
     func testBrowsingFromTheTagsViewReachesATaggedEntry() {
         unlockSuccessfully()
 
-        // 1. The view menu offers the tag browser, which lists the fixture's
+        // 1. The Tags tile opens the tag browser, which lists the fixture's
         //    eight distinct tags.
         selectDatabaseView(.tags)
         let tagRows = app.descendants(matching: .any).matching(
@@ -90,20 +90,13 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
         )
         openTaggedEntryFromTheTagBrowser()
         XCTAssertTrue(app.buttons["entry-detail.edit"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["lock.button"].waitForNonExistence(timeout: 5))
 
-        for _ in 0..<4 where app.buttons["lock.button"].exists == false {
-            guard let backButton = app.navigationBars.buttons.allElementsBoundByIndex.first(where: {
-                $0.exists && $0.isHittable && $0.identifier != "entry-detail.edit"
-            }) else {
-                return XCTFail("Could not navigate back to a list with Lock")
-            }
-            backButton.tap()
-        }
-
-        let lockButton = currentLockButton()
-        XCTAssertTrue(lockButton.waitForExistence(timeout: 5), "No manual-lock action after returning from the tagged entry")
-        tapElement(lockButton)
+        // The screens below keep their own Lock in the tree; the entry's is
+        // the one on screen.
+        let lockButton = app.buttons.matching(identifier: "lock.button").allElementsBoundByIndex
+            .first { $0.exists && $0.isHittable }
+        let entryLock = try XCTUnwrap(lockButton, "The tagged entry did not offer Lock")
+        tapElement(entryLock)
         XCTAssertTrue(waitForLockedState(timeout: 10), "Manual lock did not leave the vault locked")
     }
 

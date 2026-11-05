@@ -14,14 +14,7 @@ final class MasterKeyChangeUITests: DatabaseCreationUITestCase {
 
         createLocalDatabase(named: "Rekey UI", password: originalPassword)
 
-        let settingsButton = app.buttons["settings.button"]
-        XCTAssertTrue(settingsButton.waitForExistence(timeout: 10), "Unlocked database settings button was not visible")
-        tapElement(settingsButton)
-
-        XCTAssertTrue(
-            app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
-            "The gear button did not open Database Details"
-        )
+        openDatabaseDetailsFromVault()
         openDatabaseDetailsPage(.backups)
         XCTAssertTrue(
             app.staticTexts["database-details.backups-empty"].waitForExistence(timeout: 5),

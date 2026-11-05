@@ -56,6 +56,33 @@ struct FaviconView: View {
     }
 }
 
+/// `EntryIconView` with the entry's favicon downloaded when website icons are
+/// on and the entry has no custom icon.
+struct FaviconEntryIconView: View {
+    let entry: KPEntry
+    var customIconData: Data? = nil
+    var size: CGFloat = Theme.Size.entryIcon
+
+    @State private var loader = FaviconLoadModel()
+
+    private var requestedDomain: String? {
+        guard customIconData == nil, SettingsService.showWebsiteIcons else { return nil }
+        return FaviconService.extractDomain(from: entry.url)
+    }
+
+    var body: some View {
+        EntryIconView(
+            entry: entry,
+            customIconData: customIconData,
+            favicon: loader.domain == requestedDomain ? loader.image : nil,
+            size: size
+        )
+        .task(id: requestedDomain) {
+            await loader.load(domain: requestedDomain)
+        }
+    }
+}
+
 @MainActor @Observable
 final class FaviconLoadModel {
     private(set) var image: PlatformImage?

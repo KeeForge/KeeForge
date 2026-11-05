@@ -1,0 +1,190 @@
+name: iOS RC tests
+
+# Called by tests.yml on rc/* tag pushes and dispatch; never runs on its own.
+# It is a separate file because a skipped matrix job shows its unexpanded
+# `${{ matrix.* }}` name on every pull request, while a skipped call shows
+# as one plain `ios-rc-tests` job.
+#
+# The three Xcode Cloud "Tests (RC)" schemes on the same two devices at the
+# newest usable iOS runtime. Xcode Cloud meters its test actions against a
+# monthly compute allowance; this lane is unmetered, so a candidate still
+# gets a latest-runtime verdict once the allowance is spent. The schemes
+# select their own tests (ci_scripts/AGENTS.md, "Xcode Cloud test
+# partition"). The extra iPad lane runs the two regular-width UI classes,
+# which XCTSkip on every compact-width device.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Tag, branch, or SHA to test (empty is the caller's ref)
+        type: string
+        required: false
+        default: ''
+
+jobs:
+  ios-rc-tests:
+    # xcode-27 is the only GitHub image with Xcode 27 and an iOS 27 simulator
+    # runtime; macos-26 tops out at Xcode 26.6.
+    runs-on: xcode-27
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        scheme: [KeeForgeCloudUnitTests, KeeForgeCloudUIA, KeeForgeCloudUIB]
+        device:
+          - { name: 'iPhone 18 Pro', slug: iphone-18-pro }
+          - { name: 'iPhone SE (3rd generation)', slug: iphone-se-3 }
+        include:
+          - scheme: KeeForge
+            device: { name: 'iPad (A16)', slug: ipad-a16 }
+            only-testing: KeeForgeUITests/DatabaseCreationRegularWidthUITests KeeForgeUITests/RegularWidthWorkspaceUITests
+    name: ${{ matrix.scheme }} (${{ matrix.device.name }})
+    env:
+      SCHEME: ${{ matrix.scheme }}
+      PROJECT: KeeForge.xcodeproj
+      RUN_NAME: ${{ matrix.scheme }}-${{ matrix.device.slug }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Record the tested commit
+        run: |
+          echo "Tested ref: ${{ inputs.ref || github.ref }}"
+          echo "Tested commit: $(git rev-parse HEAD)"
+          echo "Tested tree: $(git rev-parse 'HEAD^{tree}')"
+
+      - name: Show Xcode
+        run: |
+          # The image default is its newest release Xcode, which is what Xcode
+          # Cloud's "Latest Release" uses. The newest installed one is a beta.
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Prepare build config
+        env:
+          DROPBOX_APP_KEY: ciplaceholderdropboxappkey
+        run: BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh .
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Create simulator
+        id: sim
+        env:
+          DEVICE_NAME: ${{ matrix.device.name }}
+        run: |
+          set -euo pipefail
+          echo "Installed runtimes:"
+          xcrun simctl list runtimes
+
+          DEVICE_TYPE=$(xcrun simctl list devicetypes --json | python3 -c '
+          import json, os, sys
+          name = os.environ["DEVICE_NAME"]
+          matches = [d["identifier"] for d in json.load(sys.stdin)["devicetypes"] if d["name"] == name]
+          if len(matches) != 1:
+              sys.exit(f"Expected one device type named {name!r}, found {len(matches)}.")
+          print(matches[0])
+          ')
+          echo "Using device type: $DEVICE_TYPE"
+
+          # Newest available iOS runtime that supports the device: Xcode
+          # Cloud's "Latest from Selected Xcode". The image can carry a newer
+          # runtime than its default Xcode drives, which simctl rejects with
+          # "Incompatible device", so older candidates are tried in turn.
+          RUNTIMES=$(xcrun simctl list runtimes --json | DEVICE_TYPE="$DEVICE_TYPE" python3 -c '
+          import json, os, sys
+          device = os.environ["DEVICE_TYPE"]
+          runtimes = [
+              r for r in json.load(sys.stdin)["runtimes"]
+              if r.get("isAvailable")
+              and r["identifier"].startswith("com.apple.CoreSimulator.SimRuntime.iOS-")
+              and any(d.get("identifier") == device for d in r.get("supportedDeviceTypes", []))
+          ]
+          runtimes.sort(key=lambda r: [int(p) for p in r["version"].split(".")], reverse=True)
+          print("\n".join(r["identifier"] for r in runtimes))
+          ')
+          if [ -z "$RUNTIMES" ]; then
+            echo "::error::No available iOS runtime supports $DEVICE_NAME on this runner image."
+            exit 1
+          fi
+
+          UDID=
+          for RUNTIME in $RUNTIMES; do
+            if UDID=$(xcrun simctl create "KeeForge-RC" "$DEVICE_TYPE" "$RUNTIME"); then
+              echo "Using runtime: $RUNTIME"
+              break
+            fi
+            echo "::warning::$RUNTIME could not create $DEVICE_NAME; trying the next runtime."
+            UDID=
+          done
+          if [ -z "$UDID" ]; then
+            echo "::error::No iOS runtime on this runner could create $DEVICE_NAME."
+            exit 1
+          fi
+          echo "Created simulator: $UDID"
+          xcrun simctl boot "$UDID" || true
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build for testing
+        run: |
+          mkdir -p build
+          log="build/$RUN_NAME-build-for-testing.log"
+          if ! xcodebuild build-for-testing \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -skipPackagePluginValidation \
+            >"$log" 2>&1; then
+            tail -n 200 "$log"
+            exit 1
+          fi
+          tail -n 5 "$log"
+
+      - name: Run tests
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+          ONLY_TESTING: ${{ matrix.only-testing }}
+        run: |
+          set -uo pipefail
+          log="build/$RUN_NAME.log"
+          result="build/$RUN_NAME.xcresult"
+          rm -rf "$result"
+
+          selection=()
+          for test in $ONLY_TESTING; do
+            selection+=("-only-testing:$test")
+          done
+
+          # Test timeouts are on, as in Xcode Cloud, so the suites' execution
+          # allowances are enforced.
+          set +e
+          xcodebuild test-without-building \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            ${selection[@]+"${selection[@]}"} \
+            -test-timeouts-enabled YES \
+            -resultBundlePath "$result" \
+            2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "$RUN_NAME: xcodebuild exit=$status"
+
+          python3 ci_scripts/validate_xcresult_summary.py \
+            --result-bundle "$result" --suite "$RUN_NAME" --xcodebuild-exit "$status"
+
+      - name: Upload test logs and result bundle
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-rc-${{ env.RUN_NAME }}
+          path: |
+            build/*.log
+            build/*.xcresult
+          if-no-files-found: warn
+          retention-days: 14

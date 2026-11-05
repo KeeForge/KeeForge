@@ -170,9 +170,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
             },
             onCancel: { dismissThen(onCancel) }
         )
-        let host = UIHostingController(rootView: searchView)
-        host.modalPresentationStyle = .fullScreen
-        present(host, animated: true)
+        present(hosting(searchView), animated: true)
         AutoFillDiagnostics.log("shell presentSearchView attached=\(presentedViewController != nil) window=\(viewIfLoaded?.window != nil)")
     }
 
@@ -206,9 +204,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
             }
         )
 
-        let host = UIHostingController(rootView: creatorView)
-        host.modalPresentationStyle = .fullScreen
-        present(host, animated: true)
+        present(hosting(creatorView), animated: true)
     }
 
     func presentPasskeyCreator(
@@ -228,9 +224,15 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
             }
         )
 
-        let host = UIHostingController(rootView: creatorView)
+        present(hosting(creatorView), animated: true)
+    }
+
+    /// Every sheet takes the app's default accent; the extension cannot read
+    /// the accent the user picked in the app.
+    private func hosting(_ view: some View) -> UIViewController {
+        let host = UIHostingController(rootView: view.tint(Theme.accent))
         host.modalPresentationStyle = .fullScreen
-        present(host, animated: true)
+        return host
     }
 
     func presentNoEnabledDatabasesState(onDismiss: @escaping () -> Void) {
@@ -243,9 +245,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
                 self.dismiss(animated: false) { onDismiss() }
             }
         )
-        let host = UIHostingController(rootView: emptyStateView)
-        host.modalPresentationStyle = .fullScreen
-        present(host, animated: true)
+        present(hosting(emptyStateView), animated: true)
     }
 
     // MARK: "Ask this question"
