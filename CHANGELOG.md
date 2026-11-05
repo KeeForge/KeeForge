@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixes
+
+- On iPhone and iPad, the app switcher now shows KeeForge's cover instead of the screen you left. Before, the cover appeared too late to be in the app switcher's picture of the app, so an open database could be seen there.
+- On iPhone and iPad, KeeForge stays covered during a screen recording, mirroring, or AirPlay when Face ID, Control Center, Notification Center, or a system alert appears. Before, the cover could disappear behind them and show the open entry in the recording. While the cover is up, taps no longer reach the hidden app and the keyboard closes, so nothing typed shows in the recording.
+
 ## v1.21.0 (2026-11-04)
 
 ### New Features
