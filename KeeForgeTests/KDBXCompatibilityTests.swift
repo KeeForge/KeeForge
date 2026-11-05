@@ -894,7 +894,10 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // Every fixture that reaches the external gate contributes a password
         // check on a value it did not author itself.
-        for fixture in KDBXCompatibilitySupport.smokeFixtures + [KDBXCompatibilitySupport.Fixture.kitchenSink] {
+        for fixture in KDBXCompatibilitySupport.smokeFixtures + [
+            KDBXCompatibilitySupport.Fixture.kitchenSink,
+            KDBXCompatibilitySupport.Fixture.keepassxcRecycled,
+        ] {
             XCTAssertNotNil(
                 KDBXCompatibilitySupport.fixtureEntryPasswords[fixture.id],
                 "\(fixture.id) has no pre-existing entry password for the external gate"
@@ -1559,7 +1562,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             return result
         }
         environment.populateCredentialStore = { _, _ in }
-        coordinator.passkeySaveEnvironment = environment
+        coordinator.saveEnvironment = environment
         let identity = ASPasskeyCredentialIdentity(
             relyingPartyIdentifier: "example.com",
             userName: "alice",

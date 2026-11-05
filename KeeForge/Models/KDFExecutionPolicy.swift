@@ -35,4 +35,30 @@ struct KDFExecutionPolicy: Sendable, Equatable {
         maxTotalWorkBytes: 64 << 30,   // 64 GiB
         maxParallelism: 256
     )
+
+    /// The resource check `KDBXParser.deriveKey` runs before Argon2. Callers
+    /// whose key skipped the KDF (an express-unlock key) run it on the header
+    /// before anything that will derive under this policy, such as a save.
+    func validate(kdfParameters: [String: Any]) throws {
+        guard let uuid = kdfParameters["$UUID"] as? Data, uuid != KDBXParser.aesKDFUUID else { return }
+        try validate(
+            iterations: (kdfParameters["I"] as? UInt64) ?? 3,
+            memoryBytes: (kdfParameters["M"] as? UInt64) ?? (64 * 1024 * 1024),
+            parallelism: (kdfParameters["P"] as? UInt32) ?? 1
+        )
+    }
+
+    /// Exact stored values run or are rejected, never clamped.
+    func validate(iterations: UInt64, memoryBytes: UInt64, parallelism: UInt32) throws {
+        let (totalWork, overflow) = memoryBytes.multipliedReportingOverflow(by: iterations)
+        guard memoryBytes <= maxPeakMemoryBytes,
+              !overflow, totalWork <= maxTotalWorkBytes,
+              parallelism <= maxParallelism else {
+            throw KDBXParser.ParseError.kdfResourceLimitExceeded(
+                iterations: iterations,
+                memoryBytes: memoryBytes,
+                parallelism: parallelism
+            )
+        }
+    }
 }

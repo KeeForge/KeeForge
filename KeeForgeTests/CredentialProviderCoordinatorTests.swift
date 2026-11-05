@@ -37,6 +37,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         sharedDefaults.removeObject(forKey: "KeeForge.quickAutoFillEnabled")
         sharedDefaults.removeObject(forKey: "KeeForge.autoFillCopyTOTP")
         sharedDefaults.removeObject(forKey: "KeeForge.autoUnlockWithFaceID")
+        sharedDefaults.removeObject(forKey: "KeeForge.quickUnlockPasswordInterval")
     }
 
     #if os(iOS)
@@ -199,12 +200,18 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     /// The reporter's case: a credential stored without the site's URL, found
     /// through search. Confirming saves only the request's scheme and host as
-    /// the next `KP2A_URL_<n>`, leaves every other field alone, and fills.
+    /// the next `KP2A_URL_<n>`, leaves every other field alone (TOTP, a
+    /// protected field, history), backs up the old file, refreshes the shared
+    /// copy, and fills.
     func test_searchSelectedEntry_addURL_savesTheRequestedHostAndFills() async throws {
         let (coordinator, presenter) = makeCoordinator()
         let database = try seedResolvableDefaultDatabase()
-        try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
-        defer { PendingLocalSaveStore.removeAll(for: database.id) }
+        let original = try makeFixtureWithRichTwitterEntry()
+        try seedDatabaseBytes(original, for: database)
+        defer {
+            PendingLocalSaveStore.removeAll(for: database.id)
+            try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: database))
+        }
 
         let searchView = try await unlockDefaultDatabaseAndPresentSearch(
             coordinator,
@@ -253,6 +260,83 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertEqual(saved.notes, twitter.notes)
         XCTAssertEqual(saved.tags, twitter.tags)
         XCTAssertEqual(try saved.password.decrypt(using: sessionKey), "twitterpass123")
+        XCTAssertEqual(try saved.totpConfig?.secret.decrypt(using: sessionKey), "JBSWY3DPEHPK3PXP")
+        XCTAssertEqual(saved.protectedStringKeys, twitter.protectedStringKeys)
+        XCTAssertTrue(saved.protectedStringKeys.contains("PIN"))
+        XCTAssertEqual(saved.customFields["PIN"], "4321")
+        XCTAssertEqual(saved.history.count, twitter.history.count + 1, "The update pushes one version")
+        XCTAssertTrue(saved.history.contains { $0.title == "Twitter (old)" }, "Earlier history is kept")
+
+        let savedBytes = try Data(contentsOf: savedFile)
+        XCTAssertEqual(
+            try Data(contentsOf: DatabaseListStore.cacheLocation(for: database)),
+            savedBytes,
+            "AutoFill reads the shared copy next time"
+        )
+        let backups = try FileManager.default.contentsOfDirectory(
+            at: DatabaseListStore.databaseBackupDirectoryURL(for: database),
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertTrue(
+            try backups.contains { try Data(contentsOf: $0) == original },
+            "The file as it was before the save is backed up"
+        )
+    }
+
+    /// A file changed since unlock refuses the save, but the user asked for
+    /// a fill: it completes with the entry as opened and writes nothing.
+    func test_searchSelectedEntry_addURL_conflictStillFillsAndWritesNothing() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedResolvableDefaultDatabase()
+        let fixture = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        try seedDatabaseBytes(fixture, for: database)
+        defer { PendingLocalSaveStore.removeAll(for: database.id) }
+
+        let searchView = try await unlockDefaultDatabaseAndPresentSearch(
+            coordinator,
+            presenter,
+            serviceIdentifier: ASCredentialServiceIdentifier(identifier: "https://login.example.test", type: .URL)
+        )
+        let twitter = try XCTUnwrap(searchView.searchEntries.first { $0.title == "Twitter" })
+        let changedElsewhere = fixture + Data([0])
+        try seedDatabaseBytes(changedElsewhere, for: database)
+
+        try await addWebsiteAndWaitForCompletion(searchView, entry: twitter, presenter: presenter)
+
+        XCTAssertTrue(presenter.cancelledErrorCodes.isEmpty)
+        XCTAssertEqual(presenter.completedCredential?.user, twitter.username)
+        XCTAssertEqual(presenter.completedCredential?.password, "twitterpass123")
+        #if os(iOS)
+        let file = try XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: database))
+        #else
+        let file = DatabaseListStore.cacheLocation(for: database)
+        #endif
+        XCTAssertEqual(try Data(contentsOf: file), changedElsewhere, "The conflicting file is left alone")
+        assertCleanedUp(coordinator)
+    }
+
+    func test_searchSelectedEntry_addURL_saveErrorStillFills() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedResolvableDefaultDatabase()
+        try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
+        defer { PendingLocalSaveStore.removeAll(for: database.id) }
+        var failingSave = AutoFillSaveCoordinator.Environment.live
+        failingSave.saveDraft = { _, _, _, _ in throw SaveError.databaseLocationUnavailable }
+        coordinator.saveEnvironment = failingSave
+
+        let searchView = try await unlockDefaultDatabaseAndPresentSearch(
+            coordinator,
+            presenter,
+            serviceIdentifier: ASCredentialServiceIdentifier(identifier: "https://login.example.test", type: .URL)
+        )
+        let twitter = try XCTUnwrap(searchView.searchEntries.first { $0.title == "Twitter" })
+
+        try await addWebsiteAndWaitForCompletion(searchView, entry: twitter, presenter: presenter)
+
+        XCTAssertTrue(presenter.cancelledErrorCodes.isEmpty)
+        XCTAssertEqual(presenter.completedCredential?.user, twitter.username)
+        XCTAssertEqual(presenter.completedCredential?.password, "twitterpass123")
+        assertCleanedUp(coordinator)
     }
 
     /// An entry that already stores the host, here as an additional URL with
@@ -2889,6 +2973,154 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         ).usedCachedKey)
     }
 
+    /// A silent fill reads the quick-unlock item only while the master
+    /// password is not due; once it is, the system must bring up the UI.
+    func test_silentFill_overdueMasterPassword_requiresInteractionWithoutReadingTheKey() async throws {
+        SettingsService.quickAutoFillEnabled = true
+        let database = try seedResolvableDefaultDatabase()
+
+        for overdue in [false, true] {
+            let (coordinator, presenter) = makeCoordinator()
+            var keyReads = 0
+            coordinator.hasQuickUnlockKey = { _ in true }
+            coordinator.expireQuickUnlockIfDue = { _ in overdue }
+            coordinator.biometricQuickUnlockKeys = { _, _ in
+                keyReads += 1
+                throw CancellationError()
+            }
+            let cancelled = expectation(description: "request cancelled, overdue \(overdue)")
+            presenter.onCancelRequest = { _ in cancelled.fulfill() }
+
+            coordinator.provideCredentialWithoutUserInteraction(
+                for: makePasswordIdentity(
+                    recordIdentifier: CredentialRecordIdentifier(databaseID: database.id, entryID: UUID()).encoded
+                )
+            )
+            await fulfillment(of: [cancelled], timeout: 10)
+
+            XCTAssertEqual(presenter.cancelledError?.code, .userInteractionRequired)
+            XCTAssertEqual(keyReads, overdue ? 0 : 1, "overdue \(overdue)")
+            assertCleanedUp(coordinator)
+        }
+    }
+
+    /// The interval can run out while the prompt is up. Tapping the biometric
+    /// option then asks for the password instead of reading the item, and
+    /// the password opens the vault.
+    func test_biometricTap_afterTheIntervalRanOut_fallsBackToThePasswordWithoutReading() async throws {
+        SettingsService.autoUnlockWithFaceID = false
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedResolvableDefaultDatabase()
+        try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
+        coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+        var overdue = false
+        var keyReads = 0
+        coordinator.hasQuickUnlockKey = { _ in true }
+        coordinator.expireQuickUnlockIfDue = { _ in overdue }
+        coordinator.biometricQuickUnlockKeys = { _, _ in
+            keyReads += 1
+            return QuickUnlockKeys(storedKey: KDBXCrypto.compositeKey(password: "testpassword123"))
+        }
+
+        coordinator.prepareCredentialList(
+            for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)]
+        )
+        presenter.isPresentationActive = true
+        coordinator.presentationDidBecomeActive()
+        let offered = try XCTUnwrap(presenter.unlockPrompt)
+        XCTAssertNotNil(offered.biometricOptionTitle)
+
+        overdue = true
+        presenter.unlockPrompt = nil
+        offered.onChooseBiometrics()
+
+        let fallback = try XCTUnwrap(presenter.unlockPrompt, "The password prompt comes back")
+        XCTAssertNil(fallback.biometricOptionTitle)
+        XCTAssertEqual(keyReads, 0)
+
+        let searchPresented = expectation(description: "search view presented")
+        presenter.onSearchViewPresented = { searchPresented.fulfill() }
+        fallback.onSubmitPassword("testpassword123")
+        await fulfillment(of: [searchPresented], timeout: 60)
+        XCTAssertEqual(keyReads, 0)
+    }
+
+    /// With Always, quick unlock is never offered and a password unlock
+    /// leaves no quick-unlock item and no interval start behind.
+    func test_alwaysPasswordInterval_passwordUnlockPersistsNothing() async throws {
+        SettingsService.quickUnlockPasswordInterval = .always
+        SettingsService.autoUnlockWithFaceID = false
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedResolvableDefaultDatabase()
+        try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
+        coordinator.hasQuickUnlockKey = { _ in true }
+        var stored: [Bool] = []
+        coordinator.persistQuickUnlockKeys = { keys, reference, masterKeyEntered in
+            let result = QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered)
+            stored.append(result)
+            return result
+        }
+
+        _ = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
+
+        XCTAssertNil(presenter.unlockPrompt?.biometricOptionTitle, "Always never offers quick unlock")
+        XCTAssertEqual(stored, [false])
+        XCTAssertFalse(KeychainService.hasStoredKey(for: database.id))
+        let intervalStarts = AppGroupContainer.defaults.dictionary(forKey: "KeeForge.quickUnlockMasterKeyEntries")
+        XCTAssertNil(intervalStarts?[database.id.uuidString])
+    }
+
+    /// An express-unlock key opens a file without running its KDF, so a
+    /// header over the extension's Argon2 memory ceiling opens but could
+    /// never be saved here. Write flows are withheld or refused up front.
+    func test_expressUnlock_kdfOverTheExtensionCeiling_withholdsWriteFlows() async throws {
+        for (memory, writable) in [(UInt64(64) << 20, true), (UInt64(600) << 20, false)] {
+            DatabaseListStore.clearAll()
+            let (coordinator, presenter) = makeCoordinator()
+            let database = try seedResolvableDefaultDatabase()
+            let compositeKey = KDBXCrypto.compositeKey(password: "testpassword123")
+            let written = try writeFixture(argon2MemoryBytes: memory, compositeKey: compositeKey)
+            try seedDatabaseBytes(written.data, for: database)
+            let derivations = DerivationCounter()
+            configureQuickUnlock(
+                coordinator,
+                keys: QuickUnlockKeys(storedKey: compositeKey, expressKey: try XCTUnwrap(written.expressKey)),
+                derivations: derivations,
+                persisted: PersistedQuickUnlockKeys()
+            )
+            coordinator.memoryBudgetOverride = 8 << 30
+
+            try await unlockWithBiometricsAndPresentSearch(
+                coordinator,
+                presenter,
+                serviceIdentifier: ASCredentialServiceIdentifier(identifier: "https://login.example.test", type: .URL)
+            )
+
+            let name = "Argon2 memory \(memory >> 20) MiB"
+            XCTAssertEqual(derivations.count, 0, "The express key opened it: \(name)")
+            let searchView = try XCTUnwrap(presenter.searchView, name)
+            XCTAssertEqual(searchView.urlAddition != nil, writable, name)
+            #if os(iOS)
+            XCTAssertEqual(searchView.onCreateEntry != nil, writable, name)
+            #endif
+            XCTAssertEqual(coordinator.kdfWriteRefusalMessage == nil, writable, name)
+
+            guard !writable else { continue }
+            coordinator.pendingPasskeyRegistrationRequest = makePasskeyRequest(recordIdentifier: nil)
+            XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
+            let notice = try XCTUnwrap(presenter.readOnlyNotice, name)
+            XCTAssertEqual(notice.message, coordinator.kdfWriteRefusalMessage)
+            let expectedError = KDBXParser.ParseError.kdfResourceLimitExceeded(
+                iterations: 2,
+                memoryBytes: memory,
+                parallelism: 1
+            )
+            XCTAssertEqual(notice.message, expectedError.localizedDescription)
+            XCTAssertNil(presenter.passkeyCreator, "Registration is refused before the creator")
+            coordinator.cancelRequest(code: .userCanceled)
+        }
+    }
+
     /// The stored key of a hardware-key database is only a pre-key. Even with
     /// an express key that would open the file, biometrics alone must not
     /// unlock it: nothing is read, and the YubiKey explanation is shown.
@@ -3294,6 +3526,93 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         searchView.onSelect(entry)
     }
 
+    /// The `test` fixture with its Twitter entry carrying a TOTP secret, a
+    /// protected custom field, and one history version.
+    private func makeFixtureWithRichTwitterEntry() throws -> Data {
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: KDBXTestFixture.test.data(in: Bundle(for: Self.self)),
+            password: "testpassword123",
+            sessionKey: sessionKey
+        )
+        func enrichTwitter(in group: inout KPGroup) -> Bool {
+            if let index = group.entries.firstIndex(where: { $0.title == "Twitter" }) {
+                var entry = group.entries[index]
+                var older = entry
+                older.title = "Twitter (old)"
+                entry.history = [older]
+                entry.customFields["otp"] = "otpauth://totp/Twitter?secret=JBSWY3DPEHPK3PXP"
+                entry.customFields["PIN"] = "4321"
+                entry.protectedStringKeys.insert("PIN")
+                group.entries[index] = entry
+                return true
+            }
+            return group.groups.indices.contains { enrichTwitter(in: &group.groups[$0]) }
+        }
+        var root = parsed.rootGroup
+        XCTAssertTrue(enrichTwitter(in: &root))
+        let data = try KDBXWriter.write(
+            rootGroup: root,
+            meta: parsed.meta,
+            compositeKey: KDBXCrypto.compositeKey(password: "testpassword123"),
+            header: parsed.header,
+            sessionKey: sessionKey
+        )
+        let reparsed = try KDBXParser.parse(data: data, password: "testpassword123", sessionKey: sessionKey)
+        let twitter = try XCTUnwrap(reparsed.allEntries.first { $0.title == "Twitter" })
+        XCTAssertNotNil(twitter.totpConfig, "Precondition: the fixture entry has a code")
+        XCTAssertEqual(twitter.history.count, 1)
+        return data
+    }
+
+    /// The `test` fixture rewritten over an Argon2id header with the given
+    /// memory, keyed by a cheap stand-in KDF so no real Argon2 runs.
+    private func writeFixture(
+        argon2MemoryBytes: UInt64,
+        compositeKey: SymmetricKey
+    ) throws -> ExpressUnlock.Written {
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: KDBXTestFixture.test.data(in: Bundle(for: Self.self)),
+            password: "testpassword123",
+            sessionKey: sessionKey
+        )
+        var header = parsed.header
+        header.kdfParameters = [
+            "$UUID": KDBXParser.argon2idUUID,
+            "S": Data(repeating: 9, count: 32),
+            "M": argon2MemoryBytes,
+            "I": UInt64(2),
+            "P": UInt32(1),
+            "V": UInt32(0x13),
+        ]
+        return try ExpressUnlock.write(
+            draft: DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: sessionKey),
+            compositeKey: compositeKey,
+            header: header,
+            kdfPolicy: .mainApp,
+            deriveKey: { compositeKey, kdfParameters, _ in
+                var hasher = SHA256()
+                compositeKey.withUnsafeBytes { hasher.update(bufferPointer: $0) }
+                hasher.update(data: (kdfParameters["S"] as? Data) ?? Data())
+                return Data(hasher.finalize())
+            }
+        )
+    }
+
+    private func addWebsiteAndWaitForCompletion(
+        _ searchView: CredentialProviderPresentingSpy.SearchView,
+        entry: KPEntry,
+        presenter: CredentialProviderPresentingSpy
+    ) async throws {
+        let addition = try XCTUnwrap(searchView.urlAddition)
+        let finished = expectation(description: "request finished")
+        presenter.onCompleteRequest = { _ in finished.fulfill() }
+        presenter.onCancelRequest = { _ in finished.fulfill() }
+        addition.onAdd(entry)
+        await fulfillment(of: [finished], timeout: 60)
+    }
+
     private func configureQuickUnlock(
         _ coordinator: CredentialProviderCoordinator,
         keys: QuickUnlockKeys,
@@ -3313,11 +3632,13 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     /// the picker presents once the vault is open.
     private func unlockWithBiometricsAndPresentSearch(
         _ coordinator: CredentialProviderCoordinator,
-        _ presenter: CredentialProviderPresentingSpy
-    ) async throws {
-        coordinator.prepareCredentialList(
-            for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)]
+        _ presenter: CredentialProviderPresentingSpy,
+        serviceIdentifier: ASCredentialServiceIdentifier = ASCredentialServiceIdentifier(
+            identifier: "no-such-service.example",
+            type: .domain
         )
+    ) async throws {
+        coordinator.prepareCredentialList(for: [serviceIdentifier])
         presenter.isPresentationActive = true
         coordinator.presentationDidBecomeActive()
         let prompt = try XCTUnwrap(presenter.unlockPrompt)

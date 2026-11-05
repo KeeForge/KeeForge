@@ -19,6 +19,9 @@ final class SSHAgentKeyTests: XCTestCase {
             (Keys.ecdsaP521, .ecdsaP521),
             (Keys.rsa, .rsa(bits: 2048)),
             (Keys.rsaWrittenByCryptography, .rsa(bits: 2048)),
+            (Keys.rsa1024, .rsa(bits: 1024)),
+            (Keys.rsa3072, .rsa(bits: 3072)),
+            (Keys.rsa4096, .rsa(bits: 4096)),
         ]
         for (fixture, algorithm) in expectations {
             let key = try SSHAgentKey(privateKeyFile: fixture.fileData)
@@ -78,12 +81,11 @@ final class SSHAgentKeyTests: XCTestCase {
     }
 
     /// OpenSSH refuses RSA keys under 1024 and over 16384 bits. The upper
-    /// bound matters here beyond compatibility: signing derives two exponents
+    /// bound matters here beyond compatibility: parsing derives two exponents
     /// with arithmetic whose cost grows with the square of the key size.
     func testRSAKeysOutsideOpenSSHsSizeLimitsAreRejected() throws {
         func number(bytes: Int) -> Data { Data([0x7F]) + Data(repeating: 0xFF, count: bytes - 1) }
-        let usable = try Self.rsaKeyFile(modulusBytes: 256, number: number)
-        XCTAssertEqual(try SSHAgentKey(privateKeyFile: usable).algorithm, .rsa(bits: 2047))
+        XCTAssertEqual(try SSHAgentKey(privateKeyFile: Keys.rsa1024.fileData).algorithm, .rsa(bits: 1024))
 
         for modulusBytes in [64, 2049] {
             let file = try Self.rsaKeyFile(modulusBytes: modulusBytes, number: number)
@@ -102,6 +104,17 @@ final class SSHAgentKeyTests: XCTestCase {
             XCTAssertThrowsError(try SSHAgentKey(privateKeyFile: file), oversized) {
                 XCTAssertEqual($0 as? SSHAgentKeyError, .malformed)
             }
+        }
+    }
+
+    /// Security imports RSA numbers without checking them, so numbers of a
+    /// valid size that are no working key must fail parsing, where Settings
+    /// reports them, rather than every signature.
+    func testRSANumbersThatAreNoWorkingKeyAreRejected() throws {
+        let file = try Self.rsaKeyFile(modulusBytes: 256) { Data([0x7F]) + Data(repeating: 0xFF, count: $0 - 1) }
+
+        XCTAssertThrowsError(try SSHAgentKey(privateKeyFile: file)) {
+            XCTAssertEqual($0 as? SSHAgentKeyError, .malformed)
         }
     }
 
@@ -202,6 +215,19 @@ final class SSHAgentKeyTests: XCTestCase {
         }
     }
 
+    func testRSASignaturesMatchTheReferenceAt3072And4096Bits() throws {
+        let fixtures = [
+            (Keys.rsa3072, Keys.rsa3072SHA256SignatureBlob, Keys.rsa3072SHA512SignatureBlob),
+            (Keys.rsa4096, Keys.rsa4096SHA256SignatureBlob, Keys.rsa4096SHA512SignatureBlob),
+        ]
+        for (fixture, sha256, sha512) in fixtures {
+            let key = try SSHAgentKey(privateKeyFile: fixture.fileData)
+
+            XCTAssertEqual(try key.signature(for: Keys.message, flags: SSHAgentKey.rsaSHA256Flag).base64EncodedString(), sha256)
+            XCTAssertEqual(try key.signature(for: Keys.message, flags: SSHAgentKey.rsaSHA512Flag).base64EncodedString(), sha512)
+        }
+    }
+
     func testRSAPrefersSHA256WhenBothHashesAreAllowed() throws {
         let key = try SSHAgentKey(privateKeyFile: Keys.rsa.fileData)
         let flags = SSHAgentKey.rsaSHA256Flag | SSHAgentKey.rsaSHA512Flag
@@ -220,8 +246,7 @@ final class SSHAgentKeyTests: XCTestCase {
     // MARK: - Helpers
 
     /// An `openssh-key-v1` file around RSA numbers of the given size. The
-    /// numbers are not a working key; the parser reads sizes before anything
-    /// signs with them.
+    /// numbers are not a working key.
     private static func rsaKeyFile(
         modulusBytes: Int,
         oversized: String? = nil,

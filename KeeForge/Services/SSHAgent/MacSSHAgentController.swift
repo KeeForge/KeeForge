@@ -59,8 +59,14 @@ final class MacSSHAgentController {
         }
     }
 
-    /// The socket could not be created while the agent is turned on.
-    private(set) var isUnavailable = false
+    enum Unavailability: Equatable {
+        /// Another agent, such as a second copy of KeeForge, serves the path.
+        case socketInUse
+        case failed
+    }
+
+    /// Why the socket could not be created while the agent is turned on.
+    private(set) var unavailability: Unavailability?
 
     /// The entries served per database, keyed by `DatabaseReference.id`.
     private(set) var selectedEntryIDs: [UUID: Set<UUID>]
@@ -217,16 +223,18 @@ final class MacSSHAgentController {
         do {
             try server.start()
             self.server = server
-            isUnavailable = false
+            unavailability = nil
+        } catch SSHAgentSocketError.socketInUse {
+            unavailability = .socketInUse
         } catch {
-            isUnavailable = true
+            unavailability = .failed
         }
     }
 
     private func stopServer() {
         server?.stop()
         server = nil
-        isUnavailable = false
+        unavailability = nil
         keyCache.removeAll()
     }
 

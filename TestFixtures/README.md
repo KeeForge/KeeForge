@@ -147,7 +147,7 @@ A compatibility ID is an artifact ID, not a file name. Three IDs read a fixture 
 | `foreign-twofish` | `compatibility/foreign-twofish.kdbx` | `foreign-twofish` | `Foreign/Foreign Entry Alpha` → `ForeignAlphaSecret1` |
 | `unknown-inner-header` | `compatibility/unknown-inner-header.kdbx` | `unknown-inner-header` | `Unknown Header/Inner Header Entry` → `UnknownHeaderSecret1` |
 | `argon2-high-iterations` | `compatibility/argon2-high-iterations.kdbx` | `argon2-high-iterations` | `High Iterations/High Iteration Entry` → `HighIterationSecret1` |
-| `keepassxc-recycled` | `compatibility/keepassxc-recycled.kdbx` | `keepassxc-recycled` | none |
+| `keepassxc-recycled` | `compatibility/keepassxc-recycled.kdbx` | `keepassxc-recycled` | `Recycle Bin/Recycled Login` → `RecycledLoginSecret1` (read back from `Work` after the restore) |
 
 - After KeeForge rewrites a fixture, `run_kdbx_compatibility_gate.sh` asks `keepassxc-cli show -s -a Password` for the entry in the last column, proving a value authored by another implementation survives a KeeForge save. The pairs are mirrored in `KDBXCompatibilitySupport.fixtureEntryPasswords`; change both together.
 - The `kitchen-sink` group-tag scenarios also probe `Projects/Alpha Login` → `GroupTagAlpha1`, `Plain Group/Delta Login` → `GroupTagDelta4`, and `Projects/Client Work/Beta Login Updated` → `GroupTagBetaUpdated2` (a value KeeForge wrote). The generator's own `keepassxc-cli` pass also probes `Round Trip/Controlled Unknowns` → `roundtrip-pass`.
@@ -173,7 +173,7 @@ A compatibility ID is an artifact ID, not a file name. Three IDs read a fixture 
 
 `argon2-high-iterations.kdbx`: a high iteration count with low memory (1.5 GiB of total work), the acceptance case for the `KDFExecutionPolicy` work budget. A per-parameter iteration cap would reject it. One `High Iterations` group with `High Iteration Entry` (`high-iteration-user` / `HighIterationSecret1`). The low memory keeps repeated derivations in the matrix and gate cheap.
 
-`keepassxc-recycled.kdbx`: pykeepass creates the empty file with light Argon2d settings, then `keepassxc-cli` makes every change, so the Recycle Bin and its `<PreviousParentGroup>` references are KeePassXC's own. `Work` ends empty; `Recycle Bin` holds `Recycled Login` (`recycled-user`) and `Recycled Projects` with `Nested Login` (`nested-user`), both recycled out of `Work`. Building it needs keepassxc-cli (`KEEPASSXC_CLI`, `PATH`, or the macOS app).
+`keepassxc-recycled.kdbx`: pykeepass creates the empty file with light Argon2d settings, then `keepassxc-cli` makes every change, so the Recycle Bin and its `<PreviousParentGroup>` references are KeePassXC's own. `Work` ends empty; `Recycle Bin` holds `Recycled Login` (`recycled-user` / `RecycledLoginSecret1`) and `Recycled Projects` with `Nested Login` (`nested-user`), both recycled out of `Work`. Building it needs keepassxc-cli (`KEEPASSXC_CLI`, `PATH`, or the macOS app).
 
 Changing an entry password in `unknown-inner-header.kdbx` or `argon2-high-iterations.kdbx` means updating `KDBXCompatibilitySupport.fixtureEntryPasswords`.
 

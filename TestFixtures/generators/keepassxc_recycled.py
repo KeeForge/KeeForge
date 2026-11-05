@@ -11,7 +11,8 @@ keepassxc-cli, found through `KEEPASSXC_CLI`, `PATH`, or the default macOS app
 location.
 
 Content: `Work` holds nothing after the build. `Recycle Bin` holds the entry
-`Recycled Login` (`recycled-user`) and the group `Recycled Projects` with
+`Recycled Login` (`recycled-user` / `RecycledLoginSecret1`, the password
+the compatibility gate reads back) and the group `Recycled Projects` with
 `Nested Login` (`nested-user`); both were recycled out of `Work`.
 """
 
@@ -27,6 +28,7 @@ ORIGINAL_GROUP = "Work"
 RECYCLED_ENTRY = "Recycled Login"
 RECYCLED_GROUP = "Recycled Projects"
 NESTED_ENTRY = "Nested Login"
+RECYCLED_ENTRY_PASSWORD = "RecycledLoginSecret1"
 DEFAULT_KEEPASSXC_CLI = "/Applications/KeePassXC.app/Contents/MacOS/keepassxc-cli"
 
 
@@ -37,8 +39,10 @@ def keepassxc_cli_path() -> str:
     return path
 
 
-def run(cli: str, *args: str) -> None:
-    result = run_keepassxc_cli(cli, args, PASSWORD)
+def run(cli: str, *args: str, entry_password: str | None = None) -> None:
+    # `add -p` prompts for the entry password after the database password.
+    stdin_password = PASSWORD if entry_password is None else f"{PASSWORD}\n{entry_password}"
+    result = run_keepassxc_cli(cli, args, stdin_password)
     if result.returncode != 0:
         raise AssertionError(f"keepassxc-cli {' '.join(args)} failed:\n{result.stderr}")
 
@@ -53,7 +57,10 @@ def build(path: Path) -> None:
     db = str(path)
     run(cli, "mkdir", "-q", db, ORIGINAL_GROUP)
     run(cli, "mkdir", "-q", db, f"{ORIGINAL_GROUP}/{RECYCLED_GROUP}")
-    run(cli, "add", "-q", "-u", "recycled-user", db, f"{ORIGINAL_GROUP}/{RECYCLED_ENTRY}")
+    run(
+        cli, "add", "-q", "-u", "recycled-user", "-p", db, f"{ORIGINAL_GROUP}/{RECYCLED_ENTRY}",
+        entry_password=RECYCLED_ENTRY_PASSWORD,
+    )
     run(cli, "add", "-q", "-u", "nested-user", db, f"{ORIGINAL_GROUP}/{RECYCLED_GROUP}/{NESTED_ENTRY}")
     run(cli, "rm", "-q", db, f"{ORIGINAL_GROUP}/{RECYCLED_ENTRY}")
     run(cli, "rmdir", "-q", db, f"{ORIGINAL_GROUP}/{RECYCLED_GROUP}")
@@ -70,6 +77,8 @@ def verify(path: Path, keepassxc_cli: str | None) -> None:
     original_b64 = base64.b64encode(original.uuid.bytes).decode()
 
     entry = kp.find_entries(title=RECYCLED_ENTRY, first=True)
+    if entry is not None and entry.password != RECYCLED_ENTRY_PASSWORD:
+        raise AssertionError(f"{path.name}: '{RECYCLED_ENTRY}' does not carry its password")
     group = kp.find_groups(name=RECYCLED_GROUP, first=True)
     for label, item in ((RECYCLED_ENTRY, entry), (RECYCLED_GROUP, group)):
         if item is None or item.parentgroup.uuid != recycle_bin.uuid:
