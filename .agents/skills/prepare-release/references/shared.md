@@ -178,9 +178,9 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
 - The two platforms diverge only at App Store Connect, which keeps a **separate version record,
   build, screenshot set, and review submission per platform**. Shipping is therefore not done when
   iOS is submitted; see the `publish-app-store-version` skill.
-- The KDBX compatibility gate runs **per platform** on the Mac Studio: plan `kdbx-ios`
-  (`KeeForgeTests` on an iOS simulator) and plan `kdbx-mac` (`KeeForgeMacTests` on the Studio's
-  macOS), as [documented](candidate.md#regenerate-and-run-the-kdbx-gates). Both must pass before
+- The KDBX compatibility gate runs **per platform**: `KeeForgeTests` on an iOS simulator, then
+  `KDBX_COMPAT_SCHEME=KeeForgeMac` for `KeeForgeMacTests` on macOS, as
+  [documented](candidate.md#regenerate-and-run-the-kdbx-gates). Both must pass before
   external distribution, alongside all three cloud verdicts and local Mac smoke.
 - The Mac ships through **two channels**. The Mac App Store build is the default
   (`xcodegen generate`) and is archived like the iOS app. The notarized

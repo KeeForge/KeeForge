@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # --verify-only skips xcodebuild and cross-checks an existing KDBX_COMPAT_RESULT_BUNDLE,
-# for runners that execute KDBXCompatibilityTests themselves (studio-tests on the Mac Studio).
+# for runners that execute KDBXCompatibilityTests themselves.
 VERIFY_ONLY=0
 case "${1:-}" in
   "") ;;

@@ -83,13 +83,13 @@ conclusion as `gates.githubIPad`.
 
 ## The owner-run gates that also must be accepted
 
-Run both KDBX compatibility gates for the same RC source tree on the Mac Studio, and record
-separate evidence as `gates.kdbxIOS` and `gates.kdbxMac`. The commands, evidence names, and the
-local fallback are in [KDBX gates](candidate.md#regenerate-and-run-the-kdbx-gates):
+Run both KDBX compatibility gates for the same RC source tree, and record separate evidence as
+`gates.kdbxIOS` and `gates.kdbxMac`. The commands, evidence names, and source-tree check are in
+[KDBX gates](candidate.md#regenerate-and-run-the-kdbx-gates):
 
 ```bash
-~/.agents/skills/studio-tests/bin/studio-test run kdbx-ios --evidence-dir "$CANDIDATE/evidence"
-~/.agents/skills/studio-tests/bin/studio-test run kdbx-mac --evidence-dir "$CANDIDATE/evidence"
+ci_scripts/run_kdbx_compatibility_gate.sh
+KDBX_COMPAT_SCHEME=KeeForgeMac ci_scripts/run_kdbx_compatibility_gate.sh
 ```
 
 Run `KeeForgeMacUITests/MacSmokeUITests` locally on an unlocked release Mac under the Xcode lock.

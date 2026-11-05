@@ -222,8 +222,8 @@ gate, or change the direct Mac artifact procedure.
 ## What Xcode Cloud does not cover
 
 - `ci_scripts/run_kdbx_compatibility_gate.sh` needs `keepassxc-cli`, which Xcode Cloud does not
-  install. It stays a required owner-run gate per platform, run twice per candidate on the Mac
-  Studio (plans `kdbx-ios` and `kdbx-mac`; see `candidate.md`). The local `KeeForgeMacUITests/MacSmokeUITests` suite is also
+  install. It stays a required owner-run gate per platform, run twice per candidate (iOS and
+  `KDBX_COMPAT_SCHEME=KeeForgeMac`; see `candidate.md`). The local `KeeForgeMacUITests/MacSmokeUITests` suite is also
   required and needs an unlocked active login session.
 - Minimum-OS coverage: Xcode Cloud's iOS test action can only pin the latest runtime or iOS 16.4,
   with no iOS 18.x runtime available, and no GitHub lane runs iOS 18 either.
