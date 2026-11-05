@@ -531,9 +531,7 @@ final class MacSmokeUITests: MacUITestCase {
         typeCommandShortcut(",")
         let settingsWindow = app.windows["com_apple_SwiftUI_Settings_window"].firstMatch
         XCTAssertTrue(settingsWindow.waitForExistence(timeout: 15))
-        // Unselected Settings tabs are absent from XCUITest on macOS 26;
-        // use the same fixed-pane tab position as the screenshot audit.
-        settingsWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.448, dy: 0.09)).click()
+        XCTAssertTrue(selectSettingsTab(named: "Menu Bar"))
 
         let toggleQuery = settingsWindow.descendants(matching: .any)
             .matching(identifier: "settings.menu-bar.toggle")
@@ -562,7 +560,7 @@ final class MacSmokeUITests: MacUITestCase {
         if wasEnabled {
             typeCommandShortcut(",")
             XCTAssertTrue(settingsWindow.waitForExistence(timeout: 10))
-            settingsWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.448, dy: 0.09)).click()
+            XCTAssertTrue(selectSettingsTab(named: "Menu Bar"))
             XCTAssertTrue(toggle.waitForExistence(timeout: 5))
             toggle.click()
         }
