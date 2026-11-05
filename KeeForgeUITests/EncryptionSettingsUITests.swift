@@ -65,21 +65,7 @@ final class EncryptionSettingsUITests: DatabaseCreationUITestCase {
     /// Opens Encryption Settings from the unlocked database and returns its
     /// Save button, which must start disabled.
     private func openEncryptionSettings(file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
-        let settingsButton = app.buttons["settings.button"]
-        XCTAssertTrue(
-            settingsButton.waitForExistence(timeout: 10),
-            "Unlocked database settings button was not visible",
-            file: file,
-            line: line
-        )
-        tapElement(settingsButton)
-
-        XCTAssertTrue(
-            app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
-            "The gear button did not open Database Details",
-            file: file,
-            line: line
-        )
+        openDatabaseDetailsFromVault(file: file, line: line)
         openDatabaseDetailsPage(.encryption, file: file, line: line)
 
         let changeRow = app.buttons["database-details.change-encryption-settings"]

@@ -6,6 +6,7 @@ final class DatabaseListUITests: KeeForgeUITestCase {
         [
             .init(resourceName: "test", injectedFilename: "alpha.kdbx"),
             .init(resourceName: "test", injectedFilename: "bravo.kdbx"),
+            .init(resourceName: "test", injectedFilename: "charlie.kdbx"),
         ]
     }
 
@@ -27,14 +28,25 @@ final class DatabaseListUITests: KeeForgeUITestCase {
         XCTAssertTrue(waitForDocumentPicker(), "Document picker did not appear after tapping Add Database")
     }
 
-    func testSwipeToDeleteShowsRemoveAction() {
-        let alphaRow = databaseRow(containing: "alpha")
-        XCTAssertTrue(alphaRow.waitForExistence(timeout: 10), "Alpha row not found")
+    /// A tile's menu acts on that tile's database, not on another one that
+    /// shares its part of the overview, and offers Remove there.
+    func testTileContextMenuActsOnItsOwnDatabase() {
+        let charlie = app.buttons.matching(
+            NSPredicate(format: "identifier == 'database.row' AND label CONTAINS[c] %@", "charlie")
+        ).firstMatch
+        XCTAssertTrue(charlie.waitForExistence(timeout: 10), "Charlie tile not found")
 
-        alphaRow.swipeLeft()
+        charlie.press(forDuration: 1.2)
+        XCTAssertTrue(app.buttons["Remove"].waitForExistence(timeout: 5), "Remove action did not appear")
+        app.buttons["Read-only"].firstMatch.tap()
 
-        let removeButton = app.buttons["Remove"]
-        XCTAssertTrue(removeButton.waitForExistence(timeout: 5), "Remove action did not appear")
+        XCTAssertTrue(
+            charlie.staticTexts["Read-only"].waitForExistence(timeout: 5),
+            "The pressed tile must turn read-only"
+        )
+        for other in ["alpha", "bravo"] {
+            XCTAssertFalse(databaseRow(containing: other).staticTexts["Read-only"].exists, "\(other) must stay writable")
+        }
     }
 
     func testDatabaseDetailsAutoFillTogglePersistsAcrossReopen() {

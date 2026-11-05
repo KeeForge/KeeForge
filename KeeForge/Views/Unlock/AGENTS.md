@@ -15,8 +15,15 @@
 - Initial focus on macOS belongs to `MacInitialFocus`. It re-applies only while the responder it displaced (the sidebar, after a row click) still holds focus, so a deliberate focus change is never undone.
 - `@FocusState passwordFocused` is bound on iOS only. Setting it on macOS does nothing; do not rely on it to move focus there.
 
+### Page layout
+
+- iPhone and iPad draw the design's unlock page: the database centred under its padlock, the password field, Key File and Hardware Key in one card, then Unlock, the biometric button, and Choose Different File. macOS keeps its form. Both layouts share the password input and the hardware-key menu, so a behaviour change goes in one place.
+
+- While a database opens, iPhone and iPad show `DatabaseOpeningView` with the database's own source tile and its steps (sync for a cloud database, decrypt, open), driven by `DatabaseViewModel.openingStep`. It only reports progress; it never changes how the database opens.
+
 ### Failure screen and pickers
 
+- iPhone and iPad draw the failure as the design's error page, macOS keeps its card; both offer the same actions under the same identifiers.
 - The password form stays below the failure whenever `DatabaseOpenFailure.canRetryUnlock` holds, which includes every biometric failure. Try Again repeats quick unlock only while `canRetryQuickUnlock`, so an unreadable saved key sends the user to the password.
 - The key-file picker and Locate Database File share one `.fileImporter` through `PickerPresentationState<FilePickerTarget>`; a second importer on the same view does not present reliably. The target outlives dismissal so the completion still knows what was picked.
 - Locate Database File shows only while `canRelinkDatabaseFile`. That includes any non-timeout failure while `DatabaseReference.hasUnverifiedRelink`, because a wrong pick fails as a wrong password.
@@ -29,7 +36,7 @@
 
 ## Tests
 
-- `MacUnlockPasswordFieldTests` (focus and field-editor routing), `UnlockKeyFileSelectionTests`, `HardwareKeyUnlockTests`.
+- `MacUnlockPasswordFieldTests` (focus and field-editor routing), `UnlockKeyFileSelectionTests`, `HardwareKeyUnlockTests`, `DatabaseOverviewTests` (opening steps).
 - UI: `UnlockFlowUITests`, `KeyFileUnlockUITests`, `LockUnlockUITests`.
 
 ## See also

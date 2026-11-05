@@ -53,6 +53,7 @@ struct AutoFillSearchView: View {
     @State private var didEditSearch = false
     @State private var showsAllEntries = false
     @State private var entryPendingURLAddition: KPEntry?
+    @ScaledMetric(relativeTo: .body) private var entryIconSize = Theme.Size.entryIcon
 
     init(
         entries: [KPEntry],
@@ -118,7 +119,7 @@ struct AutoFillSearchView: View {
             entryList
                 .searchable(text: $searchText, prompt: "Search entries")
                 .navigationTitle("Choose Credential")
-                .navigationBarTitleDisplayMode(.inline)
+                .modifier(AutoFillPickerTitleStyle(service: initialSearchText))
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { onCancel() }
@@ -259,32 +260,173 @@ struct AutoFillSearchView: View {
         }
     }
 
+    @ViewBuilder
     private var noCredentialsFoundView: some View {
-        ContentUnavailableView {
-            Label("No Credentials Found", systemImage: "magnifyingglass")
-                .accessibilityIdentifier("autofill.no-credentials-found")
-        } description: {
-            VStack(spacing: 8) {
-                if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("No credentials match this search.")
+        if PlatformDesign.followsIOSDesign {
+            designedNoCredentialsFoundView
+        } else {
+            ContentUnavailableView {
+                noCredentialsFoundLabel
+            } description: {
+                VStack(spacing: 8) {
+                    if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("No credentials match this search.")
+                    }
+                    if let sharedCopyDate {
+                        sharedCopyNotice(sharedCopyDate)
+                    }
                 }
-                if let sharedCopyDate {
-                    Text("Searched KeeForge’s copy of this database from \(sharedCopyDate.formatted(date: .abbreviated, time: .shortened)). To find newer credentials, unlock this database in KeeForge. For cloud databases, use Sync Now in Database Details.")
-                        .accessibilityIdentifier("autofill.shared-copy-notice")
+            } actions: {
+                if canShowAllEntries {
+                    Button("Show All Credentials", action: showAllEntries)
+                        .accessibilityIdentifier("autofill.show-all-entries.empty-state")
                 }
-            }
-        } actions: {
-            if canShowAllEntries {
-                Button("Show All Credentials", action: showAllEntries)
-                    .accessibilityIdentifier("autofill.show-all-entries.empty-state")
-            }
-            if let onCreateEntry {
-                Button("Create New Credential", action: onCreateEntry)
-                    .accessibilityIdentifier("autofill.create-entry.empty-state")
+                if let onCreateEntry {
+                    Button("Create New Credential", action: onCreateEntry)
+                        .accessibilityIdentifier("autofill.create-entry.empty-state")
+                }
             }
         }
     }
 
+    /// The site the request came from, while its search is still the one
+    /// KeeForge filled in; a search the user typed has no site to name.
+    private var requestedSite: String? {
+        guard didEditSearch == false, searchText == initialSearchText else { return nil }
+        let site = initialSearchText.isEmpty ? urlAddition?.host : initialSearchText
+        return site?.isEmpty == false ? site : nil
+    }
+
+    /// Names the site when there is one, offers creating a login for it and
+    /// listing everything as one card, and keeps the shared-copy note short.
+    private var designedNoCredentialsFoundView: some View {
+        ScrollView {
+            VStack(spacing: Theme.Spacing.cardGap) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(.title, weight: .semibold))
+                    .foregroundStyle(.tint)
+                    .frame(width: 76, height: 76)
+                    .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                    .accessibilityHidden(true)
+
+                if let requestedSite {
+                    Text("Nothing for this site yet")
+                        .font(Theme.Font.entryTitle)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("autofill.no-credentials-found")
+                    HStack(spacing: 6) {
+                        Image(systemName: "globe")
+                            .accessibilityHidden(true)
+                        Text(requestedSite)
+                    }
+                    .font(Theme.Font.subhead)
+                    .padding(.horizontal, Theme.Spacing.iconText)
+                    .padding(.vertical, 6)
+                    .background(Theme.fill, in: Capsule())
+                } else {
+                    Text("No Credentials Found")
+                        .font(Theme.Font.entryTitle)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("autofill.no-credentials-found")
+                    if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("No credentials match this search.")
+                            .font(Theme.Font.subhead)
+                            .foregroundStyle(Theme.labelSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+
+                if onCreateEntry != nil || canShowAllEntries {
+                    VStack(spacing: 0) {
+                        if let onCreateEntry {
+                            emptyStateAction(
+                                requestedSite == nil ? String(localized: "Create New Credential") : String(localized: "Create Login for This Site"),
+                                systemImage: "plus",
+                                tint: Theme.accent,
+                                identifier: "autofill.create-entry.empty-state",
+                                action: onCreateEntry
+                            )
+                        }
+                        if onCreateEntry != nil, canShowAllEntries {
+                            Divider().padding(.leading, 60)
+                        }
+                        if canShowAllEntries {
+                            emptyStateAction(
+                                String(localized: "Show All Credentials"),
+                                systemImage: "list.bullet",
+                                tint: Theme.labelSecondary,
+                                identifier: "autofill.show-all-entries.empty-state",
+                                action: showAllEntries
+                            )
+                        }
+                    }
+                    .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                    .padding(.top, Theme.Spacing.tileGap)
+                }
+
+                if let sharedCopyDate {
+                    Label {
+                        Text("Searched the copy from \(sharedCopyDate.formatted(date: .abbreviated, time: .shortened)). Unlock this database in KeeForge to refresh it.")
+                            .accessibilityIdentifier("autofill.shared-copy-notice")
+                    } icon: {
+                        Image(systemName: "info.circle")
+                    }
+                    .font(Theme.Font.footnote)
+                    .foregroundStyle(Theme.labelSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Theme.Spacing.iconText)
+                }
+            }
+            .padding(Theme.Spacing.side)
+            .padding(.top, 40)
+            .frame(maxWidth: 520)
+            .frame(maxWidth: .infinity)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    /// A row of the empty state's action card: a tinted square, the title, a chevron.
+    private func emptyStateAction(
+        _ title: String,
+        systemImage: String,
+        tint: Color,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: Theme.Spacing.iconText) {
+                Image(systemName: systemImage)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.tileGlyph)
+                    .frame(width: 32, height: 32)
+                    .background(tint, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                Text(title)
+                    .foregroundStyle(Color.primary)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, Theme.Spacing.side)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private var noCredentialsFoundLabel: some View {
+        Label("No Credentials Found", systemImage: "magnifyingglass")
+            .accessibilityIdentifier("autofill.no-credentials-found")
+    }
+
+    private func sharedCopyNotice(_ date: Date) -> some View {
+        Text("Searched KeeForge’s copy of this database from \(date.formatted(date: .abbreviated, time: .shortened)). To find newer credentials, unlock this database in KeeForge. For cloud databases, use Sync Now in Database Details.")
+            .accessibilityIdentifier("autofill.shared-copy-notice")
+    }
+
+    /// Borderless, like the row's selection button beside it: two
+    /// default-style buttons in one List row share a tap target.
     private func addURLButton(for entry: KPEntry, host: String) -> some View {
         Button {
             entryPendingURLAddition = entry
@@ -292,11 +434,44 @@ struct AutoFillSearchView: View {
             Label("Add \(host) to this entry", systemImage: "link.badge.plus")
         }
         .buttonStyle(.borderless)
-        .font(.caption)
+        .font(PlatformDesign.followsIOSDesign ? Theme.Font.subhead : .caption)
     }
 
     @ViewBuilder
     private func entryRow(_ entry: KPEntry) -> some View {
+        if PlatformDesign.followsIOSDesign {
+            designedEntryRow(entry)
+        } else {
+            legacyEntryRow(entry)
+        }
+    }
+
+    /// No favicon: the extension never reaches the network.
+    private func designedEntryRow(_ entry: KPEntry) -> some View {
+        HStack(spacing: Theme.Spacing.iconText) {
+            EntryIconView(entry: entry, size: entryIconSize)
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+                Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
+                    .font(Theme.Font.rowTitle)
+                    .foregroundStyle(Color.primary)
+                if !entry.username.isEmpty {
+                    Text(entry.username)
+                        .font(Theme.Font.subhead)
+                        .foregroundStyle(Theme.labelSecondary)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            if entry.isExpired() {
+                StatusBadge(text: String(localized: "Expired"), tone: .danger)
+                    .accessibilityIdentifier("autofill.entry.expired")
+            }
+        }
+    }
+
+    private func legacyEntryRow(_ entry: KPEntry) -> some View {
         HStack {
             StandardIconView(iconID: entry.iconID)
                 .font(.system(size: 16))
@@ -358,6 +533,30 @@ struct AutoFillSearchView: View {
         .accessibilityIdentifier("autofill.database-switcher")
     }
 }
+
+#if os(iOS)
+/// The large title of the KeeForge iOS design, with the requesting site below
+/// it from iOS 26.
+private struct AutoFillPickerTitleStyle: ViewModifier {
+    let service: String
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            if service.isEmpty == false {
+                content
+                    .navigationBarTitleDisplayMode(.large)
+                    .navigationSubtitle(Text(verbatim: service))
+            } else {
+                content
+                    .navigationBarTitleDisplayMode(.large)
+            }
+        } else {
+            content
+                .navigationBarTitleDisplayMode(.large)
+        }
+    }
+}
+#endif
 
 /// Empty state shown when no database participates in AutoFill (every
 /// database disabled, or none registered): tells the user to turn on

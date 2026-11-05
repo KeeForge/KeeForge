@@ -2,7 +2,6 @@ import XCTest
 
 @MainActor
 class KeeForgeUITestCase: XCTestCase {
-    static let uiTestViewModeEnv = "UI_TEST_VIEW_MODE"
     private static let uiTestDatabasesJSONEnv = "UI_TEST_DATABASES_JSON"
     private static let uiTestKeyFileBase64Env = "UI_TEST_KEYFILE_BASE64"
     private static let uiTestKeyFileFilenameEnv = "UI_TEST_KEYFILE_FILENAME"
@@ -95,9 +94,6 @@ class KeeForgeUITestCase: XCTestCase {
         }
 
         app.launchArguments += ["-ui-testing"]
-        // A database opens on the view picked last; the helpers here browse
-        // from the group list, so tests start there unless a class clears this.
-        app.launchEnvironment[Self.uiTestViewModeEnv] = "groups"
         let payloadData = try JSONSerialization.data(withJSONObject: payloads, options: [])
         app.launchEnvironment[Self.uiTestDatabasesJSONEnv] = String(decoding: payloadData, as: UTF8.self)
 
@@ -574,6 +570,32 @@ class KeeForgeUITestCase: XCTestCase {
 
     // MARK: - Database details sheet
 
+    /// Opens Database Details from the unlocked vault's More menu.
+    func openDatabaseDetailsFromVault(file: StaticString = #filePath, line: UInt = #line) {
+        let more = app.buttons["vault.more"].firstMatch
+        XCTAssertTrue(
+            more.waitForExistence(timeout: Self.ciElementTimeout),
+            "The vault's More menu was not visible",
+            file: file,
+            line: line
+        )
+        tapElement(more)
+        let details = menuButton(identifier: "settings.button", label: "Database Details")
+        XCTAssertTrue(
+            details.waitForExistence(timeout: Self.ciElementTimeout),
+            "The More menu did not offer Database Details",
+            file: file,
+            line: line
+        )
+        details.tap()
+        XCTAssertTrue(
+            app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
+            "Database Details did not open",
+            file: file,
+            line: line
+        )
+    }
+
     /// Long-presses the row matching `name` to reveal the context menu, taps
     /// "Database Details", and waits for the details sheet to appear. Shared
     /// by `DatabaseListUITests` and `AutoFillStoreUITests`, which previously
@@ -1033,6 +1055,31 @@ class KeeForgeUITestCase: XCTestCase {
         )
     }
 
+    /// `revealElement` plus a scroll that lifts a row out from under the bottom
+    /// search bar, which covers the last rows while XCUITest still reports
+    /// them hittable. The bar's top is read from the search field itself.
+    @discardableResult
+    func revealRow(_ element: XCUIElement) -> Bool {
+        guard revealElement(element) else { return false }
+        let searchField = app.searchFields.firstMatch
+        let window = app.windows.firstMatch
+        for _ in 0..<3 {
+            guard let rowFrame = try? element.snapshot().frame,
+                  let fieldFrame = try? searchField.snapshot().frame,
+                  let windowFrame = try? window.snapshot().frame,
+                  fieldFrame.minY > windowFrame.midY,
+                  rowFrame.maxY > fieldFrame.minY else { return true }
+            // Dragged from just above the bar, which sits higher while the
+            // keyboard is up, so the drag always lands on the list.
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let start = origin.withOffset(CGVector(dx: windowFrame.midX, dy: fieldFrame.minY - 30))
+            let end = origin.withOffset(CGVector(dx: windowFrame.midX, dy: max(windowFrame.minY + 120, fieldFrame.minY - 260)))
+            start.press(forDuration: 0.05, thenDragTo: end)
+            guard element.waitForExistence(timeout: 1) else { return false }
+        }
+        return isSafeToHitTest(element)
+    }
+
     /// Reads the frame from a snapshot rather than `element.frame`. Querying an
     /// index-bound element re-resolves it, and a container that goes away
     /// between the query and the access raises an Objective-C exception Swift
@@ -1072,8 +1119,9 @@ class KeeForgeUITestCase: XCTestCase {
         ).firstMatch
     }
 
-    /// A view the database root can show; `rawValue` is the menu item's
-    /// identifier suffix and `label` its visible title.
+    /// A list the vault shows: the root's groups, or a collection opened from
+    /// a root tile. `rawValue` is the tile's identifier suffix and `label` the
+    /// collection screen's title.
     enum DatabaseView: String {
         case groups
         case allEntries
@@ -1092,58 +1140,58 @@ class KeeForgeUITestCase: XCTestCase {
         }
     }
 
-    /// Picks a view from the database root's view menu: the title with the
-    /// chevron (`view.menu`), or the same menu on the bar's title once the list
-    /// has scrolled the big one away.
+    /// Shows `view`: the vault root for Groups, otherwise the screen its root
+    /// tile opens.
     func selectDatabaseView(_ view: DatabaseView, file: StaticString = #filePath, line: UInt = #line) {
-        let opener = viewMenuOpener()
-        XCTAssertTrue(
-            opener.waitForExistence(timeout: Self.ciElementTimeout),
-            "Database root did not offer the view menu",
-            file: file,
-            line: line
-        )
-        tapElement(opener)
+        returnToVaultRoot(file: file, line: line)
 
-        let item = menuButton(identifier: "view-menu.\(view.rawValue)", label: view.label)
-        XCTAssertTrue(
-            item.waitForExistence(timeout: Self.ciElementTimeout),
-            "View menu did not offer '\(view.label)'",
-            file: file,
-            line: line
-        )
-        item.tap()
+        if view != .groups {
+            let tile = homeTile(view)
+            XCTAssertTrue(
+                revealElement(tile, in: scrollableContainer(), direction: .down),
+                "Vault root did not offer the '\(view.label)' tile",
+                file: file,
+                line: line
+            )
+            tapElement(tile)
+        }
 
         XCTAssertTrue(
             waitForDatabaseView(view),
-            "Root list did not switch to '\(view.label)'",
+            "The vault did not show '\(view.label)'",
             file: file,
             line: line
         )
     }
 
-    /// Whether the database root shows `view`, read from the title in the
-    /// list or, where the bar carries it, from the navigation bar.
+    /// Whether the vault shows `view`: the root's tiles for Groups, the
+    /// collection's navigation bar otherwise.
     func waitForDatabaseView(_ view: DatabaseView, timeout: TimeInterval = KeeForgeUITestCase.ciElementTimeout) -> Bool {
-        let title = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier == 'view.menu' AND label CONTAINS %@", view.label)
-        ).firstMatch
+        guard view == .groups else {
+            return app.navigationBars[view.label].waitForExistence(timeout: timeout)
+        }
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
-            if title.exists || app.navigationBars[view.label].exists {
+            if isShowingVaultRoot() {
                 return true
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         } while Date() < deadline
-        return title.exists || app.navigationBars[view.label].exists
+        return isShowingVaultRoot()
     }
 
-    private func viewMenuOpener() -> XCUIElement {
-        let menu = app.buttons["view.menu"].firstMatch
-        if menu.waitForExistence(timeout: 2), menu.isHittable {
-            return menu
-        }
+    /// The root's tiles stay in the tree under a pushed screen, so being
+    /// there means a tile can take a tap, not just that one exists.
+    private func isShowingVaultRoot() -> Bool {
+        isSafeToHitTest(homeTile(.allEntries))
+    }
 
+    private func homeTile(_ view: DatabaseView) -> XCUIElement {
+        app.buttons["home-tile.\(view.rawValue)"].firstMatch
+    }
+
+    /// Ends any search and walks back to the vault root.
+    private func returnToVaultRoot(file: StaticString, line: UInt) {
         // A focused search field covers the root, even with its query cleared;
         // iOS 26 ends the search with Close, earlier releases with Cancel.
         let endSearchButton = app.buttons.matching(
@@ -1151,16 +1199,22 @@ class KeeForgeUITestCase: XCTestCase {
         ).firstMatch
         if endSearchButton.exists, endSearchButton.isHittable {
             endSearchButton.tap()
-            if menu.waitForExistence(timeout: 2), menu.isHittable {
-                return menu
-            }
         }
 
-        // Scrolled away: the bar's own title carries the menu. It has no
-        // identifier; its label is the title the bar is identified by.
-        let navigationBar = app.navigationBars.firstMatch
-        let barTitle = navigationBar.buttons[navigationBar.identifier]
-        return barTitle.exists ? barTitle : menu
+        let backButton = app.navigationBars.buttons["BackButton"].firstMatch
+        for _ in 0..<6 {
+            if waitForDatabaseView(.groups, timeout: 1) {
+                return
+            }
+            guard isSafeToHitTest(backButton) else { break }
+            backButton.tap()
+        }
+        XCTAssertTrue(
+            revealElement(homeTile(.allEntries), in: scrollableContainer(), direction: .down),
+            "Could not return to the vault root",
+            file: file,
+            line: line
+        )
     }
 
     @discardableResult

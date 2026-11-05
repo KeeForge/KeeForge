@@ -9,7 +9,7 @@
 - `GroupEditView` only collects fields; `DatabaseEditorCoordinator` applies them as one `updateGroup` edit and owns dirty state, Save and Lock, and completion (`../../ViewModels/AGENTS.md`). The Mac sidebar raises the group to the workspace so the sheet is hosted on the split view, not on a row that comes and goes.
 - Recycled group rows expose the shared Restore action on iOS/iPadOS and in the Mac sidebar. The Recycle Bin itself is excluded.
 - The pickers (`GroupIconPickerView`, `MoveToGroupPickerView`) report a pick and dismiss. The caller mutates and saves; cancelling writes nothing.
-- `DatabaseViewModel.workspace.viewMode` decides what the database root lists. The last browsing view picked is stored in `UserDefaults`, so lock and relaunch return to it; the Recycle Bin is never stored.
+- The database root lists its sync status (iPhone, cloud only), the tiles, and the root group's contents. Each tile pushes `DatabaseRoute.collection`, a `GroupListView` with `collection` set. The iPad sidebar keeps its own stack, so it passes `onOpenRoute`; compact appends to `workspace.navigationPath`.
 
 ## Invariants
 
@@ -17,10 +17,9 @@
 - Group rows keep navigating while entry bulk selection is active. The root list hosts one selection bar for its own rows and inline search results; a picked destination moves the selected entries through one save.
 - Edit Group, Change Icon, and the AutoFill exclusion toggle have the same eligibility (not read-only, not the recycle bin, not inside it), spelled as `canEditGroup`, `canChangeGroupIcon`, and `canChangeAutoFillExclusion`. Change them together.
 - The excluded badge is hidden inside the recycle bin so a row never shows a badge it cannot act on; KeePass marks the bins it creates `EnableSearching` false.
-- The recycle bin is never drawn as a group row at any level; it opens only from the view menu.
-- The iPad sidebar pins a cloud database's title above Sync Now, because the sidebar has no toolbar to hold it (`pinsCloudTitle`). Elsewhere the view menu is drawn three ways: a list section header (the bar's large title takes no taps), the inline bar title once that header scrolls away, and a toolbar button on iOS 18 to 25 (`hasTitleViewMenu`). Local databases get the header from iOS 26; cloud databases get it on every version, because on iPhone it also carries the sync status badge and scrolls away with it. Change all title-menu variants together.
-- View-menu items are `Toggle`s, not a `Picker`, because a picker's options cannot be split into menu sections.
-- While the title header is on screen the bar's title place holds the app's name and the bar has no title menu; once the header scrolls away the inline title takes its place with `ToolbarTitleMenu`. Never both: a title menu with no title to hang on, or a leading item that does not fit beside the actions, turns into a "…" overflow button on iOS 27, a second view switcher (`ViewMenuLargeTextUITests`). The app name leaves the bar with the header, so whether it has slid in is stored on `GroupListView`, not in the item.
+- The recycle bin is never drawn as a group row at any level; it opens only from its tile.
+- The iPad sidebar pins a cloud database's title above Sync Now, because the sidebar has no toolbar to hold it (`pinsCloudTitle`). On iPhone the root shows the sync state in words as its first row (`CloudSyncStatusRow`) while it syncs or has something to say.
+- From iOS 26 compact screens put search and New in a bottom bar; iPad and earlier releases keep New in the top bar. The identifier `entry-list.add-entry` stays on New in both places.
 - `databaseActionsPlacement` pins the trailing items where the SDK allows, or an iOS 27 build folds Lock into an overflow menu behind a long inline title.
 - `GroupListView.entryRow(for:)` keeps its row-kind branch (verification code, selection, navigation) inside a concrete row container so `List` builds only the rows it shows. Wrapped in a `Group`, every entry of the group or view is constructed up front.
 - `VerificationCodeRow` is two sibling buttons; the opening one keeps `entry.navlink` and does what the link would in each shell (select in the regular workspace, append to `workspace.navigationPath` in compact).
@@ -31,9 +30,9 @@
 ## Tests
 
 - New-entry detail after save: `EntryCreateFocusUITests` on iPhone and iPad; the Mac selection and sheet case is `MacSmokeUITests.testNewEntryIsSelectedAfterSaving`.
-- `ViewMenuUITests`, `DefaultViewUITests`, `ViewMenuLargeTextUITests`, `TagBrowserUITests` for the root views; `GroupEditUITests`, `GroupIconPickerUITests` for the editor and picker.
-- `KeeForgeUITestCase.selectDatabaseView` is the supported way to switch views in a test.
-- Cloud title-menu placement, the iPhone sync warning and its Sync Now, pull to refresh, and the status popover: `CloudUnlockSmokeUITests`.
+- `VaultHomeUITests`, `VaultLargeTextUITests`, `TagBrowserUITests` for the root and its collections; `GroupEditUITests`, `GroupIconPickerUITests` for the editor and picker.
+- `KeeForgeUITestCase.selectDatabaseView` is the supported way to open a collection, or return to the root, in a test.
+- The iPad cloud title, the iPhone sync warning and its Sync Now, pull to refresh, and the status popover: `CloudUnlockSmokeUITests`.
 - Row laziness of the group, All Entries, Verification Codes, and Recycle Bin lists: `testBrowseListsDoNotResolveOffscreenRows` in `DatabaseViewModelTests` (iOS only).
 
 ## See also

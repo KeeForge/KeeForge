@@ -103,7 +103,7 @@ struct EncryptionSettingsView: View {
                 if let message = viewModel.aesKDFRoundsError {
                     Text(message)
                         .font(.subheadline)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Theme.State.danger)
                         .accessibilityIdentifier("encryption-settings.aes-kdf-rounds-error")
                 }
             }
@@ -146,13 +146,13 @@ struct EncryptionSettingsView: View {
         } icon: {
             Image(systemName: "exclamationmark.triangle.fill")
         }
-        .foregroundStyle(.red)
+        .foregroundStyle(Theme.State.danger)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(Theme.State.dangerSoft, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.red.opacity(0.35), lineWidth: 1)
+                .stroke(Theme.State.danger.opacity(0.35), lineWidth: 1)
         )
         .accessibilityIdentifier("encryption-settings.error")
     }

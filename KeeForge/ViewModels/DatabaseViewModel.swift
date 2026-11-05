@@ -467,6 +467,10 @@ final class DatabaseViewModel {
 
     private(set) var state: State = .locked
     private(set) var lockCycleID = 0
+    /// The lock cycle whose biometric auto-unlock has been tried. Observed, so
+    /// the opening screen that stands in for the unlock form leaves once the
+    /// attempt ends without unlocking.
+    private var biometricAutoUnlockAttemptedLockCycle: Int?
     var didManuallyLock = false
     private(set) var rootGroup: KPGroup? {
         didSet { rebuildDerivedState() }
@@ -812,6 +816,22 @@ final class DatabaseViewModel {
         )
     }
 
+    /// Where an unlock in progress is, for the opening screen's steps. A cloud
+    /// database syncs first; a hardware key prompt belongs to decrypting.
+    enum OpeningStep: Equatable {
+        case syncing
+        case decrypting
+    }
+
+    var openingStep: OpeningStep {
+        guard databaseReference.isCloudBacked,
+              isAwaitingHardwareKey == false,
+              unlockStatusMessage != Self.decryptingStatusMessage else {
+            return .decrypting
+        }
+        return .syncing
+    }
+
     var databaseDisplayName: String {
         databaseReference.displayName
     }
@@ -998,6 +1018,30 @@ final class DatabaseViewModel {
         guard didManuallyLock == false else { return false }
         guard case .locked = state else { return false }
         return true
+    }
+
+    var hasAttemptedBiometricAutoUnlockThisLockCycle: Bool {
+        biometricAutoUnlockAttemptedLockCycle == lockCycleID
+    }
+
+    /// Whether the locked database should show the opening screen instead of
+    /// the unlock form: its auto-unlock is due and has not been tried yet. A
+    /// cancelled or failed prompt ends it, so the unlock form takes over.
+    var isAwaitingBiometricAutoUnlock: Bool {
+        isEligibleForBiometricAutoUnlock && hasAttemptedBiometricAutoUnlockThisLockCycle == false
+    }
+
+    /// Takes this lock cycle's one auto-unlock attempt. Returns false when it
+    /// was already taken.
+    func claimBiometricAutoUnlockAttempt() -> Bool {
+        guard hasAttemptedBiometricAutoUnlockThisLockCycle == false else { return false }
+        biometricAutoUnlockAttemptedLockCycle = lockCycleID
+        return true
+    }
+
+    /// Gives the attempt back when no prompt could be shown.
+    func releaseBiometricAutoUnlockAttempt() {
+        biometricAutoUnlockAttemptedLockCycle = nil
     }
 
     var biometricLabel: String {
@@ -1337,6 +1381,17 @@ final class DatabaseViewModel {
     /// `allEntries` narrowed to the ones that generate a verification code.
     var verificationCodeEntries: [KPEntry] {
         allEntries.filter { $0.totpConfig != nil }
+    }
+
+    /// The counts the vault root's tiles show.
+    var collectionCounts: DatabaseCollectionCounts {
+        let recycleBin = recycleBinGroup
+        return DatabaseCollectionCounts(
+            allEntries: allEntries.count,
+            verificationCodes: allEntries.reduce(0) { $0 + ($1.totpConfig == nil ? 0 : 1) },
+            tags: allTags.count,
+            recycleBin: (recycleBin?.entries.count ?? 0) + (recycleBin?.groups.count ?? 0)
+        )
     }
 
     /// How many groups `allEntries` is spread over at most: every group below

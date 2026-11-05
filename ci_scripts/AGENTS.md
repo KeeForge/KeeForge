@@ -43,7 +43,7 @@ The live Cloud workflow configuration is in `../.agents/skills/prepare-release/r
 
 `run_kdbx_compatibility_gate.sh` proves that databases KeeForge writes open correctly in another KeePass implementation. It runs `KDBXCompatibilityTests`, exports every `.kdbx` the suite wrote, and verifies each one with KeePassXC's `keepassxc-cli`.
 
-**When it is required:** before every release candidate, once per platform, and both runs must pass before any external distribution. No CI runs it, because neither GitHub runners nor Xcode Cloud install KeePassXC, so it is a local gate. Also run it when a change touches the compatibility matrix (see `../KeeForge/AGENTS.md`).
+**When it is required:** before every release candidate, once per platform, and both runs must pass before any external distribution. No CI runs it, because neither GitHub runners nor Xcode Cloud install KeePassXC, so the owner runs it on the designated test machine, or locally as a fallback. Also run it when a change touches the compatibility matrix (see `../KeeForge/AGENTS.md`).
 
 **How to run it:** install KeePassXC, or set `KEEPASSXC_CLI=/path/to/keepassxc-cli`. Run under the Xcode lock.
 
@@ -53,7 +53,8 @@ KDBX_COMPAT_SCHEME=KeeForgeMac ci_scripts/run_kdbx_compatibility_gate.sh   # mac
 ```
 
 - The iOS run uses `KeeForgeTests` on the `iPhone 18 Pro` simulator (override with `KDBX_COMPAT_DESTINATION`). The Mac run uses `KeeForgeMacTests`, which compiles the same sources, on `platform=macOS`.
-- Each run deletes its result bundle and attachments directory first. Set distinct `KDBX_COMPAT_RESULT_BUNDLE` and `KDBX_COMPAT_ATTACHMENTS_DIR` paths per platform to keep both sets of evidence. The release form of the command, with logs, is in `../.agents/skills/prepare-release/references/candidate.md`.
+- `--verify-only` skips `xcodebuild` and checks an existing `KDBX_COMPAT_RESULT_BUNDLE`, for a runner that ran `KDBXCompatibilityTests` itself and then calls the script in this mode.
+- Each run deletes its result bundle and attachments directory first (`--verify-only` keeps the bundle). Set distinct `KDBX_COMPAT_RESULT_BUNDLE` and `KDBX_COMPAT_ATTACHMENTS_DIR` paths per platform to keep both sets of evidence. The release form of the command, with logs, is in `../.agents/skills/prepare-release/references/candidate.md`.
 
 **What it checks, per artifact:**
 

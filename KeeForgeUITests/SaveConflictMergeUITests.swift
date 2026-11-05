@@ -75,6 +75,7 @@ class SaveConflictMergeUITestCase: EntryEditUITestCase {
             "lock.button",
             "sort.menu",
             "settings.button",
+            "vault.more",
             "entry-detail.edit",
             "entry-edit.cancel",
             "entry-edit.save",

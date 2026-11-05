@@ -33,6 +33,7 @@ struct EntryDetailView: View {
     @State private var hasFinishedClosing = false
     @State private var isShowingHistory = false
     @State private var isShowingIconPicker = false
+    @ScaledMetric(relativeTo: .title) private var headerIconSize = Theme.Size.entryHeaderIcon
 
     /// Clears the regular shells' selection and pops this screen, at most once.
     private func finishClose() {
@@ -65,12 +66,22 @@ struct EntryDetailView: View {
     /// offering the affordance.
     @ViewBuilder
     private func iconButton(for entry: KPEntry) -> some View {
-        let icon = FaviconView(
-            url: entry.url,
-            iconID: entry.iconID,
-            size: 40,
-            customIconData: viewModel.customIconData(for: entry)
-        )
+        let icon = Group {
+            if PlatformDesign.followsIOSDesign {
+                FaviconEntryIconView(
+                    entry: entry,
+                    customIconData: viewModel.customIconData(for: entry),
+                    size: headerIconSize
+                )
+            } else {
+                FaviconView(
+                    url: entry.url,
+                    iconID: entry.iconID,
+                    size: 40,
+                    customIconData: viewModel.customIconData(for: entry)
+                )
+            }
+        }
 
         if viewModel.isReadOnly {
             icon
@@ -102,9 +113,14 @@ struct EntryDetailView: View {
             .symbolRenderingMode(.palette)
             .foregroundStyle(.white, .tint)
             .font(.system(size: 18))
-            .background(Circle().fill(Color(.secondarySystemGroupedBackground)).padding(-2))
+            .background(Circle().fill(editBadgeRing).padding(-2))
             .offset(x: 6, y: 6)
             .accessibilityHidden(true)
+    }
+
+    /// The iOS header sits on the screen's ground, the macOS one on a row.
+    private var editBadgeRing: Color {
+        PlatformDesign.followsIOSDesign ? Color(.systemGroupedBackground) : Color(.secondarySystemGroupedBackground)
     }
 
     private func changeEntryIcon(_ icon: EntryIconSelection) {
@@ -151,54 +167,56 @@ struct EntryDetailView: View {
         Group {
             if let entry, let sessionKey {
                 List {
-                    Section {
-                        HStack {
-                            iconButton(for: entry)
-                            Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
-                                .font(.title2.bold())
-                                .accessibilityIdentifier("entry-detail.title")
-                        }
-                    }
+                    header(for: entry)
 
                     if entry.isExpired() {
-                        Section {
-                            Label("This entry has expired", systemImage: "exclamationmark.triangle.fill")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.red)
-                                .padding(.vertical, 4)
-                                .accessibilityIdentifier("entry-detail.expired-warning")
+                        expiryBanner(for: entry)
+                    }
+
+                    EntryFieldsCard {
+                        if !entry.username.isEmpty {
+                            FieldRow(
+                                label: String(localized: "Username"),
+                                value: viewModel.resolvingFieldReferences(entry.username),
+                                icon: "person.fill",
+                                accessibilityKey: "username",
+                                isCardRow: PlatformDesign.followsIOSDesign
+                            )
                         }
-                    }
 
-                    if !entry.username.isEmpty {
-                        FieldRow(
-                            label: String(localized: "Username"),
-                            value: viewModel.resolvingFieldReferences(entry.username),
-                            icon: "person.fill",
-                            accessibilityKey: "username"
-                        )
-                    }
+                        if entry.hasPassword {
+                            PasswordFieldRow(
+                                password: entry.password,
+                                sessionKey: sessionKey,
+                                secretAccess: viewModel.secretAccess,
+                                resolveReferences: viewModel.resolvingFieldReferences,
+                                isCurrent: secretActionIsCurrent,
+                                isCardRow: PlatformDesign.followsIOSDesign
+                            )
+                        }
 
-                    if entry.hasPassword {
-                        PasswordFieldRow(
-                            password: entry.password,
-                            sessionKey: sessionKey,
-                            secretAccess: viewModel.secretAccess,
-                            resolveReferences: viewModel.resolvingFieldReferences,
-                            isCurrent: secretActionIsCurrent
-                        )
-                    }
+                        if !entry.url.isEmpty {
+                            URLFieldRow(
+                                url: viewModel.resolvingFieldReferences(entry.url),
+                                isCardRow: PlatformDesign.followsIOSDesign
+                            )
+                        }
 
-                    if !entry.url.isEmpty {
-                        URLFieldRow(url: viewModel.resolvingFieldReferences(entry.url))
-                    }
+                        ForEach(Array(entry.additionalURLs.enumerated()), id: \.offset) { index, url in
+                            URLFieldRow(
+                                url: viewModel.resolvingFieldReferences(url),
+                                label: String(localized: "URL \(index + 2)"),
+                                isCardRow: PlatformDesign.followsIOSDesign
+                            )
+                        }
 
-                    ForEach(Array(entry.additionalURLs.enumerated()), id: \.offset) { index, url in
-                        URLFieldRow(url: viewModel.resolvingFieldReferences(url), label: String(localized: "URL \(index + 2)"))
-                    }
-
-                    if let totpConfig = entry.totpConfig {
-                        TOTPSection(config: totpConfig, sessionKey: sessionKey)
+                        if let totpConfig = entry.totpConfig {
+                            TOTPSection(
+                                config: totpConfig,
+                                sessionKey: sessionKey,
+                                isCardRow: PlatformDesign.followsIOSDesign
+                            )
+                        }
                     }
 
                     if !entry.notes.isEmpty {
@@ -210,8 +228,8 @@ struct EntryDetailView: View {
 
                     if let passkey = entry.passkeyCredential {
                         Section("Passkey") {
-                            FieldRow(label: String(localized: "Relying Party"), value: passkey.relyingParty, icon: "person.badge.key.fill", accessibilityKey: "relying_party")
-                            FieldRow(label: String(localized: "Username"), value: passkey.username, icon: "person.fill", accessibilityKey: "username")
+                            FieldRow(label: String(localized: "Relying Party"), value: passkey.relyingParty, icon: "person.badge.key.fill", accessibilityKey: "relying_party", isCardRow: PlatformDesign.followsIOSDesign)
+                            FieldRow(label: String(localized: "Username"), value: passkey.username, icon: "person.fill", accessibilityKey: "username", isCardRow: PlatformDesign.followsIOSDesign)
                         }
                     }
 
@@ -225,6 +243,7 @@ struct EntryDetailView: View {
                                         value: viewModel.resolvingFieldReferences(value),
                                         secretAccess: viewModel.secretAccess,
                                         showsInlineLabel: true,
+                                        isCardRow: PlatformDesign.followsIOSDesign,
                                         isCurrent: secretActionIsCurrent
                                     )
                                 } else {
@@ -232,7 +251,8 @@ struct EntryDetailView: View {
                                         label: key,
                                         value: viewModel.resolvingFieldReferences(value),
                                         icon: "text.justify.left",
-                                        showsInlineLabel: true
+                                        showsInlineLabel: true,
+                                        isCardRow: PlatformDesign.followsIOSDesign
                                     )
                                 }
                             }
@@ -243,40 +263,36 @@ struct EntryDetailView: View {
                         AttachmentsSection(entryID: entry.id, attachments: entry.attachments, viewModel: viewModel)
                     }
 
-                    tagsSection
+                    if PlatformDesign.followsIOSDesign {
+                        detailsCard(for: entry)
+                    } else {
+                        tagsSection
 
-                    if entry.creationTime != nil ||
-                        entry.lastModificationTime != nil ||
-                        entry.enabledExpiryTime != nil {
-                        Section("Details") {
-                            if let created = entry.creationTime {
-                                LabeledContent("Created", value: created.formatted(date: .abbreviated, time: .shortened))
-                            }
-                            if let modified = entry.lastModificationTime {
-                                LabeledContent("Modified", value: modified.formatted(date: .abbreviated, time: .shortened))
-                            }
-                            if let expiry = entry.enabledExpiryTime {
-                                LabeledContent("Expires", value: expiry.formatted(date: .abbreviated, time: .shortened))
-                                    .accessibilityIdentifier("entry-detail.expiry")
+                        if entry.creationTime != nil ||
+                            entry.lastModificationTime != nil ||
+                            entry.enabledExpiryTime != nil {
+                            Section("Details") {
+                                if let created = entry.creationTime {
+                                    LabeledContent("Created", value: created.formatted(date: .abbreviated, time: .shortened))
+                                }
+                                if let modified = entry.lastModificationTime {
+                                    LabeledContent("Modified", value: modified.formatted(date: .abbreviated, time: .shortened))
+                                }
+                                if let expiry = entry.enabledExpiryTime {
+                                    LabeledContent("Expires", value: expiry.formatted(date: .abbreviated, time: .shortened))
+                                        .accessibilityIdentifier("entry-detail.expiry")
+                                }
                             }
                         }
-                    }
-                    if !entry.history.isEmpty {
-                        Section {
-                            Button {
-                                isShowingHistory = true
-                            } label: {
-                                LabeledContent {
+                        if !entry.history.isEmpty {
+                            Section {
+                                historyButton(for: entry) {
                                     Text(entry.history.count, format: .number)
                                         .foregroundStyle(.secondary)
                                 } label: {
                                     Label("History", systemImage: "clock.arrow.circlepath")
                                 }
                             }
-                            .accessibilityIdentifier("entry-detail.history")
-                            // Count as the element's value, so automation reads it
-                            // without parsing the locale-formatted label.
-                            .accessibilityValue(String(entry.history.count))
                         }
                     }
                 }
@@ -286,6 +302,16 @@ struct EntryDetailView: View {
                         HStack(spacing: 12) {
                             if showsCloudSyncWarning, let warningText = viewModel.cloudSyncBannerText {
                                 CloudSyncWarningButton(message: warningText)
+                            }
+
+                            if showsLockButton {
+                                Button {
+                                    viewModel.lockRequest(manuallyTriggered: true)
+                                } label: {
+                                    Image(systemName: "lock.fill")
+                                }
+                                .accessibilityLabel("Lock")
+                                .accessibilityIdentifier("lock.button")
                             }
 
                             if viewModel.isReadOnly == false {
@@ -359,6 +385,212 @@ struct EntryDetailView: View {
                 finishClose()
             }
         }
+    }
+
+    /// iOS: the icon with its title below it, on the screen's ground. macOS: a
+    /// row with the icon beside the title.
+    @ViewBuilder
+    private func header(for entry: KPEntry) -> some View {
+        let title = Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
+            .accessibilityIdentifier("entry-detail.title")
+        if PlatformDesign.followsIOSDesign {
+            Section {
+                VStack(spacing: Theme.Spacing.cardGap) {
+                    iconButton(for: entry)
+                    VStack(spacing: Theme.Spacing.textLine) {
+                        title
+                            .font(Theme.Font.entryTitle)
+                            .multilineTextAlignment(.center)
+                        if let modified = entry.lastModificationTime {
+                            Text("Last modified \(modified.formatted(date: .abbreviated, time: .omitted))")
+                                .font(Theme.Font.subhead)
+                                .foregroundStyle(Theme.labelSecondary)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
+            }
+        } else {
+            Section {
+                HStack {
+                    iconButton(for: entry)
+                    title
+                        .font(.title2.bold())
+                }
+            }
+        }
+    }
+
+    /// Above the fields of an expired entry. Editing the entry clears it; the
+    /// banner has no action of its own.
+    @ViewBuilder
+    private func expiryBanner(for entry: KPEntry) -> some View {
+        if PlatformDesign.followsIOSDesign {
+            Section {
+                HStack(spacing: Theme.Spacing.iconText) {
+                    Label("This entry has expired", systemImage: "clock.badge.exclamationmark")
+                        .font(.body.weight(.semibold))
+                    Spacer(minLength: 0)
+                    if let expiry = entry.enabledExpiryTime {
+                        Text(expiry.formatted(date: .abbreviated, time: .omitted))
+                            .font(Theme.Font.subhead)
+                    }
+                }
+                .foregroundStyle(Theme.danger)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("entry-detail.expired-warning")
+                .listRowBackground(Theme.dangerSoft)
+            }
+        } else {
+            Section {
+                Label("This entry has expired", systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.State.danger)
+                    .padding(.vertical, 4)
+                    .accessibilityIdentifier("entry-detail.expired-warning")
+            }
+        }
+    }
+
+    private func expiryColor(isExpired: Bool) -> Color {
+        isExpired ? Theme.danger : Theme.labelSecondary
+    }
+
+    /// iPhone only: on iPad the sidebar's Lock sits right beside this screen.
+    private var showsLockButton: Bool {
+        #if os(iOS)
+        horizontalSizeClass == .compact
+        #else
+        false
+        #endif
+    }
+
+    /// iOS: where the entry lives, its tags, dates and history in one card.
+    /// An expired entry's footer says how to clear the banner.
+    private func detailsCard(for entry: KPEntry) -> some View {
+        let tags = viewModel.detailTags(forEntryID: entryID)
+        return Section {
+            if let groupID = viewModel.parentGroupID(forEntryID: entryID),
+               let path = viewModel.folderPath(forEntryID: entryID), path.isEmpty == false {
+                groupRow(groupID: groupID, path: path)
+            }
+
+            if tags.own.isEmpty == false || tags.inherited.isEmpty == false {
+                LabeledContent("Tags") {
+                    VStack(alignment: .trailing, spacing: Theme.Spacing.badgeGap) {
+                        if tags.own.isEmpty == false {
+                            FlowLayout(spacing: Theme.Spacing.badgeGap) {
+                                ForEach(Array(tags.own.enumerated()), id: \.offset) { index, tag in
+                                    tagChip(tag, fallbackIndex: index)
+                                }
+                            }
+                        }
+                        if tags.inherited.isEmpty == false {
+                            FlowLayout(spacing: Theme.Spacing.badgeGap) {
+                                ForEach(Array(tags.inherited.enumerated()), id: \.offset) { index, tag in
+                                    inheritedTagChip(tag, fallbackIndex: index)
+                                }
+                            }
+                            .accessibilityElement(children: .contain)
+                            .accessibilityIdentifier("entry-detail.inherited-tags")
+                        }
+                    }
+                }
+            }
+
+            if let created = entry.creationTime {
+                LabeledContent("Created") {
+                    Text(created.formatted(date: .abbreviated, time: .shortened))
+                        .foregroundStyle(Theme.labelSecondary)
+                }
+            }
+
+            if let expiry = entry.enabledExpiryTime {
+                LabeledContent("Expires") {
+                    Text(expiry.formatted(date: .abbreviated, time: .shortened))
+                        .foregroundStyle(expiryColor(isExpired: entry.isExpired()))
+                }
+                .accessibilityIdentifier("entry-detail.expiry")
+            }
+
+            if !entry.history.isEmpty {
+                historyButton(for: entry) {
+                    HStack(spacing: Theme.Spacing.badgeGap) {
+                        Text("\(entry.history.count) versions")
+                            .foregroundStyle(Theme.labelSecondary)
+                        disclosureChevron
+                    }
+                } label: {
+                    Text("History")
+                        .foregroundStyle(Color.primary)
+                }
+            }
+        } footer: {
+            if PlatformDesign.followsIOSDesign == false, entry.isExpired(), viewModel.isReadOnly == false {
+                Text("Set a new expiry date, or turn expiry off, under Edit.")
+            }
+        }
+    }
+
+    /// Opens the group in the compact stack. The selection-driven shells have
+    /// no browsing stack beside the detail, so there the row only names it.
+    @ViewBuilder
+    private func groupRow(groupID: UUID, path: String) -> some View {
+        let value = Text(path)
+            .foregroundStyle(Theme.labelSecondary)
+            .lineLimit(1)
+            .truncationMode(.head)
+        if onSelectTag == nil {
+            Button {
+                viewModel.workspace.navigationPath.append(.group(groupID))
+            } label: {
+                LabeledContent {
+                    HStack(spacing: Theme.Spacing.badgeGap) {
+                        value
+                        disclosureChevron
+                    }
+                } label: {
+                    Text("Group")
+                        .foregroundStyle(Color.primary)
+                }
+            }
+            .accessibilityIdentifier("entry-detail.group")
+        } else {
+            LabeledContent {
+                value
+            } label: {
+                Text("Group")
+            }
+            .accessibilityIdentifier("entry-detail.group")
+        }
+    }
+
+    private var disclosureChevron: some View {
+        Image(systemName: "chevron.right")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.tertiary)
+            .accessibilityHidden(true)
+    }
+
+    private func historyButton<Value: View, Title: View>(
+        for entry: KPEntry,
+        @ViewBuilder value: () -> Value,
+        @ViewBuilder label: () -> Title
+    ) -> some View {
+        Button {
+            isShowingHistory = true
+        } label: {
+            LabeledContent {
+                value()
+            } label: {
+                label()
+            }
+        }
+        .accessibilityIdentifier("entry-detail.history")
+        // Count as the element's value, so automation reads it without
+        // parsing the locale-formatted label.
+        .accessibilityValue(String(entry.history.count))
     }
 
     /// The entry's own tags, then the ones it carries only because of where it
@@ -552,20 +784,25 @@ struct TagCapsule: View {
             }
         }
         .font(.caption)
-        .foregroundStyle(
-            isOutlined
-                ? AnyShapeStyle(HierarchicalShapeStyle.secondary)
-                : AnyShapeStyle(HierarchicalShapeStyle.primary)
-        )
+        .foregroundStyle(foreground)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background {
             if isOutlined {
                 Capsule().strokeBorder(.tertiary)
+            } else if PlatformDesign.followsIOSDesign {
+                Capsule().fill(Theme.accentSoft)
             } else {
                 Capsule().fill(.fill)
             }
         }
+    }
+
+    private var foreground: AnyShapeStyle {
+        if isOutlined {
+            return AnyShapeStyle(HierarchicalShapeStyle.secondary)
+        }
+        return PlatformDesign.followsIOSDesign ? AnyShapeStyle(.tint) : AnyShapeStyle(HierarchicalShapeStyle.primary)
     }
 }
 
@@ -700,6 +937,22 @@ struct SelectableNotesText: NSViewRepresentable {
 
 // MARK: - Field Rows
 
+/// iOS gathers an entry's fields into one card of label/value rows; on macOS
+/// each field is a section of its own.
+struct EntryFieldsCard<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        if PlatformDesign.followsIOSDesign {
+            Section {
+                content
+            }
+        } else {
+            content
+        }
+    }
+}
+
 struct FieldRow: View {
     let label: String
     let value: String
@@ -713,10 +966,23 @@ struct FieldRow: View {
     /// in the row avoids nesting `Section` views, which gives SwiftUI
     /// inconsistent separator insets.
     var showsInlineLabel: Bool = false
+    /// A label/value row inside a card the caller supplies (iOS).
+    var isCardRow: Bool = false
 
     @ViewBuilder
     var body: some View {
-        if showsInlineLabel {
+        if isCardRow {
+            LabeledContent {
+                HStack(spacing: 0) {
+                    Text(value)
+                        .foregroundStyle(Theme.labelSecondary)
+                        .textSelection(.enabled)
+                    CopyButton(text: value, accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)")
+                }
+            } label: {
+                Text(label)
+            }
+        } else if showsInlineLabel {
             VStack(alignment: .leading, spacing: 6) {
                 inlineLabel
                 fieldContent
@@ -757,6 +1023,8 @@ struct ProtectedFieldRow: View {
     let secretAccess: SecretAccessGate
     var accessibilityPrefix: String = "entry"
     var showsInlineLabel: Bool = false
+    /// A label/value row inside a card the caller supplies (iOS).
+    var isCardRow: Bool = false
     var isCurrent: @MainActor () -> Bool
     @State private var revealed = false
     @State private var secretAction = EntrySecretAction()
@@ -764,7 +1032,9 @@ struct ProtectedFieldRow: View {
     @ViewBuilder
     var body: some View {
         Group {
-            if showsInlineLabel {
+            if isCardRow {
+                cardRow
+            } else if showsInlineLabel {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(label)
                         .font(.caption)
@@ -779,6 +1049,35 @@ struct ProtectedFieldRow: View {
         }
         .onChange(of: value) { invalidateReveal() }
         .onDisappear { invalidateReveal() }
+    }
+
+    /// Concealed beside its label, revealed below it. One container for both,
+    /// so a reveal does not make the `List` swap rows (see `PasswordFieldRow`).
+    private var cardRow: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+            if revealed {
+                Text(label)
+                    .font(Theme.Font.footnote)
+                    .foregroundStyle(Theme.labelSecondary)
+                HStack(spacing: 0) {
+                    Text(value)
+                        .font(.body.monospaced())
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Theme.Spacing.iconText)
+                    controls
+                }
+            } else {
+                LabeledContent {
+                    HStack(spacing: 0) {
+                        PasswordConcealedText(accessibilityLabel: String(localized: "Hidden protected field"))
+                        controls
+                    }
+                } label: {
+                    Text(label)
+                }
+            }
+        }
     }
 
     private var fieldContent: some View {
@@ -798,25 +1097,30 @@ struct ProtectedFieldRow: View {
 
             Spacer(minLength: 12)
 
-            Button(action: toggleReveal) {
-                Image(systemName: revealed ? "eye.slash.fill" : "eye.fill")
-                    .font(.body)
-            }
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
-            .disabled(secretAction.isAuthenticating)
-            .accessibilityIdentifier("\(accessibilityPrefix).protected-field.\(normalizedLabel).reveal")
-            .macHelp(revealed ? String(localized: "Hide \(label)") : String(localized: "Show \(label)"))
-
-            CopyButton(
-                text: value,
-                secretAccess: secretAccess,
-                authenticationReason: String(localized: "Copy protected field"),
-                accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)",
-                secretAction: secretAction,
-                isCurrent: isCurrent
-            )
+            controls
         }
+    }
+
+    @ViewBuilder
+    private var controls: some View {
+        Button(action: toggleReveal) {
+            Image(systemName: revealed ? "eye.slash.fill" : "eye.fill")
+                .font(.body)
+        }
+        .frame(width: 44, height: 44)
+        .contentShape(Rectangle())
+        .disabled(secretAction.isAuthenticating)
+        .accessibilityIdentifier("\(accessibilityPrefix).protected-field.\(normalizedLabel).reveal")
+        .macHelp(revealed ? String(localized: "Hide \(label)") : String(localized: "Show \(label)"))
+
+        CopyButton(
+            text: value,
+            secretAccess: secretAccess,
+            authenticationReason: String(localized: "Copy protected field"),
+            accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)",
+            secretAction: secretAction,
+            isCurrent: isCurrent
+        )
     }
 
     private var normalizedLabel: String {
@@ -866,30 +1170,22 @@ struct PasswordFieldRow: View {
     /// so the two screens never contribute the same identifier to one hierarchy.
     var accessibilityPrefix: String = "entry"
     var isCurrent: @MainActor () -> Bool
+    /// A label/value row inside a card the caller supplies (iOS).
+    var isCardRow: Bool = false
     @State private var revealed = false
     @State private var revealedText: String?
     @State private var secretAction = EntrySecretAction()
 
     var body: some View {
-        Section("Password") {
-            PasswordDisplayRow(revealedText: revealed ? revealedText : nil) {
-                Button(action: toggleReveal) {
-                    Image(systemName: revealed ? "eye.slash.fill" : "eye.fill")
-                        .font(.body)
+        Group {
+            if isCardRow {
+                cardRow
+            } else {
+                Section("Password") {
+                    PasswordDisplayRow(revealedText: revealed ? revealedText : nil) {
+                        actions
+                    }
                 }
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-                .disabled(secretAction.isAuthenticating)
-                .accessibilityIdentifier("\(accessibilityPrefix).password.reveal")
-                .macHelp(revealTooltip)
-
-                CopyButton(
-                    resolveText: { plaintext(of: password) },
-                    secretAccess: secretAccess,
-                    accessibilityID: "\(accessibilityPrefix).copy.password",
-                    secretAction: secretAction,
-                    isCurrent: isCurrent
-                )
             }
         }
         .onChange(of: password) {
@@ -902,6 +1198,61 @@ struct PasswordFieldRow: View {
             secretAction.invalidate()
             revealedText = nil
         }
+    }
+
+    /// Concealed, the dots sit beside the label; revealed, the password takes
+    /// the full width below it, with its strength underneath. One container
+    /// for both: in a `List` a changed top-level view is a new row, whose
+    /// `onDisappear`/`onAppear` would clear and reload the reveal forever.
+    private var cardRow: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.iconText) {
+            if revealed, let revealedText {
+                Text("Password")
+                    .font(Theme.Font.footnote)
+                    .foregroundStyle(Theme.labelSecondary)
+                HStack(spacing: 0) {
+                    // No `.textSelection(.enabled)`: CopyButton is the only copy path.
+                    PasswordDisplayText(revealedText)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Theme.Spacing.iconText)
+                    actions
+                }
+                PasswordStrengthIndicator(password: revealedText)
+            } else {
+                LabeledContent {
+                    HStack(spacing: 0) {
+                        PasswordConcealedText()
+                        actions
+                    }
+                } label: {
+                    Text("Password")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        Button(action: toggleReveal) {
+            Image(systemName: revealed ? "eye.slash.fill" : "eye.fill")
+                .font(.body)
+        }
+        .frame(width: 44, height: 44)
+        .contentShape(Rectangle())
+        .buttonStyle(.borderless)
+        .disabled(secretAction.isAuthenticating)
+        .accessibilityLabel(revealTooltip)
+        .accessibilityIdentifier("\(accessibilityPrefix).password.reveal")
+        .macHelp(revealTooltip)
+
+        CopyButton(
+            resolveText: { plaintext(of: password) },
+            secretAccess: secretAccess,
+            accessibilityID: "\(accessibilityPrefix).copy.password",
+            secretAction: secretAction,
+            isCurrent: isCurrent
+        )
     }
 
     /// Reuses the parameterized Show/Hide strings the password input row uses.
@@ -970,33 +1321,58 @@ struct PasswordFieldRow: View {
 struct URLFieldRow: View {
     let url: String
     var label: String = String(localized: "URL")
+    /// A stacked row inside a card the caller supplies (iOS): a URL rarely fits
+    /// beside its label.
+    var isCardRow: Bool = false
     @Environment(\.openURL) private var openURL
 
+    @ViewBuilder
     var body: some View {
-        Section(label) {
-            HStack {
-                Image(systemName: "globe")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24)
-                Text(url)
-                    .textSelection(.enabled)
-                Spacer()
-                if let link = URL(string: url) {
-                    Button {
-                        HapticService.tap()
-                        openURL(link)
-                    } label: {
-                        Image(systemName: "arrow.up.right.square")
-                            .font(.body)
-                    }
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("entry.url.open")
+        if isCardRow {
+            VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+                Text(label)
+                    .font(Theme.Font.footnote)
+                    .foregroundStyle(Theme.labelSecondary)
+                HStack(spacing: 0) {
+                    Text(url)
+                        .foregroundStyle(.tint)
+                        .textSelection(.enabled)
+                    Spacer(minLength: Theme.Spacing.iconText)
+                    actions
                 }
-                CopyButton(text: url, accessibilityID: "entry.copy.url")
+            }
+        } else {
+            Section(label) {
+                HStack {
+                    Image(systemName: "globe")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24)
+                    Text(url)
+                        .textSelection(.enabled)
+                    Spacer()
+                    actions
+                }
             }
         }
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        if let link = URL(string: url) {
+            Button {
+                HapticService.tap()
+                openURL(link)
+            } label: {
+                Image(systemName: "arrow.up.right.square")
+                    .font(.body)
+            }
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Open URL")
+            .accessibilityIdentifier("entry.url.open")
+        }
+        CopyButton(text: url, accessibilityID: "entry.copy.url")
     }
 }
 
@@ -1069,7 +1445,7 @@ struct CopyButton: View {
         } label: {
             Image(systemName: copied ? "checkmark" : "doc.on.doc")
                 .font(.body)
-                .foregroundStyle(copied ? Color.green : Color.accentColor)
+                .foregroundStyle(copied ? Theme.State.success : Color.accentColor)
         }
         .frame(width: 44, height: 44)
         .contentShape(Rectangle())
@@ -1107,29 +1483,53 @@ struct TOTPSection: View {
     let sessionKey: SymmetricKey
     /// Identifier namespace, matching `FieldRow` / `PasswordFieldRow`.
     var accessibilityPrefix: String = "entry"
+    /// A label/value row inside a card the caller supplies (iOS).
+    var isCardRow: Bool = false
     @State private var totpVM: TOTPViewModel
+    @ScaledMetric(relativeTo: .title3) private var cardRingSize = Theme.Size.badge
 
-    init(config: TOTPConfig, sessionKey: SymmetricKey, accessibilityPrefix: String = "entry") {
+    init(config: TOTPConfig, sessionKey: SymmetricKey, accessibilityPrefix: String = "entry", isCardRow: Bool = false) {
         self.config = config
         self.sessionKey = sessionKey
         self.accessibilityPrefix = accessibilityPrefix
+        self.isCardRow = isCardRow
         self._totpVM = State(initialValue: TOTPViewModel(config: config, sessionKey: sessionKey))
     }
 
     var body: some View {
-        Section("One-Time Password") {
-            HStack {
-                CountdownRing(progress: totpVM.progress, seconds: totpVM.secondsRemaining)
-                    .frame(width: 40, height: 40)
+        Group {
+            if isCardRow {
+                LabeledContent {
+                    HStack(spacing: Theme.Spacing.tileGap) {
+                        CountdownRing(progress: totpVM.progress, seconds: totpVM.secondsRemaining, showsSeconds: false)
+                            .frame(width: cardRingSize, height: cardRingSize)
+                            .accessibilityLabel(Text("\(totpVM.secondsRemaining) seconds remaining"))
+                        Text(totpVM.code)
+                            .font(Theme.Font.codeRow)
+                            .foregroundStyle(.tint)
+                            .contentTransition(.numericText())
+                            .accessibilityIdentifier("\(accessibilityPrefix).totp.code")
+                        CopyButton(text: totpVM.code, accessibilityID: "\(accessibilityPrefix).copy.totp")
+                    }
+                } label: {
+                    Text("One-Time Password")
+                }
+            } else {
+                Section("One-Time Password") {
+                    HStack {
+                        CountdownRing(progress: totpVM.progress, seconds: totpVM.secondsRemaining)
+                            .frame(width: 40, height: 40)
 
-                Text(totpVM.code)
-                    .font(.title.monospaced().bold())
-                    .contentTransition(.numericText())
-                    .accessibilityIdentifier("\(accessibilityPrefix).totp.code")
+                        Text(totpVM.code)
+                            .font(.title.monospaced().bold())
+                            .contentTransition(.numericText())
+                            .accessibilityIdentifier("\(accessibilityPrefix).totp.code")
 
-                Spacer()
+                        Spacer()
 
-                CopyButton(text: totpVM.code, accessibilityID: "\(accessibilityPrefix).copy.totp")
+                        CopyButton(text: totpVM.code, accessibilityID: "\(accessibilityPrefix).copy.totp")
+                    }
+                }
             }
         }
         .onAppear {
@@ -1166,7 +1566,7 @@ struct CountdownRing: View {
             Circle()
                 .trim(from: 0, to: progress)
                 .stroke(style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                .foregroundStyle(progress > 0.3 ? .green : .orange)
+                .foregroundStyle(progress > 0.3 ? Theme.State.success : Theme.State.warning)
                 .rotationEffect(.degrees(-90))
                 .animation(.linear(duration: 1), value: progress)
 

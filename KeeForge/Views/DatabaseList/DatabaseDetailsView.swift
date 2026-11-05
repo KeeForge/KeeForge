@@ -250,20 +250,35 @@ struct DatabaseDetailsView: View {
                         cloudSyncSection(cloudState, metadata: metadata)
                     }
                 } label: {
-                    HStack {
+                    if PlatformDesign.followsIOSDesign {
+                        let status = listViewModel.status(for: reference)
+                        let pendingUploads = status.pendingUploadCount + status.pendingUploadConflictCount
                         SettingsSummaryRow(
                             title: "Cloud Sync",
                             systemImage: "arrow.triangle.2.circlepath",
-                            summary: DatabaseSettingsSummary.cloudSync(cloudState, lastSyncedAt: metadata.lastSyncedAt)
+                            summary: DatabaseSettingsSummary.cloudSync(
+                                cloudState,
+                                lastSyncedAt: metadata.lastSyncedAt,
+                                pendingUploadCount: status.pendingUploadCount
+                            ),
+                            needsAttention: cloudState.warningText != nil || pendingUploads > 0
                         )
+                    } else {
+                        HStack {
+                            SettingsSummaryRow(
+                                title: "Cloud Sync",
+                                systemImage: "arrow.triangle.2.circlepath",
+                                summary: DatabaseSettingsSummary.cloudSync(cloudState, lastSyncedAt: metadata.lastSyncedAt)
+                            )
 
-                        Spacer()
+                            Spacer()
 
-                        // The summary already says it in words.
-                        Circle()
-                            .fill(cloudState.warningText == nil ? Color.green : Color.orange)
-                            .frame(width: 8, height: 8)
-                            .accessibilityHidden(true)
+                            // The summary already says it in words.
+                            Circle()
+                                .fill(cloudState.warningText == nil ? Color.green : Color.orange)
+                                .frame(width: 8, height: 8)
+                                .accessibilityHidden(true)
+                        }
                     }
                 }
                 .accessibilityIdentifier("database-details.cloud-sync.link")
@@ -322,7 +337,9 @@ struct DatabaseDetailsView: View {
         } header: {
             Text("Identity")
         } footer: {
-            Text("Quick Launch opens this database automatically on app launch.")
+            if PlatformDesign.followsIOSDesign == false {
+                Text("Quick Launch opens this database automatically on app launch.")
+            }
         }
     }
 
@@ -422,7 +439,9 @@ struct DatabaseDetailsView: View {
         } header: {
             Text("Key File")
         } footer: {
-            Text("KeeForge remembers this key file and prefills it when unlocking. To change the key file the database requires, change the master key.")
+            if PlatformDesign.followsIOSDesign == false {
+                Text("KeeForge remembers this key file and prefills it when unlocking. To change the key file the database requires, change the master key.")
+            }
         }
     }
 
@@ -441,7 +460,9 @@ struct DatabaseDetailsView: View {
                 .disabled(isReadOnly)
                 .accessibilityIdentifier("database-details.change-master-key")
             } footer: {
-                Text("Changing the master key re-encrypts this database file with a new master password and/or key file.")
+                if PlatformDesign.followsIOSDesign == false {
+                    Text("Changing the master key re-encrypts this database file with a new master password and/or key file.")
+                }
             }
         }
     }
@@ -460,7 +481,9 @@ struct DatabaseDetailsView: View {
                 .disabled(isReadOnly || fileInfo?.summary == nil)
                 .accessibilityIdentifier("database-details.change-encryption-settings")
             } footer: {
-                Text("Choose the cipher, key derivation, and compression this database file is saved with.")
+                if PlatformDesign.followsIOSDesign == false {
+                    Text("Choose the cipher, key derivation, and compression this database file is saved with.")
+                }
             }
         }
     }
@@ -548,7 +571,9 @@ struct DatabaseDetailsView: View {
                 .disabled(isReadOnly)
                 .accessibilityIdentifier("database-details.import-passwords")
             } footer: {
-                Text("Add logins from a password export file, such as the one the Passwords app creates.")
+                if PlatformDesign.followsIOSDesign == false {
+                    Text("Add logins from a password export file, such as the one the Passwords app creates.")
+                }
             }
         }
     }
@@ -605,7 +630,9 @@ struct DatabaseDetailsView: View {
         } header: {
             Text("Backups")
         } footer: {
-            Text("KeeForge keeps the last five backups it made before saving or replacing this database on this device.")
+            if PlatformDesign.followsIOSDesign == false {
+                Text("KeeForge keeps the last five backups it made before saving or replacing this database on this device.")
+            }
         }
     }
 
@@ -662,7 +689,9 @@ struct DatabaseDetailsView: View {
             } else if currentReference.cloudSyncPolicy == .manual {
                 Text("KeeForge opens the copy saved on this device without checking the cloud. Use Sync Now in the unlocked database to get newer changes. Saving still checks the cloud copy first and stops if it changed. AutoFill uses the cached copy only.")
             } else {
-                Text("Cloud databases are cached locally and refreshed whenever you open them in the main app. AutoFill uses the cached copy only.")
+                if PlatformDesign.followsIOSDesign == false {
+                    Text("Cloud databases are cached locally and refreshed whenever you open them in the main app. AutoFill uses the cached copy only.")
+                }
             }
         }
     }

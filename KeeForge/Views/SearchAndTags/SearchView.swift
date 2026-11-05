@@ -74,7 +74,9 @@ private struct SearchResultsList: View {
             entries: viewModel.searchResults,
             viewModel: viewModel,
             onSelectEntry: onSelectEntry,
-            onRequestDeletion: onRequestDeletion
+            onRequestDeletion: onRequestDeletion,
+            header: String(localized: "Results: \(viewModel.searchResults.count)"),
+            footer: String(localized: "Type to search by title, username, URL, notes, or tags.")
         )
         #endif
     }

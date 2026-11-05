@@ -113,7 +113,7 @@ struct KeeForgeApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .active:
-                screenProtectionService.hideShield()
+                screenProtectionService.update(sceneIsActive: true)
                 activeDatabaseViewModel?.didManuallyLock = false
                 activeDatabaseViewModel?.handleSceneDidBecomeActive()
                 activeDatabaseViewModel?.refreshSharedDatabaseCacheIfPossible()
@@ -124,7 +124,7 @@ struct KeeForgeApp: App {
             case .inactive:
                 break
             case .background:
-                screenProtectionService.showShield()
+                screenProtectionService.update(sceneIsActive: false)
                 // macOS: the scene phase moves to .background on window
                 // minimize / app hide, which must not lock under the
                 // default policy. MacLockMonitor is the sole lock driver
@@ -133,10 +133,12 @@ struct KeeForgeApp: App {
                 activeDatabaseViewModel?.handleSceneDidEnterBackground()
                 #endif
             @unknown default:
-                screenProtectionService.showShield()
+                screenProtectionService.update(sceneIsActive: false)
             }
         }
         .task {
+            // A recording already running at launch sends no change notification.
+            screenProtectionService.update(sceneIsActive: scenePhase != .background)
             // Plaintext preview files orphaned by a process that died
             // without locking; must run before this session writes any.
             AttachmentPreviewFileStore.purgeOrphanedFiles()
@@ -709,17 +711,18 @@ private struct CompactDatabaseHost: View {
                 DatabaseListView(
                     viewModel: listViewModel,
                     onSelectDatabase: onSelectDatabase,
-                    onCreateDatabase: onCreateDatabase
+                    onCreateDatabase: onCreateDatabase,
+                    unlockPage: DatabaseListView.UnlockPage(isPresented: isUnlockPresented) {
+                        AnyView(
+                            CompactUnlockScene(
+                                viewModel: viewModel,
+                                onReturnToList: onReturnToList
+                            )
+                            .navigationBarBackButtonHidden(viewModel.state == .unlocking)
+                        )
+                    }
                 )
             }
-        }
-        .sheet(isPresented: isUnlockPresented) {
-            CompactUnlockScene(
-                viewModel: viewModel,
-                onReturnToList: onReturnToList
-            )
-            .interactiveDismissDisabled(viewModel.state == .unlocking)
-            .presentationDragIndicator(.visible)
         }
         .onAppear {
             if case .unlocked = viewModel.state {
@@ -764,12 +767,8 @@ private struct CompactUnlockScene: View {
         Group {
             switch viewModel.state {
             case .locked:
-                if viewModel.isEligibleForBiometricAutoUnlock {
-                    DatabaseOpeningView(
-                        databaseName: viewModel.databaseDisplayName,
-                        statusMessage: viewModel.unlockStatusMessage,
-                        progress: viewModel.cloudSyncProgress
-                    )
+                if viewModel.isAwaitingBiometricAutoUnlock {
+                    DatabaseOpeningView(viewModel: viewModel)
                         .transition(.opacity)
                 } else {
                     UnlockView(
@@ -785,12 +784,7 @@ private struct CompactUnlockScene: View {
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             case .unlocking:
-                DatabaseOpeningView(
-                    databaseName: viewModel.databaseDisplayName,
-                    statusMessage: viewModel.unlockStatusMessage,
-                    progress: viewModel.cloudSyncProgress,
-                    onCancel: hardwareKeyCancelAction(for: viewModel)
-                )
+                DatabaseOpeningView(viewModel: viewModel, onCancel: hardwareKeyCancelAction(for: viewModel))
                     .transition(.opacity)
             case .unlocked:
                 // The compact sheet dismisses as soon as unlock succeeds.
@@ -816,12 +810,8 @@ private struct RegularDatabaseScene: View {
                 #if os(macOS)
                 unlockView
                 #else
-                if viewModel.isEligibleForBiometricAutoUnlock {
-                    DatabaseOpeningView(
-                        databaseName: viewModel.databaseDisplayName,
-                        statusMessage: viewModel.unlockStatusMessage,
-                        progress: viewModel.cloudSyncProgress
-                    )
+                if viewModel.isAwaitingBiometricAutoUnlock {
+                    DatabaseOpeningView(viewModel: viewModel)
                     .transition(.opacity)
                 } else {
                     unlockView
@@ -830,12 +820,7 @@ private struct RegularDatabaseScene: View {
             case .error:
                 unlockView
             case .unlocking:
-                DatabaseOpeningView(
-                    databaseName: viewModel.databaseDisplayName,
-                    statusMessage: viewModel.unlockStatusMessage,
-                    progress: viewModel.cloudSyncProgress,
-                    onCancel: hardwareKeyCancelAction(for: viewModel)
-                )
+                DatabaseOpeningView(viewModel: viewModel, onCancel: hardwareKeyCancelAction(for: viewModel))
                 .transition(.opacity)
             case .unlocked:
                 RegularDatabaseWorkspaceView(viewModel: viewModel)
@@ -874,7 +859,6 @@ private struct BiometricAutoUnlockModifier: ViewModifier {
     let viewModel: DatabaseViewModel
 
     @Environment(\.scenePhase) private var scenePhase
-    @State private var attemptedLockCycle: Int?
 
     func body(content: Content) -> some View {
         content
@@ -898,14 +882,12 @@ private struct BiometricAutoUnlockModifier: ViewModifier {
     private func attemptIfNeeded() {
         guard scenePhase == .active else { return }
         guard viewModel.isEligibleForBiometricAutoUnlock else { return }
-        guard attemptedLockCycle != viewModel.lockCycleID else { return }
-
-        attemptedLockCycle = viewModel.lockCycleID
+        guard viewModel.claimBiometricAutoUnlockAttempt() else { return }
 
         Task {
             if await viewModel.unlockWithBiometrics() == .promptUnavailable {
                 // Nothing was presented, so this lock cycle keeps its attempt.
-                attemptedLockCycle = nil
+                viewModel.releaseBiometricAutoUnlockAttempt()
             }
         }
     }
@@ -970,6 +952,10 @@ struct DatabaseNavigationView: View {
                     EntryDetailView(entryID: entryID, viewModel: viewModel)
                 case .tag(let tag):
                     TagEntriesView(tag: tag, viewModel: viewModel)
+                case .collection(let collection):
+                    if let rootID = viewModel.visibleRootGroupID {
+                        GroupListView(groupID: rootID, collection: collection, viewModel: viewModel)
+                    }
                 }
             }
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -1117,29 +1103,87 @@ struct UnsavedChangesBanner: View {
     @Bindable var viewModel: DatabaseViewModel
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(Color.orange)
-                .frame(width: 8, height: 8)
-            Text("Changes not saved")
-                .font(.caption.weight(.medium))
-
-            Spacer(minLength: 12)
-
-            Button("Retry Save") {
-                Task {
-                    await viewModel.saveHandlingError()
+        if PlatformDesign.followsIOSDesign {
+            HStack(spacing: Theme.Spacing.iconText) {
+                Circle()
+                    .fill(Theme.warning)
+                    .frame(width: Theme.Size.statusDot, height: Theme.Size.statusDot)
+                    .accessibilityHidden(true)
+                Text("Changes not saved")
+                    .font(Theme.Font.subhead.weight(.semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Retry Save") {
+                    Task {
+                        await viewModel.saveHandlingError()
+                    }
                 }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .disabled(viewModel.isSaving)
             }
-            .font(.caption.weight(.semibold))
-            .disabled(viewModel.isSaving)
+            .vaultNoticeCard()
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("database.unsaved-indicator")
+        } else {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Theme.State.warning)
+                    .frame(width: 8, height: 8)
+                Text("Changes not saved")
+                    .font(.caption.weight(.medium))
+
+                Spacer(minLength: 12)
+
+                Button("Retry Save") {
+                    Task {
+                        await viewModel.saveHandlingError()
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .disabled(viewModel.isSaving)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Theme.State.warning.opacity(0.12))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("database.unsaved-indicator")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color.orange.opacity(0.12))
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("database.unsaved-indicator")
+    }
+}
+
+extension View {
+    /// A notice above the vault: the design's card on iPhone and iPad, the
+    /// outlined card macOS has always drawn.
+    func vaultNoticeCard() -> some View {
+        modifier(VaultNoticeCard())
+    }
+}
+
+private struct VaultNoticeCard: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if PlatformDesign.followsIOSDesign {
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(Theme.Spacing.side)
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                .padding(.horizontal, Theme.Spacing.side)
+        } else {
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color(.secondarySystemBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color(.separator), lineWidth: 0.5)
+                )
+                .padding(.horizontal, 12)
+        }
     }
 }
 
@@ -1194,7 +1238,7 @@ struct CloudSyncControls: View {
                         .controlSize(.small)
                 } else {
                     Image(systemName: Self.showsWarning(for: viewModel) ? "exclamationmark.triangle.fill" : "info.circle")
-                        .foregroundStyle(Self.showsWarning(for: viewModel) ? Color.yellow : Color.secondary)
+                        .foregroundStyle(Self.showsWarning(for: viewModel) ? Theme.State.cloudWarning : Color.secondary)
                 }
             }
             .frame(minWidth: 44, minHeight: 44)
@@ -1234,37 +1278,79 @@ struct CloudSyncControls: View {
 
 }
 
-/// The compact header's sync status beside the title: nothing while the
-/// database is in sync, a spinner while it syncs, and a warning that opens the
-/// details with Sync Now. Pull to refresh syncs at any time.
-struct CloudSyncStatusBadge: View {
+/// The vault root's sync status, in words: nothing while the database is in
+/// sync, a spinner while it syncs, and a warning that opens the details with
+/// Sync Now. Pull to refresh syncs at any time.
+struct CloudSyncStatusRow: View {
     @Bindable var viewModel: DatabaseViewModel
     @State private var isShowingDetails = false
 
+    static func isVisible(for viewModel: DatabaseViewModel) -> Bool {
+        viewModel.isSyncingCloud || CloudSyncControls.showsWarning(for: viewModel)
+    }
+
     var body: some View {
         if viewModel.isSyncingCloud {
-            ProgressView()
-                .controlSize(.small)
+            Label {
+                Text(CloudSyncControls.title(for: viewModel))
+            } icon: {
+                ProgressView()
+                    .controlSize(.small)
+            }
+            .font(Theme.Font.subhead)
+            .foregroundStyle(Theme.labelSecondary)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("database.cloud-sync-status.progress")
+        } else if CloudSyncControls.showsWarning(for: viewModel) {
+            HStack(spacing: Theme.Spacing.iconText) {
+                Button {
+                    isShowingDetails.toggle()
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+                            Text(CloudSyncControls.title(for: viewModel))
+                                .foregroundStyle(Color.primary)
+                            if let detail {
+                                Text(detail)
+                                    .font(Theme.Font.footnote)
+                                    .foregroundStyle(Theme.labelSecondary)
+                            }
+                        }
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Theme.warning)
+                    }
+                    .font(Theme.Font.subhead)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Cloud Sync")
                 .accessibilityValue(CloudSyncControls.title(for: viewModel))
-                .accessibilityIdentifier("database.cloud-sync-status.progress")
-        } else if CloudSyncControls.showsWarning(for: viewModel) {
-            Button {
-                isShowingDetails.toggle()
-            } label: {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.title2)
-                    .foregroundStyle(Color.yellow)
-                    .frame(minWidth: 44, minHeight: 44)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Cloud Sync")
-            .accessibilityValue(CloudSyncControls.title(for: viewModel))
-            .accessibilityIdentifier("database.cloud-sync-status.details")
-            .popover(isPresented: $isShowingDetails) {
-                CloudSyncDetails(viewModel: viewModel, showsSyncNow: true) { isShowingDetails = false }
+                .accessibilityIdentifier("database.cloud-sync-status.details")
+                .popover(isPresented: $isShowingDetails) {
+                    CloudSyncDetails(viewModel: viewModel, showsSyncNow: true) { isShowingDetails = false }
+                }
+
+                Button("Sync Now") {
+                    Task { await viewModel.syncCloudNow() }
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .disabled(viewModel.canSyncCloudNow == false)
+                .accessibilityIdentifier("database.cloud-sync-status.sync-now")
             }
         }
+    }
+
+    /// The second line: changes still waiting, else when it last synced.
+    private var detail: String? {
+        if CloudSyncControls.showsPendingUploadNote(for: viewModel) {
+            return String(localized: "Changes saved through AutoFill are still waiting to upload.")
+        }
+        guard let lastSyncedAt = viewModel.databaseReference.cloudSyncMetadata?.lastSyncedAt else { return nil }
+        return String(localized: "Last synced \(lastSyncedAt, format: .relative(presentation: .named))")
     }
 }
 
@@ -1345,19 +1431,10 @@ struct PendingUploadConflictBanner: View {
                 }
             }
             .buttonStyle(.borderedProminent)
+            .buttonBorderShape(PlatformDesign.followsIOSDesign ? .capsule : .automatic)
             .accessibilityIdentifier("pending-upload-banner.merge")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color(.separator), lineWidth: 0.5)
-        )
-        .padding(.horizontal, 12)
+        .vaultNoticeCard()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("pending-upload-banner")
     }
@@ -1374,20 +1451,11 @@ struct CloudReauthBanner: View {
                 .font(.subheadline.weight(.semibold))
             Button("Reconnect \(providerName)", action: onReconnect)
                 .buttonStyle(.borderedProminent)
+                .buttonBorderShape(PlatformDesign.followsIOSDesign ? .capsule : .automatic)
                 .disabled(isReconnectInFlight)
                 .accessibilityIdentifier("cloud-reauth-banner.reconnect")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color(.separator), lineWidth: 0.5)
-        )
-        .padding(.horizontal, 12)
+        .vaultNoticeCard()
         .accessibilityIdentifier("cloud-reauth-banner")
     }
 }
@@ -1407,7 +1475,7 @@ struct CloudSyncWarningButton: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.title3.weight(.semibold))
                 .symbolRenderingMode(.monochrome)
-                .foregroundStyle(Color.yellow)
+                .foregroundStyle(Theme.State.cloudWarning)
                 .frame(width: 34, height: 34)
         }
         .buttonStyle(.plain)

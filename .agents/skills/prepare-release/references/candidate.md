@@ -79,16 +79,18 @@ only malformed or internally inconsistent evidence is a disagreement.
 
 `MARKETING_VERSION` must already match the selected new, patch, or respin version.
 
-## Regenerate and run the local KDBX gate
+## Regenerate and run the KDBX gates
 
 ```bash
 xcodegen generate
 ```
 
-Run the KDBX compatibility gate twice in a fresh `bash` session, under the repo's Xcode lock. Both
-are required for **every candidate build** — Xcode Cloud does not install KeePassXC, so the release
-machine is the only place KeeForge-written databases are cross-validated against another KeePass
-implementation:
+Run the KDBX compatibility gate once per platform, on the designated test machine or locally as a
+fallback; private setups may route it elsewhere. Both are required for **every candidate build** —
+Xcode Cloud does not install KeePassXC, so these runs are the only place KeeForge-written databases
+are cross-validated against another KeePass implementation. Run them after the version bump and
+release notes, with nothing else left to change before the candidate commit. Locally, run each in a
+fresh `bash` session under the repo's Xcode lock:
 
 ```bash
 CANDIDATE="$(ci_scripts/release_dir.sh {version}-b{repoBuild})"
@@ -96,21 +98,27 @@ mkdir -p "$CANDIDATE/evidence"
 LOG="$CANDIDATE/evidence/kdbx-gate-ios.log"
 KDBX_COMPAT_RESULT_BUNDLE="$CANDIDATE/evidence/kdbx-gate-ios.xcresult" \
 KDBX_COMPAT_ATTACHMENTS_DIR="$CANDIDATE/evidence/kdbx-gate-ios-attachments" \
-/Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- \
+scripts/with-repo-lock.sh xcode -- \
   ci_scripts/run_kdbx_compatibility_gate.sh > "$LOG" 2>&1
 echo "exit=$? log=$LOG"
 ```
 
-These are release evidence, so they go in the candidate's `evidence/` directory
+Repeat with `KDBX_COMPAT_SCHEME=KeeForgeMac` and `kdbx-gate-mac` paths: the script deletes its
+result bundle and attachments directory before each run, so shared paths would erase the iOS
+evidence. These are release evidence, so they go in the candidate's `evidence/` directory
 ([release artifact directory](shared.md#where-release-artifacts-live)), not in `scratch/`.
 
-Repeat with `KDBX_COMPAT_SCHEME=KeeForgeMac`, a separate `kdbx-gate-mac.log`, and separate
-`kdbx-gate-mac` result bundle and attachments paths — the script deletes its result bundle and
-attachments directory before each run, so shared defaults would erase the iOS evidence. Record
-both verdicts, logs, and result bundles as `gates.kdbxIOS` and `gates.kdbxMac`.
+Whatever machine runs the gate, the evidence keeps these names (`kdbx-gate-ios.log`,
+`kdbx-gate-ios.xcresult`, `kdbx-gate-ios-attachments/`, and the `kdbx-gate-mac` set) and records
+the source tree it ran on. Record both verdicts, logs, and result bundles as `gates.kdbxIOS` and
+`gates.kdbxMac`. After committing the candidate, that tree must equal `git rev-parse HEAD^{tree}`;
+otherwise the gates ran on different code and must be rerun. A run that executes
+`KDBXCompatibilityTests` itself can check its result bundle with
+`ci_scripts/run_kdbx_compatibility_gate.sh --verify-only`.
 
-If `keepassxc-cli` is not installed, stop and ask the user to install KeePassXC (or point
-`KEEPASSXC_CLI` at the binary). Do not skip this gate or proceed past a failure.
+If `keepassxc-cli` is missing on the machine that runs the gate, stop and ask the user to install
+KeePassXC there (or point `KEEPASSXC_CLI` at the binary). Do not skip this gate or proceed past a
+failure.
 
 Do **not** run the full unit or UI suites locally here — the cloud systems run them in [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke). The
 required local Mac smoke and the focused pre-commit What's New preview are the UI exceptions.
@@ -149,14 +157,14 @@ ci_scripts/candidate_manifest.py init --rc-tag rc/{version}-b{repoBuild}
 The tag push triggers Xcode Cloud's RC workflow (iOS tests plus iOS and Mac App Store
 archives/uploads) and `.github/workflows/tests.yml`. Xcode Cloud has no Mac test action (see
 [xcode-cloud-setup.md](xcode-cloud-setup.md)); the Mac unit suite runs only in that workflow's
-`macos-unit-tests` job. Its `ios-rc-tests` iPad job, `KeeForge (iPad (A16))`, runs the two regular-width UI
+`macos-unit-tests` job. Its iPad job, `ios-rc-tests / KeeForge (iPad (A16))`, runs the two regular-width UI
 classes that skip on every Cloud device and is a gate. Its iPhone jobs are an unmetered GitHub copy
 of the three Cloud test schemes and are not a separate manifest gate. If Xcode Cloud shows no run for the tag, follow "Recovering a missing
 tag-triggered run" in [xcode-cloud-setup.md](xcode-cloud-setup.md); never move or re-create the RC tag to retrigger it.
 
 ## Wait for all cloud gates and local Mac smoke
 
-The RC tag starts three cloud verdicts. All three, plus the two KDBX verdicts from [local KDBX gates](candidate.md#regenerate-and-run-the-local-kdbx-gate) and the
+The RC tag starts three cloud verdicts. All three, plus the two KDBX verdicts from [KDBX gates](candidate.md#regenerate-and-run-the-kdbx-gates) and the
 local Mac smoke suite, must be accepted before either App Store build is distributed to external
 testers or the direct build is called a release candidate.
 
@@ -166,7 +174,7 @@ testers or the direct build is called a release candidate.
    gh api repos/KeeForge/KeeForge/commits/{rc-sha}/check-runs \
      --jq '.check_runs[] | select(.app.name=="Xcode Cloud") | "\(.name) | \(.status) | \(.conclusion // "-")"'
    ```
-2. Monitor the two GitHub Actions gates, the `macos-unit-tests` and `KeeForge (iPad (A16))` jobs
+2. Monitor the two GitHub Actions gates, the `macos-unit-tests` and `ios-rc-tests / KeeForge (iPad (A16))` jobs
    of `tests.yml`:
    ```bash
    gh run list --workflow tests.yml --event push
@@ -191,7 +199,7 @@ testers or the direct build is called a release candidate.
    only directly under `scratch/release-session`.
 
    When driving this multi-step native UI sequence through Codex tools, keep a single supervised
-   `/Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- bash` session open from the backup
+   `scripts/with-repo-lock.sh xcode -- bash` session open from the backup
    through restoration. Allocate a PTY (`tty: true`) and send every command through that retained
    execution session. Exit or interrupt it only after
    restoration completes so the wrapper releases the lock. Do not use the detached `acquire` mode
@@ -265,7 +273,7 @@ in App Store Connect, independently for iOS and Mac.
    other Xcode work. Follow the [owner-readiness preflight](shared.md#candidate-owner-readiness) if `sign_update` requests Keychain
    authentication:
    ```bash
-   /Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- \
+   scripts/with-repo-lock.sh xcode -- \
      ci_scripts/build_mac_direct.sh --archive-export --rc-tag rc/{version}-b{repoBuild} \
      > "$CANDIDATE/evidence/direct-archive-export.log" 2>&1
    ci_scripts/build_mac_direct.sh --finalize --rc-tag rc/{version}-b{repoBuild} \

@@ -155,7 +155,7 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
    product targets carry that repo build. Xcode Cloud's iOS and Mac TestFlight numbers may differ
    from it and from each other, so the manifest maps all three artifacts to the same SHA.
 3. **All gates are accepted before external distribution.** Accept the Xcode Cloud verdict, the
-   macOS and iPad GitHub Actions verdicts, both local KDBX gates, and the
+   macOS and iPad GitHub Actions verdicts, both KDBX gates, and the
    local Mac smoke suite; green or explicitly adjudicated per [gate-adjudication.md](gate-adjudication.md). Before
    external distribution or direct-artifact staging, both exact exported Mac apps must also pass
    `ci_scripts/verify_mac_artifact.sh` with universal `arm64,x86_64`, unless an explicit product
@@ -178,10 +178,10 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
 - The two platforms diverge only at App Store Connect, which keeps a **separate version record,
   build, screenshot set, and review submission per platform**. Shipping is therefore not done when
   iOS is submitted; see the `publish-app-store-version` skill.
-- The KDBX compatibility gate runs **per platform**. Run it for iOS as documented, then again with
-  `KDBX_COMPAT_SCHEME=KeeForgeMac` (which switches the test target to `KeeForgeMacTests` and the
-  destination to `platform=macOS`). Both must pass before external distribution, alongside all
-  three cloud verdicts and local Mac smoke.
+- The KDBX compatibility gate runs **per platform**: `KeeForgeTests` on an iOS simulator, then
+  `KDBX_COMPAT_SCHEME=KeeForgeMac` for `KeeForgeMacTests` on macOS, as
+  [documented](candidate.md#regenerate-and-run-the-kdbx-gates). Both must pass before
+  external distribution, alongside all three cloud verdicts and local Mac smoke.
 - The Mac ships through **two channels**. The Mac App Store build is the default
   (`xcodegen generate`) and is archived like the iOS app. The notarized
   Developer ID build is produced by `ci_scripts/build_mac_direct.sh`, which

@@ -33,7 +33,7 @@ If that version already has an RC, continue with `respin-release` instead.
 
 ## Gate, tag, distribute
 
-Run [local KDBX gates](candidate.md#regenerate-and-run-the-local-kdbx-gate), [RC tag and manifest](candidate.md#commit-push-and-tag-the-candidate), [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke), and [artifact verification and beta distribution](candidate.md#verify-all-three-artifacts-assign-the-app-store-builds-and-distribute-when-approved) exactly as for a minor release. The KDBX gate is not optional for patches.
+Run [KDBX gates](candidate.md#regenerate-and-run-the-kdbx-gates), [RC tag and manifest](candidate.md#commit-push-and-tag-the-candidate), [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke), and [artifact verification and beta distribution](candidate.md#verify-all-three-artifacts-assign-the-app-store-builds-and-distribute-when-approved) exactly as for a minor release. The KDBX gate is not optional for patches.
 
 Merge the candidate bookkeeping back using [merge-back guidance](merge-back.md).
 
