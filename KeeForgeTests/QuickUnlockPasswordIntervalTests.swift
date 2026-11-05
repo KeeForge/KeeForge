@@ -22,12 +22,12 @@ final class QuickUnlockPasswordIntervalTests: XCTestCase {
         super.tearDown()
     }
 
-    func testIntervalDefaultsToFourteenDaysAndRoundTrips() {
+    func testIntervalDefaultsToNeverAndRoundTrips() {
         AppGroupContainer.defaults.removeObject(forKey: "KeeForge.quickUnlockPasswordInterval")
-        XCTAssertEqual(SettingsService.quickUnlockPasswordInterval, .fourteenDays)
+        XCTAssertEqual(SettingsService.quickUnlockPasswordInterval, .never, "Existing quick unlock keeps working until the user opts in")
 
-        SettingsService.quickUnlockPasswordInterval = .never
-        XCTAssertEqual(SettingsService.quickUnlockPasswordInterval, .never)
+        SettingsService.quickUnlockPasswordInterval = .fourteenDays
+        XCTAssertEqual(SettingsService.quickUnlockPasswordInterval, .fourteenDays)
         SettingsService.quickUnlockPasswordInterval = .thirtyDays
         XCTAssertEqual(SettingsService.quickUnlockPasswordInterval, .thirtyDays)
     }

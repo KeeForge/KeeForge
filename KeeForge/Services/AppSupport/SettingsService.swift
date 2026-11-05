@@ -348,9 +348,9 @@ enum SettingsService {
     static var quickUnlockPasswordInterval: QuickUnlockPasswordInterval {
         get {
             guard let raw = sharedDefaults.string(forKey: Key.quickUnlockPasswordInterval) else {
-                return .fourteenDays
+                return .never
             }
-            return QuickUnlockPasswordInterval(rawValue: raw) ?? .fourteenDays
+            return QuickUnlockPasswordInterval(rawValue: raw) ?? .never
         }
         set {
             sharedDefaults.set(newValue.rawValue, forKey: Key.quickUnlockPasswordInterval)
