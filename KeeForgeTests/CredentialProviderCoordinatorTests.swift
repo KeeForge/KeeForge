@@ -38,6 +38,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         sharedDefaults.removeObject(forKey: "KeeForge.autoFillCopyTOTP")
         sharedDefaults.removeObject(forKey: "KeeForge.autoUnlockWithFaceID")
         sharedDefaults.removeObject(forKey: "KeeForge.quickUnlockPasswordInterval")
+        sharedDefaults.removeObject(forKey: "KeeForge.successfulAutoFillCount")
     }
 
     #if os(iOS)
@@ -656,9 +657,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             url: "https://github.com/login"
         )
         seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
-        SettingsService.successfulAutoFillCount = 0
-        defer { SettingsService.successfulAutoFillCount = 0 }
-
         coordinator.completeRequest(with: entry)
         coordinator.completeRequest(with: entry)
         XCTAssertEqual(SettingsService.successfulAutoFillCount, 1)
