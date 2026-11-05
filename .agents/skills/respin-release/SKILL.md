@@ -42,7 +42,7 @@ reviews. Reuse the previous copy approval and screenshot confirmation when that 
 
 ## Regenerate, gate, tag
 
-Run [local KDBX gates](../prepare-release/references/candidate.md#regenerate-and-run-the-local-kdbx-gate) (regenerate + KDBX gate), then [RC tag and manifest](../prepare-release/references/candidate.md#commit-push-and-tag-the-candidate) with the new build number, then [candidate gates](../prepare-release/references/candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke) and [artifact verification and beta distribution](../prepare-release/references/candidate.md#verify-all-three-artifacts-assign-the-app-store-builds-and-distribute-when-approved).
+Run [KDBX gates](../prepare-release/references/candidate.md#regenerate-and-run-the-kdbx-gates) (regenerate + KDBX gate), then [RC tag and manifest](../prepare-release/references/candidate.md#commit-push-and-tag-the-candidate) with the new build number, then [candidate gates](../prepare-release/references/candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke) and [artifact verification and beta distribution](../prepare-release/references/candidate.md#verify-all-three-artifacts-assign-the-app-store-builds-and-distribute-when-approved).
 
 Both KDBX gates run again for this build. They are not inherited from the previous candidate.
 

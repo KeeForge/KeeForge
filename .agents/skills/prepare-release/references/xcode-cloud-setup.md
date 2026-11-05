@@ -48,7 +48,7 @@ relying on this; Apple can change the UI and the account can drift):
   so its existing testers continue receiving updates. All new public signups use the shared link.
 
 External TestFlight distribution stays manual:
-after Xcode Cloud, both GitHub Actions workflows, both local KDBX gates, and local Mac smoke are
+after Xcode Cloud, both GitHub Actions workflows, both KDBX gates, and local Mac smoke are
 accepted, proceed with the first Beta App Review action (when required) and each platform
 distribution when the user has already authorized that named candidate action in the current task;
 otherwise obtain action-time confirmation. Beta authorization does not authorize production release,
@@ -151,7 +151,7 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
   distribution to all testers and customers"), not *TestFlight (Internal Testing Only)*.
 - Do **not** configure a TestFlight External Testing post-action. Xcode Cloud may archive and
   upload automatically, but a processed build is moved to external testing manually in App Store
-  Connect only after Xcode Cloud, both GitHub Actions workflows, both local KDBX gates, and local
+  Connect only after Xcode Cloud, both GitHub Actions workflows, both KDBX gates, and local
   Mac smoke are accepted. Add both the iOS and native Mac builds to the same **KeeForge Test**
   public-link group; keep their platform build identities and review states distinct.
 - After editing, verify that no external-testing post-action is present and save the workflow using
@@ -163,7 +163,7 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
   authorized that named candidate beta action in the current task; otherwise obtain action-time
   confirmation. Later builds of the same platform/version
   normally distribute without re-review. External distribution remains blocked until the Xcode
-  Cloud, macOS GitHub Actions, and iPad GitHub Actions verdicts, both local KDBX gates, and local
+  Cloud, macOS GitHub Actions, and iPad GitHub Actions verdicts, both KDBX gates, and local
   Mac smoke are accepted and the manifest maps both processed builds to the same RC SHA.
 - The build declares `ITSAppUsesNonExemptEncryption=false`; verify the actual ASC record and handle any separate legal/documentation question independently with action-time owner confirmation.
 
@@ -222,8 +222,8 @@ gate, or change the direct Mac artifact procedure.
 ## What Xcode Cloud does not cover
 
 - `ci_scripts/run_kdbx_compatibility_gate.sh` needs `keepassxc-cli`, which Xcode Cloud does not
-  install. It stays a required **local** gate per platform, run twice per candidate (iOS and
-  `KDBX_COMPAT_SCHEME=KeeForgeMac`). The local `KeeForgeMacUITests/MacSmokeUITests` suite is also
+  install. It stays a required owner-run gate per platform, run twice per candidate on the Mac
+  Studio (plans `kdbx-ios` and `kdbx-mac`; see `candidate.md`). The local `KeeForgeMacUITests/MacSmokeUITests` suite is also
   required and needs an unlocked active login session.
 - Minimum-OS coverage: Xcode Cloud's iOS test action can only pin the latest runtime or iOS 16.4,
   with no iOS 18.x runtime available, and no GitHub lane runs iOS 18 either.

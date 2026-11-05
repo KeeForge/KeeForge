@@ -23,7 +23,7 @@ confirmation of the rendered What's New screenshots. Follow the shared
 an approved feature outline alone is insufficient.
 
 Both preparation paths use the same [candidate procedure](references/candidate.md): build-number
-preflight, both local KDBX gates, immutable RC tag/manifest, hosted gates and local Mac smoke,
+preflight, both KDBX gates, immutable RC tag/manifest, hosted gates and local Mac smoke,
 exact artifact verification, and authorized beta distribution. Follow those steps in order;
 patches do not skip gates. Read [soak.md](references/soak.md) for the handoff and measurements:
 48 hours for a minor/major release, 24 hours for a patch. A respin resets that version's clock.

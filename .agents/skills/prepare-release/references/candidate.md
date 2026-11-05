@@ -79,20 +79,43 @@ only malformed or internally inconsistent evidence is a disagreement.
 
 `MARKETING_VERSION` must already match the selected new, patch, or respin version.
 
-## Regenerate and run the local KDBX gate
+## Regenerate and run the KDBX gates
 
 ```bash
 xcodegen generate
 ```
 
-Run the KDBX compatibility gate twice in a fresh `bash` session, under the repo's Xcode lock. Both
-are required for **every candidate build** — Xcode Cloud does not install KeePassXC, so the release
-machine is the only place KeeForge-written databases are cross-validated against another KeePass
-implementation:
+Run the KDBX compatibility gate once per platform on the Mac Studio, through the user-level
+`studio-tests` skill. Both are required for **every candidate build** — Xcode Cloud does not
+install KeePassXC, so these runs are the only place KeeForge-written databases are cross-validated
+against another KeePass implementation. The `kdbx-ios` and `kdbx-mac` plans run
+`KDBXCompatibilityTests` on the Studio, then `ci_scripts/run_kdbx_compatibility_gate.sh --verify-only`
+checks every database they wrote with the Studio's `keepassxc-cli`. The two runs use different
+Studio slots, so start them together:
 
 ```bash
 CANDIDATE="$(ci_scripts/release_dir.sh {version}-b{repoBuild})"
 mkdir -p "$CANDIDATE/evidence"
+~/.agents/skills/studio-tests/bin/studio-test run kdbx-ios --evidence-dir "$CANDIDATE/evidence"
+~/.agents/skills/studio-tests/bin/studio-test run kdbx-mac --evidence-dir "$CANDIDATE/evidence"
+```
+
+Each run ships the working tree as it stands, so run them after the version bump and release notes,
+with nothing else left to change before the candidate commit. `--evidence-dir` puts the release
+evidence in the candidate's `evidence/` directory
+([release artifact directory](shared.md#where-release-artifacts-live)), not in `scratch/`:
+`kdbx-gate-ios.log` (the KeePassXC verdict), `kdbx-gate-ios-xcodebuild.log`,
+`kdbx-gate-ios.xcresult`, `kdbx-gate-ios-attachments/`, and `kdbx-gate-ios-summary.json`, plus the
+same `kdbx-gate-mac` set. The complete runs land beside them in `evidence/studio-runs/`. Record
+both verdicts, logs, and result bundles as `gates.kdbxIOS` and `gates.kdbxMac`. The summary's `tree` is the source tree each gate ran on; after committing the
+candidate it must equal `git rev-parse HEAD^{tree}`, or the gates ran on different code and must be
+rerun. Report each summary's run id, commit, and destination lines.
+
+If a run exits 3 (it needs the owner) or the Studio is unreachable, relay that and fall back to
+this Mac: run the gate in a fresh `bash` session under the repo's Xcode lock, writing the same
+evidence names:
+
+```bash
 LOG="$CANDIDATE/evidence/kdbx-gate-ios.log"
 KDBX_COMPAT_RESULT_BUNDLE="$CANDIDATE/evidence/kdbx-gate-ios.xcresult" \
 KDBX_COMPAT_ATTACHMENTS_DIR="$CANDIDATE/evidence/kdbx-gate-ios-attachments" \
@@ -101,16 +124,14 @@ KDBX_COMPAT_ATTACHMENTS_DIR="$CANDIDATE/evidence/kdbx-gate-ios-attachments" \
 echo "exit=$? log=$LOG"
 ```
 
-These are release evidence, so they go in the candidate's `evidence/` directory
-([release artifact directory](shared.md#where-release-artifacts-live)), not in `scratch/`.
+Repeat with `KDBX_COMPAT_SCHEME=KeeForgeMac` and `kdbx-gate-mac` paths: the script deletes its
+result bundle and attachments directory before each run, so shared paths would erase the iOS
+evidence. A local run has no summary: it binds to the candidate commit only if nothing changed
+between the run and that commit.
 
-Repeat with `KDBX_COMPAT_SCHEME=KeeForgeMac`, a separate `kdbx-gate-mac.log`, and separate
-`kdbx-gate-mac` result bundle and attachments paths — the script deletes its result bundle and
-attachments directory before each run, so shared defaults would erase the iOS evidence. Record
-both verdicts, logs, and result bundles as `gates.kdbxIOS` and `gates.kdbxMac`.
-
-If `keepassxc-cli` is not installed, stop and ask the user to install KeePassXC (or point
-`KEEPASSXC_CLI` at the binary). Do not skip this gate or proceed past a failure.
+If `keepassxc-cli` is missing on the machine that runs the gate, stop and ask the user to install
+KeePassXC there (or point `KEEPASSXC_CLI` at the binary). Do not skip this gate or proceed past a
+failure.
 
 Do **not** run the full unit or UI suites locally here — the cloud systems run them in [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke). The
 required local Mac smoke and the focused pre-commit What's New preview are the UI exceptions.
@@ -156,7 +177,7 @@ tag-triggered run" in [xcode-cloud-setup.md](xcode-cloud-setup.md); never move o
 
 ## Wait for all cloud gates and local Mac smoke
 
-The RC tag starts three cloud verdicts. All three, plus the two KDBX verdicts from [local KDBX gates](candidate.md#regenerate-and-run-the-local-kdbx-gate) and the
+The RC tag starts three cloud verdicts. All three, plus the two KDBX verdicts from [KDBX gates](candidate.md#regenerate-and-run-the-kdbx-gates) and the
 local Mac smoke suite, must be accepted before either App Store build is distributed to external
 testers or the direct build is called a release candidate.
 

@@ -1,7 +1,7 @@
 # Adjudicating a Failed RC Gate
 
 Read this during [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke) when any RC verdict is not green. [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-mac-smoke) adjudicates three cloud verdicts plus
-the two local KDBX gates and the local Mac smoke; [production shipping](../../ship-release/SKILL.md) ships an already-accepted candidate and
+the two KDBX gates and the local Mac smoke; [production shipping](../../ship-release/SKILL.md) ships an already-accepted candidate and
 does not reopen these decisions. Do not distribute either App Store build or call the direct build
 release-ready while any required verdict is unresolved.
 
@@ -81,14 +81,15 @@ It runs `DatabaseCreationRegularWidthUITests` and `RegularWidthWorkspaceUITests`
 on every compact-width device, so no other gate executes them. Record the job URL, SHA, status, and
 conclusion as `gates.githubIPad`.
 
-## The local gates that also must be accepted
+## The owner-run gates that also must be accepted
 
-Run both KDBX compatibility gates for the same RC source tree, in fresh Bash sessions under the
-repository Xcode lock, and record separate logs as `gates.kdbxIOS` and `gates.kdbxMac`:
+Run both KDBX compatibility gates for the same RC source tree on the Mac Studio, and record
+separate evidence as `gates.kdbxIOS` and `gates.kdbxMac`. The commands, evidence names, and the
+local fallback are in [KDBX gates](candidate.md#regenerate-and-run-the-kdbx-gates):
 
 ```bash
-ci_scripts/run_kdbx_compatibility_gate.sh
-KDBX_COMPAT_SCHEME=KeeForgeMac ci_scripts/run_kdbx_compatibility_gate.sh
+~/.agents/skills/studio-tests/bin/studio-test run kdbx-ios --evidence-dir "$CANDIDATE/evidence"
+~/.agents/skills/studio-tests/bin/studio-test run kdbx-mac --evidence-dir "$CANDIDATE/evidence"
 ```
 
 Run `KeeForgeMacUITests/MacSmokeUITests` locally on an unlocked release Mac under the Xcode lock.
@@ -177,7 +178,7 @@ local Mac smoke, artifact mapping, and any required soak.
 A build, signing, configuration, archive, upload, infrastructure, cancellation, or tests-not-run
 failure cannot be overridden by a local pass. Rerun the affected workflow on the same RC SHA when
 safe, or fix the cause and create a new candidate using the respin procedure above. Do not
-distribute until all three cloud verdicts and all local gates are accepted.
+distribute until all three cloud verdicts and all owner-run gates are accepted.
 
 An archive failure complaining about `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID` means the Xcode
 Cloud workflow is missing its environment variables. This is intentional:
