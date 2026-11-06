@@ -3,85 +3,157 @@ import UIKit
 
 @MainActor
 final class ScreenProtectionService {
-    private weak var windowScene: UIWindowScene?
+    enum ScenePhase {
+        case active, inactive, background
+    }
+
+    enum ShieldAction: Equatable {
+        case show, hide, keep
+    }
+
     private var shieldWindow: UIWindow?
-    private var capturedObservation: NSObjectProtocol?
+    private var observations: [NSObjectProtocol] = []
     private let isScreenCaptured: @MainActor () -> Bool
-    private var isSceneActive = false
+    private let captureEndDelay: Duration
+    private var phase = ScenePhase.inactive
+    private var hasSeenCapture = false
+    private var pendingCaptureEnd: Task<Void, Never>?
     private var hideAnimator: UIViewPropertyAnimator?
 
     init(
-        windowScene: UIWindowScene? = nil,
-        isScreenCaptured: @escaping @MainActor () -> Bool = { UIScreen.main.isCaptured }
+        isScreenCaptured: @escaping @MainActor () -> Bool = { UIScreen.main.isCaptured },
+        captureEndDelay: Duration = .seconds(1)
     ) {
-        self.windowScene = windowScene
         self.isScreenCaptured = isScreenCaptured
-        startMonitoringScreenCapture()
+        self.captureEndDelay = captureEndDelay
+        observe(UIScreen.capturedDidChangeNotification) { $0.applyShieldPolicy() }
+        observe(UIScene.willDeactivateNotification) { $0.sceneWillDeactivate() }
+        observe(UIScene.didActivateNotification) { $0.update(phase: .active) }
+        observe(UIScene.didEnterBackgroundNotification) { $0.update(phase: .background) }
+        observe(UIResponder.keyboardWillShowNotification) { $0.dismissKeyboardDuringCapture() }
     }
 
-    /// A shield that is fading out already counts as down.
+    /// A shield that is fading out, or only armed, already counts as down.
     var isShieldVisible: Bool {
-        shieldWindow?.isHidden == false && hideAnimator == nil
+        guard let window = shieldWindow else { return false }
+        return window.isHidden == false && window.alpha > 0 && hideAnimator == nil
     }
 
-    /// Recording, mirroring and AirPlay keep the shield up while the scene is
-    /// active: the capture notification fires once, and activation must not
-    /// take back what it showed.
-    nonisolated static func showsShield(sceneIsActive: Bool, isScreenCaptured: Bool) -> Bool {
-        sceneIsActive == false || isScreenCaptured
+    /// Up in the background and while the screen is recorded, mirrored or
+    /// AirPlayed. An inactive scene keeps whatever it has: Face ID, Control
+    /// Center and notifications must neither flash the cover nor take it down,
+    /// and iOS reports a running capture as over while they cover the app.
+    nonisolated static func shieldAction(phase: ScenePhase, isScreenCaptured: Bool) -> ShieldAction {
+        if isScreenCaptured || phase == .background { return .show }
+        return phase == .active ? .hide : .keep
     }
 
     func update(sceneIsActive: Bool) {
-        isSceneActive = sceneIsActive
+        update(phase: sceneIsActive ? .active : .background)
+    }
+
+    private func update(phase: ScenePhase) {
+        self.phase = phase
         applyShieldPolicy()
     }
 
-    func updateScene(_ scene: UIWindowScene?) {
-        windowScene = scene
+    private func sceneWillDeactivate() {
+        guard phase != .background else { return }
+        armShieldWindow()
+        update(phase: .inactive)
     }
 
-    private func startMonitoringScreenCapture() {
-        capturedObservation = NotificationCenter.default.addObserver(
-            forName: UIScreen.capturedDidChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.applyShieldPolicy()
+    private func applyShieldPolicy() {
+        let captured = isScreenCaptured()
+        if captured { hasSeenCapture = true }
+        let action = Self.shieldAction(phase: phase, isScreenCaptured: captured)
+        if action != .hide {
+            pendingCaptureEnd?.cancel()
+            pendingCaptureEnd = nil
+        }
+        switch action {
+        case .show: showShield(isScreenCaptured: captured)
+        case .keep: break
+        case .hide where hasSeenCapture: confirmCaptureEnd()
+        case .hide: hideShield()
+        }
+    }
+
+    /// A capture reported over can be a system overlay or the scene returning
+    /// before iOS reports it captured again, so the shield stays until the
+    /// screen has read uncaptured for `captureEndDelay` while active.
+    private func confirmCaptureEnd() {
+        guard pendingCaptureEnd == nil else { return }
+        pendingCaptureEnd = Task { [weak self, captureEndDelay] in
+            try? await Task.sleep(for: captureEndDelay)
+            guard let self, Task.isCancelled == false else { return }
+            pendingCaptureEnd = nil
+            if Self.shieldAction(phase: phase, isScreenCaptured: isScreenCaptured()) == .hide {
+                hasSeenCapture = false
+                hideShield()
+            } else {
+                applyShieldPolicy()
             }
         }
     }
 
-    private func applyShieldPolicy() {
-        if Self.showsShield(sceneIsActive: isSceneActive, isScreenCaptured: isScreenCaptured()) {
-            showShield()
-        } else {
-            hideShield()
-        }
+    /// A window that only appears once the scene is in the background is
+    /// missing from the app switcher snapshot, so deactivating puts it on
+    /// screen transparent and entering the background only makes it opaque.
+    private func armShieldWindow() {
+        guard let window = attachedShieldWindow(), window.isHidden else { return }
+        window.alpha = 0
+        window.isUserInteractionEnabled = false
+        window.isHidden = false
     }
 
-    private func showShield() {
-        guard let scene = windowScene ?? UIApplication.shared.connectedScenes
-            .first(where: { $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive }) as? UIWindowScene else {
-            return
-        }
-
-        if shieldWindow == nil {
-            let window = UIWindow(windowScene: scene)
-            window.windowLevel = .alert + 1
-            window.isUserInteractionEnabled = false
-            window.backgroundColor = .clear
-            window.rootViewController = ScreenProtectionViewController()
-            shieldWindow = window
-        }
-        (shieldWindow?.rootViewController as? ScreenProtectionViewController)?
-            .showsCaptureNotice = isScreenCaptured()
+    private func showShield(isScreenCaptured: Bool) {
+        guard let window = attachedShieldWindow() else { return }
+        (window.rootViewController as? ScreenProtectionViewController)?
+            .showsCaptureNotice = isScreenCaptured
 
         // Instant, never faded in: the app switcher snapshot is taken right away.
         hideAnimator?.stopAnimation(true)
         hideAnimator = nil
-        shieldWindow?.alpha = 1
-        shieldWindow?.isHidden = false
+        window.alpha = 1
+        window.isHidden = false
+        // Nothing behind the cover can be seen, so nothing behind it may be tapped.
+        window.isUserInteractionEnabled = true
+        dismissKeyboardDuringCapture()
+    }
+
+    /// The keyboard sits above every app window, so during a capture it would
+    /// show suggestions and key previews of what is typed behind the cover.
+    /// A field that focuses itself later brings it back, hence the observer.
+    private func dismissKeyboardDuringCapture() {
+        guard isShieldVisible, hasSeenCapture, let scene = shieldWindow?.windowScene else { return }
+        for window in scene.windows where window !== shieldWindow {
+            window.endEditing(true)
+        }
+    }
+
+    /// The scene is already `.background` when the shield goes up for the app
+    /// switcher, so any connected window scene qualifies.
+    private func attachedShieldWindow() -> UIWindow? {
+        if let window = shieldWindow, window.windowScene != nil { return window }
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .filter({ $0.activationState != .unattached })
+            // Foreground active, then inactive, then background.
+            .min(by: { $0.activationState.rawValue < $1.activationState.rawValue }) else {
+            return nil
+        }
+        if let window = shieldWindow {
+            window.windowScene = scene
+            return window
+        }
+        let window = UIWindow(windowScene: scene)
+        window.windowLevel = .alert + 1
+        window.isUserInteractionEnabled = false
+        window.backgroundColor = .clear
+        window.rootViewController = ScreenProtectionViewController()
+        shieldWindow = window
+        return window
     }
 
     /// Fades out so returning to the app does not cut straight from the
@@ -89,17 +161,40 @@ final class ScreenProtectionService {
     private func hideShield() {
         guard let window = shieldWindow, window.isHidden == false else { return }
         hideAnimator?.stopAnimation(true)
+        hideAnimator = nil
+        window.isUserInteractionEnabled = false
+        guard window.alpha > 0 else {
+            window.isHidden = true
+            return
+        }
         let animator = UIViewPropertyAnimator(duration: Self.revealDuration, curve: .easeOut) {
             window.alpha = 0
         }
         animator.addCompletion { [weak self] position in
             guard position == .end else { return }
             window.isHidden = true
-            window.alpha = 1
             self?.hideAnimator = nil
         }
         hideAnimator = animator
         animator.startAnimation()
+    }
+
+    private func observe(
+        _ name: Notification.Name,
+        handler: @escaping @MainActor (ScreenProtectionService) -> Void
+    ) {
+        // Synchronous: deactivation must arm the window before the scene moves on.
+        let token = NotificationCenter.default.addObserver(
+            forName: name,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                handler(self)
+            }
+        }
+        observations.append(token)
     }
 
     private static let revealDuration: TimeInterval = 0.3
