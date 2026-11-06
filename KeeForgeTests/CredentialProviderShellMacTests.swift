@@ -27,6 +27,33 @@ final class CredentialProviderShellMacTests: XCTestCase {
 
     // MARK: - Tests
 
+    func test_stalePickerActionDoesNotDismissReplacementContent() {
+        let (shell, _) = makeShell()
+        shell.presentNoEnabledDatabasesState(onDismiss: {})
+        XCTAssertTrue(shell.isDisplayingContent)
+        var called = false
+        shell.performPickerAction(isValid: { false }) { called = true }
+        XCTAssertTrue(shell.isDisplayingContent)
+        XCTAssertFalse(called)
+        shell.performPickerAction(isValid: { true }) { called = true }
+        XCTAssertFalse(shell.isDisplayingContent)
+        XCTAssertTrue(called)
+    }
+
+    func test_oneTimeCodeList_forwardsServiceIdentifiersToCoordinator() throws {
+        let (shell, spy) = makeShell()
+        try seedResolvableDefaultDatabase()
+
+        shell.prepareOneTimeCodeCredentialList(for: [serviceIdentifier()])
+
+        XCTAssertTrue(shell.coordinator.hasPendingOTCListRequest)
+        XCTAssertEqual(shell.coordinator.serviceIdentifiers.map(\.identifier), ["github.com"])
+        XCTAssertTrue(shell.coordinator.pendingUnlock)
+        XCTAssertNil(spy.completedOneTimeCode)
+        shell.cancelActiveRequestIfNeeded()
+        assertCleanedUp(shell.coordinator)
+    }
+
     /// Window close / dismissal on a still-pending request must tear the vault
     /// down instead of leaking an unlocked session.
     func test_shellCancel_invokesCleanup() {

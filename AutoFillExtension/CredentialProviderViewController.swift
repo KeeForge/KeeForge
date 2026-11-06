@@ -125,6 +125,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
     // MARK: "Present this view"
 
     func presentSearchView(
+        isValid: @escaping () -> Bool,
         entries: [KPEntry],
         searchEntries: [KPEntry],
         possibleEntries: [KPEntry],
@@ -137,34 +138,19 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         urlAddition: AutoFillURLAddition?,
         onCancel: @escaping () -> Void
     ) {
-        // A database switch presents the unlock prompt next, so the search
-        // view must be dismissed first — wrap `onSwitch` in the same
-        // dismissal handling as `onSelect`/`onCancel`.
+        let dismissThen: (@escaping () -> Void) -> Void = { [weak self] action in
+            guard isValid(), let self else { return }
+            self.dismiss(animated: false) {
+                guard isValid() else { return }
+                action()
+            }
+        }
         let wrappedSwitcher = databaseSwitcher.map { switcher in
             CredentialProviderDatabaseSwitcherContext(
                 databases: switcher.databases,
                 currentDatabaseID: switcher.currentDatabaseID,
-                onSwitch: { [weak self] reference, currentSearchText in
-                    guard let self else {
-                        switcher.onSwitch(reference, currentSearchText)
-                        return
-                    }
-                    self.dismiss(animated: false) {
-                        switcher.onSwitch(reference, currentSearchText)
-                    }
-                }
+                onSwitch: { reference, text in dismissThen { switcher.onSwitch(reference, text) } }
             )
-        }
-        // Creating an entry presents the creator next, so the picker must be
-        // dismissed first — same dismissal handling as `onSelect`/`onCancel`.
-        let wrappedCreateEntry: (() -> Void)? = onCreateEntry.map { createEntry in
-            { [weak self] in
-                guard let self else {
-                    createEntry()
-                    return
-                }
-                self.dismiss(animated: false) { createEntry() }
-            }
         }
         let searchView = AutoFillSearchView(
             entries: entries,
@@ -173,25 +159,16 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
             initialSearchText: initialSearchText,
             sharedCopyDate: sharedCopyDate,
             databaseSwitcher: wrappedSwitcher,
-            onCreateEntry: wrappedCreateEntry,
-            onSelect: { [weak self] entry in
-                guard let self else {
-                    onSelect(entry)
-                    return
+            onCreateEntry: onCreateEntry.map { action in { dismissThen(action) } },
+            onSelect: { entry in dismissThen { onSelect(entry) } },
+            onSelectPossible: { entry in dismissThen { onSelectPossible(entry) } },
+            urlAddition: urlAddition.map { addition in
+                AutoFillURLAddition(host: addition.host, url: addition.url) { entry in
+                    guard isValid() else { return }
+                    addition.onAdd(entry)
                 }
-                self.dismiss(animated: false) { onSelect(entry) }
             },
-            onSelectPossible: { [weak self] entry in
-                self?.dismiss(animated: false) { onSelectPossible(entry) }
-            },
-            urlAddition: urlAddition,
-            onCancel: { [weak self] in
-                guard let self else {
-                    onCancel()
-                    return
-                }
-                self.dismiss(animated: false) { onCancel() }
-            }
+            onCancel: { dismissThen(onCancel) }
         )
         present(hosting(searchView), animated: true)
         AutoFillDiagnostics.log("shell presentSearchView attached=\(presentedViewController != nil) window=\(viewIfLoaded?.window != nil)")

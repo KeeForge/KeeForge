@@ -126,6 +126,7 @@ protocol CredentialProviderPresenting: AnyObject {
     /// `sharedCopyDate` is non-nil when the entries come from KeeForge's shared
     /// copy of the database; the picker names it when a search finds nothing.
     func presentSearchView(
+        isValid: @escaping () -> Bool,
         entries: [KPEntry],
         searchEntries: [KPEntry],
         possibleEntries: [KPEntry],
@@ -297,6 +298,7 @@ final class CredentialProviderCoordinator {
     private var didAttemptAutoBiometricUnlock = false
     private var didFinishRequest = false
     private var requestGeneration = 0
+    private var pickerGeneration = 0
     private var unlockTask: Task<Void, Never>?
 
     private struct RequestNoLongerActive: Error {}
@@ -389,6 +391,7 @@ final class CredentialProviderCoordinator {
 
     private func beginRequest() {
         requestGeneration &+= 1
+        pickerGeneration &+= 1
         unlockTask?.cancel()
         unlockTask = nil
         isUnlockInProgress = false
@@ -1083,6 +1086,8 @@ final class CredentialProviderCoordinator {
               let currentReference = activeDatabaseReference,
               reference.id != currentReference.id else { return }
 
+        pickerGeneration &+= 1
+
         // Preserve the typed search text for whichever search is presented
         // next (the new database's on success, the previous one's on cancel).
         pendingSwitchSearchText = currentSearchText
@@ -1606,18 +1611,9 @@ final class CredentialProviderCoordinator {
             removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
         }
 
-        let strictMatches = CredentialMatcher.strictMatchedEntries(from: passwordEntries, for: serviceIdentifiers)
-        let matches = CredentialMatcher.matchedEntries(from: passwordEntries, for: serviceIdentifiers)
-        let possibleMatches: [KPEntry]
-        if strictMatches.isEmpty {
-            let siblingMatches = CredentialMatcher.possibleMatchedEntries(from: passwordEntries, for: serviceIdentifiers)
-            var seenIDs = Set<UUID>()
-            possibleMatches = (matches + siblingMatches).filter { seenIDs.insert($0.id).inserted }
-        } else {
-            possibleMatches = []
-        }
-
-        AutoFillDiagnostics.log("passwordMatches all=\(allPasswordEntries.count) strict=\(strictMatches.count) matches=\(matches.count) possible=\(possibleMatches.count)")
+        let matches = CredentialMatcher.interactiveMatches(from: passwordEntries, for: serviceIdentifiers)
+        let hasHost = CredentialMatcher.firstWebHost(for: serviceIdentifiers) != nil
+        AutoFillDiagnostics.log("passwordMatches all=\(allPasswordEntries.count) exact=\(matches.exact.count) possible=\(matches.possible.count)")
 
         // Nothing that reaches this point names a credential the user chose,
         // so nothing is filled on its own — not even a lone strict match.
@@ -1627,12 +1623,10 @@ final class CredentialProviderCoordinator {
         // `.stale` case, which clears the target), and `presentPasskeyList`'s
         // no-passkey fallback. The by-identity branch above still fills.
 
-        let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
-
-        if !strictMatches.isEmpty {
-            // Only strict host matches belong in the exact interactive section.
+        if !matches.exact.isEmpty {
+            // Only the first requested host belongs in the exact section.
             presentSearchView(
-                entries: strictMatches,
+                entries: matches.exact,
                 searchEntries: allPasswordEntries,
                 possibleEntries: [],
                 initialSearchText: "",
@@ -1647,10 +1641,10 @@ final class CredentialProviderCoordinator {
             // possible-match section. The full password list remains the
             // editable search corpus.
             presentSearchView(
-                entries: possibleMatches.isEmpty ? allPasswordEntries : [],
+                entries: hasHost ? [] : allPasswordEntries,
                 searchEntries: allPasswordEntries,
-                possibleEntries: possibleMatches,
-                initialSearchText: possibleMatches.isEmpty ? searchDomain : "",
+                possibleEntries: matches.possible,
+                initialSearchText: "",
                 includesDatabaseSwitcher: true,
                 includesEntryCreation: true,
                 urlAddition: makeURLAddition(generation: generation),
@@ -1925,20 +1919,52 @@ final class CredentialProviderCoordinator {
     ) {
         let restoredSearchText = pendingSwitchSearchText
         pendingSwitchSearchText = nil
+        pickerGeneration &+= 1
+        let picker = pickerGeneration
+        let generation = requestGeneration
+        let isValid = { [weak self] in
+            guard let self else { return false }
+            return self.isRequestActive(generation) && self.pickerGeneration == picker
+        }
         presentWhenActive { [weak self] in
-            guard let self else { return }
+            guard let self, isValid() else { return }
+            let switcher = includesDatabaseSwitcher ? makeDatabaseSwitcherContext() : nil
+            let guardedSwitcher = switcher.map { context in
+                CredentialProviderDatabaseSwitcherContext(
+                    databases: context.databases,
+                    currentDatabaseID: context.currentDatabaseID,
+                    onSwitch: { reference, text in
+                        guard isValid() else { return }
+                        context.onSwitch(reference, text)
+                    }
+                )
+            }
+            let create = includesEntryCreation ? makeEntryCreationAction() : nil
             presenter?.presentSearchView(
+                isValid: isValid,
                 entries: entries,
                 searchEntries: searchEntries ?? entries,
                 possibleEntries: possibleEntries,
                 initialSearchText: restoredSearchText ?? initialSearchText,
                 sharedCopyDate: sharedCopyDate,
-                databaseSwitcher: includesDatabaseSwitcher ? makeDatabaseSwitcherContext() : nil,
-                onCreateEntry: includesEntryCreation ? makeEntryCreationAction() : nil,
-                onSelect: onSelect,
-                onSelectPossible: onSelectPossible,
-                urlAddition: urlAddition,
+                databaseSwitcher: guardedSwitcher,
+                onCreateEntry: create.map { action in
+                    { [weak self] in
+                        guard isValid(), let self else { return }
+                        self.pickerGeneration &+= 1
+                        action()
+                    }
+                },
+                onSelect: { entry in guard isValid() else { return }; onSelect(entry) },
+                onSelectPossible: { entry in guard isValid() else { return }; onSelectPossible(entry) },
+                urlAddition: urlAddition.map { addition in
+                    AutoFillURLAddition(host: addition.host, url: addition.url) { entry in
+                        guard isValid() else { return }
+                        addition.onAdd(entry)
+                    }
+                },
                 onCancel: { [weak self] in
+                    guard isValid() else { return }
                     self?.cancelRequest(code: .userCanceled)
                 }
             )
@@ -2502,25 +2528,17 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        let matches = CredentialMatcher.matchedEntries(from: totpEntries, for: serviceIdentifiers)
-
-        let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
-
-        if !matches.isEmpty {
-            // Narrowed to matches, but the whole TOTP corpus stays the search
-            // and "Show All Credentials" set — as on the password path.
-            presentSearchView(
-                entries: matches,
-                searchEntries: allTOTPEntries,
-                initialSearchText: "",
-                includesDatabaseSwitcher: true
-            ) { [weak self] entry in
-                self?.completeOTCRequest(with: entry)
-            }
-        } else {
-            presentSearchView(entries: allTOTPEntries, initialSearchText: searchDomain, includesDatabaseSwitcher: true) { [weak self] entry in
-                self?.completeOTCRequest(with: entry)
-            }
+        let matches = CredentialMatcher.interactiveMatches(from: totpEntries, for: serviceIdentifiers)
+        let hasHost = CredentialMatcher.firstWebHost(for: serviceIdentifiers) != nil
+        presentSearchView(
+            entries: hasHost ? matches.exact : allTOTPEntries,
+            searchEntries: allTOTPEntries,
+            possibleEntries: matches.possible,
+            includesDatabaseSwitcher: true
+        ) { [weak self] entry in
+            self?.completeOTCRequest(with: entry)
+        } onSelectPossible: { [weak self] entry in
+            self?.completeOTCRequest(with: entry)
         }
     }
 
@@ -2549,6 +2567,7 @@ final class CredentialProviderCoordinator {
     /// state. Every completion helper below calls this before handing a
     /// credential or error to the shell.
     func cleanup() {
+        pickerGeneration &+= 1
         parsedEntries = []
         parsedRootGroup = nil
         parsedMeta = nil

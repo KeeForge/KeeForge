@@ -28,6 +28,9 @@
 
 ### Fixes
 
+- Password and verification-code pickers show credentials for the exact requested host first, offer related hosts as possible matches when none match, and let you search all credentials, including entries without a URL. Rows show the associated hosts, and search includes additional URLs.
+- Fixed the Mac AutoFill extension not forwarding requests to choose a verification code.
+- Ignore late cancellation callbacks from an earlier AutoFill picker so they cannot cancel a newer request.
 - On iPhone and iPad, cancelling the Face ID or Touch ID prompt that opens a database by itself now shows the unlock page, so you can enter the password or try again. Before, KeeForge kept showing the opening screen until you swiped it away (#268).
 - On iPhone and iPad, KeeForge stays covered during a screen recording, mirroring, or AirPlay after you close Control Center or return to the app. Before, coming back to the app removed the cover while the recording kept running, and a recording started before opening KeeForge was never covered.
 - In AutoFill, Possible matches no longer offer to add the website to an entry of a read-only or KDBX 3.1 database. Adding the URL there couldn't be saved and cancelled the whole fill.

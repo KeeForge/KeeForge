@@ -1,5 +1,29 @@
 import SwiftUI
 
+struct AutoFillSearchResults {
+    let entries: [KPEntry]
+    let possibleEntries: [KPEntry]
+    let canShowAllEntries: Bool
+
+    init(entries: [KPEntry], searchEntries: [KPEntry], possibleEntries: [KPEntry], query: String, hasExpandedSearch: Bool) {
+        if hasExpandedSearch || !query.isEmpty {
+            let query = query.lowercased()
+            self.entries = query.isEmpty ? searchEntries : searchEntries.filter { entry in
+                entry.title.lowercased().contains(query) ||
+                entry.username.lowercased().contains(query) ||
+                CredentialMatcher.webURLs(of: entry).contains { $0.lowercased().contains(query) } ||
+                entry.notes.lowercased().contains(query)
+            }
+            self.possibleEntries = []
+            canShowAllEntries = !query.isEmpty && self.entries.count < searchEntries.count
+        } else {
+            self.entries = entries
+            self.possibleEntries = possibleEntries
+            canShowAllEntries = entries.count + possibleEntries.count < searchEntries.count
+        }
+    }
+}
+
 struct AutoFillSearchView: View {
     let entries: [KPEntry]
     let searchEntries: [KPEntry]
@@ -58,27 +82,20 @@ struct AutoFillSearchView: View {
         self._searchText = State(initialValue: initialSearchText)
     }
 
-    private var filteredEntries: [KPEntry] {
-        guard !searchText.isEmpty else {
-            return didEditSearch || showsAllEntries ? searchEntries : entries
-        }
-        let query = searchText.lowercased()
-        return searchEntries.filter { entry in
-            entry.title.lowercased().contains(query) ||
-            entry.username.lowercased().contains(query) ||
-            entry.url.lowercased().contains(query) ||
-            entry.notes.lowercased().contains(query)
-        }
+    private var searchResults: AutoFillSearchResults {
+        AutoFillSearchResults(
+            entries: entries,
+            searchEntries: searchEntries,
+            possibleEntries: possibleEntries,
+            query: searchText,
+            hasExpandedSearch: didEditSearch || showsAllEntries
+        )
     }
 
-    /// Whether the picker is narrowed to matches — or to a domain search the
-    /// coordinator pre-filled — while further credentials sit behind it. A
-    /// request whose matching found nothing lands on that pre-filled search
-    /// with an empty list, so without this the full database is reachable
-    /// only by clearing a search field the user never typed into.
+    private var filteredEntries: [KPEntry] { searchResults.entries }
+    private var filteredPossibleEntries: [KPEntry] { searchResults.possibleEntries }
     private var canShowAllEntries: Bool {
-        guard !showsAllEntries, !didEditSearch, !searchEntries.isEmpty else { return false }
-        return filteredEntries.count + possibleEntries.count < searchEntries.count
+        searchResults.canShowAllEntries
     }
 
     private func showAllEntries() {
@@ -180,7 +197,7 @@ struct AutoFillSearchView: View {
 
     private var entryList: some View {
         List {
-            if filteredEntries.isEmpty && searchText.isEmpty && !possibleEntries.isEmpty {
+            if filteredEntries.isEmpty && !filteredPossibleEntries.isEmpty {
                 Section {
                     Text("No exact matches were found. These credentials are possible matches only.")
                         .foregroundStyle(.secondary)
@@ -252,7 +269,9 @@ struct AutoFillSearchView: View {
                 noCredentialsFoundLabel
             } description: {
                 VStack(spacing: 8) {
-                    Text("No credentials match this search.")
+                    if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("No credentials match this search.")
+                    }
                     if let sharedCopyDate {
                         sharedCopyNotice(sharedCopyDate)
                     }
@@ -309,10 +328,12 @@ struct AutoFillSearchView: View {
                         .font(Theme.Font.entryTitle)
                         .multilineTextAlignment(.center)
                         .accessibilityIdentifier("autofill.no-credentials-found")
-                    Text("No credentials match this search.")
-                        .font(Theme.Font.subhead)
-                        .foregroundStyle(Theme.labelSecondary)
-                        .multilineTextAlignment(.center)
+                    if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("No credentials match this search.")
+                            .font(Theme.Font.subhead)
+                            .foregroundStyle(Theme.labelSecondary)
+                            .multilineTextAlignment(.center)
+                    }
                 }
 
                 if onCreateEntry != nil || canShowAllEntries {
@@ -404,14 +425,6 @@ struct AutoFillSearchView: View {
             .accessibilityIdentifier("autofill.shared-copy-notice")
     }
 
-    private var filteredPossibleEntries: [KPEntry] {
-        guard !searchText.isEmpty else { return possibleEntries }
-        let query = searchText.lowercased()
-        return possibleEntries.filter { entry in
-            entry.title.lowercased().contains(query) || entry.username.lowercased().contains(query) || entry.url.lowercased().contains(query) || entry.notes.lowercased().contains(query)
-        }
-    }
-
     /// Borderless, like the row's selection button beside it: two
     /// default-style buttons in one List row share a tap target.
     private func addURLButton(for entry: KPEntry, host: String) -> some View {
@@ -470,6 +483,12 @@ struct AutoFillSearchView: View {
                     .foregroundStyle(.primary)
                 if !entry.username.isEmpty {
                     Text(entry.username)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                let hosts = Set(CredentialMatcher.webURLs(of: entry).compactMap(CredentialMatcher.hostFromURLString)).sorted()
+                if !hosts.isEmpty {
+                    Text(hosts.joined(separator: ", "))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
