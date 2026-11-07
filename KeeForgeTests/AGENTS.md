@@ -85,7 +85,7 @@ Convention: `<Type>Tests.swift` declares `<Type>Tests` and covers `<Type>`. The 
 
 Designated gates:
 
-- `AutoFillExtension/CredentialProviderCoordinator.swift`: `CredentialProviderCoordinatorTests`, on both platforms. It pins `cleanup()` on every completion path. The Mac shell's window-close and alert paths are `CredentialProviderShellMacTests`.
+- `AutoFillExtension/CredentialProviderCoordinator.swift`: `CredentialProviderCoordinatorTests`, on both platforms. It pins `cleanup()` on every completion path, including manual text insertion after a real fixture unlock, database switches, cancellation, and stale callbacks. The Mac shell's window-close and alert paths are `CredentialProviderShellMacTests`.
 - `DatabaseViewModel` is split by concern: `DatabaseViewModelTests`, `DatabaseViewModelCloudSyncTests`, `AutoLockTests`, `HardwareKeyUnlockTests`, `SecretAccessSessionTests`, `SortOrderTests`. The vault half of macOS window close is an `#if os(macOS)` section of `DatabaseViewModelTests`.
 - Rekey and re-encryption: the write is in the saver suites, the session guards in `DatabaseViewModelTests`.
 - Editor completion across a save conflict: `EntryEditCompletionGateTests` is the only non-UI coverage. Editor save and reopen against the real saver is in `KDBXCompatibilityTests`.
