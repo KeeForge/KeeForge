@@ -2720,7 +2720,11 @@ final class CredentialProviderCoordinator {
     }
 
     func completePasskeyRequest(with entry: KPEntry, relyingPartyID: String, clientDataHash: Data) throws {
+        // Callers filter by relying party already; this keeps a future caller
+        // from sending one site's credential ID and user handle to another.
         guard let passkey = entry.passkeyCredential,
+              CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(passkey.relyingParty)
+                == CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(relyingPartyID),
               let credentialIDData = passkey.credentialIDData,
               let userHandleData = passkey.userHandleData,
               let sessionKey

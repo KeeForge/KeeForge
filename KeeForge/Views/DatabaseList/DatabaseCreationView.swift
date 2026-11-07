@@ -299,6 +299,7 @@ struct DatabaseCreationView: View {
     }
 
     private var uiTestingExportURL: URL? {
+        #if DEBUG
         guard ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return nil }
         guard let rawValue = ProcessInfo.processInfo.environment["UI_TEST_DATABASE_CREATION_EXPORT_PATH"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
@@ -313,6 +314,9 @@ struct DatabaseCreationView: View {
 
         return FileManager.default.temporaryDirectory
             .appendingPathComponent(rawValue, isDirectory: false)
+        #else
+        return nil
+        #endif
     }
 
     private func completeUITestingExport(to url: URL) {

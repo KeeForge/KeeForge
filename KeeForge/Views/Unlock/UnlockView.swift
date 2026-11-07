@@ -970,6 +970,7 @@ struct UnlockView: View {
     }
 
     private func loadUITestKeyFileIfNeeded() {
+        #if DEBUG
         guard ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
         guard keyFileData == nil else { return }
         let env = ProcessInfo.processInfo.environment
@@ -977,6 +978,7 @@ struct UnlockView: View {
               let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) else { return }
         keyFileData = data
         keyFileName = env["UI_TEST_KEYFILE_FILENAME"] ?? "test.key"
+        #endif
     }
 
     private func handleFilePickerSelection(_ result: Result<URL, Error>) {

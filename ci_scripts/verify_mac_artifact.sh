@@ -158,6 +158,14 @@ for owned_executable in "${OWNED_EXECUTABLES[@]}"; do
     || die "KeeForge executable architectures do not match the requested release set"
 done
 
+# UI-test launch hooks are Debug-only. `-ui-testing` itself is a Swift small
+# string that `strings` cannot see, so check the UI_TEST_* names around it.
+for owned_executable in "${OWNED_EXECUTABLES[@]}"; do
+  ! strings "$owned_executable" 2>/dev/null \
+    | grep -Eq 'UI_TEST_|XCTestConfigurationFilePath|autofill-store-inspector' \
+    || die "KeeForge executable contains Debug-only test hooks"
+done
+
 # Collect every Mach-O binary in the exported artifact for dependency checks.
 # Sparkle's own helpers are skipped below: they are expected to contain Sparkle
 # and must not make the direct build fail its StoreKit exclusion check.

@@ -37,9 +37,13 @@ enum MacAppSuggestionService {
     /// UI_TEST_SHOW_MAC_APP_SUGGESTION=1, which also ignores a persisted
     /// dismissal so every launch starts with the banner up.
     private nonisolated static var isForcedForUITesting: Bool {
+        #if DEBUG
         let processInfo = ProcessInfo.processInfo
         guard processInfo.arguments.contains("-ui-testing") else { return false }
         return processInfo.environment["UI_TEST_SHOW_MAC_APP_SUGGESTION"] == "1"
+        #else
+        return false
+        #endif
     }
 
     static func resetForTesting() {

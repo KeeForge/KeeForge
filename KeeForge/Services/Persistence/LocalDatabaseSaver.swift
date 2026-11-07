@@ -299,6 +299,7 @@ enum LocalDatabaseSaver {
             }
         }
 
+        #if DEBUG
         var currentData = try environment.readData(location.url)
         if let conflictSequence = DatabaseListStore.consumeUITestLocalSaveConflictSequence() {
             currentData = try makeUITestConflictData(
@@ -309,6 +310,9 @@ enum LocalDatabaseSaver {
             )
             _ = try environment.replaceFileAtomically(currentData, location.url, nil)
         }
+        #else
+        let currentData = try environment.readData(location.url)
+        #endif
         let currentSHA512 = KDBXCrypto.sha512(currentData)
         guard baseline.covers(currentSHA512) else {
             return .conflict(remoteSHA512: currentSHA512, remoteData: currentData)
@@ -444,6 +448,7 @@ enum LocalDatabaseSaver {
         )
     }
 
+    #if DEBUG
     private static func makeUITestConflictData(
         from data: Data,
         compositeKey: SymmetricKey,
@@ -482,6 +487,7 @@ enum LocalDatabaseSaver {
             kdfPolicy: kdfPolicy
         )
     }
+    #endif
 
     private static func replaceFileAtomically(_ data: Data, at url: URL, expectedSHA512: Data?) throws -> ReplaceOutcome {
         let fileManager = FileManager.default

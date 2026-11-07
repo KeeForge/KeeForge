@@ -9,9 +9,13 @@ struct SearchView: View {
     var onRequestDeletion: ((PendingDeletion) -> Void)? = nil
 
     private var showsUITestResultsCount: Bool {
+        #if DEBUG
         let processInfo = ProcessInfo.processInfo
         return processInfo.arguments.contains("-ui-testing")
             && processInfo.environment["UI_TEST_HIDE_SEARCH_RESULTS_COUNT"] != "1"
+        #else
+        return false
+        #endif
     }
 
     var body: some View {

@@ -87,13 +87,21 @@ enum AutoFillStatusService {
     /// tests or App Store screenshots; UI_TEST_SHOW_AUTOFILL_TIP=1 opts a
     /// test back in with deterministic (disabled, undismissed) state.
     nonisolated static var isTipSuppressedForUITesting: Bool {
+        #if DEBUG
         let processInfo = ProcessInfo.processInfo
         guard processInfo.arguments.contains("-ui-testing") else { return false }
         return processInfo.environment["UI_TEST_SHOW_AUTOFILL_TIP"] != "1"
+        #else
+        return false
+        #endif
     }
 
     private nonisolated static var isTipForcedForUITesting: Bool {
+        #if DEBUG
         ProcessInfo.processInfo.environment["UI_TEST_SHOW_AUTOFILL_TIP"] == "1"
+        #else
+        false
+        #endif
     }
 
     static func resetForTesting() {
