@@ -548,7 +548,53 @@ final class CloudDatabaseSaverTests: XCTestCase {
     }
     #endif
 
-    func testPreflightAuthQuotaAndPermissionFailuresRemainExplicitlyBlockedAfterReconnect() async throws {
+    func testWebDAVExplicitRejectionsCanRetryTheSameCiphertextAfterIssueIsFixed() async throws {
+        for status in [401, 403, 507] {
+            DatabaseListStore.clearAll()
+            let context = try makeContext()
+            let server = WebDAVUploadServer(context.source, rejection: status)
+            let credentials = CredentialBox()
+            let provider = WebDAVCloudProvider(client: WebDAVClient(transport: { request in try await server.respond(request) }),
+                credentialResolver: { _ in credentials.credential })
+            let env = webDAVEnvironment(provider, server: server)
+            _ = try await saveAndDrain(context, remote: Remote(context.source), environment: env)
+            let rejected = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+            let payload = try immutableBytes(rejected)
+            XCTAssertEqual(rejected.marker.attemptIsFenced, true)
+            let before = await server.data()
+            XCTAssertEqual(before, context.source)
+            await server.fixRejection()
+            _ = try await CloudDatabaseSaver.deliver(rejected, reference: current(context.reference), environment: env)
+            let bodies = await server.uploadBodies()
+            XCTAssertEqual(bodies, [payload, payload])
+            let delivered = await server.data()
+            XCTAssertEqual(delivered, payload)
+            XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+        }
+    }
+
+    func testWebDAVPreDispatchAuthFailureCanReconnectWithoutReencrypting() async throws {
+        let context = try makeContext()
+        let server = WebDAVUploadServer(context.source, rejection: nil)
+        let credentials = CredentialBox()
+        credentials.setEnabled(false)
+        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: { request in try await server.respond(request) }),
+            credentialResolver: { _ in credentials.credential })
+        let env = webDAVEnvironment(provider, server: server)
+        _ = try await saveAndDrain(context, remote: Remote(context.source), environment: env)
+        let unsent = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertEqual(unsent.marker.attemptIsFenced, true)
+        let before = await server.uploadBodies()
+        XCTAssertTrue(before.isEmpty)
+        let payload = try immutableBytes(unsent)
+        credentials.setEnabled(true)
+        _ = try await CloudDatabaseSaver.deliver(unsent, reference: current(context.reference), environment: env)
+        let after = await server.uploadBodies()
+        XCTAssertEqual(after, [payload])
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+    }
+
+    func testUnprovenPreflightErrorsNeverImplyRejectionAfterReconnect() async throws {
         for issue in [CloudProviderError.notAuthenticated, .insufficientSpace, .permissionDenied] {
             DatabaseListStore.clearAll()
             let context = try makeContext()
@@ -769,6 +815,49 @@ final class CloudDatabaseSaverTests: XCTestCase {
             openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp,
             newCompositeKey: KDBXCrypto.compositeKey(password: "new password"),
             rekeyContext: .init(keyFileBookmarkData: Data("new bookmark".utf8), keyFileFilename: "new.keyx"), environment: env ?? environment(remote))
+    }
+
+    private func webDAVEnvironment(_ provider: WebDAVCloudProvider, server: WebDAVUploadServer) -> CloudDatabaseSaver.Environment {
+        var env = CloudDatabaseSaver.Environment.live
+        env.beginBackgroundTask = { _ in .invalid }
+        env.endBackgroundTask = { _ in }
+        env.queue.postDarwinNotification = { }
+        env.getMetadata = { _ in await server.metadata() }
+        env.downloadRemoteData = { _ in await server.data() }
+        env.upload = { _, bytes, rev, progress in try await provider.upload(accountId: "test", fileId: "/vault.kdbx", data: bytes, expectedRev: rev, progress: progress) }
+        env.writeGuarantee = { _, rev, count in provider.writeGuarantee(expectedRev: rev, byteCount: count) }
+        return env
+    }
+
+    private final class CredentialBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var enabled = true
+        func setEnabled(_ value: Bool) { lock.withLock { enabled = value } }
+        var credential: WebDAVCredential? {
+            lock.withLock { enabled ? WebDAVCredential(serverURL: "https://example.invalid/", username: "test", password: "test") : nil }
+        }
+    }
+
+    private actor WebDAVUploadServer {
+        private var bytes: Data
+        private var rejection: Int?
+        private var bodies: [Data] = []
+        private var revision = 0
+        init(_ bytes: Data, rejection: Int?) { self.bytes = bytes; self.rejection = rejection }
+        func fixRejection() { rejection = nil }
+        func data() -> Data { bytes }
+        func uploadBodies() -> [Data] { bodies }
+        func metadata() -> CloudFileMetadata { .init(modifiedDate: .now, contentHash: nil, size: Int64(bytes.count), rev: "W/\"r\(revision)\"") }
+        func respond(_ request: URLRequest) throws -> (Data, HTTPURLResponse) {
+            if request.httpMethod == "PUT" {
+                let body = request.httpBody ?? Data()
+                bodies.append(body)
+                if let rejection { return (Data(), HTTPURLResponse(url: request.url!, statusCode: rejection, httpVersion: "HTTP/1.1", headerFields: [:])!) }
+                bytes = body
+                revision += 1
+            }
+            return (Data(), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["ETag": "W/\"r\(revision)\""])!)
+        }
     }
 
     private actor Remote {

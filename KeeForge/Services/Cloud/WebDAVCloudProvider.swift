@@ -15,9 +15,12 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
     let iconName = CloudProviderKind.webDAV.iconName
 
     private let client: WebDAVClient
+    private let credentialResolver: (@Sendable (String) -> WebDAVCredential?)?
 
-    init(client: WebDAVClient = WebDAVClient(transport: WebDAVClient.liveTransport())) {
+    init(client: WebDAVClient = WebDAVClient(transport: WebDAVClient.liveTransport()),
+         credentialResolver: (@Sendable (String) -> WebDAVCredential?)? = nil) {
         self.client = client
+        self.credentialResolver = credentialResolver
     }
 
     // MARK: - Authentication
@@ -177,7 +180,9 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         expectedRev: String?,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudFileMetadata {
-        let context = try resolveContext(accountId: accountId)
+        let context: AccountContext
+        do { context = try resolveContext(accountId: accountId) }
+        catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
         let fileURL = Self.url(forFileId: fileId, base: context.baseURL)
 
         // Only send If-Match for strong ETags. Weak (W/"…") and lastmod-derived
@@ -193,10 +198,13 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
 
         if response.statusCode == 412 {
             let freshRev = try? await freshRev(fileURL: fileURL, credential: context.credential)
-            throw CloudProviderError.conflict(remoteRev: freshRev)
+            throw CloudUploadFailure(underlying: .conflict(remoteRev: freshRev), outcome: .rejected)
         }
 
         if let error = WebDAVClient.mapHTTPStatus(response.statusCode, responseBody: response.data) {
+            if [401, 403, 507].contains(response.statusCode) {
+                throw CloudUploadFailure(underlying: error, outcome: .rejected)
+            }
             throw error
         }
 
@@ -297,6 +305,7 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
     }
 
     private func credential(for accountId: String) -> WebDAVCredential? {
+        if let credentialResolver { return credentialResolver(accountId) }
         guard let data = CloudTokenStore.tokenData(provider: id, accountId: accountId) else {
             return nil
         }

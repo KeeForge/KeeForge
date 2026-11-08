@@ -235,17 +235,13 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         expectedRev: String?,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudFileMetadata {
-        let client = try client(for: accountId)
+        let client: DropboxClient
+        do { client = try self.client(for: accountId) }
+        catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
 
-        return try await withRetry {
-            try await self.performUpload(
-                client: client,
-                fileId: fileId,
-                data: data,
-                expectedRev: expectedRev,
-                progress: progress
-            )
-        }
+        return try await performUpload(
+            client: client, fileId: fileId, data: data, expectedRev: expectedRev, progress: progress
+        )
     }
 
     func createFile(
@@ -278,10 +274,8 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     // MARK: - Private
 
-    /// Repeats `operation` while Dropbox reports a transient failure. Every
-    /// route used here is safe to repeat: reads are idempotent and both writes
-    /// carry `strictConflict`, so a retried write either applies once or fails
-    /// as a conflict.
+    /// Repeats `operation` while Dropbox reports a transient failure. Reads are idempotent;
+    /// create-only writes carry `strictConflict` and cannot overwrite a prior acceptance.
     private func withRetry<T>(_ operation: () async throws -> T) async throws -> T {
         var attempt = 1
 

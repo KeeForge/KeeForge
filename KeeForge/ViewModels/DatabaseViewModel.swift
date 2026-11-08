@@ -3300,6 +3300,10 @@ final class DatabaseViewModel {
     }
 
     private func refreshPendingUploadConflict() {
+        hasPendingCloudUploads = databaseReference.isCloudBacked && pendingUploadMarkerCheck(databaseReference)
+        if hasPendingCloudUploads, cloudSyncOutcome == .upToDate || cloudSyncOutcome == .updated {
+            cloudSyncOutcome = nil
+        }
         hasPendingUploadConflict = databaseReference.isCloudBacked
             && isReadOnly == false
             && PendingUploadRecovery.hasConflicts(for: databaseReference, environment: pendingUploadRecovery)

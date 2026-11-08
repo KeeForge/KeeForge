@@ -6,6 +6,13 @@ import XCTest
 /// resumption, and error mapping. No network, no MSAL — every assertion
 /// targets a `static` helper.
 final class OneDriveCloudProviderTests: XCTestCase {
+    func testUncertainFinalUploadChunkIsNeverRetried() {
+        for status in [429, 500, 503, 416] {
+            XCTAssertFalse(OneDriveCloudProvider.shouldRetryUploadChunk(statusCode: status, attempt: 1, isFinalChunk: true))
+            XCTAssertTrue(OneDriveCloudProvider.shouldRetryUploadChunk(statusCode: status, attempt: 1, isFinalChunk: false))
+        }
+    }
+
     func testWriteGuaranteeMatchesActualCommitExclusion() {
         let provider = OneDriveCloudProvider.shared
         XCTAssertEqual(provider.writeGuarantee(expectedRev: "etag", byteCount: OneDriveCloudProvider.simpleUploadByteLimit), .serverConditional)

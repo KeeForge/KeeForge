@@ -334,8 +334,9 @@ final class WebDAVCloudProviderTests: XCTestCase {
                 progress: { _ in }
             )
             XCTFail("Expected conflict")
-        } catch let error as CloudProviderError {
-            guard case .conflict(let remoteRev) = error else {
+        } catch let error as CloudUploadFailure {
+            XCTAssertEqual(error.outcome, .rejected)
+            guard case .conflict(let remoteRev) = error.underlying else {
                 return XCTFail("Expected .conflict, got \(error)")
             }
             XCTAssertEqual(remoteRev, "\"remote-fresh\"")

@@ -353,6 +353,10 @@ enum CloudDatabaseSaver {
                 let response: CloudFileMetadata
                 do { response = try await environment.upload(reference, bytes, expectedRev, { _ in }) }
                 catch {
+                    if let failure = error as? CloudUploadFailure, failure.provesNoCommit, !unresolved {
+                        stored.marker.attemptIsFenced = true
+                        stored = try PendingUploadQueue.update(stored, environment: environment.queue)
+                    }
                     if guarantee == .preflightOnly {
                         try? PendingUploadQueue.markDatabaseConflicted(for: reference.id, environment: environment.queue)
                     }
@@ -418,7 +422,7 @@ enum CloudDatabaseSaver {
             }
             // A confirmed parent transfers its exact remote ancestry before its journal can disappear.
             for var child in PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue)
-            where child.marker.predecessorOperationID == stored.id {
+            where child.marker.predecessorOperationID == stored.id || child.marker.absorbedOperationIDs?.contains(stored.id) == true {
                 child.marker.expectedRev = stored.marker.confirmedRemoteRev
                 child.marker.baseRev = stored.marker.confirmedRemoteRev
                 child.marker.remoteBaseSHA512 = payloadSHA

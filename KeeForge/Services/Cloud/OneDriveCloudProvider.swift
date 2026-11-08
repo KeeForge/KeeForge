@@ -219,7 +219,9 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         expectedRev: String?,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudFileMetadata {
-        let token = try await accessToken(accountId: accountId)
+        let token: String
+        do { token = try await accessToken(accountId: accountId) }
+        catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
         // Overwriting an existing file only needs `If-Match` for concurrency, so
         // a small database can take the single-request PUT and skip the flaky
         // `createUploadSession` endpoint entirely. Create-only uploads cannot:
@@ -588,6 +590,8 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
             do {
                 (responseData, httpResponse) = try await send(chunkRequest)
             } catch {
+                // A lost final response may already have replaced remote content.
+                guard end < data.count else { throw error }
                 // The connection dropped mid-chunk. The session outlives it, so
                 // the bytes already stored are still usable; only the abandoned
                 // request is lost.
@@ -614,7 +618,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
                 break
             default:
                 attempt += 1
-                guard Self.shouldRetryUploadChunk(statusCode: httpResponse.statusCode, attempt: attempt) else {
+                guard Self.shouldRetryUploadChunk(statusCode: httpResponse.statusCode, attempt: attempt, isFinalChunk: end == data.count) else {
                     let mappedError = mapHTTPError(statusCode: httpResponse.statusCode, data: responseData)
                     await cancelUploadSession(at: uploadURL)
                     throw mappedError
@@ -806,7 +810,8 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     /// transient set: Graph answers 416 when the client resends bytes the
     /// service already holds, fixed by resyncing against `nextExpectedRanges`
     /// rather than failing the save. Internal for testing.
-    static func shouldRetryUploadChunk(statusCode: Int, attempt: Int) -> Bool {
+    static func shouldRetryUploadChunk(statusCode: Int, attempt: Int, isFinalChunk: Bool = false) -> Bool {
+        guard !isFinalChunk else { return false }
         guard statusCode != 416 else {
             return attempt >= 1 && attempt < requestMaxAttempts
         }
@@ -877,7 +882,8 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
                 return data
             }
 
-            guard Self.shouldRetryRequest(statusCode: httpResponse.statusCode, attempt: attempt) else {
+            let mutationIsRetryable = request.httpMethod != "PUT" || request.value(forHTTPHeaderField: "If-Match") != nil
+            guard mutationIsRetryable, Self.shouldRetryRequest(statusCode: httpResponse.statusCode, attempt: attempt) else {
                 throw mapHTTPError(statusCode: httpResponse.statusCode, data: data)
             }
 

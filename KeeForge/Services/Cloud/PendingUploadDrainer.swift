@@ -207,7 +207,7 @@ final class PendingUploadDrainer {
                         }
                     } else { outcome.skippedDatabaseIDs.insert(reference.id) }
                 } catch {
-                    outcome.userIssue = UserIssue(databaseId: reference.id, kind: (error as? CloudProviderError).map(issueKind) ?? .message, message: error.localizedDescription)
+                    outcome.userIssue = UserIssue(databaseId: reference.id, kind: ((error as? CloudUploadFailure)?.underlying ?? (error as? CloudProviderError)).map(issueKind) ?? .message, message: error.localizedDescription)
                 }
                 continue
             }

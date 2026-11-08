@@ -459,10 +459,10 @@ enum CloudSyncCoordinator {
         let backupDirectory = DatabaseListStore.databaseBackupDirectoryURL(for: reference)
         try fileManager.createDirectory(at: backupDirectory, withIntermediateDirectories: true, attributes: nil)
 
-        let backupURL = backupDirectory.appendingPathComponent(
-            pendingOverwriteBackupFilename(for: .now),
-            isDirectory: false
-        )
+        let filename = pendingOverwriteBackupFilename(for: .now)
+        let retainsLegacyPayload = PendingUploadQueue.listMarkers(for: reference.id).contains { $0.marker.intendedPayloadPath == nil }
+        let retainedFilename = retainsLegacyPayload ? String(filename.dropLast(5)) + DatabaseListStore.retainedBackupSuffix + ".kdbx" : filename
+        let backupURL = backupDirectory.appendingPathComponent(retainedFilename, isDirectory: false)
         if fileManager.fileExists(atPath: backupURL.path) {
             try fileManager.removeItem(at: backupURL)
         }
