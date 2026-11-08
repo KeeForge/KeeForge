@@ -4810,7 +4810,8 @@ final class DatabaseViewModel {
             let path = attempt == 1 ? fileID : uniquifiedConflictCopyName(fileID, attempt: attempt)
             let operationID = actionID
             var template = reference
-            template = DatabaseReference(id: operationID, nickname: nil, filename: (path as NSString).lastPathComponent,
+            template = DatabaseReference(id: operationID, nickname: nil,
+                filename: metadata.provider == "googledrive" ? path : (path as NSString).lastPathComponent,
                 bookmarkData: nil, keyFileBookmarkData: template.keyFileBookmarkData,
                 keyFileFilename: template.keyFileFilename, isQuickLaunch: false, lastOpenedAt: nil, addedAt: .now,
                 colorTag: template.colorTag, legacyKeychainFilename: nil, source: .local)

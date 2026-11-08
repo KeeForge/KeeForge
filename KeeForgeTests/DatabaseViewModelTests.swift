@@ -5902,6 +5902,18 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(provider.createdIDs.count, 3)
     }
 
+    func testDriveConflictCopyPreservesLiteralNameInRegisteredReference() async throws {
+        var reference = makeCloudReference()
+        reference.source = .cloud(CloudSyncMetadata(provider: "googledrive", accountId: "account", fileId: "source_A", displayPath: "source_A",
+            remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil))
+        let provider = CreationTestProvider()
+        let action = UUID()
+        try await DatabaseViewModel.writeConflictCopyToCloud(reference: reference, fileID: "literal/name (conflict).kdbx",
+            bytes: Data("ciphertext".utf8), operationID: action, providerResolver: { _ in provider })
+        XCTAssertEqual(provider.targets.first?.path, "literal/name (conflict).kdbx")
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == action }?.filename, "literal/name (conflict).kdbx")
+    }
+
     func testConflictCopyRetryReusesCiphertextAndNameRatherThanReencrypting() async throws {
         let recorder = ConflictCopyRetryRecorder()
         let vm = try makeViewModel(
