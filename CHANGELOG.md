@@ -4,6 +4,7 @@
 
 ### New Features
 
+- Recover interrupted cloud database creation and conflict copies from Pending Cloud Creations. KeeForge retains the original encrypted data and resumes the same operation; recovery opens the registered database from the list with its original password and key file.
 - Save edits to cloud databases while offline. KeeForge keeps an encrypted local copy and pending changes across restarts, then uploads them when the service is reachable. Changes remain marked as pending until confirmed; conflicting remote edits still need reconciliation. Changing a cloud database’s master key requires a connection.
 
 ### Fixes
