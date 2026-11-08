@@ -48,6 +48,38 @@ final class DatabaseCreationServiceTests: XCTestCase {
         XCTAssertEqual(parsed.rootGroup.groups.first?.name, "Drive")
     }
 
+    func testPreparedCreationCancellationReachesDetachedDeliveryAndRetainsAcceptedReceipt() async throws {
+        let prepared = try await DatabaseCreationService.prepare(request: DatabasePreparationRequest(displayName: "Cancelled", password: "password"))
+        let provider = CreationTestProvider()
+        let gate = InFlightSaveGate()
+        provider.afterAcceptanceAsync = { await gate.parkFirstCall() }
+        let creation = creationEnvironment(provider)
+        var environment = DatabaseCreationService.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.durableCreateCloud = { prepared, providerID, accountID, target in
+            try await CloudFileCreationCoordinator.create(operationID: prepared.id, ownerDatabaseID: prepared.id,
+                provider: providerID, accountID: accountID, target: target, bytes: prepared.encryptedBytes,
+                referenceTemplate: creationTemplate(id: prepared.id), environment: creation)
+        }
+        let serviceEnvironment = environment
+        let task = Task {
+            try await DatabaseCreationService.create(prepared: prepared,
+                destination: .cloud(provider: "googledrive", accountId: "account", folderPath: nil), environment: serviceEnvironment)
+        }
+        await gate.firstCallStarted()
+        task.cancel()
+        await gate.releaseFirstCall()
+        do { _ = try await task.value; XCTFail("Cancellation must reach the detached service task") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        let pending = try XCTUnwrap(PendingUploadQueue.listCreations(for: prepared.id).first)
+        XCTAssertTrue(pending.isPaused)
+        XCTAssertEqual(pending.phase, .confirmed)
+        XCTAssertNotNil(pending.receipt)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: PendingUploadQueue.resolveAppGroupURL(for: pending.payloadPath).path))
+        XCTAssertEqual(provider.objects.count, 1)
+    }
+
     func testDurableServiceRejectsReferenceWhoseHeadChangedAfterRegistration() async throws {
         let prepared = try await DatabaseCreationService.prepare(request: DatabasePreparationRequest(displayName: "Rekeyed", password: "old-password"))
         var environment = DatabaseCreationService.Environment.live

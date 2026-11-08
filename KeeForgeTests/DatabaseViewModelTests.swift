@@ -5883,6 +5883,25 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(provider.objects.count, 2, "Later deliberate actions remain distinct even with identical bytes and name")
     }
 
+    func testIndependentConflictActionsWithNewEditsCanCoexistWhileFirstIsUncertain() async throws {
+        let reference = makeCloudReference()
+        let provider = CreationTestProvider(id: "dropbox", accountID: "acct-1")
+        provider.loseNextResponse = true
+        let first = UUID()
+        do {
+            try await DatabaseViewModel.writeConflictCopyToCloud(reference: reference, fileID: "/Vaults/copy.kdbx",
+                bytes: Data("earlier-action".utf8), operationID: first, providerResolver: { _ in provider })
+            XCTFail()
+        } catch {}
+        try await DatabaseViewModel.writeConflictCopyToCloud(reference: reference, fileID: "/Vaults/copy.kdbx",
+            bytes: Data("new-edits-new-action".utf8), operationID: UUID(), providerResolver: { _ in provider })
+        XCTAssertEqual(provider.objects.count, 2)
+        try await DatabaseViewModel.writeConflictCopyToCloud(reference: reference, fileID: "/Vaults/copy.kdbx",
+            bytes: Data("earlier-action".utf8), operationID: first, providerResolver: { _ in provider })
+        XCTAssertEqual(provider.objects.count, 2)
+        XCTAssertEqual(provider.createdIDs.count, 3)
+    }
+
     func testConflictCopyRetryReusesCiphertextAndNameRatherThanReencrypting() async throws {
         let recorder = ConflictCopyRetryRecorder()
         let vm = try makeViewModel(

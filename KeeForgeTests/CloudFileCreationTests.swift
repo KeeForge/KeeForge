@@ -326,6 +326,8 @@ final class CreationTestProvider: CloudProvider, @unchecked Sendable {
     private var nextFailure: CloudUploadFailure?
     var failNext: CloudUploadFailure? { get { lock.withLock { nextFailure } } set { lock.withLock { nextFailure = newValue } } }
     private var accepted: (@Sendable () throws -> Void)?
+    private var acceptedAsync: (@Sendable () async throws -> Void)?
+    var afterAcceptanceAsync: (@Sendable () async throws -> Void)? { get { lock.withLock { acceptedAsync } } set { lock.withLock { acceptedAsync = newValue } } }
     var objects: [String: Data] { lock.withLock { storedObjects } }
     var createdIDs: [String] { lock.withLock { ids } }
     var targets: [CloudFileCreationTarget] { lock.withLock { destinations } }
@@ -354,6 +356,8 @@ final class CreationTestProvider: CloudProvider, @unchecked Sendable {
             return (lost, accepted)
         }
         try callback?()
+        let asyncCallback = afterAcceptanceAsync
+        try await asyncCallback?()
         if lost { throw URLError(.networkConnectionLost) }
         return CloudCreatedFile(file: CloudFile(id: fileID, name: target.path, path: fileID, isFolder: false, modifiedDate: nil, size: Int64(data.count)),
             metadata: CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 100), contentHash: nil, size: Int64(data.count), rev: "1"))

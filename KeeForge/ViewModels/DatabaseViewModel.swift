@@ -2889,14 +2889,15 @@ final class DatabaseViewModel {
         let bytes: Data
     }
     @ObservationIgnored private var conflictCopyRequest: ConflictCopyRequest?
-    @ObservationIgnored private var isCreatingConflictCopy = false
+    @ObservationIgnored private var activeConflictCopyAction: UUID?
 
     func saveAsConflictCopy() async throws {
-        guard let draft, let saveConflict, let compositeKey, !isCreatingConflictCopy else {
+        guard let draft, let saveConflict, let compositeKey, activeConflictCopyAction == nil else {
             throw SaveError.saveContextUnavailable
         }
-        isCreatingConflictCopy = true
-        defer { isCreatingConflictCopy = false }
+        let invocation = UUID()
+        activeConflictCopyAction = invocation
+        defer { if activeConflictCopyAction == invocation { activeConflictCopyAction = nil } }
         let revision = contentRevision
         let cycle = lockCycleID
         let request: ConflictCopyRequest
@@ -4089,6 +4090,8 @@ final class DatabaseViewModel {
     }
 
     private func beginNewLockCycle() {
+        conflictCopyRequest = nil
+        activeConflictCopyAction = nil
         lockCycleID += 1
     }
 
