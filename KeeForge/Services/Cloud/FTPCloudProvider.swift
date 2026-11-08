@@ -1,5 +1,6 @@
 import AuthenticationServices
 import Foundation
+import os
 
 /// Plain-FTP provider. Stateless like `WebDAVCloudProvider`: the credential
 /// is read from `CloudTokenStore` on every call and every call opens its own
@@ -16,15 +17,18 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     let iconName = CloudProviderKind.ftp.iconName
 
     private let client: FTPClient
+    private let credentialResolver: (@Sendable (String) -> FTPCredential?)?
     private let now: @Sendable () -> Date
     private let makeScratchToken: @Sendable () -> String
 
     init(
         client: FTPClient = FTPClient(),
         now: @escaping @Sendable () -> Date = { Date() },
-        makeScratchToken: @escaping @Sendable () -> String = { String(UUID().uuidString.prefix(8)) }
+        makeScratchToken: @escaping @Sendable () -> String = { String(UUID().uuidString.prefix(8)) },
+        credentialResolver: (@Sendable (String) -> FTPCredential?)? = nil
     ) {
         self.client = client
+        self.credentialResolver = credentialResolver
         self.now = now
         self.makeScratchToken = makeScratchToken
     }
@@ -190,40 +194,56 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         expectedRev: String?,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudFileMetadata {
-        let (location, credential) = try resolveContext(accountId: accountId)
+        let resolved: (FTPServerLocation, FTPCredential)
+        do { resolved = try resolveContext(accountId: accountId) }
+        catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
+        let (location, credential) = resolved
         let path = Self.remotePath(base: location.basePath, fileId: fileId)
         let temporaryPath = scratchPath(beside: path, kind: .upload)
         let backupPath = scratchPath(beside: path, kind: .backup)
 
-        let metadata = try await perform(context: .write, location: location, credential: credential) { session in
-            do {
-                // Inside the cleanup: an interrupted transfer can leave a
-                // partial file behind.
-                try await session.store(temporaryPath, data: data)
-                if let expectedRev {
-                    guard let current = try await session.stat(path), !current.isFolder else {
-                        throw CloudProviderError.conflict(remoteRev: nil)
+        // A scratch transfer cannot replace the target; installation may already have renamed it.
+        let targetMutationStarted = OSAllocatedUnfairLock(initialState: false)
+        let metadata: CloudFileMetadata
+        do {
+            metadata = try await perform(context: .write, location: location, credential: credential) { session in
+                do {
+                    // Inside the cleanup: an interrupted transfer can leave a
+                    // partial file behind.
+                    try await session.store(temporaryPath, data: data)
+                    if let expectedRev {
+                        guard let current = try await session.stat(path), !current.isFolder else {
+                            throw CloudProviderError.conflict(remoteRev: nil)
+                        }
+                        let currentRev = Self.rev(of: try await Self.retrieveExisting(path, in: session))
+                        guard currentRev == expectedRev else {
+                            throw CloudProviderError.conflict(remoteRev: currentRev)
+                        }
                     }
-                    let currentRev = Self.rev(of: try await Self.retrieveExisting(path, in: session))
-                    guard currentRev == expectedRev else {
-                        throw CloudProviderError.conflict(remoteRev: currentRev)
-                    }
+                    targetMutationStarted.withLock { $0 = true }
+                    try await install(
+                        temporaryPath,
+                        at: path,
+                        backupPath: backupPath,
+                        expectedRev: expectedRev,
+                        in: session,
+                        location: location,
+                        credential: credential
+                    )
+                } catch {
+                    try? await session.delete(temporaryPath)
+                    throw error
                 }
-                try await install(
-                    temporaryPath,
-                    at: path,
-                    backupPath: backupPath,
-                    expectedRev: expectedRev,
-                    in: session,
-                    location: location,
-                    credential: credential
-                )
-            } catch {
-                try? await session.delete(temporaryPath)
-                throw error
+                await sweepStaleUploads(beside: path, in: session)
+                return await Self.metadata(of: data, at: path, in: session)
             }
-            await sweepStaleUploads(beside: path, in: session)
-            return await Self.metadata(of: data, at: path, in: session)
+        } catch {
+            guard targetMutationStarted.withLock({ $0 }) else {
+                let mapped = Self.mapError(error, context: .write)
+                let underlying = (mapped as? CloudProviderError) ?? .unknown(CloudProviderError.message(for: mapped))
+                throw CloudUploadFailure(underlying: underlying, outcome: .rejected)
+            }
+            throw error
         }
         progress(1)
         return metadata
@@ -475,6 +495,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     }
 
     private func credential(for accountId: String) -> FTPCredential? {
+        if let credentialResolver { return credentialResolver(accountId) }
         guard let data = CloudTokenStore.tokenData(provider: id, accountId: accountId) else {
             return nil
         }

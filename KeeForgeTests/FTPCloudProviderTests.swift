@@ -1169,7 +1169,7 @@ final class FTPCloudProviderTests: XCTestCase {
             try await operation()
             XCTFail("Expected \(expected)", file: file, line: line)
         } catch {
-            XCTAssertEqual(error as? CloudProviderError, expected, file: file, line: line)
+            XCTAssertEqual((error as? CloudUploadFailure)?.underlying ?? (error as? CloudProviderError), expected, file: file, line: line)
         }
     }
 }

@@ -60,8 +60,13 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     private let state = OSAllocatedUnfairLock(uncheckedState: MutableState())
 
     private let decoder: JSONDecoder
+    private let tokenProvider: (@Sendable (String) async throws -> String)?
+    private let transport: (@Sendable (URLRequest) async throws -> (Data, HTTPURLResponse))?
 
-    private init() {
+    init(tokenProvider: (@Sendable (String) async throws -> String)? = nil,
+         transport: (@Sendable (URLRequest) async throws -> (Data, HTTPURLResponse))? = nil) {
+        self.tokenProvider = tokenProvider
+        self.transport = transport
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
@@ -221,7 +226,10 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     ) async throws -> CloudFileMetadata {
         let token: String
         do { token = try await accessToken(accountId: accountId) }
-        catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
+        catch {
+            let underlying = (error as? CloudProviderError) ?? .unknown(CloudProviderError.message(for: error))
+            throw CloudUploadFailure(underlying: underlying, outcome: .notDispatched)
+        }
         // Overwriting an existing file only needs `If-Match` for concurrency, so
         // a small database can take the single-request PUT and skip the flaky
         // `createUploadSession` endpoint entirely. Create-only uploads cannot:
@@ -407,6 +415,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     /// Microsoft refresh tokens are rolling, so two redemptions racing on one
     /// account can invalidate each other and force an interactive sign-in.
     private func accessToken(accountId: String) async throws -> String {
+        if let tokenProvider { return try await tokenProvider(accountId) }
         let application = try application()
         let account: MSALAccount
         do {
@@ -553,18 +562,19 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> OneDriveDriveItem {
         guard data.isEmpty == false else {
-            throw CloudProviderError.unknown(String(localized: "OneDrive cannot upload an empty database."))
+            throw CloudUploadFailure(underlying: .unknown(String(localized: "OneDrive cannot upload an empty database.")), outcome: .notDispatched)
         }
 
-        let session = try await createUploadSession(
-            path: path,
-            expectedRev: expectedRev,
-            conflictBehavior: conflictBehavior,
-            token: token
-        )
+        let session: OneDriveUploadSession
+        do {
+            session = try await createUploadSession(path: path, expectedRev: expectedRev, conflictBehavior: conflictBehavior, token: token)
+        } catch {
+            let underlying = (error as? CloudProviderError) ?? .unknown(CloudProviderError.message(for: error))
+            throw CloudUploadFailure(underlying: underlying, outcome: .notDispatched)
+        }
 
         guard let uploadURL = URL(string: session.uploadURL) else {
-            throw CloudProviderError.unknown(String(localized: "OneDrive returned an invalid upload URL."))
+            throw CloudUploadFailure(underlying: .unknown(String(localized: "OneDrive returned an invalid upload URL.")), outcome: .notDispatched)
         }
 
         var offset = 0
@@ -858,6 +868,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     /// Issues one Graph request, normalizing transport failures.
     private func send(_ request: URLRequest) async throws -> (data: Data, response: HTTPURLResponse) {
         do {
+            if let transport { return try await transport(request) }
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw CloudProviderError.unknown(String(localized: "OneDrive request failed."))
@@ -882,7 +893,12 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
                 return data
             }
 
-            let mutationIsRetryable = request.httpMethod != "PUT" || request.value(forHTTPHeaderField: "If-Match") != nil
+            if request.httpMethod == "PUT", [401, 403, 412, 507].contains(httpResponse.statusCode) {
+                let mapped = mapHTTPError(statusCode: httpResponse.statusCode, data: data)
+                let underlying = (mapped as? CloudProviderError) ?? .unknown(CloudProviderError.message(for: mapped))
+                throw CloudUploadFailure(underlying: underlying, outcome: .rejected)
+            }
+            let mutationIsRetryable = request.httpMethod != "PUT" || request.value(forHTTPHeaderField: "If-Match")?.isEmpty == false
             guard mutationIsRetryable, Self.shouldRetryRequest(statusCode: httpResponse.statusCode, attempt: attempt) else {
                 throw mapHTTPError(statusCode: httpResponse.statusCode, data: data)
             }

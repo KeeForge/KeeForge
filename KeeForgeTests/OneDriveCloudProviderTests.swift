@@ -1,11 +1,82 @@
 import XCTest
 @testable import KeeForge
 
-/// Pure-seam coverage for the OneDrive provider: Graph URL construction, the
-/// small-file upload split, the retry/backoff policy, upload-session
-/// resumption, and error mapping. No network, no MSAL — every assertion
-/// targets a `static` helper.
+/// Graph policies and upload-session transport, including durable retry of a
+/// rejected large upload. Tokens and transport are injected: no network or
+/// real MSAL account is used.
 final class OneDriveCloudProviderTests: XCTestCase {
+    func testLargeUploadSessionCreationRejectionCanRetryIdenticalPendingCiphertext() async throws {
+        XCTAssertTrue(AppGroupContainer.isRedirectedForTesting)
+        DatabaseListStore.clearAll()
+        defer { DatabaseListStore.clearAll() }
+        let source = Data("original encrypted content".utf8)
+        let payload = Data(repeating: 0xA5, count: OneDriveCloudProvider.simpleUploadByteLimit + 1)
+        let server = LargeUploadServer(source)
+        let provider = OneDriveCloudProvider(tokenProvider: { _ in "test-token" }, transport: { request in try await server.respond(request) })
+        let file = CloudFile(id: "/large.kdbx", name: "large.kdbx", path: "/large.kdbx", isFolder: false, modifiedDate: nil, size: nil)
+        let reference = DatabaseListStore.addCloud(provider: "onedrive", accountId: "transport-only", file: file)
+        try DatabaseListStore.cacheDatabaseCopy(source, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let pending = try PendingUploadQueue.withCommitLock(for: reference.id) {
+            var prepared = try PendingUploadQueue.prepare(reference: reference, currentData: source, intendedData: payload, cacheURL: cacheURL)
+            _ = try LocalDatabaseSaver.Environment.live.replaceFileAtomically(payload, cacheURL, KDBXCrypto.sha512(source))
+            prepared.marker.openTimeSHA512 = KDBXCrypto.sha512(payload)
+            let finalized = try PendingUploadQueue.finalize(prepared)
+            DatabaseListStore.recordCloudLocalCommit(for: reference.id, operationID: finalized.id)
+            return finalized
+        }
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.getMetadata = { _ in await server.metadata() }
+        environment.downloadRemoteData = { _ in await server.data() }
+        environment.upload = { _, bytes, rev, progress in try await provider.upload(accountId: "transport-only", fileId: "/large.kdbx", data: bytes, expectedRev: rev, progress: progress) }
+        environment.writeGuarantee = { _, rev, count in provider.writeGuarantee(expectedRev: rev, byteCount: count) }
+        do {
+            _ = try await CloudDatabaseSaver.deliver(pending, reference: reference, environment: environment)
+            XCTFail("Session creation must reject before any content chunk")
+        } catch {
+            XCTAssertEqual((error as? CloudUploadFailure)?.outcome, .notDispatched)
+            XCTAssertEqual(CloudProviderError.issue(for: error), .insufficientSpace)
+        }
+        let rejected = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
+        XCTAssertEqual(rejected.marker.attemptIsFenced, true)
+        let before = await server.uploadBodies()
+        XCTAssertTrue(before.isEmpty)
+        await server.fixQuota()
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        _ = try await CloudDatabaseSaver.deliver(rejected, reference: stored, environment: environment)
+        let bodies = await server.uploadBodies()
+        XCTAssertEqual(bodies, [payload])
+        let actual = await server.data()
+        XCTAssertEqual(actual, payload)
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: reference.id).isEmpty)
+    }
+
+    private actor LargeUploadServer {
+        private var bytes: Data
+        private var rejectsCreation = true
+        private var bodies: [Data] = []
+        init(_ bytes: Data) { self.bytes = bytes }
+        func fixQuota() { rejectsCreation = false }
+        func data() -> Data { bytes }
+        func uploadBodies() -> [Data] { bodies }
+        func metadata() -> CloudFileMetadata { .init(modifiedDate: .now, contentHash: nil, size: Int64(bytes.count), rev: "r0") }
+        func respond(_ request: URLRequest) throws -> (Data, HTTPURLResponse) {
+            let status: Int
+            let body: [String: Any]
+            if request.httpMethod == "POST" {
+                status = rejectsCreation ? 507 : 200
+                body = rejectsCreation ? ["error": ["code": "quotaLimitReached", "message": "quota"]] : ["uploadUrl": "https://upload.example.invalid/session"]
+            } else {
+                let data = request.httpBody ?? Data()
+                bodies.append(data)
+                bytes = data
+                status = 201
+                body = ["id": "large", "name": "large.kdbx", "size": data.count, "eTag": "r1"]
+            }
+            return (try JSONSerialization.data(withJSONObject: body), HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: [:])!)
+        }
+    }
+
     func testUncertainFinalUploadChunkIsNeverRetried() {
         for status in [429, 500, 503, 416] {
             XCTAssertFalse(OneDriveCloudProvider.shouldRetryUploadChunk(statusCode: status, attempt: 1, isFinalChunk: true))

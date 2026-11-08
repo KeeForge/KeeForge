@@ -270,13 +270,15 @@ final class WebDAVCloudProviderTests: XCTestCase {
     // MARK: - Provider: upload
 
     func testUploadSendsIfMatchForStrongRev() async throws {
-        let accountId = try seedCredential(username: "alice")
+        let accountId = "transport-only"
         let recorder = MethodRecorder()
         let responder = TransportResponder { request in
             await recorder.record(request)
             return StubResponse(status: 204, headers: ["ETag": "\"new-etag\""])
         }
-        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport))
+        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport), credentialResolver: { _ in
+            WebDAVCredential(serverURL: "https://host.example.com/dav/", username: "alice", password: "s3cr3t")
+        })
 
         let metadata = try await provider.upload(
             accountId: accountId,
@@ -293,13 +295,15 @@ final class WebDAVCloudProviderTests: XCTestCase {
     }
 
     func testUploadOmitsIfMatchForLastmodRev() async throws {
-        let accountId = try seedCredential(username: "alice")
+        let accountId = "transport-only"
         let recorder = MethodRecorder()
         let responder = TransportResponder { request in
             await recorder.record(request)
             return StubResponse(status: 204, headers: ["ETag": "\"new-etag\""])
         }
-        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport))
+        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport), credentialResolver: { _ in
+            WebDAVCredential(serverURL: "https://host.example.com/dav/", username: "alice", password: "s3cr3t")
+        })
 
         _ = try await provider.upload(
             accountId: accountId,
@@ -315,7 +319,7 @@ final class WebDAVCloudProviderTests: XCTestCase {
     }
 
     func testUpload412ThrowsConflict() async throws {
-        let accountId = try seedCredential(username: "alice")
+        let accountId = "transport-only"
         let responder = TransportResponder { request in
             if request.httpMethod == "PUT" {
                 return StubResponse(status: 412, headers: [:])
@@ -323,7 +327,9 @@ final class WebDAVCloudProviderTests: XCTestCase {
             // Fresh HEAD after the conflict.
             return StubResponse(status: 200, headers: ["ETag": "\"remote-fresh\""])
         }
-        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport))
+        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport), credentialResolver: { _ in
+            WebDAVCredential(serverURL: "https://host.example.com/dav/", username: "alice", password: "s3cr3t")
+        })
 
         do {
             _ = try await provider.upload(
@@ -344,7 +350,7 @@ final class WebDAVCloudProviderTests: XCTestCase {
     }
 
     func testUploadPutWithoutETagTriggersFollowupHead() async throws {
-        let accountId = try seedCredential(username: "alice")
+        let accountId = "transport-only"
         let recorder = MethodRecorder()
         let responder = TransportResponder { request in
             await recorder.record(request)
@@ -353,7 +359,9 @@ final class WebDAVCloudProviderTests: XCTestCase {
             }
             return StubResponse(status: 200, headers: ["ETag": "\"head-etag\""])
         }
-        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport))
+        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport), credentialResolver: { _ in
+            WebDAVCredential(serverURL: "https://host.example.com/dav/", username: "alice", password: "s3cr3t")
+        })
 
         let metadata = try await provider.upload(
             accountId: accountId,

@@ -674,7 +674,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         )
     }
 
-    func testDiscardConflictedPendingUploadsWithoutLivePayloadDropsMarkerWithoutBackup() async throws {
+    func testDiscardWithoutReadablePayloadRetainsMarkerAndReportsNoRemoval() async throws {
         // When the cache no longer hashes to the marker's recorded payload,
         // those bytes are already gone (the overwrite path took its own
         // backup); discarding just clears the marker.
@@ -690,9 +690,9 @@ final class CloudSyncCoordinatorTests: XCTestCase {
 
         let discardedCount = await CloudSyncCoordinator.discardConflictedPendingUploads(for: reference)
 
-        XCTAssertEqual(discardedCount, 1)
+        XCTAssertEqual(discardedCount, 0)
         XCTAssertEqual(backupContents(for: reference), [])
-        XCTAssertTrue(PendingUploadQueue.listMarkers(for: reference.id).isEmpty)
+        XCTAssertEqual(PendingUploadQueue.listMarkers(for: reference.id).count, 1)
     }
 
     private func makeMarker(
