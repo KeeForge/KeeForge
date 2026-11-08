@@ -5,9 +5,11 @@ import Foundation
 #endif
 
 final class GoogleDriveCredentialStore: @unchecked Sendable {
-    struct Snapshot { let data: Data?; let generation: UInt64 }
+    struct Snapshot { let data: Data?; let generation: UInt64; let lifetime: UInt64 }
     private let lock = NSLock()
+    // Archive writes advance generation; only reconnect or signout invalidates token lifetimes.
     private var generations: [String: UInt64] = [:]
+    private var lifetimes: [String: UInt64] = [:]
     private var signedOutAccounts = Set<String>()
     private var authorizationEpoch: UInt64 = 0
     private static let tombstone = Data("KeeForge.GoogleDrive.signed-out.v1".utf8)
@@ -25,7 +27,7 @@ final class GoogleDriveCredentialStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         let data = signedOutAccounts.contains(accountID) ? nil : read(accountID)
-        return Snapshot(data: data == Self.tombstone ? nil : data, generation: generations[accountID, default: 0])
+        return Snapshot(data: data == Self.tombstone ? nil : data, generation: generations[accountID, default: 0], lifetime: lifetimes[accountID, default: 0])
     }
 
     var authorizationGeneration: UInt64 {
@@ -34,13 +36,26 @@ final class GoogleDriveCredentialStore: @unchecked Sendable {
         return authorizationEpoch
     }
 
-    func save(_ data: Data, accountID: String, generation: UInt64, authorizationGeneration: UInt64? = nil) -> Bool {
+    func save(_ data: Data, accountID: String, generation: UInt64, lifetime: UInt64? = nil) -> Bool {
         lock.lock()
         defer { lock.unlock() }
         guard generations[accountID, default: 0] == generation,
-              authorizationGeneration == nil || authorizationGeneration == authorizationEpoch else { return false }
+              lifetime == nil || lifetime == lifetimes[accountID, default: 0] else { return false }
         guard write(data, accountID) else { return false }
         generations[accountID, default: 0] &+= 1
+        signedOutAccounts.remove(accountID)
+        return true
+    }
+
+    func saveAuthorization(_ data: Data, accountID: String, expectedLifetime: UInt64?, authorizationGeneration: UInt64) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard authorizationGeneration == authorizationEpoch,
+              expectedLifetime == nil || expectedLifetime == lifetimes[accountID, default: 0] else { return false }
+        guard write(data, accountID) else { return false }
+        generations[accountID, default: 0] &+= 1
+        lifetimes[accountID, default: 0] &+= 1
+        authorizationEpoch &+= 1
         signedOutAccounts.remove(accountID)
         return true
     }
@@ -51,6 +66,7 @@ final class GoogleDriveCredentialStore: @unchecked Sendable {
         defer { lock.unlock() }
         if let ifGeneration, generations[accountID, default: 0] != ifGeneration { return false }
         generations[accountID, default: 0] &+= 1
+        lifetimes[accountID, default: 0] &+= 1
         authorizationEpoch &+= 1
         signedOutAccounts.insert(accountID)
         if delete(accountID) { return true }
@@ -80,18 +96,20 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
     private let transport: any GoogleDriveTransport
     private let refresh: GoogleDriveCredentialRefresh
     private let interactiveAuthorization: GoogleDriveInteractiveAuthorization?
-    @MainActor private var refreshes: [String: (id: UUID, generation: UInt64, task: Task<String, Error>)] = [:]
+    private let tokenDeliveryBarrier: (@MainActor @Sendable () async -> Void)?
+    @MainActor private var refreshes: [String: (id: UUID, generation: UInt64, lifetime: UInt64, task: Task<String, Error>)] = [:]
     @MainActor private var attempt: UUID?
     #if canImport(AppAuthCore)
     @MainActor private var pendingSession: (any OIDExternalUserAgentSession)?
     #endif
 
-    init(configuration: GoogleDriveConfiguration? = .load(), credentials: GoogleDriveCredentialStore = GoogleDriveCredentialStore(), transport: any GoogleDriveTransport = GoogleDriveURLSessionTransport(), refresh: @escaping GoogleDriveCredentialRefresh = GoogleDriveAuthorization.refreshCredential, interactiveAuthorization: GoogleDriveInteractiveAuthorization? = nil) {
+    init(configuration: GoogleDriveConfiguration? = .load(), credentials: GoogleDriveCredentialStore = GoogleDriveCredentialStore(), transport: any GoogleDriveTransport = GoogleDriveURLSessionTransport(), refresh: @escaping GoogleDriveCredentialRefresh = GoogleDriveAuthorization.refreshCredential, interactiveAuthorization: GoogleDriveInteractiveAuthorization? = nil, tokenDeliveryBarrier: (@MainActor @Sendable () async -> Void)? = nil) {
         self.configuration = configuration
         self.credentials = credentials
         self.transport = transport
         self.refresh = refresh
         self.interactiveAuthorization = interactiveAuthorization
+        self.tokenDeliveryBarrier = tokenDeliveryBarrier
     }
 
     @MainActor var isConfigured: Bool {
@@ -127,7 +145,7 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
         guard attempt == nil else { throw CloudProviderError.authenticationCancelled }
         try Task.checkCancellation()
         let id = UUID()
-        let expectedGeneration = expectedAccountID.map { credentials.snapshot($0).generation }
+        let expectedLifetime = expectedAccountID.map { credentials.snapshot($0).lifetime }
         let authorizationGeneration = credentials.authorizationGeneration
         attempt = id
         defer {
@@ -145,8 +163,7 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
             try Self.checkAccount(account.id, expected: expectedAccountID)
             try Task.checkCancellation()
             guard attempt == id else { throw CloudProviderError.authenticationCancelled }
-            let generation = expectedGeneration ?? credentials.snapshot(account.id).generation
-            guard credentials.save(credential.archive, accountID: account.id, generation: generation, authorizationGeneration: authorizationGeneration) else { throw CloudProviderError.notAuthenticated }
+            guard credentials.saveAuthorization(credential.archive, accountID: account.id, expectedLifetime: expectedLifetime, authorizationGeneration: authorizationGeneration) else { throw CloudProviderError.notAuthenticated }
             return GoogleDriveGrant(account: account, pickedFileIDs: credential.pickedFileIDs)
         } onCancel: {
             Task { @MainActor in
@@ -169,7 +186,7 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
         let snapshot = credentials.snapshot(accountID)
         guard let data = snapshot.data else { throw CloudProviderError.notAuthenticated }
         let task: Task<String, Error>
-        if let existing = refreshes[accountID], existing.generation == snapshot.generation {
+        if let existing = refreshes[accountID], existing.generation == snapshot.generation, existing.lifetime == snapshot.lifetime {
             task = existing.task
         } else {
             let id = UUID()
@@ -179,7 +196,7 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
                 }
                 do {
                     let refreshed = try await self.refresh(data, configuration)
-                    guard self.credentials.save(refreshed.archive, accountID: accountID, generation: snapshot.generation) else {
+                    guard self.credentials.save(refreshed.archive, accountID: accountID, generation: snapshot.generation, lifetime: snapshot.lifetime) else {
                         throw CloudProviderError.notAuthenticated
                     }
                     return refreshed.accessToken
@@ -190,13 +207,14 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
                     throw Self.oauthError(error)
                 }
             }
-            refreshes[accountID] = (id, snapshot.generation, task)
+            refreshes[accountID] = (id, snapshot.generation, snapshot.lifetime, task)
         }
         // One cancelled waiter must not cancel the refresh shared by other requests.
         let token = try await task.value
+        if let tokenDeliveryBarrier { await tokenDeliveryBarrier() }
         try Task.checkCancellation()
         let current = credentials.snapshot(accountID)
-        guard current.data != nil, current.generation == snapshot.generation &+ 1 else { throw CloudProviderError.notAuthenticated }
+        guard current.data != nil, current.lifetime == snapshot.lifetime else { throw CloudProviderError.notAuthenticated }
         return token
     }
 

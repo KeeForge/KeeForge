@@ -154,11 +154,113 @@ final class GoogleDriveAuthorizationTests: XCTestCase {
         let task = Task { @MainActor in try await auth.accessToken(accountID: "A") }
         await gate.entered.wait()
         let snapshot = credentials.snapshot("A")
-        XCTAssertTrue(credentials.save(Data("reconnected".utf8), accountID: "A", generation: snapshot.generation))
+        XCTAssertTrue(credentials.saveAuthorization(Data("reconnected".utf8), accountID: "A", expectedLifetime: snapshot.lifetime, authorizationGeneration: credentials.authorizationGeneration))
         gate.finish()
         do { _ = try await task.value; XCTFail("Older refresh must lose to reconnect") }
         catch { XCTAssertEqual(error as? CloudProviderError, .notAuthenticated) }
         XCTAssertEqual(credentials.snapshot("A").data, Data("reconnected".utf8))
+    }
+
+    @MainActor
+    func testReconnectPausedAtAboutSurvivesOrdinaryBackgroundRefresh() async throws {
+        let storage = GoogleDriveTestCredentialStorage()
+        let credentials = GoogleDriveCredentialStore(read: { storage.read($0) }, write: { storage.write($0, account: $1) }, delete: { storage.delete($0) })
+        XCTAssertTrue(credentials.save(Data("old".utf8), accountID: "permission-A", generation: 0))
+        let initial = credentials.snapshot("permission-A")
+        let transport = GoogleDriveTestAboutGate()
+        let auth = GoogleDriveAuthorization(
+            configuration: try XCTUnwrap(GoogleDriveConfiguration(clientID: clientID, redirectURI: callback)), credentials: credentials,
+            transport: transport,
+            refresh: { _, _ in GoogleDriveRefreshedCredential(accessToken: "background-token", archive: Data("background-archive".utf8)) },
+            interactiveAuthorization: { _, _ in GoogleDriveInteractiveCredential(accessToken: "interactive-token", archive: Data("interactive-archive".utf8), pickedFileIDs: ["file_A"]) }
+        )
+        let reconnect = Task { @MainActor in try await auth.authorize(from: ASPresentationAnchor(), expectedAccountID: "permission-A") }
+        await transport.waitUntilRequested()
+        let token = try await auth.accessToken(accountID: "permission-A")
+        XCTAssertEqual(token, "background-token")
+        XCTAssertEqual(credentials.snapshot("permission-A").lifetime, initial.lifetime)
+        XCTAssertGreaterThan(credentials.snapshot("permission-A").generation, initial.generation)
+        await transport.finish()
+        let grant = try await reconnect.value
+        XCTAssertEqual(grant.account.id, "permission-A")
+        XCTAssertEqual(credentials.snapshot("permission-A").data, Data("interactive-archive".utf8))
+        XCTAssertNotEqual(credentials.snapshot("permission-A").lifetime, initial.lifetime)
+    }
+
+    @MainActor
+    func testNewerReconnectFencesOlderPausedReconnect() async throws {
+        let storage = GoogleDriveTestCredentialStorage()
+        let credentials = GoogleDriveCredentialStore(read: { storage.read($0) }, write: { storage.write($0, account: $1) }, delete: { storage.delete($0) })
+        XCTAssertTrue(credentials.save(Data("old".utf8), accountID: "permission-A", generation: 0))
+        let configuration = try XCTUnwrap(GoogleDriveConfiguration(clientID: clientID, redirectURI: callback))
+        let earlierTransport = GoogleDriveTestAboutGate()
+        let laterTransport = GoogleDriveTestAboutGate()
+        let earlierAuth = GoogleDriveAuthorization(
+            configuration: configuration, credentials: credentials, transport: earlierTransport,
+            interactiveAuthorization: { _, _ in GoogleDriveInteractiveCredential(accessToken: "earlier", archive: Data("earlier".utf8), pickedFileIDs: ["file_A"]) }
+        )
+        let laterAuth = GoogleDriveAuthorization(
+            configuration: configuration, credentials: credentials, transport: laterTransport,
+            interactiveAuthorization: { _, _ in GoogleDriveInteractiveCredential(accessToken: "later", archive: Data("later".utf8), pickedFileIDs: ["file_A"]) }
+        )
+        let earlier = Task { @MainActor in try await earlierAuth.authorize(from: ASPresentationAnchor(), expectedAccountID: "permission-A") }
+        await earlierTransport.waitUntilRequested()
+        let later = Task { @MainActor in try await laterAuth.authorize(from: ASPresentationAnchor(), expectedAccountID: "permission-A") }
+        await laterTransport.waitUntilRequested()
+        await laterTransport.finish()
+        _ = try await later.value
+        await earlierTransport.finish()
+        do { _ = try await earlier.value; XCTFail("Earlier reconnect must not overwrite later authorization") }
+        catch { XCTAssertEqual(error as? CloudProviderError, .notAuthenticated) }
+        XCTAssertEqual(credentials.snapshot("permission-A").data, Data("later".utf8))
+    }
+
+    @MainActor
+    func testLateTokenWaiterSurvivesNextSuccessfulRefreshOfSameAuthorization() async throws {
+        let storage = GoogleDriveTestCredentialStorage()
+        let credentials = GoogleDriveCredentialStore(read: { storage.read($0) }, write: { storage.write($0, account: $1) }, delete: { storage.delete($0) })
+        XCTAssertTrue(credentials.save(Data("old".utf8), accountID: "A", generation: 0))
+        let delivery = GoogleDriveTestDeliveryGate()
+        let auth = GoogleDriveAuthorization(
+            configuration: try XCTUnwrap(GoogleDriveConfiguration(clientID: clientID, redirectURI: callback)), credentials: credentials,
+            refresh: { data, _ in GoogleDriveRefreshedCredential(accessToken: String(decoding: data, as: UTF8.self) + "-token", archive: data + Data("-refreshed".utf8)) },
+            tokenDeliveryBarrier: { await delivery.pauseFirst() }
+        )
+        let late = Task { @MainActor in try await auth.accessToken(accountID: "A") }
+        await delivery.entered.wait()
+        let firstRevision = credentials.snapshot("A").generation
+        let next = try await auth.accessToken(accountID: "A")
+        XCTAssertEqual(next, "old-refreshed-token")
+        XCTAssertGreaterThan(credentials.snapshot("A").generation, firstRevision)
+        delivery.release.signal()
+        let earlier = try await late.value
+        XCTAssertEqual(earlier, "old-token")
+        XCTAssertEqual(credentials.snapshot("A").data, Data("old-refreshed-refreshed".utf8))
+    }
+
+    @MainActor
+    func testLateTokenDeliveryIsFencedBySignOutOrAnotherReconnect() async throws {
+        for reconnect in [false, true] {
+            let storage = GoogleDriveTestCredentialStorage()
+            let credentials = GoogleDriveCredentialStore(read: { storage.read($0) }, write: { storage.write($0, account: $1) }, delete: { storage.delete($0) })
+            XCTAssertTrue(credentials.save(Data("old".utf8), accountID: "A", generation: 0))
+            let delivery = GoogleDriveTestDeliveryGate()
+            let auth = GoogleDriveAuthorization(
+                configuration: try XCTUnwrap(GoogleDriveConfiguration(clientID: clientID, redirectURI: callback)), credentials: credentials,
+                refresh: { _, _ in GoogleDriveRefreshedCredential(accessToken: "old-token", archive: Data("refreshed".utf8)) },
+                tokenDeliveryBarrier: { await delivery.pauseFirst() }
+            )
+            let late = Task { @MainActor in try await auth.accessToken(accountID: "A") }
+            await delivery.entered.wait()
+            if reconnect {
+                let current = credentials.snapshot("A")
+                XCTAssertTrue(credentials.saveAuthorization(Data("reconnected".utf8), accountID: "A", expectedLifetime: current.lifetime, authorizationGeneration: credentials.authorizationGeneration))
+            } else { auth.remove(accountID: "A") }
+            delivery.release.signal()
+            do { _ = try await late.value; XCTFail("Old authorization lifetime must not deliver") }
+            catch { XCTAssertEqual(error as? CloudProviderError, .notAuthenticated) }
+            XCTAssertEqual(credentials.snapshot("A").data, reconnect ? Data("reconnected".utf8) : nil)
+        }
     }
 
     @MainActor
@@ -277,5 +379,16 @@ private actor GoogleDriveTestAboutGate: GoogleDriveTransport {
         started = nil
         await withCheckedContinuation { response = $0 }
         return (Data(#"{"user":{"permissionId":"permission-A","displayName":"Test"}}"#.utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!)
+    }
+}
+
+@MainActor
+private final class GoogleDriveTestDeliveryGate {
+    let entered = GoogleDriveTestSignal()
+    let release = GoogleDriveTestSignal()
+    private var arrivals = 0
+    func pauseFirst() async {
+        arrivals += 1
+        if arrivals == 1 { entered.signal(); await release.wait() }
     }
 }
