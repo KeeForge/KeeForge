@@ -14,7 +14,7 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
 
     func testReplacementAndLegacyCreationRejectBeforeAnyHTTP() async throws {
         let transport = GoogleDriveTestTransport([])
-        let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, creationEnabled: true)
+        let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, creationEnabled: true, isAccountConnected: { _ in true })
         XCTAssertEqual(provider.writeGuarantee(expectedRev: "12", byteCount: 1), .disabled)
         do {
             _ = try await provider.upload(accountId: "account", fileId: "file_A", data: bytes, expectedRev: "12", progress: { _ in })
@@ -31,7 +31,7 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
     func testDefaultCreationGateAndMissingIDNeverDispatch() async throws {
         let transport = GoogleDriveTestTransport([])
         for enabled in [false, true] {
-            let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, creationEnabled: enabled)
+            let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, creationEnabled: enabled, isAccountConnected: { _ in true })
             do {
                 _ = try await provider.createFile(accountId: "account", path: "vault.kdbx", data: bytes, creationID: nil, progress: { _ in })
                 XCTFail("Missing durable ID must refuse")
@@ -47,7 +47,7 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
             .response(200, try json(["files": [resource(id: "file_A")], "nextPageToken": "next"])),
             .response(200, try json(["files": [resource(id: "file_B"), resource(id: "file_C", name: "notes.txt")]]))
         ])
-        let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport)
+        let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, isAccountConnected: { _ in true })
         let files = try await provider.listFiles(accountId: "account", path: nil, query: "a'b\\c", includesAllFiles: false)
         XCTAssertEqual(files.map(\.id), ["file_A", "file_B"])
         XCTAssertEqual(files.map(\.path), ["file_A", "file_B"])
@@ -64,7 +64,7 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
             .response(200, try json(["ids": ["generated_A"]])),
             .response(200, try json(resource(id: "generated_A", name: "duplicate.kdbx")))
         ])
-        let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, creationEnabled: true)
+        let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, creationEnabled: true, isAccountConnected: { _ in true })
         let id = try await provider.prepareFileCreationID(accountId: "account")
         let created = try await provider.createFile(accountId: "account", path: "duplicate.kdbx", data: bytes, creationID: id, progress: { _ in })
         XCTAssertEqual(created.file.id, "generated_A")
@@ -88,7 +88,7 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
             .response(200, bytes),
             .response(200, try json(resource(id: "generated_A")))
         ])
-        let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, creationEnabled: true)
+        let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, creationEnabled: true, isAccountConnected: { _ in true })
         do {
             _ = try await provider.createFile(accountId: "account", path: "vault.kdbx", data: bytes, creationID: "generated_A", progress: { _ in })
             XCTFail("Lost response must remain uncertain for caller")
@@ -106,7 +106,7 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
 
     func test409WithDifferentBytesIsConflictAndNeverMutatesAgain() async throws {
         let transport = GoogleDriveTestTransport([.response(409, Data()), .response(200, Data("other ciphertext".utf8))])
-        let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, creationEnabled: true)
+        let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, creationEnabled: true, isAccountConnected: { _ in true })
         do {
             _ = try await provider.createFile(accountId: "account", path: "vault.kdbx", data: bytes, creationID: "generated_A", progress: { _ in })
             XCTFail("Unrelated content cannot confirm delivery")
@@ -121,7 +121,7 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
                 .response(200, bytes),
                 .response(200, try json(resource(bytes: matches ? bytes : Data("new revision".utf8))))
             ])
-            let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport)
+            let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, isAccountConnected: { _ in true })
             let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             defer { try? FileManager.default.removeItem(at: url) }
             let metadata = try await provider.download(accountId: "account", fileId: "file_A", to: url, progress: { _ in })
@@ -136,12 +136,60 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
             var item = resource()
             item.removeValue(forKey: omitted)
             let transport = GoogleDriveTestTransport([.response(200, try json(item))])
-            let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport)
+            let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, isAccountConnected: { _ in true })
             do {
                 _ = try await provider.getMetadata(accountId: "account", fileId: "file_A")
                 XCTFail("Unknown metadata must not be invented")
             } catch { XCTAssertEqual(error as? CloudProviderError, .serviceUnavailable) }
         }
+    }
+
+    @MainActor
+    func testAuthenticateAndPickerRegisterAccountAndSignOutRemovesIt() async throws {
+        for usePicker in [false, true] {
+            let account = CloudAccount(id: "account-A", displayName: "Test Account", provider: "googledrive")
+            let grant = GoogleDriveGrant(account: account, pickedFileIDs: ["file_A"])
+            let accounts = GoogleDriveTestAccountStorage()
+            let transport = GoogleDriveTestTransport([.response(200, try json(resource()))])
+            let provider = GoogleDriveCloudProvider(
+                authorization: GoogleDriveTestAuthorization(grant: grant), transport: transport,
+                upsertAccount: { accounts.upsert($0) }, removeAccount: { accounts.remove($0) },
+                isAccountConnected: { accounts.contains($0) }
+            )
+            XCTAssertFalse(provider.isAuthenticated(accountId: account.id))
+            if usePicker {
+                let selected = try await provider.selectFiles(from: ASPresentationAnchor(), expectedAccountID: account.id)
+                XCTAssertEqual(selected.map(\.account), [account])
+            } else {
+                let authenticated = try await provider.authenticate(from: ASPresentationAnchor())
+                XCTAssertEqual(authenticated, account)
+            }
+            XCTAssertTrue(accounts.contains(account.id))
+            XCTAssertTrue(provider.isAuthenticated(accountId: account.id))
+            provider.signOut(accountId: account.id)
+            XCTAssertFalse(accounts.contains(account.id))
+            XCTAssertFalse(provider.isAuthenticated(accountId: account.id))
+            do {
+                _ = try await provider.getMetadata(accountId: account.id, fileId: "file_A")
+                XCTFail("Disconnected account must fence even retained Keychain state")
+            } catch { XCTAssertEqual(error as? CloudProviderError, .notAuthenticated) }
+        }
+    }
+
+    @MainActor
+    func testAccountMismatchDoesNotRegisterSelectedAccount() async throws {
+        let account = CloudAccount(id: "other-account", displayName: "Other", provider: "googledrive")
+        let accounts = GoogleDriveTestAccountStorage()
+        let provider = GoogleDriveCloudProvider(
+            authorization: GoogleDriveTestAuthorization(grant: GoogleDriveGrant(account: account, pickedFileIDs: ["file_A"])),
+            transport: GoogleDriveTestTransport([]), upsertAccount: { accounts.upsert($0) },
+            removeAccount: { accounts.remove($0) }, isAccountConnected: { accounts.contains($0) }
+        )
+        do {
+            _ = try await provider.selectFiles(from: ASPresentationAnchor(), expectedAccountID: "known-account")
+            XCTFail("Account identity must not rebind")
+        } catch { XCTAssertEqual(error as? CloudProviderError, .permissionDenied) }
+        XCTAssertFalse(accounts.contains(account.id))
     }
 
     func testErrorReasonsMapWithoutUsingServerMessage() throws {
@@ -159,8 +207,14 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
 }
 
 private final class GoogleDriveTestAuthorization: GoogleDriveAuthorizing {
+    let grant: GoogleDriveGrant?
+    init(grant: GoogleDriveGrant? = nil) { self.grant = grant }
     @MainActor var isConfigured: Bool { true }
-    @MainActor func authorize(from anchor: ASPresentationAnchor, expectedAccountID: String?) async throws -> GoogleDriveGrant { throw CloudProviderError.authenticationCancelled }
+    @MainActor func authorize(from anchor: ASPresentationAnchor, expectedAccountID: String?) async throws -> GoogleDriveGrant {
+        guard let grant else { throw CloudProviderError.authenticationCancelled }
+        try GoogleDriveAuthorization.checkAccount(grant.account.id, expected: expectedAccountID)
+        return grant
+    }
     @MainActor func accessToken(accountID: String) async throws -> String { "test-token" }
     @MainActor func cancel() {}
     func contains(accountID: String) -> Bool { true }
@@ -181,4 +235,12 @@ private actor GoogleDriveTestTransport: GoogleDriveTransport {
         case .failure(let code): throw URLError(code)
         }
     }
+}
+
+private final class GoogleDriveTestAccountStorage: @unchecked Sendable {
+    private let lock = NSLock()
+    private var accounts: [String: CloudAccount] = [:]
+    func upsert(_ account: CloudAccount) { lock.lock(); defer { lock.unlock() }; accounts[account.id] = account }
+    func remove(_ account: String) { lock.lock(); defer { lock.unlock() }; accounts[account] = nil }
+    func contains(_ account: String) -> Bool { lock.lock(); defer { lock.unlock() }; return accounts[account] != nil }
 }

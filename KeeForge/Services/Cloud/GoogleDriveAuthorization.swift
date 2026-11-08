@@ -8,6 +8,9 @@ final class GoogleDriveCredentialStore: @unchecked Sendable {
     struct Snapshot { let data: Data?; let generation: UInt64 }
     private let lock = NSLock()
     private var generations: [String: UInt64] = [:]
+    private var signedOutAccounts = Set<String>()
+    private var authorizationEpoch: UInt64 = 0
+    private static let tombstone = Data("KeeForge.GoogleDrive.signed-out.v1".utf8)
     private let read: @Sendable (String) -> Data?
     private let write: @Sendable (Data, String) -> Bool
     private let delete: @Sendable (String) -> Bool
@@ -21,37 +24,74 @@ final class GoogleDriveCredentialStore: @unchecked Sendable {
     func snapshot(_ accountID: String) -> Snapshot {
         lock.lock()
         defer { lock.unlock() }
-        return Snapshot(data: read(accountID), generation: generations[accountID, default: 0])
+        let data = signedOutAccounts.contains(accountID) ? nil : read(accountID)
+        return Snapshot(data: data == Self.tombstone ? nil : data, generation: generations[accountID, default: 0])
     }
 
-    func save(_ data: Data, accountID: String, generation: UInt64) -> Bool {
+    var authorizationGeneration: UInt64 {
         lock.lock()
         defer { lock.unlock() }
-        guard generations[accountID, default: 0] == generation else { return false }
-        return write(data, accountID)
+        return authorizationEpoch
     }
 
-    func remove(_ accountID: String) {
+    func save(_ data: Data, accountID: String, generation: UInt64, authorizationGeneration: UInt64? = nil) -> Bool {
         lock.lock()
         defer { lock.unlock() }
+        guard generations[accountID, default: 0] == generation,
+              authorizationGeneration == nil || authorizationGeneration == authorizationEpoch else { return false }
+        guard write(data, accountID) else { return false }
         generations[accountID, default: 0] &+= 1
-        _ = delete(accountID)
+        signedOutAccounts.remove(accountID)
+        return true
+    }
+
+    @discardableResult
+    func remove(_ accountID: String, ifGeneration: UInt64? = nil) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if let ifGeneration, generations[accountID, default: 0] != ifGeneration { return false }
+        generations[accountID, default: 0] &+= 1
+        authorizationEpoch &+= 1
+        signedOutAccounts.insert(accountID)
+        if delete(accountID) { return true }
+        // A tombstone in the same Keychain row survives relaunch if deletion is refused.
+        return write(Self.tombstone, accountID)
     }
 }
+
+struct GoogleDriveRefreshedCredential: Sendable {
+    let accessToken: String
+    let archive: Data
+}
+
+struct GoogleDriveInteractiveCredential: Sendable {
+    let accessToken: String
+    let archive: Data
+    let pickedFileIDs: [String]
+}
+
+typealias GoogleDriveInteractiveAuthorization = @MainActor @Sendable (ASPresentationAnchor, GoogleDriveConfiguration) async throws -> GoogleDriveInteractiveCredential
+
+typealias GoogleDriveCredentialRefresh = @MainActor @Sendable (Data, GoogleDriveConfiguration) async throws -> GoogleDriveRefreshedCredential
 
 final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
     private let configuration: GoogleDriveConfiguration?
     private let credentials: GoogleDriveCredentialStore
     private let transport: any GoogleDriveTransport
+    private let refresh: GoogleDriveCredentialRefresh
+    private let interactiveAuthorization: GoogleDriveInteractiveAuthorization?
+    @MainActor private var refreshes: [String: (id: UUID, generation: UInt64, task: Task<String, Error>)] = [:]
     @MainActor private var attempt: UUID?
     #if canImport(AppAuthCore)
     @MainActor private var pendingSession: (any OIDExternalUserAgentSession)?
     #endif
 
-    init(configuration: GoogleDriveConfiguration? = .load(), credentials: GoogleDriveCredentialStore = GoogleDriveCredentialStore(), transport: any GoogleDriveTransport = GoogleDriveURLSessionTransport()) {
+    init(configuration: GoogleDriveConfiguration? = .load(), credentials: GoogleDriveCredentialStore = GoogleDriveCredentialStore(), transport: any GoogleDriveTransport = GoogleDriveURLSessionTransport(), refresh: @escaping GoogleDriveCredentialRefresh = GoogleDriveAuthorization.refreshCredential, interactiveAuthorization: GoogleDriveInteractiveAuthorization? = nil) {
         self.configuration = configuration
         self.credentials = credentials
         self.transport = transport
+        self.refresh = refresh
+        self.interactiveAuthorization = interactiveAuthorization
     }
 
     @MainActor var isConfigured: Bool {
@@ -88,37 +128,26 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
         try Task.checkCancellation()
         let id = UUID()
         let expectedGeneration = expectedAccountID.map { credentials.snapshot($0).generation }
+        let authorizationGeneration = credentials.authorizationGeneration
         attempt = id
         defer {
             if attempt == id { attempt = nil; pendingSession = nil }
         }
         return try await withTaskCancellationHandler {
-            let request = try Self.authorizationRequest(configuration: configuration)
-            guard let state = request.state, !state.isEmpty else { throw CloudProviderError.invalidConfiguration }
-            let browser = GoogleDriveBrowser(anchor: anchor, redirectURL: configuration.redirectURL, state: state)
-            let authState: OIDAuthState = try await withCheckedThrowingContinuation { continuation in
-                pendingSession = OIDAuthState.authState(byPresenting: request, externalUserAgent: browser) { authState, error in
-                    MainActor.assumeIsolated {
-                        guard self.attempt == id else {
-                            continuation.resume(throwing: CloudProviderError.authenticationCancelled)
-                            return
-                        }
-                        self.pendingSession = nil
-                        if let authState { continuation.resume(returning: authState) }
-                        else { continuation.resume(throwing: Self.oauthError(error)) }
-                    }
-                }
+            let credential: GoogleDriveInteractiveCredential
+            if let interactiveAuthorization {
+                credential = try await interactiveAuthorization(anchor, configuration)
+            } else {
+                credential = try await interactiveCredential(from: anchor, configuration: configuration, attemptID: id)
             }
             guard attempt == id else { throw CloudProviderError.authenticationCancelled }
-            let token = try await Self.freshToken(authState)
-            let account = try await account(accessToken: token)
+            let account = try await account(accessToken: credential.accessToken)
             try Self.checkAccount(account.id, expected: expectedAccountID)
             try Task.checkCancellation()
             guard attempt == id else { throw CloudProviderError.authenticationCancelled }
             let generation = expectedGeneration ?? credentials.snapshot(account.id).generation
-            let archived = try NSKeyedArchiver.archivedData(withRootObject: authState, requiringSecureCoding: true)
-            guard credentials.save(archived, accountID: account.id, generation: generation) else { throw CloudProviderError.notAuthenticated }
-            return GoogleDriveGrant(account: account, pickedFileIDs: browser.pickedFileIDs)
+            guard credentials.save(credential.archive, accountID: account.id, generation: generation, authorizationGeneration: authorizationGeneration) else { throw CloudProviderError.notAuthenticated }
+            return GoogleDriveGrant(account: account, pickedFileIDs: credential.pickedFileIDs)
         } onCancel: {
             Task { @MainActor in
                 if self.attempt == id { self.cancel() }
@@ -135,28 +164,53 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
 
     @MainActor
     func accessToken(accountID: String) async throws -> String {
-        #if canImport(AppAuthCore)
-        guard let configuration else { throw CloudProviderError.invalidConfiguration }
+        guard isConfigured, let configuration else { throw CloudProviderError.invalidConfiguration }
+        try Task.checkCancellation()
         let snapshot = credentials.snapshot(accountID)
-        guard let data = snapshot.data,
-              let authState = try NSKeyedUnarchiver.unarchivedObject(ofClass: OIDAuthState.self, from: data),
+        guard let data = snapshot.data else { throw CloudProviderError.notAuthenticated }
+        let task: Task<String, Error>
+        if let existing = refreshes[accountID], existing.generation == snapshot.generation {
+            task = existing.task
+        } else {
+            let id = UUID()
+            task = Task { @MainActor in
+                defer {
+                    if self.refreshes[accountID]?.id == id { self.refreshes[accountID] = nil }
+                }
+                do {
+                    let refreshed = try await self.refresh(data, configuration)
+                    guard self.credentials.save(refreshed.archive, accountID: accountID, generation: snapshot.generation) else {
+                        throw CloudProviderError.notAuthenticated
+                    }
+                    return refreshed.accessToken
+                } catch {
+                    if Self.isInvalidGrant(error) {
+                        self.credentials.remove(accountID, ifGeneration: snapshot.generation)
+                    }
+                    throw Self.oauthError(error)
+                }
+            }
+            refreshes[accountID] = (id, snapshot.generation, task)
+        }
+        // One cancelled waiter must not cancel the refresh shared by other requests.
+        let token = try await task.value
+        try Task.checkCancellation()
+        let current = credentials.snapshot(accountID)
+        guard current.data != nil, current.generation == snapshot.generation &+ 1 else { throw CloudProviderError.notAuthenticated }
+        return token
+    }
+
+    @MainActor
+    static func refreshCredential(_ archive: Data, configuration: GoogleDriveConfiguration) async throws -> GoogleDriveRefreshedCredential {
+        #if canImport(AppAuthCore)
+        guard let authState = try NSKeyedUnarchiver.unarchivedObject(ofClass: OIDAuthState.self, from: archive),
               authState.lastAuthorizationResponse.request.clientID == configuration.clientID,
               authState.lastAuthorizationResponse.request.redirectURL == configuration.redirectURL else {
             throw CloudProviderError.notAuthenticated
         }
-        do {
-            let token = try await Self.freshToken(authState)
-            try Task.checkCancellation()
-            let data = try NSKeyedArchiver.archivedData(withRootObject: authState, requiringSecureCoding: true)
-            guard credentials.save(data, accountID: accountID, generation: snapshot.generation) else { throw CloudProviderError.notAuthenticated }
-            return token
-        } catch {
-            if (error as? CloudProviderError) == .notAuthenticated {
-                // A refresh must never resurrect an account signed out during its network request.
-                if credentials.snapshot(accountID).generation == snapshot.generation { credentials.remove(accountID) }
-            }
-            throw error
-        }
+        let token = try await freshToken(authState)
+        let data = try NSKeyedArchiver.archivedData(withRootObject: authState, requiringSecureCoding: true)
+        return GoogleDriveRefreshedCredential(accessToken: token, archive: data)
         #else
         throw CloudProviderError.invalidConfiguration
         #endif
@@ -195,23 +249,83 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
         try await withCheckedThrowingContinuation { continuation in
             state.performAction { token, _, error in
                 if let token, !token.isEmpty { continuation.resume(returning: token) }
-                else { continuation.resume(throwing: oauthError(error)) }
+                else { continuation.resume(throwing: error ?? CloudProviderError.serviceUnavailable) }
             }
         }
     }
 
-    private static func oauthError(_ error: Error?) -> Error {
-        if let error = error as? CloudProviderError { return error }
-        if let error, CloudProviderError.isLikelyOffline(error) { return CloudProviderError.networkUnavailable }
-        let nsError = error as NSError?
-        if nsError?.domain == ASWebAuthenticationSessionError.errorDomain,
-           nsError?.code == ASWebAuthenticationSessionError.canceledLogin.rawValue { return CloudProviderError.authenticationCancelled }
-        if nsError?.domain == OIDOAuthTokenErrorDomain { return CloudProviderError.notAuthenticated }
-        if nsError?.domain == OIDGeneralErrorDomain,
-           nsError?.code == OIDErrorCode.userCanceledAuthorizationFlow.rawValue { return CloudProviderError.authenticationCancelled }
-        return CloudProviderError.notAuthenticated
+    @MainActor
+    private func interactiveCredential(from anchor: ASPresentationAnchor, configuration: GoogleDriveConfiguration, attemptID: UUID) async throws -> GoogleDriveInteractiveCredential {
+        let request = try Self.authorizationRequest(configuration: configuration)
+        guard let state = request.state, !state.isEmpty else { throw CloudProviderError.invalidConfiguration }
+        let browser = GoogleDriveBrowser(anchor: anchor, redirectURL: configuration.redirectURL, state: state)
+        let authState: OIDAuthState = try await withCheckedThrowingContinuation { continuation in
+            pendingSession = OIDAuthState.authState(byPresenting: request, externalUserAgent: browser) { authState, error in
+                MainActor.assumeIsolated {
+                    guard self.attempt == attemptID else {
+                        continuation.resume(throwing: CloudProviderError.authenticationCancelled)
+                        return
+                    }
+                    self.pendingSession = nil
+                    if let authState { continuation.resume(returning: authState) }
+                    else { continuation.resume(throwing: Self.oauthError(error)) }
+                }
+            }
+        }
+        guard attempt == attemptID else { throw CloudProviderError.authenticationCancelled }
+        let token: String
+        do { token = try await Self.freshToken(authState) }
+        catch { throw Self.oauthError(error) }
+        return GoogleDriveInteractiveCredential(accessToken: token, archive: try NSKeyedArchiver.archivedData(withRootObject: authState, requiringSecureCoding: true), pickedFileIDs: browser.pickedFileIDs)
     }
+
     #endif
+    static func isInvalidGrant(_ error: Error) -> Bool {
+        #if canImport(AppAuthCore)
+        return errorChain(error).contains { $0.domain == OIDOAuthTokenErrorDomain && $0.code == OIDErrorCodeOAuthToken.invalidGrant.rawValue }
+        #else
+        return false
+        #endif
+    }
+
+    private static func errorChain(_ error: Error) -> [NSError] {
+        var chain: [NSError] = []
+        var next: NSError? = error as NSError
+        while let current = next, chain.count < 12 {
+            chain.append(current)
+            next = current.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        return chain
+    }
+
+    static func oauthError(_ error: Error?) -> Error {
+        guard let error else { return CloudProviderError.serviceUnavailable }
+        if error is CancellationError { return CancellationError() }
+        if let error = error as? CloudProviderError { return error }
+        let chain = errorChain(error)
+        if isInvalidGrant(error) { return CloudProviderError.notAuthenticated }
+        for current in chain {
+            if CloudProviderError.isLikelyOffline(current) { return CloudProviderError.networkUnavailable }
+            if current.domain == NSURLErrorDomain && current.code == NSURLErrorCancelled { return CancellationError() }
+            if current.domain == ASWebAuthenticationSessionError.errorDomain && current.code == ASWebAuthenticationSessionError.canceledLogin.rawValue { return CloudProviderError.authenticationCancelled }
+            #if canImport(AppAuthCore)
+            if current.domain == OIDGeneralErrorDomain && [OIDErrorCode.userCanceledAuthorizationFlow.rawValue, OIDErrorCode.programCanceledAuthorizationFlow.rawValue].contains(current.code) { return CloudProviderError.authenticationCancelled }
+            if current.domain == OIDHTTPErrorDomain {
+                if current.code == 429 { return CloudProviderError.rateLimited }
+                if current.code == 401 { return CloudProviderError.notAuthenticated }
+                if current.code == 403 { return CloudProviderError.permissionDenied }
+                if current.code >= 500 { return CloudProviderError.serviceUnavailable }
+            }
+            if current.domain == OIDOAuthTokenErrorDomain { return CloudProviderError.invalidConfiguration }
+            #endif
+        }
+        #if canImport(AppAuthCore)
+        if chain.count == 1, chain.first?.domain == OIDGeneralErrorDomain,
+           chain.first?.code == OIDErrorCode.tokenRefreshError.rawValue { return CloudProviderError.notAuthenticated }
+        #endif
+        return CloudProviderError.serviceUnavailable
+    }
+
 }
 
 #if canImport(AppAuthCore)

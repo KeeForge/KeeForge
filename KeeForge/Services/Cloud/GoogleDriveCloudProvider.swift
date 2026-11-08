@@ -24,16 +24,26 @@ final class GoogleDriveCloudProvider: CloudProvider {
     private let authorization: any GoogleDriveAuthorizing
     private let transport: any GoogleDriveTransport
     private let creationEnabled: Bool
+    private let accountLock = NSLock()
+    private let upsertAccount: @Sendable (CloudAccount) -> Void
+    private let removeAccount: @Sendable (String) -> Void
+    private let isAccountConnected: @Sendable (String) -> Bool
     private static let fields = "id,name,mimeType,modifiedTime,size,version,headRevisionId,sha256Checksum,trashed"
 
     init(
         authorization: any GoogleDriveAuthorizing = GoogleDriveAuthorization(),
         transport: any GoogleDriveTransport = GoogleDriveURLSessionTransport(),
-        creationEnabled: Bool = false
+        creationEnabled: Bool = false,
+        upsertAccount: @escaping @Sendable (CloudAccount) -> Void = { CloudAccountStore.upsert($0) },
+        removeAccount: @escaping @Sendable (String) -> Void = { CloudAccountStore.remove(provider: "googledrive", accountId: $0) },
+        isAccountConnected: @escaping @Sendable (String) -> Bool = { CloudAccountStore.isConnected(provider: "googledrive", accountId: $0) }
     ) {
         self.authorization = authorization
         self.transport = transport
         self.creationEnabled = creationEnabled
+        self.upsertAccount = upsertAccount
+        self.removeAccount = removeAccount
+        self.isAccountConnected = isAccountConnected
     }
 
     @MainActor var isConfigurationAvailable: Bool { authorization.isConfigured }
@@ -42,12 +52,17 @@ final class GoogleDriveCloudProvider: CloudProvider {
 
     @MainActor
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
-        try await authorization.authorize(from: anchor, expectedAccountID: nil).account
+        let grant = try await authorization.authorize(from: anchor, expectedAccountID: nil)
+        try Task.checkCancellation()
+        try register(grant.account)
+        return grant.account
     }
 
     @MainActor
     func selectFiles(from anchor: ASPresentationAnchor, expectedAccountID: String?) async throws -> [CloudDatabaseSelection] {
         let grant = try await authorization.authorize(from: anchor, expectedAccountID: expectedAccountID)
+        try Task.checkCancellation()
+        try register(grant.account)
         var selections: [CloudDatabaseSelection] = []
         for fileID in grant.pickedFileIDs {
             let item = try await resource(accountID: grant.account.id, fileID: fileID)
@@ -58,8 +73,20 @@ final class GoogleDriveCloudProvider: CloudProvider {
     }
 
     @MainActor func cancelPendingAuthentication() { authorization.cancel() }
-    func isAuthenticated(accountId: String) -> Bool { authorization.contains(accountID: accountId) }
-    func signOut(accountId: String) { authorization.remove(accountID: accountId) }
+    func isAuthenticated(accountId: String) -> Bool { isAccountConnected(accountId) && authorization.contains(accountID: accountId) }
+    func signOut(accountId: String) {
+        accountLock.lock()
+        defer { accountLock.unlock() }
+        authorization.remove(accountID: accountId)
+        removeAccount(accountId)
+    }
+
+    private func register(_ account: CloudAccount) throws {
+        accountLock.lock()
+        defer { accountLock.unlock() }
+        guard authorization.contains(accountID: account.id) else { throw CloudProviderError.notAuthenticated }
+        upsertAccount(account)
+    }
     func writeGuarantee(expectedRev: String?, byteCount: Int) -> CloudWriteGuarantee { .disabled }
 
     func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] {
@@ -180,6 +207,7 @@ final class GoogleDriveCloudProvider: CloudProvider {
     }
 
     private func request(accountID: String, path: String, query: [URLQueryItem], method: String = "GET", body: Data? = nil, contentType: String? = nil, upload: Bool = false) async throws -> Data {
+        guard isAuthenticated(accountId: accountID) else { throw CloudProviderError.notAuthenticated }
         let token = try await authorization.accessToken(accountID: accountID)
         try Task.checkCancellation()
         guard var components = URLComponents(string: upload ? "https://www.googleapis.com/upload/drive/v3/\(path)" : "https://www.googleapis.com/drive/v3/\(path)") else { throw CloudProviderError.invalidConfiguration }
