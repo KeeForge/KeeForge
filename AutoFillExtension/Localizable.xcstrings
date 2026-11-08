@@ -6840,6 +6840,58 @@
         }
       }
     },
+    "The database file was replaced, but KeeForge could not confirm that the change will survive a system failure. The file already contains this change. If you changed the master key, use the new key. Keep a backup before closing the database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdatei wurde ersetzt, aber KeeForge konnte nicht bestätigen, dass die Änderung einen Systemausfall übersteht. Die Datei enthält diese Änderung bereits. Wenn du den Hauptschlüssel geändert hast, verwende den neuen Schlüssel. Bewahre eine Sicherungskopie auf, bevor du die Datenbank schließt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo de la base de datos se reemplazó, pero KeeForge no pudo confirmar que el cambio se conservará si falla el sistema. El archivo ya contiene este cambio. Si cambiaste la clave maestra, usa la nueva clave. Conserva una copia de seguridad antes de cerrar la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de la base de données a été remplacé, mais KeeForge n’a pas pu confirmer que la modification sera conservée en cas de défaillance du système. Le fichier contient déjà cette modification. Si vous avez changé la clé principale, utilisez la nouvelle clé. Conservez une sauvegarde avant de fermer la base de données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il file del database è stato sostituito, ma KeeForge non ha potuto confermare che la modifica verrà conservata in caso di errore del sistema. Il file contiene già questa modifica. Se hai cambiato la chiave principale, usa la nuova chiave. Conserva una copia di backup prima di chiudere il database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースファイルは置き換えられましたが、システム障害が発生した場合に変更が保持されることをKeeForgeは確認できませんでした。ファイルにはすでにこの変更が含まれています。マスターキーを変更した場合は、新しいキーを使用してください。データベースを閉じる前にバックアップを確保してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл базы данных заменён, но KeeForge не удалось подтвердить, что изменение сохранится при сбое системы. Файл уже содержит это изменение. Если вы изменили мастер-ключ, используйте новый ключ. Сохраните резервную копию перед закрытием базы данных."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库文件已替换，但 KeeForge 无法确认此更改在系统故障后仍会保留。文件已包含此更改。如果你更改了主密钥，请使用新密钥。关闭数据库前请保留备份。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫檔案已替換，但 KeeForge 無法確認此變更在系統故障後仍會保留。檔案已包含此變更。如果你變更了主金鑰，請使用新金鑰。關閉資料庫前請保留備份。"
+          }
+        }
+      }
+    },
     "The database is missing key derivation metadata." : {
       "localizations" : {
         "de" : {
