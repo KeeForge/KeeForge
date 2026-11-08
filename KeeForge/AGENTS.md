@@ -21,7 +21,7 @@ Exclusions in `../project.yml`:
 
 What each platform offers differs from what compiles:
 
-- Cloud sync: iOS offers Dropbox, OneDrive, WebDAV, and FTP. The Mac app offers WebDAV and FTP only (`CloudProviderKind.isAvailableOnCurrentPlatform`). Google Drive sources and AppAuthCore compile into both apps, but Drive stays hidden and its production writes stay disabled pending OAuth/Picker validation, durable creation integration and a safe replacement policy.
+- Cloud sync: iOS offers Dropbox, OneDrive, WebDAV, and FTP. The Mac app offers WebDAV and FTP only (`CloudProviderKind.isAvailableOnCurrentPlatform`). Google Drive sources and AppAuthCore compile into both apps, but Drive stays hidden pending real OAuth configuration/Picker validation and a safe replacement policy. Durable shared creation and recovery are implemented; replacement remains disabled.
 - Mac AutoFill fills passwords, passkeys, and one-time codes and saves a passkey registration. The system offers no password-save, password-generation, or picker-created entry flow there. Details in [../AutoFillExtension/AGENTS.md](../AutoFillExtension/AGENTS.md).
 
 ## Workflows

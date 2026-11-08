@@ -45,7 +45,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `AppRoutingCoordinator` applies an Open/Close destination only after the source session locks; Keep Editing or a replaced source drops it.
 - Custom-icon management validates the live unlocked, writable session and refuses edits during saving or a conflict. Reads include the draft so a failed save retains visible names/deletions for retry.
 
-- Cloud creation pins one prepared UUID and exact ciphertext per unchanged form/destination action. Changed input is a new preparation; recovery of an earlier action returns a reference only. Completion must preserve newer form input and never unlock an older receipt with freshly prepared keys.
+- Cloud creation pins one prepared UUID and exact ciphertext per unchanged form/destination action. Changed input is a new preparation; recovery of an earlier action returns a reference only. The production recovery list includes every active creation intent, including paused conflict copies after restart. Completion must preserve newer form input and never unlock an older receipt with freshly prepared keys.
 - Native file selection revalidates the captured provider/account/request and current connection both after authorization and when a granted row is consumed. Only the session owning an active authorization may cancel it; closing an idle window cannot cancel another window's OAuth.
 - Conflict-copy requests retain a stable explicit action ID/ciphertext/name through retry. Completion is gated by lock cycle, draft revision and invocation identity; clearing an old invocation cannot clear or block a new session's action.
 

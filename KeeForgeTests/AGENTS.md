@@ -46,7 +46,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 - Keychain-dependent cases (`CloudTokenStore`, `KeychainService`, WebDAV and FTP credentials) `XCTSkip` when the host cannot write the Keychain. A skip is not coverage.
 - Suites that touch the AutoFill identity store follow the reset rule in [Support/AGENTS.md](Support/AGENTS.md).
 
-- Creation and native grants: `CloudFileCreationTests` covers real journal/adapter/registration boundaries; `CloudNativeSelectionWorkflowTests` covers explicit grant ownership and two-window cancellation; `CloudCreationRecoveryWorkflowTests` covers reference-only resume/cancel and newer form data. App/runtime execution of the completion slice is deferred to the documented acceptance stage; compiling these cases is not a runtime pass.
+- Creation and native grants: `CloudFileCreationTests` covers real journal/adapter/registration boundaries; `CloudNativeSelectionWorkflowTests` covers explicit grant ownership and two-window cancellation; `CloudCreationRecoveryWorkflowTests` covers reference-only resume/cancel, newer form data, and a paused conflict copy reloaded through the production queue/list with exact reference/cache ownership. App/runtime execution of the completion slice is deferred to the documented acceptance stage; compiling these cases is not a runtime pass.
 
 ### KDBX layering
 
