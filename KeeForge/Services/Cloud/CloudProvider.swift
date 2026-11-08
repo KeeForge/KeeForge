@@ -43,6 +43,7 @@ protocol CloudProvider: AnyObject, Sendable {
     /// size cannot be held to a fixed deadline; see
     /// `CloudSyncCoordinator.openProbeDeadline`.
     var metadataProbeTransfersContent: Bool { get }
+    func writeGuarantee(expectedRev: String?, byteCount: Int) -> CloudWriteGuarantee
     func upload(
         accountId: String,
         fileId: String,
@@ -56,6 +57,14 @@ protocol CloudProvider: AnyObject, Sendable {
         data: Data,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudCreatedFile
+    func prepareFileCreationID(accountId: String) async throws -> String?
+    func createFile(
+        accountId: String,
+        path: String,
+        data: Data,
+        creationID: String?,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudCreatedFile
 }
 
 extension CloudProvider {
@@ -63,6 +72,22 @@ extension CloudProvider {
     func cancelPendingAuthentication() {}
 
     var metadataProbeTransfersContent: Bool { false }
+
+    func writeGuarantee(expectedRev: String?, byteCount: Int) -> CloudWriteGuarantee {
+        .preflightOnly
+    }
+
+    func prepareFileCreationID(accountId: String) async throws -> String? { nil }
+
+    func createFile(
+        accountId: String,
+        path: String,
+        data: Data,
+        creationID: String?,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudCreatedFile {
+        try await createFile(accountId: accountId, path: path, data: data, progress: progress)
+    }
 
     func createFile(
         accountId: String,

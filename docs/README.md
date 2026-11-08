@@ -6,6 +6,8 @@ Archived files and folders are prefixed with the date the doc was written. Do no
 
 ## Living Documents — Required Maintenance
 
+[cloud-sync-contract.md](cloud-sync-contract.md) is the active implementation contract for shared offline cloud saves and the Google Drive adapter. Keep it current during this work.
+
 **[threat-model.md](threat-model.md) is a living document and must be kept up to date with major product or architecture changes.** Review it as part of every major change and update it in the same change whenever the architecture, data flows, protected assets, trust boundaries, security controls, assumptions, or limitations change. This includes changes to unlock factors, storage and sync, AutoFill capabilities, network integrations, plaintext disclosure, platform permissions, and release/update distribution. Keep its source references accurate. It remains maintained after features ship and is exempt from the archive rules below.
 
 The threat model and the `i18n/` folder have no date prefix. The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo); code changes should not contradict it.
