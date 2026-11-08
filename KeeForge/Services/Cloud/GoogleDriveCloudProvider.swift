@@ -5,10 +5,18 @@ import Foundation
 protocol GoogleDriveAuthorizing: Sendable {
     @MainActor var isConfigured: Bool { get }
     @MainActor func authorize(from anchor: ASPresentationAnchor, expectedAccountID: String?) async throws -> GoogleDriveGrant
+    @MainActor func authorizeAccount(from anchor: ASPresentationAnchor, expectedAccountID: String?) async throws -> CloudAccount
     @MainActor func accessToken(accountID: String) async throws -> String
     @MainActor func cancel()
     func contains(accountID: String) -> Bool
     func remove(accountID: String)
+}
+
+extension GoogleDriveAuthorizing {
+    @MainActor
+    func authorizeAccount(from anchor: ASPresentationAnchor, expectedAccountID: String?) async throws -> CloudAccount {
+        try await authorize(from: anchor, expectedAccountID: expectedAccountID).account
+    }
 }
 
 struct GoogleDriveGrant: Sendable {
@@ -16,7 +24,7 @@ struct GoogleDriveGrant: Sendable {
     let pickedFileIDs: [String]
 }
 
-final class GoogleDriveCloudProvider: CloudProvider {
+final class GoogleDriveCloudProvider: CloudFileSelecting {
     static let shared = GoogleDriveCloudProvider()
     let id = "googledrive"
     let displayName = "Google Drive"

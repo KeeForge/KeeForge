@@ -70,11 +70,23 @@ protocol CloudProvider: AnyObject, Sendable {
     func prepareFileCreationID(accountId: String) async throws -> String?
     func createFile(
         accountId: String,
+        target: CloudFileCreationTarget,
+        data: Data,
+        creationID: String?,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudCreatedFile
+    func createFile(
+        accountId: String,
         path: String,
         data: Data,
         creationID: String?,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudCreatedFile
+}
+
+protocol CloudFileSelecting: CloudProvider {
+    @MainActor
+    func selectFiles(from anchor: ASPresentationAnchor, expectedAccountID: String?) async throws -> [CloudDatabaseSelection]
 }
 
 extension CloudProvider {
@@ -88,6 +100,17 @@ extension CloudProvider {
     }
 
     func prepareFileCreationID(accountId: String) async throws -> String? { nil }
+
+    func createFile(
+        accountId: String,
+        target: CloudFileCreationTarget,
+        data: Data,
+        creationID: String?,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudCreatedFile {
+        guard target.parentFileID == nil else { throw CloudProviderError.invalidConfiguration }
+        return try await createFile(accountId: accountId, path: target.path, data: data, creationID: creationID, progress: progress)
+    }
 
     func createFile(
         accountId: String,

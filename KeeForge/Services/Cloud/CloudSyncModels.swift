@@ -1,5 +1,15 @@
 import Foundation
 
+struct CloudFileCreationTarget: Codable, Equatable, Sendable {
+    let path: String
+    let parentFileID: String?
+
+    init(path: String, parentFileID: String? = nil) {
+        self.path = path
+        self.parentFileID = parentFileID
+    }
+}
+
 enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, Sendable {
     case dropbox = "dropbox"
     case oneDrive = "onedrive"
