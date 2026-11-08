@@ -11,6 +11,72 @@ final class CloudCreationRecoveryWorkflowTests: XCTestCase {
         DatabaseReference(id: id, filename: "Original.kdbx", isQuickLaunch: false, addedAt: .now)
     }
 
+    func testPausedConflictCopySurvivesRestartAndRecoversThroughProductionListAndQueue() async throws {
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires the isolated unit-test App Group") }
+        let operationID = UUID()
+        let ownerID = UUID()
+        let filename = "Vault conflict (2).kdbx"
+        let target = CloudFileCreationTarget(path: filename, parentFileID: "opaque-parent-id")
+        let bytes = Data("retained conflict-copy ciphertext".utf8)
+        let payloadURL = PendingUploadQueue.creationPayloadURL(ownerDatabaseID: ownerID, operationID: operationID)
+        defer {
+            DatabaseListStore.remove(id: operationID)
+            try? FileManager.default.removeItem(at: payloadURL.deletingLastPathComponent())
+        }
+        try PendingUploadQueue.Environment.live.createDirectory(payloadURL.deletingLastPathComponent())
+        try PendingUploadQueue.Environment.live.writeMarkerAtomically(bytes, payloadURL)
+        var template = reference(id: operationID)
+        template.filename = filename
+        var receipt = template
+        receipt.source = .cloud(CloudSyncMetadata(
+            provider: "googledrive", accountId: "original-permission-id", fileId: "generated-conflict-copy-id",
+            displayPath: filename, remoteContentHash: nil, remoteModifiedAt: nil, remoteRev: "opaque-revision",
+            lastSyncedAt: nil, lastSyncIssue: nil
+        ))
+        var intent = PendingUploadQueue.CreationIntent(
+            operationID: operationID, ownerDatabaseID: ownerID, provider: "googledrive",
+            accountID: "original-permission-id", target: target, payloadSHA512: KDBXCrypto.sha512(bytes),
+            payloadPath: try PendingUploadQueue.makeRelativeAppGroupPath(for: payloadURL),
+            referenceTemplate: template, isConflictCopy: true
+        )
+        intent.creationID = "generated-conflict-copy-id"
+        intent.phase = .confirmed
+        intent.receipt = receipt
+        try PendingUploadQueue.storeCreation(intent)
+
+        let firstSession = DatabaseCreationViewModel()
+        await firstSession.refreshPendingCreations()
+        let firstItem = try XCTUnwrap(firstSession.pendingCreations.first { $0.id == operationID })
+        await firstSession.cancelCreation(firstItem)
+        firstSession.cancelPendingCreation()
+
+        let persisted = try XCTUnwrap(PendingUploadQueue.listCreations(for: ownerID).first { $0.operationID == operationID })
+        XCTAssertTrue(persisted.isConflictCopy)
+        XCTAssertTrue(persisted.isPaused)
+        XCTAssertEqual(persisted.accountID, "original-permission-id")
+        XCTAssertEqual(persisted.target, target)
+        XCTAssertEqual(try Data(contentsOf: payloadURL), bytes)
+        let restarted = DatabaseCreationViewModel()
+        await restarted.refreshPendingCreations()
+        let visible = try XCTUnwrap(restarted.pendingCreations.first { $0.id == operationID })
+        XCTAssertTrue(visible.isPaused)
+        XCTAssertEqual(visible.filename, filename)
+        XCTAssertEqual(visible.destination, filename)
+
+        let resumed = await restarted.resumeCreation(visible)
+        let recovered = try XCTUnwrap(resumed)
+        XCTAssertEqual(recovered.id, operationID)
+        XCTAssertEqual(recovered.filename, filename)
+        XCTAssertEqual(recovered.cloudSyncMetadata?.accountId, "original-permission-id")
+        XCTAssertEqual(recovered.cloudSyncMetadata?.fileId, "generated-conflict-copy-id")
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == operationID }, recovered)
+        let cacheURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: recovered))
+        XCTAssertEqual(try Data(contentsOf: cacheURL), bytes)
+        XCTAssertFalse(restarted.pendingCreations.contains { $0.id == operationID })
+        XCTAssertTrue(try PendingUploadQueue.listCreations(for: ownerID).isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: payloadURL.path))
+    }
+
     func testResumeUsesPersistedOperationAndReturnsReferenceWithoutPreparingNewKeys() async throws {
         let pending = item()
         let original = reference(id: pending.id)

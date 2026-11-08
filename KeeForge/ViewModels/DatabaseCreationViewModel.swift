@@ -82,7 +82,7 @@ final class DatabaseCreationViewModel {
         static let live = RecoveryOperations(
             list: {
                 try await Task.detached(priority: .utility) {
-                    try PendingUploadQueue.listCreations().filter { !$0.isConflictCopy }.map {
+                    try PendingUploadQueue.listCreations().map {
                         CloudCreationRecoveryItem(id: $0.operationID, filename: $0.referenceTemplate.filename,
                             destination: $0.target.path, isPaused: $0.isPaused, issue: $0.lastIssue?.localizedDescription)
                     }
