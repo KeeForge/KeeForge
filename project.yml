@@ -502,6 +502,7 @@ targets:
     dependencies:
       - package: AppAuth
         product: AppAuthCore
+        link: false
       - target: KeeForge
       - package: KeeForgeTwofish
     sources:
@@ -584,6 +585,7 @@ targets:
     dependencies:
       - package: AppAuth
         product: AppAuthCore
+        link: false
       - target: KeeForgeMac
       - package: KeeForgeTwofish
     sources:
