@@ -262,6 +262,14 @@ final class DatabaseListViewModel {
     func discardConflictedPendingUploads(for reference: DatabaseReference) async {
         _ = await CloudSyncCoordinator.discardConflictedPendingUploads(for: reference)
         reload()
+        if PendingUploadQueue.listMarkers(for: reference.id).contains(where: { $0.marker.isConflicted }) {
+            pendingUploadAlert = PendingUploadAlert(
+                databaseId: reference.id,
+                kind: .message,
+                title: String(localized: "Pending Change Kept"),
+                message: String(localized: "The pending change could not be safely discarded and was kept. An earlier upload may still need to be resolved.")
+            )
+        }
     }
 
     func dismissPendingUploadAlert() {
@@ -427,7 +435,7 @@ final class DatabaseListViewModel {
                 databaseId: conflictedId,
                 kind: .conflict,
                 title: String(localized: "Pending Upload Conflict"),
-                message: String(localized: "A change saved through AutoFill couldn’t be uploaded because the copy of this database in the cloud changed since. Open the database to merge the change into it. You can also export a copy to merge it in another KeePass app, or discard the pending upload. KeeForge keeps a backup of the discarded change on this device.")
+                message: String(localized: "A saved change conflicts with the cloud copy. Open the database to merge the changes, or export a copy to merge in another KeePass app. Discarding keeps a backup; an upload whose outcome is unknown may remain pending.")
             )
             return
         }

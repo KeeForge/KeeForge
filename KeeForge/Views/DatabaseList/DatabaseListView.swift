@@ -560,6 +560,7 @@ struct DatabaseListView: View {
         ) { target in
             Button("Discard Upload", role: .destructive) {
                 Task {
+                    try? await Task.sleep(for: .milliseconds(500))
                     await viewModel.discardConflictedPendingUploads(for: target)
                     refreshDetailsReferenceIfNeeded(for: target.id)
                 }
@@ -569,7 +570,7 @@ struct DatabaseListView: View {
                 pendingUploadDiscardTarget = nil
             }
         } message: { target in
-            Text("The pending change for “\(target.displayName)” could not be uploaded because the copy in the cloud changed. KeeForge keeps a timestamped backup on this device before discarding it.")
+            Text("KeeForge keeps a backup before discarding the pending change for “\(target.displayName)”. If an earlier upload has an unknown outcome, the change stays pending until it can be safely resolved.")
         }
     }
 

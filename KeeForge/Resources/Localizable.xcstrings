@@ -4050,6 +4050,58 @@
         }
       }
     },
+    "A saved change conflicts with the cloud copy. Open the database to merge the changes, or export a copy to merge in another KeePass app. Discarding keeps a backup; an upload whose outcome is unknown may remain pending." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine gespeicherte Änderung steht im Konflikt mit der Cloud-Kopie. Öffne die Datenbank, um die Änderungen zusammenzuführen, oder exportiere eine Kopie für eine andere KeePass-App. Beim Verwerfen bleibt eine Sicherung erhalten; ein Upload mit unbekanntem Ergebnis kann weiterhin ausstehen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un cambio guardado entra en conflicto con la copia en la nube. Abre la base de datos para fusionar los cambios o exporta una copia para fusionarla en otra app KeePass. Al descartar se conserva una copia de seguridad; una carga cuyo resultado se desconoce puede seguir pendiente."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une modification enregistrée est en conflit avec la copie dans le cloud. Ouvrez la base pour fusionner les modifications ou exportez une copie pour la fusionner dans une autre app KeePass. L’abandon conserve une sauvegarde ; un envoi dont le résultat est inconnu peut rester en attente."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una modifica salvata è in conflitto con la copia nel cloud. Apri il database per unire le modifiche oppure esporta una copia da unire in un’altra app KeePass. L’eliminazione conserva un backup; un caricamento dall’esito sconosciuto può restare in sospeso."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存された変更がクラウドのコピーと競合しています。データベースを開いて変更を統合するか、コピーを書き出して別のKeePassアプリで統合してください。破棄してもバックアップは保持されます。結果が不明なアップロードは保留のままになる場合があります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранённое изменение конфликтует с облачной копией. Откройте базу для объединения изменений или экспортируйте копию для объединения в другом приложении KeePass. При отмене сохраняется резервная копия; отправка с неизвестным результатом может остаться в ожидании."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存的更改与云端副本冲突。请打开数据库以合并更改，或导出副本以在其他 KeePass 应用中合并。丢弃时会保留备份；结果未知的上传可能仍处于待处理状态。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已儲存的更改與雲端副本衝突。請開啟資料庫以合併更改，或匯出副本以在其他 KeePass App 中合併。捨棄時會保留備份；結果未知的上傳可能仍處於待處理狀態。"
+          }
+        }
+      }
+    },
     "About" : {
       "localizations" : {
         "de" : {
@@ -30359,6 +30411,58 @@
         }
       }
     },
+    "KeeForge keeps a backup before discarding the pending change for “%@”. If an earlier upload has an unknown outcome, the change stays pending until it can be safely resolved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge erstellt eine Sicherung, bevor die ausstehende Änderung für „%@“ verworfen wird. Ist das Ergebnis eines früheren Uploads unbekannt, bleibt die Änderung ausstehend, bis sie sicher geklärt werden kann."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge conserva una copia de seguridad antes de descartar el cambio pendiente de «%@». Si se desconoce el resultado de una carga anterior, el cambio seguirá pendiente hasta que pueda resolverse de forma segura."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge conserve une sauvegarde avant d’abandonner la modification en attente pour « %@ ». Si le résultat d’un envoi antérieur est inconnu, la modification reste en attente jusqu’à sa résolution en toute sécurité."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge conserva un backup prima di eliminare la modifica in sospeso per “%@”. Se l’esito di un caricamento precedente è sconosciuto, la modifica resta in sospeso finché non può essere risolta in sicurezza."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForgeは「%@」の保留中の変更を破棄する前にバックアップを保持します。以前のアップロードの結果が不明な場合、安全に解決できるまで変更は保留のままになります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge сохраняет резервную копию перед отменой ожидающего изменения для «%@». Если результат предыдущей отправки неизвестен, изменение останется в ожидании до безопасного разрешения ситуации."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 会在丢弃“%@”的待处理更改前保留备份。如果之前上传的结果未知，该更改将保持待处理状态，直到可以安全解决为止。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 會在捨棄「%@」的待處理更改前保留備份。如果先前上傳的結果未知，該更改將保持待處理狀態，直到可以安全解決為止。"
+          }
+        }
+      }
+    },
     "KeeForge keeps the last five backups it made before saving or replacing this database on this device." : {
       "localizations" : {
         "de" : {
@@ -39533,6 +39637,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "待處理 %lld"
+          }
+        }
+      }
+    },
+    "Pending Change Kept" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausstehende Änderung beibehalten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambio pendiente conservado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modification en attente conservée"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifica in sospeso conservata"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留中の変更を保持しました"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ожидающее изменение сохранено"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保留待处理的更改"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保留待處理的更改"
           }
         }
       }
@@ -53411,6 +53567,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "路徑從您的 FTP 帳號登入後所在的資料夾開始。"
+          }
+        }
+      }
+    },
+    "The pending change could not be safely discarded and was kept. An earlier upload may still need to be resolved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die ausstehende Änderung konnte nicht sicher verworfen werden und wurde beibehalten. Möglicherweise muss ein früherer Upload noch geklärt werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio pendiente se conservó porque no se pudo descartar de forma segura. Es posible que aún deba resolverse una carga anterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification en attente a été conservée, car elle ne pouvait pas être abandonnée en toute sécurité. Un envoi antérieur doit peut-être encore être résolu."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modifica in sospeso è stata conservata perché non poteva essere eliminata in sicurezza. Potrebbe essere ancora necessario risolvere un caricamento precedente."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留中の変更を安全に破棄できなかったため、保持しました。以前のアップロードを解決する必要がある場合があります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ожидающее изменение сохранено, поскольку его нельзя было безопасно отменить. Возможно, ещё требуется выяснить результат предыдущей отправки."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待处理的更改无法安全丢弃，因此已保留。可能仍需解决之前的上传。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待處理的更改無法安全捨棄，因此已保留。可能仍需解決先前的上傳。"
           }
         }
       }

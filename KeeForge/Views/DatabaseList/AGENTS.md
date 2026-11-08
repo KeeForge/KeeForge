@@ -24,6 +24,8 @@
 
 ### Details and the screens pushed from it
 
+- Discarding a pending upload can retain an uncertainty fence or fail to create its backup. Keep the pending badge and show the retained-change explanation when conflicted markers remain; dismissing the confirmation is not a success result. Wait for its dismissal before presenting that explanation.
+
 - Importers, sheets, the export presenter, and the file-facts task hang off the `NavigationStack`, not the hub: the hub leaves the screen while a page is pushed, which cancels its tasks and leaves it unable to present.
 - That task is keyed on the session's `openTimeSHA512`, which every write through the session replaces, so file facts and backups refresh while the sheet stays open.
 - The read-only toggle is disabled for KDBX 3.1 and for a database with a hardware key configured, in both contexts; the savers reject both.
@@ -41,6 +43,7 @@
 
 - UI: `DatabaseListUITests`, `DatabaseCreationCompactUITests` / `DatabaseCreationRegularWidthUITests`, `MasterKeyChangeUITests`, `EncryptionSettingsUITests`, `SaveConflictMergeUITests`.
 - Unit: the four view models' `<Type>Tests`, `DatabaseSettingsSummaryTests`, `DatabaseRowStatusSummaryTests`, `DatabaseOverviewTests` (spotlight choice, status line, opening steps). `PasswordImportViewModelTests` is in `PasswordImportTests.swift`.
+- `CloudDiscardPresentationTests` covers retained uncertainty versus completed discard using the real queue, retained backup and list state.
 
 ## See also
 
