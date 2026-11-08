@@ -71,6 +71,29 @@ External gates: platform OAuth client IDs/project/callback configuration; author
 
 The adapter uses the exact AppAuth 3.0.0 `AppAuthCore` product in both apps; hosted tests import through their app-host dependency so the app alone owns the static Objective-C symbols; extensions link neither OAuth nor transport code. iOS Info.plist reads `GOOGLE_DRIVE_IOS_CLIENT_ID` and `GOOGLE_DRIVE_IOS_REDIRECT_URI`; macOS reads the corresponding `GOOGLE_DRIVE_MAC_*` settings. No values or callback schemes are supplied. A configured native client requires its registered reversed-client-ID scheme and `/oauthredirect` URI. Do not add a placeholder scheme to shipping bundles. The adapter's `selectFiles(from:expectedAccountID:)` is the explicit authorization seam; the generic folder browser is not a grant for existing Drive files. No production menu enables it until the external gates above are met.
 
+## Open implementation and acceptance work
+
+These items are pending and are not satisfied by the adapter implementation or passing headless tests. App/device validation is deferred to the later test stage; do not install or launch the app to close this checklist during implementation.
+
+Implementation/configuration/decisions:
+
+- [ ] Supply the Google Cloud project and real OAuth client IDs/registered callbacks per platform, then wire the declared configuration without embedded secrets or placeholder schemes.
+- [ ] Connect existing-file import and account reconnect UI to the native Picker `selectFiles(from:expectedAccountID:)` flow, preserving the selected account and explicit file grants. The adapter method exists; the production UI is not wired or enabled.
+- [ ] Integrate durable creation/conflict-copy intents in the common caller: retain operation identity, encrypted bytes/hash and generated file ID before dispatch, reuse them after restart, and reconcile lost responses by that exact ID. The adapter API exists, but production callers do not yet persist/use this creation context. Its current create API targets My Drive root; folder destinations require an explicit parent-ID seam rather than treating a name/path as identity.
+- [ ] Decide the acceptable Drive concurrent-write product behavior. Existing-file replacement is disabled; observation/version reads do not establish commit exclusion. Any alternative behavior requires an explicit decision and implementation before enabling writes.
+- [ ] Enable production provider availability/creation only after the preceding implementation, safety decision and acceptance evidence are complete. Do not treat enabling a flag as completing the work.
+
+Later test-stage acceptance (all pending):
+
+- [ ] Run iOS unit/regression tests once the simulator-service infrastructure is usable; include iOS-only OneDrive/Dropbox and the large-upload rejection/retry case.
+- [ ] Exercise native OAuth/Picker on iPhone, iPad and Mac with an authorized test account/file: scope/grant, callbacks/PKCE, cancel/replay, account mismatch, reconnect/revocation, refreshed-token persistence and sign-out.
+- [ ] Exercise the signed app plus AutoFill using real Keychain entitlements: offline save/restart, overlapping app/extension edits, rekey/key-file association, lock/cancel and recovery after interrupted publication. Resolve the currently skipped Keychain tests.
+- [ ] Validate provider E2E and two writers: offline edits followed by foreign remote changes, merge/refresh, quota/permission failures, lost response, delayed upload and retained-discard behavior. Record each provider's actual concurrency limits rather than claiming server exclusion from a successful race test.
+- [ ] Verify native UI, pending/conflict/recovery copy, accessibility and translations on iPhone/iPad/Mac; headless view-model tests do not close this item.
+- [ ] Exercise crash/fsync-failure boundaries and power-loss behavior beyond the current injected-step/filesystem regressions; record any limits that cannot be established.
+
+The shared engine has no remaining known blocking source finding after independent review. Google Drive remains an incomplete, gated product integration until the open items above are resolved.
+
 ## Validation handoff — 2026-11-08
 
 Source reviewed independently through `18b0ce1`; no remaining actionable correctness/security finding was reported. Build graph simplified and verified at `deb8065`; XcodeGen regeneration is stable. These receipts overlap and must not be summed as unique coverage.
