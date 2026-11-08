@@ -30,6 +30,9 @@ packages:
   SwiftyDropbox:
     url: https://github.com/dropbox/SwiftyDropbox.git
     from: 10.0.7
+  AppAuth:
+    url: https://github.com/openid/AppAuth-iOS.git
+    exactVersion: 3.0.0
   MSAL:
     url: https://github.com/AzureAD/microsoft-authentication-library-for-objc.git
     from: 1.7.0
@@ -124,6 +127,8 @@ targets:
         # YubiKit's SPM header links include private headers outside its umbrella header.
         OTHER_SWIFT_FLAGS: "$(inherited) -Xcc -Wno-incomplete-umbrella"
     dependencies:
+      - package: AppAuth
+        product: AppAuthCore
       - target: KeeForgeAutoFill
         embed: true
         codeSign: true
@@ -206,6 +211,8 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
+      - package: AppAuth
+        product: AppAuthCore
       - target: KeeForgeMacAutoFill
         embed: true
         codeSign: true
@@ -493,6 +500,8 @@ targets:
           copy_catalog "${SRCROOT}/AutoFillExtension/Localizable.xcstrings" "AutoFillExtension_Localizable.xcstrings"
           copy_catalog "${SRCROOT}/AutoFillExtension/InfoPlist.xcstrings" "AutoFillExtension_InfoPlist.xcstrings"
     dependencies:
+      - package: AppAuth
+        product: AppAuthCore
       - target: KeeForge
       - package: KeeForgeTwofish
     sources:
@@ -573,6 +582,8 @@ targets:
           copy_catalog "${SRCROOT}/AutoFillExtension/Localizable.xcstrings" "AutoFillExtension_Localizable.xcstrings"
           copy_catalog "${SRCROOT}/AutoFillExtension/InfoPlist.xcstrings" "AutoFillExtension_InfoPlist.xcstrings"
     dependencies:
+      - package: AppAuth
+        product: AppAuthCore
       - target: KeeForgeMac
       - package: KeeForgeTwofish
     sources:

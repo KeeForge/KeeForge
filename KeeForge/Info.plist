@@ -75,6 +75,10 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>GoogleDriveIOSClientID</key>
+	<string>$(GOOGLE_DRIVE_IOS_CLIENT_ID)</string>
+	<key>GoogleDriveIOSRedirectURI</key>
+	<string>$(GOOGLE_DRIVE_IOS_REDIRECT_URI)</string>
 	<key>CloudKeychainAccessGroup</key>
 	<string>$(CLOUD_KEYCHAIN_ACCESS_GROUP)</string>
 	<key>DropboxAppKey</key>

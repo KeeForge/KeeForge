@@ -3,6 +3,7 @@ import Foundation
 enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, Sendable {
     case dropbox = "dropbox"
     case oneDrive = "onedrive"
+    case googleDrive = "googledrive"
     case webDAV = "webdav"
     case ftp = "ftp"
 
@@ -14,6 +15,8 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
             "Dropbox"
         case .oneDrive:
             "OneDrive"
+        case .googleDrive:
+            "Google Drive"
         case .webDAV:
             "WebDAV"
         case .ftp:
@@ -27,6 +30,8 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
             "shippingbox.fill"
         case .oneDrive:
             "cloud.fill"
+        case .googleDrive:
+            "externaldrive.fill"
         case .webDAV:
             "server.rack"
         case .ftp:
@@ -40,7 +45,7 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
         switch self {
         case .webDAV, .ftp:
             true
-        case .dropbox, .oneDrive:
+        case .dropbox, .oneDrive, .googleDrive:
             false
         }
     }
@@ -58,11 +63,13 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
     /// release, not an oversight. iOS is unaffected — all providers
     /// remain visible there.
     var isAvailableOnCurrentPlatform: Bool {
+        // Drive awaits configured OAuth, native Picker validation and a safe replacement policy.
+        if self == .googleDrive { return false }
         #if os(macOS)
         switch self {
         case .webDAV, .ftp:
             return true
-        case .dropbox, .oneDrive:
+        case .dropbox, .oneDrive, .googleDrive:
             return false
         }
         #else

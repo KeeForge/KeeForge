@@ -408,6 +408,8 @@ struct CloudProviderIcon: View {
             Image("DropboxGlyph")
         case .oneDrive:
             Image("OneDriveGlyph")
+        case .googleDrive:
+            Image(systemName: CloudProviderKind.googleDrive.iconName)
         case .webDAV:
             Image(systemName: CloudProviderKind.webDAV.iconName)
         case .ftp:

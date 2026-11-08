@@ -12,13 +12,15 @@ enum CloudProviderRegistry {
     /// them there. Nothing can have connected one, because neither has ever
     /// been reachable from the Mac UI.
     static var availableProviders: [CloudProviderKind] {
-        [.dropbox, .oneDrive, .webDAV, .ftp].filter(\.isAvailableOnCurrentPlatform)
+        [.dropbox, .oneDrive, .googleDrive, .webDAV, .ftp].filter(\.isAvailableOnCurrentPlatform)
     }
 
     static func provider(for id: String) -> CloudProvider? {
         guard let provider = CloudProviderKind(rawValue: id) else { return nil }
 
         switch provider {
+        case .googleDrive:
+            return GoogleDriveCloudProvider.shared
         case .dropbox:
             #if DEBUG
             if UITestDropboxCloudProvider.isEnabled {

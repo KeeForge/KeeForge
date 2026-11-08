@@ -51,6 +51,10 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>GoogleDriveMacClientID</key>
+	<string>$(GOOGLE_DRIVE_MAC_CLIENT_ID)</string>
+	<key>GoogleDriveMacRedirectURI</key>
+	<string>$(GOOGLE_DRIVE_MAC_REDIRECT_URI)</string>
 	<key>CloudKeychainAccessGroup</key>
 	<string>$(CLOUD_KEYCHAIN_ACCESS_GROUP)</string>
 	<key>GITCommitHash</key>

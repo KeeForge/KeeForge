@@ -436,3 +436,7 @@ Maintain both as trusted release infrastructure. Run the
 after changing update infrastructure or sandbox exceptions. ZIP extraction and
 clean-account Gatekeeper verification are part of that procedure. Record each
 run's evidence in the candidate manifest, not in this security model.
+
+## Gated Google Drive adapter
+
+The Mac app compiles the Google Drive adapter and AppAuthCore, independently of the excluded Dropbox and OneDrive SDKs. Drive is hidden from synchronization choices; no client ID or callback scheme is supplied. Tokens, if authorized in a future configured build, use provider/account-specific CloudTokenStore items rather than vault-key items. The adapter rejects replacement because Drive content compare-and-swap has not been established. Production creation is also gated until durable caller identity and credentialed native Picker validation exist. The shared [threat model](../docs/threat-model.md) and [active contract](../docs/cloud-sync-contract.md) describe the remaining gates.
