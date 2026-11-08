@@ -557,6 +557,13 @@ enum CloudDatabaseSaver {
                     throw SaveError.saveContextUnavailable
                 }
                 current = latest
+                var ancestors = Set(stored.marker.absorbedOperationIDs ?? [])
+                if let predecessor = stored.marker.predecessorOperationID { ancestors.insert(predecessor) }
+                ancestors.remove(stored.id)
+                let pendingIDs = Set(try environment.queue.listDirectory(stored.fileURL.deletingLastPathComponent())
+                    .filter { $0.pathExtension == "json" }
+                    .compactMap { UUID(uuidString: $0.deletingPathExtension().lastPathComponent) })
+                if !ancestors.isDisjoint(with: pendingIDs) { return .retained(updatedReference: current) }
                 let cacheSHA = owner.marker.intendedPayloadSHA512 ?? owner.marker.openTimeSHA512
                 if cacheSHA == payloadSHA, current.cloudSyncMetadata?.localHeadOperationID == stored.id,
                    let observed = current.cloudSyncMetadata {
@@ -576,7 +583,6 @@ enum CloudDatabaseSaver {
                     child.marker.expectedRev = stored.marker.confirmedRemoteRev
                     child.marker.baseRev = stored.marker.confirmedRemoteRev
                     child.marker.remoteBaseSHA512 = payloadSHA
-                    child.marker.predecessorOperationID = nil
                     _ = try PendingUploadQueue.update(child, environment: environment.queue)
                 }
                 guard verifiedCacheReference(owner: owner, referenceID: current.id, environment: environment) != nil else {

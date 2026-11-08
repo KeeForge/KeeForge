@@ -459,9 +459,137 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let remaining = PendingUploadQueue.listMarkers(for: context.reference.id)
         XCTAssertEqual(remaining.map(\.id), [descendant.id])
         XCTAssertEqual(remaining.first?.marker.remoteBaseSHA512, KDBXCrypto.sha512(payload))
-        XCTAssertNil(remaining.first?.marker.predecessorOperationID)
+        XCTAssertEqual(remaining.first?.marker.predecessorOperationID, journal.id)
         let uploads = await remote.uploadCount()
         XCTAssertEqual(uploads, 1)
+    }
+
+    func testConfirmedAncestrySurvivesParentDropFailureOrCASAndFreshManualOpen() async throws {
+        final class ChildPublication: @unchecked Sendable {
+            private let lock = NSLock()
+            private var published = false
+            private var consumed = false
+            func publish() { lock.withLock { published = true } }
+            func consume() -> Bool {
+                lock.withLock {
+                    guard published, !consumed else { return false }
+                    consumed = true
+                    return true
+                }
+            }
+        }
+        for casFailure in [false, true] {
+            let (context, remote, parent, parentPayload) = try await confirmedOrdinaryJournal()
+            defer { DatabaseListStore.remove(id: context.reference.id) }
+            let draft = try edit(parentPayload, key: context.key, sessionKey: context.sessionKey, title: "Child after confirmed parent")
+            _ = try await CloudDatabaseSaver.save(draft: draft, reference: current(context.reference), compositeKey: context.key,
+                openTimeSHA512: KDBXCrypto.sha512(parentPayload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+            let child = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id != parent.id })
+            let childPayload = try immutableBytes(child)
+            let publication = ChildPublication()
+            let queue = PendingUploadQueue.Environment.live
+            let live = CloudDatabaseSaver.Environment.live
+            let cacheURL = DatabaseListStore.cacheLocation(for: context.reference)
+            var fault = environment(remote)
+            fault.queue.writeMarkerAtomically = { bytes, url in
+                try queue.writeMarkerAtomically(bytes, url)
+                if url == child.fileURL { publication.publish() }
+            }
+            fault.readData = { url in
+                if casFailure, url == cacheURL, publication.consume() {
+                    _ = try PendingUploadQueue.markConflicted(parent)
+                }
+                return try live.readData(url)
+            }
+            fault.queue.removeItem = { url in
+                if !casFailure, url == parent.fileURL { throw POSIXError(.EACCES) }
+                try queue.removeItem(url)
+            }
+            if casFailure {
+                let result = try await CloudDatabaseSaver.deliver(parent, reference: current(context.reference), environment: fault)
+                guard case .retained = result else { return XCTFail("A changed parent snapshot must remain journaled") }
+            } else {
+                do {
+                    _ = try await CloudDatabaseSaver.deliver(parent, reference: current(context.reference), environment: fault)
+                    XCTFail("The injected parent deletion must fail after child publication")
+                } catch { XCTAssertEqual((error as? POSIXError)?.code, .EACCES) }
+            }
+            let survivingParent = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id == parent.id })
+            let transferred = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id == child.id })
+            XCTAssertEqual(try immutableBytes(survivingParent), parentPayload)
+            XCTAssertEqual(survivingParent.marker.generation, parent.marker.generation + (casFailure ? 1 : 0))
+            XCTAssertGreaterThan(transferred.marker.generation, child.marker.generation)
+            XCTAssertEqual(transferred.marker.predecessorOperationID, parent.id)
+            XCTAssertEqual(transferred.marker.remoteBaseSHA512, KDBXCrypto.sha512(parentPayload))
+            XCTAssertEqual(transferred.marker.expectedRev, parent.marker.confirmedRemoteRev)
+            XCTAssertEqual(transferred.marker.baseRev, parent.marker.confirmedRemoteRev)
+            XCTAssertNil(transferred.marker.absorbedOperationIDs, "A predecessor edge is not a new merge claim")
+            XCTAssertEqual(try cache(context.reference), childPayload)
+            await remote.setOffline(true)
+            DatabaseListStore.setCloudSyncPolicy(.manual, for: context.reference)
+            let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: current(context.reference), providerResolver: { _ in
+                XCTFail("Manual restart recovery must not contact a provider")
+                return nil
+            })
+            XCTAssertEqual(resolution.status, .refreshSkipped)
+            XCTAssertEqual(resolution.data, childPayload)
+            XCTAssertEqual(resolution.reference.cloudSyncMetadata?.localHeadOperationID, child.id)
+            let remaining = PendingUploadQueue.listMarkers(for: context.reference.id)
+            XCTAssertEqual(remaining.map(\.id), [child.id])
+            XCTAssertEqual(remaining.first?.marker.predecessorOperationID, parent.id)
+            XCTAssertEqual(remaining.first?.marker.remoteBaseSHA512, transferred.marker.remoteBaseSHA512)
+            XCTAssertEqual(remaining.first?.marker.expectedRev, transferred.marker.expectedRev)
+            XCTAssertEqual(remaining.first?.marker.baseRev, transferred.marker.baseRev)
+            let uploads = await remote.uploadCount()
+            XCTAssertEqual(uploads, 1)
+        }
+    }
+
+    func testConfirmedDescendantRetainsAncestorProofBeforeRebasingGrandchild() async throws {
+        let (context, remote, parent, parentPayload) = try await confirmedOrdinaryJournal()
+        let childDraft = try edit(parentPayload, key: context.key, sessionKey: context.sessionKey, title: "Confirmed child")
+        _ = try await CloudDatabaseSaver.save(draft: childDraft, reference: current(context.reference), compositeKey: context.key,
+            openTimeSHA512: KDBXCrypto.sha512(parentPayload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+        let queue = PendingUploadQueue.Environment.live
+        var fault = environment(remote)
+        fault.queue.removeItem = { url in
+            if url == parent.fileURL { throw POSIXError(.EACCES) }
+            try queue.removeItem(url)
+        }
+        do {
+            _ = try await CloudDatabaseSaver.deliver(parent, reference: current(context.reference), environment: fault)
+            XCTFail("Parent must remain after the injected deletion failure")
+        } catch { XCTAssertEqual((error as? POSIXError)?.code, .EACCES) }
+        var child = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id != parent.id })
+        let childPayload = try immutableBytes(child)
+        let receipt = try await remote.upload(childPayload, expectedRev: child.marker.expectedRev)
+        child.marker.uploadAttemptID = UUID()
+        child.marker.confirmedAt = .now
+        child.marker.confirmedRemoteRev = receipt.rev
+        child = try PendingUploadQueue.update(child)
+        let grandchildDraft = try edit(childPayload, key: context.key, sessionKey: context.sessionKey, title: "Grandchild local head")
+        _ = try await CloudDatabaseSaver.save(draft: grandchildDraft, reference: current(context.reference), compositeKey: context.key,
+            openTimeSHA512: KDBXCrypto.sha512(childPayload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+        let grandchild = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id != parent.id && $0.id != child.id })
+        let payload = try immutableBytes(grandchild)
+        await remote.setOffline(true)
+        let retained = try CloudDatabaseSaver.recoverConfirmed(child, reference: current(context.reference), environment: environment(remote))
+        guard case .retained = retained else { return XCTFail("A confirmed descendant cannot erase the ancestor's only proof") }
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).contains { $0.id == child.id })
+        let unchanged = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id == grandchild.id })
+        XCTAssertEqual(unchanged.marker, grandchild.marker, "Descendant cleanup must not rebase ahead of its retained ancestor")
+        _ = try CloudDatabaseSaver.recoverConfirmed(parent, reference: current(context.reference), environment: environment(remote))
+        let freshChild = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id == child.id })
+        _ = try CloudDatabaseSaver.recoverConfirmed(freshChild, reference: current(context.reference), environment: environment(remote))
+        let remaining = PendingUploadQueue.listMarkers(for: context.reference.id)
+        XCTAssertEqual(remaining.map(\.id), [grandchild.id])
+        XCTAssertEqual(remaining.first?.marker.predecessorOperationID, child.id)
+        XCTAssertEqual(remaining.first?.marker.remoteBaseSHA512, KDBXCrypto.sha512(childPayload))
+        XCTAssertEqual(remaining.first?.marker.expectedRev, receipt.rev)
+        XCTAssertEqual(remaining.first?.marker.baseRev, receipt.rev)
+        XCTAssertEqual(try cache(context.reference), payload)
+        let uploads = await remote.uploadCount()
+        XCTAssertEqual(uploads, 2)
     }
 
     func testMergedSourceCleanupRequiresHashVerifiedImmutableReplacementPayload() async throws {
