@@ -60,10 +60,10 @@ final class GoogleDriveCloudProvider: CloudFileSelecting {
 
     @MainActor
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
-        let grant = try await authorization.authorize(from: anchor, expectedAccountID: nil)
+        let account = try await authorization.authorizeAccount(from: anchor, expectedAccountID: nil)
         try Task.checkCancellation()
-        try register(grant.account)
-        return grant.account
+        try register(account)
+        return account
     }
 
     @MainActor
@@ -164,11 +164,19 @@ final class GoogleDriveCloudProvider: CloudFileSelecting {
     }
 
     func createFile(accountId: String, path: String, data: Data, creationID: String?, progress: @escaping @Sendable (Double) -> Void) async throws -> CloudCreatedFile {
+        try await createFile(accountId: accountId, target: CloudFileCreationTarget(path: path), data: data, creationID: creationID, progress: progress)
+    }
+
+    func createFile(accountId: String, target: CloudFileCreationTarget, data: Data, creationID: String?, progress: @escaping @Sendable (Double) -> Void) async throws -> CloudCreatedFile {
         guard creationEnabled else { throw CloudProviderError.writeScopeRequired }
         guard let creationID, GoogleDriveCallback.validID(creationID) else { throw CloudProviderError.invalidConfiguration }
-        // The destination is one literal name in My Drive; slashes never become identity or folders.
-        guard !path.isEmpty, !path.unicodeScalars.contains(where: { $0.value == 0 }) else { throw CloudProviderError.invalidName }
-        let metadata = try JSONSerialization.data(withJSONObject: ["id": creationID, "name": path, "mimeType": "application/octet-stream"])
+        guard !target.path.isEmpty, !target.path.unicodeScalars.contains(where: { $0.value == 0 }) else { throw CloudProviderError.invalidName }
+        var attributes: [String: Any] = ["id": creationID, "name": target.path, "mimeType": "application/octet-stream"]
+        if let parent = target.parentFileID {
+            guard GoogleDriveCallback.validID(parent) else { throw CloudProviderError.invalidConfiguration }
+            attributes["parents"] = [parent]
+        }
+        let metadata = try JSONSerialization.data(withJSONObject: attributes)
         var boundary: String
         repeat { boundary = "keeforge-" + UUID().uuidString } while data.range(of: Data(boundary.utf8)) != nil || metadata.range(of: Data(boundary.utf8)) != nil
         var body = Data("--\(boundary)\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n".utf8)

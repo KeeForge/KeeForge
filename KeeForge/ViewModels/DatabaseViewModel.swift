@@ -2881,29 +2881,43 @@ final class DatabaseViewModel {
         }
     }
 
+    private struct ConflictCopyRequest {
+        let revision: Int
+        let lockCycle: Int
+        let filename: String
+        let bytes: Data
+    }
+    @ObservationIgnored private var conflictCopyRequest: ConflictCopyRequest?
+    @ObservationIgnored private var isCreatingConflictCopy = false
+
     func saveAsConflictCopy() async throws {
-        guard let draft, let saveConflict, let compositeKey else {
+        guard let draft, let saveConflict, let compositeKey, !isCreatingConflictCopy else {
             throw SaveError.saveContextUnavailable
         }
-
-        let bytes = try await conflictCopyEncryptionOperation(
-            draft,
-            compositeKey,
-            saveConflict.remoteData
-        )
-        let filename = conflictCopyFilename(for: databaseReference.filename)
-
+        isCreatingConflictCopy = true
+        defer { isCreatingConflictCopy = false }
+        let revision = contentRevision
+        let cycle = lockCycleID
+        let request: ConflictCopyRequest
+        if let pending = conflictCopyRequest, pending.revision == revision, pending.lockCycle == cycle {
+            request = pending
+        } else {
+            let bytes = try await conflictCopyEncryptionOperation(draft, compositeKey, saveConflict.remoteData)
+            request = ConflictCopyRequest(revision: revision, lockCycle: cycle,
+                filename: conflictCopyFilename(for: databaseReference.filename), bytes: bytes)
+            guard revision == contentRevision, cycle == lockCycleID else { throw SaveError.saveContextUnavailable }
+            conflictCopyRequest = request
+        }
         switch databaseReference.source {
         case .local:
-            try await localConflictCopyOperation(databaseReference, filename, bytes)
+            try await localConflictCopyOperation(databaseReference, request.filename, request.bytes)
         case .cloud(let metadata):
-            let fileID = Self.siblingCloudConflictFileID(
-                currentFileID: metadata.fileId,
-                filename: filename
-            )
-            try await cloudConflictCopyOperation(databaseReference, fileID, bytes)
+            let fileID = metadata.provider == "googledrive" ? request.filename : Self.siblingCloudConflictFileID(
+                currentFileID: metadata.fileId, filename: request.filename)
+            try await cloudConflictCopyOperation(databaseReference, fileID, request.bytes)
         }
-
+        guard cycle == lockCycleID, revision == contentRevision else { return }
+        conflictCopyRequest = nil
         discardDraft()
     }
 
@@ -4767,20 +4781,30 @@ final class DatabaseViewModel {
             throw CloudProviderError.notAuthenticated
         }
 
+        var creationEnvironment = CloudFileCreationCoordinator.Environment.live
+        creationEnvironment.provider = { id in id == provider.id ? provider : nil }
+        if let pending = try CloudFileCreationCoordinator.pendingConflictCopy(reference: reference, bytes: bytes, environment: creationEnvironment) {
+            _ = try await CloudFileCreationCoordinator.resume(operationID: pending.operationID, environment: creationEnvironment)
+            return
+        }
         for attempt in 1...conflictCopyNameAttemptLimit {
             let path = attempt == 1 ? fileID : uniquifiedConflictCopyName(fileID, attempt: attempt)
+            let operationID = UUID()
+            var template = reference
+            template = DatabaseReference(id: operationID, nickname: nil, filename: (path as NSString).lastPathComponent,
+                bookmarkData: nil, keyFileBookmarkData: template.keyFileBookmarkData,
+                keyFileFilename: template.keyFileFilename, isQuickLaunch: false, lastOpenedAt: nil, addedAt: .now,
+                colorTag: template.colorTag, legacyKeychainFilename: nil, source: .local)
             do {
-                _ = try await provider.createFile(
-                    accountId: metadata.accountId,
-                    path: path,
-                    data: bytes,
-                    progress: { _ in }
-                )
+                _ = try await CloudFileCreationCoordinator.create(operationID: operationID, ownerDatabaseID: reference.id,
+                    provider: metadata.provider, accountID: metadata.accountId, target: CloudFileCreationTarget(path: path),
+                    bytes: bytes, referenceTemplate: template, isConflictCopy: true, environment: creationEnvironment)
                 return
             } catch let error as CloudProviderError {
-                guard case .conflict = error, attempt < conflictCopyNameAttemptLimit else {
-                    throw error
-                }
+                let intent = try PendingUploadQueue.listCreations(for: reference.id).first { $0.operationID == operationID }
+                guard case .conflict = error, let intent, intent.creationID == nil, intent.phase == .reserved,
+                      attempt < conflictCopyNameAttemptLimit else { throw error }
+                try CloudFileCreationCoordinator.cancel(operationID: operationID, environment: creationEnvironment)
             }
         }
 

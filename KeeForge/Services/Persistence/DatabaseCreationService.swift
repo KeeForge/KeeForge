@@ -205,6 +205,7 @@ enum DatabaseCreationService {
         var addCreatedCloud: @Sendable (DatabaseReference) throws -> Void
         var addAppOnlyCreatedLocal: @Sendable (DatabaseReference, Data) throws -> Void
         var validateCreatedCloud: @Sendable (String, String, String, String) throws -> Void
+        var durableCreateCloud: (@Sendable (PreparedDatabase, String, String, CloudFileCreationTarget) async throws -> DatabaseReference)? = nil
 
         static let live = Environment(
             now: { .now },
@@ -252,6 +253,11 @@ enum DatabaseCreationService {
                     fileId: fileId,
                     filename: filename
                 )
+            },
+            durableCreateCloud: { prepared, provider, accountID, target in
+                try await CloudFileCreationCoordinator.create(operationID: prepared.id, ownerDatabaseID: prepared.id,
+                    provider: provider, accountID: accountID, target: target, bytes: prepared.encryptedBytes,
+                    referenceTemplate: makeReference(prepared: prepared, bookmarkData: nil))
             }
         )
     }
@@ -285,6 +291,18 @@ enum DatabaseCreationService {
                 destination: request.destination,
                 environment: environment
             )
+        }.value
+    }
+
+    static func create(
+        prepared: PreparedDatabase,
+        destination: DatabaseCreationDestination,
+        environment: Environment = .live
+    ) async throws -> CreatedDatabase {
+        let handle = await environment.beginBackgroundTask("DatabaseCreation")
+        defer { Task { @MainActor in environment.endBackgroundTask(handle) } }
+        return try await Task.detached(priority: .utility) {
+            try await createOffMain(prepared: prepared, destination: destination, environment: environment)
         }.value
     }
 
@@ -420,7 +438,14 @@ enum DatabaseCreationService {
             try environment.cacheDatabaseCopy(prepared.encryptedBytes, reference)
             try environment.addCreatedLocal(reference)
         case .cloud(let provider, let accountId, let folderPath):
-            let filePath = cloudFilePath(filename: prepared.filename, folderPath: folderPath)
+            let target = provider == "googledrive"
+                ? CloudFileCreationTarget(path: prepared.filename, parentFileID: folderPath)
+                : CloudFileCreationTarget(path: cloudFilePath(filename: prepared.filename, folderPath: folderPath))
+            if let durableCreate = environment.durableCreateCloud {
+                reference = try await durableCreate(prepared, provider, accountId, target)
+                break
+            }
+            let filePath = target.path
             try environment.validateCreatedCloud(provider, accountId, filePath, prepared.filename)
             let createdFile = try await environment.createCloudFile(
                 provider,

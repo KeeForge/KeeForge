@@ -42,6 +42,9 @@ final class PendingUploadDrainer {
         var sha512: @Sendable (Data) -> Data
         var pushPendingUpload: @Sendable (DatabaseReference, Data, String?) async throws -> CloudDatabaseSaver.PendingUploadPushResult
 
+        var listCreations: (@Sendable (UUID?) throws -> [PendingUploadQueue.CreationIntent])?
+        var resumeCreation: (@Sendable (UUID) async throws -> DatabaseReference)?
+
         var deliverMarker: (@Sendable (PendingUploadQueue.StoredMarker, DatabaseReference) async throws -> CloudDatabaseSaver.PendingUploadPushResult?)?
 
         static let live = Environment(
@@ -72,6 +75,8 @@ final class PendingUploadDrainer {
                     expectedRev: expectedRev
                 )
             },
+            listCreations: { try PendingUploadQueue.listCreations(for: $0) },
+            resumeCreation: { try await CloudFileCreationCoordinator.resume(operationID: $0) },
             deliverMarker: { stored, reference in
                 try await CloudDatabaseSaver.deliver(stored, reference: reference)
             }
@@ -181,6 +186,23 @@ final class PendingUploadDrainer {
         environment: Environment
     ) async -> DrainOutcome {
         var outcome = DrainOutcome()
+        if let list = environment.listCreations, let resume = environment.resumeCreation {
+            do {
+                for intent in try list(databaseId) where !intent.isPaused {
+                    do {
+                        _ = try await resume(intent.operationID)
+                        outcome.drainedDatabaseIDs.insert(intent.ownerDatabaseID)
+                    } catch {
+                        outcome.skippedDatabaseIDs.insert(intent.ownerDatabaseID)
+                        outcome.userIssue = UserIssue(databaseId: intent.ownerDatabaseID, kind: .message, message: error.localizedDescription)
+                    }
+                }
+            } catch {
+                if let databaseId {
+                    outcome.userIssue = UserIssue(databaseId: databaseId, kind: .message, message: error.localizedDescription)
+                }
+            }
+        }
         // Payload SHAs already pushed to the remote head in this pass, per
         // database. A later marker recording the same payload is dropped:
         // re-pushing it could only raise a spurious revision conflict.

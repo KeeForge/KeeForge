@@ -140,6 +140,61 @@ enum PendingUploadQueue {
         var marker: Marker
     }
 
+    /// Creation records have a distinct extension and cannot enter replacement-marker recovery.
+    struct CreationIntent: Codable, Equatable, Sendable {
+        enum Phase: String, Codable, Sendable { case prepared, reserved, attempting, confirmed, completed }
+        let operationID: UUID
+        let ownerDatabaseID: UUID
+        let provider: String
+        let accountID: String
+        let target: CloudFileCreationTarget
+        let payloadSHA512: Data
+        let payloadPath: String
+        let referenceTemplate: DatabaseReference
+        let isConflictCopy: Bool
+        var creationID: String?
+        var phase: Phase = .prepared
+        var receipt: DatabaseReference?
+        var isPaused: Bool = false
+        var lastIssue: CloudSyncIssue?
+    }
+
+    static func listCreations(for databaseID: UUID? = nil, includingCompleted: Bool = false, environment: Environment = .live) throws -> [CreationIntent] {
+        let root = queueRootURL(environment: environment)
+        guard FileManager.default.fileExists(atPath: root.path) else { return [] }
+        let directories = try databaseID.map { [queueDirectoryURL(for: $0, environment: environment)] } ?? environment.listDirectory(root)
+        return try directories.flatMap { directory -> [CreationIntent] in
+            guard FileManager.default.fileExists(atPath: directory.path) else { return [] }
+            return try environment.listDirectory(directory).filter { $0.pathExtension == "creation" }.map {
+                try JSONDecoder().decode(CreationIntent.self, from: environment.readData($0))
+            }
+        }.filter { includingCompleted || $0.phase != .completed }
+    }
+
+    static func storeCreation(_ intent: CreationIntent, environment: Environment = .live) throws {
+        let directory = queueDirectoryURL(for: intent.ownerDatabaseID, environment: environment)
+        try environment.createDirectory(directory)
+        let data = try JSONEncoder().encode(intent)
+        try environment.writeMarkerAtomically(data, directory.appendingPathComponent("\(intent.operationID.uuidString).creation"))
+    }
+
+    static func creationPayloadURL(ownerDatabaseID: UUID, operationID: UUID, environment: Environment = .live) -> URL {
+        queueDirectoryURL(for: ownerDatabaseID, environment: environment).appendingPathComponent("\(operationID.uuidString).creation.kdbx")
+    }
+
+    /// Only an unattempted creation may relinquish its sole retained ciphertext.
+    static func cancelCreation(_ intent: CreationIntent, environment: Environment = .live) throws {
+        if intent.phase == .prepared || intent.phase == .reserved {
+            let directory = queueDirectoryURL(for: intent.ownerDatabaseID, environment: environment)
+            try environment.removeItem(directory.appendingPathComponent("\(intent.operationID.uuidString).creation"))
+            try environment.removeItem(resolveAppGroupURL(for: intent.payloadPath, environment: environment))
+        } else {
+            var paused = intent
+            paused.isPaused = true
+            try storeCreation(paused, environment: environment)
+        }
+    }
+
     struct Environment: Sendable {
         var appGroupContainerURL: @Sendable () -> URL
         var createDirectory: @Sendable (URL) throws -> Void
@@ -400,7 +455,9 @@ enum PendingUploadQueue {
     }
 
     static func removeAllMarkers(for databaseId: UUID, environment: Environment) throws {
-        try environment.removeItem(queueDirectoryURL(for: databaseId, environment: environment))
+        for marker in listMarkers(for: databaseId, environment: environment) {
+            _ = try dropIfUnchanged(marker, environment: environment)
+        }
     }
 
     static func clearAll() throws {

@@ -301,7 +301,43 @@ enum DatabaseListStore {
             var currentDatabases = loadDatabases()
             try validateCreatedCloud(reference, in: currentDatabases)
             currentDatabases.append(reference)
-            saveDatabases(currentDatabases)
+            guard saveDatabases(currentDatabases) else { throw CocoaError(.fileWriteUnknown) }
+        }
+    }
+
+    /// Idempotent publication after remote creation; the receipt remains journaled until this succeeds.
+    static func registerCloudCreation(_ reference: DatabaseReference, encryptedBytes: Data) throws -> DatabaseReference {
+        try withStateLock {
+            var current = loadDatabases()
+            guard let metadata = reference.cloudSyncMetadata else { throw SaveError.saveContextUnavailable }
+            if let existing = current.first(where: { $0.id == reference.id }) {
+                guard let saved = existing.cloudSyncMetadata,
+                      saved.provider == metadata.provider, saved.accountId == metadata.accountId,
+                      saved.fileId == metadata.fileId else { throw SaveError.saveContextUnavailable }
+                guard existing.keyFileBookmarkData == reference.keyFileBookmarkData,
+                      existing.keyFileFilename == reference.keyFileFilename else { throw SaveError.saveContextUnavailable }
+                if saved.localHeadOperationID == metadata.localHeadOperationID {
+                    let cache = cacheLocation(for: existing)
+                    if !FileManager.default.fileExists(atPath: cache.path) {
+                        try writeAtomicallyAndDurably(encryptedBytes, to: cache)
+                    }
+                    guard KDBXCrypto.sha512(try Data(contentsOf: cache)) == KDBXCrypto.sha512(encryptedBytes) else {
+                        throw SaveError.saveContextUnavailable
+                    }
+                } else {
+                    guard FileManager.default.fileExists(atPath: cacheLocation(for: existing).path) else {
+                        throw SaveError.saveContextUnavailable
+                    }
+                }
+                return existing
+            }
+            try validateCreatedCloud(reference, in: current)
+            try writeAtomicallyAndDurably(encryptedBytes, to: cacheLocation(for: reference))
+            current.append(reference)
+            guard saveDatabases(current), loadDatabases().contains(where: { $0 == reference }) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            return reference
         }
     }
 
