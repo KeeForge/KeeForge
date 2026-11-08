@@ -2882,6 +2882,7 @@ final class DatabaseViewModel {
     }
 
     private struct ConflictCopyRequest {
+        let id: UUID
         let revision: Int
         let lockCycle: Int
         let filename: String
@@ -2903,7 +2904,7 @@ final class DatabaseViewModel {
             request = pending
         } else {
             let bytes = try await conflictCopyEncryptionOperation(draft, compositeKey, saveConflict.remoteData)
-            request = ConflictCopyRequest(revision: revision, lockCycle: cycle,
+            request = ConflictCopyRequest(id: UUID(), revision: revision, lockCycle: cycle,
                 filename: conflictCopyFilename(for: databaseReference.filename), bytes: bytes)
             guard revision == contentRevision, cycle == lockCycleID else { throw SaveError.saveContextUnavailable }
             conflictCopyRequest = request
@@ -2914,7 +2915,9 @@ final class DatabaseViewModel {
         case .cloud(let metadata):
             let fileID = metadata.provider == "googledrive" ? request.filename : Self.siblingCloudConflictFileID(
                 currentFileID: metadata.fileId, filename: request.filename)
-            try await cloudConflictCopyOperation(databaseReference, fileID, request.bytes)
+            try await Self.$conflictCopyActionID.withValue(request.id) {
+                try await cloudConflictCopyOperation(databaseReference, fileID, request.bytes)
+            }
         }
         guard cycle == lockCycleID, revision == contentRevision else { return }
         conflictCopyRequest = nil
@@ -4767,10 +4770,13 @@ final class DatabaseViewModel {
     /// reports a collision as `.conflict`, which the retry answers by
     /// numbering the name. `providerResolver` is injectable only so tests can
     /// exercise this routing without a live provider.
+    @TaskLocal private static var conflictCopyActionID: UUID?
+
     static func writeConflictCopyToCloud(
         reference: DatabaseReference,
         fileID: String,
         bytes: Data,
+        operationID: UUID? = nil,
         providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:)
     ) async throws {
         guard let metadata = reference.cloudSyncMetadata else {
@@ -4783,13 +4789,22 @@ final class DatabaseViewModel {
 
         var creationEnvironment = CloudFileCreationCoordinator.Environment.live
         creationEnvironment.provider = { id in id == provider.id ? provider : nil }
-        if let pending = try CloudFileCreationCoordinator.pendingConflictCopy(reference: reference, bytes: bytes, environment: creationEnvironment) {
-            _ = try await CloudFileCreationCoordinator.resume(operationID: pending.operationID, environment: creationEnvironment)
+        let actionID = operationID ?? conflictCopyActionID ?? UUID()
+        if let pending = try PendingUploadQueue.listCreations(for: reference.id, includingCompleted: true).first(where: { $0.operationID == actionID }) {
+            guard pending.isConflictCopy, pending.ownerDatabaseID == reference.id,
+                  pending.requestedTarget == CloudFileCreationTarget(path: fileID),
+                  pending.provider == metadata.provider, pending.accountID == metadata.accountId,
+                  pending.payloadSHA512 == KDBXCrypto.sha512(bytes),
+                  pending.referenceTemplate.keyFileBookmarkData == reference.keyFileBookmarkData,
+                  pending.referenceTemplate.keyFileFilename == reference.keyFileFilename else {
+                throw CloudProviderError.conflict(remoteRev: nil)
+            }
+            _ = try await CloudFileCreationCoordinator.resume(operationID: actionID, environment: creationEnvironment)
             return
         }
         for attempt in 1...conflictCopyNameAttemptLimit {
             let path = attempt == 1 ? fileID : uniquifiedConflictCopyName(fileID, attempt: attempt)
-            let operationID = UUID()
+            let operationID = actionID
             var template = reference
             template = DatabaseReference(id: operationID, nickname: nil, filename: (path as NSString).lastPathComponent,
                 bookmarkData: nil, keyFileBookmarkData: template.keyFileBookmarkData,
@@ -4798,7 +4813,8 @@ final class DatabaseViewModel {
             do {
                 _ = try await CloudFileCreationCoordinator.create(operationID: operationID, ownerDatabaseID: reference.id,
                     provider: metadata.provider, accountID: metadata.accountId, target: CloudFileCreationTarget(path: path),
-                    bytes: bytes, referenceTemplate: template, isConflictCopy: true, environment: creationEnvironment)
+                    bytes: bytes, referenceTemplate: template, isConflictCopy: true,
+                    requestedTarget: CloudFileCreationTarget(path: fileID), environment: creationEnvironment)
                 return
             } catch let error as CloudProviderError {
                 let intent = try PendingUploadQueue.listCreations(for: reference.id).first { $0.operationID == operationID }

@@ -5863,6 +5863,71 @@ final class DatabaseViewModelTests: XCTestCase {
 
     // MARK: - Conflict copies are create-only (M8)
 
+    func testDurableConflictCopyExplicitActionRetriesWithoutDuplicatingAndAllowsNextAction() async throws {
+        let reference = makeCloudReference()
+        let provider = CreationTestProvider(id: "dropbox", accountID: "acct-1")
+        provider.loseNextResponse = true
+        let action = UUID()
+        let bytes = Data("copy-ciphertext".utf8)
+        do {
+            try await DatabaseViewModel.writeConflictCopyToCloud(reference: reference, fileID: "/Vaults/copy.kdbx",
+                bytes: bytes, operationID: action, providerResolver: { _ in provider })
+            XCTFail("Lost response must retain exact action")
+        } catch {}
+        try await DatabaseViewModel.writeConflictCopyToCloud(reference: reference, fileID: "/Vaults/copy.kdbx",
+            bytes: bytes, operationID: action, providerResolver: { _ in provider })
+        XCTAssertEqual(provider.createdIDs.count, 2)
+        XCTAssertEqual(Set(provider.createdIDs).count, 1)
+        try await DatabaseViewModel.writeConflictCopyToCloud(reference: reference, fileID: "/Vaults/copy.kdbx",
+            bytes: bytes, operationID: UUID(), providerResolver: { _ in provider })
+        XCTAssertEqual(provider.objects.count, 2, "Later deliberate actions remain distinct even with identical bytes and name")
+    }
+
+    func testConflictCopyRetryReusesCiphertextAndNameRatherThanReencrypting() async throws {
+        let recorder = ConflictCopyRetryRecorder()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote".utf8)) },
+            conflictCopyEncryptionOperation: { _, _, _ in await recorder.encrypt() },
+            localConflictCopyOperation: { _, filename, bytes in try await recorder.write(filename: filename, bytes: bytes) }
+        )
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Copy Retry")
+        try await vm.save()
+        do { try await vm.saveAsConflictCopy(); XCTFail() } catch {}
+        try await vm.saveAsConflictCopy()
+        let state = await recorder.snapshot()
+        XCTAssertEqual(state.encryptions, 1)
+        XCTAssertEqual(state.names.count, 2)
+        XCTAssertEqual(Set(state.names).count, 1)
+        XCTAssertEqual(Set(state.bytes).count, 1)
+        XCTAssertNil(vm.draft)
+    }
+
+    func testConflictCopyLateCompletionDoesNotDiscardNewerDraftOrSession() async throws {
+        for locksDuringCopy in [false, true] {
+            let gate = InFlightSaveGate()
+            let vm = try makeViewModel(
+                localSaveOperation: { _, _, _, _, _, _, _ in .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote".utf8)) },
+                conflictCopyEncryptionOperation: { _, _, _ in Data("copy".utf8) },
+                localConflictCopyOperation: { _, _, _ in await gate.parkFirstCall() }
+            )
+            await vm.unlock(password: fixturePassword)
+            vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Original copy")
+            try await vm.save()
+            let copy = Task { try await vm.saveAsConflictCopy() }
+            await gate.firstCallStarted()
+            if locksDuringCopy {
+                vm.lock()
+            } else {
+                vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Later unsaved edit")
+            }
+            await gate.releaseFirstCall()
+            try await copy.value
+            if locksDuringCopy { XCTAssertState(vm.state, is: .locked) }
+            else { XCTAssertNotNil(vm.draft); XCTAssertNotNil(vm.saveConflict) }
+        }
+    }
+
     func testConflictCopyToCloudUsesCreateOnlyUploadNeverOverwrite() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
         let provider = ConflictCopyCloudProvider()
@@ -8206,4 +8271,16 @@ private actor SaveOutcomeSwitch {
         defer { failNext = false }
         return failNext
     }
+}
+
+private actor ConflictCopyRetryRecorder {
+    private var encryptions = 0
+    private var names: [String] = []
+    private var bytes: [Data] = []
+    func encrypt() -> Data { encryptions += 1; return Data("ciphertext-\(encryptions)".utf8) }
+    func write(filename: String, bytes: Data) throws {
+        names.append(filename); self.bytes.append(bytes)
+        if names.count == 1 { throw CloudProviderError.networkUnavailable }
+    }
+    func snapshot() -> (encryptions: Int, names: [String], bytes: [Data]) { (encryptions, names, bytes) }
 }

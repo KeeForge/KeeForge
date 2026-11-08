@@ -192,6 +192,63 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
         XCTAssertFalse(accounts.contains(account.id))
     }
 
+    func testTypedParentIsOpaqueAndNameIsLiteralInCreationMetadata() async throws {
+        let transport = GoogleDriveTestTransport([.response(200, try json(resource(id: "generated_A", name: "literal/name.kdbx")))])
+        let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport,
+            creationEnabled: true, isAccountConnected: { _ in true })
+        _ = try await provider.createFile(accountId: "account", target: .init(path: "literal/name.kdbx", parentFileID: "folder_A"),
+            data: bytes, creationID: "generated_A", progress: { _ in })
+        let requests = await transport.requests
+        let body = try XCTUnwrap(requests.first?.httpBody)
+        let string = String(decoding: body, as: UTF8.self)
+        XCTAssertTrue(string.contains("\"parents\":[\"folder_A\"]"))
+        XCTAssertTrue(string.contains("literal"))
+        XCTAssertFalse(string.contains("folder_A/"))
+        do {
+            _ = try await provider.createFile(accountId: "account", target: .init(path: "vault.kdbx", parentFileID: "folder/path"),
+                data: bytes, creationID: "generated_B", progress: { _ in })
+            XCTFail("Parent identity cannot be a path")
+        } catch { XCTAssertEqual(error as? CloudProviderError, .invalidConfiguration) }
+        let after = await transport.requests
+        XCTAssertEqual(after.count, 1)
+    }
+
+    @MainActor
+    func testDurableCallerRestartUsesSameGeneratedIDAnd409Reconciliation() async throws {
+        DatabaseListStore.clearAll()
+        try PendingUploadQueue.clearAll()
+        defer { DatabaseListStore.clearAll(); try? PendingUploadQueue.clearAll() }
+        let transport = GoogleDriveTestTransport([
+            .response(200, try json(["ids": ["generated_A"]])), .failure(.networkConnectionLost),
+            .response(409, Data()), .response(200, bytes), .response(200, try json(resource(id: "generated_A")))
+        ])
+        let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport,
+            creationEnabled: true, isAccountConnected: { _ in true })
+        var environment = CloudFileCreationCoordinator.Environment.live
+        environment.queue.postDarwinNotification = { }
+        environment.provider = { $0 == "googledrive" ? provider : nil }
+        let id = UUID()
+        do {
+            _ = try await CloudFileCreationCoordinator.create(operationID: id, ownerDatabaseID: id,
+                provider: "googledrive", accountID: "account", target: .init(path: "vault.kdbx", parentFileID: "folder_A"),
+                bytes: bytes, referenceTemplate: creationTemplate(id: id), environment: environment)
+            XCTFail("Lost response remains pending")
+        } catch {}
+        let intent = try XCTUnwrap(PendingUploadQueue.listCreations(for: id).first)
+        XCTAssertEqual(intent.phase, .attempting)
+        XCTAssertEqual(intent.creationID, "generated_A")
+        XCTAssertEqual(intent.target.parentFileID, "folder_A")
+        let recovered = try await CloudFileCreationCoordinator.resume(operationID: id, environment: environment)
+        XCTAssertEqual(recovered.cloudSyncMetadata?.fileId, "generated_A")
+        XCTAssertEqual(DatabaseListStore.databases.filter { $0.id == id }.count, 1)
+        let requests = await transport.requests
+        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "POST", "POST", "GET", "GET"])
+        for request in requests.filter({ $0.httpMethod == "POST" }) {
+            XCTAssertTrue(String(decoding: try XCTUnwrap(request.httpBody), as: UTF8.self).contains("generated_A"))
+            XCTAssertTrue(String(decoding: try XCTUnwrap(request.httpBody), as: UTF8.self).contains("folder_A"))
+        }
+    }
+
     func testErrorReasonsMapWithoutUsingServerMessage() throws {
         let cases: [(Int, String, CloudProviderError)] = [
             (401, "", .notAuthenticated), (403, "authError", .notAuthenticated),

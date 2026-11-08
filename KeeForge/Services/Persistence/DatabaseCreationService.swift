@@ -273,7 +273,7 @@ enum DatabaseCreationService {
             }
         }
 
-        return try await Task.detached(priority: .utility) {
+        let task = Task.detached(priority: .utility) {
             let prepared = try prepareOffMain(
                 request: DatabasePreparationRequest(
                     displayName: request.displayName,
@@ -291,7 +291,8 @@ enum DatabaseCreationService {
                 destination: request.destination,
                 environment: environment
             )
-        }.value
+        }
+        return try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
     }
 
     static func create(
@@ -301,9 +302,10 @@ enum DatabaseCreationService {
     ) async throws -> CreatedDatabase {
         let handle = await environment.beginBackgroundTask("DatabaseCreation")
         defer { Task { @MainActor in environment.endBackgroundTask(handle) } }
-        return try await Task.detached(priority: .utility) {
+        let task = Task.detached(priority: .utility) {
             try await createOffMain(prepared: prepared, destination: destination, environment: environment)
-        }.value
+        }
+        return try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
     }
 
     static func prepare(
@@ -443,6 +445,13 @@ enum DatabaseCreationService {
                 : CloudFileCreationTarget(path: cloudFilePath(filename: prepared.filename, folderPath: folderPath))
             if let durableCreate = environment.durableCreateCloud {
                 reference = try await durableCreate(prepared, provider, accountId, target)
+                guard reference.cloudSyncMetadata?.localHeadOperationID == prepared.id,
+                      reference.keyFileBookmarkData == prepared.keyFileBookmarkData,
+                      reference.keyFileFilename == prepared.keyFileFilename,
+                      let cache = DatabaseListStore.cachedDatabaseURL(for: reference),
+                      KDBXCrypto.sha512(try Data(contentsOf: cache)) == prepared.openTimeSHA512 else {
+                    throw SaveError.saveContextUnavailable
+                }
                 break
             }
             let filePath = target.path

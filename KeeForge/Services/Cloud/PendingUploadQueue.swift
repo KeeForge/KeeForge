@@ -153,6 +153,7 @@ enum PendingUploadQueue {
         let referenceTemplate: DatabaseReference
         let isConflictCopy: Bool
         var creationID: String?
+        var requestedTarget: CloudFileCreationTarget?
         var phase: Phase = .prepared
         var receipt: DatabaseReference?
         var isPaused: Bool = false
@@ -166,7 +167,9 @@ enum PendingUploadQueue {
         return try directories.flatMap { directory -> [CreationIntent] in
             guard FileManager.default.fileExists(atPath: directory.path) else { return [] }
             return try environment.listDirectory(directory).filter { $0.pathExtension == "creation" }.map {
-                try JSONDecoder().decode(CreationIntent.self, from: environment.readData($0))
+                var intent = try JSONDecoder().decode(CreationIntent.self, from: environment.readData($0))
+                if FileManager.default.fileExists(atPath: creationPauseURL(intent, environment: environment).path) { intent.isPaused = true }
+                return intent
             }
         }.filter { includingCompleted || $0.phase != .completed }
     }
@@ -182,12 +185,21 @@ enum PendingUploadQueue {
         queueDirectoryURL(for: ownerDatabaseID, environment: environment).appendingPathComponent("\(operationID.uuidString).creation.kdbx")
     }
 
+    static func creationPauseURL(_ intent: CreationIntent, environment: Environment = .live) -> URL {
+        queueDirectoryURL(for: intent.ownerDatabaseID, environment: environment).appendingPathComponent("\(intent.operationID.uuidString).creation-paused")
+    }
+
+    static func requestCreationPause(_ intent: CreationIntent, environment: Environment = .live) throws {
+        try environment.writeMarkerAtomically(Data([1]), creationPauseURL(intent, environment: environment))
+    }
+
     /// Only an unattempted creation may relinquish its sole retained ciphertext.
     static func cancelCreation(_ intent: CreationIntent, environment: Environment = .live) throws {
         if intent.phase == .prepared || intent.phase == .reserved {
             let directory = queueDirectoryURL(for: intent.ownerDatabaseID, environment: environment)
             try environment.removeItem(directory.appendingPathComponent("\(intent.operationID.uuidString).creation"))
             try environment.removeItem(resolveAppGroupURL(for: intent.payloadPath, environment: environment))
+            try environment.removeItem(creationPauseURL(intent, environment: environment))
         } else {
             var paused = intent
             paused.isPaused = true

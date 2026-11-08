@@ -32,6 +32,42 @@ final class KDBXCompatibilityTests: XCTestCase {
         Bundle(for: Self.self)
     }
 
+    @MainActor
+    func test_durableCreationRestartRetainsExactReopenableCiphertextAndFullSnapshot() async throws {
+        for fixture in [KDBXCompatibilitySupport.Fixture.syntheticRich, .syntheticTwofish] {
+            let loaded = try KDBXCompatibilitySupport.load(fixture, bundle: bundle)
+            let id = UUID()
+            let provider = CreationTestProvider()
+            provider.loseNextResponse = true
+            let environment = creationEnvironment(provider)
+            defer { DatabaseListStore.remove(id: id) }
+            let before = try CompatibilitySnapshot(rootGroup: loaded.rootGroup, meta: loaded.meta,
+                sessionKey: loaded.sessionKey, binaryPool: BinaryPool(rawFields: loaded.header.innerHeaderBinaryFields))
+            do {
+                _ = try await CloudFileCreationCoordinator.create(operationID: id, ownerDatabaseID: id,
+                    provider: provider.id, accountID: "account", target: .init(path: "Compatibility.kdbx"),
+                    bytes: loaded.sourceData, referenceTemplate: creationTemplate(id: id), environment: environment)
+                XCTFail("Accepted-lost create must leave recovery evidence")
+            } catch {}
+            let pending = try XCTUnwrap(PendingUploadQueue.listCreations(for: id).first)
+            let retained = try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: pending.payloadPath))
+            XCTAssertEqual(retained, loaded.sourceData)
+            let registered = try await CloudFileCreationCoordinator.resume(operationID: id, environment: environment)
+            let published = try Data(contentsOf: XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: registered)))
+            XCTAssertEqual(published, retained)
+            let reopened = try KDBXParser.parseWithMetaAndHeader(data: published, compositeKey: loaded.compositeKey,
+                sessionKey: loaded.sessionKey, kdfPolicy: .mainApp)
+            let after = try CompatibilitySnapshot(rootGroup: reopened.rootGroup, meta: reopened.meta,
+                sessionKey: loaded.sessionKey, binaryPool: BinaryPool(rawFields: reopened.header.innerHeaderBinaryFields))
+            XCTAssertEqual(after.entries, before.entries)
+            XCTAssertEqual(after.groups, before.groups)
+            XCTAssertEqual(after.meta, before.meta)
+            XCTAssertEqual(after.binaryPoolDigest, before.binaryPoolDigest)
+            XCTAssertEqual(reopened.header.cipherID, loaded.header.cipherID)
+            XCTAssertEqual(provider.objects.count, 1)
+        }
+    }
+
     func test_offlineCloudCommitRetainsReopenableCiphertextAndFullKDBXSnapshot() async throws {
         for fixture in [KDBXCompatibilitySupport.Fixture.syntheticRich, .syntheticTwofish] {
             let loaded = try KDBXCompatibilitySupport.load(fixture, bundle: bundle)

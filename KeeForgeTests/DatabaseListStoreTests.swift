@@ -22,6 +22,57 @@ final class DatabaseListStoreTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testCloudCreationRegistrationIsDurableIdempotentAndCannotReplaceLaterHead() throws {
+        var reference = creationTemplate(id: UUID())
+        var metadata = CloudSyncMetadata(provider: "googledrive", accountId: "account", fileId: "generated_A", displayPath: "generated_A",
+            remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil)
+        metadata.localHeadOperationID = reference.id
+        reference.source = .cloud(metadata)
+        let original = Data("original-ciphertext".utf8)
+        _ = try DatabaseListStore.registerCloudCreation(reference, encryptedBytes: original)
+        _ = try DatabaseListStore.registerCloudCreation(reference, encryptedBytes: original)
+        XCTAssertEqual(DatabaseListStore.databases.filter { $0.id == reference.id }.count, 1)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), original)
+        var newer = reference
+        newer.updateCloudSyncMetadata { $0.localHeadOperationID = UUID(); $0.keyEpoch = UUID() }
+        DatabaseListStore.update(newer)
+        let changed = Data("new-key-ciphertext".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(changed, for: newer)
+        let replay = try DatabaseListStore.registerCloudCreation(reference, encryptedBytes: original)
+        XCTAssertEqual(replay, newer)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: newer)), changed)
+    }
+
+    func testCloudCreationRegistrationRejectsDifferentIdentityAndPayload() throws {
+        var reference = creationTemplate(id: UUID())
+        var metadata = CloudSyncMetadata(provider: "googledrive", accountId: "account", fileId: "generated_A", displayPath: "generated_A",
+            remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil)
+        metadata.localHeadOperationID = reference.id
+        reference.source = .cloud(metadata)
+        _ = try DatabaseListStore.registerCloudCreation(reference, encryptedBytes: Data("original".utf8))
+        XCTAssertThrowsError(try DatabaseListStore.registerCloudCreation(reference, encryptedBytes: Data("other".utf8)))
+        var mismatched = reference
+        mismatched.source = .cloud(CloudSyncMetadata(provider: "googledrive", accountId: "another-account", fileId: "generated_A", displayPath: "generated_A",
+            remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil))
+        XCTAssertThrowsError(try DatabaseListStore.registerCloudCreation(mismatched, encryptedBytes: Data("original".utf8)))
+    }
+
+    func testCloudCreationRegistrationReportsDatabaseListWriteFailure() throws {
+        let listURL = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        let saved = try? Data(contentsOf: listURL)
+        try? FileManager.default.removeItem(at: listURL)
+        try FileManager.default.createDirectory(at: listURL, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: listURL)
+            if let saved { try? writeAtomicallyAndDurably(saved, to: listURL) }
+        }
+        var reference = creationTemplate(id: UUID())
+        reference.source = .cloud(CloudSyncMetadata(provider: "googledrive", accountId: "account", fileId: "generated_A", displayPath: "generated_A",
+            remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil))
+        XCTAssertThrowsError(try DatabaseListStore.addCreatedCloud(reference))
+        XCTAssertThrowsError(try DatabaseListStore.registerCloudCreation(reference, encryptedBytes: Data("ciphertext".utf8)))
+    }
+
     func testAddPersistsDatabaseReference() throws {
         let url = try makeTemporaryFileURL(name: "personal.kdbx")
 

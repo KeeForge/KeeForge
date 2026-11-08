@@ -11,13 +11,25 @@ enum CloudFileCreationCoordinator {
         var publish: @Sendable (DatabaseReference, Data) throws -> DatabaseReference = {
             try DatabaseListStore.registerCloudCreation($0, encryptedBytes: $1)
         }
+        var completedReference: @Sendable (Intent) throws -> DatabaseReference = { intent in
+            guard let receipt = intent.receipt,
+                  let stored = DatabaseListStore.databases.first(where: { $0.id == receipt.id }),
+                  stored.cloudSyncMetadata == receipt.cloudSyncMetadata,
+                  stored.keyFileBookmarkData == receipt.keyFileBookmarkData,
+                  stored.keyFileFilename == receipt.keyFileFilename,
+                  let cache = DatabaseListStore.cachedDatabaseURL(for: stored),
+                  KDBXCrypto.sha512(try Data(contentsOf: cache)) == intent.payloadSHA512 else {
+                throw SaveError.saveContextUnavailable
+            }
+            return stored
+        }
         static let live = Environment()
     }
 
     static func create(
         operationID: UUID, ownerDatabaseID: UUID, provider: String, accountID: String,
         target: CloudFileCreationTarget, bytes: Data, referenceTemplate: DatabaseReference,
-        isConflictCopy: Bool = false, environment: Environment = .live
+        isConflictCopy: Bool = false, requestedTarget: CloudFileCreationTarget? = nil, environment: Environment = .live
     ) async throws -> DatabaseReference {
         let lease = try acquireLease(environment)
         defer { releaseLease(lease) }
@@ -27,21 +39,22 @@ enum CloudFileCreationCoordinator {
             guard existing.ownerDatabaseID == ownerDatabaseID, existing.provider == provider,
                   existing.accountID == accountID, existing.target == target,
                   existing.payloadSHA512 == sha, existing.referenceTemplate == referenceTemplate,
-                  existing.isConflictCopy == isConflictCopy else { throw CloudProviderError.conflict(remoteRev: nil) }
+                  existing.isConflictCopy == isConflictCopy, existing.requestedTarget == requestedTarget else { throw CloudProviderError.conflict(remoteRev: nil) }
             return try await deliver(existing, environment: environment)
         }
         // A different preparation must never be fulfilled by an earlier key's ciphertext.
         guard !records.contains(where: {
             $0.phase != .completed && $0.provider == provider && $0.accountID == accountID &&
-            ($0.target == target || (isConflictCopy && $0.isConflictCopy && $0.ownerDatabaseID == ownerDatabaseID))
+            $0.target == target
         }) else { throw CloudProviderError.conflict(remoteRev: nil) }
         let payloadURL = PendingUploadQueue.creationPayloadURL(ownerDatabaseID: ownerDatabaseID, operationID: operationID, environment: environment.queue)
         try environment.queue.createDirectory(payloadURL.deletingLastPathComponent())
         try environment.queue.writeMarkerAtomically(bytes, payloadURL)
-        let intent = Intent(operationID: operationID, ownerDatabaseID: ownerDatabaseID, provider: provider,
+        var intent = Intent(operationID: operationID, ownerDatabaseID: ownerDatabaseID, provider: provider,
             accountID: accountID, target: target, payloadSHA512: sha,
             payloadPath: try PendingUploadQueue.makeRelativeAppGroupPath(for: payloadURL, environment: environment.queue),
             referenceTemplate: referenceTemplate, isConflictCopy: isConflictCopy)
+        intent.requestedTarget = requestedTarget
         try PendingUploadQueue.storeCreation(intent, environment: environment.queue)
         environment.queue.postDarwinNotification()
         return try await deliver(intent, environment: environment)
@@ -53,35 +66,25 @@ enum CloudFileCreationCoordinator {
         guard var intent = try PendingUploadQueue.listCreations(includingCompleted: true, environment: environment.queue).first(where: { $0.operationID == operationID }) else {
             throw CloudProviderError.fileNotFound
         }
+        try environment.queue.removeItem(PendingUploadQueue.creationPauseURL(intent, environment: environment.queue))
         intent.isPaused = false
         try PendingUploadQueue.storeCreation(intent, environment: environment.queue)
         return try await deliver(intent, environment: environment)
     }
 
     static func cancel(operationID: UUID, environment: Environment = .live) throws {
-        let lease = try acquireLease(environment)
-        defer { releaseLease(lease) }
         guard let intent = try PendingUploadQueue.listCreations(environment: environment.queue).first(where: { $0.operationID == operationID }) else { return }
-        try PendingUploadQueue.cancelCreation(intent, environment: environment.queue)
-    }
-
-    /// Retry a conflict action only while its exact ciphertext remains pending.
-    static func pendingConflictCopy(reference: DatabaseReference, bytes: Data, environment: Environment = .live) throws -> Intent? {
-        let pending = try PendingUploadQueue.listCreations(for: reference.id, environment: environment.queue).filter(\.isConflictCopy)
-        guard let intent = pending.first else { return nil }
-        guard intent.payloadSHA512 == KDBXCrypto.sha512(bytes),
-              intent.provider == reference.cloudSyncMetadata?.provider,
-              intent.accountID == reference.cloudSyncMetadata?.accountId,
-              intent.referenceTemplate.keyFileBookmarkData == reference.keyFileBookmarkData,
-              intent.referenceTemplate.keyFileFilename == reference.keyFileFilename else {
-            throw CloudProviderError.conflict(remoteRev: nil)
-        }
-        return intent
+        try PendingUploadQueue.requestCreationPause(intent, environment: environment.queue)
+        let lease: Int32
+        do { lease = try acquireLease(environment) } catch CloudProviderError.conflict { return }
+        defer { releaseLease(lease) }
+        guard let current = try PendingUploadQueue.listCreations(environment: environment.queue).first(where: { $0.operationID == operationID }) else { return }
+        try PendingUploadQueue.cancelCreation(current, environment: environment.queue)
     }
 
     private static func deliver(_ original: Intent, environment: Environment) async throws -> DatabaseReference {
         var intent = original
-        if intent.phase == .completed, let receipt = intent.receipt { return receipt }
+        if intent.phase == .completed { return try environment.completedReference(intent) }
         guard !intent.isPaused else { throw CloudProviderError.authenticationCancelled }
         do {
             let bytes = try environment.queue.readData(PendingUploadQueue.resolveAppGroupURL(for: intent.payloadPath, environment: environment.queue))
@@ -98,15 +101,20 @@ enum CloudFileCreationCoordinator {
                 // A weak create-only transport cannot fence a previous ambiguous invocation.
                 guard intent.phase != .attempting || intent.creationID != nil else { throw CloudProviderError.conflict(remoteRev: nil) }
                 try Task.checkCancellation()
+                guard !FileManager.default.fileExists(atPath: PendingUploadQueue.creationPauseURL(intent, environment: environment.queue).path) else { throw CloudProviderError.authenticationCancelled }
                 guard provider.isAuthenticated(accountId: intent.accountID) else { throw CloudProviderError.notAuthenticated }
+                let hadUnresolvedAttempt = intent.phase == .attempting
                 intent.phase = .attempting
                 try PendingUploadQueue.storeCreation(intent, environment: environment.queue)
                 let created: CloudCreatedFile
                 do {
                     created = try await provider.createFile(accountId: intent.accountID, target: intent.target,
                         data: bytes, creationID: intent.creationID, progress: { _ in })
+                } catch let failure as CloudUploadFailure {
+                    if !hadUnresolvedAttempt && failure.provesNoCommit { intent.phase = .reserved }
+                    throw failure
                 } catch let error as CloudProviderError {
-                    if intent.creationID == nil, case .conflict = error {
+                    if !hadUnresolvedAttempt, intent.creationID == nil, case .conflict = error {
                         // A definite create-only collision permits a later explicitly numbered destination.
                         intent.phase = .reserved
                     }
@@ -123,7 +131,10 @@ enum CloudFileCreationCoordinator {
                 intent.receipt = reference
                 intent.phase = .confirmed
                 try PendingUploadQueue.storeCreation(intent, environment: environment.queue)
+                guard provider.isAuthenticated(accountId: intent.accountID) else { throw CloudProviderError.notAuthenticated }
             }
+            try Task.checkCancellation()
+            guard !FileManager.default.fileExists(atPath: PendingUploadQueue.creationPauseURL(intent, environment: environment.queue).path) else { throw CloudProviderError.authenticationCancelled }
             guard let receipt = intent.receipt else { throw SaveError.saveContextUnavailable }
             let registered = try environment.publish(receipt, bytes)
             guard registered.id == receipt.id, registered.cloudSyncMetadata?.provider == intent.provider,
@@ -137,7 +148,8 @@ enum CloudFileCreationCoordinator {
             return registered
         } catch {
             intent.lastIssue = CloudProviderError.issue(for: error)
-            if error is CancellationError || (error as? CloudProviderError) == .notAuthenticated || (error as? CloudProviderError) == .authenticationCancelled {
+            let issue = CloudProviderError.issue(for: error)
+            if error is CancellationError || issue == .notAuthenticated || issue == .authenticationCancelled {
                 intent.isPaused = true
             }
             try? PendingUploadQueue.storeCreation(intent, environment: environment.queue)

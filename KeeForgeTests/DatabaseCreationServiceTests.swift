@@ -18,6 +18,60 @@ final class DatabaseCreationServiceTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testPreparedCloudRetryPreservesIdentityBytesAndOpaqueParent() async throws {
+        let prepared = try await DatabaseCreationService.prepare(request: DatabasePreparationRequest(displayName: "Drive", password: "password"))
+        let provider = CreationTestProvider()
+        provider.loseNextResponse = true
+        let creation = creationEnvironment(provider)
+        var environment = DatabaseCreationService.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.durableCreateCloud = { prepared, providerID, accountID, target in
+            var template = creationTemplate(id: prepared.id)
+            template.filename = prepared.filename
+            template.addedAt = prepared.addedAt
+            template.keyFileBookmarkData = prepared.keyFileBookmarkData
+            template.keyFileFilename = prepared.keyFileFilename
+            return try await CloudFileCreationCoordinator.create(operationID: prepared.id, ownerDatabaseID: prepared.id,
+                provider: providerID, accountID: accountID, target: target, bytes: prepared.encryptedBytes,
+                referenceTemplate: template, environment: creation)
+        }
+        let destination = DatabaseCreationDestination.cloud(provider: "googledrive", accountId: "account", folderPath: "folder_ID")
+        do { _ = try await DatabaseCreationService.create(prepared: prepared, destination: destination, environment: environment); XCTFail() } catch {}
+        let created = try await DatabaseCreationService.create(prepared: prepared, destination: destination, environment: environment)
+        XCTAssertEqual(created.reference.id, prepared.id)
+        XCTAssertEqual(provider.targets.map(\.path), ["Drive.kdbx", "Drive.kdbx"])
+        XCTAssertEqual(provider.targets.map(\.parentFileID), ["folder_ID", "folder_ID"])
+        XCTAssertEqual(provider.objects.values.first, prepared.encryptedBytes)
+        let payload = try Data(contentsOf: XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: created.reference)))
+        let parsed = try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: created.compositeKey, sessionKey: created.sessionKey)
+        XCTAssertEqual(parsed.rootGroup.groups.first?.name, "Drive")
+    }
+
+    func testDurableServiceRejectsReferenceWhoseHeadChangedAfterRegistration() async throws {
+        let prepared = try await DatabaseCreationService.prepare(request: DatabasePreparationRequest(displayName: "Rekeyed", password: "old-password"))
+        var environment = DatabaseCreationService.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.durableCreateCloud = { prepared, _, _, _ in
+            var reference = creationTemplate(id: prepared.id)
+            reference.keyFileBookmarkData = prepared.keyFileBookmarkData
+            reference.keyFileFilename = prepared.keyFileFilename
+            var metadata = CloudSyncMetadata(provider: "googledrive", accountId: "account", fileId: "generated_A", displayPath: "generated_A",
+                remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil)
+            metadata.localHeadOperationID = UUID()
+            metadata.keyEpoch = UUID()
+            reference.source = .cloud(metadata)
+            try DatabaseListStore.cacheDatabaseCopy(Data("new-key-ciphertext".utf8), for: reference)
+            return reference
+        }
+        do {
+            _ = try await DatabaseCreationService.create(prepared: prepared,
+                destination: .cloud(provider: "googledrive", accountId: "account", folderPath: nil), environment: environment)
+            XCTFail("Never pair old prepared keys with a newer cloud head")
+        } catch { XCTAssertNotNil(error as? SaveError) }
+    }
+
     func testCreatePasswordOnlyDatabaseWritesParseableKDBX4() async throws {
         let destinationURL = try makeDestinationURL(name: "new%20db 100%.kdbx")
 
