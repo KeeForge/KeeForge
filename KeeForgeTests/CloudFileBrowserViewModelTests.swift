@@ -305,7 +305,8 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
             provider: CloudProviderKind.webDAV.rawValue
         )
         CloudAccountStore.upsert(account)
-        let session = CloudFileBrowserSession(providerID: CloudProviderKind.webDAV.rawValue) { _ in nil }
+        let provider = MockBrowserCloudProvider(id: CloudProviderKind.webDAV.rawValue)
+        let session = CloudFileBrowserSession(providerID: CloudProviderKind.webDAV.rawValue) { _ in provider }
 
         session.adoptManualAccount(account)
 
@@ -313,19 +314,22 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
         XCTAssertEqual(session.selectedAccountID, account.id)
     }
 
-    func testBrowserSessionCancelPendingAuthenticationDelegatesToProvider() {
+    func testIdleBrowserSessionDoesNotCancelAnotherSessionsAuthentication() {
         let provider = MockBrowserCloudProvider()
         let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
 
         session.cancelPendingAuthentication()
 
-        XCTAssertEqual(provider.cancelPendingAuthenticationCallCount, 1)
+        XCTAssertEqual(provider.cancelPendingAuthenticationCallCount, 0)
     }
 
     func testBrowserSessionRejectsSelectionFromPreviousAccount() {
         let firstAccount = CloudAccount(id: "acct-1", displayName: "First", provider: "dropbox")
         let secondAccount = CloudAccount(id: "acct-2", displayName: "Second", provider: "dropbox")
-        let session = CloudFileBrowserSession(providerID: "dropbox") { _ in nil }
+        let provider = MockBrowserCloudProvider()
+        CloudAccountStore.upsert(firstAccount)
+        CloudAccountStore.upsert(secondAccount)
+        let session = CloudFileBrowserSession(providerID: "dropbox") { _ in provider }
         session.accounts = [firstAccount, secondAccount]
         session.selectedAccountID = firstAccount.id
         XCTAssertEqual(session.selectionAccount(matching: firstAccount.id), firstAccount)
@@ -340,7 +344,8 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
 }
 
 private final class MockBrowserCloudProvider: CloudProvider, @unchecked Sendable {
-    let id = CloudProviderKind.dropbox.rawValue
+    let id: String
+    init(id: String = CloudProviderKind.dropbox.rawValue) { self.id = id }
     let displayName = CloudProviderKind.dropbox.displayName
     let iconName = CloudProviderKind.dropbox.iconName
 
@@ -620,6 +625,66 @@ final class CloudNativeSelectionWorkflowTests: XCTestCase {
         XCTAssertFalse(session.isAuthenticating)
     }
 
+    func testPublishedGrantAndFolderAccountBecomeUnselectableAfterSignout() async {
+        let provider = NativeSelectionTestProvider()
+        let files = [selection("selected")]
+        provider.select = { _ in files }
+        let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+        _ = await session.selectFiles(expectedAccountID: nil) { ASPresentationAnchor() }
+        provider.signOut(accountId: "A")
+        XCTAssertNil(session.selectionAccount(matching: "A"))
+        XCTAssertNil(session.consumeSelection(files[0].file, accountID: "A"))
+    }
+
+    func testAccountOnlyConnectAndManualAdoptionRejectPostAuthenticationSignout() async {
+        let provider = NativeSelectionTestProvider()
+        let entered = AsyncGate()
+        let release = AsyncGate()
+        let account = selection("existing").account
+        provider.accountAuthorization = {
+            CloudAccountStore.upsert(account)
+            entered.open()
+            await release.wait()
+            return account
+        }
+        let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+        let task = Task { await session.authenticate { ASPresentationAnchor() } }
+        await entered.wait()
+        provider.signOut(accountId: account.id)
+        release.open()
+        guard case .failed = await task.value else { return XCTFail("Signed-out account cannot be adopted") }
+        XCTAssertNil(session.selectedAccountID)
+        session.adoptManualAccount(account)
+        XCTAssertNil(session.selectedAccountID)
+    }
+
+    func testRemovedAccountRowCannotAuthorizePreviouslyPublishedGrant() async {
+        let provider = NativeSelectionTestProvider()
+        let files = [selection("selected")]
+        provider.select = { _ in files }
+        let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+        _ = await session.selectFiles(expectedAccountID: nil) { ASPresentationAnchor() }
+        CloudAccountStore.remove(provider: provider.id, accountId: "A")
+        XCTAssertNil(session.consumeSelection(files[0].file, accountID: "A"))
+    }
+
+    func testIdleSessionDisappearanceCannotCancelAnotherWindowsPicker() async {
+        let provider = NativeSelectionTestProvider()
+        let entered = AsyncGate()
+        let release = AsyncGate()
+        let files = [selection("selected")]
+        provider.select = { _ in entered.open(); await release.wait(); return files }
+        let owner = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+        let idle = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+        let task = Task { await owner.selectFiles(expectedAccountID: nil) { ASPresentationAnchor() } }
+        await entered.wait()
+        idle.disappear()
+        XCTAssertEqual(provider.cancellationCalls, 0)
+        release.open()
+        guard case .selected = await task.value else { return XCTFail("Idle window must not cancel owner") }
+        XCTAssertEqual(owner.selectedFiles, files)
+    }
+
     func testNativeListingCannotAuthorizeUnpickedFileAndCancelledPickerHasNoFallback() async {
         let provider = NativeSelectionTestProvider()
         provider.select = { _ in throw CloudProviderError.authenticationCancelled }
@@ -639,21 +704,27 @@ private final class NativeSelectionTestProvider: CloudFileSelecting, @unchecked 
     let displayName = "Google Drive"
     let iconName = "externaldrive"
     @MainActor var select: (String?) async throws -> [CloudDatabaseSelection] = { _ in [] }
+    @MainActor var accountAuthorization: (() async throws -> CloudAccount)?
     @MainActor private(set) var authenticateCalls = 0
     @MainActor private(set) var selectionCalls = 0
+    @MainActor private(set) var cancellationCalls = 0
+    @MainActor func cancelPendingAuthentication() { cancellationCalls += 1 }
     private(set) var listCalls = 0
     private var connected = true
     @MainActor init() {}
 
     @MainActor func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
         authenticateCalls += 1
+        if let accountAuthorization { return try await accountAuthorization() }
         let account = CloudAccount(id: "A", displayName: "A", provider: id)
         CloudAccountStore.upsert(account)
         return account
     }
     @MainActor func selectFiles(from anchor: ASPresentationAnchor, expectedAccountID: String?) async throws -> [CloudDatabaseSelection] {
         selectionCalls += 1
-        return try await select(expectedAccountID)
+        let selections = try await select(expectedAccountID)
+        selections.forEach { CloudAccountStore.upsert($0.account) }
+        return selections
     }
     func isAuthenticated(accountId: String) -> Bool { connected }
     func signOut(accountId: String) { connected = false }

@@ -27,6 +27,8 @@ final class CloudFileBrowserSession {
     }
     private(set) var selectedFiles: [CloudDatabaseSelection] = []
     private var operationID: UUID?
+    private var operationProvider: (any CloudProvider)?
+    private var selectionProvider: (any CloudProvider)?
     private var isActive = true
     private(set) var isAuthenticating = false
 
@@ -47,7 +49,9 @@ final class CloudFileBrowserSession {
     }
 
     func selectionAccount(matching accountID: String) -> CloudAccount? {
-        guard isActive, selectedAccountID == accountID else { return nil }
+        guard isActive, selectedAccountID == accountID,
+              provider?.isAuthenticated(accountId: accountID) == true,
+              CloudAccountStore.isConnected(provider: providerID, accountId: accountID) else { return nil }
         return selectedAccount
     }
 
@@ -76,13 +80,14 @@ final class CloudFileBrowserSession {
             return .failed(CloudProviderError.invalidConfiguration)
         }
 
-        let id = beginOperation()
+        let id = beginOperation(provider: provider)
         defer { finishOperation(id) }
 
         do {
             let account = try await provider.authenticate(from: presentationAnchor())
-            guard accepts(id), !Task.isCancelled else { return .cancelled }
-            guard account.provider == providerID else { return .failed(CloudProviderError.permissionDenied) }
+            guard accepts(id), self.provider === provider, !Task.isCancelled else { return .cancelled }
+            guard account.provider == providerID, provider.isAuthenticated(accountId: account.id),
+                  CloudAccountStore.isConnected(provider: providerID, accountId: account.id) else { return .failed(CloudProviderError.permissionDenied) }
             finishOperation(id)
             refreshAccounts()
             selectedAccountID = account.id
@@ -106,11 +111,11 @@ final class CloudFileBrowserSession {
             return .failed(CloudProviderError.invalidConfiguration)
         }
         let owner = selectedAccountID
-        let id = beginOperation()
+        let id = beginOperation(provider: selector)
         defer { finishOperation(id) }
         do {
             let selections = try await selector.selectFiles(from: presentationAnchor(), expectedAccountID: expectedAccountID)
-            guard accepts(id), selectedAccountID == owner, !Task.isCancelled else { return .cancelled }
+            guard accepts(id), self.provider === selector, selectedAccountID == owner, !Task.isCancelled else { return .cancelled }
             guard let account = selections.first?.account else { return .cancelled }
             guard selector.isAuthenticated(accountId: account.id), account.provider == providerID,
                   expectedAccountID == nil || account.id == expectedAccountID,
@@ -127,6 +132,7 @@ final class CloudFileBrowserSession {
             }
             selectedAccountID = account.id
             selectedFiles = selections
+            selectionProvider = selector
             return .selected(selections)
         } catch {
             guard accepts(id), !Task.isCancelled, !(error is CancellationError) else { return .cancelled }
@@ -138,7 +144,7 @@ final class CloudFileBrowserSession {
     func consumeSelection(_ file: CloudFile, accountID: String) -> CloudDatabaseSelection? {
         guard let account = selectionAccount(matching: accountID) else { return nil }
         let selection = CloudDatabaseSelection(provider: providerID, account: account, file: file)
-        guard !usesNativeFileSelection || selectedFiles.contains(selection) else { return nil }
+        guard !usesNativeFileSelection || (provider === selectionProvider && selectedFiles.contains(selection)) else { return nil }
         disappear()
         return selection
     }
@@ -148,10 +154,11 @@ final class CloudFileBrowserSession {
         cancelPendingAuthentication()
     }
 
-    private func beginOperation() -> UUID {
+    private func beginOperation(provider: any CloudProvider) -> UUID {
         invalidateOperation()
         let id = UUID()
         operationID = id
+        operationProvider = provider
         isAuthenticating = true
         return id
     }
@@ -161,12 +168,15 @@ final class CloudFileBrowserSession {
     private func finishOperation(_ id: UUID) {
         guard operationID == id else { return }
         operationID = nil
+        operationProvider = nil
         isAuthenticating = false
     }
 
     private func invalidateOperation() {
-        if operationID != nil { provider?.cancelPendingAuthentication() }
+        if operationID != nil { operationProvider?.cancelPendingAuthentication() }
         operationID = nil
+        operationProvider = nil
+        selectionProvider = nil
         selectedFiles = []
         isAuthenticating = false
     }
@@ -175,13 +185,14 @@ final class CloudFileBrowserSession {
     /// state mutations of a successful `authenticate()`: refresh the account list
     /// and select the newly connected account.
     func adoptManualAccount(_ account: CloudAccount) {
-        guard isActive, account.provider == providerID else { return }
+        guard isActive, account.provider == providerID,
+              provider?.isAuthenticated(accountId: account.id) == true,
+              CloudAccountStore.isConnected(provider: providerID, accountId: account.id) else { return }
         refreshAccounts()
         selectedAccountID = account.id
     }
 
     func cancelPendingAuthentication() {
         invalidateOperation()
-        provider?.cancelPendingAuthentication()
     }
 }

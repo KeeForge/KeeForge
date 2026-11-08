@@ -20,7 +20,7 @@ struct DatabaseCreationView: View {
             formContent
             .navigationTitle("New Database")
             .navigationBarTitleDisplayMode(.inline)
-            .disabled(viewModel.isCreating || viewModel.isRecovering)
+            .disabled(viewModel.isCreating)
             .safeAreaInset(edge: .top, spacing: 0) {
                 if let errorMessage = viewModel.validationError ?? viewModel.creationError {
                     CreationErrorBanner(message: errorMessage)
@@ -42,7 +42,7 @@ struct DatabaseCreationView: View {
                         viewModel.cancelPendingCreation()
                         dismiss()
                     }
-                    .disabled(viewModel.isCreating || viewModel.isRecovering)
+                    .disabled(viewModel.isCreating)
                     .accessibilityIdentifier("database-create.cancel-button")
                 }
 
@@ -71,7 +71,7 @@ struct DatabaseCreationView: View {
                 }
             }
         }
-        .interactiveDismissDisabled(viewModel.isCreating || viewModel.isRecovering)
+        .interactiveDismissDisabled(viewModel.isCreating)
         .task { await viewModel.refreshPendingCreations() }
         .onDisappear {
             viewModel.cancelPendingCreation()
@@ -89,8 +89,7 @@ struct DatabaseCreationView: View {
             onCompletion: handleKeyFileSelection
         )
         .sheet(
-            isPresented: $isCloudFolderPickerPresented,
-            onDismiss: cancelPendingCloudAuthentication
+            isPresented: $isCloudFolderPickerPresented
         ) {
             CloudFolderPickerView(
                 providerID: selectedCloudProvider?.rawValue ?? CloudProviderKind.dropbox.rawValue,
@@ -138,10 +137,12 @@ struct DatabaseCreationView: View {
                                     }
                                 }
                             }
+                            .disabled(viewModel.isRecovering)
                             .accessibilityIdentifier("database-create.pending.resume")
                             Button("Cancel Creation", role: .destructive) {
                                 Task { await viewModel.cancelCreation(item) }
                             }
+                            .disabled(viewModel.isRecovering && viewModel.recoveringOperationID != item.id)
                             .accessibilityIdentifier("database-create.pending.cancel")
                         }
                     }
@@ -384,13 +385,6 @@ struct DatabaseCreationView: View {
                 onCreated(created)
                 dismiss()
             }
-        }
-    }
-
-    @MainActor
-    private func cancelPendingCloudAuthentication() {
-        for providerKind in CloudProviderRegistry.availableProviders {
-            CloudProviderRegistry.provider(for: providerKind.rawValue)?.cancelPendingAuthentication()
         }
     }
 

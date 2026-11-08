@@ -100,6 +100,8 @@ final class DatabaseCreationViewModel {
     private var recoveryListGeneration = UUID()
     private(set) var pendingCreations: [CloudCreationRecoveryItem] = []
     private(set) var isRecovering = false
+    private(set) var recoveringOperationID: UUID?
+    @ObservationIgnored private var recoveryTask: Task<DatabaseReference, Error>?
     private(set) var recoveryMessage: String?
     private let cloudCreationOperation: CloudCreationOperation
     private var formRevision: UInt64 = 0
@@ -329,12 +331,24 @@ final class DatabaseCreationViewModel {
     func resumeCreation(_ item: CloudCreationRecoveryItem) async -> DatabaseReference? {
         guard !isCancelled, !isCreating, !isRecovering, pendingCreations.contains(where: { $0.id == item.id }) else { return nil }
         isRecovering = true
+        recoveringOperationID = item.id
         recoveryMessage = nil
         let generation = UUID()
         recoveryGeneration = generation
-        defer { isRecovering = false }
+        let operation = recoveryOperations.resume
+        let task = Task { try await operation(item.id) }
+        recoveryTask = task
+        defer {
+            if recoveryGeneration == generation {
+                isRecovering = false
+                recoveringOperationID = nil
+                recoveryTask = nil
+            }
+        }
         do {
-            let reference = try await recoveryOperations.resume(item.id)
+            let reference = try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: { task.cancel() }
             guard !isCancelled, !Task.isCancelled, recoveryGeneration == generation else { return nil }
             recoveryListGeneration = UUID()
             clearSecrets()
@@ -350,16 +364,27 @@ final class DatabaseCreationViewModel {
     }
 
     func cancelCreation(_ item: CloudCreationRecoveryItem) async {
-        guard !isCancelled, !isCreating, !isRecovering, pendingCreations.contains(where: { $0.id == item.id }) else { return }
+        guard !isCancelled, !isCreating, (!isRecovering || recoveringOperationID == item.id),
+              pendingCreations.contains(where: { $0.id == item.id }) else { return }
+        recoveryTask?.cancel()
+        recoveryTask = nil
+        let generation = UUID()
+        recoveryGeneration = generation
+        recoveringOperationID = item.id
         isRecovering = true
-        defer { isRecovering = false }
+        defer {
+            if recoveryGeneration == generation {
+                isRecovering = false
+                recoveringOperationID = nil
+            }
+        }
         do {
             try await recoveryOperations.cancel(item.id)
-            guard !isCancelled, !Task.isCancelled else { return }
+            guard !isCancelled, !Task.isCancelled, recoveryGeneration == generation else { return }
             if preparedDatabase?.id == item.id { clearPreparedDatabase() }
             await refreshPendingCreations()
         } catch {
-            guard !isCancelled, !Task.isCancelled else { return }
+            guard !isCancelled, !Task.isCancelled, recoveryGeneration == generation else { return }
             recoveryMessage = error.localizedDescription
         }
     }
@@ -387,6 +412,10 @@ final class DatabaseCreationViewModel {
         isCancelled = true
         recoveryGeneration = UUID()
         recoveryListGeneration = UUID()
+        recoveryTask?.cancel()
+        recoveryTask = nil
+        isRecovering = false
+        recoveringOperationID = nil
         clearSecrets()
         clearPreparedDatabase()
     }
