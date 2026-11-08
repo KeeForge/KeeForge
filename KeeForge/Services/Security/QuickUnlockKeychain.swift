@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import LocalAuthentication
+import Security
 
 /// What quick unlock reads from, and an unlock writes back to, the Keychain.
 /// `storedKey` is the composite key, or the pre-key for a hardware-key
@@ -26,16 +27,24 @@ enum QuickUnlockKeychain {
     }
 
     static func retrieveStoredKey(for reference: DatabaseReference, context: LAContext) throws -> SymmetricKey {
+        guard requiresTypedUnlock(reference) == false else {
+            throw KeychainService.KeychainError.retrieveFailed(errSecItemNotFound)
+        }
+        let key: SymmetricKey
         do {
-            return try KeychainService.retrieveCompositeKey(for: reference.id, context: context)
+            key = try KeychainService.retrieveCompositeKey(for: reference.id, context: context)
         } catch {
             guard KeychainService.isItemNotFound(error),
                   let legacyFilename = reference.legacyKeychainFilename else {
                 throw error
             }
 
-            return try KeychainService.retrieveLegacyCompositeKey(forFilename: legacyFilename, context: context)
+            key = try KeychainService.retrieveLegacyCompositeKey(forFilename: legacyFilename, context: context)
         }
+        guard requiresTypedUnlock(reference) == false else {
+            throw KeychainService.KeychainError.retrieveFailed(errSecItemNotFound)
+        }
+        return key
     }
 
     /// Returns whether the quick-unlock item now holds `keys.storedKey`.
@@ -43,6 +52,12 @@ enum QuickUnlockKeychain {
     /// starts it for an item stored before the interval existed.
     @discardableResult
     static func persist(_ keys: QuickUnlockKeys, for reference: DatabaseReference, masterKeyEntered: Bool) -> Bool {
+        let observedReference = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
+        let typedUnlockRequired = requiresTypedUnlock(reference)
+        guard typedUnlockRequired == false || masterKeyEntered,
+              observedReference.cloudSyncMetadata?.keyEpoch == reference.cloudSyncMetadata?.keyEpoch else {
+            return false
+        }
         guard SettingsService.quickUnlockPasswordInterval != .always else {
             expireIfDue(reference)
             return false
@@ -82,7 +97,24 @@ enum QuickUnlockKeychain {
             expireIfDue(reference)
             return false
         }
+        let currentReference = DatabaseListStore.databases.first { $0.id == reference.id }
+        if let currentReference,
+           currentReference.cloudSyncMetadata?.keyEpoch != observedReference.cloudSyncMetadata?.keyEpoch {
+            KeychainService.deleteCompositeKey(for: reference.id)
+            return false
+        }
+        if currentReference?.cloudSyncMetadata?.requiresTypedUnlock == true,
+           (masterKeyEntered == false || DatabaseListStore.clearCloudTypedUnlockRequirement(for: reference) == false) {
+            KeychainService.deleteCompositeKey(for: reference.id)
+            return false
+        }
         return true
+    }
+
+    private static func requiresTypedUnlock(_ reference: DatabaseReference) -> Bool {
+        reference.cloudSyncMetadata?.requiresTypedUnlock == true
+            || DatabaseListStore.databases.first { $0.id == reference.id }?
+                .cloudSyncMetadata?.requiresTypedUnlock == true
     }
 
     // MARK: - Password interval
@@ -149,6 +181,7 @@ enum QuickUnlockKeychain {
     static func replaceExpressKey(with key: ExpressUnlockKey?, for reference: DatabaseReference) {
         KeychainService.deleteExpressUnlockKey(for: reference.id)
         guard let key,
+              requiresTypedUnlock(reference) == false,
               reference.hardwareKey == nil,
               KeychainService.hasStoredKey(for: reference.id) else { return }
         try? KeychainService.storeExpressUnlockKey(key.serialized(), for: reference.id)

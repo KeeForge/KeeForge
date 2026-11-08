@@ -24,6 +24,7 @@
 - Quick unlock lasts `SettingsService.quickUnlockPasswordInterval` (App Group-shared, default `.never`) after the master key was last entered. `QuickUnlockKeychain` keeps that date per database in the App Group defaults: a password unlock, rekey, or new database restarts it, and a quick unlock only starts it for an item that has none. Availability checks treat a due item as absent, and `expireIfDue` deletes both items where an unlock would read them (the app's biometric unlock, AutoFill's availability check and biometric tap, the database list refresh). A clock set back past the interval counts as due. `.always` is always due: `persist` stores nothing and deletes both items, and changing the setting expires every saved key that is now due (`expireDueKeys`).
 - `shouldStoreQuickUnlockKey` gates writes on `BiometricService.isQuickUnlockAvailable`. On the Mac it also rewrites an existing item while neither mechanism is available, since the master key may have changed on another device.
 - Cloud credentials are not stored here. `../Cloud/CloudTokenStore` has its own items with a different protection class (`../Cloud/AGENTS.md`).
+- A recovered cloud rekey requires typed unlock until the correct key is stored and the observed epoch/local head conditionally clears the persisted flag. Quick unlock must check the current reference as well as the caller's snapshot before allowing composite, express or legacy access; a stale epoch must never store a key or clear that requirement.
 
 ### Authentication
 
@@ -55,6 +56,7 @@
 
 ## Tests
 
+- `QuickUnlockRekeyRecoveryTests` covers persisted typed-only recovery, stale references/epochs, conditional local-head clearing and refused Keychain persistence.
 - `KeychainServiceTests` (express item lifetime and protection too), `KeychainMigrationTests`, `QuickUnlockPasswordIntervalTests`; `DatabaseViewModelExpressUnlockTests` for what an app unlock or save reads and stores, `CredentialProviderCoordinatorTests` for AutoFill's; `SecretAccessGateTests` with `EntrySecretActionTests` for the gate's callers.
 - `HardwareKeyUnlockTests` covers the unlock flow around `HardwareKeyService`; the NFC session itself has no unit coverage.
 - `PasskeyCryptoTests` (in `PasskeyTests.swift`) and `CredentialProviderRegistrationTests` for `PasskeyCrypto`.
