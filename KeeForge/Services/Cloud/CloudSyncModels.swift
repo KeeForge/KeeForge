@@ -103,7 +103,7 @@ struct CloudFile: Identifiable, Hashable, Sendable {
     }
 }
 
-struct CloudFileMetadata: Codable, Equatable, Sendable {
+struct CloudFileMetadata: Equatable, Sendable {
     let modifiedDate: Date
     let contentHash: String?
     let size: Int64

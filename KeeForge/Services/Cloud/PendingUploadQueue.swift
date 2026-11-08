@@ -56,6 +56,9 @@ enum PendingUploadQueue {
         /// Legacy markers decode as `nil`, disabling auto-rebase for them.
         var baseRev: String?
 
+        var attemptIsFenced: Bool?
+        var discardRequested: Bool?
+        var requiresLocalRecovery: Bool?
         var absorbedOperationIDs: [UUID]?
         var predecessorSHA512: Data?
         var predecessorOperationID: UUID?
@@ -113,6 +116,9 @@ enum PendingUploadQueue {
             // drainer update keeps the marker unproven.
             isPayloadFinalized = try container.decodeIfPresent(Bool.self, forKey: .isPayloadFinalized)
             generation = try container.decodeIfPresent(UInt64.self, forKey: .generation) ?? 0
+            attemptIsFenced = try container.decodeIfPresent(Bool.self, forKey: .attemptIsFenced)
+            discardRequested = try container.decodeIfPresent(Bool.self, forKey: .discardRequested)
+            requiresLocalRecovery = try container.decodeIfPresent(Bool.self, forKey: .requiresLocalRecovery)
             absorbedOperationIDs = try container.decodeIfPresent([UUID].self, forKey: .absorbedOperationIDs)
             predecessorSHA512 = try container.decodeIfPresent(Data.self, forKey: .predecessorSHA512)
             predecessorOperationID = try container.decodeIfPresent(UUID.self, forKey: .predecessorOperationID)
@@ -336,6 +342,7 @@ enum PendingUploadQueue {
             current.openTimeSHA512 = storedMarker.marker.openTimeSHA512
             current.isPayloadFinalized = true
             current.isConflicted = false
+            current.requiresLocalRecovery = nil
             current.generation += 1
             let finalized = StoredMarker(id: storedMarker.id, fileURL: storedMarker.fileURL, marker: current)
             try persist(finalized, environment: environment)
@@ -381,7 +388,7 @@ enum PendingUploadQueue {
     ) {
         for storedMarker in listMarkers(for: databaseId, environment: environment)
         where storedMarker.id != excludedMarkerID
-            && storedMarker.marker.uploadAttemptID == nil
+            && (storedMarker.marker.uploadAttemptID == nil || storedMarker.marker.attemptIsFenced == true)
             && storedMarker.marker.isPayloadFinalized == true
             && storedMarker.marker.openTimeSHA512 == payloadSHA512 {
             _ = try? dropIfUnchanged(storedMarker, environment: environment)
@@ -444,7 +451,7 @@ enum PendingUploadQueue {
             }) else { return }
             owner.marker.absorbedOperationIDs = Array(Set((owner.marker.absorbedOperationIDs ?? []) + sources.map(\.id)))
             owner = try update(owner, environment: environment)
-            for source in sources where source.id != owner.id && source.marker.uploadAttemptID == nil {
+            for source in sources where source.id != owner.id && (source.marker.uploadAttemptID == nil || source.marker.attemptIsFenced == true || source.marker.confirmedAt != nil) {
                 _ = try dropIfUnchanged(source, environment: environment)
             }
         }
@@ -478,7 +485,11 @@ enum PendingUploadQueue {
         guard !markers.contains(where: { $0.marker.rekeyContext != nil }) else {
             throw SaveError.saveContextUnavailable
         }
-        if rekeyContext != nil, !markers.isEmpty { throw SaveError.saveContextUnavailable }
+        if let rekeyContext {
+            guard markers.isEmpty, rekeyContext.epoch != reference.cloudSyncMetadata?.keyEpoch else {
+                throw SaveError.saveContextUnavailable
+            }
+        }
         let predecessor = markers.last { $0.marker.isPayloadFinalized == true && $0.marker.openTimeSHA512 == currentSHA }
         let operationID = UUID()
         let directory = queueDirectoryURL(for: reference.id, environment: environment)
@@ -510,13 +521,26 @@ enum PendingUploadQueue {
               stored.marker.rekeyContext == nil,
               let intendedSHA = stored.marker.intendedPayloadSHA512,
               let path = stored.marker.intendedPayloadPath,
-              KDBXCrypto.sha512(try environment.readData(resolveAppGroupURL(for: path, environment: environment))) == intendedSHA,
-              KDBXCrypto.sha512(try environment.readData(resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment))) == intendedSHA else {
+              KDBXCrypto.sha512(try environment.readData(resolveAppGroupURL(for: path, environment: environment))) == intendedSHA else {
             return stored
         }
-        var finalized = stored
-        finalized.marker.openTimeSHA512 = intendedSHA
-        return try finalize(finalized, environment: environment)
+        if KDBXCrypto.sha512(try environment.readData(resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment))) == intendedSHA {
+            var finalized = stored
+            finalized.marker.openTimeSHA512 = intendedSHA
+            return try finalize(finalized, environment: environment)
+        }
+        guard stored.marker.requiresLocalRecovery != true else { return stored }
+        var recoverable = stored
+        recoverable.marker.requiresLocalRecovery = true
+        recoverable.marker.isConflicted = true
+        return try update(recoverable, environment: environment)
+    }
+
+    /// A remote divergence affects the whole local lineage, including descendants not attempted yet.
+    static func markDatabaseConflicted(for databaseID: UUID, environment: Environment = .live) throws {
+        for stored in listMarkers(for: databaseID, environment: environment) where !stored.marker.isConflicted {
+            _ = try markConflicted(stored, environment: environment)
+        }
     }
 
     private static func persist(_ storedMarker: StoredMarker, environment: Environment) throws {

@@ -126,7 +126,8 @@ enum CloudDatabaseSaver {
             throw SaveError.databaseIsReadOnly
         }
 
-        guard reference.cloudSyncMetadata != nil else {
+        guard reference.cloudSyncMetadata != nil,
+              (newCompositeKey != nil) == (rekeyContext != nil) else {
             throw SaveError.saveContextUnavailable
         }
 
@@ -285,22 +286,31 @@ enum CloudDatabaseSaver {
         }
         let marker = stored.marker
         let all = PendingUploadQueue.listMarkers(for: reference.id, environment: environment.queue)
-        if all.contains(where: { $0.id != stored.id && ($0.marker.rekeyContext != nil || ($0.marker.uploadAttemptID != nil && $0.marker.confirmedAt == nil) || (marker.rekeyContext == nil && $0.marker.isConflicted)) }) { return nil }
+        if all.contains(where: { $0.id != stored.id && ($0.marker.rekeyContext != nil || ($0.marker.uploadAttemptID != nil && $0.marker.confirmedAt == nil && $0.marker.attemptIsFenced != true)) }) { return nil }
+        if marker.uploadAttemptID == nil, marker.rekeyContext == nil,
+           all.contains(where: { $0.id != stored.id && $0.marker.isConflicted }) { return nil }
+        if marker.requiresLocalRecovery == true { return .conflict(remoteRev: nil) }
         if let predecessorID = marker.predecessorOperationID,
            all.contains(where: { $0.id == predecessorID }) { return nil }
-        guard marker.isPayloadFinalized == true || marker.rekeyContext != nil else { return nil }
+        guard marker.isPayloadFinalized == true || marker.rekeyContext != nil else {
+            if marker.isPayloadFinalized == nil {
+                try PendingUploadQueue.markDatabaseConflicted(for: reference.id, environment: environment.queue)
+                return .conflict(remoteRev: nil)
+            }
+            return nil
+        }
         let payloadPath = marker.intendedPayloadPath ?? marker.encryptedBytesCacheURL
         let bytes = try environment.queue.readData(PendingUploadQueue.resolveAppGroupURL(for: payloadPath, environment: environment.queue))
         let payloadSHA = marker.intendedPayloadSHA512 ?? marker.openTimeSHA512
         guard KDBXCrypto.sha512(bytes) == payloadSHA else {
-            _ = try? PendingUploadQueue.markConflicted(stored, environment: environment.queue)
+            try PendingUploadQueue.markDatabaseConflicted(for: reference.id, environment: environment.queue)
             return .conflict(remoteRev: nil)
         }
         if marker.rekeyContext == nil {
             let wrongEpoch = marker.keyEpoch != reference.cloudSyncMetadata?.keyEpoch
             let predatesRekey = reference.lastMasterKeyChangeAt.map { marker.createdAt < $0 } ?? false
             if wrongEpoch || (marker.keyEpoch == nil && predatesRekey) {
-                _ = try? PendingUploadQueue.markConflicted(stored, environment: environment.queue)
+                try PendingUploadQueue.markDatabaseConflicted(for: reference.id, environment: environment.queue)
                 return .conflict(remoteRev: nil)
             }
         }
@@ -308,6 +318,16 @@ enum CloudDatabaseSaver {
             let remoteMetadata = try await environment.getMetadata(reference)
             let remoteBytes = try await environment.downloadRemoteData(reference)
             let remoteSHA = KDBXCrypto.sha512(remoteBytes)
+            if marker.uploadAttemptID != nil, marker.attemptIsFenced != true,
+               let originalRev = marker.expectedRev, remoteMetadata.rev != nil, remoteMetadata.rev != originalRev,
+               environment.writeGuarantee(reference, originalRev, bytes.count) == .serverConditional {
+                stored.marker.attemptIsFenced = true
+                stored = try PendingUploadQueue.update(stored, environment: environment.queue)
+            }
+            if stored.marker.discardRequested == true, stored.marker.attemptIsFenced == true {
+                _ = try PendingUploadQueue.dropIfUnchanged(stored, environment: environment.queue)
+                return .saved(updatedReference: reference)
+            }
             if remoteSHA != payloadSHA {
                 let baseMatches: Bool
                 if let base = marker.remoteBaseSHA512 { baseMatches = remoteSHA == base }
@@ -315,21 +335,29 @@ enum CloudDatabaseSaver {
                     baseMatches = !remoteHasDiverged(recorded: recorded, remote: remoteMetadata, expectedRev: marker.expectedRev)
                 } else { baseMatches = false }
                 guard baseMatches else {
-                    _ = try? PendingUploadQueue.markConflicted(stored, environment: environment.queue)
+                    try PendingUploadQueue.markDatabaseConflicted(for: reference.id, environment: environment.queue)
                     return .conflict(remoteRev: remoteMetadata.rev)
                 }
-                let expectedRev = marker.uploadAttemptID == nil ? remoteMetadata.rev : marker.expectedRev
+                let unresolved = marker.uploadAttemptID != nil && stored.marker.attemptIsFenced != true
+                let expectedRev = unresolved ? marker.expectedRev : remoteMetadata.rev
                 let guarantee = environment.writeGuarantee(reference, expectedRev, bytes.count)
                 guard guarantee != .disabled else { throw CloudProviderError.invalidConfiguration }
-                if marker.uploadAttemptID != nil && guarantee != .serverConditional { return nil }
-                if marker.uploadAttemptID != nil && remoteMetadata.rev != marker.expectedRev { return nil }
+                if stored.marker.discardRequested == true { return nil }
+                if unresolved && guarantee != .serverConditional { return nil }
+                if unresolved && remoteMetadata.rev != marker.expectedRev { return nil }
                 stored.marker.expectedRev = expectedRev
                 stored.marker.uploadAttemptID = UUID()
+                stored.marker.attemptIsFenced = false
                 stored = try PendingUploadQueue.update(stored, environment: environment.queue)
                 // No mutation is dispatched until uncertainty is durable.
                 let response: CloudFileMetadata
                 do { response = try await environment.upload(reference, bytes, expectedRev, { _ in }) }
-                catch { recordIssue(error, reference: reference); throw error }
+                catch {
+                    if guarantee == .preflightOnly {
+                        try? PendingUploadQueue.markDatabaseConflicted(for: reference.id, environment: environment.queue)
+                    }
+                    throw error
+                }
                 stored.marker.confirmedRemoteRev = response.rev
                 stored.marker.confirmedRemoteHash = response.contentHash
             } else {
@@ -350,20 +378,25 @@ enum CloudDatabaseSaver {
             let payloadSHA = KDBXCrypto.sha512(bytes)
             var current = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
             if let rekey = stored.marker.rekeyContext, current.cloudSyncMetadata?.keyEpoch != rekey.epoch {
-                let cacheURL = environment.cacheURL(current)
-                let previous = try environment.readData(cacheURL)
-                let backupURL = environment.backupDirectoryURL(current).appendingPathComponent(backupFilename(for: .now))
-                try environment.createDirectory(backupURL.deletingLastPathComponent())
-                try environment.writeBackup(previous, backupURL)
-                // Invalidate both current and legacy quick-unlock items before publishing new-key bytes.
-                KeychainService.deleteCompositeKey(for: current.id)
-                if let legacy = current.legacyKeychainFilename { KeychainService.deleteLegacyCompositeKey(forFilename: legacy) }
-                let outcome = try environment.replaceFile(bytes, cacheURL, KDBXCrypto.sha512(previous))
-                guard case .replaced = outcome else { throw SaveError.rekeyAppliedRemotely }
-                guard let updated = DatabaseListStore.recordCloudLocalCommit(
-                    for: current.id, operationID: stored.id, rekey: rekey, committedAt: stored.marker.confirmedAt ?? .now
-                ) else { throw SaveError.rekeyAppliedRemotely }
-                current = updated
+                do {
+                    let cacheURL = environment.cacheURL(current)
+                    let previous = try environment.readData(cacheURL)
+                    let hasOtherPending = PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).contains { $0.id != stored.id }
+                    let filename = backupFilename(for: .now)
+                    let retainedFilename = hasOtherPending ? String(filename.dropLast(5)) + DatabaseListStore.retainedBackupSuffix + ".kdbx" : filename
+                    let backupURL = environment.backupDirectoryURL(current).appendingPathComponent(retainedFilename)
+                    try environment.createDirectory(backupURL.deletingLastPathComponent())
+                    try environment.writeBackup(previous, backupURL)
+                    // Invalidate both current and legacy quick-unlock items before publishing new-key bytes.
+                    KeychainService.deleteCompositeKey(for: current.id)
+                    if let legacy = current.legacyKeychainFilename { KeychainService.deleteLegacyCompositeKey(forFilename: legacy) }
+                    let outcome = try environment.replaceFile(bytes, cacheURL, KDBXCrypto.sha512(previous))
+                    guard case .replaced = outcome else { throw SaveError.rekeyAppliedRemotely }
+                    guard let updated = DatabaseListStore.recordCloudLocalCommit(
+                        for: current.id, operationID: stored.id, rekey: rekey, committedAt: stored.marker.confirmedAt ?? .now
+                    ) else { throw SaveError.rekeyAppliedRemotely }
+                    current = updated
+                } catch { throw SaveError.rekeyAppliedRemotely }
             }
             let cacheSHA = (try? environment.readData(environment.cacheURL(current))).map(KDBXCrypto.sha512)
             let currentHead = current.cloudSyncMetadata?.localHeadOperationID

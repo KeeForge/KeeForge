@@ -1,3 +1,4 @@
+import AuthenticationServices
 import CryptoKit
 import XCTest
 @testable import KeeForge
@@ -115,8 +116,9 @@ final class CloudDatabaseSaverTests: XCTestCase {
         catch { XCTAssertEqual((error as? CocoaError)?.code, .fileWriteUnknown) }
         let intent = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
         XCTAssertEqual(try PendingUploadQueue.recoverPrepared(intent).marker.isPayloadFinalized, false)
-        let result = try await CloudDatabaseSaver.deliver(intent, reference: context.reference, environment: environment(remote))
-        XCTAssertNil(result)
+        let refreshed = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        let result = try await CloudDatabaseSaver.deliver(refreshed, reference: context.reference, environment: environment(remote))
+        guard case .conflict = result else { return XCTFail("Interrupted preparation requires explicit recovery") }
         let awaited3 = await remote.uploadCount()
         XCTAssertEqual(awaited3, 0)
         XCTAssertEqual(try cache(context.reference), context.source)
@@ -314,13 +316,37 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertThrowsError(try KDBXParser.parseWithMeta(data: cache(updated), compositeKey: context.key, sessionKey: context.sessionKey))
     }
 
+    func testConfirmedRekeyCrashAfterCacheReplacementRecoversAssociationBeforeOpen() async throws {
+        let context = try makeContext()
+        let remote = Remote(context.source)
+        var env = environment(remote)
+        env.replaceFile = { bytes, url, expected in
+            _ = try LocalDatabaseSaver.Environment.live.replaceFileAtomically(bytes, url, expected)
+            throw CocoaError(.fileWriteUnknown)
+        }
+        do { _ = try await rekey(context, remote: remote, environment: env); XCTFail("Simulated crash must retain journal") }
+        catch { XCTAssertEqual(error as? SaveError, .rekeyAppliedRemotely) }
+        let journal = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertNotNil(journal.marker.confirmedAt)
+        XCTAssertNil(current(context.reference).cloudSyncMetadata?.keyEpoch)
+        XCTAssertEqual(try cache(context.reference), try immutableBytes(journal))
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: current(context.reference))
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.keyEpoch, journal.marker.rekeyContext?.epoch)
+        XCTAssertEqual(resolution.reference.keyFileFilename, "new.keyx")
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.requiresTypedUnlock, true)
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+    }
+
     func testPreflightUncertainRekeyBlocksOldKeyDrainAndKeepsJournalOnBaseEqualProbe() async throws {
         let context = try makeContext()
         let remote = Remote(context.source)
         await remote.delayNextAcceptance()
         let env = environment(remote, guarantee: .preflightOnly)
         do { _ = try await rekey(context, remote: remote, environment: env); XCTFail("Expected uncertain rekey") } catch { }
+        let attemptedDiscard = await CloudSyncCoordinator.discardConflictedPendingUploads(for: current(context.reference))
+        XCTAssertEqual(attemptedDiscard, 0)
         let journal = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertEqual(journal.marker.discardRequested, true)
         let path = try PendingUploadQueue.makeRelativeAppGroupPath(for: DatabaseListStore.cacheLocation(for: context.reference))
         let legacy = try PendingUploadQueue.enqueue(.init(databaseId: context.reference.id, encryptedBytesCacheURL: path,
             openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", createdAt: .distantPast), notifying: false)
@@ -474,8 +500,14 @@ final class CloudDatabaseSaverTests: XCTestCase {
                 openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
             XCTFail("Read-only database must reject")
         } catch { XCTAssertEqual(error as? SaveError, .databaseIsReadOnly) }
-        context.draft.rootGroup.entries.append(KPEntry(title: "Invalid", notes: "nul\u{0}"))
-        do { _ = try await saveAndDrain(context, remote: remote); XCTFail("Invalid XML must reject") }
+        let invalidRoot = context.draft.rootGroup
+        (invalidRoot.groups.first ?? invalidRoot).entries.append(KPEntry(title: "Invalid", notes: "nul\u{0}"))
+        let invalidDraft = DatabaseDraft(rootGroup: invalidRoot, meta: context.draft.meta, sessionKey: context.sessionKey)
+        do {
+            _ = try await CloudDatabaseSaver.save(draft: invalidDraft, reference: context.reference, compositeKey: context.key,
+                openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+            XCTFail("Invalid XML must reject")
+        }
         catch { XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0)) }
         XCTAssertEqual(try cache(context.reference), context.source)
         XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
@@ -515,6 +547,161 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(current(context.reference).cloudSyncMetadata?.localHeadOperationID, operationID)
     }
     #endif
+
+    func testPreflightAuthQuotaAndPermissionFailuresRemainExplicitlyBlockedAfterReconnect() async throws {
+        for issue in [CloudProviderError.notAuthenticated, .insufficientSpace, .permissionDenied] {
+            DatabaseListStore.clearAll()
+            let context = try makeContext()
+            let remote = Remote(context.source)
+            let env = environment(remote, guarantee: .preflightOnly)
+            await remote.failNextUpload(issue)
+            _ = try await saveAndDrain(context, remote: remote, environment: env)
+            let uncertain = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+            XCTAssertTrue(uncertain.marker.isConflicted)
+            XCTAssertEqual(current(context.reference).cloudSyncMetadata?.lastSyncIssue, issue.syncIssue)
+            let retry = try await CloudDatabaseSaver.deliver(uncertain, reference: current(context.reference), environment: env)
+            XCTAssertNil(retry, "A reconnected account cannot fence the earlier dispatched mutation")
+            let discarded = await CloudSyncCoordinator.discardConflictedPendingUploads(for: current(context.reference))
+            XCTAssertEqual(discarded, 0)
+            XCTAssertEqual(try immutableBytes(uncertain), try cache(context.reference))
+            let count = await remote.uploadCount()
+            XCTAssertEqual(count, 1)
+        }
+    }
+
+    func testDiscardOfDelayedPreflightAttemptRetainsFenceUntilAcceptanceIsKnown() async throws {
+        let context = try makeContext()
+        let remote = Remote(context.source)
+        let env = environment(remote, guarantee: .preflightOnly)
+        await remote.delayNextAcceptance()
+        _ = try await saveAndDrain(context, remote: remote, environment: env)
+        let firstBytes = try cache(context.reference)
+        let discarded = await CloudSyncCoordinator.discardConflictedPendingUploads(for: current(context.reference))
+        XCTAssertEqual(discarded, 0)
+        let fence = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertEqual(fence.marker.discardRequested, true)
+        XCTAssertEqual(try immutableBytes(fence), firstBytes)
+        let newerDraft = try edit(firstBytes, key: context.key, sessionKey: context.sessionKey, title: "newer")
+        _ = try await LocalDatabaseSaver.save(draft: newerDraft, reference: current(context.reference), compositeKey: context.key,
+            openTimeSHA512: KDBXCrypto.sha512(firstBytes), kdfPolicy: .mainApp)
+        let newerBytes = try cache(context.reference)
+        let successor = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id != fence.id })
+        let blocked = try await CloudDatabaseSaver.deliver(successor, reference: current(context.reference), environment: env)
+        XCTAssertNil(blocked)
+        let before = await remote.uploadCount()
+        XCTAssertEqual(before, 1)
+        await remote.finishDelayedAcceptance()
+        _ = try await CloudDatabaseSaver.deliver(fence, reference: current(context.reference), environment: env)
+        let next = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        _ = try await CloudDatabaseSaver.deliver(next, reference: current(context.reference), environment: env)
+        await remote.finishDelayedAcceptance()
+        let actual = await remote.data()
+        XCTAssertEqual(actual, newerBytes)
+        XCTAssertEqual(try cache(context.reference), newerBytes)
+    }
+
+    func testDiscardBacksUpSoleImmutablePayloadAndPreservesItWhenBackupFails() async throws {
+        let context = try makeContext()
+        let remote = Remote(context.source)
+        await remote.setOffline(true)
+        _ = try await saveAndDrain(context, remote: remote)
+        let original = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        let payload = try immutableBytes(original)
+        _ = try PendingUploadQueue.markConflicted(original)
+        try DatabaseListStore.cacheDatabaseCopy(context.source, for: context.reference)
+        let directory = DatabaseListStore.databaseBackupDirectoryURL(for: context.reference)
+        try FileManager.default.removeItem(at: directory)
+        try Data("blocks backup directory".utf8).write(to: directory)
+        let failed = await CloudSyncCoordinator.discardConflictedPendingUploads(for: current(context.reference))
+        XCTAssertEqual(failed, 0)
+        XCTAssertEqual(try immutableBytes(original), payload)
+        XCTAssertEqual(PendingUploadQueue.listMarkers(for: context.reference.id).count, 1)
+        try FileManager.default.removeItem(at: directory)
+        let succeeded = await CloudSyncCoordinator.discardConflictedPendingUploads(for: current(context.reference))
+        XCTAssertEqual(succeeded, 1)
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+        let retained = try XCTUnwrap(DatabaseListStore.recentBackups(for: context.reference).first)
+        XCTAssertTrue(DatabaseListStore.isRetainedBackup(retained))
+        XCTAssertEqual(try Data(contentsOf: retained), payload)
+        for index in 0..<8 {
+            let url = directory.appendingPathComponent(LocalDatabaseSaver.backupFilename(for: Date(timeIntervalSince1970: Double(index))))
+            try Data("rotating".utf8).write(to: url)
+        }
+        try DatabaseListStore.pruneBackups(for: context.reference, keeping: 5)
+        XCTAssertEqual(try Data(contentsOf: retained), payload)
+    }
+
+    func testConditionalFenceThenRefreshAndMergeEntireOfflineLineageCanDeliver() async throws {
+        let context = try makeContext()
+        let remote = Remote(context.source)
+        await remote.failNextUpload(.networkUnavailable)
+        _ = try await saveAndDrain(context, remote: remote)
+        let first = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        let firstBytes = try cache(context.reference)
+        let secondDraft = try edit(firstBytes, key: context.key, sessionKey: context.sessionKey, title: "second offline")
+        _ = try await LocalDatabaseSaver.save(draft: secondDraft, reference: current(context.reference), compositeKey: context.key,
+            openTimeSHA512: KDBXCrypto.sha512(firstBytes), kdfPolicy: .autoFillExtension)
+        let remoteDraft = try edit(context.source, key: context.key, sessionKey: context.sessionKey, title: "foreign remote")
+        let header = try LocalDatabaseSaver.Environment.live.extractHeader(context.source, context.key, .mainApp)
+        let remoteBytes = try LocalDatabaseSaver.Environment.live.encryptDraft(remoteDraft, context.key, header, .mainApp).data
+        await remote.replaceExternally(remoteBytes)
+        _ = try await CloudDatabaseSaver.deliver(first, reference: current(context.reference), environment: environment(remote))
+        let conflicted = PendingUploadQueue.listMarkers(for: context.reference.id)
+        XCTAssertEqual(conflicted.count, 2)
+        XCTAssertTrue(conflicted.allSatisfy { $0.marker.isConflicted })
+        XCTAssertEqual(conflicted.first { $0.id == first.id }?.marker.attemptIsFenced, true)
+        let adapter = Adapter(remote)
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: current(context.reference), honorsManualSyncPolicy: false, providerResolver: { _ in adapter })
+        XCTAssertEqual(resolution.data, remoteBytes)
+        DatabaseListStore.update(resolution.reference)
+        guard case .recovered(let sources) = PendingUploadRecovery.lookUpPayloads(for: current(context.reference)) else { return XCTFail("All pending sources must survive refresh") }
+        let parsed = try KDBXParser.parseWithMetaAndHeader(data: remoteBytes, compositeKey: context.key, sessionKey: context.sessionKey, kdfPolicy: .mainApp)
+        var root = parsed.rootGroup
+        var meta = parsed.meta
+        for source in sources {
+            let local = try KDBXParser.parseWithMetaAndHeader(data: source.data, compositeKey: context.key, sessionKey: context.sessionKey, kdfPolicy: .mainApp)
+            let outcome = try KDBXMerger.merge(local: .init(rootGroup: root, meta: meta, binaryPoolFields: parsed.header.innerHeaderBinaryFields),
+                remote: .init(rootGroup: local.rootGroup, meta: local.meta, binaryPoolFields: local.header.innerHeaderBinaryFields), sessionKey: context.sessionKey)
+            guard case .merged(let merged) = outcome else { return XCTFail("Lineage merge must be lossless") }
+            root = merged.rootGroup
+            meta = merged.meta
+        }
+        let mergedDraft = DatabaseDraft(rootGroup: root, meta: meta, sessionKey: context.sessionKey, binaryPoolFields: parsed.header.innerHeaderBinaryFields)
+        let result = try await CloudDatabaseSaver.save(draft: mergedDraft, reference: current(context.reference), compositeKey: context.key,
+            openTimeSHA512: KDBXCrypto.sha512(remoteBytes), expectedRev: "r1", kdfPolicy: .mainApp, environment: environment(remote))
+        guard case .saved(let sha, _) = result else { return XCTFail("Merged local commit must succeed") }
+        try PendingUploadQueue.transferMergedSources(sources.map(\.storedMarker), toPayloadSHA512: sha, for: context.reference.id)
+        let owner = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertEqual(PendingUploadQueue.listMarkers(for: context.reference.id).count, 1)
+        _ = try await CloudDatabaseSaver.deliver(owner, reference: current(context.reference), environment: environment(remote))
+        let finalBytes = await remote.data()
+        let final = try KDBXParser.parseWithMeta(data: finalBytes, compositeKey: context.key, sessionKey: context.sessionKey)
+        let titles = Set(final.rootGroup.allEntries.map(\.title))
+        XCTAssertTrue(titles.isSuperset(of: ["first", "second offline", "foreign remote"]))
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+        XCTAssertNotNil(current(context.reference).cloudSyncMetadata?.lastSyncedAt)
+    }
+
+    func testInterruptedPreparationHasManualRecoveryAndDiscardWithoutUploading() async throws {
+        let context = try makeContext()
+        let remote = Remote(context.source)
+        var env = environment(remote)
+        env.replaceFile = { _, _, _ in throw CocoaError(.fileWriteUnknown) }
+        do { _ = try await saveAndDrain(context, remote: remote, environment: env); XCTFail("Expected interrupted replacement") } catch { }
+        let adapter = Adapter(remote)
+        _ = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: context.reference, providerResolver: { _ in adapter })
+        let prepared = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertEqual(prepared.marker.isPayloadFinalized, false)
+        XCTAssertEqual(prepared.marker.requiresLocalRecovery, true)
+        guard case .recovered(let payloads) = PendingUploadRecovery.lookUpPayloads(for: current(context.reference)) else { return XCTFail("The recorded intended ciphertext supports explicit recovery") }
+        XCTAssertNotEqual(payloads.first?.data, context.source)
+        let count = await remote.uploadCount()
+        XCTAssertEqual(count, 0)
+        let discarded = await CloudSyncCoordinator.discardConflictedPendingUploads(for: current(context.reference))
+        XCTAssertEqual(discarded, 1)
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+        _ = try await rekey(context, remote: remote)
+    }
 
     private struct Context: Sendable {
         let reference: DatabaseReference
@@ -602,6 +789,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         func delayNextAcceptance() { delayed = true }
         func pauseNextUpload(_ gate: Gate) { self.gate = gate }
         func data() -> Data { bytes }
+        func replaceExternally(_ data: Data) { bytes = data; revision += 1 }
         func uploadCount() -> Int { count }
         func validators() -> [String?] { revs }
         func metadata() throws -> CloudFileMetadata {
@@ -627,6 +815,25 @@ final class CloudDatabaseSaverTests: XCTestCase {
         func finishDelayedAcceptance() {
             if let delayedBytes { bytes = delayedBytes; revision += 1; self.delayedBytes = nil }
         }
+    }
+
+    private final class Adapter: CloudProvider, Sendable {
+        let remote: Remote
+        let id = "webdav"
+        let displayName = "Test"
+        let iconName = "cloud"
+        init(_ remote: Remote) { self.remote = remote }
+        @MainActor func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount { throw CloudProviderError.authenticationCancelled }
+        func isAuthenticated(accountId: String) -> Bool { true }
+        func signOut(accountId: String) { }
+        func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] { [] }
+        func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata { try await remote.metadata() }
+        func download(accountId: String, fileId: String, to localURL: URL, progress: @escaping @Sendable (Double) -> Void) async throws -> CloudFileMetadata? {
+            try await remote.download().write(to: localURL)
+            return try await remote.metadata()
+        }
+        func upload(accountId: String, fileId: String, data: Data, expectedRev: String?, progress: @escaping @Sendable (Double) -> Void) async throws -> CloudFileMetadata { try await remote.upload(data, expectedRev: expectedRev) }
+        func writeGuarantee(expectedRev: String?, byteCount: Int) -> CloudWriteGuarantee { .serverConditional }
     }
 
     private actor Gate {

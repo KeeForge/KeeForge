@@ -4876,7 +4876,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     // MARK: - Merging a conflicted AutoFill upload (#149)
 
-    func testMergePendingUploadsAddsTheAutoFillChangeUploadsAndOnlyThenDropsTheMarker() async throws {
+    func testMergePendingUploadsRetainsSourcesWhenInjectedSaveHasNoDurableOwner() async throws {
         let fixtureData = try Data(contentsOf: fixtureURL())
         let pendingData = try makeRemoteVariantData { visibleRoot in
             visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
@@ -4902,10 +4902,10 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(savedTitles.contains("AutoFill Entry"))
         XCTAssertTrue(savedTitles.isSuperset(of: openedTitles), "Nothing from the cloud copy may be lost")
 
-        XCTAssertEqual(pending.droppedMarkerIDs, [pending.storedMarker.id])
-        XCTAssertFalse(vm.hasPendingUploadConflict)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
         XCTAssertNil(vm.pendingUploadMergeFailure)
-        XCTAssertNotNil(vm.mergeSummaryMessage)
+        XCTAssertNil(vm.mergeSummaryMessage)
         XCTAssertEqual(vm.openTimeSHA512, savedHash)
         XCTAssertTrue(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)).contains("AutoFill Entry"))
     }
@@ -4994,7 +4994,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.pendingUploadMergeFailure, .cloudChanged)
         let message = PendingUploadMergeFailure.cloudChanged.message
-        XCTAssertTrue(message.contains("Sync Now"), "Reopening skips the check under the manual policy; only Sync Now gets the newer copy")
+        XCTAssertTrue(message.contains(String(localized: "Sync Now")), "Reopening skips the check under the manual policy; only Sync Now gets the newer copy")
         XCTAssertFalse(message.contains("open it again"))
         vm.dismissPendingUploadMergeFailure()
 
@@ -5012,8 +5012,8 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(savedTitles.contains("AutoFill Entry"))
         XCTAssertTrue(savedTitles.contains("Newer Cloud Entry"))
         XCTAssertNil(vm.pendingUploadMergeFailure)
-        XCTAssertEqual(pending.droppedMarkerIDs, [pending.storedMarker.id])
-        XCTAssertFalse(vm.hasPendingUploadConflict)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
         XCTAssertEqual(vm.openTimeSHA512, savedHash)
     }
 
@@ -6523,6 +6523,7 @@ final class DatabaseViewModelTests: XCTestCase {
             }
         )
 
+        DatabaseListStore.update(vm.databaseReference)
         await vm.unlock(password: fixturePassword)
 
         try await vm.changeMasterKey(

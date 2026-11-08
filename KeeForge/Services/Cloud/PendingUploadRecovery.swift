@@ -85,7 +85,10 @@ enum PendingUploadRecovery {
             // result. Recovering a matching backup would merge no change and
             // strand the real payload while falsely reporting success. A
             // legacy marker (`nil`) may be exactly that, so it is refused too.
-            guard storedMarker.marker.isPayloadFinalized == true else { return .unidentified }
+            let preparedPayload = storedMarker.marker.requiresLocalRecovery == true
+                && storedMarker.marker.intendedPayloadSHA512 != nil && storedMarker.marker.intendedPayloadPath != nil
+            guard storedMarker.marker.isPayloadFinalized == true || preparedPayload else { return .unidentified }
+            let payloadSHA = preparedPayload ? storedMarker.marker.intendedPayloadSHA512 : storedMarker.marker.openTimeSHA512
             let candidates: [(url: URL, location: Location)] =
                 [(environment.cacheURL(storedMarker.marker), .cache)]
                 + environment.backupURLs(reference).map { ($0, .backup($0)) }
@@ -93,7 +96,7 @@ enum PendingUploadRecovery {
                 .compactMap { candidate in
                     (try? environment.readData(candidate.url)).map { (data: $0, location: candidate.location) }
                 }
-                .first { KDBXCrypto.sha512($0.data) == storedMarker.marker.openTimeSHA512 }
+                .first { KDBXCrypto.sha512($0.data) == payloadSHA }
             guard let match else { return .unavailable }
             payloads.append(Payload(storedMarker: storedMarker, data: match.data, location: match.location))
         }

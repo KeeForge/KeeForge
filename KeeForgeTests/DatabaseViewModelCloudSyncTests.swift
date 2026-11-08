@@ -341,12 +341,12 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         )
         try await vm.save()
         XCTAssertNil(vm.saveConflict)
-        let savedData = remote.currentBytes
+        let savedData = try Data(contentsOf: cacheURL)
         XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(savedData))
         await gate.open()
         await syncTask.value
 
-        XCTAssertEqual(vm.cloudSyncOutcome, .upToDate)
+        XCTAssertNil(vm.cloudSyncOutcome)
         XCTAssertTrue(entryTitles(in: vm).contains("Saved Mid-Sync"))
         XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(savedData))
         XCTAssertEqual(try Data(contentsOf: cacheURL), savedData, "The stale download must not replace the saved cache")
@@ -357,8 +357,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         )
         try await vm.save()
         XCTAssertNil(vm.saveConflict)
-        let remoteTitles = try Self.entryTitles(in: remote.currentBytes, password: fixturePassword)
-        XCTAssertTrue(remoteTitles.isSuperset(of: ["Saved Mid-Sync", "Saved After Sync"]))
+        let localTitles = try Self.entryTitles(in: Data(contentsOf: cacheURL), password: fixturePassword)
+        XCTAssertTrue(localTitles.isSuperset(of: ["Saved Mid-Sync", "Saved After Sync"]))
     }
 
     /// The response can also arrive while a save is still uploading. Nothing

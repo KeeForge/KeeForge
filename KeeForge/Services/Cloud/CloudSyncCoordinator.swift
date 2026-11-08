@@ -68,6 +68,12 @@ enum CloudSyncCoordinator {
         providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:),
         progress: @escaping @Sendable (Double) -> Void = { _ in }
     ) async throws -> CloudSyncResolution {
+        var reference = reference
+        for journal in PendingUploadQueue.listMarkers(for: reference.id)
+        where journal.marker.rekeyContext != nil && journal.marker.confirmedAt != nil {
+            _ = try await CloudDatabaseSaver.deliver(journal, reference: reference)
+            reference = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
+        }
         guard let metadata = reference.cloudSyncMetadata else {
             throw CocoaError(.fileReadUnsupportedScheme)
         }
@@ -76,6 +82,14 @@ enum CloudSyncCoordinator {
         let cacheExists = FileManager.default.fileExists(atPath: cacheURL.path)
         var updatedReference = reference
 
+        try PendingUploadQueue.withCommitLock(for: reference.id) {
+            for prepared in PendingUploadQueue.listMarkers(for: reference.id) where prepared.marker.isPayloadFinalized == false {
+                _ = try PendingUploadQueue.recoverPrepared(prepared)
+            }
+            if PendingUploadQueue.listMarkers(for: reference.id).contains(where: { $0.marker.isConflicted }) {
+                try PendingUploadQueue.markDatabaseConflicted(for: reference.id)
+            }
+        }
         let pending = PendingUploadQueue.listMarkers(for: reference.id)
         if cacheExists, pending.contains(where: { $0.marker.rekeyContext != nil || !$0.marker.isConflicted }) {
             let data = try CoordinatedFileReader.readData(from: cacheURL)
@@ -452,7 +466,7 @@ enum CloudSyncCoordinator {
         if fileManager.fileExists(atPath: backupURL.path) {
             try fileManager.removeItem(at: backupURL)
         }
-        try fileManager.copyItem(at: cacheURL, to: backupURL)
+        try writeAtomicallyAndDurably(try Data(contentsOf: cacheURL), to: backupURL)
     }
 
     /// Matches the `yyyyMMdd-HHmmss-uuuuuu.kdbx` shape used by the local and
@@ -477,36 +491,38 @@ enum CloudSyncCoordinator {
     }
 
     /// User-invoked resolution for a conflicted pending upload (the orange
-    /// badge in the database list): backs the marker's payload bytes up while
-    /// they are still the live cache, then discards the markers so the badge
-    /// clears. A cache that no longer hashes to the recorded SHA means the
-    /// payload is already gone — the overwrite path took its own backup.
-    /// Returns the number of markers discarded.
+    /// badge in the database list): retains the exact payload in a non-prunable
+    /// backup. An uncertain mutation keeps its marker and ciphertext as a fence.
+    /// Returns only markers actually removed, never unresolved discard requests.
     static func discardConflictedPendingUploads(for reference: DatabaseReference) async -> Int {
         await Task.detached(priority: .utility) {
             let conflictedMarkers = PendingUploadQueue.listMarkers(for: reference.id)
                 .filter(\.marker.isConflicted)
             guard conflictedMarkers.isEmpty == false else { return 0 }
 
-            let cacheURL = DatabaseListStore.cacheLocation(for: reference)
-            let cacheSHA512 = (try? CoordinatedFileReader.readData(from: cacheURL))
-                .map(KDBXCrypto.sha512)
-
             var discardedCount = 0
-            for storedMarker in conflictedMarkers {
-                if let cacheSHA512, cacheSHA512 == storedMarker.marker.openTimeSHA512 {
-                    // Keep the payload recoverable before dropping the marker
-                    // that protects it. A failed backup keeps the marker (and
-                    // the badge) instead of discarding blind.
-                    do {
-                        try backUpCacheBeforePendingOverwrite(at: cacheURL, reference: reference)
-                    } catch {
+            for var stored in conflictedMarkers {
+                let marker = stored.marker
+                let hasKnownIntendedPayload = marker.intendedPayloadSHA512 != nil && marker.intendedPayloadPath != nil
+                guard marker.isPayloadFinalized == true || (hasKnownIntendedPayload && (marker.requiresLocalRecovery == true || marker.rekeyContext != nil)) else { continue }
+                let payloadSHA = marker.intendedPayloadSHA512 ?? marker.openTimeSHA512
+                let candidates = [marker.intendedPayloadPath.map { PendingUploadQueue.resolveAppGroupURL(for: $0) },
+                    PendingUploadQueue.resolveAppGroupURL(for: marker.encryptedBytesCacheURL), DatabaseListStore.cacheLocation(for: reference)]
+                    .compactMap { $0 } + DatabaseListStore.recentBackups(for: reference)
+                guard let payload = candidates.lazy.compactMap({ try? CoordinatedFileReader.readData(from: $0) })
+                    .first(where: { KDBXCrypto.sha512($0) == payloadSHA }) else { continue }
+                do {
+                    let directory = DatabaseListStore.databaseBackupDirectoryURL(for: reference)
+                    let filename = String(pendingOverwriteBackupFilename(for: .now).dropLast(5)) + DatabaseListStore.retainedBackupSuffix + ".kdbx"
+                    try writeAtomicallyAndDurably(payload, to: directory.appendingPathComponent(filename))
+                    let unresolved = marker.uploadAttemptID != nil && marker.confirmedAt == nil && marker.attemptIsFenced != true
+                    if unresolved {
+                        stored.marker.discardRequested = true
+                        _ = try PendingUploadQueue.update(stored)
                         continue
                     }
-                }
-                if (try? PendingUploadQueue.dropIfUnchanged(storedMarker)) == true {
-                    discardedCount += 1
-                }
+                    if try PendingUploadQueue.dropIfUnchanged(stored) { discardedCount += 1 }
+                } catch { continue }
             }
             return discardedCount
         }.value
