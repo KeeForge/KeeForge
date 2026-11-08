@@ -4794,10 +4794,11 @@ final class DatabaseViewModel {
         creationEnvironment.provider = { id in id == provider.id ? provider : nil }
         let actionID = operationID ?? conflictCopyActionID ?? UUID()
         if let pending = try PendingUploadQueue.listCreations(for: reference.id, includingCompleted: true).first(where: { $0.operationID == actionID }) {
+            let payloadSHA = await Task.detached(priority: .utility) { KDBXCrypto.sha512(bytes) }.value
             guard pending.isConflictCopy, pending.ownerDatabaseID == reference.id,
                   pending.requestedTarget == CloudFileCreationTarget(path: fileID),
                   pending.provider == metadata.provider, pending.accountID == metadata.accountId,
-                  pending.payloadSHA512 == KDBXCrypto.sha512(bytes),
+                  pending.payloadSHA512 == payloadSHA,
                   pending.referenceTemplate.keyFileBookmarkData == reference.keyFileBookmarkData,
                   pending.referenceTemplate.keyFileFilename == reference.keyFileFilename else {
                 throw CloudProviderError.conflict(remoteRev: nil)
