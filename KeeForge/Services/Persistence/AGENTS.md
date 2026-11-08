@@ -29,6 +29,8 @@
 - A database with AutoFill disabled can never be `activeAutoFillDatabaseID` or `defaultAutoFillDatabase`; the setter refuses it.
 - A cloud reference's cache path derives from provider, account, and a hash of the file id (`cacheLocation(for:)`). Local references use `databases/<id>.kdbx`. For a KeeForge-only database (no bookmark, not cloud) that file is the database itself, not a copy.
 
+- Cloud creation registration is idempotent for the same operation/reference/file identity and must propagate list-write failure. Verify the durable cache and stored reference before a creation receipt can relinquish ciphertext; do not return a newer local head as if the original prepared keys could unlock it.
+
 ### Bookmarks and file identity
 
 - Bookmarks follow file identity. After a Files-app Delete or Replace the bookmark still resolves, to the old copy in the trash. `locateDatabaseFile(for:)` reports it as `.inTrash`; no path may read, write, cache, or re-bookmark that copy.

@@ -42,6 +42,14 @@
 - A confirmed parent transfers its remote revision/hash ancestry to queued children before deletion. Delivery of an older operation never rewrites cache or marks a newer local head synchronized. Keep confirmation journaled if metadata/ancestry publication fails.
 - Old-key markers conflict on explicit epoch mismatch; timestamp cutoff applies to legacy markers. A staged rekey is online-only and carries a persisted epoch and new key-file association, never keys. Its journal fences old-key saves, other drains and sync-down until exact-ciphertext confirmation. Recovery publishes cache and association even without the initiating session, invalidates current/express/legacy quick unlock, and requires typed unlock until a successful new-key persistence conditionally clears that requirement.
 
+### Creation and native file grants
+
+- Create-only operations use durable `.creation` records and immutable ciphertext in the existing upload directory. The ordinary drainer enumerates them before reference lookup, so a created database can recover before it has a list entry. Replacement-marker cleanup must not decode or delete these records.
+- Persist the action UUID, literal destination/optional parent ID, original ciphertext/hash and reserved remote ID before content dispatch. A retry reuses that action and ciphertext; an independent deliberate action gets its own UUID. Nil-ID providers cannot retry an unknown attempt merely because a later call is rejected. Real pre-content/terminal no-commit evidence may settle only the current fresh invocation.
+- Receipts remain until cache and reference registration are durably/idempotently verified. Completed replay must refuse removed references, a newer head/epoch or different cache bytes; a prepared result must never pair its old key/tree with a newer reference. Restart recovery returns a reference for ordinary unlock, never serialized keys or a new prepared key.
+- Durable pause requests do not wait for an active network lease. Automatic recovery preserves current pause state; only an explicit user resume may unpause. Recheck pause/account/cancellation before further content dispatch and registration, and retain accepted/uncertain ciphertext when cancellation cannot undo the remote operation.
+- `CloudFileSelecting` grants existing files explicitly. Native account-only OAuth for creating a new file must not require selecting an existing file; native Picker import still requires validated selected IDs. UI results remain bound to the captured provider/account/operation and are rejected after disconnect or disappearance.
+
 ### Opening and cache replacement
 
 - Manual policy with a cache performs no provider request. Ordinary pending commits and any rekey journal also keep opening on the local cache. A conflicted immutable pending payload can survive a remote refresh for merge.
@@ -70,6 +78,7 @@
 
 ## Tests
 
+- `CloudFileCreationTests` covers durable IDs/bytes, restart, registration faults, independent actions, pause/cancel and actual adapter rejection evidence. Creation compatibility artifacts and conflict-copy lifecycle cases are in `KDBXCompatibilityTests` and `DatabaseViewModelTests`.
 - `GoogleDriveAuthorizationTests` and `GoogleDriveCloudProviderTests` cover injected SDK/transport paths on both platforms; `CloudProviderIntegrationTests` pins disabled production availability. Headless tests do not establish credentialed Picker/OAuth or native presentation behavior.
 
 - `CloudDatabaseSaverTests`, `CloudSyncCoordinatorTests`, `CloudSyncModelsTests`, `CloudProviderRegistryTests`, `CloudTokenStoreTests`, `CloudAccountStoreTests`.

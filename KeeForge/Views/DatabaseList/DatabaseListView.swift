@@ -179,7 +179,7 @@ struct DatabaseListView: View {
             )
             .macSheetFrame()
         }
-        .sheet(isPresented: $isDatabaseCreationPresented) {
+        .sheet(isPresented: $isDatabaseCreationPresented, onDismiss: { viewModel.reload() }) {
             DatabaseCreationView(
                 viewModel: DatabaseCreationViewModel(),
                 onCreated: { createdDatabase in

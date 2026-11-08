@@ -35,6 +35,8 @@
 - `DatabaseCreationView` blocks dismissal while creating; on disappearance `cancelPendingCreation()` clears secrets and rejects late results. It does not undo a cloud creation that already committed.
 - `PasswordImportView` discards its preview on disappearance and on lock, and blocks leaving while importing.
 
+- Pending cloud creations expose explicit resume/cancel and paused/error state. Recovery returns the original registered reference for typed unlock; the parent only reloads the database list, including after dismissal. A late recovery cannot erase newly entered form data or dismiss that new action.
+
 ### Save conflict
 
 - `SaveConflictAlertModifier` stacks four mutually exclusive alerts. Acknowledging a failed merge puts the conflict alert back up; a merge failure is never a dead end.
@@ -43,6 +45,7 @@
 
 - UI: `DatabaseListUITests`, `DatabaseCreationCompactUITests` / `DatabaseCreationRegularWidthUITests`, `MasterKeyChangeUITests`, `EncryptionSettingsUITests`, `SaveConflictMergeUITests`.
 - Unit: the four view models' `<Type>Tests`, `DatabaseSettingsSummaryTests`, `DatabaseRowStatusSummaryTests`, `DatabaseOverviewTests` (spotlight choice, status line, opening steps). `PasswordImportViewModelTests` is in `PasswordImportTests.swift`.
+- `CloudCreationRecoveryWorkflowTests` covers reference-only recovery, pause/cancel and newer-form completion fences. Runtime/native presentation remains a later acceptance check.
 - `CloudDiscardPresentationTests` covers retained uncertainty versus completed discard using the real queue, retained backup and list state.
 
 ## See also
