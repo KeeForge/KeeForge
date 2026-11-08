@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New Features
+
+- Save edits to cloud databases while offline. KeeForge keeps an encrypted local copy and pending changes across restarts, then uploads them when the service is reachable. Changes remain marked as pending until confirmed; conflicting remote edits still need reconciliation. Changing a cloud database’s master key requires a connection.
+
 ### Fixes
 
 - On iPhone and iPad, the app switcher now shows KeeForge's cover instead of the screen you left. Before, the cover appeared too late to be in the app switcher's picture of the app, so an open database could be seen there.
