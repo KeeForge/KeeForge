@@ -393,7 +393,8 @@ final class DatabaseViewModel {
         _ reconciledRemoteSHA512: Data?,
         _ expectedRev: String?,
         _ newCompositeKey: SymmetricKey?,
-        _ encryptionSettings: EncryptionSettingsChange?
+        _ encryptionSettings: EncryptionSettingsChange?,
+        _ rekeyContext: PendingUploadQueue.RekeyContext?
     ) async throws -> SaveResult
     typealias ConflictCopyEncryptionOperation = @Sendable (
         _ draft: DatabaseDraft,
@@ -685,7 +686,7 @@ final class DatabaseViewModel {
                 encryptionSettings: encryptionSettings
             )
         },
-        cloudSaveOperation: @escaping CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey, encryptionSettings in
+        cloudSaveOperation: @escaping CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey, encryptionSettings, rekeyContext in
             try await CloudDatabaseSaver.save(
                 draft: draft,
                 reference: reference,
@@ -695,7 +696,8 @@ final class DatabaseViewModel {
                 expectedRev: expectedRev,
                 kdfPolicy: .mainApp,
                 newCompositeKey: newCompositeKey,
-                encryptionSettings: encryptionSettings
+                encryptionSettings: encryptionSettings,
+                rekeyContext: rekeyContext
             )
         },
         conflictCopyEncryptionOperation: @escaping ConflictCopyEncryptionOperation = { draft, compositeKey, sourceData in
@@ -2569,6 +2571,7 @@ final class DatabaseViewModel {
                     nil,
                     databaseReference.expectedCloudRevision,
                     nil,
+                    nil,
                     nil
                 )
             }
@@ -2697,7 +2700,8 @@ final class DatabaseViewModel {
                     nil,
                     databaseReference.expectedCloudRevision,
                     newCompositeKey,
-                    nil
+                    nil,
+                    PendingUploadQueue.RekeyContext(keyFileBookmarkData: newKeyFileBookmarkData, keyFileFilename: newKeyFileFilename)
                 )
             }
         } catch SaveError.rekeyAppliedRemotely {
@@ -2780,13 +2784,8 @@ final class DatabaseViewModel {
     }
 
     private func persistKeyFileAssociation(bookmarkData: Data?, filename: String?) {
-        var updated = DatabaseListStore.databases.first(where: { $0.id == databaseReference.id }) ?? databaseReference
-        updated.keyFileBookmarkData = bookmarkData
-        updated.keyFileFilename = filename
-        // The drainer refuses to push markers older than this: they hold
-        // ciphertext under the old key and would revert the rekeyed remote.
-        updated.lastMasterKeyChangeAt = nowProvider()
-        DatabaseListStore.update(updated)
+        DatabaseListStore.setKeyFileAssociation(for: databaseReference.id, bookmarkData: bookmarkData,
+            filename: filename, changedAt: nowProvider())
         refreshDatabaseReference()
     }
 
@@ -2857,7 +2856,8 @@ final class DatabaseViewModel {
                 nil,
                 databaseReference.expectedCloudRevision,
                 nil,
-                change
+                change,
+                nil
             )
         }
 
@@ -3002,6 +3002,7 @@ final class DatabaseViewModel {
                 conflict.remoteSHA512,
                 databaseReference.expectedCloudRevision,
                 nil,
+                nil,
                 nil
             )
         }
@@ -3034,9 +3035,8 @@ final class DatabaseViewModel {
     }
 
     /// Merges every conflicted AutoFill save for this database into the
-    /// session's tree and uploads the result. The pending uploads are dropped
-    /// only once that upload has succeeded; any other outcome leaves them, and
-    /// their bytes, exactly where they were.
+    /// session's tree and durably saves the result. Sources transfer only to
+    /// a finalized replacement journal that proves ownership of the merge.
     func mergePendingUploads() async throws {
         guard case .unlocked = state,
               databaseReference.isCloudBacked,
@@ -3124,9 +3124,7 @@ final class DatabaseViewModel {
             sessionKey: sessionKey,
             binaryPoolFields: localBinaryPoolFields
         )
-        // Written even when the merge added nothing: only a completed upload
-        // proves the cloud copy holds the change, and that proof is what
-        // allows dropping the pending uploads.
+        // Even an unchanged merge must establish durable ownership of its sources.
         let saveResult = try await cloudSaveOperation(
             mergedDraft,
             reference,
@@ -3135,16 +3133,16 @@ final class DatabaseViewModel {
             nil,
             reference.expectedCloudRevision,
             nil,
+            nil,
             nil
         )
 
         switch saveResult {
         case .saved(let newSHA512, let expressKey):
             let resolvedMarkers = payloads.map(\.storedMarker)
-            // Not gated on the lock cycle: the upload already happened, and
-            // leaving the markers would only offer the same merge again.
+            // Durable ownership must transfer even if the initiating session locked.
             await Task.detached(priority: .userInitiated) {
-                PendingUploadRecovery.dropMarkers(resolvedMarkers, environment: recovery)
+                try? PendingUploadQueue.transferMergedSources(resolvedMarkers, toPayloadSHA512: newSHA512, for: reference.id)
             }.value
             guard expectedLockCycleID == lockCycleID else { return }
 
@@ -3157,7 +3155,7 @@ final class DatabaseViewModel {
             refreshDatabaseReference()
             populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
             refreshPendingUploadConflict()
-            mergeSummaryMessage = String(localized: "The change saved through AutoFill was merged with the cloud copy and uploaded.")
+            mergeSummaryMessage = nil
         case .conflict:
             guard expectedLockCycleID == lockCycleID else { return }
             pendingUploadMergeFailure = .cloudChanged
@@ -3560,6 +3558,10 @@ final class DatabaseViewModel {
         cloudSyncBannerText = resolution.bannerMessage
         hasPendingCloudUploads = pendingUploadMarkerCheck(databaseReference)
 
+        if hasPendingCloudUploads, resolution.status == .refreshSkipped {
+            cloudSyncOutcome = nil
+            return
+        }
         guard Self.reachedCloud(resolution.status) else {
             cloudSyncOutcome = .failed(resolution.bannerMessage ?? CloudSyncIssue.networkUnavailable.localizedDescription)
             return
@@ -3567,7 +3569,7 @@ final class DatabaseViewModel {
         isCloudRefreshPending = false
 
         guard KDBXCrypto.sha512(resolution.data) != openTimeSHA512 else {
-            cloudSyncOutcome = .upToDate
+            cloudSyncOutcome = hasPendingCloudUploads ? nil : .upToDate
             return
         }
 

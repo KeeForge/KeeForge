@@ -76,6 +76,13 @@ enum CloudSyncCoordinator {
         let cacheExists = FileManager.default.fileExists(atPath: cacheURL.path)
         var updatedReference = reference
 
+        let pending = PendingUploadQueue.listMarkers(for: reference.id)
+        if cacheExists, pending.contains(where: { $0.marker.rekeyContext != nil || !$0.marker.isConflicted }) {
+            let data = try CoordinatedFileReader.readData(from: cacheURL)
+            updatedReference.updateCloudSyncMetadata { $0.lastSyncedAt = nil }
+            return CloudSyncResolution(reference: updatedReference, localURL: cacheURL, data: data, status: .refreshSkipped)
+        }
+
         // Without a cache there is nothing to open, so a manual database's
         // first open still downloads.
         if honorsManualSyncPolicy, reference.cloudSyncPolicy == .manual, cacheExists {
@@ -145,7 +152,7 @@ enum CloudSyncCoordinator {
                 cloudMetadata.remoteContentHash = syncedMetadata.contentHash
                 cloudMetadata.remoteModifiedAt = syncedMetadata.modifiedDate
                 cloudMetadata.remoteRev = syncedMetadata.rev
-                cloudMetadata.lastSyncedAt = .now
+                cloudMetadata.lastSyncedAt = PendingUploadQueue.listMarkers(for: reference.id).isEmpty ? .now : nil
                 cloudMetadata.lastSyncIssue = nil
             }
 
@@ -268,11 +275,15 @@ enum CloudSyncCoordinator {
         // briefly unprotected once they land.
         try applyCacheFileProtection(at: tempURL)
 
+        guard !PendingUploadQueue.hasRekeyJournal(for: reference.id) else { throw SaveError.saveContextUnavailable }
         guard let pinnedURL else {
             // Nothing was cached when the download started; a cache that
             // appeared since is a concurrent write, and the nil pin makes the
             // publish refuse it.
-            try replaceCacheItem(at: destinationURL, withItemAt: tempURL, pinnedFileID: nil)
+            try PendingUploadQueue.withCommitLock(for: reference.id) {
+                guard !PendingUploadQueue.hasRekeyJournal(for: reference.id) else { throw SaveError.saveContextUnavailable }
+                try replaceCacheItem(at: destinationURL, withItemAt: tempURL, pinnedFileID: nil)
+            }
             try applyCacheFileProtection(at: destinationURL)
             return downloadedMetadata
         }
@@ -294,11 +305,10 @@ enum CloudSyncCoordinator {
         // newer than the download, or whose marker this pass never examined,
         // so the sync-down fails rather than clobbering them (see
         // `replaceCacheItem`).
-        try replaceCacheItem(
-            at: destinationURL,
-            withItemAt: tempURL,
-            pinnedFileID: fileID(at: pinnedURL)
-        )
+        try PendingUploadQueue.withCommitLock(for: reference.id) {
+            guard !PendingUploadQueue.hasRekeyJournal(for: reference.id) else { throw SaveError.saveContextUnavailable }
+            try replaceCacheItem(at: destinationURL, withItemAt: tempURL, pinnedFileID: fileID(at: pinnedURL))
+        }
         try applyCacheFileProtection(at: destinationURL)
         return downloadedMetadata
     }
@@ -502,54 +512,18 @@ enum CloudSyncCoordinator {
         }.value
     }
 
-    static func pushAfterSave(
-        reference: DatabaseReference,
-        bytes: Data,
-        expectedRev: String?,
-        providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:),
-        progress: @escaping @Sendable (Double) -> Void = { _ in }
-    ) async throws -> DatabaseReference {
-        guard let metadata = reference.cloudSyncMetadata else {
-            throw CocoaError(.fileReadUnsupportedScheme)
-        }
-
-        guard let provider = providerResolver(metadata.provider) else {
-            throw CloudProviderError.notAuthenticated
-        }
-
-        let uploadedMetadata = try await provider.upload(
-            accountId: metadata.accountId,
-            fileId: metadata.fileId,
-            data: bytes,
-            expectedRev: expectedRev,
-            progress: progress
-        )
-
-        return try applyUploadedBytesAfterSave(
-            reference: reference,
-            bytes: bytes,
-            remoteMetadata: uploadedMetadata
-        )
-    }
-
     static func applyUploadedBytesAfterSave(
         reference: DatabaseReference,
         bytes: Data,
         remoteMetadata: CloudFileMetadata
     ) throws -> DatabaseReference {
-        // Same protection as `downloadLatestCopy`: an AutoFill save can land
-        // in the cache while this upload was in flight. A queued marker plus a
-        // cache differing from `bytes` means unuploaded bytes are about to be
-        // reverted, so back them up first. Equal bytes (every drain lands
-        // here, marker still queued) have nothing to lose.
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
-        if !PendingUploadQueue.listMarkers(for: reference.id).isEmpty,
-           let currentCacheBytes = try? CoordinatedFileReader.readData(from: cacheURL),
-           KDBXCrypto.sha512(currentCacheBytes) != KDBXCrypto.sha512(bytes) {
-            try backUpCacheBeforePendingOverwrite(at: cacheURL, reference: reference)
+        let currentReference = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
+        guard let currentBytes = try? CoordinatedFileReader.readData(from: cacheURL),
+              KDBXCrypto.sha512(currentBytes) == KDBXCrypto.sha512(bytes),
+              currentReference.cloudSyncMetadata?.localHeadOperationID == reference.cloudSyncMetadata?.localHeadOperationID else {
+            return currentReference
         }
-
-        try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
 
         let applyRemoteMetadata: (inout CloudSyncMetadata) -> Void = { cloudMetadata in
             // An upload response can omit rev/hash (OneDrive session
@@ -562,7 +536,7 @@ enum CloudSyncCoordinator {
             if let rev = remoteMetadata.rev {
                 cloudMetadata.remoteRev = rev
             }
-            cloudMetadata.lastSyncedAt = .now
+            cloudMetadata.lastSyncedAt = PendingUploadQueue.listMarkers(for: reference.id).isEmpty ? .now : nil
             cloudMetadata.lastSyncIssue = nil
         }
 

@@ -103,7 +103,7 @@ struct CloudFile: Identifiable, Hashable, Sendable {
     }
 }
 
-struct CloudFileMetadata: Equatable, Sendable {
+struct CloudFileMetadata: Codable, Equatable, Sendable {
     let modifiedDate: Date
     let contentHash: String?
     let size: Int64
@@ -310,6 +310,9 @@ struct CloudSyncMetadata: Codable, Hashable, Sendable {
     var remoteRev: String?
     var lastSyncedAt: Date?
     var lastSyncIssue: CloudSyncIssue?
+    var localHeadOperationID: UUID?
+    var keyEpoch: UUID?
+    var requiresTypedUnlock: Bool?
 
     init(
         provider: String,

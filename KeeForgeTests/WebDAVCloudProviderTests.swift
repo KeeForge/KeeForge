@@ -8,6 +8,14 @@ import XCTest
 /// accountId and clean up in `tearDown`; if Keychain writes are unavailable in
 /// the test host they `XCTSkip` (matching `CloudTokenStoreTests`).
 final class WebDAVCloudProviderTests: XCTestCase {
+    func testWriteGuaranteeMatchesActualCommitExclusion() {
+        let provider = WebDAVCloudProvider.shared
+        XCTAssertEqual(provider.writeGuarantee(expectedRev: "\"tag\"", byteCount: 10), .serverConditional)
+        for rev in [nil, "", "lastmod:date", "W/\"weak\"", "unquoted"] {
+            XCTAssertEqual(provider.writeGuarantee(expectedRev: rev, byteCount: 10), .preflightOnly)
+        }
+    }
+
     private let providerId = CloudProviderKind.webDAV.rawValue
     private var seededAccountIds: [String] = []
 

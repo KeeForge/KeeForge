@@ -1,6 +1,6 @@
 # Cloud Services
 
-**Scope:** the provider abstraction, the cloud-backed open and save pipeline, and the pending-upload queue that carries an AutoFill save to the remote. The shared save sequence and `SaveBaseline` are in `../AGENTS.md`.
+**Scope:** the provider abstraction, the cloud-backed open and save pipeline, and the durable pending-upload queue shared by app and AutoFill saves. The shared save sequence and `SaveBaseline` are in `../AGENTS.md`.
 
 ## Ownership
 
@@ -28,37 +28,22 @@
 - An upload response may omit rev or hash. Never overwrite a recorded value with nil, or every later save falls into the weaker nil-rev gate.
 - A provider whose `getMetadata` must transfer the file sets `metadataProbeTransfersContent` (FTP), which exempts it from the open-probe deadline.
 
-### Conflict verification
+### Local commits and delivery
 
-- A missing `expectedRev` must never skip `remoteHasDiverged`. The upload then goes out unconditionally (Dropbox overwrite, OneDrive replace), so the metadata check is the only protection: it compares content hashes, and if the remote reports no hash any remote rev counts as divergence. Only a provider exposing neither is unverified.
-- The app save rebases instead of conflicting only when the remote bytes hash to a state `SaveBaseline` covers, at the divergence gate and after a provider 412, with exactly one retry. The retry's rev is read before the byte check so an edit in between fails `If-Match`. Bytes that differ always conflict.
-- The pending-upload push uses the plain gate; it has no baseline.
-- The backup is written before the upload, so a local failure cannot leave the remote advanced and the save reported as failed.
-- Known residue, not hidden: WebDAV sends `If-Match` only for strong ETags; a OneDrive upload session (over 4 MiB) checks it at session creation, not commit; FTP has no conditional write. Read the site comment before attempting a fix.
+- Ordinary app and AutoFill saves commit locally before networking. `SaveResult.saved` proves encrypted local durability, not upload. `CloudDatabaseSaver` notifies the queue; `PendingUploadDrainer` owns ordinary delivery.
+- `PendingUploadQueue` retains immutable ciphertext in its existing per-database directory, independently of the mutable cache and the five rotating backups. New markers record intended payload path/hash, exact predecessor hash/operation, inherited remote-base hash/revision, and key epoch. Keep shipped marker field meanings and tri-state finalization unchanged.
+- Hold the per-database `.commit.lock` across preparation, coordinated conditional cache replacement, marker finalization and local-head publication. Encrypt before taking this cross-process lock, then recheck the actual cache SHA and persisted epoch. A provisional intent is durable before cache replacement and never notifies the drainer. Recovery finalizes only when both retained payload and committed cache match the intended SHA; legacy or uncommitted intents remain unproven.
+- Updates and conditional deletion use marker generations under `.markers.lock`. Deleting a marker cleans only its own unreferenced payload. Never drop uncertain attempts on local supersession. A merged replacement must durably record ownership before source markers can be removed; absent a proven replacement, retain all sources.
+- Before upload, persist `uploadAttemptID`. After a lost response, compare exact remote bytes to payload and remote base. Payload equality confirms; a base-equal probe permits retry only under actual server CAS with the original validator. Preflight-only uncertainty stays pending because the original request may still complete. Disabled replacement never dispatches.
+- A confirmed parent transfers its remote revision/hash ancestry to queued children before deletion. Delivery of an older operation never rewrites cache or marks a newer local head synchronized. Keep confirmation journaled if metadata/ancestry publication fails.
+- Old-key markers conflict on explicit epoch mismatch; timestamp cutoff applies to legacy markers. A staged rekey is online-only and carries a persisted epoch and new key-file association, never keys. Its journal fences old-key saves, other drains and sync-down until exact-ciphertext confirmation. Recovery publishes cache and association even without the initiating session, invalidates current/express/legacy quick unlock, and requires typed unlock until a successful new-key persistence conditionally clears that requirement.
 
 ### Opening and cache replacement
 
-- `syncIfNeededForOpen` under `CloudSyncPolicy.manual` returns the cache without resolving a provider, unless no cache exists. Explicit requests pass `honorsManualSyncPolicy: false`. The policy only gates checking: saves and drains still upload, and the save's gate catches a remote that moved meanwhile.
-- The metadata probe races `openProbeDeadline` only when a cache can stand in; a miss is treated as offline. With no cache it waits out the transport.
-- `downloadLatestCopy` pins the existing cache with a hard link before the transfer and before listing markers, then publishes with a coordinated replace conditioned on the pinned inode. A save that lands mid-download then makes the sync fall back to the cache instead of reverting it.
-- Do not move the pin after the download (it would pin the newer save and replace it), and do not use a rename-aside (the cache path would be empty during the transfer).
-- When a marker is queued, both cache-replacing paths back the cache up into the database's backup directory first (`applyUploadedBytesAfterSave` only when the cache differs from the bytes being applied). A failed backup aborts the replacement: losing the only copy of an unuploaded save is worse than a failed refresh.
-- Cloud state learned across an `await` is written with `DatabaseListStore.updateCloudSyncMetadata(for:ifUnchangedFrom:mutate:)`, not `update(_:)`, which would roll back a save or drain that finished inside the window.
-
-### Pending-upload markers
-
-- Invariant: cache bytes that have not been uploaded always have a durable marker covering them. Markers are fsynced, hold no secrets, and store the cache path relative to the App Group container, because the extension returns before the app runs.
-- Created only by `AutoFillSaveCoordinator.saveNewEntry`, in two phases whose order is load-bearing: a provisional marker with the base bytes' SHA-512 (`isPayloadFinalized: false`, no Darwin notification), then the cache write, then `finalize` with the payload hash, then the drop of markers this save superseded, and only then the notification, so the drainer never sees them against the new cache. Re-derive the crash analysis at that call site before reordering.
-- `isPayloadFinalized` is tri-state. `false` is provisional; `nil` is a marker from before the field existed and is never proven finalized. Only `true` may be used as merge input or superseded.
-- The drainer refuses a marker created before the reference's `lastMasterKeyChangeAt` and marks it conflicted: its payload is ciphertext under the old key and would revert the rekey on the remote. Recovery refuses it too.
-- The drainer uploads only when the cache still hashes to the marker's SHA. A mismatch means a sync-down replaced the cache, so it marks a conflict instead of pushing the wrong bytes. A provisional marker whose cache still matches is deferred: neither uploaded nor dropped.
-- A conflicted marker is rebased onto the remote head only when the cache matches, `baseRev` equals that head, and the reference already records it. Markers without `baseRev` never rebase.
-- A marker may be dropped only by: the drainer after its push returned `.saved` (or the same payload was pushed earlier in the pass); SHA-equality supersession by an app save or a newer AutoFill save, finalized markers only and only after that save replaced the cache; the AutoFill save dropping its own provisional marker when the save conflicted or threw; `mergePendingUploads` after the merged save uploaded; the user's Discard, after backing up a still-matching cache; removal of the database.
-- An app save drops superseded markers only after `applyUploadedBytes`, because a concurrent provisional marker is what triggers that call's backup.
-- In-place changes go through `update` (generation compare-and-swap) and `dropIfUnchanged`, under the per-directory `.markers.lock`. `finalize` is deliberately not generation-checked: it writes onto the marker as it is on disk and clears a conflict raised against the provisional hash, so a drain between cache write and finalize cannot strand it.
-- If finalize fails, the replacement marker keeps the original `expectedRev` and a nil `baseRev`, so its push conflicts visibly rather than overwrite an app save it cannot rule out.
-- Recovery is all-or-nothing: one unreadable or pre-rekey payload makes the lookup `.unavailable`, one unproven marker makes it `.unidentified`. `.unidentified` must never lead to Discard; the change is still on the device.
-- A drain request that coalesces onto an in-flight drain forces one more pass, so a mid-drain marker is not left waiting.
+- Manual policy with a cache performs no provider request. Ordinary pending commits and any rekey journal also keep opening on the local cache. A conflicted immutable pending payload can survive a remote refresh for merge.
+- Metadata probes have an open deadline only when a cached fallback exists and the provider does not transfer content for metadata.
+- Pin the cache inode before transfer. Publish the download through a coordinated replacement conditional on that inode, under the commit lock, and recheck the rekey fence inside it. Preserve legacy pending bytes in backups before replacing; immutable queue payloads never depend on backup rotation.
+- Across awaits use `DatabaseListStore.updateCloudSyncMetadata(for:ifUnchangedFrom:mutate:)`, whose identity includes remote revision/hash, local-head UUID and key epoch. Never claim synchronized while any operation remains pending.
 
 ### Persisted shapes
 

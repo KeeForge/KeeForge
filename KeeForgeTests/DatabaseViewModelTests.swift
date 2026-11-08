@@ -4842,7 +4842,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, expectedRev, _, _ in
+            cloudSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, expectedRev, _, _, _ in
                 recorder.record(
                     openTimeSHA512: openTimeSHA512,
                     reconciledRemoteSHA512: reconciledRemoteSHA512,
@@ -5071,7 +5071,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, _, _, _, _, _, _, _, _ in
                 uploadCalls.recordCall()
                 throw URLError(.notConnectedToInternet)
             },
@@ -5222,7 +5222,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, _, _, _, _, _, _, _, _ in
                 // `CloudDatabaseSaver.finishSave` drops the pending uploads
                 // whose payload the saved base already contained.
                 pending.dropAll()
@@ -5330,7 +5330,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 )
             },
             cloudRefreshOperation: cloudRefreshOperation,
-            cloudSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, expectedRev, _, _ in
+            cloudSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, expectedRev, _, _, _ in
                 recorder.record(
                     openTimeSHA512: openTimeSHA512,
                     reconciledRemoteSHA512: reconciledRemoteSHA512,
@@ -5668,7 +5668,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, _, _, _, _, _, _, _, _ in
                 throw CloudProviderError.writeScopeRequired
             }
         )
@@ -5832,7 +5832,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, _, _, _, _, _, _, _, _ in
                 .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
             },
             conflictCopyEncryptionOperation: { _, _, _ in
@@ -6585,7 +6585,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, _, compositeKey, _, _, expectedRev, newCompositeKey, _ in
+            cloudSaveOperation: { _, _, compositeKey, _, _, expectedRev, newCompositeKey, _, _ in
                 capturedKeys.record(oldKey: compositeKey, newKey: newCompositeKey, expectedRev: expectedRev)
                 return .saved(newSHA512: Data("cloud-rekeyed-hash".utf8))
             },
@@ -6719,7 +6719,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, _, _, _, _, _, _, _, _ in
                 cloudSaverCalls.recordCall()
                 return .saved(newSHA512: Data("saved".utf8))
             },
@@ -6841,7 +6841,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, _, _, _, _, _, _, _, _ in
                 throw SaveError.rekeyAppliedRemotely
             },
             pendingUploadMarkerCheck: { _ in false },
@@ -7249,7 +7249,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, reference, compositeKey, _, _, expectedRev, newCompositeKey, encryptionSettings in
+            cloudSaveOperation: { _, reference, compositeKey, _, _, expectedRev, newCompositeKey, encryptionSettings, _ in
                 capture.record(
                     compositeKey: compositeKey,
                     newCompositeKey: newCompositeKey,
@@ -7354,7 +7354,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, _, _, _, _, _, _, _, _ in
                 cloudSaverCalls.recordCall()
                 return .saved(newSHA512: Data("saved".utf8))
             },
@@ -7480,7 +7480,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 encryptionSettings: encryptionSettings
             )
         },
-        cloudSaveOperation: @escaping DatabaseViewModel.CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey, encryptionSettings in
+        cloudSaveOperation: @escaping DatabaseViewModel.CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey, encryptionSettings, rekeyContext in
             try await CloudDatabaseSaver.save(
                 draft: draft,
                 reference: reference,
@@ -7490,7 +7490,8 @@ final class DatabaseViewModelTests: XCTestCase {
                 expectedRev: expectedRev,
                 kdfPolicy: .mainApp,
                 newCompositeKey: newCompositeKey,
-                encryptionSettings: encryptionSettings
+                encryptionSettings: encryptionSettings,
+                    rekeyContext: rekeyContext
             )
         },
         conflictCopyEncryptionOperation: @escaping DatabaseViewModel.ConflictCopyEncryptionOperation = { draft, compositeKey, sourceData in

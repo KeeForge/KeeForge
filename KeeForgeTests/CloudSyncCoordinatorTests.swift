@@ -460,7 +460,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         let pendingBytes = Data("unuploaded-autofill-bytes".utf8)
         try DatabaseListStore.cacheDatabaseCopy(pendingBytes, for: reference)
         _ = try PendingUploadQueue.enqueue(
-            makeMarker(databaseId: reference.id, openTimeSHA512: KDBXCrypto.sha512(pendingBytes))
+            makeMarker(databaseId: reference.id, openTimeSHA512: KDBXCrypto.sha512(pendingBytes), isConflicted: true)
         )
 
         let provider = MockCloudProvider()
@@ -511,7 +511,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(backupContents(for: reference), [])
     }
 
-    func testApplyUploadedBytesBacksUpDivergentCacheWhenPendingUploadMarkerExists() throws {
+    func testApplyUploadedBytesPreservesDivergentCacheWhenPendingUploadMarkerExists() throws {
         // M2: an AutoFill save can land in the cache while an app-side upload
         // is in flight; the post-upload cache refresh must not silently revert
         // it. With a marker queued and the cache differing from the uploaded
@@ -532,9 +532,9 @@ final class CloudSyncCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(
             try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)),
-            uploadedBytes
+            autoFillBytes
         )
-        XCTAssertEqual(backupContents(for: reference), [autoFillBytes])
+        XCTAssertEqual(backupContents(for: reference), [])
     }
 
     func testApplyUploadedBytesSkipsBackupWhenCacheAlreadyHoldsUploadedBytes() throws {
@@ -595,6 +595,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         DatabaseListStore.setAutoFillDestinationGroupID(selectedGroup.id, for: reference)
 
         let uploadedBytes = Data("uploaded-ciphertext".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(uploadedBytes, for: reference)
         let appliedReference = try CloudSyncCoordinator.applyUploadedBytesAfterSave(
             reference: uploadReference,
             bytes: uploadedBytes,
@@ -639,8 +640,8 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         )
 
         XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
-        XCTAssertEqual(completed.cloudSyncMetadata?.remoteRev, "rev-after")
-        XCTAssertEqual(completed.cloudSyncMetadata?.remoteContentHash, "hash-after")
+        XCTAssertEqual(completed.cloudSyncMetadata?.remoteRev, "rev-before")
+        XCTAssertEqual(completed.cloudSyncMetadata?.remoteContentHash, "hash-before")
     }
 
     func testDiscardConflictedPendingUploadsBacksUpLivePayloadAndDropsOnlyConflictedMarkers() async throws {

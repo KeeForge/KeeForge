@@ -35,8 +35,8 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 
 - Stage edits through `DatabaseDraft` plus `save()`. Never mutate `rootGroup` and rebuild save state afterwards.
 - `mergeAndSave()` gates its write on the conflict's `remoteSHA512` (the bytes it merged), not `openTimeSHA512`. Every failure leaves the draft and the conflict standing.
-- `mergePendingUploads()` drops upload markers only after `.saved`; `.changeUnidentified` must never suggest Discard.
-- Rekey and re-encryption refuse a dirty draft, an in-flight save, and cloud references with pending upload markers (draining them afterwards reverts the remote). The rekey stamps `lastMasterKeyChangeAt` so the drainer refuses older markers.
+- `.saved` means durable locally. `mergePendingUploads()` transfers source ownership only to a durable finalized replacement marker; an injected or otherwise unproven save cannot authorize dropping sources. Uncertain source attempts remain retained. `.changeUnidentified` must never suggest Discard.
+- Rekey and re-encryption refuse a dirty draft, an in-flight save, and cloud references with pending upload markers (draining them afterwards reverts the remote). Cloud rekey supplies a persisted epoch/key-file context to the online journal; its recovery publishes association and cutoff, and the session completion must not restamp that epoch.
 - `save()` no-ops behind an in-flight save. An operation holding `isSaving` (rekey, re-encryption) flushes edits that landed behind it; `importEntries` refuses to start.
 - `syncCloudNow()` never discards unsaved work, never applies a response older than a save that finished mid-sync, never swaps a YubiKey session, and never pushes pending uploads.
 - A completion arriving while a save conflict is on screen is held by `EntryEditCompletionGate` until `isSettled`. Reporting it races the conflict alert, which presents from the editor, and loses the dismissal.

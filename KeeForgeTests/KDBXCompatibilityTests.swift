@@ -32,6 +32,38 @@ final class KDBXCompatibilityTests: XCTestCase {
         Bundle(for: Self.self)
     }
 
+    func test_offlineCloudCommitRetainsReopenableCiphertextAndFullKDBXSnapshot() async throws {
+        for fixture in [KDBXCompatibilitySupport.Fixture.syntheticRich, .syntheticTwofish] {
+            let loaded = try KDBXCompatibilitySupport.load(fixture, bundle: bundle)
+            let file = CloudFile(id: UUID().uuidString, name: "Compatibility.kdbx", path: "/Compatibility.kdbx", isFolder: false, modifiedDate: nil, size: nil)
+            let reference = DatabaseListStore.addCloud(provider: "webdav", accountId: "compatibility", file: file)
+            defer { DatabaseListStore.remove(id: reference.id) }
+            try DatabaseListStore.cacheDatabaseCopy(loaded.sourceData, for: reference)
+            let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
+                binaryPoolFields: loaded.header.innerHeaderBinaryFields)
+            let before = try CompatibilitySnapshot(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
+                binaryPool: BinaryPool(rawFields: loaded.header.innerHeaderBinaryFields))
+            var environment = CloudDatabaseSaver.Environment.live
+            environment.getMetadata = { _ in throw CloudProviderError.networkUnavailable }
+            environment.queue.postDarwinNotification = { }
+            let result = try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: loaded.compositeKey,
+                openTimeSHA512: KDBXCrypto.sha512(loaded.sourceData), expectedRev: nil, kdfPolicy: .mainApp, environment: environment)
+            guard case .saved(let sha, _) = result else { return XCTFail("Offline local commit must succeed") }
+            let marker = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
+            let payload = try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: XCTUnwrap(marker.marker.intendedPayloadPath)))
+            XCTAssertEqual(KDBXCrypto.sha512(payload), sha)
+            let reopened = try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: loaded.compositeKey,
+                sessionKey: loaded.sessionKey, kdfPolicy: .mainApp)
+            let after = try CompatibilitySnapshot(rootGroup: reopened.rootGroup, meta: reopened.meta, sessionKey: loaded.sessionKey,
+                binaryPool: BinaryPool(rawFields: reopened.header.innerHeaderBinaryFields))
+            XCTAssertEqual(after.entries, before.entries)
+            XCTAssertEqual(after.groups, before.groups)
+            XCTAssertEqual(after.meta, before.meta)
+            XCTAssertEqual(after.binaryPoolDigest, before.binaryPoolDigest)
+            XCTAssertEqual(reopened.header.cipherID, loaded.header.cipherID)
+        }
+    }
+
     func test_createdPercentRootNameSurvivesWriteAndReopen() async throws {
         let name = "new%20db 100%"
         let prepared = try await DatabaseCreationService.prepare(request: DatabasePreparationRequest(

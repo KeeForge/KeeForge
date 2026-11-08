@@ -6,6 +6,13 @@ import XCTest
 /// resumption, and error mapping. No network, no MSAL — every assertion
 /// targets a `static` helper.
 final class OneDriveCloudProviderTests: XCTestCase {
+    func testWriteGuaranteeMatchesActualCommitExclusion() {
+        let provider = OneDriveCloudProvider.shared
+        XCTAssertEqual(provider.writeGuarantee(expectedRev: "etag", byteCount: OneDriveCloudProvider.simpleUploadByteLimit), .serverConditional)
+        XCTAssertEqual(provider.writeGuarantee(expectedRev: "etag", byteCount: OneDriveCloudProvider.simpleUploadByteLimit + 1), .preflightOnly)
+        XCTAssertEqual(provider.writeGuarantee(expectedRev: nil, byteCount: 1), .preflightOnly)
+    }
+
     private let graphBase = "https://graph.microsoft.com/v1.0"
 
     // MARK: - Graph URL construction

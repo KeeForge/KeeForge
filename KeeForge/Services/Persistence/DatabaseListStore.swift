@@ -1,3 +1,4 @@
+import Darwin
 import CryptoKit
 import Foundation
 
@@ -73,6 +74,24 @@ enum DatabaseListStore {
     private static func withStateLock<T>(_ body: () throws -> T) rethrows -> T {
         stateLock.lock()
         defer { stateLock.unlock() }
+        let depthKey = "KeeForge.database-list.lock-depth"
+        let depth = Thread.current.threadDictionary[depthKey] as? Int ?? 0
+        var descriptor: Int32 = -1
+        if depth == 0 {
+            descriptor = Darwin.open(sharedContainerURL.appendingPathComponent(".database-list.lock").path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+            precondition(descriptor >= 0, "Cannot lock database list")
+            var status = flock(descriptor, LOCK_EX)
+            while status != 0 && errno == EINTR { status = flock(descriptor, LOCK_EX) }
+            precondition(status == 0, "Cannot lock database list")
+        }
+        Thread.current.threadDictionary[depthKey] = depth + 1
+        defer {
+            Thread.current.threadDictionary[depthKey] = depth
+            if descriptor >= 0 {
+                flock(descriptor, LOCK_UN)
+                Darwin.close(descriptor)
+            }
+        }
         return try body()
     }
 
@@ -408,7 +427,57 @@ enum DatabaseListStore {
     /// references predating rev tracking carry only a content hash, which is
     /// then the entire signal that the remote moved.
     private static func cloudRevisionIdentity(_ metadata: CloudSyncMetadata) -> String {
-        "\(metadata.remoteRev ?? "")\u{1F}\(metadata.remoteContentHash ?? "")"
+        "\(metadata.remoteRev ?? "")\u{1F}\(metadata.remoteContentHash ?? "")\u{1F}\(metadata.localHeadOperationID?.uuidString ?? "unknown")\u{1F}\(metadata.keyEpoch?.uuidString ?? "unknown")"
+    }
+
+    static func setKeyFileAssociation(for id: UUID, bookmarkData: Data?, filename: String?, changedAt: Date) {
+        withStateLock {
+            var references = loadDatabases()
+            guard let index = references.firstIndex(where: { $0.id == id }) else { return }
+            references[index].keyFileBookmarkData = bookmarkData
+            references[index].keyFileFilename = filename
+            if references[index].cloudSyncMetadata?.keyEpoch == nil {
+                references[index].lastMasterKeyChangeAt = changedAt
+            }
+            _ = saveDatabases(references)
+        }
+    }
+
+    static func clearCloudTypedUnlockRequirement(for reference: DatabaseReference) -> Bool {
+        withStateLock {
+            var references = loadDatabases()
+            guard let index = references.firstIndex(where: { $0.id == reference.id }),
+                  let observed = reference.cloudSyncMetadata,
+                  let stored = references[index].cloudSyncMetadata,
+                  stored.requiresTypedUnlock == true,
+                  stored.keyEpoch == observed.keyEpoch,
+                  stored.localHeadOperationID == observed.localHeadOperationID else { return false }
+            references[index].updateCloudSyncMetadata { $0.requiresTypedUnlock = false }
+            return saveDatabases(references)
+        }
+    }
+
+    @discardableResult
+    static func recordCloudLocalCommit(for id: UUID, operationID: UUID, rekey: PendingUploadQueue.RekeyContext? = nil, committedAt: Date = .now) -> DatabaseReference? {
+        withStateLock {
+            var references = loadDatabases()
+            guard let index = references.firstIndex(where: { $0.id == id }), references[index].isCloudBacked else { return nil }
+            references[index].updateCloudSyncMetadata {
+                $0.localHeadOperationID = operationID
+                $0.lastSyncedAt = nil
+                if let rekey {
+                    $0.keyEpoch = rekey.epoch
+                    $0.requiresTypedUnlock = true
+                }
+            }
+            if let rekey {
+                references[index].keyFileBookmarkData = rekey.keyFileBookmarkData
+                references[index].keyFileFilename = rekey.keyFileFilename
+                references[index].lastMasterKeyChangeAt = committedAt
+            }
+            guard saveDatabases(references) else { return nil }
+            return references[index]
+        }
     }
 
     static func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) {
@@ -871,11 +940,7 @@ enum DatabaseListStore {
                     withIntermediateDirectories: true,
                     attributes: nil
                 )
-                try CoordinatedFileReader.writeData(
-                    encoded,
-                    to: databaseListURL,
-                    options: .atomicProtected
-                )
+                try writeAtomicallyAndDurably(encoded, to: databaseListURL)
                 sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
             } catch {
                 return false

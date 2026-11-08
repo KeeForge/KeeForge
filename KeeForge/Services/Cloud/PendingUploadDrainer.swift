@@ -42,6 +42,8 @@ final class PendingUploadDrainer {
         var sha512: @Sendable (Data) -> Data
         var pushPendingUpload: @Sendable (DatabaseReference, Data, String?) async throws -> CloudDatabaseSaver.PendingUploadPushResult
 
+        var deliverMarker: (@Sendable (PendingUploadQueue.StoredMarker, DatabaseReference) async throws -> CloudDatabaseSaver.PendingUploadPushResult?)?
+
         static let live = Environment(
             beginBackgroundTask: LocalDatabaseSaver.Environment.live.beginBackgroundTask,
             endBackgroundTask: LocalDatabaseSaver.Environment.live.endBackgroundTask,
@@ -69,6 +71,9 @@ final class PendingUploadDrainer {
                     encryptedBytes: data,
                     expectedRev: expectedRev
                 )
+            },
+            deliverMarker: { stored, reference in
+                try await CloudDatabaseSaver.deliver(stored, reference: reference)
             }
         )
     }
@@ -192,6 +197,21 @@ final class PendingUploadDrainer {
                 continue
             }
 
+            if let deliver = environment.deliverMarker {
+                guard let current = environment.listMarkers(reference.id).first(where: { $0.id == storedMarker.id }) else { continue }
+                do {
+                    if let result = try await deliver(current, reference) {
+                        switch result {
+                        case .saved: outcome.drainedDatabaseIDs.insert(reference.id)
+                        case .conflict: outcome.conflictDatabaseIDs.insert(reference.id)
+                        }
+                    } else { outcome.skippedDatabaseIDs.insert(reference.id) }
+                } catch {
+                    outcome.userIssue = UserIssue(databaseId: reference.id, kind: (error as? CloudProviderError).map(issueKind) ?? .message, message: error.localizedDescription)
+                }
+                continue
+            }
+
             // A marker enqueued while a master-key change was uploading holds
             // ciphertext under the old key; pushing it would revert the rekey
             // on the remote (rev-less providers) or strand an undecryptable
@@ -204,7 +224,7 @@ final class PendingUploadDrainer {
                 continue
             }
 
-            if storedMarker.marker.isPayloadFinalized != false,
+            if storedMarker.marker.isPayloadFinalized == true,
                uploadedPayloadSHAs[reference.id]?.contains(storedMarker.marker.openTimeSHA512) == true {
                 try? environment.dropMarker(storedMarker)
                 outcome.drainedDatabaseIDs.insert(reference.id)
@@ -236,7 +256,7 @@ final class PendingUploadDrainer {
                 continue
             }
 
-            guard storedMarker.marker.isPayloadFinalized != false else { continue }
+            guard storedMarker.marker.isPayloadFinalized == true else { continue }
 
             var didCompleteMarker = false
             for attempt in 0..<2 {

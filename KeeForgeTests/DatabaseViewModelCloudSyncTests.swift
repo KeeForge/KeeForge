@@ -289,7 +289,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 await gate.waitUntilOpen()
                 return Self.resolution(reference, data: openedData, status: .current)
             },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, _, _, _, _, _, _, _, _ in
                 .saved(newSHA512: savedSHA512)
             }
         )
@@ -389,7 +389,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 }
                 return Self.resolution(learned, data: openedData, status: .current)
             },
-            cloudSaveOperation: { _, reference, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, reference, _, _, _, _, _, _, _ in
                 await saveGate.signalStarted()
                 await saveGate.waitUntilOpen()
                 // What `applyUploadedBytesAfterSave` records once the upload lands.
@@ -816,7 +816,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
             cloudRefreshOperation: { reference, _ in
                 Self.resolution(reference, data: newerData, status: .downloaded)
             },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, _, _, _, _, _, _, _, _ in
                 XCTFail("entries built on the replaced tree must not be saved")
                 throw CloudProviderError.networkUnavailable
             },
@@ -869,7 +869,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         cloudRefreshOperation: @escaping DatabaseViewModel.CloudSyncOperation = { _, _ in
             throw CloudProviderError.networkUnavailable
         },
-        cloudSaveOperation: @escaping DatabaseViewModel.CloudSaveOperation = { _, _, _, _, _, _, _, _ in
+        cloudSaveOperation: @escaping DatabaseViewModel.CloudSaveOperation = { _, _, _, _, _, _, _, _, _ in
             throw CloudProviderError.networkUnavailable
         },
         pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { _ in false },
@@ -917,7 +917,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                     progress: progress
                 )
             },
-            cloudSaveOperation: { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey, encryptionSettings in
+            cloudSaveOperation: { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey, encryptionSettings, rekeyContext in
                 try await CloudDatabaseSaver.save(
                     draft: draft,
                     reference: reference,
@@ -928,6 +928,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                     kdfPolicy: .mainApp,
                     newCompositeKey: newCompositeKey,
                     encryptionSettings: encryptionSettings,
+                    rekeyContext: rekeyContext,
                     environment: saverEnvironment
                 )
             }

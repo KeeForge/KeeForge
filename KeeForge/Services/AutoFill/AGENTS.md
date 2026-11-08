@@ -4,7 +4,7 @@
 
 ## Ownership
 
-- `AutoFillSaveCoordinator.saveNewEntry`: the only extension-safe write path, and the only creator of pending-upload markers (`../Cloud/AGENTS.md`).
+- `AutoFillSaveCoordinator.saveNewEntry`: the only extension-safe write path, delegating durable cloud intents to `LocalDatabaseSaver` and `PendingUploadQueue` (`../Cloud/AGENTS.md`).
 - `AutoFillSaveCoordinator.destinationGroup(in:preferredGroupID:)`: the one decision of which group a new AutoFill entry goes into. Database Details and the creators display the same resolution; do not resolve it anywhere else.
 - `CredentialIdentityStoreManager`: every mutation of the system credential identity store. `CredentialRecordIdentifier` is the sole encoder and parser of the database-tagged record identifier.
 - `CredentialMatcher`: what a service identifier matches. Published identities and the pickers both read URLs through it.
@@ -16,7 +16,7 @@
 
 - Everything here must stay extension-safe on iOS and macOS. A new dependency on another service file needs that file on both allow-lists.
 - A new entry never goes into the synthetic KDBX Root: other KeePass apps cannot read entries there. The fallback is the first top-level group, and the configured group is used only while it exists outside the recycle bin. A group that stops resolving is not cleared from the setting.
-- The two-phase marker order in `saveNewEntry` is load-bearing; the crash analysis is in the comment there.
+- The live saver owns cloud ciphertext preparation, provisional intent, conditional replacement, finalization and local-head publication under the cross-process commit lock. The extension never uploads or resolves app-only providers.
 - After a save, identities are published and the active AutoFill pointer moves only if the reference has AutoFill enabled.
 - The extension saves with `KDFExecutionPolicy.autoFillExtension`.
 

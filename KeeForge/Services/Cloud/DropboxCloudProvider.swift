@@ -224,6 +224,10 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
     }
 
+    func writeGuarantee(expectedRev: String?, byteCount: Int) -> CloudWriteGuarantee {
+        expectedRev?.isEmpty == false ? .serverConditional : .preflightOnly
+    }
+
     func upload(
         accountId: String,
         fileId: String,

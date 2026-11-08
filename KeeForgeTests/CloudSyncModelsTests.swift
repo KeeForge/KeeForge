@@ -115,7 +115,7 @@ final class CloudSyncModelsTests: XCTestCase {
         metadata.lastSyncIssue = .unknown("Offline")
         metadata.lastSyncedAt = Date(timeIntervalSinceNow: -100_000)
 
-        XCTAssertEqual(metadata.warningText(isAuthenticated: false), "Disconnected")
+        XCTAssertEqual(metadata.warningText(isAuthenticated: false), String(localized: "Disconnected"))
     }
 
     func testWarningTextReturnsLastSyncIssueWhenConnected() {
@@ -133,7 +133,7 @@ final class CloudSyncModelsTests: XCTestCase {
         var metadata = makeCloudSyncMetadata(remoteContentHash: "hash", remoteModifiedAt: Date())
         metadata.lastSyncedAt = Date(timeIntervalSinceNow: -90_000)
 
-        XCTAssertEqual(metadata.warningText(isAuthenticated: true), "Sync older than 24h")
+        XCTAssertEqual(metadata.warningText(isAuthenticated: true), String(localized: "Sync older than 24h"))
     }
 
     func testWarningTextReturnsNilWhenHealthy() {

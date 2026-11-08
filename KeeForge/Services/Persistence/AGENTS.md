@@ -23,7 +23,7 @@
 
 ### Database list
 
-- Mutate the list through `DatabaseListStore`'s methods, which serialize under one lock. A field-specific setter rereads the stored reference first; a new one must too, or it rolls back a concurrent change to another field.
+- Mutate the list through `DatabaseListStore`'s methods, which serialize under a recursive process lock and a stable cross-process `.database-list.lock`. A field-specific setter rereads the stored reference first; a new one must too, or it rolls back a concurrent change to another field.
 - Code that learns cloud state across an `await` writes it with `updateCloudSyncMetadata(for:ifUnchangedFrom:mutate:)`, never `update(_:)` (`../Cloud/AGENTS.md`).
 - `remove(id:)` owns removal: Keychain item, cached copy, backups, upload markers, AutoFill pointer, and the database's published identities. `setAutoFillEnabled` owns the same for disabling. Do not repeat parts of either elsewhere.
 - A database with AutoFill disabled can never be `activeAutoFillDatabaseID` or `defaultAutoFillDatabase`; the setter refuses it.
@@ -44,6 +44,8 @@
 
 - After replacing a local database file, a failed refresh of its separate AutoFill cache does not undo the save. `LocalDatabaseSaver` removes the older copy so AutoFill cannot fill stale credentials; if both refresh and removal fail, the saved file remains authoritative and a later unlock or save can refresh the cache.
 - `PendingLocalSaveStore` retains each Mac AutoFill save to a bookmarked local database under `pending-local-saves/<database UUID>/`. The extension records the encrypted result before replacing its shared copy; the app merges pending changes into the unlocked session, saves the original file under its baseline check, and removes each pending save only after success. Merge again after unlock, save, and app activation, and before rekey. A file conflict during rekey must ask for reload; an unmergeable save moves to a retained backup that pruning cannot remove. While pending, cache refresh must not replace the copy AutoFill serves.
+
+- Cloud saves use the shared queue's immutable ciphertext intent and commit lock before replacing cache. `recordCloudLocalCommit` publishes the operation UUID and epoch with field-specific mutations; rekey recovery also publishes its persisted key-file association and typed-unlock requirement. Conditional clear compares both epoch and local-head UUID, and ordinary commits never clear it.
 
 - `LocalDatabaseSaver` step order and the `SaveBaseline` gate are in `../AGENTS.md`. Under `-ui-testing` only (`UI_TEST_LOCAL_SAVE_CONFLICT_COUNT`), the saver can rewrite the file with real divergent bytes before the hash check, so UI tests conflict and merge against a real file (`../../../KeeForgeUITests/AGENTS.md`).
 - The staged replacement is written outside the picked folder: file-scoped security access may not allow creating a sibling temp file.

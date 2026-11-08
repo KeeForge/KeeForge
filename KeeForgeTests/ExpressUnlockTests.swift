@@ -365,7 +365,7 @@ final class ExpressUnlockTests: XCTestCase {
         )
     }
 
-    func testCloudSaveReturnsTheKeyOfTheUploadedBytes() async throws {
+    func testCloudSaveReturnsTheKeyOfTheDurableLocalBytes() async throws {
         let cacheURL = try makeScratchCopy(of: .test)
         let reference = makeCloudReference()
         let context = try makeSaveContext(data: try Data(contentsOf: cacheURL))
@@ -381,7 +381,7 @@ final class ExpressUnlockTests: XCTestCase {
             return XCTFail("Expected save to succeed.")
         }
         try assertOpensWithoutTheKDF(
-            try XCTUnwrap(uploaded.data), expressKey: XCTUnwrap(expressKey), compositeKey: context.compositeKey
+            try Data(contentsOf: cacheURL), expressKey: XCTUnwrap(expressKey), compositeKey: context.compositeKey
         )
     }
 
@@ -536,8 +536,8 @@ final class ExpressUnlockTests: XCTestCase {
             uploaded.record(data)
             return CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: nil, size: Int64(data.count), rev: "rev-2")
         }
-        environment.applyUploadedBytes = { reference, _, _ in reference }
-        environment.dropSupersededPendingUploads = { _, _ in }
+        environment.queue.appGroupContainerURL = { cacheURL.deletingLastPathComponent() }
+        environment.queue.postDarwinNotification = { }
         return environment
     }
 }

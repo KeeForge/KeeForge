@@ -24,14 +24,13 @@ enum CloudDatabaseSaver {
         var writeBackup: @Sendable (Data, URL) throws -> Void
         var pruneBackups: @Sendable (DatabaseReference, Int) throws -> Void
         var now: @Sendable () -> Date
-        var applyUploadedBytes: @Sendable (DatabaseReference, Data, CloudFileMetadata) throws -> DatabaseReference
-        /// Drops pending AutoFill markers whose recorded payload SHA-512
-        /// equals this save's open-time SHA-512. Defaulted so existing
-        /// `Environment` literals keep compiling.
-        var dropSupersededPendingUploads: @Sendable (_ databaseId: UUID, _ payloadSHA512: Data) -> Void = { databaseId, payloadSHA512 in
-            PendingUploadQueue.dropMarkers(withPayloadSHA512: payloadSHA512, for: databaseId)
+        var queue: PendingUploadQueue.Environment = .live
+        var writeGuarantee: @Sendable (DatabaseReference, String?, Int) -> CloudWriteGuarantee = { reference, rev, count in
+            guard let metadata = reference.cloudSyncMetadata,
+                  let provider = CloudProviderRegistry.provider(for: metadata.provider) else { return .preflightOnly }
+            return provider.writeGuarantee(expectedRev: rev, byteCount: count)
         }
-
+        var replaceFile: @Sendable (Data, URL, Data?) throws -> LocalDatabaseSaver.ReplaceOutcome = LocalDatabaseSaver.Environment.live.replaceFileAtomically
         static let live = Environment(
             beginBackgroundTask: LocalDatabaseSaver.Environment.live.beginBackgroundTask,
             endBackgroundTask: LocalDatabaseSaver.Environment.live.endBackgroundTask,
@@ -67,14 +66,7 @@ enum CloudDatabaseSaver {
             createDirectory: LocalDatabaseSaver.Environment.live.createDirectory,
             writeBackup: LocalDatabaseSaver.Environment.live.writeBackup,
             pruneBackups: LocalDatabaseSaver.Environment.live.pruneBackups,
-            now: LocalDatabaseSaver.Environment.live.now,
-            applyUploadedBytes: { reference, bytes, remoteMetadata in
-                try CloudSyncCoordinator.applyUploadedBytesAfterSave(
-                    reference: reference,
-                    bytes: bytes,
-                    remoteMetadata: remoteMetadata
-                )
-            }
+            now: LocalDatabaseSaver.Environment.live.now
         )
     }
 
@@ -99,7 +91,8 @@ enum CloudDatabaseSaver {
         expectedRev: String?,
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: SymmetricKey? = nil,
-        encryptionSettings: EncryptionSettingsChange? = nil
+        encryptionSettings: EncryptionSettingsChange? = nil,
+        rekeyContext: PendingUploadQueue.RekeyContext? = nil
     ) async throws -> SaveResult {
         try await save(
             draft: draft,
@@ -111,6 +104,7 @@ enum CloudDatabaseSaver {
             kdfPolicy: kdfPolicy,
             newCompositeKey: newCompositeKey,
             encryptionSettings: encryptionSettings,
+            rekeyContext: rekeyContext,
             environment: .live
         )
     }
@@ -125,6 +119,7 @@ enum CloudDatabaseSaver {
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: SymmetricKey? = nil,
         encryptionSettings: EncryptionSettingsChange? = nil,
+        rekeyContext: PendingUploadQueue.RekeyContext? = nil,
         environment: Environment
     ) async throws -> SaveResult {
         if reference.isReadOnly {
@@ -155,6 +150,7 @@ enum CloudDatabaseSaver {
                 kdfPolicy: kdfPolicy,
                 newCompositeKey: newCompositeKey,
                 encryptionSettings: encryptionSettings,
+                rekeyContext: rekeyContext,
                 environment: environment
             )
         }.value
@@ -169,6 +165,7 @@ enum CloudDatabaseSaver {
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: SymmetricKey?,
         encryptionSettings: EncryptionSettingsChange?,
+        rekeyContext: PendingUploadQueue.RekeyContext?,
         environment: Environment
     ) async throws -> SaveResult {
         let cacheURL = environment.cacheURL(reference)
@@ -178,24 +175,17 @@ enum CloudDatabaseSaver {
             return .conflict(remoteSHA512: currentSHA512, remoteData: currentData)
         }
 
-        let remoteMetadata = try await environment.getMetadata(reference)
-        var effectiveExpectedRev = expectedRev
-        if let recordedMetadata = reference.cloudSyncMetadata,
-           remoteHasDiverged(
-               recorded: recordedMetadata,
-               remote: remoteMetadata,
-               expectedRev: expectedRev
-           ) {
-            // Revision tags can go stale on their own (OneDrive rewrites
-            // cTag/eTag after async post-processing). A remote byte-identical
-            // to what the user opened has no conflict to resolve: rebase onto
-            // the fresh rev and proceed.
-            let remoteData = try? await environment.downloadRemoteData(reference)
-            guard let remoteData, baseline.covers(KDBXCrypto.sha512(remoteData)) else {
-                let conflictData = remoteData ?? currentData
-                return .conflict(remoteSHA512: KDBXCrypto.sha512(conflictData), remoteData: conflictData)
+        // A rekey is online-only; no journal or local mutation precedes this probe.
+        if newCompositeKey != nil {
+            guard rekeyContext != nil else { throw SaveError.saveContextUnavailable }
+            let remoteMetadata = try await environment.getMetadata(reference)
+            let remoteBytes = try await environment.downloadRemoteData(reference)
+            guard baseline.covers(KDBXCrypto.sha512(remoteBytes)) else {
+                return .conflict(remoteSHA512: KDBXCrypto.sha512(remoteBytes), remoteData: remoteBytes)
             }
-            effectiveExpectedRev = remoteMetadata.rev
+            guard environment.writeGuarantee(reference, remoteMetadata.rev, currentData.count) != .disabled else {
+                throw CloudProviderError.invalidConfiguration
+            }
         }
 
         var header = try environment.extractHeader(currentData, compositeKey, kdfPolicy)
@@ -230,82 +220,181 @@ enum CloudDatabaseSaver {
         )
         try environment.writeBackup(currentData, backupURL)
 
-        do {
-            let uploadedMetadata = try await environment.upload(reference, newData, effectiveExpectedRev, { _ in })
-            return try finishSave(
-                reference: reference,
-                newData: newData,
-                expressKey: expressKey,
-                uploadedMetadata: uploadedMetadata,
-                openTimeSHA512: baseline.openTimeSHA512,
-                rekeyed: newCompositeKey != nil,
-                environment: environment
+        var intent: PendingUploadQueue.StoredMarker?
+        let replacement = try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue) {
+            let latest = try environment.readData(cacheURL)
+            guard KDBXCrypto.sha512(latest) == currentSHA512 else { return LocalDatabaseSaver.ReplaceOutcome.changed(currentData: latest) }
+            let latestReference = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
+            guard latestReference.cloudSyncMetadata?.keyEpoch == reference.cloudSyncMetadata?.keyEpoch,
+                  latestReference.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt else { throw SaveError.saveContextUnavailable }
+            var prepared = try PendingUploadQueue.prepare(
+                reference: latestReference, currentData: currentData, intendedData: newData,
+                cacheURL: cacheURL, rekeyContext: rekeyContext,
+                remoteBaseSHA512: baseline.reconciledRemoteSHA512, environment: environment.queue
             )
-        } catch let error as CloudProviderError {
-            guard case .conflict = error else {
-                throw error
+            intent = prepared
+            if rekeyContext != nil { return .replaced }
+            let outcome = try environment.replaceFile(newData, cacheURL, currentSHA512)
+            guard case .replaced = outcome else {
+                _ = try? PendingUploadQueue.dropIfUnchanged(prepared, environment: environment.queue)
+                return outcome
             }
-
-            // Same stale-tag guard for a provider-reported 412: byte-identical
-            // remote content means the precondition failed on a mutated tag,
-            // not a real edit. Refresh the rev and retry exactly once. The rev
-            // must be captured BEFORE the byte check — an edit landing between
-            // the two then fails the retry's If-Match instead of being
-            // silently overwritten.
-            let refreshedMetadata = try? await environment.getMetadata(reference)
-            let remoteData = try? await environment.downloadRemoteData(reference)
-            if let remoteData,
-               baseline.covers(KDBXCrypto.sha512(remoteData)),
-               let refreshedMetadata {
-                do {
-                    let uploadedMetadata = try await environment.upload(reference, newData, refreshedMetadata.rev, { _ in })
-                    return try finishSave(
-                        reference: reference,
-                        newData: newData,
-                        expressKey: expressKey,
-                        uploadedMetadata: uploadedMetadata,
-                        openTimeSHA512: baseline.openTimeSHA512,
-                        rekeyed: newCompositeKey != nil,
-                        environment: environment
-                    )
-                } catch let retryError as CloudProviderError {
-                    guard case .conflict = retryError else {
-                        throw retryError
-                    }
-                }
+            prepared.marker.openTimeSHA512 = KDBXCrypto.sha512(newData)
+            intent = (try? PendingUploadQueue.finalize(prepared, environment: environment.queue)) ?? prepared
+            DatabaseListStore.recordCloudLocalCommit(for: reference.id, operationID: prepared.id)
+            return outcome
+        }
+        if case .changed(let bytes) = replacement { return .conflict(remoteSHA512: KDBXCrypto.sha512(bytes), remoteData: bytes) }
+        guard let intent else { throw SaveError.saveContextUnavailable }
+        if rekeyContext != nil {
+            guard let result = try await deliver(intent, reference: reference, environment: environment) else {
+                throw SaveError.saveContextUnavailable
             }
+            if case .conflict = result { throw CloudProviderError.conflict(remoteRev: nil) }
+        } else {
+            PendingUploadQueue.postEnqueuedNotification(environment: environment.queue)
+        }
+        try? environment.pruneBackups(reference, 5)
+        return .saved(newSHA512: KDBXCrypto.sha512(newData), expressKey: expressKey)
+    }
 
-            let conflictData = remoteData ?? currentData
-            return .conflict(remoteSHA512: KDBXCrypto.sha512(conflictData), remoteData: conflictData)
+    private static func recordIssue(_ error: Error, reference: DatabaseReference) {
+        guard let current = DatabaseListStore.databases.first(where: { $0.id == reference.id }),
+              let metadata = current.cloudSyncMetadata else { return }
+        DatabaseListStore.updateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: metadata) {
+            $0.lastSyncIssue = CloudProviderError.issue(for: error)
+            $0.lastSyncedAt = nil
         }
     }
 
-    private static func finishSave(
-        reference: DatabaseReference,
-        newData: Data,
-        expressKey: ExpressUnlockKey?,
-        uploadedMetadata: CloudFileMetadata,
-        openTimeSHA512: Data,
-        rekeyed: Bool,
-        environment: Environment
-    ) throws -> SaveResult {
-        // Markers whose payload hashes to this save's open-time SHA are
-        // superseded by the upload above. Drop only AFTER
-        // `applyUploadedBytes`: a concurrent AutoFill save's provisional
-        // marker is what gates that call's pre-overwrite backup, so
-        // dropping first would clobber its bytes uncovered.
-        do {
-            _ = try environment.applyUploadedBytes(reference, newData, uploadedMetadata)
-        } catch {
-            // After a rekey upload the remote already requires the new key;
-            // a generic failure would read as "nothing changed". Callers key
-            // off this to switch keychain/session to the key the remote needs.
-            throw rekeyed ? SaveError.rekeyAppliedRemotely : error
-        }
-        environment.dropSupersededPendingUploads(reference.id, openTimeSHA512)
-        try? environment.pruneBackups(reference, 5)
+    static func deliver(
+        _ snapshot: PendingUploadQueue.StoredMarker, reference: DatabaseReference,
+        environment: Environment = .live
+    ) async throws -> PendingUploadPushResult? {
+        do { return try await deliverJournal(snapshot, reference: reference, environment: environment) }
+        catch { recordIssue(error, reference: reference); throw error }
+    }
 
-        return .saved(newSHA512: KDBXCrypto.sha512(newData), expressKey: expressKey)
+    /// Delivery never rewrites ordinary local commits. The journal owns the exact ciphertext across awaits.
+    private static func deliverJournal(
+        _ snapshot: PendingUploadQueue.StoredMarker, reference: DatabaseReference,
+        environment: Environment = .live
+    ) async throws -> PendingUploadPushResult? {
+        var stored = try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue) {
+            try PendingUploadQueue.recoverPrepared(snapshot, environment: environment.queue)
+        }
+        let marker = stored.marker
+        let all = PendingUploadQueue.listMarkers(for: reference.id, environment: environment.queue)
+        if all.contains(where: { $0.id != stored.id && ($0.marker.rekeyContext != nil || ($0.marker.uploadAttemptID != nil && $0.marker.confirmedAt == nil) || (marker.rekeyContext == nil && $0.marker.isConflicted)) }) { return nil }
+        if let predecessorID = marker.predecessorOperationID,
+           all.contains(where: { $0.id == predecessorID }) { return nil }
+        guard marker.isPayloadFinalized == true || marker.rekeyContext != nil else { return nil }
+        let payloadPath = marker.intendedPayloadPath ?? marker.encryptedBytesCacheURL
+        let bytes = try environment.queue.readData(PendingUploadQueue.resolveAppGroupURL(for: payloadPath, environment: environment.queue))
+        let payloadSHA = marker.intendedPayloadSHA512 ?? marker.openTimeSHA512
+        guard KDBXCrypto.sha512(bytes) == payloadSHA else {
+            _ = try? PendingUploadQueue.markConflicted(stored, environment: environment.queue)
+            return .conflict(remoteRev: nil)
+        }
+        if marker.rekeyContext == nil {
+            let wrongEpoch = marker.keyEpoch != reference.cloudSyncMetadata?.keyEpoch
+            let predatesRekey = reference.lastMasterKeyChangeAt.map { marker.createdAt < $0 } ?? false
+            if wrongEpoch || (marker.keyEpoch == nil && predatesRekey) {
+                _ = try? PendingUploadQueue.markConflicted(stored, environment: environment.queue)
+                return .conflict(remoteRev: nil)
+            }
+        }
+        if stored.marker.confirmedAt == nil {
+            let remoteMetadata = try await environment.getMetadata(reference)
+            let remoteBytes = try await environment.downloadRemoteData(reference)
+            let remoteSHA = KDBXCrypto.sha512(remoteBytes)
+            if remoteSHA != payloadSHA {
+                let baseMatches: Bool
+                if let base = marker.remoteBaseSHA512 { baseMatches = remoteSHA == base }
+                else if let recorded = reference.cloudSyncMetadata {
+                    baseMatches = !remoteHasDiverged(recorded: recorded, remote: remoteMetadata, expectedRev: marker.expectedRev)
+                } else { baseMatches = false }
+                guard baseMatches else {
+                    _ = try? PendingUploadQueue.markConflicted(stored, environment: environment.queue)
+                    return .conflict(remoteRev: remoteMetadata.rev)
+                }
+                let expectedRev = marker.uploadAttemptID == nil ? remoteMetadata.rev : marker.expectedRev
+                let guarantee = environment.writeGuarantee(reference, expectedRev, bytes.count)
+                guard guarantee != .disabled else { throw CloudProviderError.invalidConfiguration }
+                if marker.uploadAttemptID != nil && guarantee != .serverConditional { return nil }
+                if marker.uploadAttemptID != nil && remoteMetadata.rev != marker.expectedRev { return nil }
+                stored.marker.expectedRev = expectedRev
+                stored.marker.uploadAttemptID = UUID()
+                stored = try PendingUploadQueue.update(stored, environment: environment.queue)
+                // No mutation is dispatched until uncertainty is durable.
+                let response: CloudFileMetadata
+                do { response = try await environment.upload(reference, bytes, expectedRev, { _ in }) }
+                catch { recordIssue(error, reference: reference); throw error }
+                stored.marker.confirmedRemoteRev = response.rev
+                stored.marker.confirmedRemoteHash = response.contentHash
+            } else {
+                stored.marker.confirmedRemoteRev = remoteMetadata.rev
+                stored.marker.confirmedRemoteHash = remoteMetadata.contentHash
+            }
+            stored.marker.confirmedAt = .now
+            stored = try PendingUploadQueue.update(stored, environment: environment.queue)
+        }
+        return try finishDelivery(stored, reference: reference, bytes: bytes, environment: environment)
+    }
+
+    private static func finishDelivery(
+        _ stored: PendingUploadQueue.StoredMarker, reference: DatabaseReference,
+        bytes: Data, environment: Environment
+    ) throws -> PendingUploadPushResult {
+        try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue) {
+            let payloadSHA = KDBXCrypto.sha512(bytes)
+            var current = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
+            if let rekey = stored.marker.rekeyContext, current.cloudSyncMetadata?.keyEpoch != rekey.epoch {
+                let cacheURL = environment.cacheURL(current)
+                let previous = try environment.readData(cacheURL)
+                let backupURL = environment.backupDirectoryURL(current).appendingPathComponent(backupFilename(for: .now))
+                try environment.createDirectory(backupURL.deletingLastPathComponent())
+                try environment.writeBackup(previous, backupURL)
+                // Invalidate both current and legacy quick-unlock items before publishing new-key bytes.
+                KeychainService.deleteCompositeKey(for: current.id)
+                if let legacy = current.legacyKeychainFilename { KeychainService.deleteLegacyCompositeKey(forFilename: legacy) }
+                let outcome = try environment.replaceFile(bytes, cacheURL, KDBXCrypto.sha512(previous))
+                guard case .replaced = outcome else { throw SaveError.rekeyAppliedRemotely }
+                guard let updated = DatabaseListStore.recordCloudLocalCommit(
+                    for: current.id, operationID: stored.id, rekey: rekey, committedAt: stored.marker.confirmedAt ?? .now
+                ) else { throw SaveError.rekeyAppliedRemotely }
+                current = updated
+            }
+            let cacheSHA = (try? environment.readData(environment.cacheURL(current))).map(KDBXCrypto.sha512)
+            let currentHead = current.cloudSyncMetadata?.localHeadOperationID
+            let headStillPending = PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).contains { $0.id == currentHead }
+            if cacheSHA == payloadSHA, currentHead != stored.id, !headStillPending {
+                current = DatabaseListStore.recordCloudLocalCommit(for: current.id, operationID: stored.id) ?? current
+            }
+            if cacheSHA == payloadSHA, current.cloudSyncMetadata?.localHeadOperationID == stored.id,
+               let observed = current.cloudSyncMetadata {
+                let remaining = PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).filter { $0.id != stored.id }
+                guard let updated = DatabaseListStore.updateCloudSyncMetadata(for: current.id, ifUnchangedFrom: observed, mutate: {
+                    if let rev = stored.marker.confirmedRemoteRev { $0.remoteRev = rev }
+                    if let hash = stored.marker.confirmedRemoteHash { $0.remoteContentHash = hash }
+                    $0.remoteModifiedAt = stored.marker.confirmedAt
+                    $0.lastSyncedAt = remaining.isEmpty ? stored.marker.confirmedAt : nil
+                    $0.lastSyncIssue = nil
+                }) else { throw SaveError.saveContextUnavailable }
+                current = updated
+            }
+            // A confirmed parent transfers its exact remote ancestry before its journal can disappear.
+            for var child in PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue)
+            where child.marker.predecessorOperationID == stored.id {
+                child.marker.expectedRev = stored.marker.confirmedRemoteRev
+                child.marker.baseRev = stored.marker.confirmedRemoteRev
+                child.marker.remoteBaseSHA512 = payloadSHA
+                child.marker.predecessorOperationID = nil
+                _ = try PendingUploadQueue.update(child, environment: environment.queue)
+            }
+            _ = try PendingUploadQueue.dropIfUnchanged(stored, environment: environment.queue)
+            return .saved(updatedReference: current)
+        }
     }
 
     static func pushPendingUpload(
@@ -380,28 +469,13 @@ enum CloudDatabaseSaver {
         expectedRev: String?,
         environment: Environment
     ) async throws -> PendingUploadPushResult {
-        let remoteMetadata = try await environment.getMetadata(reference)
-        if let recordedMetadata = reference.cloudSyncMetadata,
-           remoteHasDiverged(
-               recorded: recordedMetadata,
-               remote: remoteMetadata,
-               expectedRev: expectedRev
-           ) {
-            return .conflict(remoteRev: remoteMetadata.rev)
+        guard let stored = PendingUploadQueue.listMarkers(for: reference.id, environment: environment.queue).first(where: {
+            $0.marker.isPayloadFinalized == true && $0.marker.openTimeSHA512 == KDBXCrypto.sha512(encryptedBytes)
+        }) else { throw SaveError.saveContextUnavailable }
+        guard let result = try await deliver(stored, reference: reference, environment: environment) else {
+            throw CloudProviderError.serviceUnavailable
         }
-
-        do {
-            let uploadedMetadata = try await environment.upload(reference, encryptedBytes, expectedRev, { _ in })
-            let updatedReference = try environment.applyUploadedBytes(reference, encryptedBytes, uploadedMetadata)
-            return .saved(updatedReference: updatedReference)
-        } catch let error as CloudProviderError {
-            switch error {
-            case .conflict(let remoteRev):
-                return .conflict(remoteRev: remoteRev)
-            default:
-                throw error
-            }
-        }
+        return result
     }
 
     private static func backupFilename(for date: Date) -> String {

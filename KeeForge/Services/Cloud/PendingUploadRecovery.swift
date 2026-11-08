@@ -51,7 +51,7 @@ enum PendingUploadRecovery {
                 PendingUploadQueue.listMarkers(for: databaseId)
             },
             cacheURL: { marker in
-                PendingUploadQueue.resolveAppGroupURL(for: marker.encryptedBytesCacheURL)
+                PendingUploadQueue.resolveAppGroupURL(for: marker.intendedPayloadPath ?? marker.encryptedBytesCacheURL)
             },
             backupURLs: { reference in
                 DatabaseListStore.recentBackups(for: reference)
@@ -77,10 +77,10 @@ enum PendingUploadRecovery {
         for storedMarker in conflictedMarkers {
             // Same rule as the drainer: bytes saved before a master-key change
             // are ciphertext under the old key.
-            if let rekeyedAt = reference.lastMasterKeyChangeAt,
-               storedMarker.marker.createdAt < rekeyedAt {
-                return .unavailable
-            }
+            let markerEpoch = storedMarker.marker.keyEpoch
+            let epochMismatch = markerEpoch != nil && markerEpoch != reference.cloudSyncMetadata?.keyEpoch
+            let legacyPredatesRekey = markerEpoch == nil && reference.lastMasterKeyChangeAt.map { storedMarker.marker.createdAt < $0 } == true
+            if epochMismatch || legacyPredatesRekey { return .unavailable }
             // A provisional marker hashes the pre-save base, not the AutoFill
             // result. Recovering a matching backup would merge no change and
             // strand the real payload while falsely reporting success. A

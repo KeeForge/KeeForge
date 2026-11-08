@@ -1,7 +1,9 @@
+import Darwin
 import CryptoKit
 import Foundation
 
 enum SaveResult: Sendable, Equatable {
+    /// A durable local commit; pending cloud changes may still need delivery.
     /// `expressKey` opens exactly the saved version (`ExpressUnlockKey`). It
     /// is nil for a hardware-key database.
     case saved(newSHA512: Data, expressKey: ExpressUnlockKey? = nil)
@@ -152,18 +154,10 @@ enum LocalDatabaseSaver {
                 DatabaseListStore.databaseBackupDirectoryURL(for: reference)
             },
             createDirectory: { url in
-                try FileManager.default.createDirectory(
-                    at: url,
-                    withIntermediateDirectories: true,
-                    attributes: nil
-                )
+                try createDurableDirectory(at: url)
             },
             writeBackup: { data, url in
-                try CoordinatedFileReader.writeData(
-                    data,
-                    to: url,
-                    options: .atomicProtected
-                )
+                try writeAtomicallyAndDurably(data, to: url)
             },
             pruneBackups: { reference, count in
                 try DatabaseListStore.pruneBackups(for: reference, keeping: count)
@@ -351,7 +345,34 @@ enum LocalDatabaseSaver {
             : nil
         let replaceOutcome: ReplaceOutcome
         do {
-            replaceOutcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512)
+            if reference.isCloudBacked {
+                replaceOutcome = try PendingUploadQueue.withCommitLock(for: reference.id) {
+                    let latestData = try environment.readData(location.url)
+                    guard KDBXCrypto.sha512(latestData) == currentSHA512 else { return .changed(currentData: latestData) }
+                    let latestReference = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
+                    guard latestReference.cloudSyncMetadata?.keyEpoch == reference.cloudSyncMetadata?.keyEpoch,
+                          latestReference.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt else {
+                        throw SaveError.saveContextUnavailable
+                    }
+                    var intent = try PendingUploadQueue.prepare(
+                        reference: latestReference, currentData: currentData, intendedData: newData,
+                        cacheURL: location.url, remoteBaseSHA512: baseline.reconciledRemoteSHA512
+                    )
+                    let outcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512)
+                    guard case .replaced = outcome else {
+                        _ = try? PendingUploadQueue.dropIfUnchanged(intent)
+                        return outcome
+                    }
+                    intent.marker.openTimeSHA512 = KDBXCrypto.sha512(newData)
+                    // A retained provisional intent proves the commit after a crash or failed finalize.
+                    _ = try? PendingUploadQueue.finalize(intent)
+                    DatabaseListStore.recordCloudLocalCommit(for: reference.id, operationID: intent.id)
+                    PendingUploadQueue.postEnqueuedNotification()
+                    return outcome
+                }
+            } else {
+                replaceOutcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512)
+            }
         } catch {
             if let pendingSave {
                 environment.removePendingLocalSave(pendingSave)
@@ -520,7 +541,7 @@ enum LocalDatabaseSaver {
                 do {
                     // Keep the staged replacement outside the picked folder because
                     // file-scoped security access may not allow creating sibling temp files.
-                    try data.write(to: tempURL, options: .atomicProtected)
+                    try writeAtomicallyAndDurably(data, to: tempURL)
                     _ = try fileManager.replaceItemAt(
                         coordinatedURL,
                         withItemAt: tempURL,
@@ -531,6 +552,10 @@ enum LocalDatabaseSaver {
                     try? fileManager.removeItem(at: tempURL)
                     throw error
                 }
+                let directoryFD = Darwin.open(coordinatedURL.deletingLastPathComponent().path, O_RDONLY)
+                guard directoryFD >= 0 else { throw POSIXError(.EIO) }
+                defer { Darwin.close(directoryFD) }
+                guard fsync(directoryFD) == 0 else { throw POSIXError(.EIO) }
                 return .replaced
             }
         }

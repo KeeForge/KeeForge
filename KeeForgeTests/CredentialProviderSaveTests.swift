@@ -328,7 +328,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(markers.first?.marker.isPayloadFinalized, true)
     }
 
-    func test_saveNewEntry_cloudSource_saved_replacesTheEarlierSavesMarker() async throws {
+    func test_saveNewEntry_unprovenInjectedSaveRetainsEarlierMarker() async throws {
         let reference = makeCloudReference(rev: "rev-9")
         defer { try? PendingUploadQueue.removeAllMarkers(for: reference.id) }
         let earlierMarker = try enqueueFinalizedMarker(for: reference, payloadSHA512: Data("open-sha".utf8))
@@ -347,8 +347,8 @@ final class CredentialProviderSaveTests: XCTestCase {
 
         let markers = PendingUploadQueue.listMarkers(for: reference.id)
         XCTAssertEqual(markers.count, 1)
-        XCTAssertNotEqual(markers.first?.id, earlierMarker.id)
-        XCTAssertEqual(markers.first?.marker.openTimeSHA512, Data("new-sha".utf8))
+        XCTAssertEqual(markers.first?.id, earlierMarker.id)
+        XCTAssertEqual(markers.first?.marker.openTimeSHA512, Data("open-sha".utf8))
         XCTAssertEqual(markers.first?.marker.isPayloadFinalized, true)
     }
 

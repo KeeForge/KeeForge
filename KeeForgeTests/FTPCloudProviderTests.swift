@@ -7,6 +7,10 @@ import XCTest
 /// Credential-dependent tests seed `CloudTokenStore` and `XCTSkip` when the
 /// Keychain is unavailable in the test host.
 final class FTPCloudProviderTests: XCTestCase {
+    func testWriteGuaranteeMatchesActualCommitExclusion() {
+        XCTAssertEqual(FTPCloudProvider.shared.writeGuarantee(expectedRev: "sha256:bytes", byteCount: 10), .preflightOnly)
+    }
+
     private let providerId = CloudProviderKind.ftp.rawValue
     private var seededAccountIds: [String] = []
 

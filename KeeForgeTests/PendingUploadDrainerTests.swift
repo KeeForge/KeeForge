@@ -132,7 +132,7 @@ final class PendingUploadDrainerTests: XCTestCase {
         XCTAssertTrue(recorder.updatedMarkers.isEmpty)
     }
 
-    func test_drain_legacyMarkerWithMatchingCacheStillUploads() async {
+    func test_drain_unprovenLegacyMarkerWithMatchingCacheRemainsPending() async {
         let reference = makeCloudReference()
         var storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
         storedMarker.marker.isPayloadFinalized = nil
@@ -152,9 +152,9 @@ final class PendingUploadDrainerTests: XCTestCase {
 
         let outcome = await drainer.drainAll()
 
-        XCTAssertEqual(outcome.drainedDatabaseIDs, [reference.id])
-        XCTAssertEqual(recorder.pushedBytes, [Data("encrypted-bytes".utf8)])
-        XCTAssertEqual(recorder.droppedMarkerIDs, [storedMarker.id])
+        XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
+        XCTAssertTrue(recorder.pushedBytes.isEmpty)
+        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
     }
 
     func test_drain_happyPath_uploadsAndDropsMarker() async {

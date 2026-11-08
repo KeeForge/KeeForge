@@ -13,6 +13,18 @@ enum PendingUploadQueue {
         case markerChanged
     }
 
+    struct RekeyContext: Codable, Equatable, Sendable {
+        let epoch: UUID
+        let keyFileBookmarkData: Data?
+        let keyFileFilename: String?
+
+        init(epoch: UUID = UUID(), keyFileBookmarkData: Data?, keyFileFilename: String?) {
+            self.epoch = epoch
+            self.keyFileBookmarkData = keyFileBookmarkData
+            self.keyFileFilename = keyFileFilename
+        }
+    }
+
     struct Marker: Codable, Equatable, Sendable {
         let databaseId: UUID
         let encryptedBytesCacheURL: String
@@ -43,6 +55,20 @@ enum PendingUploadQueue {
         /// auto-rebases a conflicted marker when this equals the remote head.
         /// Legacy markers decode as `nil`, disabling auto-rebase for them.
         var baseRev: String?
+
+        var absorbedOperationIDs: [UUID]?
+        var predecessorSHA512: Data?
+        var predecessorOperationID: UUID?
+        var remoteBaseSHA512: Data?
+        var intendedPayloadSHA512: Data?
+        var intendedPayloadPath: String?
+        var keyEpoch: UUID?
+        var rekeyContext: RekeyContext?
+        /// A nonnil attempt is uncertain until exact-byte confirmation, even after a restart.
+        var uploadAttemptID: UUID?
+        var confirmedRemoteRev: String?
+        var confirmedRemoteHash: String?
+        var confirmedAt: Date?
 
         init(
             databaseId: UUID,
@@ -87,6 +113,18 @@ enum PendingUploadQueue {
             // drainer update keeps the marker unproven.
             isPayloadFinalized = try container.decodeIfPresent(Bool.self, forKey: .isPayloadFinalized)
             generation = try container.decodeIfPresent(UInt64.self, forKey: .generation) ?? 0
+            absorbedOperationIDs = try container.decodeIfPresent([UUID].self, forKey: .absorbedOperationIDs)
+            predecessorSHA512 = try container.decodeIfPresent(Data.self, forKey: .predecessorSHA512)
+            predecessorOperationID = try container.decodeIfPresent(UUID.self, forKey: .predecessorOperationID)
+            remoteBaseSHA512 = try container.decodeIfPresent(Data.self, forKey: .remoteBaseSHA512)
+            intendedPayloadSHA512 = try container.decodeIfPresent(Data.self, forKey: .intendedPayloadSHA512)
+            intendedPayloadPath = try container.decodeIfPresent(String.self, forKey: .intendedPayloadPath)
+            keyEpoch = try container.decodeIfPresent(UUID.self, forKey: .keyEpoch)
+            rekeyContext = try container.decodeIfPresent(RekeyContext.self, forKey: .rekeyContext)
+            uploadAttemptID = try container.decodeIfPresent(UUID.self, forKey: .uploadAttemptID)
+            confirmedRemoteRev = try container.decodeIfPresent(String.self, forKey: .confirmedRemoteRev)
+            confirmedRemoteHash = try container.decodeIfPresent(String.self, forKey: .confirmedRemoteHash)
+            confirmedAt = try container.decodeIfPresent(Date.self, forKey: .confirmedAt)
         }
     }
 
@@ -110,11 +148,7 @@ enum PendingUploadQueue {
         static let live = Environment(
             appGroupContainerURL: { AppGroupContainer.url },
             createDirectory: { url in
-                try FileManager.default.createDirectory(
-                    at: url,
-                    withIntermediateDirectories: true,
-                    attributes: nil
-                )
+                try createDurableDirectory(at: url)
             },
             listDirectory: { url in
                 try FileManager.default.contentsOfDirectory(
@@ -227,7 +261,7 @@ enum PendingUploadQueue {
     }
 
     static func drop(_ storedMarker: StoredMarker, environment: Environment) throws {
-        try environment.removeItem(storedMarker.fileURL)
+        _ = try dropIfUnchanged(storedMarker, environment: environment)
     }
 
     /// Removes a marker only while its persisted value still matches the
@@ -243,6 +277,10 @@ enum PendingUploadQueue {
                 return false
             }
             try environment.removeItem(storedMarker.fileURL)
+            if let path = current.intendedPayloadPath,
+               !listMarkers(for: current.databaseId, environment: environment).contains(where: { $0.marker.intendedPayloadPath == path }) {
+                try? environment.removeItem(resolveAppGroupURL(for: path, environment: environment))
+            }
             return true
         }
     }
@@ -291,7 +329,8 @@ enum PendingUploadQueue {
                   var current = try? environment.decodeMarker(data) else {
                 throw UpdateError.markerNoLongerExists
             }
-            guard current.isPayloadFinalized == false else {
+            guard current.isPayloadFinalized == false,
+                  current.intendedPayloadSHA512 == nil || current.intendedPayloadSHA512 == storedMarker.marker.openTimeSHA512 else {
                 throw UpdateError.markerChanged
             }
             current.openTimeSHA512 = storedMarker.marker.openTimeSHA512
@@ -342,6 +381,7 @@ enum PendingUploadQueue {
     ) {
         for storedMarker in listMarkers(for: databaseId, environment: environment)
         where storedMarker.id != excludedMarkerID
+            && storedMarker.marker.uploadAttemptID == nil
             && storedMarker.marker.isPayloadFinalized == true
             && storedMarker.marker.openTimeSHA512 == payloadSHA512 {
             _ = try? dropIfUnchanged(storedMarker, environment: environment)
@@ -397,6 +437,88 @@ enum PendingUploadQueue {
         return containerURL.appendingPathComponent(relativePath, isDirectory: false)
     }
 
+    static func transferMergedSources(_ sources: [StoredMarker], toPayloadSHA512 sha: Data, for databaseID: UUID, environment: Environment = .live) throws {
+        try withCommitLock(for: databaseID, environment: environment) {
+            guard var owner = listMarkers(for: databaseID, environment: environment).last(where: {
+                $0.marker.isPayloadFinalized == true && $0.marker.intendedPayloadSHA512 == sha && $0.marker.intendedPayloadPath != nil
+            }) else { return }
+            owner.marker.absorbedOperationIDs = Array(Set((owner.marker.absorbedOperationIDs ?? []) + sources.map(\.id)))
+            owner = try update(owner, environment: environment)
+            for source in sources where source.id != owner.id && source.marker.uploadAttemptID == nil {
+                _ = try dropIfUnchanged(source, environment: environment)
+            }
+        }
+    }
+
+    /// Serializes the local journal/cache/head transaction across app and extension processes.
+    static func withCommitLock<T>(for databaseID: UUID, environment: Environment = .live, _ body: () throws -> T) throws -> T {
+        let directory = queueDirectoryURL(for: databaseID, environment: environment)
+        try environment.createDirectory(directory)
+        let lockURL = directory.appendingPathComponent(".commit.lock")
+        let fd = Darwin.open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else { throw POSIXError(.EIO) }
+        defer { Darwin.close(fd) }
+        guard flock(fd, LOCK_EX) == 0 else { throw POSIXError(.EIO) }
+        defer { flock(fd, LOCK_UN) }
+        return try body()
+    }
+
+    static func hasRekeyJournal(for databaseID: UUID, environment: Environment = .live) -> Bool {
+        listMarkers(for: databaseID, environment: environment).contains { $0.marker.rekeyContext != nil }
+    }
+
+    /// The caller holds the commit lock until cache replacement and head publication finish.
+    static func prepare(
+        reference: DatabaseReference, currentData: Data, intendedData: Data,
+        cacheURL: URL, rekeyContext: RekeyContext? = nil,
+        remoteBaseSHA512: Data? = nil, environment: Environment = .live
+    ) throws -> StoredMarker {
+        let currentSHA = KDBXCrypto.sha512(currentData)
+        let markers = try listMarkers(for: reference.id, environment: environment).map { try recoverPrepared($0, environment: environment) }
+        guard !markers.contains(where: { $0.marker.rekeyContext != nil }) else {
+            throw SaveError.saveContextUnavailable
+        }
+        if rekeyContext != nil, !markers.isEmpty { throw SaveError.saveContextUnavailable }
+        let predecessor = markers.last { $0.marker.isPayloadFinalized == true && $0.marker.openTimeSHA512 == currentSHA }
+        let operationID = UUID()
+        let directory = queueDirectoryURL(for: reference.id, environment: environment)
+        try environment.createDirectory(directory)
+        let payloadURL = directory.appendingPathComponent("\(operationID.uuidString).kdbx")
+        try environment.writeMarkerAtomically(intendedData, payloadURL)
+        var marker = Marker(
+            databaseId: reference.id,
+            encryptedBytesCacheURL: try makeRelativeAppGroupPath(for: cacheURL, environment: environment),
+            openTimeSHA512: currentSHA, expectedRev: predecessor?.marker.expectedRev ?? reference.expectedCloudRevision,
+            createdAt: .now, baseRev: predecessor?.marker.baseRev ?? reference.expectedCloudRevision,
+            isPayloadFinalized: false
+        )
+        marker.predecessorSHA512 = currentSHA
+        marker.predecessorOperationID = predecessor?.id
+        marker.remoteBaseSHA512 = remoteBaseSHA512 ?? predecessor?.marker.remoteBaseSHA512 ?? (predecessor == nil ? currentSHA : nil)
+        marker.intendedPayloadSHA512 = KDBXCrypto.sha512(intendedData)
+        marker.intendedPayloadPath = try makeRelativeAppGroupPath(for: payloadURL, environment: environment)
+        marker.keyEpoch = rekeyContext?.epoch ?? reference.cloudSyncMetadata?.keyEpoch
+        marker.rekeyContext = rekeyContext
+        let stored = StoredMarker(id: operationID, fileURL: directory.appendingPathComponent("\(operationID.uuidString).json"), marker: marker)
+        try persist(stored, environment: environment)
+        return stored
+    }
+
+    /// Only new journals contain enough evidence to recover an interrupted finalization.
+    static func recoverPrepared(_ stored: StoredMarker, environment: Environment = .live) throws -> StoredMarker {
+        guard stored.marker.isPayloadFinalized == false,
+              stored.marker.rekeyContext == nil,
+              let intendedSHA = stored.marker.intendedPayloadSHA512,
+              let path = stored.marker.intendedPayloadPath,
+              KDBXCrypto.sha512(try environment.readData(resolveAppGroupURL(for: path, environment: environment))) == intendedSHA,
+              KDBXCrypto.sha512(try environment.readData(resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment))) == intendedSHA else {
+            return stored
+        }
+        var finalized = stored
+        finalized.marker.openTimeSHA512 = intendedSHA
+        return try finalize(finalized, environment: environment)
+    }
+
     private static func persist(_ storedMarker: StoredMarker, environment: Environment) throws {
         let directoryURL = storedMarker.fileURL.deletingLastPathComponent()
         try environment.createDirectory(directoryURL)
@@ -435,9 +557,15 @@ enum PendingUploadQueue {
     }
 }
 
-private func writeAtomicallyAndDurably(_ data: Data, to destinationURL: URL) throws {
+func writeAtomicallyAndDurably(_ data: Data, to destinationURL: URL) throws {
     let fileManager = FileManager.default
     let directoryURL = destinationURL.deletingLastPathComponent()
+    var missingDirectories: [URL] = []
+    var ancestor = directoryURL
+    while !fileManager.fileExists(atPath: ancestor.path), ancestor.path != "/" {
+        missingDirectories.append(ancestor)
+        ancestor.deleteLastPathComponent()
+    }
     try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true, attributes: nil)
 
     let tempURL = directoryURL.appendingPathComponent(".\(UUID().uuidString).tmp", isDirectory: false)
@@ -459,12 +587,15 @@ private func writeAtomicallyAndDurably(_ data: Data, to destinationURL: URL) thr
         var totalWritten = 0
         while totalWritten < data.count {
             let bytesWritten = write(fd, baseAddress.advanced(by: totalWritten), data.count - totalWritten)
-            if bytesWritten < 0 {
+            if bytesWritten <= 0 {
                 throw POSIXError(.EIO)
             }
             totalWritten += bytesWritten
         }
 
+        #if os(iOS)
+        try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: tempURL.path)
+        #endif
         if fsync(fd) != 0 {
             throw POSIXError(.EIO)
         }
@@ -474,13 +605,28 @@ private func writeAtomicallyAndDurably(_ data: Data, to destinationURL: URL) thr
         throw POSIXError(.EIO)
     }
 
-    let directoryFD = open(directoryURL.path, O_RDONLY)
-    guard directoryFD >= 0 else {
-        throw POSIXError(.EIO)
+    for directory in [directoryURL] + missingDirectories.map({ $0.deletingLastPathComponent() }) {
+        let directoryFD = open(directory.path, O_RDONLY)
+        guard directoryFD >= 0 else { throw POSIXError(.EIO) }
+        let status = fsync(directoryFD)
+        close(directoryFD)
+        guard status == 0 else { throw POSIXError(.EIO) }
     }
-    defer { close(directoryFD) }
+}
 
-    if fsync(directoryFD) != 0 {
-        throw POSIXError(.EIO)
+func createDurableDirectory(at directory: URL) throws {
+    var missing: [URL] = []
+    var ancestor = directory
+    while !FileManager.default.fileExists(atPath: ancestor.path), ancestor.path != "/" {
+        missing.append(ancestor)
+        ancestor.deleteLastPathComponent()
+    }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    for url in [directory] + missing.map({ $0.deletingLastPathComponent() }) {
+        let fd = Darwin.open(url.path, O_RDONLY)
+        guard fd >= 0 else { throw POSIXError(.EIO) }
+        let status = fsync(fd)
+        Darwin.close(fd)
+        guard status == 0 else { throw POSIXError(.EIO) }
     }
 }

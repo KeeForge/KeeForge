@@ -3,6 +3,11 @@ import XCTest
 @testable import KeeForge
 
 final class DropboxCloudProviderTests: XCTestCase {
+    func testWriteGuaranteeMatchesActualCommitExclusion() {
+        XCTAssertEqual(DropboxCloudProvider.shared.writeGuarantee(expectedRev: "rev", byteCount: 10), .serverConditional)
+        XCTAssertEqual(DropboxCloudProvider.shared.writeGuarantee(expectedRev: nil, byteCount: 10), .preflightOnly)
+    }
+
     override func setUp() {
         super.setUp()
         CloudAccountStore.clearAll()
