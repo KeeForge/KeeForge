@@ -2394,7 +2394,6 @@
 			buildRules = (
 			);
 			dependencies = (
-				B120C9278451E3E9E6A4309B /* PBXTargetDependency */,
 				2382B6795E770D114BC54AC4 /* PBXTargetDependency */,
 			);
 			name = KeeForgeMacTests;
@@ -2461,7 +2460,6 @@
 			buildRules = (
 			);
 			dependencies = (
-				9A9A04791C6D46F25D225759 /* PBXTargetDependency */,
 				3A1F7A94852A172103F83E43 /* PBXTargetDependency */,
 			);
 			name = KeeForgeTests;
@@ -3789,14 +3787,6 @@
 			target = 0AA0ADCC3C0CE0E65850552E /* KeeForgeMacAutoFill */;
 			targetProxy = 9477EF07232A42A69E60EE88 /* PBXContainerItemProxy */;
 		};
-		9A9A04791C6D46F25D225759 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			productRef = "TEMP_CCCDC5C4-2916-4A23-97E8-012CAC96CEE9" /* AppAuthCore */;
-		};
-		B120C9278451E3E9E6A4309B /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			productRef = "TEMP_BFD92ACF-3C1A-4AAC-8900-C9310093E6FA" /* AppAuthCore */;
-		};
 		B551CCEA308F5944DD405D3E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = F9D5D329EB517FC26DCCD00F /* KeeForge */;
@@ -4531,16 +4521,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 647DA4C88DE8E6EE1FB7E879 /* XCRemoteSwiftPackageReference "phc-winner-argon2" */;
 			productName = argon2;
-		};
-		"TEMP_BFD92ACF-3C1A-4AAC-8900-C9310093E6FA" /* AppAuthCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 28CC9FE05ADDFEB01C0FAEFE /* XCRemoteSwiftPackageReference "AppAuth-iOS" */;
-			productName = AppAuthCore;
-		};
-		"TEMP_CCCDC5C4-2916-4A23-97E8-012CAC96CEE9" /* AppAuthCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 28CC9FE05ADDFEB01C0FAEFE /* XCRemoteSwiftPackageReference "AppAuth-iOS" */;
-			productName = AppAuthCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

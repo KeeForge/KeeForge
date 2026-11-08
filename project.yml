@@ -500,9 +500,6 @@ targets:
           copy_catalog "${SRCROOT}/AutoFillExtension/Localizable.xcstrings" "AutoFillExtension_Localizable.xcstrings"
           copy_catalog "${SRCROOT}/AutoFillExtension/InfoPlist.xcstrings" "AutoFillExtension_InfoPlist.xcstrings"
     dependencies:
-      - package: AppAuth
-        product: AppAuthCore
-        link: false
       - target: KeeForge
       - package: KeeForgeTwofish
     sources:
@@ -583,9 +580,6 @@ targets:
           copy_catalog "${SRCROOT}/AutoFillExtension/Localizable.xcstrings" "AutoFillExtension_Localizable.xcstrings"
           copy_catalog "${SRCROOT}/AutoFillExtension/InfoPlist.xcstrings" "AutoFillExtension_InfoPlist.xcstrings"
     dependencies:
-      - package: AppAuth
-        product: AppAuthCore
-        link: false
       - target: KeeForgeMac
       - package: KeeForgeTwofish
     sources:
