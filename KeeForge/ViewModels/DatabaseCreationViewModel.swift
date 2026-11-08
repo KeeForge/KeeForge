@@ -330,6 +330,7 @@ final class DatabaseCreationViewModel {
 
     func resumeCreation(_ item: CloudCreationRecoveryItem) async -> DatabaseReference? {
         guard !isCancelled, !isCreating, !isRecovering, pendingCreations.contains(where: { $0.id == item.id }) else { return nil }
+        let revision = formRevision
         isRecovering = true
         recoveringOperationID = item.id
         recoveryMessage = nil
@@ -351,9 +352,10 @@ final class DatabaseCreationViewModel {
             } onCancel: { task.cancel() }
             guard !isCancelled, !Task.isCancelled, recoveryGeneration == generation else { return nil }
             recoveryListGeneration = UUID()
+            pendingCreations.removeAll { $0.id == item.id }
+            guard formRevision == revision else { return nil }
             clearSecrets()
             clearPreparedDatabase()
-            pendingCreations.removeAll { $0.id == item.id }
             return reference
         } catch {
             guard !isCancelled, !Task.isCancelled, recoveryGeneration == generation else { return nil }

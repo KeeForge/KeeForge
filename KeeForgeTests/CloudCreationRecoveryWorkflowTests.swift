@@ -36,6 +36,37 @@ final class CloudCreationRecoveryWorkflowTests: XCTestCase {
         XCTAssertEqual(resumed, [pending.id])
     }
 
+    func testFormEditedDuringSuspendedRecoveryKeepsNewInputAndDoesNotDismiss() async {
+        let pending = item()
+        let original = reference(id: pending.id)
+        let gate = RecoveryWorkflowGate<DatabaseReference>()
+        let model = DatabaseCreationViewModel(recoveryOperations: .init(
+            list: { [pending] }, resume: { _ in try await gate.wait() }, cancel: { _ in }
+        ))
+        model.databaseName = "Previous form"
+        model.password = "previous password"
+        model.confirmPassword = model.password
+        await model.refreshPendingCreations()
+        let task = Task { await model.resumeCreation(pending) }
+        await gate.waitUntilStarted()
+
+        model.databaseName = "New database"
+        model.password = "new password"
+        model.confirmPassword = model.password
+        model.destinationChoice = .files
+        await gate.finish(.success(original))
+        let recovered = await task.value
+
+        XCTAssertNil(recovered, "Returning a reference would dismiss the newer form")
+        XCTAssertEqual(model.databaseName, "New database")
+        XCTAssertEqual(model.password, "new password")
+        XCTAssertEqual(model.confirmPassword, "new password")
+        XCTAssertEqual(model.destinationChoice, .files)
+        XCTAssertTrue(model.pendingCreations.isEmpty, "The completed recovery still leaves the pending list")
+        XCTAssertFalse(model.isRecovering)
+        XCTAssertNil(model.recoveryMessage)
+    }
+
     func testCancelRetainsPausedRecordAndCancelFailureIsVisible() async {
         let pending = item()
         let paused = item(id: pending.id, paused: true)
