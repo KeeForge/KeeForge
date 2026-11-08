@@ -973,6 +973,76 @@ final class FTPCloudProviderTests: XCTestCase {
         XCTAssertTrue(server.commandLog.contains("RNTO vaults%20 100%/\(name)"))
     }
 
+    @MainActor
+    func testDurableCreateTemporaryRejectionThenFixUsesSameOperationAndCiphertext() async throws {
+        for status in [550, 552] {
+            DatabaseListStore.clearAll()
+            try PendingUploadQueue.clearAll()
+            defer { DatabaseListStore.clearAll(); try? PendingUploadQueue.clearAll() }
+            let server = FakeFTPServer()
+            let credential = FTPCredential(serverURL: "ftp://nas.local/", username: "alex", password: "secret")
+            let provider = FTPCloudProvider(client: server.makeClient(), credentialResolver: { _ in credential })
+            var environment = CloudFileCreationCoordinator.Environment.live
+            environment.queue.postDarwinNotification = { }
+            environment.provider = { $0 == "ftp" ? provider : nil }
+            let id = UUID()
+            let bytes = Data("retained-create-ciphertext".utf8)
+            server.overrideNextReply(to: "STOR", with: "\(status) Rejected temporary upload")
+            do {
+                _ = try await CloudFileCreationCoordinator.create(operationID: id, ownerDatabaseID: id, provider: "ftp",
+                    accountID: "test", target: .init(path: "/vault.kdbx"), bytes: bytes,
+                    referenceTemplate: creationTemplate(id: id), environment: environment)
+                XCTFail("Temporary STOR rejection must remain retryable")
+            } catch { XCTAssertEqual((error as? CloudUploadFailure)?.outcome, .rejected) }
+            let intent = try XCTUnwrap(PendingUploadQueue.listCreations(for: id).first)
+            XCTAssertEqual(intent.phase, .reserved)
+            XCTAssertNil(server.file("vault.kdbx"))
+            let retained = try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: intent.payloadPath))
+            XCTAssertEqual(retained, bytes)
+            let registered = try await CloudFileCreationCoordinator.resume(operationID: id, environment: environment)
+            XCTAssertEqual(registered.id, id)
+            XCTAssertEqual(server.file("vault.kdbx")?.data, retained)
+            XCTAssertEqual(server.commandLog.filter { $0 == "RNTO vault.kdbx" }.count, 1)
+        }
+    }
+
+    @MainActor
+    func testDurableCreateLostRenameReplyNeverBlindlyRetriesWeakTransport() async throws {
+        DatabaseListStore.clearAll()
+        try PendingUploadQueue.clearAll()
+        defer { DatabaseListStore.clearAll(); try? PendingUploadQueue.clearAll() }
+        let server = FakeFTPServer()
+        let credential = FTPCredential(serverURL: "ftp://nas.local/", username: "alex", password: "secret")
+        let provider = FTPCloudProvider(client: server.makeClient(), credentialResolver: { _ in credential })
+        var environment = CloudFileCreationCoordinator.Environment.live
+        environment.queue.postDarwinNotification = { }
+        environment.provider = { $0 == "ftp" ? provider : nil }
+        let id = UUID()
+        let bytes = Data("accepted-ciphertext".utf8)
+        server.dropConnection(onNext: "RNTO", afterHandling: true)
+        do {
+            _ = try await CloudFileCreationCoordinator.create(operationID: id, ownerDatabaseID: id, provider: "ftp", accountID: "test",
+                target: .init(path: "/vault.kdbx"), bytes: bytes, referenceTemplate: creationTemplate(id: id), environment: environment)
+            XCTFail()
+        } catch {}
+        XCTAssertEqual(server.file("vault.kdbx")?.data, bytes)
+        do { _ = try await CloudFileCreationCoordinator.resume(operationID: id, environment: environment); XCTFail() }
+        catch { XCTAssertEqual(error as? CloudProviderError, .conflict(remoteRev: nil)) }
+        XCTAssertEqual(server.commandLog.filter { $0 == "RNTO vault.kdbx" }.count, 1)
+        XCTAssertEqual(try PendingUploadQueue.listCreations(for: id).first?.phase, .attempting)
+    }
+
+    func testCreateMissingCredentialHasPreDispatchEvidence() async throws {
+        let server = FakeFTPServer()
+        let provider = FTPCloudProvider(client: server.makeClient(), credentialResolver: { _ in nil })
+        do { _ = try await provider.createFile(accountId: "missing", path: "/vault.kdbx", data: Data([1]), progress: { _ in }); XCTFail() }
+        catch {
+            XCTAssertEqual((error as? CloudUploadFailure)?.outcome, .notDispatched)
+            XCTAssertEqual((error as? CloudUploadFailure)?.underlying, .notAuthenticated)
+        }
+        XCTAssertTrue(server.connectionLog.isEmpty)
+    }
+
     func testCreateFileWritesANewDatabase() async throws {
         let server = FakeFTPServer()
         server.addDirectory("vaults")

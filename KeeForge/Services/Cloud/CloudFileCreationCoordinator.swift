@@ -31,44 +31,51 @@ enum CloudFileCreationCoordinator {
         target: CloudFileCreationTarget, bytes: Data, referenceTemplate: DatabaseReference,
         isConflictCopy: Bool = false, requestedTarget: CloudFileCreationTarget? = nil, environment: Environment = .live
     ) async throws -> DatabaseReference {
-        let lease = try acquireLease(environment)
-        defer { releaseLease(lease) }
-        let records = try PendingUploadQueue.listCreations(includingCompleted: true, environment: environment.queue)
-        let sha = KDBXCrypto.sha512(bytes)
-        if let existing = records.first(where: { $0.operationID == operationID }) {
-            guard existing.ownerDatabaseID == ownerDatabaseID, existing.provider == provider,
-                  existing.accountID == accountID, existing.target == target,
-                  existing.payloadSHA512 == sha, existing.referenceTemplate == referenceTemplate,
-                  existing.isConflictCopy == isConflictCopy, existing.requestedTarget == requestedTarget else { throw CloudProviderError.conflict(remoteRev: nil) }
-            return try await deliver(existing, environment: environment)
+        let lease = try acquireLease(operationID: operationID, environment)
+        defer {
+            releaseLease(lease)
+            environment.queue.postDarwinNotification()
         }
-        // A different preparation must never be fulfilled by an earlier key's ciphertext.
-        guard !records.contains(where: {
-            $0.phase != .completed && $0.provider == provider && $0.accountID == accountID &&
-            $0.target == target
-        }) else { throw CloudProviderError.conflict(remoteRev: nil) }
-        let payloadURL = PendingUploadQueue.creationPayloadURL(ownerDatabaseID: ownerDatabaseID, operationID: operationID, environment: environment.queue)
-        try environment.queue.createDirectory(payloadURL.deletingLastPathComponent())
-        try environment.queue.writeMarkerAtomically(bytes, payloadURL)
-        var intent = Intent(operationID: operationID, ownerDatabaseID: ownerDatabaseID, provider: provider,
-            accountID: accountID, target: target, payloadSHA512: sha,
-            payloadPath: try PendingUploadQueue.makeRelativeAppGroupPath(for: payloadURL, environment: environment.queue),
-            referenceTemplate: referenceTemplate, isConflictCopy: isConflictCopy)
-        intent.requestedTarget = requestedTarget
-        try PendingUploadQueue.storeCreation(intent, environment: environment.queue)
-        environment.queue.postDarwinNotification()
+        let intent = try withReservationLock(environment) {
+            let records = try PendingUploadQueue.listCreations(includingCompleted: true, environment: environment.queue)
+            let sha = KDBXCrypto.sha512(bytes)
+            if let existing = records.first(where: { $0.operationID == operationID }) {
+                guard existing.ownerDatabaseID == ownerDatabaseID, existing.provider == provider,
+                      existing.accountID == accountID, existing.target == target,
+                      existing.payloadSHA512 == sha, existing.referenceTemplate == referenceTemplate,
+                      existing.isConflictCopy == isConflictCopy, existing.requestedTarget == requestedTarget else { throw CloudProviderError.conflict(remoteRev: nil) }
+                return existing
+            }
+            // A different preparation must never be fulfilled by an earlier key's ciphertext.
+            guard !records.contains(where: {
+                $0.phase != .completed && $0.provider == provider && $0.accountID == accountID &&
+                $0.target == target && !(isConflictCopy && $0.isConflictCopy && $0.creationID != nil)
+            }) else { throw CloudProviderError.conflict(remoteRev: nil) }
+            let payloadURL = PendingUploadQueue.creationPayloadURL(ownerDatabaseID: ownerDatabaseID, operationID: operationID, environment: environment.queue)
+            try environment.queue.createDirectory(payloadURL.deletingLastPathComponent())
+            try environment.queue.writeMarkerAtomically(bytes, payloadURL)
+            var intent = Intent(operationID: operationID, ownerDatabaseID: ownerDatabaseID, provider: provider,
+                accountID: accountID, target: target, payloadSHA512: sha,
+                payloadPath: try PendingUploadQueue.makeRelativeAppGroupPath(for: payloadURL, environment: environment.queue),
+                referenceTemplate: referenceTemplate, isConflictCopy: isConflictCopy)
+            intent.requestedTarget = requestedTarget
+            try PendingUploadQueue.storeCreation(intent, environment: environment.queue)
+            return intent
+        }
         return try await deliver(intent, environment: environment)
     }
 
-    static func resume(operationID: UUID, environment: Environment = .live) async throws -> DatabaseReference {
-        let lease = try acquireLease(environment)
+    static func resume(operationID: UUID, unpausing: Bool = true, environment: Environment = .live) async throws -> DatabaseReference {
+        let lease = try acquireLease(operationID: operationID, environment)
         defer { releaseLease(lease) }
         guard var intent = try PendingUploadQueue.listCreations(includingCompleted: true, environment: environment.queue).first(where: { $0.operationID == operationID }) else {
             throw CloudProviderError.fileNotFound
         }
-        try environment.queue.removeItem(PendingUploadQueue.creationPauseURL(intent, environment: environment.queue))
-        intent.isPaused = false
-        try PendingUploadQueue.storeCreation(intent, environment: environment.queue)
+        if unpausing {
+            try environment.queue.removeItem(PendingUploadQueue.creationPauseURL(intent, environment: environment.queue))
+            intent.isPaused = false
+            try PendingUploadQueue.storeCreation(intent, environment: environment.queue)
+        }
         return try await deliver(intent, environment: environment)
     }
 
@@ -76,7 +83,7 @@ enum CloudFileCreationCoordinator {
         guard let intent = try PendingUploadQueue.listCreations(environment: environment.queue).first(where: { $0.operationID == operationID }) else { return }
         try PendingUploadQueue.requestCreationPause(intent, environment: environment.queue)
         let lease: Int32
-        do { lease = try acquireLease(environment) } catch CloudProviderError.conflict { return }
+        do { lease = try acquireLease(operationID: operationID, environment) } catch CloudProviderError.conflict { return }
         defer { releaseLease(lease) }
         guard let current = try PendingUploadQueue.listCreations(environment: environment.queue).first(where: { $0.operationID == operationID }) else { return }
         try PendingUploadQueue.cancelCreation(current, environment: environment.queue)
@@ -85,7 +92,10 @@ enum CloudFileCreationCoordinator {
     private static func deliver(_ original: Intent, environment: Environment) async throws -> DatabaseReference {
         var intent = original
         if intent.phase == .completed { return try environment.completedReference(intent) }
-        guard !intent.isPaused else { throw CloudProviderError.authenticationCancelled }
+        guard !intent.isPaused,
+              !FileManager.default.fileExists(atPath: PendingUploadQueue.creationPauseURL(intent, environment: environment.queue).path) else {
+            throw CloudProviderError.authenticationCancelled
+        }
         do {
             let bytes = try environment.queue.readData(PendingUploadQueue.resolveAppGroupURL(for: intent.payloadPath, environment: environment.queue))
             guard KDBXCrypto.sha512(bytes) == intent.payloadSHA512 else { throw SaveError.saveContextUnavailable }
@@ -147,8 +157,8 @@ enum CloudFileCreationCoordinator {
             try? environment.queue.removeItem(PendingUploadQueue.resolveAppGroupURL(for: intent.payloadPath, environment: environment.queue))
             return registered
         } catch {
-            intent.lastIssue = CloudProviderError.issue(for: error)
             let issue = CloudProviderError.issue(for: error)
+            intent.lastIssue = issue
             if error is CancellationError || issue == .notAuthenticated || issue == .authenticationCancelled {
                 intent.isPaused = true
             }
@@ -157,10 +167,22 @@ enum CloudFileCreationCoordinator {
         }
     }
 
-    private static func acquireLease(_ environment: Environment) throws -> Int32 {
+    /// Destination reservation is synchronous; unrelated network operations hold separate leases.
+    private static func withReservationLock<T>(_ environment: Environment, _ operation: () throws -> T) throws -> T {
         let root = environment.queue.appGroupContainerURL().appendingPathComponent("pending-uploads", isDirectory: true)
         try environment.queue.createDirectory(root)
         let descriptor = Darwin.open(root.appendingPathComponent(".creations.lock").path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else { throw POSIXError(.EIO) }
+        defer { Darwin.close(descriptor) }
+        guard flock(descriptor, LOCK_EX) == 0 else { throw POSIXError(.EIO) }
+        defer { flock(descriptor, LOCK_UN) }
+        return try operation()
+    }
+
+    private static func acquireLease(operationID: UUID, _ environment: Environment) throws -> Int32 {
+        let root = environment.queue.appGroupContainerURL().appendingPathComponent("pending-uploads", isDirectory: true)
+        try environment.queue.createDirectory(root)
+        let descriptor = Darwin.open(root.appendingPathComponent(".creation-\(operationID.uuidString).lock").path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
         guard descriptor >= 0 else { throw POSIXError(.EIO) }
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
             Darwin.close(descriptor)

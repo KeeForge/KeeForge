@@ -376,6 +376,49 @@ final class WebDAVCloudProviderTests: XCTestCase {
         XCTAssertNotNil(capturedHead)
     }
 
+    @MainActor
+    func testDurableCreateRejectionThenFixResumesSameOperationAndCiphertext() async throws {
+        for status in [401, 403, 507] {
+            DatabaseListStore.clearAll()
+            try PendingUploadQueue.clearAll()
+            defer { DatabaseListStore.clearAll(); try? PendingUploadQueue.clearAll() }
+            let server = WebDAVCreationTestServer(status: status)
+            let credential = WebDAVCredential(serverURL: "https://host.example.com/dav/", username: "alex", password: "fake")
+            let provider = WebDAVCloudProvider(client: WebDAVClient(transport: { try await server.respond($0) }), credentialResolver: { _ in credential })
+            var environment = CloudFileCreationCoordinator.Environment.live
+            environment.queue.postDarwinNotification = { }
+            environment.provider = { $0 == "webdav" ? provider : nil }
+            let id = UUID()
+            let payload = Data("retained-ciphertext".utf8)
+            do {
+                _ = try await CloudFileCreationCoordinator.create(operationID: id, ownerDatabaseID: id, provider: "webdav",
+                    accountID: "test", target: .init(path: "/vault.kdbx"), bytes: payload,
+                    referenceTemplate: creationTemplate(id: id), environment: environment)
+                XCTFail("Complete HTTP rejection must retain a retryable creation")
+            } catch { XCTAssertEqual((error as? CloudUploadFailure)?.outcome, .rejected) }
+            let pending = try XCTUnwrap(PendingUploadQueue.listCreations(for: id).first)
+            XCTAssertEqual(pending.phase, .reserved)
+            XCTAssertNil(pending.creationID)
+            await server.fix()
+            let registered = try await CloudFileCreationCoordinator.resume(operationID: id, environment: environment)
+            XCTAssertEqual(registered.id, id)
+            let bodies = await server.bodies
+            XCTAssertEqual(bodies, [payload, payload])
+            let sent = await server.requests
+            XCTAssertTrue(sent.allSatisfy { $0.value(forHTTPHeaderField: "If-None-Match") == "*" })
+        }
+    }
+
+    func testCreateMissingCredentialHasPreDispatchEvidence() async throws {
+        let responder = TransportResponder { _ in XCTFail("No credential must not dispatch"); return StubResponse(status: 500, headers: [:]) }
+        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport), credentialResolver: { _ in nil })
+        do { _ = try await provider.createFile(accountId: "missing", path: "/vault.kdbx", data: Data([1]), progress: { _ in }); XCTFail() }
+        catch {
+            XCTAssertEqual((error as? CloudUploadFailure)?.outcome, .notDispatched)
+            XCTAssertEqual((error as? CloudUploadFailure)?.underlying, .notAuthenticated)
+        }
+    }
+
     // MARK: - Provider: createFile
 
     func testCreateFileSendsIfNoneMatchStar() async throws {
@@ -707,5 +750,18 @@ private actor MethodRecorder {
 
     func firstMatching(method: String) -> URLRequest? {
         requests.first { $0.httpMethod == method }
+    }
+}
+
+private actor WebDAVCreationTestServer {
+    var status: Int
+    private(set) var bodies: [Data] = []
+    private(set) var requests: [URLRequest] = []
+    init(status: Int) { self.status = status }
+    func fix() { status = 201 }
+    func respond(_ request: URLRequest) throws -> (Data, HTTPURLResponse) {
+        requests.append(request)
+        bodies.append(request.httpBody ?? Data())
+        return (Data(), HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["ETag": "\"created\""])!)
     }
 }

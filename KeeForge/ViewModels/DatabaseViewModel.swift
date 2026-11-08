@@ -4816,9 +4816,10 @@ final class DatabaseViewModel {
                     bytes: bytes, referenceTemplate: template, isConflictCopy: true,
                     requestedTarget: CloudFileCreationTarget(path: fileID), environment: creationEnvironment)
                 return
-            } catch let error as CloudProviderError {
+            } catch {
+                let cloudError = (error as? CloudUploadFailure)?.underlying ?? (error as? CloudProviderError)
                 let intent = try PendingUploadQueue.listCreations(for: reference.id).first { $0.operationID == operationID }
-                guard case .conflict = error, let intent, intent.creationID == nil, intent.phase == .reserved,
+                guard let cloudError, case .conflict = cloudError, let intent, intent.creationID == nil, intent.phase == .reserved,
                       attempt < conflictCopyNameAttemptLimit else { throw error }
                 try CloudFileCreationCoordinator.cancel(operationID: operationID, environment: creationEnvironment)
             }

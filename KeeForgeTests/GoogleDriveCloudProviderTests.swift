@@ -12,6 +12,12 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
 
     private func json(_ object: Any) throws -> Data { try JSONSerialization.data(withJSONObject: object) }
 
+    func testSharedCreationRouteKeepsAvailabilityAndReplacementGatesClosed() {
+        XCTAssertFalse(GoogleDriveCloudProvider.shared.isAvailableForSynchronization)
+        XCTAssertEqual(GoogleDriveCloudProvider.shared.writeGuarantee(expectedRev: "12", byteCount: 1), .disabled)
+        XCTAssertFalse(CloudProviderKind.googleDrive.isAvailableOnCurrentPlatform)
+    }
+
     func testReplacementAndLegacyCreationRejectBeforeAnyHTTP() async throws {
         let transport = GoogleDriveTestTransport([])
         let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport, creationEnabled: true, isAccountConnected: { _ in true })
@@ -192,6 +198,21 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
         XCTAssertFalse(accounts.contains(account.id))
     }
 
+    @MainActor
+    func testAuthenticateUsesAccountOnlyAuthorizationWhileSelectionUsesPicker() async throws {
+        let authorization = GoogleDriveAccountOnlyTestAuthorization()
+        let accounts = GoogleDriveTestAccountStorage()
+        let provider = GoogleDriveCloudProvider(authorization: authorization, transport: GoogleDriveTestTransport([]),
+            upsertAccount: { accounts.upsert($0) }, removeAccount: { accounts.remove($0) },
+            isAccountConnected: { accounts.contains($0) })
+        _ = try await provider.authenticate(from: ASPresentationAnchor())
+        XCTAssertEqual(authorization.accountCalls, 1)
+        XCTAssertEqual(authorization.pickerCalls, 0)
+        _ = try await provider.selectFiles(from: ASPresentationAnchor(), expectedAccountID: "account")
+        XCTAssertEqual(authorization.accountCalls, 1)
+        XCTAssertEqual(authorization.pickerCalls, 1)
+    }
+
     func testTypedParentIsOpaqueAndNameIsLiteralInCreationMetadata() async throws {
         let transport = GoogleDriveTestTransport([.response(200, try json(resource(id: "generated_A", name: "literal/name.kdbx")))])
         let provider = GoogleDriveCloudProvider(authorization: GoogleDriveTestAuthorization(), transport: transport,
@@ -300,4 +321,22 @@ private final class GoogleDriveTestAccountStorage: @unchecked Sendable {
     func upsert(_ account: CloudAccount) { lock.lock(); defer { lock.unlock() }; accounts[account.id] = account }
     func remove(_ account: String) { lock.lock(); defer { lock.unlock() }; accounts[account] = nil }
     func contains(_ account: String) -> Bool { lock.lock(); defer { lock.unlock() }; return accounts[account] != nil }
+}
+
+private final class GoogleDriveAccountOnlyTestAuthorization: GoogleDriveAuthorizing {
+    @MainActor var accountCalls = 0
+    @MainActor var pickerCalls = 0
+    @MainActor var isConfigured: Bool { true }
+    @MainActor func authorizeAccount(from anchor: ASPresentationAnchor, expectedAccountID: String?) async throws -> CloudAccount {
+        accountCalls += 1
+        return CloudAccount(id: "account", displayName: "Account", provider: "googledrive")
+    }
+    @MainActor func authorize(from anchor: ASPresentationAnchor, expectedAccountID: String?) async throws -> GoogleDriveGrant {
+        pickerCalls += 1
+        return GoogleDriveGrant(account: CloudAccount(id: "account", displayName: "Account", provider: "googledrive"), pickedFileIDs: [])
+    }
+    @MainActor func accessToken(accountID: String) async throws -> String { "test-token" }
+    @MainActor func cancel() {}
+    func contains(accountID: String) -> Bool { accountID == "account" }
+    func remove(accountID: String) {}
 }

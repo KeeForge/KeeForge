@@ -50,6 +50,27 @@ final class CloudFileCreationTests: XCTestCase {
         }
     }
 
+    func testFailureBeforeIntentOrPayloadPublicationNeverDispatchesContent() async throws {
+        for failPayload in [false, true] {
+            let provider = CreationTestProvider()
+            let id = UUID()
+            var environment = creationEnvironment(provider)
+            let writer = environment.queue.writeMarkerAtomically
+            environment.queue.writeMarkerAtomically = { data, url in
+                if (failPayload && url.lastPathComponent.hasSuffix(".creation.kdbx")) || (!failPayload && url.pathExtension == "creation") {
+                    throw CocoaError(.fileWriteUnknown)
+                }
+                try writer(data, url)
+            }
+            do { _ = try await create(id, provider: provider, environment: environment); XCTFail() } catch {}
+            XCTAssertTrue(provider.createdIDs.isEmpty)
+            XCTAssertTrue(try PendingUploadQueue.listCreations(for: id).isEmpty)
+            let recovered = try await create(id, provider: provider, environment: creationEnvironment(provider))
+            XCTAssertEqual(recovered.id, id)
+            XCTAssertEqual(provider.objects.count, 1)
+        }
+    }
+
     func testLostResponseRestartReconcilesExactObjectAndKeepsIndependentDuplicateNames() async throws {
         let provider = CreationTestProvider()
         provider.loseNextResponse = true
@@ -188,6 +209,20 @@ final class CloudFileCreationTests: XCTestCase {
         provider.afterAcceptance = nil
         _ = try await CloudFileCreationCoordinator.resume(operationID: id, environment: environment)
         XCTAssertEqual(provider.createdIDs.count, 1, "Local reference-only recovery needs no new provider mutation")
+    }
+
+    func testAutomaticResumeCannotUndoPauseAfterEarlierEnumeration() async throws {
+        let provider = CreationTestProvider()
+        provider.loseNextResponse = true
+        let id = UUID()
+        let environment = creationEnvironment(provider)
+        do { _ = try await create(id, provider: provider, environment: environment) } catch {}
+        XCTAssertEqual(try PendingUploadQueue.listCreations(for: id).first?.isPaused, false)
+        try CloudFileCreationCoordinator.cancel(operationID: id, environment: environment)
+        do { _ = try await CloudFileCreationCoordinator.resume(operationID: id, unpausing: false, environment: environment); XCTFail() }
+        catch { XCTAssertEqual(error as? CloudProviderError, .authenticationCancelled) }
+        XCTAssertEqual(try PendingUploadQueue.listCreations(for: id).first?.isPaused, true)
+        XCTAssertEqual(provider.createdIDs.count, 1)
     }
 
     func testCancelBeforeDispatchRemovesOnlyUnattemptedBytes() async throws {

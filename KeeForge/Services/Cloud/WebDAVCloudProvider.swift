@@ -238,7 +238,9 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         data: Data,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudCreatedFile {
-        let context = try resolveContext(accountId: accountId)
+        let context: AccountContext
+        do { context = try resolveContext(accountId: accountId) }
+        catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
         let fileURL = Self.url(forFileId: path, base: context.baseURL)
 
         let response = try await client.put(
@@ -253,6 +255,9 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         }
 
         if let error = WebDAVClient.mapHTTPStatus(response.statusCode, responseBody: response.data) {
+            if [401, 403, 507].contains(response.statusCode) {
+                throw CloudUploadFailure(underlying: error, outcome: .rejected)
+            }
             throw error
         }
 

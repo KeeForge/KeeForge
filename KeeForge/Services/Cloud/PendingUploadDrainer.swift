@@ -76,7 +76,7 @@ final class PendingUploadDrainer {
                 )
             },
             listCreations: { try PendingUploadQueue.listCreations(for: $0) },
-            resumeCreation: { try await CloudFileCreationCoordinator.resume(operationID: $0) },
+            resumeCreation: { try await CloudFileCreationCoordinator.resume(operationID: $0, unpausing: false) },
             deliverMarker: { stored, reference in
                 try await CloudDatabaseSaver.deliver(stored, reference: reference)
             }

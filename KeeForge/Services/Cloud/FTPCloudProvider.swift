@@ -261,27 +261,43 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         data: Data,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudCreatedFile {
-        let (location, credential) = try resolveContext(accountId: accountId)
+        let resolved: (FTPServerLocation, FTPCredential)
+        do { resolved = try resolveContext(accountId: accountId) }
+        catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
+        let (location, credential) = resolved
         let normalizedId = Self.serverRelativePath(from: fileId)
         let path = Self.remotePath(base: location.basePath, fileId: normalizedId)
         let temporaryPath = scratchPath(beside: path, kind: .upload)
 
-        let metadata = try await perform(context: .write, location: location, credential: credential) { session in
-            guard try await session.stat(path) == nil else {
-                throw CloudProviderError.conflict(remoteRev: nil)
-            }
-            do {
-                try await session.store(temporaryPath, data: data)
+        let targetMutationStarted = OSAllocatedUnfairLock(initialState: false)
+        let metadata: CloudFileMetadata
+        do {
+            metadata = try await perform(context: .write, location: location, credential: credential) { session in
                 guard try await session.stat(path) == nil else {
                     throw CloudProviderError.conflict(remoteRev: nil)
                 }
-                try await session.rename(temporaryPath, to: path)
-            } catch {
-                try? await session.delete(temporaryPath)
-                throw error
+                do {
+                    try await session.store(temporaryPath, data: data)
+                    guard try await session.stat(path) == nil else {
+                        throw CloudProviderError.conflict(remoteRev: nil)
+                    }
+                    targetMutationStarted.withLock { $0 = true }
+                    try await session.rename(temporaryPath, to: path)
+                } catch {
+                    try? await session.delete(temporaryPath)
+                    throw error
+                }
+                await sweepStaleUploads(beside: path, in: session)
+                return await Self.metadata(of: data, at: path, in: session)
             }
-            await sweepStaleUploads(beside: path, in: session)
-            return await Self.metadata(of: data, at: path, in: session)
+        } catch {
+            guard targetMutationStarted.withLock({ $0 }) else {
+                let mapped = Self.mapError(error, context: .write)
+                let underlying = (mapped as? CloudProviderError) ?? .unknown(CloudProviderError.message(for: mapped))
+                if case .conflict = underlying { throw underlying }
+                throw CloudUploadFailure(underlying: underlying, outcome: .rejected)
+            }
+            throw error
         }
         progress(1)
 

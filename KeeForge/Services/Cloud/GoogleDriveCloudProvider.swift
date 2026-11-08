@@ -25,7 +25,7 @@ struct GoogleDriveGrant: Sendable {
 }
 
 final class GoogleDriveCloudProvider: CloudFileSelecting {
-    static let shared = GoogleDriveCloudProvider()
+    static let shared = GoogleDriveCloudProvider(creationEnabled: true)
     let id = "googledrive"
     let displayName = "Google Drive"
     let iconName = "externaldrive.fill"
