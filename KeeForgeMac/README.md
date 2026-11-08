@@ -66,6 +66,8 @@ the agent at all.
 
 Keep `Info.plist` in sync with `KeeForge/Info.plist`, minus the cloud OAuth surface: the Mac app builds neither cloud SDK, so it declares no `db-*`/`msauth.*` URL scheme and none of the `DropboxAppKey`/`OneDriveClientID`/`OneDriveRedirectURI` keys (`URLSchemeFormatTests` pins the absence of the schemes). What must stay in sync: the `otpauth` scheme that routes incoming verification-code links into `TOTPEnrollmentDestinationView`, the ATS arbitrary-loads-plus-first-party-exceptions setup, and the kdbx document/UTType declarations.
 
+Google Drive's optional native client is separate from Dropbox/MSAL. The platform Info.plist template is processed by `ci_scripts/prepare_google_drive_info.py`; `GOOGLE_DRIVE_MAC_CLIENT_ID` supplies the real native client, its callback is derived (or checked against `GOOGLE_DRIVE_MAC_REDIRECT_URI`), and the matching scheme is emitted only when configured. No production Drive availability or replacement-safety gate is relaxed by supplying these settings.
+
 ## Security Posture
 
 The [macOS security model](SECURITY.md) covers secrets, shared storage, lock behavior, platform limits, extension entitlements, and update trust. Keep it current when Mac-relevant security behavior changes. Release procedures live in [the direct-distribution release reference](../.agents/skills/prepare-release/references/direct-distribution.md).

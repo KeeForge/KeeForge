@@ -20,3 +20,11 @@ ONEDRIVE_CLIENT_ID = YOUR_ONEDRIVE_CLIENT_ID
 // SPARKLE_FEED_SLASH = /
 // SPARKLE_FEED_URL = https:$(SPARKLE_FEED_SLASH)$(SPARKLE_FEED_SLASH)example.com/keeforge/appcast.xml
 // SPARKLE_PUBLIC_ED_KEY = YOUR_SPARKLE_PUBLIC_ED_KEY
+
+// Optional Google Drive native OAuth clients, separately registered for iOS
+// and macOS. Leave unset until real IDs are available. The build derives each
+// reversed-client callback and declares only the configured platform scheme.
+// GOOGLE_DRIVE_IOS_CLIENT_ID =
+// GOOGLE_DRIVE_MAC_CLIENT_ID =
+// GOOGLE_DRIVE_IOS_REDIRECT_URI =
+// GOOGLE_DRIVE_MAC_REDIRECT_URI =

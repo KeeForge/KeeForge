@@ -165,10 +165,7 @@ struct DatabaseListView: View {
             SettingsView(listViewModel: viewModel)
                 .macSheetFrame()
         }
-        .sheet(
-            item: $activeCloudProvider,
-            onDismiss: cancelPendingCloudAuthentication
-        ) { provider in
+        .sheet(item: $activeCloudProvider) { provider in
             CloudFileBrowserView(
                 providerID: provider.rawValue,
                 onSelect: { selection in
@@ -188,6 +185,9 @@ struct DatabaseListView: View {
                 onCreated: { createdDatabase in
                     viewModel.reload()
                     onCreateDatabase(createdDatabase)
+                },
+                onRecovered: { _ in
+                    viewModel.reload()
                 }
             )
             .macSheetFrame()
@@ -591,13 +591,6 @@ struct DatabaseListView: View {
 
     private func refreshUsageStatsVisibility() {
         showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
-    }
-
-    @MainActor
-    private func cancelPendingCloudAuthentication() {
-        for providerKind in CloudProviderRegistry.availableProviders {
-            CloudProviderRegistry.provider(for: providerKind.rawValue)?.cancelPendingAuthentication()
-        }
     }
 
     private var emptyState: some View {

@@ -20,6 +20,8 @@
 - `Configs/BuildConfig.xcconfig` is a checked-in include. It lives in `Configs/` so XcodeGen gives it a stable group name rather than the checkout directory's.
 - Local setup: copy `BuildConfig.local.example.xcconfig` to `BuildConfig.local.xcconfig` at the repo root and set `DROPBOX_APP_KEY`. `ONEDRIVE_CLIENT_ID` is optional outside archives.
 
+- `prepare_google_drive_info.py` generates each app's build-time Info.plist from its checked-in template. It reads only that platform's optional real Google client ID/callback settings, derives and validates the reversed-client scheme, and omits Google keys/schemes when unconfigured. Templates and other URL handlers remain intact; no client secret or placeholder callback is generated. Run its `--self-test` after changes. Both app targets declare its template/script inputs and derived plist output before Info.plist processing.
+
 ## Generation-time validators
 
 `project.yml` runs both as XcodeGen's `postGenCommand`, so they run on every `xcodegen generate`, locally and in CI.

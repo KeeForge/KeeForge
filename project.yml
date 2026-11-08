@@ -110,7 +110,7 @@ targets:
     platform: iOS
     settings:
       base:
-        INFOPLIST_FILE: KeeForge/Info.plist
+        INFOPLIST_FILE: $(DERIVED_FILE_DIR)/KeeForge-Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: KeeForge
@@ -126,6 +126,16 @@ targets:
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
         # YubiKit's SPM header links include private headers outside its umbrella header.
         OTHER_SWIFT_FLAGS: "$(inherited) -Xcc -Wno-incomplete-umbrella"
+    preBuildScripts:
+      - name: Prepare platform Google OAuth Info.plist
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/KeeForge/Info.plist
+          - $(SRCROOT)/ci_scripts/prepare_google_drive_info.py
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/KeeForge-Info.plist
+        script: |
+          /usr/bin/python3 "${SRCROOT}/ci_scripts/prepare_google_drive_info.py" --platform ios --template "${SRCROOT}/KeeForge/Info.plist" --output "${DERIVED_FILE_DIR}/KeeForge-Info.plist"
     dependencies:
       - package: AppAuth
         product: AppAuthCore
@@ -185,7 +195,7 @@ targets:
       base:
         DEAD_CODE_STRIPPING: "YES"
         REGISTER_APP_GROUPS: "YES"
-        INFOPLIST_FILE: KeeForgeMac/Info.plist
+        INFOPLIST_FILE: $(DERIVED_FILE_DIR)/KeeForgeMac-Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app
         # Reuse the shared Icon Composer bundle (KeeForge.icon) so the Mac app
         # has an archivable icon; lower-risk than bumping xcodeVersion since
@@ -210,6 +220,16 @@ targets:
         SPARKLE_INSTALLER_LAUNCHER_SERVICE: ""
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
+    preBuildScripts:
+      - name: Prepare platform Google OAuth Info.plist
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/KeeForgeMac/Info.plist
+          - $(SRCROOT)/ci_scripts/prepare_google_drive_info.py
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/KeeForgeMac-Info.plist
+        script: |
+          /usr/bin/python3 "${SRCROOT}/ci_scripts/prepare_google_drive_info.py" --platform macos --template "${SRCROOT}/KeeForgeMac/Info.plist" --output "${DERIVED_FILE_DIR}/KeeForgeMac-Info.plist"
     dependencies:
       - package: AppAuth
         product: AppAuthCore

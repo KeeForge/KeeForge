@@ -30,6 +30,8 @@ What each platform offers differs from what compiles:
 - For navigation, editor lifecycle, Settings effects, or launch/URL routing, read `ViewModels/AGENTS.md` even when changing a shell or view. It defines the reusable owners and their test contracts. Shared presentation rules live in `Views/AGENTS.md`; platform adapters live in `App/` and the relevant view folder.
 - When adding or changing database creation, edit operations, KDBX parser/writer behavior, protected fields, unknown XML handling, AutoFill save, cloud save, or local save, update `../KeeForgeTests/KDBXCompatibilityTests.swift`. Update the compatibility artifact gate if the supported compatibility matrix changes; its workflow is in `../ci_scripts/AGENTS.md`.
 
+- App Info.plists are generated from the platform templates into DerivedSources before processing. Optional Google OAuth callback schemes are derived only from valid platform client configuration by `ci_scripts/prepare_google_drive_info.py`; do not add unconfigured placeholder schemes to source templates.
+
 ## Platform divergence
 
 - View layer: add the difference to `Extensions/PlatformCompat.swift` rather than scattering `#if os()` through Views.
