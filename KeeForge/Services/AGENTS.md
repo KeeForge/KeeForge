@@ -7,7 +7,7 @@
 - `Persistence/DatabaseListStore`: the persisted database list (`DatabaseReference`), cache and backup locations, and the AutoFill database selection. Nothing else writes `database-list.json`.
 - `Persistence/LocalDatabaseSaver`: every save whose target is a file on this device, including the AutoFill extension's save into a cloud database's cached copy.
 - `Cloud/CloudDatabaseSaver`: the app's save of a cloud-backed database. `Cloud/CloudSyncCoordinator`: download-before-open and conditional sync-down cache publication; the savers own local commits.
-- `AutoFill/AutoFillSaveCoordinator`: the extension-safe save of a new entry, and the pending-upload marker that covers it.
+- `AutoFill/AutoFillSaveCoordinator`: the extension-safe new-entry workflow and credential identity publication. Its production cloud commit and covering intent are owned by `LocalDatabaseSaver` and the shared upload queue.
 - `SSHAgent/MacSSHAgentController`: the macOS-only, opt-in SSH agent that signs with keys stored in the unlocked database (`SSHAgent/AGENTS.md`).
 - `Security/KeychainService`: the per-database quick-unlock key. `Cloud/CloudTokenStore`: provider credentials. They are separate items with different protection (see `Security/AGENTS.md`, `Cloud/AGENTS.md`).
 
@@ -35,7 +35,7 @@
 - A rekey or encryption-settings change must reopen the produced bytes with the write key before anything is replaced or uploaded (`SaveError.reencryptionVerificationFailed`). After a rekey upload, a failed local apply is `SaveError.rekeyAppliedRemotely`, because the remote already needs the new key.
 - The extension never uploads. Its save of a cloud database goes through `LocalDatabaseSaver` into the cache and leaves a pending-upload marker for the app to drain. The same queue retains immutable pending ciphertext outside cache and backup rotation; legacy markers still require pre-overwrite backups. Marker rules are in `Cloud/AGENTS.md`.
 - Mac AutoFill cannot open a bookmarked local file. It saves passkey registrations to the encrypted shared copy and `Persistence/PendingLocalSaveStore`; after the app unlocks the database, `DatabaseViewModel.mergePendingLocalSaves` merges and writes that change to the original file. Pending local saves are separate from cloud upload markers.
-- A third backup writer exists for that reason: `CloudSyncCoordinator` backs up the cache before a sync-down or a finished upload replaces not-yet-uploaded bytes. It uses the same directory and filename shape so the restore list sorts all three together.
+- `CloudSyncCoordinator` backs up legacy pending cache bytes before sync-down and retains the actual payload before explicit discard. Confirming an upload never replaces a newer cache. Retained pending/rekey backups are excluded from ordinary backup rotation.
 - A save that lands where the cache already is (cloud reference, or a database with no bookmark) must not rewrite the cache a second time; that reopens the window where the cache and its marker disagree.
 
 ### Egress and logging

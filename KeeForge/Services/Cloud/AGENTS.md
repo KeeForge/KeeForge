@@ -6,13 +6,15 @@
 
 - `CloudProvider` is the only boundary the rest of the app talks to; SDK and protocol behavior stays behind it. `CloudProviderRegistry.provider(for:)` resolves one, including the UI-test doubles.
 - `CloudSyncModels`: the persisted shapes. Concurrency uses one opaque `rev`; each provider maps its own validator onto it (Dropbox rev, OneDrive cTag/eTag, WebDAV ETag, FTP `sha256:` of the bytes).
-- `CloudDatabaseSaver.remoteHasDiverged`: the single conflict gate for both the app save and a pending-upload push.
-- `CloudSyncCoordinator`: when an open contacts the provider, and every replacement of a cloud cache file (`downloadLatestCopy`, `applyUploadedBytesAfterSave`).
-- `PendingUploadQueue` (compiled into the extensions): marker storage. `PendingUploadDrainer` (app only): the only uploader of markers. Draining goes through `DatabaseListViewModel.drainPendingUploadsOnAppActive()`; the second instance `KeeForgeApp` holds only observes the AutoFill notification. `PendingUploadRecovery`: finds a conflicted marker's bytes for a merge.
+- `CloudDatabaseSaver`: local app commits and shared delivery/reconciliation, including online rekey. Exact remote-base bytes drive conflict checks; `remoteHasDiverged` supplies the metadata fallback for legacy markers.
+- `CloudSyncCoordinator`: open-time provider policy, confirmed-rekey recovery before open, conditional sync-down cache publication, and explicit pending-change discard. Upload confirmation never rewrites a newer local cache.
+- `PendingUploadQueue` (compiled into the extensions): marker and immutable payload storage. `PendingUploadDrainer` (app only): ordinary delivery through the shared engine. Draining goes through `DatabaseListViewModel.drainPendingUploadsOnAppActive()`; the second instance `KeeForgeApp` holds only observes the notification. `PendingUploadRecovery`: finds hash-verified pending bytes for an unlocked-session merge.
 
 ## Invariants
 
 ### Platform scope
+
+- Google Drive and AppAuthCore compile into both apps, with no extension membership. Drive stays unavailable for synchronization and production writes until platform configuration, native Picker E2E, durable caller creation integration and replacement-safety decisions are complete.
 
 - iOS offers Dropbox, OneDrive, WebDAV, and FTP. The Mac app offers WebDAV and FTP only (`CloudProviderKind.isAvailableOnCurrentPlatform`).
 - Dropbox and OneDrive are not built into the Mac app: both provider files are excluded from `KeeForgeMac` in `../../../project.yml`, `SwiftyDropbox` and `MSAL` are off that target (MSAL is an embedded framework that ships whole), `provider(for:)` returns nil for them, and `handleOpenURL` returns false. The macOS branches inside those two files are uncompiled and untested.
@@ -54,6 +56,8 @@
 
 ### Credentials and transport
 
+- Cloud account mutations serialize across providers in the app process. Drive uses only `drive.file`, explicit native Picker grants, PKCE/state/exact callbacks and permission-ID account binding. Provider/account-specific Keychain token archives stay separate from vault keys. Sign-out fences authorization/refresh and attempts a same-row tombstone if deletion fails; simultaneous delete/tombstone failure leaves erasure unproven and restart disconnection dependent on account-defaults persistence.
+
 - `CloudTokenStore` holds the Dropbox refresh token and WebDAV/FTP credentials as Keychain items in the group named by `CloudKeychainAccessGroup` in the app `Info.plist`, `AfterFirstUnlockThisDeviceOnly`, with no biometric gate. It is not compiled into the extensions.
 - OneDrive tokens live in MSAL's own cache: keychain group `com.microsoft.adalcache` on iOS (second in `KeeForge.entitlements`), `com.microsoft.identity.universalstorage` on macOS (not declared today).
 - WebDAV requires `https` unless the user set `allowsUnencryptedHTTP`; FTP always requires `allowsUnencryptedFTP`, because the password travels in the clear. Keep both opt-ins explicit. ATS allows arbitrary loads for user-entered hosts, so this code is the only enforcement.
@@ -61,10 +65,12 @@
 - FTP command arguments containing CR, LF, or NUL are rejected (checked per Unicode scalar), and passive data connections go to the control host, never an address the server advertises.
 - WebDAV file ids and folder paths are decoded, server-relative strings. Never percent-decode them again; encode each segment once when building a URL. OneDrive's `graphURL(path:queryItems:)` takes an already-encoded path for the same reason.
 - FTP never writes the database in place or deletes it first: upload to a hidden temporary name, re-check the target's hash, rename over it. A server that refuses to rename onto an existing file gets the database set aside as `.keeforge-backup` and restored on any failure. The stale-upload sweep never touches those backups, since one may be a database's only copy.
-- `OAuth2Error.unknown` maps to `.networkUnavailable` on purpose: only the Dropbox refresh token is stored, so an offline call fails at the OAuth stage. Dropbox retries are safe only because both write routes use `strictConflict`.
+- `OAuth2Error.unknown` maps to `.networkUnavailable` on purpose: only the Dropbox refresh token is stored, so an offline call fails at the OAuth stage. Dropbox replacement dispatches once; the engine owns retry and uncertainty. Create-only retries retain `strictConflict`.
 - OneDrive errors map by Graph error `code` before HTTP status, never by message text. `createFile` always uses an upload session, because the simple `PUT` has no create-only mode.
 
 ## Tests
+
+- `GoogleDriveAuthorizationTests` and `GoogleDriveCloudProviderTests` cover injected SDK/transport paths on both platforms; `CloudProviderIntegrationTests` pins disabled production availability. Headless tests do not establish credentialed Picker/OAuth or native presentation behavior.
 
 - `CloudDatabaseSaverTests`, `CloudSyncCoordinatorTests`, `CloudSyncModelsTests`, `CloudProviderRegistryTests`, `CloudTokenStoreTests`, `CloudAccountStoreTests`.
 - Markers: `PendingUploadQueueTests`, `PendingUploadDrainerTests` (also the rekey cutoff), `PendingUploadRecoveryTests`; the AutoFill side in `CredentialProviderSaveTests`.
