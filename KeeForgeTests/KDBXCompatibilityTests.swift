@@ -92,6 +92,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             let marker = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
             let payload = try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: XCTUnwrap(marker.marker.intendedPayloadPath)))
             XCTAssertEqual(KDBXCrypto.sha512(payload), sha)
+            XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), payload)
             let reopened = try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: loaded.compositeKey,
                 sessionKey: loaded.sessionKey, kdfPolicy: .mainApp)
             let after = try CompatibilitySnapshot(rootGroup: reopened.rootGroup, meta: reopened.meta, sessionKey: loaded.sessionKey,

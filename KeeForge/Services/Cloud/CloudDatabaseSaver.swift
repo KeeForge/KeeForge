@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 
 enum CloudDatabaseSaver {
@@ -32,6 +33,7 @@ enum CloudDatabaseSaver {
         }
         var replaceFile: @Sendable (Data, URL, Data?) throws -> LocalDatabaseSaver.ReplaceOutcome = LocalDatabaseSaver.Environment.live.replaceFileAtomically
         var synchronizeCacheDirectory: @Sendable (URL) throws -> Void = synchronizeDirectory
+        var installMissingCache: @Sendable (Data, URL) throws -> Bool = CloudDatabaseSaver.installMissingCache
         static let live = Environment(
             beginBackgroundTask: LocalDatabaseSaver.Environment.live.beginBackgroundTask,
             endBackgroundTask: LocalDatabaseSaver.Environment.live.endBackgroundTask,
@@ -382,36 +384,74 @@ enum CloudDatabaseSaver {
         try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue) {
             let payloadSHA = KDBXCrypto.sha512(bytes)
             var current = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
-            if let rekey = stored.marker.rekeyContext, current.cloudSyncMetadata?.keyEpoch != rekey.epoch {
+            if let rekey = stored.marker.rekeyContext {
                 do {
+                    guard PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).contains(where: {
+                        $0.id == stored.id && $0.marker == stored.marker
+                    }) else { throw SaveError.rekeyAppliedRemotely }
+                    let publishingEpoch = current.cloudSyncMetadata?.keyEpoch != rekey.epoch
+                    if publishingEpoch {
+                        guard current.lastMasterKeyChangeAt.map({ $0 > stored.marker.createdAt }) != true else {
+                            throw SaveError.rekeyAppliedRemotely
+                        }
+                    } else {
+                        guard current.cloudSyncMetadata?.localHeadOperationID == stored.id else {
+                            throw SaveError.rekeyAppliedRemotely
+                        }
+                    }
                     let cacheURL = environment.cacheURL(current)
-                    let previous = try environment.readData(cacheURL)
-                    let hasOtherPending = PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).contains { $0.id != stored.id }
-                    let filename = backupFilename(for: .now)
-                    let retainedFilename = hasOtherPending ? String(filename.dropLast(5)) + DatabaseListStore.retainedBackupSuffix + ".kdbx" : filename
-                    let backupURL = environment.backupDirectoryURL(current).appendingPathComponent(retainedFilename)
-                    try environment.createDirectory(backupURL.deletingLastPathComponent())
-                    try environment.writeBackup(previous, backupURL)
-                    // Invalidate both current and legacy quick-unlock items before publishing new-key bytes.
-                    KeychainService.deleteCompositeKey(for: current.id)
-                    if let legacy = current.legacyKeychainFilename { KeychainService.deleteLegacyCompositeKey(forFilename: legacy) }
-                    let outcome = try environment.replaceFile(bytes, cacheURL, KDBXCrypto.sha512(previous))
-                    guard outcome.didReplace else { throw SaveError.rekeyAppliedRemotely }
-                    guard let updated = DatabaseListStore.recordCloudLocalCommit(
-                        for: current.id, operationID: stored.id, rekey: rekey, committedAt: stored.marker.confirmedAt ?? .now
-                    ) else { throw SaveError.rekeyAppliedRemotely }
-                    current = updated
+                    let previous = try? environment.readData(cacheURL)
+                    let previousSHA = previous.map(KDBXCrypto.sha512)
+                    guard previousSHA == payloadSHA || (previousSHA != nil && previousSHA == stored.marker.predecessorSHA512)
+                        || (!publishingEpoch && previous == nil) else { throw SaveError.rekeyAppliedRemotely }
+                    if publishingEpoch {
+                        // Invalidate old-key unlock items before publishing new-key bytes.
+                        KeychainService.deleteCompositeKey(for: current.id)
+                        if let legacy = current.legacyKeychainFilename { KeychainService.deleteLegacyCompositeKey(forFilename: legacy) }
+                    }
+                    if previousSHA != payloadSHA {
+                        if let previous {
+                            let hasOtherPending = PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).contains { $0.id != stored.id }
+                            let filename = backupFilename(for: .now)
+                            let retainedFilename = hasOtherPending ? String(filename.dropLast(5)) + DatabaseListStore.retainedBackupSuffix + ".kdbx" : filename
+                            let backupURL = environment.backupDirectoryURL(current).appendingPathComponent(retainedFilename)
+                            try environment.createDirectory(backupURL.deletingLastPathComponent())
+                            try environment.writeBackup(previous, backupURL)
+                            let outcome = try environment.replaceFile(bytes, cacheURL, previousSHA)
+                            guard outcome.didReplace else { throw SaveError.rekeyAppliedRemotely }
+                        } else {
+                            guard try environment.installMissingCache(bytes, cacheURL) else { throw SaveError.rekeyAppliedRemotely }
+                        }
+                    }
+                    guard KDBXCrypto.sha512(try environment.readData(cacheURL)) == payloadSHA else {
+                        throw SaveError.rekeyAppliedRemotely
+                    }
+                    if publishingEpoch {
+                        guard let updated = DatabaseListStore.recordCloudLocalCommit(
+                            for: current.id, operationID: stored.id, rekey: rekey, committedAt: stored.marker.confirmedAt ?? .now
+                        ) else { throw SaveError.rekeyAppliedRemotely }
+                        current = updated
+                    }
                 } catch { throw SaveError.rekeyAppliedRemotely }
             }
             let cacheSHA = (try? environment.readData(environment.cacheURL(current))).map(KDBXCrypto.sha512)
             let currentHead = current.cloudSyncMetadata?.localHeadOperationID
             let headStillPending = PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).contains { $0.id == currentHead }
-            if cacheSHA == payloadSHA, currentHead != stored.id, !headStillPending {
+            if stored.marker.rekeyContext == nil, cacheSHA == payloadSHA, currentHead != stored.id, !headStillPending {
                 current = DatabaseListStore.recordCloudLocalCommit(for: current.id, operationID: stored.id) ?? current
             }
             // Keep the durable ciphertext journal until the cache pathname is durable too.
             do { try environment.synchronizeCacheDirectory(environment.cacheURL(current).deletingLastPathComponent()) }
             catch { return .saved(updatedReference: current) }
+            if let rekey = stored.marker.rekeyContext {
+                guard let latest = DatabaseListStore.databases.first(where: { $0.id == current.id }),
+                      latest.cloudSyncMetadata?.keyEpoch == rekey.epoch,
+                      latest.cloudSyncMetadata?.localHeadOperationID == stored.id,
+                      (try? environment.readData(environment.cacheURL(latest))).map(KDBXCrypto.sha512) == payloadSHA else {
+                    throw SaveError.rekeyAppliedRemotely
+                }
+                current = latest
+            }
             if cacheSHA == payloadSHA, current.cloudSyncMetadata?.localHeadOperationID == stored.id,
                let observed = current.cloudSyncMetadata {
                 let remaining = PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).filter { $0.id != stored.id }
@@ -436,6 +476,20 @@ enum CloudDatabaseSaver {
             _ = try PendingUploadQueue.dropIfUnchanged(stored, environment: environment.queue)
             return .saved(updatedReference: current)
         }
+    }
+
+    private static func installMissingCache(_ bytes: Data, _ cacheURL: URL) throws -> Bool {
+        let directory = cacheURL.deletingLastPathComponent()
+        try createDurableDirectory(at: directory)
+        let stagedURL = directory.appendingPathComponent(".rekey-recovery-\(UUID().uuidString).kdbx")
+        defer { try? FileManager.default.removeItem(at: stagedURL) }
+        try writeAtomicallyAndDurably(bytes, to: stagedURL)
+        // An intervening writer wins; never replace a cache that appeared after the missing-file read.
+        guard Darwin.link(stagedURL.path, cacheURL.path) == 0 else {
+            if errno == EEXIST { return false }
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        return true
     }
 
     static func pushPendingUpload(

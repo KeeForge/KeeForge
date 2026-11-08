@@ -17,6 +17,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
     func testLegacyFinalizedPayloadSurvivesSixOfflineAppAndExtensionSavesAndDiscard() async throws {
         for extensionSave in [false, true] {
             let context = try makeContext()
+            defer { DatabaseListStore.remove(id: context.reference.id) }
             let reference = context.reference
             let cacheURL = DatabaseListStore.cacheLocation(for: reference)
             let backupDirectory = DatabaseListStore.databaseBackupDirectoryURL(for: reference)
@@ -161,6 +162,170 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let uploads = await remote.uploadCount()
         XCTAssertEqual(uploads, 1)
         XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+    }
+
+    func testConfirmedRekeyRestartRestoresOldOrMissingCacheWithSameOrNewKeyFile() async throws {
+        for changesKeyFile in [false, true] {
+            for cacheMissing in [false, true] {
+                let context = try makeContext()
+                defer { DatabaseListStore.remove(id: context.reference.id) }
+                var reference = context.reference
+                let oldKeyFile = Data("old-key-file".utf8)
+                let newKeyFile = changesKeyFile ? Data("new-key-file".utf8) : oldKeyFile
+                reference.keyFileBookmarkData = Data("old-key-bookmark".utf8)
+                reference.keyFileFilename = "old.keyx"
+                DatabaseListStore.update(reference)
+                let oldKey = try KDBXCrypto.compositeKey(password: "old-master", keyFileData: oldKeyFile)
+                let newKey = try KDBXCrypto.compositeKey(password: "new-master", keyFileData: newKeyFile)
+                let header = try LocalDatabaseSaver.Environment.live.extractHeader(context.source, context.key, .mainApp)
+                let original = try ExpressUnlock.write(draft: context.draft, compositeKey: oldKey, header: header, kdfPolicy: .mainApp).data
+                try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
+                let remote = Remote(original)
+                let rekey = PendingUploadQueue.RekeyContext(
+                    keyFileBookmarkData: changesKeyFile ? Data("new-key-bookmark".utf8) : reference.keyFileBookmarkData,
+                    keyFileFilename: changesKeyFile ? "new.keyx" : reference.keyFileFilename)
+                var fault = environment(remote)
+                fault.replaceFile = { bytes, url, sha in
+                    try LocalDatabaseSaver.replaceFileAtomically(bytes, at: url, expectedSHA512: sha,
+                        synchronizeDirectory: { _ in throw POSIXError(.EACCES) })
+                }
+                fault.synchronizeCacheDirectory = { _ in throw POSIXError(.EACCES) }
+                _ = try await CloudDatabaseSaver.save(draft: context.draft, reference: reference, compositeKey: oldKey,
+                    openTimeSHA512: KDBXCrypto.sha512(original), expectedRev: "r0", kdfPolicy: .mainApp,
+                    newCompositeKey: newKey, rekeyContext: rekey, environment: fault)
+                let journal = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
+                let payload = try immutableBytes(journal)
+                let committedReference = current(reference)
+                XCTAssertNotNil(journal.marker.confirmedAt)
+                XCTAssertEqual(committedReference.cloudSyncMetadata?.keyEpoch, rekey.epoch)
+                XCTAssertEqual(committedReference.cloudSyncMetadata?.localHeadOperationID, journal.id)
+                XCTAssertEqual(committedReference.keyFileBookmarkData, rekey.keyFileBookmarkData)
+                let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+                // Emulate a restart that retains new metadata/journal but loses the unsynchronized cache installation.
+                if cacheMissing { try FileManager.default.removeItem(at: cacheURL) }
+                else { try writeAtomicallyAndDurably(original, to: cacheURL) }
+                await remote.setOffline(true)
+                let reloaded = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
+                _ = try await CloudDatabaseSaver.deliver(reloaded, reference: current(reference), environment: environment(remote))
+                let restored = try cache(reference)
+                XCTAssertEqual(restored, payload)
+                _ = try KDBXParser.parseWithMeta(data: restored, compositeKey: newKey, sessionKey: context.sessionKey)
+                XCTAssertThrowsError(try KDBXParser.parseWithMeta(data: restored, compositeKey: oldKey, sessionKey: context.sessionKey))
+                let completed = current(reference)
+                XCTAssertEqual(completed.cloudSyncMetadata?.keyEpoch, rekey.epoch)
+                XCTAssertEqual(completed.cloudSyncMetadata?.localHeadOperationID, journal.id)
+                XCTAssertEqual(completed.keyFileBookmarkData, rekey.keyFileBookmarkData)
+                XCTAssertEqual(completed.keyFileFilename, rekey.keyFileFilename)
+                XCTAssertEqual(completed.lastMasterKeyChangeAt, committedReference.lastMasterKeyChangeAt)
+                XCTAssertEqual(completed.cloudSyncMetadata?.requiresTypedUnlock, committedReference.cloudSyncMetadata?.requiresTypedUnlock)
+                XCTAssertNotNil(completed.cloudSyncMetadata?.lastSyncedAt)
+                XCTAssertTrue(PendingUploadQueue.listMarkers(for: reference.id).isEmpty)
+                let uploads = await remote.uploadCount()
+                XCTAssertEqual(uploads, 1)
+            }
+        }
+    }
+
+    func testConfirmedRekeyRecoveryRetainsJournalAndNeverOverwritesLaterHeadOrEpoch() async throws {
+        for laterEpoch in [false, true] {
+            let context = try makeContext()
+            defer { DatabaseListStore.remove(id: context.reference.id) }
+            let remote = Remote(context.source)
+            var fault = environment(remote)
+            fault.synchronizeCacheDirectory = { _ in throw POSIXError(.EACCES) }
+            _ = try await rekey(context, remote: remote, environment: fault)
+            let retained = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+            let payload = try immutableBytes(retained)
+            let laterID = UUID()
+            let rekeyKey = try KDBXCrypto.compositeKey(password: "new password")
+            let laterKey = laterEpoch ? try KDBXCrypto.compositeKey(password: "later password") : rekeyKey
+            let laterDraft = try edit(payload, key: rekeyKey, sessionKey: context.sessionKey, title: "Later head edit")
+            let header = try LocalDatabaseSaver.Environment.live.extractHeader(payload, rekeyKey, .mainApp)
+            let laterBytes = try ExpressUnlock.write(draft: laterDraft, compositeKey: laterKey, header: header, kdfPolicy: .mainApp).data
+            let laterRekey = laterEpoch ? PendingUploadQueue.RekeyContext(keyFileBookmarkData: Data("later-bookmark".utf8), keyFileFilename: "later.keyx") : nil
+            try PendingUploadQueue.withCommitLock(for: context.reference.id) {
+                try DatabaseListStore.cacheDatabaseCopy(laterBytes, for: context.reference)
+                _ = DatabaseListStore.recordCloudLocalCommit(for: context.reference.id, operationID: laterID,
+                    rekey: laterRekey, committedAt: retained.marker.createdAt.addingTimeInterval(60))
+            }
+            let laterReference = current(context.reference)
+            do {
+                _ = try await CloudDatabaseSaver.deliver(retained, reference: laterReference, environment: environment(remote))
+                XCTFail("A later head must keep the older rekey journal fenced")
+            } catch { XCTAssertEqual(error as? SaveError, .rekeyAppliedRemotely) }
+            XCTAssertEqual(try cache(context.reference), laterBytes)
+            XCTAssertEqual(current(context.reference).cloudSyncMetadata?.localHeadOperationID, laterID)
+            XCTAssertEqual(current(context.reference).cloudSyncMetadata?.keyEpoch, laterReference.cloudSyncMetadata?.keyEpoch)
+            XCTAssertEqual(current(context.reference).keyFileBookmarkData, laterReference.keyFileBookmarkData)
+            let surviving = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+            XCTAssertEqual(try immutableBytes(surviving), payload)
+            let uploads = await remote.uploadCount()
+            XCTAssertEqual(uploads, 1)
+        }
+    }
+
+    func testConfirmedRekeyRecoveryDoesNotOverwriteConcurrentCacheReplacementOrCreation() async throws {
+        for cacheMissing in [false, true] {
+            let context = try makeContext()
+            defer { DatabaseListStore.remove(id: context.reference.id) }
+            let remote = Remote(context.source)
+            var fault = environment(remote)
+            fault.synchronizeCacheDirectory = { _ in throw POSIXError(.EACCES) }
+            _ = try await rekey(context, remote: remote, environment: fault)
+            let retained = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+            let payload = try immutableBytes(retained)
+            let cacheURL = DatabaseListStore.cacheLocation(for: context.reference)
+            if cacheMissing { try FileManager.default.removeItem(at: cacheURL) }
+            else { try writeAtomicallyAndDurably(context.source, to: cacheURL) }
+            let concurrent = Data("concurrent ciphertext must survive".utf8)
+            var resume = environment(remote)
+            let live = CloudDatabaseSaver.Environment.live
+            if cacheMissing {
+                resume.installMissingCache = { bytes, url in
+                    try writeAtomicallyAndDurably(concurrent, to: url)
+                    return try live.installMissingCache(bytes, url)
+                }
+            } else {
+                resume.replaceFile = { bytes, url, sha in
+                    try writeAtomicallyAndDurably(concurrent, to: url)
+                    return try live.replaceFile(bytes, url, sha)
+                }
+            }
+            do {
+                _ = try await CloudDatabaseSaver.deliver(retained, reference: current(context.reference), environment: resume)
+                XCTFail("An intervening cache writer must win")
+            } catch { XCTAssertEqual(error as? SaveError, .rekeyAppliedRemotely) }
+            XCTAssertEqual(try cache(context.reference), concurrent)
+            let surviving = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+            XCTAssertEqual(try immutableBytes(surviving), payload)
+            let uploads = await remote.uploadCount()
+            XCTAssertEqual(uploads, 1)
+        }
+    }
+
+    func testConfirmedRekeyDoesNotReleaseJournalIfCacheChangesDuringDirectorySync() async throws {
+        let context = try makeContext()
+        let remote = Remote(context.source)
+        var fault = environment(remote)
+        fault.synchronizeCacheDirectory = { _ in throw POSIXError(.EACCES) }
+        _ = try await rekey(context, remote: remote, environment: fault)
+        let retained = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        let payload = try immutableBytes(retained)
+        let concurrent = Data("concurrent ciphertext at directory sync".utf8)
+        let cacheURL = DatabaseListStore.cacheLocation(for: context.reference)
+        var resume = environment(remote)
+        resume.synchronizeCacheDirectory = { directory in
+            try writeAtomicallyAndDurably(concurrent, to: cacheURL)
+            try synchronizeDirectory(directory)
+        }
+        do {
+            _ = try await CloudDatabaseSaver.deliver(retained, reference: current(context.reference), environment: resume)
+            XCTFail("Directory sync alone must not release a rekey journal after cache bytes change")
+        } catch { XCTAssertEqual(error as? SaveError, .rekeyAppliedRemotely) }
+        XCTAssertEqual(try cache(context.reference), concurrent)
+        let surviving = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertEqual(try immutableBytes(surviving), payload)
+        XCTAssertNil(current(context.reference).cloudSyncMetadata?.lastSyncedAt)
     }
 
     func testCloudCommitWithUnsyncedCacheDirectoryKeepsDurableJournal() async throws {
