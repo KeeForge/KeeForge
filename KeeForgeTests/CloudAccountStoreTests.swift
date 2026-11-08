@@ -59,4 +59,23 @@ final class CloudAccountStoreTests: XCTestCase {
         XCTAssertTrue(CloudAccountStore.accounts.isEmpty)
     }
 
+    func testConcurrentProvidersPreserveEveryAccountAndCannotUndoSignOut() throws {
+        let signedOut = CloudAccount(id: "signed-out", displayName: "Drive", provider: "googledrive")
+        CloudAccountStore.upsert(signedOut)
+
+        DispatchQueue.concurrentPerform(iterations: 64) { index in
+            if index.isMultiple(of: 4) {
+                CloudAccountStore.remove(provider: signedOut.provider, accountId: signedOut.id)
+            }
+            CloudAccountStore.upsert(CloudAccount(id: "account-\(index)", displayName: "Server \(index)", provider: "webdav"))
+        }
+
+        XCTAssertNil(CloudAccountStore.account(provider: signedOut.provider, accountId: signedOut.id))
+        XCTAssertEqual(CloudAccountStore.accounts(for: "webdav").count, 64)
+        let persisted = try XCTUnwrap(SharedVaultStore.cloudAccountDefaults.data(forKey: "KeeForge.cloudAccounts"))
+        let reloaded = try JSONDecoder().decode([CloudAccount].self, from: persisted)
+        XCTAssertFalse(reloaded.contains(signedOut))
+        XCTAssertEqual(reloaded.count, 64)
+    }
+
 }
