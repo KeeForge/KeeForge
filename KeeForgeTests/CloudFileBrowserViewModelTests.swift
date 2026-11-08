@@ -502,3 +502,166 @@ private final class GatedBrowserCloudProvider: CloudProvider, @unchecked Sendabl
         CloudFileMetadata(modifiedDate: Date(), contentHash: nil, size: Int64(data.count), rev: expectedRev)
     }
 }
+
+@MainActor
+final class CloudNativeSelectionWorkflowTests: XCTestCase {
+    private func selection(_ id: String, account: String = "A") -> CloudDatabaseSelection {
+        CloudDatabaseSelection(
+            provider: "googledrive",
+            account: CloudAccount(id: account, displayName: account, provider: "googledrive"),
+            file: CloudFile(id: id, name: id + ".kdbx", path: id, isFolder: false, modifiedDate: nil, size: nil)
+        )
+    }
+
+    override func setUp() {
+        super.setUp()
+        CloudAccountStore.clearAll()
+    }
+
+    override func tearDown() {
+        CloudAccountStore.clearAll()
+        super.tearDown()
+    }
+
+    func testImportUsesNativeGrantAndKeepsMultipleSelectionsUntilExplicitChoice() async {
+        let provider = NativeSelectionTestProvider()
+        let files = [selection("one"), selection("two")]
+        provider.select = { expected in
+            XCTAssertEqual(expected, "A")
+            return files
+        }
+        let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+        session.accounts = [files[0].account]
+        session.selectedAccountID = "A"
+        let result = await session.selectFiles(expectedAccountID: "A") { ASPresentationAnchor() }
+        guard case .selected(let returned) = result else { return XCTFail("Expected explicit grant") }
+        XCTAssertEqual(returned, files)
+        XCTAssertEqual(session.selectedFiles, files)
+        XCTAssertEqual(provider.authenticateCalls, 0)
+        XCTAssertEqual(provider.listCalls, 0)
+        XCTAssertEqual(session.consumeSelection(files[1].file, accountID: "A"), files[1])
+        XCTAssertNil(session.consumeSelection(files[0].file, accountID: "A"), "A consumed presentation cannot replay selection")
+    }
+
+    func testReconnectRejectsDifferentAccountAndMixedAccountSelections() async {
+        for files in [[selection("one", account: "B")], [selection("one"), selection("two", account: "B")]] {
+            let provider = NativeSelectionTestProvider()
+            provider.select = { _ in files }
+            let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+            session.accounts = [selection("old").account]
+            session.selectedAccountID = "A"
+            let result = await session.selectFiles(expectedAccountID: "A") { ASPresentationAnchor() }
+            guard case .failed(let error) = result else { return XCTFail("Must reject mismatched grant") }
+            XCTAssertEqual(error as? CloudProviderError, .permissionDenied)
+            XCTAssertEqual(session.selectedAccountID, "A")
+            XCTAssertTrue(session.selectedFiles.isEmpty)
+        }
+    }
+
+    func testAccountOnlyDestinationConnectNeverCallsNativePickerOrListing() async {
+        let provider = NativeSelectionTestProvider()
+        let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+        let result = await session.authenticate { ASPresentationAnchor() }
+        guard case .authenticated(let account) = result else { return XCTFail("Empty Drive account can connect") }
+        XCTAssertEqual(account.id, "A")
+        XCTAssertEqual(provider.authenticateCalls, 1)
+        XCTAssertEqual(provider.selectionCalls, 0)
+        XCTAssertEqual(provider.listCalls, 0)
+    }
+
+    func testLatePickerCannotPublishAfterCancelDisappearAccountChangeOrSignout() async {
+        for action in ["cancel", "disappear", "account", "signout", "task"] {
+            let provider = NativeSelectionTestProvider()
+            let entered = AsyncGate()
+            let release = AsyncGate()
+            let files = [selection("late")]
+            provider.select = { _ in entered.open(); await release.wait(); return files }
+            let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+            session.accounts = [files[0].account]
+            session.selectedAccountID = "A"
+            let task = Task { await session.selectFiles(expectedAccountID: "A") { ASPresentationAnchor() } }
+            await entered.wait()
+            switch action {
+            case "cancel": session.cancelPendingAuthentication()
+            case "disappear": session.disappear()
+            case "account": session.selectedAccountID = "B"
+            case "signout": provider.signOut(accountId: "A")
+            default: task.cancel()
+            }
+            release.open()
+            let result = await task.value
+            if action == "signout" {
+                guard case .failed = result else { return XCTFail("Signed-out account must fail") }
+            } else {
+                guard case .cancelled = result else { return XCTFail("Superseded picker must cancel") }
+            }
+            XCTAssertTrue(session.selectedFiles.isEmpty)
+            XCTAssertEqual(session.selectedAccountID, action == "account" ? "B" : "A")
+            XCTAssertFalse(session.isAuthenticating)
+        }
+    }
+
+    func testSupersededPickerCannotReplaceNewSelectionOrClearItsBusyState() async {
+        let provider = NativeSelectionTestProvider()
+        let entered = AsyncGate()
+        let release = AsyncGate()
+        let old = [selection("old")]
+        let fresh = [selection("fresh")]
+        provider.select = { _ in entered.open(); await release.wait(); return old }
+        let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+        let first = Task { await session.selectFiles(expectedAccountID: nil) { ASPresentationAnchor() } }
+        await entered.wait()
+        provider.select = { _ in fresh }
+        _ = await session.selectFiles(expectedAccountID: nil) { ASPresentationAnchor() }
+        release.open()
+        guard case .cancelled = await first.value else { return XCTFail("Old request must cancel") }
+        XCTAssertEqual(session.selectedFiles, fresh)
+        XCTAssertEqual(session.selectedAccountID, "A")
+        XCTAssertFalse(session.isAuthenticating)
+    }
+
+    func testNativeListingCannotAuthorizeUnpickedFileAndCancelledPickerHasNoFallback() async {
+        let provider = NativeSelectionTestProvider()
+        provider.select = { _ in throw CloudProviderError.authenticationCancelled }
+        let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+        session.accounts = [selection("listed").account]
+        session.selectedAccountID = "A"
+        guard case .cancelled = await session.selectFiles(expectedAccountID: "A", presentationAnchor: { ASPresentationAnchor() }) else {
+            return XCTFail("Cancellation must remain cancellation")
+        }
+        XCTAssertNil(session.consumeSelection(selection("listed").file, accountID: "A"))
+        XCTAssertEqual(provider.listCalls, 0)
+    }
+}
+
+private final class NativeSelectionTestProvider: CloudFileSelecting, @unchecked Sendable {
+    let id = "googledrive"
+    let displayName = "Google Drive"
+    let iconName = "externaldrive"
+    @MainActor var select: (String?) async throws -> [CloudDatabaseSelection] = { _ in [] }
+    @MainActor private(set) var authenticateCalls = 0
+    @MainActor private(set) var selectionCalls = 0
+    private(set) var listCalls = 0
+    private var connected = true
+    @MainActor init() {}
+
+    @MainActor func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
+        authenticateCalls += 1
+        let account = CloudAccount(id: "A", displayName: "A", provider: id)
+        CloudAccountStore.upsert(account)
+        return account
+    }
+    @MainActor func selectFiles(from anchor: ASPresentationAnchor, expectedAccountID: String?) async throws -> [CloudDatabaseSelection] {
+        selectionCalls += 1
+        return try await select(expectedAccountID)
+    }
+    func isAuthenticated(accountId: String) -> Bool { connected }
+    func signOut(accountId: String) { connected = false }
+    func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] {
+        listCalls += 1
+        return []
+    }
+    func download(accountId: String, fileId: String, to localURL: URL, progress: @escaping @Sendable (Double) -> Void) async throws -> CloudFileMetadata? { nil }
+    func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata { throw CloudProviderError.fileNotFound }
+    func upload(accountId: String, fileId: String, data: Data, expectedRev: String?, progress: @escaping @Sendable (Double) -> Void) async throws -> CloudFileMetadata { throw CloudProviderError.writeScopeRequired }
+}

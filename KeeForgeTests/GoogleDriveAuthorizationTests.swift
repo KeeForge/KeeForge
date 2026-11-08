@@ -49,6 +49,22 @@ final class GoogleDriveAuthorizationTests: XCTestCase {
         }
     }
 
+    func testAccountCallbackDoesNotRequirePickerIDsButKeepsExactStateAndDuplicateChecks() throws {
+        let redirect = try XCTUnwrap(URL(string: callback))
+        let accountURL = try XCTUnwrap(URL(string: callback + "?state=account-state&code=code"))
+        XCTAssertEqual(try GoogleDriveCallback.validate(url: accountURL, redirectURL: redirect, state: "account-state", purpose: .account), [])
+        XCTAssertThrowsError(try GoogleDriveCallback.pickedIDs(url: accountURL, redirectURL: redirect, state: "account-state"))
+        for invalid in [
+            callback + "?state=other&code=code",
+            callback + "?state=account-state&code=code&code=replayed",
+            callback + "?state=account-state&code=code#fragment",
+            callback + "?state=account-state&code=code&scope=https://www.googleapis.com/auth/drive",
+            callback + "?state=account-state"
+        ] {
+            XCTAssertThrowsError(try GoogleDriveCallback.validate(url: XCTUnwrap(URL(string: invalid)), redirectURL: redirect, state: "account-state", purpose: .account))
+        }
+    }
+
     func testPickerCancellationAndAccountMismatchAreActionableAndNeverRebind() throws {
         let redirect = try XCTUnwrap(URL(string: callback))
         XCTAssertThrowsError(try GoogleDriveCallback.pickedIDs(url: XCTUnwrap(URL(string: callback + "?state=s&error=access_denied")), redirectURL: redirect, state: "s")) {
@@ -297,6 +313,71 @@ final class GoogleDriveAuthorizationTests: XCTestCase {
             catch { XCTAssertEqual(error as? CloudProviderError, cancel ? .authenticationCancelled : .notAuthenticated) }
             XCTAssertNil(credentials.snapshot("permission-A").data)
         }
+    }
+
+    @MainActor
+    func testAccountOnlyAuthorizationConnectsEmptyDriveWithoutSelectingFiles() async throws {
+        let storage = GoogleDriveTestCredentialStorage()
+        let credentials = GoogleDriveCredentialStore(read: { storage.read($0) }, write: { storage.write($0, account: $1) }, delete: { storage.delete($0) })
+        let transport = GoogleDriveTestAboutGate()
+        let auth = GoogleDriveAuthorization(
+            configuration: try XCTUnwrap(GoogleDriveConfiguration(clientID: clientID, redirectURI: callback)),
+            credentials: credentials, transport: transport,
+            interactiveAuthorization: { _, _ in throw CloudProviderError.permissionDenied },
+            accountAuthorization: { _, _ in GoogleDriveInteractiveCredential(accessToken: "account-token", archive: Data("account-archive".utf8), pickedFileIDs: []) }
+        )
+        let task = Task { try await auth.authorizeAccount(from: ASPresentationAnchor(), expectedAccountID: nil) }
+        await transport.waitUntilRequested()
+        await transport.finish()
+        let account = try await task.value
+        XCTAssertEqual(account.id, "permission-A")
+        XCTAssertEqual(credentials.snapshot(account.id).data, Data("account-archive".utf8))
+    }
+
+    @MainActor
+    func testAccountOnlyAuthorizationCannotRebindOrRestoreAfterCancelAndSignout() async throws {
+        for action in ["mismatch", "cancel", "signout"] {
+            let storage = GoogleDriveTestCredentialStorage()
+            let credentials = GoogleDriveCredentialStore(read: { storage.read($0) }, write: { storage.write($0, account: $1) }, delete: { storage.delete($0) })
+            let transport = GoogleDriveTestAboutGate()
+            let auth = GoogleDriveAuthorization(
+                configuration: try XCTUnwrap(GoogleDriveConfiguration(clientID: clientID, redirectURI: callback)),
+                credentials: credentials, transport: transport,
+                accountAuthorization: { _, _ in GoogleDriveInteractiveCredential(accessToken: "account-token", archive: Data("archive".utf8), pickedFileIDs: []) }
+            )
+            let task = Task { try await auth.authorizeAccount(from: ASPresentationAnchor(), expectedAccountID: action == "mismatch" ? "other-account" : "permission-A") }
+            await transport.waitUntilRequested()
+            if action == "cancel" { auth.cancel() }
+            if action == "signout" { auth.remove(accountID: "permission-A") }
+            await transport.finish()
+            do { _ = try await task.value; XCTFail("Stale or mismatched account flow must fail") }
+            catch { XCTAssertEqual(error as? CloudProviderError, action == "cancel" ? .authenticationCancelled : action == "signout" ? .notAuthenticated : .permissionDenied) }
+            XCTAssertNil(credentials.snapshot("permission-A").data)
+        }
+    }
+
+    @MainActor
+    func testPickerAuthorizationStillRejectsEmptyExplicitGrantBeforeCredentialPersistence() async throws {
+        let storage = GoogleDriveTestCredentialStorage()
+        let credentials = GoogleDriveCredentialStore(read: { storage.read($0) }, write: { storage.write($0, account: $1) }, delete: { storage.delete($0) })
+        let auth = GoogleDriveAuthorization(
+            configuration: try XCTUnwrap(GoogleDriveConfiguration(clientID: clientID, redirectURI: callback)), credentials: credentials,
+            interactiveAuthorization: { _, _ in GoogleDriveInteractiveCredential(accessToken: "test", archive: Data("archive".utf8), pickedFileIDs: []) }
+        )
+        do { _ = try await auth.authorize(from: ASPresentationAnchor(), expectedAccountID: nil); XCTFail("Picker requires IDs") }
+        catch { XCTAssertEqual(error as? CloudProviderError, .permissionDenied) }
+        XCTAssertNil(credentials.snapshot("permission-A").data)
+    }
+
+    func testAccountRequestUsesSameSDKPKCEWithoutTriggeringPicker() throws {
+        let configuration = try XCTUnwrap(GoogleDriveConfiguration(clientID: clientID, redirectURI: callback))
+        let request = try GoogleDriveAuthorization.authorizationRequest(configuration: configuration, purpose: .account)
+        XCTAssertNil(request.additionalParameters?["trigger_onepick"])
+        XCTAssertEqual(request.scope, GoogleDriveCallback.scope)
+        XCTAssertEqual(request.codeChallengeMethod, "S256")
+        XCTAssertNotNil(request.codeVerifier)
+        XCTAssertGreaterThan(request.state?.count ?? 0, 20)
+        XCTAssertNil(request.clientSecret)
     }
 
     func testAppAuthRequestUsesSDKGeneratedS256StateAndNativePickerParameters() throws {

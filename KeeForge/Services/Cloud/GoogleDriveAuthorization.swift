@@ -96,6 +96,7 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
     private let transport: any GoogleDriveTransport
     private let refresh: GoogleDriveCredentialRefresh
     private let interactiveAuthorization: GoogleDriveInteractiveAuthorization?
+    private let accountAuthorization: GoogleDriveInteractiveAuthorization?
     private let tokenDeliveryBarrier: (@MainActor @Sendable () async -> Void)?
     @MainActor private var refreshes: [String: (id: UUID, generation: UInt64, lifetime: UInt64, task: Task<String, Error>)] = [:]
     @MainActor private var attempt: UUID?
@@ -103,12 +104,13 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
     @MainActor private var pendingSession: (any OIDExternalUserAgentSession)?
     #endif
 
-    init(configuration: GoogleDriveConfiguration? = .load(), credentials: GoogleDriveCredentialStore = GoogleDriveCredentialStore(), transport: any GoogleDriveTransport = GoogleDriveURLSessionTransport(), refresh: @escaping GoogleDriveCredentialRefresh = GoogleDriveAuthorization.refreshCredential, interactiveAuthorization: GoogleDriveInteractiveAuthorization? = nil, tokenDeliveryBarrier: (@MainActor @Sendable () async -> Void)? = nil) {
+    init(configuration: GoogleDriveConfiguration? = .load(), credentials: GoogleDriveCredentialStore = GoogleDriveCredentialStore(), transport: any GoogleDriveTransport = GoogleDriveURLSessionTransport(), refresh: @escaping GoogleDriveCredentialRefresh = GoogleDriveAuthorization.refreshCredential, interactiveAuthorization: GoogleDriveInteractiveAuthorization? = nil, accountAuthorization: GoogleDriveInteractiveAuthorization? = nil, tokenDeliveryBarrier: (@MainActor @Sendable () async -> Void)? = nil) {
         self.configuration = configuration
         self.credentials = credentials
         self.transport = transport
         self.refresh = refresh
         self.interactiveAuthorization = interactiveAuthorization
+        self.accountAuthorization = accountAuthorization
         self.tokenDeliveryBarrier = tokenDeliveryBarrier
     }
 
@@ -139,7 +141,17 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
     }
 
     @MainActor
+    func authorizeAccount(from anchor: ASPresentationAnchor, expectedAccountID: String?) async throws -> CloudAccount {
+        try await authorize(from: anchor, expectedAccountID: expectedAccountID, purpose: .account).account
+    }
+
+    @MainActor
     func authorize(from anchor: ASPresentationAnchor, expectedAccountID: String?) async throws -> GoogleDriveGrant {
+        try await authorize(from: anchor, expectedAccountID: expectedAccountID, purpose: .fileSelection)
+    }
+
+    @MainActor
+    private func authorize(from anchor: ASPresentationAnchor, expectedAccountID: String?, purpose: GoogleDriveAuthorizationPurpose) async throws -> GoogleDriveGrant {
         #if canImport(AppAuthCore)
         guard let configuration else { throw CloudProviderError.invalidConfiguration }
         guard attempt == nil else { throw CloudProviderError.authenticationCancelled }
@@ -153,12 +165,19 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
         }
         return try await withTaskCancellationHandler {
             let credential: GoogleDriveInteractiveCredential
-            if let interactiveAuthorization {
-                credential = try await interactiveAuthorization(anchor, configuration)
+            if let operation = purpose == .account ? accountAuthorization : interactiveAuthorization {
+                credential = try await operation(anchor, configuration)
             } else {
-                credential = try await interactiveCredential(from: anchor, configuration: configuration, attemptID: id)
+                credential = try await interactiveCredential(from: anchor, configuration: configuration, attemptID: id, purpose: purpose)
             }
             guard attempt == id else { throw CloudProviderError.authenticationCancelled }
+            if purpose == .fileSelection {
+                guard !credential.pickedFileIDs.isEmpty,
+                      credential.pickedFileIDs.allSatisfy(GoogleDriveCallback.validID),
+                      Set(credential.pickedFileIDs).count == credential.pickedFileIDs.count else {
+                    throw CloudProviderError.permissionDenied
+                }
+            }
             let account = try await account(accessToken: credential.accessToken)
             try Self.checkAccount(account.id, expected: expectedAccountID)
             try Task.checkCancellation()
@@ -250,16 +269,18 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
     }
 
     #if canImport(AppAuthCore)
-    static func authorizationRequest(configuration: GoogleDriveConfiguration) throws -> OIDAuthorizationRequest {
+    static func authorizationRequest(configuration: GoogleDriveConfiguration, purpose: GoogleDriveAuthorizationPurpose = .fileSelection) throws -> OIDAuthorizationRequest {
         guard let authorizationURL = URL(string: "https://accounts.google.com/o/oauth2/v2/auth"),
               let tokenURL = URL(string: "https://oauth2.googleapis.com/token") else { throw CloudProviderError.invalidConfiguration }
+        var parameters = ["prompt": "consent", "access_type": "offline"]
+        if purpose == .fileSelection { parameters["trigger_onepick"] = "true" }
         return OIDAuthorizationRequest(
             configuration: OIDServiceConfiguration(authorizationEndpoint: authorizationURL, tokenEndpoint: tokenURL),
             clientId: configuration.clientID,
             scopes: [GoogleDriveCallback.scope],
             redirectURL: configuration.redirectURL,
             responseType: OIDResponseTypeCode,
-            additionalParameters: ["prompt": "consent", "trigger_onepick": "true", "access_type": "offline"]
+            additionalParameters: parameters
         )
     }
 
@@ -273,10 +294,10 @@ final class GoogleDriveAuthorization: GoogleDriveAuthorizing {
     }
 
     @MainActor
-    private func interactiveCredential(from anchor: ASPresentationAnchor, configuration: GoogleDriveConfiguration, attemptID: UUID) async throws -> GoogleDriveInteractiveCredential {
-        let request = try Self.authorizationRequest(configuration: configuration)
+    private func interactiveCredential(from anchor: ASPresentationAnchor, configuration: GoogleDriveConfiguration, attemptID: UUID, purpose: GoogleDriveAuthorizationPurpose) async throws -> GoogleDriveInteractiveCredential {
+        let request = try Self.authorizationRequest(configuration: configuration, purpose: purpose)
         guard let state = request.state, !state.isEmpty else { throw CloudProviderError.invalidConfiguration }
-        let browser = GoogleDriveBrowser(anchor: anchor, redirectURL: configuration.redirectURL, state: state)
+        let browser = GoogleDriveBrowser(anchor: anchor, redirectURL: configuration.redirectURL, state: state, purpose: purpose)
         let authState: OIDAuthState = try await withCheckedThrowingContinuation { continuation in
             pendingSession = OIDAuthState.authState(byPresenting: request, externalUserAgent: browser) { authState, error in
                 MainActor.assumeIsolated {
@@ -352,11 +373,13 @@ private final class GoogleDriveBrowser: NSObject, @preconcurrency OIDExternalUse
     private let anchor: ASPresentationAnchor
     private let redirectURL: URL
     private let state: String
+    private let purpose: GoogleDriveAuthorizationPurpose
+    private var callbackConsumed = false
     private var browser: ASWebAuthenticationSession?
     private(set) var pickedFileIDs: [String] = []
 
-    init(anchor: ASPresentationAnchor, redirectURL: URL, state: String) {
-        self.anchor = anchor; self.redirectURL = redirectURL; self.state = state
+    init(anchor: ASPresentationAnchor, redirectURL: URL, state: String, purpose: GoogleDriveAuthorizationPurpose) {
+        self.anchor = anchor; self.redirectURL = redirectURL; self.state = state; self.purpose = purpose
     }
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor { anchor }
@@ -365,13 +388,14 @@ private final class GoogleDriveBrowser: NSObject, @preconcurrency OIDExternalUse
         guard browser == nil else { return false }
         let browser = ASWebAuthenticationSession(url: request.externalUserAgentRequestURL(), callbackURLScheme: redirectURL.scheme) { [weak self] url, error in
             Task { @MainActor in
-                guard let self, self.browser != nil else { return }
+                guard let self, self.browser != nil, !self.callbackConsumed else { return }
+                self.callbackConsumed = true
                 guard let url else {
                     session.failExternalUserAgentFlowWithError((error ?? CloudProviderError.authenticationCancelled) as NSError)
                     return
                 }
                 do {
-                    self.pickedFileIDs = try GoogleDriveCallback.pickedIDs(url: url, redirectURL: self.redirectURL, state: self.state)
+                    self.pickedFileIDs = try GoogleDriveCallback.validate(url: url, redirectURL: self.redirectURL, state: self.state, purpose: self.purpose)
                     _ = try session.resumeExternalUserAgentFlow(url)
                 } catch {
                     session.failExternalUserAgentFlowWithError(error as NSError)

@@ -3,6 +3,7 @@ import SwiftUI
 struct DatabaseCreationView: View {
     @Bindable var viewModel: DatabaseCreationViewModel
     let onCreated: (CreatedDatabase) -> Void
+    var onRecovered: (DatabaseReference) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
     @State private var isDestinationExporterPresented = false
@@ -19,7 +20,7 @@ struct DatabaseCreationView: View {
             formContent
             .navigationTitle("New Database")
             .navigationBarTitleDisplayMode(.inline)
-            .disabled(viewModel.isCreating)
+            .disabled(viewModel.isCreating || viewModel.isRecovering)
             .safeAreaInset(edge: .top, spacing: 0) {
                 if let errorMessage = viewModel.validationError ?? viewModel.creationError {
                     CreationErrorBanner(message: errorMessage)
@@ -41,7 +42,7 @@ struct DatabaseCreationView: View {
                         viewModel.cancelPendingCreation()
                         dismiss()
                     }
-                    .disabled(viewModel.isCreating)
+                    .disabled(viewModel.isCreating || viewModel.isRecovering)
                     .accessibilityIdentifier("database-create.cancel-button")
                 }
 
@@ -59,18 +60,19 @@ struct DatabaseCreationView: View {
                                     }
                                 }
                             }
-                        case .dropbox, .oneDrive, .webDAV, .ftp:
+                        case .dropbox, .oneDrive, .googleDrive, .webDAV, .ftp:
                             if viewModel.validateForDestinationSelection() {
                                 isCloudFolderPickerPresented = true
                             }
                         }
                     }
-                    .disabled(viewModel.isCreating)
+                    .disabled(viewModel.isCreating || viewModel.isRecovering)
                     .accessibilityIdentifier("database-create.create-button")
                 }
             }
         }
-        .interactiveDismissDisabled(viewModel.isCreating)
+        .interactiveDismissDisabled(viewModel.isCreating || viewModel.isRecovering)
+        .task { await viewModel.refreshPendingCreations() }
         .onDisappear {
             viewModel.cancelPendingCreation()
         }
@@ -113,6 +115,43 @@ struct DatabaseCreationView: View {
 
     private var formContent: some View {
         Form {
+            if !viewModel.pendingCreations.isEmpty || viewModel.recoveryMessage != nil {
+                Section {
+                    ForEach(viewModel.pendingCreations) { item in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(item.filename)
+                            Text(item.destination)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if let issue = item.issue {
+                                Text(issue).font(.caption)
+                            }
+                            if item.isPaused {
+                                Text("Creation paused. Encrypted data is retained until the remote result is known.")
+                                    .font(.caption)
+                            }
+                            Button("Resume Creation") {
+                                Task {
+                                    if let reference = await viewModel.resumeCreation(item) {
+                                        onRecovered(reference)
+                                        dismiss()
+                                    }
+                                }
+                            }
+                            .accessibilityIdentifier("database-create.pending.resume")
+                            Button("Cancel Creation", role: .destructive) {
+                                Task { await viewModel.cancelCreation(item) }
+                            }
+                            .accessibilityIdentifier("database-create.pending.cancel")
+                        }
+                    }
+                    if let message = viewModel.recoveryMessage { Text(message) }
+                } header: {
+                    Text("Pending Cloud Creations")
+                } footer: {
+                    Text("Resuming registers the original encrypted database. Open it from the database list with its original password and key file.")
+                }
+            }
             Section {
                 labeledField(String(localized: "Database name")) {
                     TextField("Database name", text: $viewModel.databaseName)
@@ -272,7 +311,7 @@ struct DatabaseCreationView: View {
             #else
             return String(localized: "After you tap Create, Files will ask where to save the encrypted .kdbx database.")
             #endif
-        case .dropbox, .oneDrive, .webDAV, .ftp:
+        case .dropbox, .oneDrive, .googleDrive, .webDAV, .ftp:
             let providerName = selectedCloudProvider?.displayName ?? String(localized: "cloud")
             #if os(macOS)
             return String(localized: "After you click Create, choose the \(providerName) folder for the encrypted .kdbx database.")

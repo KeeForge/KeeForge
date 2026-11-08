@@ -4,6 +4,7 @@ enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
     case files
     case dropbox
     case oneDrive
+    case googleDrive
     case webDAV
     case ftp
 
@@ -17,6 +18,8 @@ enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
             "Dropbox"
         case .oneDrive:
             "OneDrive"
+        case .googleDrive:
+            "Google Drive"
         case .webDAV:
             "WebDAV"
         case .ftp:
@@ -32,6 +35,8 @@ enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
             .dropbox
         case .oneDrive:
             .oneDrive
+        case .googleDrive:
+            .googleDrive
         case .webDAV:
             .webDAV
         case .ftp:
@@ -51,32 +56,93 @@ enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
     }
 }
 
+struct CloudCreationRecoveryItem: Identifiable, Sendable {
+    let id: UUID
+    let filename: String
+    let destination: String
+    let isPaused: Bool
+    let issue: String?
+}
+
 @MainActor @Observable
 final class DatabaseCreationViewModel {
     typealias PreparationOperation = @Sendable (
         DatabasePreparationRequest, DatabaseCreationService.Environment
     ) async throws -> PreparedDatabase
 
+    typealias CloudCreationOperation = @Sendable (
+        PreparedDatabase, DatabaseCreationDestination, DatabaseCreationService.Environment
+    ) async throws -> CreatedDatabase
+
+    struct RecoveryOperations: Sendable {
+        var list: @Sendable () async throws -> [CloudCreationRecoveryItem]
+        var resume: @Sendable (UUID) async throws -> DatabaseReference
+        var cancel: @Sendable (UUID) async throws -> Void
+
+        static let live = RecoveryOperations(
+            list: {
+                try await Task.detached(priority: .utility) {
+                    try PendingUploadQueue.listCreations().filter { !$0.isConflictCopy }.map {
+                        CloudCreationRecoveryItem(id: $0.operationID, filename: $0.referenceTemplate.filename,
+                            destination: $0.target.path, isPaused: $0.isPaused, issue: $0.lastIssue?.localizedDescription)
+                    }
+                }.value
+            },
+            resume: { id in try await CloudFileCreationCoordinator.resume(operationID: id) },
+            cancel: { id in
+                try await Task.detached(priority: .utility) { try CloudFileCreationCoordinator.cancel(operationID: id) }.value
+            }
+        )
+    }
+
+    private let recoveryOperations: RecoveryOperations
+    private var recoveryGeneration = UUID()
+    private var recoveryListGeneration = UUID()
+    private(set) var pendingCreations: [CloudCreationRecoveryItem] = []
+    private(set) var isRecovering = false
+    private(set) var recoveryMessage: String?
+    private let cloudCreationOperation: CloudCreationOperation
+    private var formRevision: UInt64 = 0
+    private var isClearingSecrets = false
+    private var preparedDestination: DatabaseCreationDestination?
     private let environment: DatabaseCreationService.Environment
     private let preparationOperation: PreparationOperation
     private var isCancelled = false
 
     init(
         environment: DatabaseCreationService.Environment = .live,
+        recoveryOperations: RecoveryOperations = .live,
         preparationOperation: @escaping PreparationOperation = { request, environment in
             try await DatabaseCreationService.prepare(request: request, environment: environment)
+        },
+        cloudCreationOperation: @escaping CloudCreationOperation = { prepared, destination, environment in
+            try await DatabaseCreationService.create(prepared: prepared, destination: destination, environment: environment)
         }
     ) {
+        self.recoveryOperations = recoveryOperations
+        self.cloudCreationOperation = cloudCreationOperation
         self.environment = environment
         self.preparationOperation = preparationOperation
     }
 
-    var databaseName = ""
-    var password = ""
-    var confirmPassword = ""
-    var destinationChoice: DatabaseCreationDestinationChoice = .files
-    var cipher: DatabaseCreationCipher = .aes256
-    var kdfPreset: DatabaseCreationKDFPreset = .balanced
+    var databaseName = "" {
+        didSet { if databaseName != oldValue { invalidatePreparedForm() } }
+    }
+    var password = "" {
+        didSet { if password != oldValue { invalidatePreparedForm() } }
+    }
+    var confirmPassword = "" {
+        didSet { if confirmPassword != oldValue { invalidatePreparedForm() } }
+    }
+    var destinationChoice: DatabaseCreationDestinationChoice = .files {
+        didSet { if destinationChoice != oldValue { invalidatePreparedForm() } }
+    }
+    var cipher: DatabaseCreationCipher = .aes256 {
+        didSet { if cipher != oldValue { invalidatePreparedForm() } }
+    }
+    var kdfPreset: DatabaseCreationKDFPreset = .balanced {
+        didSet { if kdfPreset != oldValue { invalidatePreparedForm() } }
+    }
     private(set) var keyFileData: Data?
     private(set) var keyFileBookmarkData: Data?
     private(set) var keyFileFilename: String?
@@ -121,6 +187,7 @@ final class DatabaseCreationViewModel {
     }
 
     func selectKeyFile(url: URL) throws {
+        invalidatePreparedForm()
         let accessed = url.startAccessingSecurityScopedResource()
         defer {
             if accessed {
@@ -135,6 +202,7 @@ final class DatabaseCreationViewModel {
     }
 
     func clearKeyFile() {
+        invalidatePreparedForm()
         keyFileData = nil
         keyFileBookmarkData = nil
         keyFileFilename = nil
@@ -142,9 +210,10 @@ final class DatabaseCreationViewModel {
     }
 
     func prepareForExport() async -> Bool {
-        guard isCreating == false, isCancelled == false else { return false }
+        guard isCreating == false, isRecovering == false, isCancelled == false else { return false }
         guard validate() else { return false }
 
+        let revision = formRevision
         isCreating = true
         creationError = nil
         defer {
@@ -164,12 +233,12 @@ final class DatabaseCreationViewModel {
                 ),
                 environment
             )
-            guard isCancelled == false, Task.isCancelled == false else { return false }
+            guard isCancelled == false, Task.isCancelled == false, formRevision == revision else { return false }
             preparedDatabase = prepared
             clearSecrets()
             return true
         } catch {
-            guard isCancelled == false, Task.isCancelled == false else { return false }
+            guard isCancelled == false, Task.isCancelled == false, formRevision == revision else { return false }
             creationError = error.localizedDescription
             return false
         }
@@ -198,9 +267,10 @@ final class DatabaseCreationViewModel {
         accountID: String,
         folderPath: String?
     ) async -> CreatedDatabase? {
-        guard isCreating == false, isCancelled == false else { return nil }
+        guard isCreating == false, isRecovering == false, isCancelled == false else { return nil }
         guard validate() else { return nil }
 
+        let revision = formRevision
         isCreating = true
         creationError = nil
         defer {
@@ -208,35 +278,95 @@ final class DatabaseCreationViewModel {
         }
 
         do {
-            let created = try await DatabaseCreationService.create(
-                request: DatabaseCreationRequest(
-                    displayName: databaseName,
-                    destination: .cloud(
-                        provider: provider,
-                        accountId: accountID,
-                        folderPath: folderPath
+            let destination = DatabaseCreationDestination.cloud(provider: provider, accountId: accountID, folderPath: folderPath)
+            let prepared: PreparedDatabase
+            if let existing = preparedDatabase, preparedDestination == destination {
+                prepared = existing
+            } else {
+                prepared = try await preparationOperation(
+                    DatabasePreparationRequest(
+                        displayName: databaseName,
+                        password: password.isEmpty ? nil : password,
+                        keyFileData: keyFileData,
+                        keyFileBookmarkData: keyFileBookmarkData,
+                        keyFileFilename: keyFileFilename,
+                        cipher: cipher,
+                        kdfPreset: kdfPreset
                     ),
-                    password: password.isEmpty ? nil : password,
-                    keyFileData: keyFileData,
-                    keyFileBookmarkData: keyFileBookmarkData,
-                    keyFileFilename: keyFileFilename,
-                    cipher: cipher,
-                    kdfPreset: kdfPreset
-                ),
-                environment: environment
-            )
-            guard isCancelled == false, Task.isCancelled == false else { return nil }
+                    environment
+                )
+                guard isCancelled == false, Task.isCancelled == false, formRevision == revision else { return nil }
+                preparedDatabase = prepared
+                preparedDestination = destination
+            }
+            let created = try await cloudCreationOperation(prepared, destination, environment)
+            guard isCancelled == false, Task.isCancelled == false, formRevision == revision else { return nil }
             clearSecrets()
             preparedDatabase = nil
             return created
         } catch {
-            guard isCancelled == false, Task.isCancelled == false else { return nil }
+            guard isCancelled == false, Task.isCancelled == false, formRevision == revision else { return nil }
             creationError = cloudCreationMessage(for: error)
+            await refreshPendingCreations()
             return nil
         }
     }
 
+    func refreshPendingCreations() async {
+        guard !isCancelled else { return }
+        let generation = UUID()
+        recoveryListGeneration = generation
+        do {
+            let items = try await recoveryOperations.list()
+            guard !isCancelled, !Task.isCancelled, recoveryListGeneration == generation else { return }
+            pendingCreations = items
+        } catch {
+            guard !isCancelled, !Task.isCancelled, recoveryListGeneration == generation else { return }
+            recoveryMessage = error.localizedDescription
+        }
+    }
+
+    func resumeCreation(_ item: CloudCreationRecoveryItem) async -> DatabaseReference? {
+        guard !isCancelled, !isCreating, !isRecovering, pendingCreations.contains(where: { $0.id == item.id }) else { return nil }
+        isRecovering = true
+        recoveryMessage = nil
+        let generation = UUID()
+        recoveryGeneration = generation
+        defer { isRecovering = false }
+        do {
+            let reference = try await recoveryOperations.resume(item.id)
+            guard !isCancelled, !Task.isCancelled, recoveryGeneration == generation else { return nil }
+            recoveryListGeneration = UUID()
+            clearSecrets()
+            clearPreparedDatabase()
+            pendingCreations.removeAll { $0.id == item.id }
+            return reference
+        } catch {
+            guard !isCancelled, !Task.isCancelled, recoveryGeneration == generation else { return nil }
+            recoveryMessage = error.localizedDescription
+            await refreshPendingCreations()
+            return nil
+        }
+    }
+
+    func cancelCreation(_ item: CloudCreationRecoveryItem) async {
+        guard !isCancelled, !isCreating, !isRecovering, pendingCreations.contains(where: { $0.id == item.id }) else { return }
+        isRecovering = true
+        defer { isRecovering = false }
+        do {
+            try await recoveryOperations.cancel(item.id)
+            guard !isCancelled, !Task.isCancelled else { return }
+            if preparedDatabase?.id == item.id { clearPreparedDatabase() }
+            await refreshPendingCreations()
+        } catch {
+            guard !isCancelled, !Task.isCancelled else { return }
+            recoveryMessage = error.localizedDescription
+        }
+    }
+
     func clearSecrets() {
+        isClearingSecrets = true
+        defer { isClearingSecrets = false }
         password = ""
         confirmPassword = ""
         keyFileData = nil
@@ -244,10 +374,19 @@ final class DatabaseCreationViewModel {
 
     func clearPreparedDatabase() {
         preparedDatabase = nil
+        preparedDestination = nil
+    }
+
+    private func invalidatePreparedForm() {
+        guard !isClearingSecrets else { return }
+        formRevision &+= 1
+        clearPreparedDatabase()
     }
 
     func cancelPendingCreation() {
         isCancelled = true
+        recoveryGeneration = UUID()
+        recoveryListGeneration = UUID()
         clearSecrets()
         clearPreparedDatabase()
     }

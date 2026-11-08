@@ -35,11 +35,20 @@ struct GoogleDriveConfiguration: Sendable, Equatable {
     }
 }
 
+enum GoogleDriveAuthorizationPurpose: Sendable {
+    case account
+    case fileSelection
+}
+
 enum GoogleDriveCallback {
     static let scope = "https://www.googleapis.com/auth/drive.file"
 
     static func pickedIDs(url: URL, redirectURL: URL, state: String) throws -> [String] {
-        guard var callback = URLComponents(url: url, resolvingAgainstBaseURL: false),
+        try validate(url: url, redirectURL: redirectURL, state: state, purpose: .fileSelection)
+    }
+
+    static func validate(url: URL, redirectURL: URL, state: String, purpose: GoogleDriveAuthorizationPurpose) throws -> [String] {
+        guard !state.isEmpty, var callback = URLComponents(url: url, resolvingAgainstBaseURL: false),
               callback.fragment == nil else { throw CloudProviderError.invalidConfiguration }
         let items = callback.queryItems ?? []
         callback.query = nil
@@ -51,14 +60,17 @@ enum GoogleDriveCallback {
         if let error = items.first(where: { $0.name == "error" })?.value {
             throw error == "access_denied" ? CloudProviderError.authenticationCancelled : .notAuthenticated
         }
-        guard let code = items.first(where: { $0.name == "code" })?.value, !code.isEmpty,
-              let rawIDs = items.first(where: { $0.name == "picked_file_ids" })?.value else {
+        guard let code = items.first(where: { $0.name == "code" })?.value, !code.isEmpty else {
             throw CloudProviderError.permissionDenied
         }
         if let scopes = items.first(where: { $0.name == "scope" })?.value {
             guard Set(scopes.split(separator: " ").map(String.init)) == [scope] else {
                 throw CloudProviderError.permissionDenied
             }
+        }
+        guard purpose == .fileSelection else { return [] }
+        guard let rawIDs = items.first(where: { $0.name == "picked_file_ids" })?.value else {
+            throw CloudProviderError.permissionDenied
         }
         let ids = rawIDs.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
         guard !ids.isEmpty, ids.allSatisfy(validID), Set(ids).count == ids.count else {

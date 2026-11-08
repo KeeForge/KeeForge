@@ -32,10 +32,14 @@ struct CloudFileBrowserView: View {
     }
 
     var body: some View {
+        ZStack {
         NavigationStack {
             Group {
                 if let provider {
                     if let selectedAccount = session.selectedAccount {
+                        if session.usesNativeFileSelection {
+                            nativeFileSelection(account: selectedAccount)
+                        } else {
                         CloudFolderBrowserView(
                             provider: provider,
                             account: selectedAccount,
@@ -45,6 +49,7 @@ struct CloudFileBrowserView: View {
                                 handleFileSelection(file, accountID: selectedAccount.id)
                             }
                         )
+                        }
                     } else {
                         ContentUnavailableView {
                             Label {
@@ -114,6 +119,8 @@ struct CloudFileBrowserView: View {
             }
         }
         .id(session.selectedAccountID)
+        }
+        .onDisappear { session.disappear() }
         .task {
             session.refreshAccounts()
         }
@@ -131,7 +138,48 @@ struct CloudFileBrowserView: View {
         }
     }
 
+    @ViewBuilder
+    private func nativeFileSelection(account: CloudAccount) -> some View {
+        List {
+            Button("Choose Files") { beginNativeSelection(expectedAccountID: account.id) }
+                .disabled(session.isAuthenticating)
+                .accessibilityIdentifier("cloud.browser.choose-files.button")
+            Button("Reconnect Account") { beginNativeSelection(expectedAccountID: account.id) }
+                .disabled(session.isAuthenticating)
+                .accessibilityIdentifier("cloud.browser.reconnect.button")
+            ForEach(session.selectedFiles, id: \.file.id) { selection in
+                Button {
+                    handleFileSelection(selection.file, accountID: selection.account.id)
+                } label: {
+                    Label(selection.file.name, systemImage: "doc.text")
+                }
+                .accessibilityIdentifier("cloud.browser.file.row")
+            }
+        }
+        .listStyle(.insetGrouped)
+    }
+
+    private func beginNativeSelection(expectedAccountID: String?) {
+        Task {
+            switch await session.selectFiles(expectedAccountID: expectedAccountID, presentationAnchor: presentationAnchor) {
+            case .selected(let selections):
+                if selections.count == 1, let selection = selections.first {
+                    handleFileSelection(selection.file, accountID: selection.account.id)
+                }
+            case .cancelled:
+                break
+            case .failed(let error):
+                onFailure(error)
+                dismiss()
+            }
+        }
+    }
+
     private func beginAuthentication() {
+        if session.usesNativeFileSelection {
+            beginNativeSelection(expectedAccountID: nil)
+            return
+        }
         if session.usesManualConnectionForm {
             isManualConnectPresented = true
             return
@@ -152,14 +200,8 @@ struct CloudFileBrowserView: View {
 
     @MainActor
     private func handleFileSelection(_ file: CloudFile, accountID: String) {
-        guard let selectedAccount = session.selectionAccount(matching: accountID) else { return }
-        onSelect(
-            CloudDatabaseSelection(
-                provider: providerID,
-                account: selectedAccount,
-                file: file
-            )
-        )
+        guard let selection = session.consumeSelection(file, accountID: accountID) else { return }
+        onSelect(selection)
         dismiss()
     }
 
@@ -212,6 +254,7 @@ struct CloudFolderPickerView: View {
     }
 
     var body: some View {
+        ZStack {
         NavigationStack {
             Group {
                 if let provider {
@@ -220,7 +263,7 @@ struct CloudFolderPickerView: View {
                             provider: provider,
                             account: selectedAccount,
                             initialPath: nil,
-                            displayPath: provider.displayName,
+                            displayPath: provider.id == "googledrive" ? String(localized: "My Drive") : provider.displayName,
                             onSelect: { folderPath, displayPath in
                                 handleFolderSelection(
                                     folderPath: folderPath,
@@ -298,7 +341,9 @@ struct CloudFolderPickerView: View {
             }
         }
         .id(session.selectedAccountID)
+        }
         .macSheetFrame(minWidth: 520, minHeight: 460)
+        .onDisappear { session.disappear() }
         .task {
             session.refreshAccounts()
         }
@@ -338,6 +383,7 @@ struct CloudFolderPickerView: View {
     @MainActor
     private func handleFolderSelection(folderPath: String?, displayPath: String, accountID: String) {
         guard let selectedAccount = session.selectionAccount(matching: accountID) else { return }
+        session.disappear()
         onSelect(
             CloudFolderSelection(
                 provider: providerID,
@@ -584,7 +630,7 @@ private struct CloudDestinationFolderBrowserView: View {
                             provider: provider,
                             account: account,
                             initialPath: folder.id,
-                            displayPath: folder.path,
+                            displayPath: provider.id == "googledrive" ? folder.name : folder.path,
                             onSelect: onSelect
                         )
                     } label: {
@@ -615,6 +661,7 @@ private struct CloudDestinationFolderBrowserView: View {
     }
 
     private var navigationTitle: String {
+        if provider.id == "googledrive" { return displayPath }
         if let initialPath,
            let lastComponent = initialPath.split(separator: "/").last,
            !lastComponent.isEmpty {

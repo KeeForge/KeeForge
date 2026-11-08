@@ -501,6 +501,80 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertTrue(DatabaseListStore.databases.isEmpty)
     }
 
+    func testDriveDestinationUsesExistingAvailabilityGate() {
+        XCTAssertEqual(DatabaseCreationDestinationChoice.googleDrive.cloudProviderKind, .googleDrive)
+        XCTAssertEqual(
+            DatabaseCreationDestinationChoice.availableChoices.contains(.googleDrive),
+            CloudProviderKind.googleDrive.isAvailableOnCurrentPlatform
+        )
+    }
+
+    func testCloudRetryPinsPreparedIdentityAndBytesUntilFormOrDestinationChanges() async throws {
+        let prepared = try await DatabaseCreationService.prepare(request: DatabasePreparationRequest(
+            displayName: "Retry Vault", password: "password", keyFileData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil
+        ))
+        let recorder = CloudCreationWorkflowRecorder()
+        let viewModel = DatabaseCreationViewModel(
+            preparationOperation: { _, _ in await recorder.prepared(); return prepared },
+            cloudCreationOperation: { prepared, destination, _ in
+                await recorder.dispatched(prepared, destination: destination)
+                throw CloudProviderError.networkUnavailable
+            }
+        )
+        viewModel.databaseName = "Retry Vault"
+        viewModel.password = "password"
+        viewModel.confirmPassword = "password"
+        for _ in 0..<2 {
+            let result = await viewModel.createInCloud(provider: "googledrive", accountID: "permission-A", folderPath: "opaque_parent_ID")
+            XCTAssertNil(result)
+        }
+        var snapshot = await recorder.snapshot()
+        XCTAssertEqual(snapshot.preparations, 1)
+        XCTAssertEqual(snapshot.ids, [prepared.id, prepared.id])
+        XCTAssertEqual(snapshot.payloads, [prepared.encryptedBytes, prepared.encryptedBytes])
+        XCTAssertEqual(snapshot.destinations, Array(repeating: .cloud(provider: "googledrive", accountId: "permission-A", folderPath: "opaque_parent_ID"), count: 2))
+        XCTAssertEqual(viewModel.preparedDatabase?.id, prepared.id)
+
+        viewModel.password = "changed password"
+        viewModel.confirmPassword = "changed password"
+        XCTAssertNil(viewModel.preparedDatabase)
+        _ = await viewModel.createInCloud(provider: "googledrive", accountID: "permission-A", folderPath: "opaque_parent_ID")
+        _ = await viewModel.createInCloud(provider: "googledrive", accountID: "permission-A", folderPath: nil)
+        snapshot = await recorder.snapshot()
+        XCTAssertEqual(snapshot.preparations, 3)
+        XCTAssertEqual(snapshot.destinations.last, .cloud(provider: "googledrive", accountId: "permission-A", folderPath: nil))
+    }
+
+    func testChangedFormDuringCloudPreparationNeverDispatchesStaleCiphertext() async throws {
+        let prepared = try await DatabaseCreationService.prepare(request: DatabasePreparationRequest(
+            displayName: "Original", password: "password", keyFileData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil
+        ))
+        let suspension = CreationSuspension<PreparedDatabase>()
+        let recorder = CloudCreationWorkflowRecorder()
+        let viewModel = DatabaseCreationViewModel(
+            preparationOperation: { _, _ in try await suspension.wait() },
+            cloudCreationOperation: { prepared, destination, _ in
+                await recorder.dispatched(prepared, destination: destination)
+                throw CloudProviderError.networkUnavailable
+            }
+        )
+        viewModel.databaseName = "Original"
+        viewModel.password = "password"
+        viewModel.confirmPassword = "password"
+        let task = Task { await viewModel.createInCloud(provider: "googledrive", accountID: "A", folderPath: nil) }
+        await suspension.waitUntilStarted()
+        viewModel.databaseName = "Different action"
+        await suspension.resolve(.success(prepared))
+        let result = await task.value
+        XCTAssertNil(result)
+        XCTAssertNil(viewModel.preparedDatabase)
+        XCTAssertNil(viewModel.creationError)
+        let snapshot = await recorder.snapshot()
+        XCTAssertTrue(snapshot.ids.isEmpty)
+    }
+
     // MARK: - Helpers
 
     /// A `.live` environment with only `createCloudFile` swapped for the given
@@ -570,5 +644,21 @@ private actor CreationSuspension<Value: Sendable> {
     func resolve(_ result: Result<Value, Error>) {
         continuation?.resume(with: result)
         continuation = nil
+    }
+}
+
+private actor CloudCreationWorkflowRecorder {
+    private var preparations = 0
+    private var ids: [UUID] = []
+    private var payloads: [Data] = []
+    private var destinations: [DatabaseCreationDestination] = []
+    func prepared() { preparations += 1 }
+    func dispatched(_ prepared: PreparedDatabase, destination: DatabaseCreationDestination) {
+        ids.append(prepared.id)
+        payloads.append(prepared.encryptedBytes)
+        destinations.append(destination)
+    }
+    func snapshot() -> (preparations: Int, ids: [UUID], payloads: [Data], destinations: [DatabaseCreationDestination]) {
+        (preparations, ids, payloads, destinations)
     }
 }
