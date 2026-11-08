@@ -189,16 +189,16 @@ final class PendingUploadRecoveryTests: XCTestCase {
         XCTAssertTrue(PendingUploadRecovery.hasConflicts(for: reference))
         let payloads = try recoveredPayloads(PendingUploadRecovery.lookUpPayloads(for: reference))
         XCTAssertEqual(payloads.map(\.data), [payload])
-        guard payloads.count == 1,
-              case .backup(let recoveredBackupURL) = payloads[0].location else {
-            return XCTFail("Expected the AutoFill save to be recovered from its backup")
-        }
-        XCTAssertEqualFilePaths(
-            recoveredBackupURL,
-            backupDirectory.appendingPathComponent("20260924-100000-000000.kdbx")
-        )
+        let recovered = try XCTUnwrap(payloads.first)
+        XCTAssertEqual(recovered.storedMarker.id, storedMarker.id)
+        XCTAssertEqual(recovered.storedMarker.marker.generation, storedMarker.marker.generation + 1)
+        let retainedPath = try XCTUnwrap(recovered.storedMarker.marker.intendedPayloadPath)
+        XCTAssertEqual(try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: retainedPath)), payload)
+        XCTAssertEqual(try Data(contentsOf: backupDirectory.appendingPathComponent("20260924-100000-000000.kdbx")), payload)
 
         PendingUploadRecovery.dropMarkers([storedMarker])
+        XCTAssertEqual(PendingUploadQueue.listMarkers(for: reference.id).count, 1, "A pre-promotion snapshot must not drop the new generation")
+        PendingUploadRecovery.dropMarkers([recovered.storedMarker])
 
         XCTAssertTrue(PendingUploadQueue.listMarkers(for: reference.id).isEmpty)
         XCTAssertFalse(PendingUploadRecovery.hasConflicts(for: reference))

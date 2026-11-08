@@ -17,6 +17,7 @@
 - Everything here must stay extension-safe on iOS and macOS. A new dependency on another service file needs that file on both allow-lists.
 - A new entry never goes into the synthetic KDBX Root: other KeePass apps cannot read entries there. The fallback is the first top-level group, and the configured group is used only while it exists outside the recycle bin. A group that stops resolving is not cleared from the setting.
 - The live saver owns cloud ciphertext preparation, provisional intent, conditional replacement, finalization and local-head publication under the cross-process commit lock. The extension never uploads or resolves app-only providers.
+- Preserve committed-but-unconfirmed durability through the saver adapter and entry-save result. The extension updates its committed tree/hash and warns before completing a save or passkey registration; the result must not masquerade as an unmodified cache or a durable save.
 - After a save, identities are published and the active AutoFill pointer moves only if the reference has AutoFill enabled.
 - The extension saves with `KDFExecutionPolicy.autoFillExtension`.
 

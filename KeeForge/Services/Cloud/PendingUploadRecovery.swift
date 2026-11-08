@@ -45,6 +45,7 @@ enum PendingUploadRecovery {
         var backupURLs: @Sendable (DatabaseReference) -> [URL]
         var readData: @Sendable (URL) throws -> Data
         var dropMarker: @Sendable (PendingUploadQueue.StoredMarker) throws -> Void
+        var preservePayloads: @Sendable (DatabaseReference) throws -> Void = { _ in }
 
         static let live = Environment(
             listMarkers: { databaseId in
@@ -61,6 +62,11 @@ enum PendingUploadRecovery {
             },
             dropMarker: { storedMarker in
                 _ = try PendingUploadQueue.dropIfUnchanged(storedMarker)
+            },
+            preservePayloads: { reference in
+                try PendingUploadQueue.withCommitLock(for: reference.id) {
+                    try PendingUploadQueue.preserveLegacyPayloads(for: reference)
+                }
             }
         )
     }
@@ -70,6 +76,9 @@ enum PendingUploadRecovery {
     }
 
     static func lookUpPayloads(for reference: DatabaseReference, environment: Environment = .live) -> Lookup {
+        // Return the promoted generation so a later merge can conditionally relinquish its sources.
+        do { try environment.preservePayloads(reference) }
+        catch { return .unavailable }
         let conflictedMarkers = environment.listMarkers(reference.id).filter(\.marker.isConflicted)
         guard conflictedMarkers.isEmpty == false else { return .noConflicts }
 

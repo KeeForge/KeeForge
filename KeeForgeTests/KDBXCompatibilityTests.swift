@@ -82,6 +82,10 @@ final class KDBXCompatibilityTests: XCTestCase {
             var environment = CloudDatabaseSaver.Environment.live
             environment.getMetadata = { _ in throw CloudProviderError.networkUnavailable }
             environment.queue.postDarwinNotification = { }
+            environment.replaceFile = { bytes, url, sha in
+                try LocalDatabaseSaver.replaceFileAtomically(bytes, at: url, expectedSHA512: sha,
+                    synchronizeDirectory: { _ in throw POSIXError(.EACCES) })
+            }
             let result = try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: loaded.compositeKey,
                 openTimeSHA512: KDBXCrypto.sha512(loaded.sourceData), expectedRev: nil, kdfPolicy: .mainApp, environment: environment)
             guard case .saved(let sha, _) = result else { return XCTFail("Offline local commit must succeed") }

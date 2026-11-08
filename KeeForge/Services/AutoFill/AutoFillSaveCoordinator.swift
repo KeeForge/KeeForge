@@ -11,7 +11,15 @@ enum AutoFillSaveCoordinator {
 
     enum SaveResult: Sendable {
         case saved(SaveOutcome)
+        case committedWithoutConfirmedDurability(SaveOutcome)
         case conflict
+
+        var committedOutcome: SaveOutcome? {
+            switch self {
+            case .saved(let outcome), .committedWithoutConfirmedDurability(let outcome): outcome
+            case .conflict: nil
+            }
+        }
     }
 
     struct Environment: Sendable {
@@ -45,26 +53,10 @@ enum AutoFillSaveCoordinator {
                 PasswordGenerator.generate(options: SettingsService.passwordGeneratorOptions)
             },
             saveDraft: { draft, reference, compositeKey, openTimeSHA512 in
-                let result = try await LocalDatabaseSaver.save(
-                    draft: draft,
-                    reference: reference,
-                    compositeKey: compositeKey,
-                    openTimeSHA512: openTimeSHA512,
-                    kdfPolicy: .autoFillExtension,
-                    environment: .autoFillExtension
+                try await AutoFillSaveCoordinator.saveDraft(
+                    draft, reference: reference, compositeKey: compositeKey,
+                    openTimeSHA512: openTimeSHA512, environment: .autoFillExtension
                 )
-                switch result {
-                case .saved(let newSHA512, _):
-                    return .saved(
-                        SaveOutcome(
-                            savedRootGroup: draft.rootGroup,
-                            newSHA512: newSHA512,
-                            enqueuedPendingUpload: false
-                        )
-                    )
-                case .conflict:
-                    return .conflict
-                }
             },
             relativePathForURL: { url in
                 try PendingUploadQueue.makeRelativeAppGroupPath(for: url)
@@ -97,6 +89,36 @@ enum AutoFillSaveCoordinator {
             now: { .now },
             saverOwnsCloudJournal: true
         )
+    }
+
+    static func saveDraft(
+        _ draft: DatabaseDraft, reference: DatabaseReference, compositeKey: SymmetricKey,
+        openTimeSHA512: Data, environment: LocalDatabaseSaver.Environment
+    ) async throws -> SaveResult {
+        let result = try await LocalDatabaseSaver.save(
+            draft: draft,
+            reference: reference,
+            compositeKey: compositeKey,
+            openTimeSHA512: openTimeSHA512,
+            kdfPolicy: .autoFillExtension,
+            environment: environment
+        )
+        switch result {
+        case .saved(let newSHA512, _):
+            return .saved(
+                SaveOutcome(
+                    savedRootGroup: draft.rootGroup,
+                    newSHA512: newSHA512,
+                    enqueuedPendingUpload: false
+                )
+            )
+        case .committedWithoutConfirmedDurability(let newSHA512, _):
+            return .committedWithoutConfirmedDurability(SaveOutcome(
+                savedRootGroup: draft.rootGroup, newSHA512: newSHA512, enqueuedPendingUpload: false
+            ))
+        case .conflict:
+            return .conflict
+        }
     }
 
     static func initialDraft(
@@ -204,7 +226,7 @@ enum AutoFillSaveCoordinator {
         }
 
         switch saveResult {
-        case .saved(let outcome):
+        case .saved(let outcome), .committedWithoutConfirmedDurability(let outcome):
             if var storedMarker = provisionalMarker {
                 storedMarker.marker.openTimeSHA512 = outcome.newSHA512
                 storedMarker.marker.isPayloadFinalized = true
@@ -230,13 +252,15 @@ enum AutoFillSaveCoordinator {
                 environment.populateCredentialStore(reference.id, credentialStoreEntries(from: outcome.savedRootGroup))
             }
 
-            return .saved(
-                SaveOutcome(
-                    savedRootGroup: outcome.savedRootGroup,
-                    newSHA512: outcome.newSHA512,
-                    enqueuedPendingUpload: reference.isCloudBacked
-                )
+            let committed = SaveOutcome(
+                savedRootGroup: outcome.savedRootGroup,
+                newSHA512: outcome.newSHA512,
+                enqueuedPendingUpload: reference.isCloudBacked
             )
+            if case .committedWithoutConfirmedDurability = saveResult {
+                return .committedWithoutConfirmedDurability(committed)
+            }
+            return .saved(committed)
         case .conflict:
             // The saver's open-time SHA gate refused to touch the cache, so
             // the provisional marker never had a payload to cover.

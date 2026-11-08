@@ -1716,7 +1716,7 @@ final class CredentialProviderCoordinator {
                 )
                 guard isRequestActive(generation),
                       activeDatabaseReference?.id == reference.id else { return }
-                guard case .saved(let outcome) = result else {
+                guard let outcome = result.committedOutcome else {
                     fillWithoutAddingWebsite(entry, reason: "conflict")
                     return
                 }
@@ -2101,6 +2101,10 @@ final class CredentialProviderCoordinator {
                     presenter.completeRequest(withSelectedCredential: credential)
                 }
                 return .completed
+            case .committedWithoutConfirmedDurability(let outcome):
+                self.parsedRootGroup = outcome.savedRootGroup
+                self.openTimeSHA512 = outcome.newSHA512
+                return .showWarningAndCancel(SaveDurabilityWarning().localizedDescription)
             case .conflict:
                 return .showWarningAndCancel(String(localized: "Database changed — open KeeForge to save"))
             }
@@ -2185,6 +2189,10 @@ final class CredentialProviderCoordinator {
                     presenter.completeSavePasswordRequest()
                 }
                 return .completed
+            case .committedWithoutConfirmedDurability(let outcome):
+                self.parsedRootGroup = outcome.savedRootGroup
+                self.openTimeSHA512 = outcome.newSHA512
+                return .showWarningAndCancel(SaveDurabilityWarning().localizedDescription)
             case .conflict:
                 return .showWarningAndCancel(String(localized: "Database changed — open KeeForge to save"))
             }
@@ -2353,6 +2361,10 @@ final class CredentialProviderCoordinator {
                     presenter.completeRegistrationRequest(using: credential)
                 }
                 return .completed
+            case .committedWithoutConfirmedDurability(let outcome):
+                self.parsedRootGroup = outcome.savedRootGroup
+                self.openTimeSHA512 = outcome.newSHA512
+                return .showWarningAndCancel(SaveDurabilityWarning().localizedDescription)
             case .conflict:
                 return .showWarningAndCancel(String(localized: "Database changed — open KeeForge to save"))
             }

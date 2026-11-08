@@ -19,6 +19,36 @@ final class CredentialProviderSaveTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testRealLocalReplacementWithDirectorySyncFailurePropagatesCommittedOutcome() async throws {
+        let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: Bundle(for: Self.self))
+        let reference = makeLocalReference()
+        try DatabaseListStore.cacheDatabaseCopy(loaded.sourceData, for: reference)
+        var saver = LocalDatabaseSaver.Environment.autoFillExtension
+        saver.replaceFileAtomically = { data, url, sha in
+            try LocalDatabaseSaver.replaceFileAtomically(data, at: url, expectedSHA512: sha,
+                synchronizeDirectory: { _ in throw POSIXError(.EACCES) })
+        }
+        let injectedSaver = saver
+        let recorder = SaveRecorder()
+        let environment = makeEnvironment(recorder: recorder, saveDraft: { draft, reference, key, sha in
+            try await AutoFillSaveCoordinator.saveDraft(draft, reference: reference, compositeKey: key,
+                openTimeSHA512: sha, environment: injectedSaver)
+        })
+        let result = try await AutoFillSaveCoordinator.saveNewEntry(
+            draftPayload: EntryDraftPayload(title: "Committed extension entry", password: "secret"), reference: reference,
+            rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
+            compositeKey: loaded.compositeKey, openTimeSHA512: KDBXCrypto.sha512(loaded.sourceData), environment: environment)
+        guard case .committedWithoutConfirmedDurability(let outcome) = result else {
+            return XCTFail("Extension must preserve the durability distinction after a real commit")
+        }
+        let bytes = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        XCTAssertEqual(KDBXCrypto.sha512(bytes), outcome.newSHA512)
+        let parsed = try KDBXParser.parseWithMeta(data: bytes, compositeKey: loaded.compositeKey, sessionKey: loaded.sessionKey)
+        XCTAssertTrue(parsed.rootGroup.allEntries.contains { $0.title == "Committed extension entry" })
+        XCTAssertTrue(recorder.enqueuedMarkers.isEmpty)
+        XCTAssertEqual(recorder.populatedDatabaseIDs, [reference.id])
+    }
+
     func test_prepareDraft_usesPrefilledTitleUsernameAndProvidedPassword() {
         let serviceIdentifier = ASCredentialServiceIdentifier(
             identifier: "https://accounts.example.com/sign-in",
@@ -154,6 +184,10 @@ final class CredentialProviderSaveTests: XCTestCase {
                             enqueuedPendingUpload: false
                         )
                     )
+                case .committedWithoutConfirmedDurability(let sha, _):
+                    return .committedWithoutConfirmedDurability(AutoFillSaveCoordinator.SaveOutcome(
+                        savedRootGroup: draft.rootGroup, newSHA512: sha, enqueuedPendingUpload: false
+                    ))
                 case .conflict:
                     return .conflict
                 }

@@ -7,7 +7,27 @@ enum SaveResult: Sendable, Equatable {
     /// `expressKey` opens exactly the saved version (`ExpressUnlockKey`). It
     /// is nil for a hardware-key database.
     case saved(newSHA512: Data, expressKey: ExpressUnlockKey? = nil)
+    /// The replacement committed, but directory sync or file coordination did not confirm durability.
+    case committedWithoutConfirmedDurability(newSHA512: Data, expressKey: ExpressUnlockKey? = nil)
     case conflict(remoteSHA512: Data, remoteData: Data)
+
+    var hasUnconfirmedDurability: Bool {
+        if case .committedWithoutConfirmedDurability = self { return true }
+        return false
+    }
+
+    var committedPayload: (sha512: Data, expressKey: ExpressUnlockKey?)? {
+        switch self {
+        case .saved(let sha, let key), .committedWithoutConfirmedDurability(let sha, let key): (sha, key)
+        case .conflict: nil
+        }
+    }
+}
+
+struct SaveDurabilityWarning: Error, LocalizedError, Sendable {
+    var errorDescription: String? {
+        String(localized: "The database file was replaced, but KeeForge could not confirm that the change will survive a system failure. The file already contains this change. If you changed the master key, use the new key. Keep a backup before closing the database.")
+    }
 }
 
 struct SaveConflict: Sendable, Equatable {
@@ -102,7 +122,15 @@ enum LocalDatabaseSaver {
 
     enum ReplaceOutcome: Sendable, Equatable {
         case replaced
+        case replacedWithoutConfirmedDurability
         case changed(currentData: Data)
+
+        var didReplace: Bool {
+            switch self {
+            case .replaced, .replacedWithoutConfirmedDurability: true
+            case .changed: false
+            }
+        }
     }
 
     struct Environment: Sendable {
@@ -359,7 +387,7 @@ enum LocalDatabaseSaver {
                         cacheURL: location.url, remoteBaseSHA512: baseline.reconciledRemoteSHA512
                     )
                     let outcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512)
-                    guard case .replaced = outcome else {
+                    guard outcome.didReplace else {
                         _ = try? PendingUploadQueue.dropIfUnchanged(intent)
                         return outcome
                     }
@@ -408,6 +436,12 @@ enum LocalDatabaseSaver {
         }
         try? environment.pruneBackups(reference, 5)
 
+        if replaceOutcome == .replacedWithoutConfirmedDurability, !reference.isCloudBacked {
+            return .committedWithoutConfirmedDurability(
+                newSHA512: KDBXCrypto.sha512(newData),
+                expressKey: reference.hardwareKey == nil ? written.expressKey : nil
+            )
+        }
         return .saved(
             newSHA512: KDBXCrypto.sha512(newData),
             expressKey: reference.hardwareKey == nil ? written.expressKey : nil
@@ -510,7 +544,10 @@ enum LocalDatabaseSaver {
     }
     #endif
 
-    private static func replaceFileAtomically(_ data: Data, at url: URL, expectedSHA512: Data?) throws -> ReplaceOutcome {
+    static func replaceFileAtomically(
+        _ data: Data, at url: URL, expectedSHA512: Data?,
+        synchronizeDirectory: @Sendable (URL) throws -> Void = synchronizeDirectory
+    ) throws -> ReplaceOutcome {
         let fileManager = FileManager.default
 
         var coordinatorError: NSError?
@@ -552,11 +589,12 @@ enum LocalDatabaseSaver {
                     try? fileManager.removeItem(at: tempURL)
                     throw error
                 }
-                let directoryFD = Darwin.open(coordinatedURL.deletingLastPathComponent().path, O_RDONLY)
-                guard directoryFD >= 0 else { throw POSIXError(.EIO) }
-                defer { Darwin.close(directoryFD) }
-                guard fsync(directoryFD) == 0 else { throw POSIXError(.EIO) }
-                return .replaced
+                do {
+                    try synchronizeDirectory(coordinatedURL.deletingLastPathComponent())
+                    return .replaced
+                } catch {
+                    return .replacedWithoutConfirmedDurability
+                }
             }
         }
 
@@ -584,6 +622,10 @@ enum LocalDatabaseSaver {
         }
 
         if let coordinatorError {
+            // A post-accessor error cannot turn an installed file into an uncommitted write.
+            if let result, case .success(let outcome) = result, outcome.didReplace {
+                return .replacedWithoutConfirmedDurability
+            }
             throw coordinatorError
         }
 
@@ -646,4 +688,11 @@ private enum AppBackgroundTaskManager {
 
         return application
     }
+}
+
+func synchronizeDirectory(_ directory: URL) throws {
+    let descriptor = Darwin.open(directory.path, O_RDONLY)
+    guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+    defer { Darwin.close(descriptor) }
+    guard fsync(descriptor) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
 }

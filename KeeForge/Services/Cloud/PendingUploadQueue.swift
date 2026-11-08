@@ -549,6 +549,7 @@ enum PendingUploadQueue {
         cacheURL: URL, rekeyContext: RekeyContext? = nil,
         remoteBaseSHA512: Data? = nil, environment: Environment = .live
     ) throws -> StoredMarker {
+        try preserveLegacyPayloads(for: reference, environment: environment)
         let currentSHA = KDBXCrypto.sha512(currentData)
         let markers = try listMarkers(for: reference.id, environment: environment).map { try recoverPrepared($0, environment: environment) }
         guard !markers.contains(where: { $0.marker.rekeyContext != nil }) else {
@@ -582,6 +583,24 @@ enum PendingUploadQueue {
         let stored = StoredMarker(id: operationID, fileURL: directory.appendingPathComponent("\(operationID.uuidString).json"), marker: marker)
         try persist(stored, environment: environment)
         return stored
+    }
+
+    /// Caller holds the commit lock before replacing cache or rotating ordinary backups.
+    static func preserveLegacyPayloads(for reference: DatabaseReference, environment: Environment = .live) throws {
+        let backups = DatabaseListStore.recentBackups(for: reference)
+        for stored in listMarkers(for: reference.id, environment: environment)
+        where stored.marker.isPayloadFinalized == true && stored.marker.intendedPayloadPath == nil {
+            let candidates = [resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment)] + backups
+            guard let bytes = candidates.lazy.compactMap({ try? environment.readData($0) })
+                .first(where: { KDBXCrypto.sha512($0) == stored.marker.openTimeSHA512 }) else { continue }
+            let payloadURL = stored.fileURL.deletingPathExtension().appendingPathExtension("kdbx")
+            try environment.writeMarkerAtomically(bytes, payloadURL)
+            var promoted = stored
+            promoted.marker.intendedPayloadSHA512 = stored.marker.openTimeSHA512
+            promoted.marker.intendedPayloadPath = try makeRelativeAppGroupPath(for: payloadURL, environment: environment)
+            // A stale generation aborts the caller's replacement/prune instead of publishing stale ownership.
+            _ = try update(promoted, environment: environment)
+        }
     }
 
     /// Only new journals contain enough evidence to recover an interrupted finalization.

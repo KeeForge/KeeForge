@@ -2582,7 +2582,7 @@ final class DatabaseViewModel {
             guard expectedLockCycleID == lockCycleID else { return }
 
             switch saveResult {
-            case .saved(let newSHA512, let expressKey):
+            case .saved(let newSHA512, let expressKey), .committedWithoutConfirmedDurability(let newSHA512, let expressKey):
                 replaceExpressUnlockKeyAfterSave(with: expressKey)
                 rootGroup = snapshot.rootGroup
                 unlockedMeta = snapshot.meta
@@ -2595,6 +2595,10 @@ final class DatabaseViewModel {
                 // The saver drops pending uploads this save already contains.
                 refreshPendingUploadConflict()
 
+                if saveResult.hasUnconfirmedDurability {
+                    if self.draft?.pendingEdits == snapshot.pendingEdits { self.draft = nil }
+                    throw SaveDurabilityWarning()
+                }
                 guard let grown = self.draft, grown.pendingEdits != snapshot.pendingEdits else {
                     self.draft = nil
                     lastSaveAttemptFailed = false
@@ -2720,7 +2724,7 @@ final class DatabaseViewModel {
         }
 
         switch saveResult {
-        case .saved(let newSHA512, _):
+        case .saved(let newSHA512, _), .committedWithoutConfirmedDurability(let newSHA512, _):
             // Keychain and reference reflect the on-disk file, so they update
             // even if the session locked mid-flight; the in-memory secrets must
             // not resurrect behind the lock screen. The express item belonged
@@ -2739,13 +2743,14 @@ final class DatabaseViewModel {
                 // is dismissible); their own save() no-ops on `isSaving`, so
                 // flush them here under the new key. The task starts after
                 // this function's defer resets `isSaving`.
-                if draft?.isDirty == true {
+                if !saveResult.hasUnconfirmedDurability, draft?.isDirty == true {
                     Task { await self.saveHandlingError() }
                 }
             }
         case .conflict:
             throw RekeyError.conflict
         }
+        if saveResult.hasUnconfirmedDurability { throw SaveDurabilityWarning() }
     }
 
     /// Returns whether the quick-unlock item now holds `newCompositeKey`.
@@ -2862,7 +2867,7 @@ final class DatabaseViewModel {
         }
 
         switch saveResult {
-        case .saved(let newSHA512, _):
+        case .saved(let newSHA512, _), .committedWithoutConfirmedDurability(let newSHA512, _):
             // The reference carries the new cloud revision, so it updates even
             // if the session locked mid-flight. The new KDF settings have no
             // express key until the next unlock or save stores one.
@@ -2872,13 +2877,14 @@ final class DatabaseViewModel {
                 self.openTimeSHA512 = newSHA512
                 // Same as `changeMasterKey`: edits that landed behind this
                 // save no-oped on `isSaving`, so flush them once it resets.
-                if draft?.isDirty == true {
+                if !saveResult.hasUnconfirmedDurability, draft?.isDirty == true {
                     Task { await self.saveHandlingError() }
                 }
             }
         case .conflict:
             throw EncryptionSettingsError.conflict
         }
+        if saveResult.hasUnconfirmedDurability { throw SaveDurabilityWarning() }
     }
 
     private struct ConflictCopyRequest {
@@ -3028,7 +3034,7 @@ final class DatabaseViewModel {
         guard expectedLockCycleID == lockCycleID else { return }
 
         switch saveResult {
-        case .saved(let newSHA512, let expressKey):
+        case .saved(let newSHA512, let expressKey), .committedWithoutConfirmedDurability(let newSHA512, let expressKey):
             replaceExpressUnlockKeyAfterSave(with: expressKey)
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
@@ -3040,6 +3046,7 @@ final class DatabaseViewModel {
             refreshDatabaseReference()
             populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
             refreshPendingUploadConflict()
+            if saveResult.hasUnconfirmedDurability { throw SaveDurabilityWarning() }
             mergeSummaryMessage = Self.mergeSummaryMessage(for: merged.summary)
         case .conflict(let remoteSHA512, let remoteData):
             // Strictly different bytes from the conflict just merged — the gate
@@ -3156,12 +3163,14 @@ final class DatabaseViewModel {
         )
 
         switch saveResult {
-        case .saved(let newSHA512, let expressKey):
+        case .saved(let newSHA512, let expressKey), .committedWithoutConfirmedDurability(let newSHA512, let expressKey):
             let resolvedMarkers = payloads.map(\.storedMarker)
             // Durable ownership must transfer even if the initiating session locked.
-            await Task.detached(priority: .userInitiated) {
-                try? PendingUploadQueue.transferMergedSources(resolvedMarkers, toPayloadSHA512: newSHA512, for: reference.id)
-            }.value
+            if !saveResult.hasUnconfirmedDurability {
+                await Task.detached(priority: .userInitiated) {
+                    try? PendingUploadQueue.transferMergedSources(resolvedMarkers, toPayloadSHA512: newSHA512, for: reference.id)
+                }.value
+            }
             guard expectedLockCycleID == lockCycleID else { return }
 
             replaceExpressUnlockKeyAfterSave(with: expressKey)
@@ -3174,6 +3183,7 @@ final class DatabaseViewModel {
             populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
             refreshPendingUploadConflict()
             mergeSummaryMessage = nil
+            if saveResult.hasUnconfirmedDurability { throw SaveDurabilityWarning() }
         case .conflict:
             guard expectedLockCycleID == lockCycleID else { return }
             pendingUploadMergeFailure = .cloudChanged
@@ -3270,18 +3280,22 @@ final class DatabaseViewModel {
                 nil,
                 nil
             )
-            guard case .saved(let newSHA512, let expressKey)? = saveResult else {
+            guard let committed = saveResult?.committedPayload else {
                 if case .conflict? = saveResult {
                     return .fileChangedSinceOpen
                 }
                 return .settledOrDeferred
             }
 
-            // Not gated on the lock cycle: the file holds these saves now.
-            let resolvedSaves = mergedSaves
-            await Task.detached(priority: .userInitiated) {
-                resolvedSaves.forEach(PendingLocalSaveStore.remove)
-            }.value
+            let newSHA512 = committed.sha512
+            let expressKey = committed.expressKey
+            // Only a durable replacement can relinquish the retained source ciphertext.
+            if saveResult?.hasUnconfirmedDurability == false {
+                let resolvedSaves = mergedSaves
+                await Task.detached(priority: .userInitiated) {
+                    resolvedSaves.forEach(PendingLocalSaveStore.remove)
+                }.value
+            }
             guard expectedLockCycleID == lockCycleID else { return .settledOrDeferred }
 
             replaceExpressUnlockKeyAfterSave(with: expressKey)
@@ -3292,6 +3306,10 @@ final class DatabaseViewModel {
             draft = draftReplayingEditsArriving(after: localDraft, onto: mergedDraft)
             refreshDatabaseReference()
             populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
+            if saveResult?.hasUnconfirmedDurability == true {
+                saveError = DatabaseSaveError(SaveDurabilityWarning())
+                return .settledOrDeferred
+            }
         }
 
         for unmergeable in unmergeableSaves {

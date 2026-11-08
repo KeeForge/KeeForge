@@ -18,6 +18,70 @@ final class PendingUploadQueueTests: XCTestCase {
         try super.tearDownWithError()
     }
 
+    func testLegacyPromotionNeverIdentifiesProvisionalOrUnknownPayload() throws {
+        let environment = makeEnvironment()
+        for finalized in [nil, false] as [Bool?] {
+            let reference = promotionReference()
+            let bytes = Data("base ciphertext is not proof of an AutoFill result".utf8)
+            var marker = makeMarker(databaseId: reference.id, openTimeSHA512: KDBXCrypto.sha512(bytes))
+            marker.isPayloadFinalized = finalized
+            let url = PendingUploadQueue.resolveAppGroupURL(for: marker.encryptedBytesCacheURL, environment: environment)
+            try environment.createDirectory(url.deletingLastPathComponent())
+            try bytes.write(to: url)
+            let original = try PendingUploadQueue.enqueue(marker, notifying: false, environment: environment)
+            try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment) {
+                try PendingUploadQueue.preserveLegacyPayloads(for: reference, environment: environment)
+            }
+            let current = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id, environment: environment).first)
+            XCTAssertEqual(current.id, original.id)
+            XCTAssertEqual(current.marker, original.marker)
+            XCTAssertNil(current.marker.intendedPayloadPath)
+            XCTAssertNil(current.marker.intendedPayloadSHA512)
+        }
+    }
+
+    func testLegacyPromotionCASNeverRevertsConcurrentMarkerUpdateOrResurrectsDeletion() throws {
+        for removeMarker in [false, true] {
+            let reference = promotionReference()
+            let baseEnvironment = makeEnvironment()
+            let bytes = Data("finalized installed ciphertext".utf8)
+            let marker = makeMarker(databaseId: reference.id, openTimeSHA512: KDBXCrypto.sha512(bytes))
+            let url = PendingUploadQueue.resolveAppGroupURL(for: marker.encryptedBytesCacheURL, environment: baseEnvironment)
+            try baseEnvironment.createDirectory(url.deletingLastPathComponent())
+            try bytes.write(to: url)
+            let original = try PendingUploadQueue.enqueue(marker, notifying: false, environment: baseEnvironment)
+            var environment = baseEnvironment
+            environment.writeMarkerAtomically = { data, destination in
+                try baseEnvironment.writeMarkerAtomically(data, destination)
+                if destination.pathExtension == "kdbx" {
+                    if removeMarker {
+                        _ = try PendingUploadQueue.dropIfUnchanged(original, environment: baseEnvironment)
+                    } else {
+                        _ = try PendingUploadQueue.markConflicted(original, environment: baseEnvironment)
+                    }
+                }
+            }
+            XCTAssertThrowsError(try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment) {
+                try PendingUploadQueue.preserveLegacyPayloads(for: reference, environment: environment)
+            }) { error in
+                XCTAssertEqual(error as? PendingUploadQueue.UpdateError, removeMarker ? .markerNoLongerExists : .markerChanged)
+            }
+            let remaining = PendingUploadQueue.listMarkers(for: reference.id, environment: baseEnvironment)
+            if removeMarker { XCTAssertTrue(remaining.isEmpty) }
+            else {
+                XCTAssertEqual(remaining.first?.marker.generation, 1)
+                XCTAssertEqual(remaining.first?.marker.isConflicted, true)
+                XCTAssertNil(remaining.first?.marker.intendedPayloadPath)
+            }
+        }
+    }
+
+    private func promotionReference() -> DatabaseReference {
+        DatabaseReference(id: UUID(), nickname: nil, filename: "legacy.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
+            addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
+    }
+
     func test_enqueue_failedMarkerWriteDoesNotNotify() throws {
         let notificationCounter = Counter()
         let environment = makeEnvironment(

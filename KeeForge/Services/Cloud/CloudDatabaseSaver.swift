@@ -31,6 +31,7 @@ enum CloudDatabaseSaver {
             return provider.writeGuarantee(expectedRev: rev, byteCount: count)
         }
         var replaceFile: @Sendable (Data, URL, Data?) throws -> LocalDatabaseSaver.ReplaceOutcome = LocalDatabaseSaver.Environment.live.replaceFileAtomically
+        var synchronizeCacheDirectory: @Sendable (URL) throws -> Void = synchronizeDirectory
         static let live = Environment(
             beginBackgroundTask: LocalDatabaseSaver.Environment.live.beginBackgroundTask,
             endBackgroundTask: LocalDatabaseSaver.Environment.live.endBackgroundTask,
@@ -236,7 +237,7 @@ enum CloudDatabaseSaver {
             intent = prepared
             if rekeyContext != nil { return .replaced }
             let outcome = try environment.replaceFile(newData, cacheURL, currentSHA512)
-            guard case .replaced = outcome else {
+            guard outcome.didReplace else {
                 _ = try? PendingUploadQueue.dropIfUnchanged(prepared, environment: environment.queue)
                 return outcome
             }
@@ -395,7 +396,7 @@ enum CloudDatabaseSaver {
                     KeychainService.deleteCompositeKey(for: current.id)
                     if let legacy = current.legacyKeychainFilename { KeychainService.deleteLegacyCompositeKey(forFilename: legacy) }
                     let outcome = try environment.replaceFile(bytes, cacheURL, KDBXCrypto.sha512(previous))
-                    guard case .replaced = outcome else { throw SaveError.rekeyAppliedRemotely }
+                    guard outcome.didReplace else { throw SaveError.rekeyAppliedRemotely }
                     guard let updated = DatabaseListStore.recordCloudLocalCommit(
                         for: current.id, operationID: stored.id, rekey: rekey, committedAt: stored.marker.confirmedAt ?? .now
                     ) else { throw SaveError.rekeyAppliedRemotely }
@@ -408,6 +409,9 @@ enum CloudDatabaseSaver {
             if cacheSHA == payloadSHA, currentHead != stored.id, !headStillPending {
                 current = DatabaseListStore.recordCloudLocalCommit(for: current.id, operationID: stored.id) ?? current
             }
+            // Keep the durable ciphertext journal until the cache pathname is durable too.
+            do { try environment.synchronizeCacheDirectory(environment.cacheURL(current).deletingLastPathComponent()) }
+            catch { return .saved(updatedReference: current) }
             if cacheSHA == payloadSHA, current.cloudSyncMetadata?.localHeadOperationID == stored.id,
                let observed = current.cloudSyncMetadata {
                 let remaining = PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).filter { $0.id != stored.id }

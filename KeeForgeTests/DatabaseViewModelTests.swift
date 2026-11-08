@@ -6580,6 +6580,59 @@ final class DatabaseViewModelTests: XCTestCase {
 
     // MARK: - Change master key (#59)
 
+    func testCommittedRekeyWithDirectorySyncFailureUpdatesStoredKeysAndAssociationAcrossLock() async throws {
+        final class CommitHook: @unchecked Sendable {
+            var apply: (@MainActor @Sendable () -> Void)?
+        }
+        for lockDuringSave in [false, true] {
+            let reference = try makeIconManagementReference()
+            DatabaseListStore.update(reference)
+            let storedKeys = RekeyedKeyCapture()
+            let hook = CommitHook()
+            let vm = try makeViewModel(reference: reference,
+                localSaveOperation: { draft, reference, key, sha, reconciled, newKey, settings in
+                    var environment = LocalDatabaseSaver.Environment.live
+                    environment.replaceFileAtomically = { bytes, url, expected in
+                        try LocalDatabaseSaver.replaceFileAtomically(bytes, at: url, expectedSHA512: expected,
+                            synchronizeDirectory: { _ in throw POSIXError(.EACCES) })
+                    }
+                    let result = try await LocalDatabaseSaver.save(draft: draft, reference: reference,
+                        compositeKey: key, openTimeSHA512: sha, reconciledRemoteSHA512: reconciled,
+                        kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+                    await hook.apply?()
+                    return result
+                },
+                storedKeyPresenceCheck: { _ in true },
+                storedKeyStoreOperation: { key, _ in storedKeys.record(oldKey: nil, newKey: key) })
+            await vm.unlock(password: fixturePassword)
+            if lockDuringSave { hook.apply = { [weak vm] in vm?.lock() } }
+            let keyFile = Data("new-keyfile".utf8)
+            let bookmark = Data("new-bookmark".utf8)
+            do {
+                try await vm.changeMasterKey(newPassword: "new-master", newKeyFileData: keyFile,
+                    newKeyFileBookmarkData: bookmark, newKeyFileFilename: "new.keyx")
+                XCTFail("Committed rekey must surface the durability warning")
+            } catch is SaveDurabilityWarning {}
+            let newKey = try KDBXCrypto.compositeKey(password: "new-master", keyFileData: keyFile)
+            XCTAssertEqual(storedKeys.newKey, newKey)
+            let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            XCTAssertEqual(stored.keyFileBookmarkData, bookmark)
+            XCTAssertEqual(stored.keyFileFilename, "new.keyx")
+            let url = try XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: stored))
+            let bytes = try Data(contentsOf: url)
+            _ = try KDBXParser.parseWithMeta(data: bytes, compositeKey: newKey, sessionKey: SymmetricKey(size: .bits256))
+            XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: stored)), bytes)
+            if lockDuringSave {
+                XCTAssertNil(vm.compositeKey)
+                XCTAssertNil(vm.rootGroup)
+            } else {
+                XCTAssertEqual(vm.compositeKey, newKey)
+                XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(bytes))
+            }
+            XCTAssertFalse(vm.isSaving)
+        }
+    }
+
     func testChangeMasterKeyToNewPasswordUpdatesSessionKeyAndHash() async throws {
         let savedHash = Data("rekeyed-hash".utf8)
         let capturedKeys = RekeyedKeyCapture()

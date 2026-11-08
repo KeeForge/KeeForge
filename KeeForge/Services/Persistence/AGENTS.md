@@ -44,6 +44,8 @@
 
 ### Saves, backups, creation
 
+- A successful replacement followed by directory-sync or post-accessor coordination failure is a committed result with unconfirmed durability, never a pre-replace throw. Apply its SHA, keys, association and cache; warn without automatically repeating encryption. `saved` still requires durable ciphertext (the immutable cloud journal can supply it). A failure before replacement leaves the session's write key unchanged.
+- Before ordinary backup rotation, hold the cloud commit lock and promote each recoverable finalized legacy upload payload into the same queue by exact SHA and generation CAS. Promotion failure prevents deletion; unknown/provisional markers never acquire an invented payload.
 - After replacing a local database file, a failed refresh of its separate AutoFill cache does not undo the save. `LocalDatabaseSaver` removes the older copy so AutoFill cannot fill stale credentials; if both refresh and removal fail, the saved file remains authoritative and a later unlock or save can refresh the cache.
 - `PendingLocalSaveStore` retains each Mac AutoFill save to a bookmarked local database under `pending-local-saves/<database UUID>/`. The extension records the encrypted result before replacing its shared copy; the app merges pending changes into the unlocked session, saves the original file under its baseline check, and removes each pending save only after success. Merge again after unlock, save, and app activation, and before rekey. A file conflict during rekey must ask for reload; an unmergeable save moves to a retained backup that pruning cannot remove. While pending, cache refresh must not replace the copy AutoFill serves.
 

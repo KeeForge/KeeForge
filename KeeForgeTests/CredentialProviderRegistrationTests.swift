@@ -297,6 +297,28 @@ final class CredentialProviderRegistrationTests: XCTestCase {
 
     // MARK: - Save
 
+    func test_save_committedWithoutDurabilityUpdatesSessionAndWarnsWithoutCompletingRegistration() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let reference = try seedResolvableDefaultDatabase()
+        seedUnlockedVaultState(coordinator)
+        coordinator.activeDatabaseReference = reference
+        coordinator.saveEnvironment = makeRecordingEnvironment(Recorder(), saveDraft: { draft, _, _, _ in
+            .committedWithoutConfirmedDurability(AutoFillSaveCoordinator.SaveOutcome(
+                savedRootGroup: draft.rootGroup, newSHA512: Data("committed-sha".utf8), enqueuedPendingUpload: false))
+        })
+        coordinator.pendingPasskeyRegistrationRequest = makeRegistrationRequest()
+        XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
+        let creator = try XCTUnwrap(presenter.passkeyCreator)
+        let outcome = await creator.onSave("Committed passkey")
+        guard case .showWarningAndCancel(let message) = outcome else {
+            return XCTFail("Unconfirmed durability must be visible before registration completes")
+        }
+        XCTAssertEqual(message, SaveDurabilityWarning().localizedDescription)
+        XCTAssertNil(presenter.completedRegistration)
+        XCTAssertEqual(coordinator.openTimeSHA512, Data("committed-sha".utf8))
+        XCTAssertTrue(coordinator.parsedRootGroup?.allEntries.contains { $0.title == "Committed passkey" } == true)
+    }
+
     func test_save_happyPath_savesEntryThenCompletesRegistration() async throws {
         let (coordinator, presenter) = makeCoordinator()
         let reference = try TestDatabaseSupport.makeReference(

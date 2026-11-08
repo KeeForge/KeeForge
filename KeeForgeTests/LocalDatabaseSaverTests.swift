@@ -5,6 +5,76 @@ import XCTest
 final class LocalDatabaseSaverTests: XCTestCase {
     private let fixturePassword = "testpassword123"
 
+    func testRealReplacementThenDirectorySyncFailureCommitsRekeyAndRefreshesCache() async throws {
+        let url = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: url)
+        let context = try makeDirtySaveContext(databaseURL: url, entryTitle: "Committed rekey")
+        let original = try Data(contentsOf: url)
+        try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
+        let newKey = try KDBXCrypto.compositeKey(password: "new-master")
+        var environment = LocalDatabaseSaver.Environment.live
+        environment.replaceFileAtomically = { bytes, url, sha in
+            try LocalDatabaseSaver.replaceFileAtomically(bytes, at: url, expectedSHA512: sha,
+                synchronizeDirectory: { _ in throw POSIXError(.EACCES) })
+        }
+        let result = try await LocalDatabaseSaver.save(
+            draft: context.draft, reference: reference, compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512, kdfPolicy: .mainApp,
+            newCompositeKey: newKey, environment: environment
+        )
+        guard case .committedWithoutConfirmedDurability(let sha, let expressKey) = result else {
+            return XCTFail("A committed replacement must not be reported as a pre-commit error or durable save")
+        }
+        let bytes = try Data(contentsOf: url)
+        XCTAssertNotEqual(bytes, original)
+        XCTAssertEqual(KDBXCrypto.sha512(bytes), sha)
+        XCTAssertNotNil(expressKey)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+        XCTAssertTrue(try DatabaseListStore.recentBackups(for: reference).contains { try Data(contentsOf: $0) == original })
+        let reopened = try KDBXParser.parseWithMeta(data: bytes, compositeKey: newKey, sessionKey: context.draft.writerSessionKey)
+        XCTAssertTrue(reopened.rootGroup.allEntries.contains { $0.title == "Committed rekey" })
+        XCTAssertThrowsError(try KDBXParser.parseWithMeta(data: bytes, compositeKey: context.compositeKey,
+            sessionKey: context.draft.writerSessionKey))
+    }
+
+    func testWriteBackSourceSurvivesCommittedReplacementWithUnconfirmedDurability() async throws {
+        let url = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: url)
+        let context = try makeDirtySaveContext(databaseURL: url, entryTitle: "Retained write-back")
+        var environment = LocalDatabaseSaver.Environment.live
+        environment.resolveLocation = { _ in .init(url: url, usesSecurityScope: false, awaitsWriteBack: true) }
+        environment.replaceFileAtomically = { data, target, sha in
+            try LocalDatabaseSaver.replaceFileAtomically(data, at: target, expectedSHA512: sha,
+                synchronizeDirectory: { _ in throw POSIXError(.EACCES) })
+        }
+        let result = try await LocalDatabaseSaver.save(draft: context.draft, reference: reference,
+            compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512,
+            kdfPolicy: .autoFillExtension, environment: environment)
+        guard case .committedWithoutConfirmedDurability = result else {
+            return XCTFail("An atomic pending write-back alone does not prove directory durability")
+        }
+        let retained = try XCTUnwrap(PendingLocalSaveStore.saves(for: reference.id).first)
+        XCTAssertEqual(try Data(contentsOf: retained.fileURL), try Data(contentsOf: url))
+    }
+
+    func testFailureBeforeReplacementLeavesFileAndCacheUnchanged() async throws {
+        let url = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: url)
+        let context = try makeDirtySaveContext(databaseURL: url, entryTitle: "Not committed")
+        let original = try Data(contentsOf: url)
+        try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
+        var environment = LocalDatabaseSaver.Environment.live
+        environment.replaceFileAtomically = { _, _, _ in throw POSIXError(.EACCES) }
+        do {
+            _ = try await LocalDatabaseSaver.save(draft: context.draft, reference: reference,
+                compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512,
+                kdfPolicy: .mainApp, newCompositeKey: KDBXCrypto.compositeKey(password: "new-master"), environment: environment)
+            XCTFail("A pre-replace failure must throw")
+        } catch { XCTAssertEqual((error as? POSIXError)?.code, .EACCES) }
+        XCTAssertEqual(try Data(contentsOf: url), original)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), original)
+    }
+
     func testSaveRejectsInvalidXMLWithoutReplacingFileCacheOrBackups() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)

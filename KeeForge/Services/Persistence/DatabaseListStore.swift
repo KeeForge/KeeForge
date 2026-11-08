@@ -914,11 +914,14 @@ enum DatabaseListStore {
     static func pruneBackups(for reference: DatabaseReference, keeping count: Int) throws {
         guard count >= 0 else { return }
 
-        let backupsToRemove = recentBackups(for: reference)
-            .filter { isRetainedBackup($0) == false }
-            .dropFirst(count)
-        for url in backupsToRemove {
-            try FileManager.default.removeItem(at: url)
+        try PendingUploadQueue.withCommitLock(for: reference.id) {
+            try PendingUploadQueue.preserveLegacyPayloads(for: reference)
+            let backupsToRemove = recentBackups(for: reference)
+                .filter { isRetainedBackup($0) == false }
+                .dropFirst(count)
+            for url in backupsToRemove {
+                try FileManager.default.removeItem(at: url)
+            }
         }
     }
 

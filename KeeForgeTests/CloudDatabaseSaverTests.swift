@@ -14,6 +14,178 @@ final class CloudDatabaseSaverTests: XCTestCase {
         super.tearDown()
     }
 
+    func testLegacyFinalizedPayloadSurvivesSixOfflineAppAndExtensionSavesAndDiscard() async throws {
+        for extensionSave in [false, true] {
+            let context = try makeContext()
+            let reference = context.reference
+            let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+            let backupDirectory = DatabaseListStore.databaseBackupDirectoryURL(for: reference)
+            try createDurableDirectory(at: backupDirectory)
+            let originalBackup = backupDirectory.appendingPathComponent("20000101-000000-000000.kdbx")
+            try writeAtomicallyAndDurably(context.source, to: originalBackup)
+            let remoteB = try ExpressUnlock.write(draft: context.draft, compositeKey: context.key,
+                header: LocalDatabaseSaver.Environment.live.extractHeader(context.source, context.key, .mainApp), kdfPolicy: .mainApp).data
+            try DatabaseListStore.cacheDatabaseCopy(remoteB, for: reference)
+            let marker = PendingUploadQueue.Marker(databaseId: reference.id,
+                encryptedBytesCacheURL: try PendingUploadQueue.makeRelativeAppGroupPath(for: cacheURL),
+                openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "old-rev",
+                createdAt: Date(timeIntervalSince1970: 0), isConflicted: true, isPayloadFinalized: true)
+            let legacy = try PendingUploadQueue.enqueue(marker, notifying: false)
+            // Persist the installed shape, without the new generation/payload fields.
+            var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: legacy.fileURL)) as? [String: Any])
+            json.removeValue(forKey: "generation")
+            try writeAtomicallyAndDurably(JSONSerialization.data(withJSONObject: json), to: legacy.fileURL)
+            XCTAssertEqual(PendingUploadQueue.listMarkers(for: reference.id).first?.marker.generation, 0)
+            let remote = Remote(remoteB)
+            await remote.setOffline(true)
+            for index in 0..<6 {
+                let previous = try cache(reference)
+                let draft = try edit(previous, key: context.key, sessionKey: context.sessionKey, title: "offline-\(index)")
+                let result: SaveResult
+                if extensionSave {
+                    result = try await LocalDatabaseSaver.save(draft: draft, reference: current(reference), compositeKey: context.key,
+                        openTimeSHA512: KDBXCrypto.sha512(previous), kdfPolicy: .autoFillExtension, environment: .autoFillExtension)
+                } else {
+                    result = try await CloudDatabaseSaver.save(draft: draft, reference: current(reference), compositeKey: context.key,
+                        openTimeSHA512: KDBXCrypto.sha512(previous), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+                }
+                guard case .saved = result else { return XCTFail("Offline commit must remain durable") }
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: originalBackup.path))
+            XCTAssertEqual(DatabaseListStore.recentBackups(for: reference).count, 5)
+            let promoted = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first { $0.id == legacy.id })
+            XCTAssertEqual(promoted.marker.generation, 1)
+            XCTAssertEqual(promoted.marker.intendedPayloadSHA512, KDBXCrypto.sha512(context.source))
+            XCTAssertEqual(try immutableBytes(promoted), context.source)
+            XCTAssertNotEqual(try cache(reference), context.source)
+            guard case .recovered(let payloads) = PendingUploadRecovery.lookUpPayloads(for: current(reference)) else {
+                return XCTFail("The original ciphertext must remain recoverable after rotation")
+            }
+            XCTAssertEqual(payloads.map(\.data), [context.source])
+            let discarded = await CloudSyncCoordinator.discardConflictedPendingUploads(for: current(reference))
+            XCTAssertEqual(discarded, 1)
+            XCTAssertFalse(PendingUploadQueue.listMarkers(for: reference.id).contains { $0.id == legacy.id })
+            let retained = DatabaseListStore.recentBackups(for: reference).filter(DatabaseListStore.isRetainedBackup)
+            XCTAssertTrue(try retained.contains { try Data(contentsOf: $0) == context.source })
+        }
+    }
+
+    func testBackupRotationPromotesLegacyPayloadBeforeAnyNewSave() throws {
+        let context = try makeContext()
+        let directory = DatabaseListStore.databaseBackupDirectoryURL(for: context.reference)
+        try createDurableDirectory(at: directory)
+        let original = directory.appendingPathComponent("20000101-000000-000000.kdbx")
+        try writeAtomicallyAndDurably(context.source, to: original)
+        let newerBytes = Data("different remote cache".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(newerBytes, for: context.reference)
+        for index in 1...6 {
+            try writeAtomicallyAndDurably(newerBytes, to: directory.appendingPathComponent("2000010\(index + 1)-000000-000000.kdbx"))
+        }
+        let marker = PendingUploadQueue.Marker(databaseId: context.reference.id,
+            encryptedBytesCacheURL: try PendingUploadQueue.makeRelativeAppGroupPath(for: DatabaseListStore.cacheLocation(for: context.reference)),
+            openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "old", createdAt: .distantPast, isConflicted: true)
+        let legacy = try PendingUploadQueue.enqueue(marker, notifying: false)
+        try DatabaseListStore.pruneBackups(for: context.reference, keeping: 5)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: original.path))
+        let promoted = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id == legacy.id })
+        XCTAssertEqual(try immutableBytes(promoted), context.source)
+        XCTAssertEqual(promoted.marker.generation, legacy.marker.generation + 1)
+    }
+
+    func testLegacyPreservationFailureAbortsSaveBeforeCacheReplacementOrPruning() async throws {
+        let context = try makeContext()
+        let marker = PendingUploadQueue.Marker(databaseId: context.reference.id,
+            encryptedBytesCacheURL: try PendingUploadQueue.makeRelativeAppGroupPath(for: DatabaseListStore.cacheLocation(for: context.reference)),
+            openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", createdAt: .distantPast, isConflicted: true)
+        let legacy = try PendingUploadQueue.enqueue(marker, notifying: false)
+        var env = environment(Remote(context.source))
+        env.queue.writeMarkerAtomically = { _, url in
+            if url == legacy.fileURL.deletingPathExtension().appendingPathExtension("kdbx") { throw POSIXError(.ENOSPC) }
+            XCTFail("No new operation may be prepared after failed legacy preservation")
+        }
+        do {
+            _ = try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference,
+                compositeKey: context.key, openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0",
+                kdfPolicy: .mainApp, environment: env)
+            XCTFail("Legacy ciphertext must be preserved before replacing its cache")
+        } catch { XCTAssertEqual((error as? POSIXError)?.code, .ENOSPC) }
+        XCTAssertEqual(try cache(context.reference), context.source)
+        let remaining = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertEqual(remaining.marker, legacy.marker)
+    }
+
+    func testRecoveryReturnsPromotedGenerationThatCanTransferMergedSourceOwnership() async throws {
+        let context = try makeContext()
+        let marker = PendingUploadQueue.Marker(databaseId: context.reference.id,
+            encryptedBytesCacheURL: try PendingUploadQueue.makeRelativeAppGroupPath(for: DatabaseListStore.cacheLocation(for: context.reference)),
+            openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", createdAt: .distantPast, isConflicted: true)
+        let legacy = try PendingUploadQueue.enqueue(marker, notifying: false)
+        guard case .recovered(let payloads) = PendingUploadRecovery.lookUpPayloads(for: context.reference) else {
+            return XCTFail("Recovery must promote the installed payload before taking its snapshot")
+        }
+        let source = try XCTUnwrap(payloads.first)
+        XCTAssertEqual(source.storedMarker.id, legacy.id)
+        XCTAssertEqual(source.storedMarker.marker.generation, legacy.marker.generation + 1)
+        XCTAssertEqual(source.data, context.source)
+        let remote = Remote(context.source)
+        await remote.setOffline(true)
+        let result = try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference,
+            compositeKey: context.key, openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0",
+            kdfPolicy: .mainApp, environment: environment(remote))
+        guard case .saved(let sha, _) = result else { return XCTFail("Merged owner must commit durably") }
+        try PendingUploadQueue.transferMergedSources([source.storedMarker], toPayloadSHA512: sha, for: context.reference.id)
+        let remaining = PendingUploadQueue.listMarkers(for: context.reference.id)
+        XCTAssertFalse(remaining.contains { $0.id == legacy.id })
+        XCTAssertTrue(remaining.first?.marker.absorbedOperationIDs?.contains(legacy.id) == true)
+    }
+
+    func testConfirmedCloudRekeyKeepsJournalUntilCacheDirectoryDurabilityIsConfirmed() async throws {
+        let context = try makeContext()
+        let remote = Remote(context.source)
+        var env = environment(remote)
+        env.replaceFile = { data, url, sha in
+            try LocalDatabaseSaver.replaceFileAtomically(data, at: url, expectedSHA512: sha,
+                synchronizeDirectory: { _ in throw POSIXError(.EACCES) })
+        }
+        env.synchronizeCacheDirectory = { _ in throw POSIXError(.EACCES) }
+        let result = try await rekey(context, remote: remote, environment: env)
+        guard case .saved = result else { return XCTFail("Durable rekey journal covers the installed ciphertext") }
+        let retained = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertNotNil(retained.marker.confirmedAt)
+        XCTAssertEqual(current(context.reference).cloudSyncMetadata?.keyEpoch, retained.marker.rekeyContext?.epoch)
+        XCTAssertEqual(current(context.reference).keyFileFilename, "new.keyx")
+        let bytes = try cache(context.reference)
+        XCTAssertEqual(try immutableBytes(retained), bytes)
+        _ = try KDBXParser.parseWithMeta(data: bytes, compositeKey: KDBXCrypto.compositeKey(password: "new password"), sessionKey: context.sessionKey)
+        _ = try await CloudDatabaseSaver.deliver(retained, reference: current(context.reference), environment: environment(remote))
+        let uploads = await remote.uploadCount()
+        XCTAssertEqual(uploads, 1)
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+    }
+
+    func testCloudCommitWithUnsyncedCacheDirectoryKeepsDurableJournal() async throws {
+        let context = try makeContext()
+        let remote = Remote(context.source)
+        var env = environment(remote)
+        env.replaceFile = { data, url, sha in
+            try LocalDatabaseSaver.replaceFileAtomically(data, at: url, expectedSHA512: sha,
+                synchronizeDirectory: { _ in throw POSIXError(.EACCES) })
+        }
+        env.synchronizeCacheDirectory = { _ in throw POSIXError(.EACCES) }
+        let result = try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference,
+            compositeKey: context.key, openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0",
+            kdfPolicy: .mainApp, environment: env)
+        guard case .saved = result else { return XCTFail("Immutable journal is durable even when cache directory sync fails") }
+        let stored = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        _ = try await CloudDatabaseSaver.deliver(stored, reference: current(context.reference), environment: env)
+        let confirmed = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertNotNil(confirmed.marker.confirmedAt)
+        XCTAssertEqual(try immutableBytes(confirmed), try cache(context.reference))
+        XCTAssertNil(current(context.reference).cloudSyncMetadata?.lastSyncedAt)
+        _ = try await CloudDatabaseSaver.deliver(confirmed, reference: current(context.reference), environment: environment(remote))
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+    }
+
     func testOfflineSaveSurvivesRestartWithExactImmutableCiphertext() async throws {
         let context = try makeContext()
         let remote = Remote(context.source)
