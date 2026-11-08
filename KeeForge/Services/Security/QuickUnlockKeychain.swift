@@ -52,6 +52,7 @@ enum QuickUnlockKeychain {
     /// starts it for an item stored before the interval existed.
     @discardableResult
     static func persist(_ keys: QuickUnlockKeys, for reference: DatabaseReference, masterKeyEntered: Bool) -> Bool {
+        guard PendingUploadQueue.hasRekeyJournal(for: reference.id) == false else { return false }
         let observedReference = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
         let typedUnlockRequired = requiresTypedUnlock(reference)
         guard typedUnlockRequired == false || masterKeyEntered,
@@ -98,8 +99,8 @@ enum QuickUnlockKeychain {
             return false
         }
         let currentReference = DatabaseListStore.databases.first { $0.id == reference.id }
-        if let currentReference,
-           currentReference.cloudSyncMetadata?.keyEpoch != observedReference.cloudSyncMetadata?.keyEpoch {
+        if PendingUploadQueue.hasRekeyJournal(for: reference.id)
+            || (currentReference != nil && currentReference?.cloudSyncMetadata?.keyEpoch != observedReference.cloudSyncMetadata?.keyEpoch) {
             KeychainService.deleteCompositeKey(for: reference.id)
             return false
         }
@@ -112,7 +113,8 @@ enum QuickUnlockKeychain {
     }
 
     private static func requiresTypedUnlock(_ reference: DatabaseReference) -> Bool {
-        reference.cloudSyncMetadata?.requiresTypedUnlock == true
+        PendingUploadQueue.hasRekeyJournal(for: reference.id)
+            || reference.cloudSyncMetadata?.requiresTypedUnlock == true
             || DatabaseListStore.databases.first { $0.id == reference.id }?
                 .cloudSyncMetadata?.requiresTypedUnlock == true
     }

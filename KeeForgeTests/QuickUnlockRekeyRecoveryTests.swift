@@ -94,6 +94,40 @@ final class QuickUnlockRekeyRecoveryTests: XCTestCase {
         XCTAssertFalse(KeychainService.hasStoredKey(for: reference.id))
     }
 
+    func testRekeyJournalRefusesEvenTypedKeyPersistenceBeforeFlagPublication() throws {
+        try stageRekeyBeforeFlagPublication()
+
+        XCTAssertFalse(QuickUnlockKeychain.persist(
+            QuickUnlockKeys(storedKey: SymmetricKey(size: .bits256)), for: reference, masterKeyEntered: true
+        ))
+        XCTAssertFalse(KeychainService.hasStoredKey(for: reference.id))
+        XCTAssertTrue(PendingUploadQueue.hasRekeyJournal(for: reference.id))
+        XCTAssertEqual(storedReference.cloudSyncMetadata?.requiresTypedUnlock, false)
+    }
+
+    func testRekeyJournalRefusesStoredKeyBeforeFlagPublication() throws {
+        try stageRekeyBeforeFlagPublication()
+        try storeKeyOrSkip()
+        let context = LAContext()
+        context.interactionNotAllowed = true
+
+        XCTAssertThrowsError(try QuickUnlockKeychain.retrieveStoredKey(for: reference, context: context)) {
+            XCTAssertTrue(KeychainService.isItemNotFound($0))
+        }
+        XCTAssertTrue(PendingUploadQueue.hasRekeyJournal(for: reference.id))
+    }
+
+    private func stageRekeyBeforeFlagPublication() throws {
+        reference.updateCloudSyncMetadata { $0.requiresTypedUnlock = false }
+        DatabaseListStore.update(reference)
+        var marker = PendingUploadQueue.Marker(
+            databaseId: reference.id, encryptedBytesCacheURL: "cloud-cache/rekey-window.kdbx",
+            openTimeSHA512: Data([1]), expectedRev: nil, createdAt: .now, isPayloadFinalized: false
+        )
+        marker.rekeyContext = PendingUploadQueue.RekeyContext(keyFileBookmarkData: nil, keyFileFilename: nil)
+        _ = try PendingUploadQueue.enqueue(marker, notifying: false)
+    }
+
     private var storedReference: DatabaseReference {
         DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
     }
