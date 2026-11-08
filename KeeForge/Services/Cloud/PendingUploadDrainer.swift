@@ -225,6 +225,7 @@ final class PendingUploadDrainer {
                     if let result = try await deliver(current, reference) {
                         switch result {
                         case .saved: outcome.drainedDatabaseIDs.insert(reference.id)
+                        case .retained: outcome.skippedDatabaseIDs.insert(reference.id)
                         case .conflict: outcome.conflictDatabaseIDs.insert(reference.id)
                         }
                     } else { outcome.skippedDatabaseIDs.insert(reference.id) }
@@ -246,7 +247,7 @@ final class PendingUploadDrainer {
                 continue
             }
 
-            if storedMarker.marker.isPayloadFinalized == true,
+            if storedMarker.marker.isPayloadFinalized == true, storedMarker.marker.confirmedAt == nil,
                uploadedPayloadSHAs[reference.id]?.contains(storedMarker.marker.openTimeSHA512) == true {
                 try? environment.dropMarker(storedMarker)
                 outcome.drainedDatabaseIDs.insert(reference.id)
@@ -255,7 +256,7 @@ final class PendingUploadDrainer {
 
             let encryptedBytes: Data
             do {
-                encryptedBytes = try environment.readBytes(storedMarker.marker.encryptedBytesCacheURL)
+                encryptedBytes = try environment.readBytes(storedMarker.marker.intendedPayloadPath ?? storedMarker.marker.encryptedBytesCacheURL)
             } catch {
                 outcome.userIssue = UserIssue(
                     databaseId: reference.id,
@@ -294,6 +295,9 @@ final class PendingUploadDrainer {
                         try environment.dropMarker(storedMarker)
                         outcome.drainedDatabaseIDs.insert(updatedReference.id)
                         uploadedPayloadSHAs[reference.id, default: []].insert(storedMarker.marker.openTimeSHA512)
+                        didCompleteMarker = true
+                    case .retained(let updatedReference):
+                        outcome.skippedDatabaseIDs.insert(updatedReference.id)
                         didCompleteMarker = true
                     case .conflict(let remoteRev):
                         if attempt == 0,

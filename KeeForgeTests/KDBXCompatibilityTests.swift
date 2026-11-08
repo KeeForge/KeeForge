@@ -93,7 +93,17 @@ final class KDBXCompatibilityTests: XCTestCase {
             let payload = try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: XCTUnwrap(marker.marker.intendedPayloadPath)))
             XCTAssertEqual(KDBXCrypto.sha512(payload), sha)
             XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), payload)
-            let reopened = try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: loaded.compositeKey,
+            var confirmed = marker
+            confirmed.marker.confirmedAt = .now
+            confirmed.marker.confirmedRemoteRev = "confirmed"
+            confirmed = try PendingUploadQueue.update(confirmed)
+            try writeAtomicallyAndDurably(loaded.sourceData, to: DatabaseListStore.cacheLocation(for: reference))
+            let recovered = try CloudDatabaseSaver.recoverConfirmed(confirmed, reference: reference, environment: environment)
+            guard case .saved = recovered else { return XCTFail("Confirmed recovery must durably restore the exact ciphertext") }
+            let recoveredBytes = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+            XCTAssertEqual(recoveredBytes, payload)
+            XCTAssertTrue(PendingUploadQueue.listMarkers(for: reference.id).isEmpty)
+            let reopened = try KDBXParser.parseWithMetaAndHeader(data: recoveredBytes, compositeKey: loaded.compositeKey,
                 sessionKey: loaded.sessionKey, kdfPolicy: .mainApp)
             let after = try CompatibilitySnapshot(rootGroup: reopened.rootGroup, meta: reopened.meta, sessionKey: loaded.sessionKey,
                 binaryPool: BinaryPool(rawFields: reopened.header.innerHeaderBinaryFields))

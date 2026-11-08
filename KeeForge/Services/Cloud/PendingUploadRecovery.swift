@@ -112,11 +112,12 @@ enum PendingUploadRecovery {
         return .recovered(payloads)
     }
 
+    /// Confirmed journals remain owned by delivery's cache-durability gate.
     /// Only for markers whose payload is already part of an uploaded save. A
     /// marker that fails to drop stays conflicted, and merging it again is a
     /// no-op, so the failure is not surfaced.
     static func dropMarkers(_ storedMarkers: [PendingUploadQueue.StoredMarker], environment: Environment = .live) {
-        for storedMarker in storedMarkers {
+        for storedMarker in storedMarkers where storedMarker.marker.confirmedAt == nil {
             try? environment.dropMarker(storedMarker)
         }
     }

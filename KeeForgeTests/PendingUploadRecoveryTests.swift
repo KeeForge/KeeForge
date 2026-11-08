@@ -135,11 +135,13 @@ final class PendingUploadRecoveryTests: XCTestCase {
         let reference = makeReference()
         let resolved = makeStoredMarker(for: reference, payload: Data("resolved".utf8))
         let untouched = makeStoredMarker(for: reference, payload: Data("untouched".utf8))
-        let fake = FakeStore(markers: [resolved, untouched], files: [:])
+        var confirmed = makeStoredMarker(for: reference, payload: Data("confirmed".utf8))
+        confirmed.marker.confirmedAt = .now
+        let fake = FakeStore(markers: [resolved, untouched, confirmed], files: [:])
 
-        PendingUploadRecovery.dropMarkers([resolved], environment: fake.environment)
+        PendingUploadRecovery.dropMarkers([resolved, confirmed], environment: fake.environment)
 
-        XCTAssertEqual(fake.environment.listMarkers(reference.id).map(\.id), [untouched.id])
+        XCTAssertEqual(fake.environment.listMarkers(reference.id).map(\.id), [untouched.id, confirmed.id])
     }
 
     func test_dropMarkers_keepsAMarkerThatChangedAfterLookup() {

@@ -328,6 +328,175 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertNil(current(context.reference).cloudSyncMetadata?.lastSyncedAt)
     }
 
+    func testConfirmedOrdinaryRestartRestoresOldOrMissingCacheWithoutNetworking() async throws {
+        for missing in [false, true] {
+            let (context, remote, journal, payload) = try await confirmedOrdinaryJournal()
+            defer { DatabaseListStore.remove(id: context.reference.id) }
+            let url = DatabaseListStore.cacheLocation(for: context.reference)
+            if missing { try FileManager.default.removeItem(at: url) }
+            else { try writeAtomicallyAndDurably(context.source, to: url) }
+            await remote.setOffline(true)
+            let reloaded = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+            let result = try await CloudDatabaseSaver.deliver(reloaded, reference: current(context.reference), environment: environment(remote))
+            guard case .saved = result else { return XCTFail("Exact restored ciphertext must authorize cleanup") }
+            XCTAssertEqual(try cache(context.reference), payload)
+            _ = try KDBXParser.parseWithMeta(data: payload, compositeKey: context.key, sessionKey: context.sessionKey)
+            XCTAssertEqual(current(context.reference).cloudSyncMetadata?.localHeadOperationID, journal.id)
+            XCTAssertNotNil(current(context.reference).cloudSyncMetadata?.lastSyncedAt)
+            XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+            let uploads = await remote.uploadCount()
+            XCTAssertEqual(uploads, 1)
+        }
+    }
+
+    func testConfirmedOrdinaryRecoveryPrecedesManualAndDisconnectedOpenForOldAndMissingCache() async throws {
+        for manual in [false, true] {
+            for missing in [false, true] {
+                let (context, remote, _, payload) = try await confirmedOrdinaryJournal()
+                defer { DatabaseListStore.remove(id: context.reference.id) }
+                DatabaseListStore.setCloudSyncPolicy(manual ? .manual : .onOpen, for: context.reference)
+                let url = DatabaseListStore.cacheLocation(for: context.reference)
+                if missing { try FileManager.default.removeItem(at: url) }
+                else { try writeAtomicallyAndDurably(context.source, to: url) }
+                await remote.setOffline(true)
+                let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: current(context.reference), providerResolver: { _ in
+                    if manual { XCTFail("Local confirmed recovery must precede the manual-policy return") }
+                    return nil
+                })
+                XCTAssertEqual(resolution.data, payload)
+                XCTAssertEqual(try cache(context.reference), payload)
+                XCTAssertEqual(resolution.status, manual ? .refreshSkipped : .disconnectedCached)
+                XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+                let uploads = await remote.uploadCount()
+                XCTAssertEqual(uploads, 1)
+            }
+        }
+    }
+
+    func testConfirmedOrdinaryRecoveryRetainsUnknownCacheAndUnprovenLaterHeadOrEpoch() async throws {
+        enum Interference: CaseIterable, Equatable { case unknownCache, laterHead, laterEpoch }
+        for interference in Interference.allCases {
+            let (context, remote, journal, payload) = try await confirmedOrdinaryJournal()
+            defer { DatabaseListStore.remove(id: context.reference.id) }
+            let unexpected = Data("independent ciphertext must remain intact".utf8)
+            try DatabaseListStore.cacheDatabaseCopy(unexpected, for: context.reference)
+            if interference != .unknownCache {
+                let laterRekey = interference == .laterEpoch
+                    ? PendingUploadQueue.RekeyContext(keyFileBookmarkData: nil, keyFileFilename: nil) : nil
+                _ = DatabaseListStore.recordCloudLocalCommit(for: context.reference.id, operationID: UUID(), rekey: laterRekey)
+            }
+            let before = current(context.reference)
+            do {
+                _ = try await CloudDatabaseSaver.deliver(journal, reference: before, environment: environment(remote))
+                XCTFail("Insufficient local ownership evidence must preserve the journal")
+            } catch { XCTAssertEqual(error as? SaveError, .saveContextUnavailable) }
+            XCTAssertEqual(try cache(context.reference), unexpected)
+            XCTAssertEqual(current(context.reference).cloudSyncMetadata?.localHeadOperationID, before.cloudSyncMetadata?.localHeadOperationID)
+            XCTAssertEqual(current(context.reference).cloudSyncMetadata?.keyEpoch, before.cloudSyncMetadata?.keyEpoch)
+            let surviving = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+            XCTAssertEqual(surviving.marker.generation, journal.marker.generation)
+            XCTAssertEqual(try immutableBytes(surviving), payload)
+            let uploads = await remote.uploadCount()
+            XCTAssertEqual(uploads, 1)
+        }
+    }
+
+    func testConfirmedOrdinaryRecoveryPreservesConcurrentReplacementCreationAndDirectorySyncWrites() async throws {
+        enum Interference: CaseIterable, Equatable { case replace, create, directorySync }
+        for interference in Interference.allCases {
+            let (context, remote, journal, payload) = try await confirmedOrdinaryJournal()
+            defer { DatabaseListStore.remove(id: context.reference.id) }
+            let url = DatabaseListStore.cacheLocation(for: context.reference)
+            let unexpected = Data("concurrent ciphertext must win".utf8)
+            var resume = environment(remote)
+            let live = CloudDatabaseSaver.Environment.live
+            switch interference {
+            case .replace:
+                try writeAtomicallyAndDurably(context.source, to: url)
+                resume.replaceFile = { bytes, target, sha in
+                    try writeAtomicallyAndDurably(unexpected, to: target)
+                    return try live.replaceFile(bytes, target, sha)
+                }
+            case .create:
+                try FileManager.default.removeItem(at: url)
+                resume.installMissingCache = { bytes, target in
+                    try writeAtomicallyAndDurably(unexpected, to: target)
+                    return try live.installMissingCache(bytes, target)
+                }
+            case .directorySync:
+                resume.synchronizeCacheDirectory = { directory in
+                    try writeAtomicallyAndDurably(unexpected, to: url)
+                    try synchronizeDirectory(directory)
+                }
+            }
+            do {
+                _ = try await CloudDatabaseSaver.deliver(journal, reference: current(context.reference), environment: resume)
+                XCTFail("Concurrent cache mutation must prevent confirmed cleanup")
+            } catch { XCTAssertEqual(error as? SaveError, .saveContextUnavailable) }
+            XCTAssertEqual(try cache(context.reference), unexpected)
+            let surviving = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+            XCTAssertEqual(surviving.marker.generation, journal.marker.generation)
+            XCTAssertEqual(try immutableBytes(surviving), payload)
+            XCTAssertNil(current(context.reference).cloudSyncMetadata?.lastSyncedAt)
+            let uploads = await remote.uploadCount()
+            XCTAssertEqual(uploads, 1)
+        }
+    }
+
+    func testConfirmedAncestorRestoresOnlyItsProvenDescendantHeadBeforeCleanup() async throws {
+        let (context, remote, journal, payload) = try await confirmedOrdinaryJournal()
+        let draft = try edit(payload, key: context.key, sessionKey: context.sessionKey, title: "Later local head")
+        _ = try await CloudDatabaseSaver.save(draft: draft, reference: current(context.reference), compositeKey: context.key,
+            openTimeSHA512: KDBXCrypto.sha512(payload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+        let descendant = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id != journal.id })
+        let descendantPayload = try immutableBytes(descendant)
+        try writeAtomicallyAndDurably(payload, to: DatabaseListStore.cacheLocation(for: context.reference))
+        await remote.setOffline(true)
+        _ = try await CloudDatabaseSaver.deliver(journal, reference: current(context.reference), environment: environment(remote))
+        XCTAssertEqual(try cache(context.reference), descendantPayload)
+        XCTAssertEqual(current(context.reference).cloudSyncMetadata?.localHeadOperationID, descendant.id)
+        XCTAssertNil(current(context.reference).cloudSyncMetadata?.lastSyncedAt)
+        let remaining = PendingUploadQueue.listMarkers(for: context.reference.id)
+        XCTAssertEqual(remaining.map(\.id), [descendant.id])
+        XCTAssertEqual(remaining.first?.marker.remoteBaseSHA512, KDBXCrypto.sha512(payload))
+        XCTAssertNil(remaining.first?.marker.predecessorOperationID)
+        let uploads = await remote.uploadCount()
+        XCTAssertEqual(uploads, 1)
+    }
+
+    func testMergedSourceCleanupRequiresHashVerifiedImmutableReplacementPayload() async throws {
+        let (context, remote, source, payload) = try await confirmedOrdinaryJournal()
+        let draft = try edit(payload, key: context.key, sessionKey: context.sessionKey, title: "Merged replacement")
+        let result = try await CloudDatabaseSaver.save(draft: draft, reference: current(context.reference), compositeKey: context.key,
+            openTimeSHA512: KDBXCrypto.sha512(payload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+        guard case .saved(let sha, _) = result else { return XCTFail("Replacement must commit locally") }
+        let owner = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id != source.id })
+        let path = try XCTUnwrap(owner.marker.intendedPayloadPath)
+        try writeAtomicallyAndDurably(Data("corrupt replacement ciphertext".utf8), to: PendingUploadQueue.resolveAppGroupURL(for: path))
+        XCTAssertThrowsError(try PendingUploadQueue.transferMergedSources([source], toPayloadSHA512: sha, for: context.reference.id))
+        let surviving = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id == source.id })
+        XCTAssertEqual(try immutableBytes(surviving), payload)
+        XCTAssertEqual(surviving.marker, source.marker)
+    }
+
+    func testConfirmedOrdinaryMatchingCacheStillRequiresFileSyncBeforeJournalRelease() async throws {
+        let (context, remote, journal, payload) = try await confirmedOrdinaryJournal()
+        var resume = environment(remote)
+        resume.synchronizeCacheFile = { _ in throw POSIXError(.EIO) }
+        resume.synchronizeCacheDirectory = { _ in XCTFail("File durability must be established before directory synchronization") }
+        let result = try await CloudDatabaseSaver.deliver(journal, reference: current(context.reference), environment: resume)
+        guard case .retained = result else { return XCTFail("Matching cache bytes alone do not prove file durability") }
+        let surviving = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertEqual(surviving.marker, journal.marker)
+        XCTAssertEqual(try immutableBytes(surviving), payload)
+        XCTAssertNil(current(context.reference).cloudSyncMetadata?.lastSyncedAt)
+        let retried = try await CloudDatabaseSaver.deliver(surviving, reference: current(context.reference), environment: environment(remote))
+        guard case .saved = retried else { return XCTFail("A later successful file and directory sync can release the journal") }
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+        let uploads = await remote.uploadCount()
+        XCTAssertEqual(uploads, 1)
+    }
+
     func testCloudCommitWithUnsyncedCacheDirectoryKeepsDurableJournal() async throws {
         let context = try makeContext()
         let remote = Remote(context.source)
@@ -1184,6 +1353,25 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let key: SymmetricKey
         let sessionKey: SymmetricKey
         let draft: DatabaseDraft
+    }
+
+    private func confirmedOrdinaryJournal() async throws -> (Context, Remote, PendingUploadQueue.StoredMarker, Data) {
+        let context = try makeContext()
+        let remote = Remote(context.source)
+        var fault = environment(remote)
+        fault.replaceFile = { bytes, url, sha in
+            try LocalDatabaseSaver.replaceFileAtomically(bytes, at: url, expectedSHA512: sha,
+                synchronizeDirectory: { _ in throw POSIXError(.EACCES) })
+        }
+        fault.synchronizeCacheDirectory = { _ in throw POSIXError(.EACCES) }
+        _ = try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference, compositeKey: context.key,
+            openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: fault)
+        let prepared = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        let result = try await CloudDatabaseSaver.deliver(prepared, reference: current(context.reference), environment: fault)
+        guard case .retained = result else { throw SaveError.saveContextUnavailable }
+        let confirmed = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertNotNil(confirmed.marker.confirmedAt)
+        return (context, remote, confirmed, try immutableBytes(confirmed))
     }
 
     private func makeContext(provider: String = "webdav") throws -> Context {

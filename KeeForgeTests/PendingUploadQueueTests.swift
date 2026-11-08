@@ -82,6 +82,21 @@ final class PendingUploadQueueTests: XCTestCase {
             addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
     }
 
+    func testHashSupersessionNeverDropsAConfirmedRetainedJournal() throws {
+        let environment = makeEnvironment()
+        let databaseID = UUID()
+        let sha = Data("same-payload-hash".utf8)
+        var confirmed = makeMarker(databaseId: databaseID, openTimeSHA512: sha)
+        confirmed.confirmedAt = .now
+        let retained = try PendingUploadQueue.enqueue(confirmed, notifying: false, environment: environment)
+        let unconfirmed = try PendingUploadQueue.enqueue(makeMarker(databaseId: databaseID, openTimeSHA512: sha), notifying: false, environment: environment)
+        PendingUploadQueue.dropMarkers(withPayloadSHA512: sha, for: databaseID, excluding: nil, environment: environment)
+        let remaining = PendingUploadQueue.listMarkers(for: databaseID, environment: environment)
+        XCTAssertEqual(remaining.map(\.id), [retained.id])
+        XCTAssertFalse(remaining.contains { $0.id == unconfirmed.id })
+        XCTAssertEqual(remaining.first?.marker, retained.marker)
+    }
+
     func test_enqueue_failedMarkerWriteDoesNotNotify() throws {
         let notificationCounter = Counter()
         let environment = makeEnvironment(

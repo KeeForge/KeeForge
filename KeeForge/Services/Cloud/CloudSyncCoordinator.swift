@@ -70,8 +70,8 @@ enum CloudSyncCoordinator {
     ) async throws -> CloudSyncResolution {
         var reference = reference
         for journal in PendingUploadQueue.listMarkers(for: reference.id)
-        where journal.marker.rekeyContext != nil && journal.marker.confirmedAt != nil {
-            _ = try await CloudDatabaseSaver.deliver(journal, reference: reference)
+        where journal.marker.confirmedAt != nil {
+            _ = try CloudDatabaseSaver.recoverConfirmed(journal, reference: reference)
             reference = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
         }
         guard let metadata = reference.cloudSyncMetadata else {
@@ -91,7 +91,7 @@ enum CloudSyncCoordinator {
             }
         }
         let pending = PendingUploadQueue.listMarkers(for: reference.id)
-        if cacheExists, pending.contains(where: { $0.marker.rekeyContext != nil || !$0.marker.isConflicted }) {
+        if cacheExists, pending.contains(where: { $0.marker.rekeyContext != nil || $0.marker.confirmedAt != nil || !$0.marker.isConflicted }) {
             let data = try CoordinatedFileReader.readData(from: cacheURL)
             updatedReference.updateCloudSyncMetadata { $0.lastSyncedAt = nil }
             return CloudSyncResolution(reference: updatedReference, localURL: cacheURL, data: data, status: .refreshSkipped)

@@ -18,6 +18,90 @@ final class PendingUploadDrainerTests: XCTestCase {
         super.tearDown()
     }
 
+    func testConfirmedSnapshotRetainedByDirectorySyncFailureSurvivesBothDrainerPathsAndRetriesLocally() async throws {
+        for fallback in [false, true] {
+            let reference = makeCloudReference()
+            defer { DatabaseListStore.remove(id: reference.id) }
+            DatabaseListStore.update(reference)
+            let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: Bundle(for: Self.self))
+            try DatabaseListStore.cacheDatabaseCopy(loaded.sourceData, for: reference)
+            let draft = try DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey)
+                .apply(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: loaded.rootGroup),
+                    draft: EntryDraftPayload(title: "Confirmed drainer payload", password: "secret")))
+            let uploads = Counter()
+            var setup = CloudDatabaseSaver.Environment.live
+            setup.beginBackgroundTask = { _ in .invalid }
+            setup.endBackgroundTask = { _ in }
+            setup.queue.postDarwinNotification = { }
+            setup.getMetadata = { _ in .init(modifiedDate: nil, contentHash: nil, size: nil, rev: "rev-1") }
+            let sourceData = loaded.sourceData
+            setup.downloadRemoteData = { _ in sourceData }
+            setup.writeGuarantee = { _, _, _ in .serverConditional }
+            setup.upload = { _, _, _, _ in
+                _ = uploads.incrementAndGet()
+                return .init(modifiedDate: nil, contentHash: nil, size: nil, rev: "rev-2")
+            }
+            setup.synchronizeCacheDirectory = { _ in throw POSIXError(.EACCES) }
+            _ = try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: loaded.compositeKey,
+                openTimeSHA512: KDBXCrypto.sha512(loaded.sourceData), expectedRev: "rev-1", kdfPolicy: .mainApp, environment: setup)
+            let prepared = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
+            _ = try await CloudDatabaseSaver.deliver(prepared, reference: reference, environment: setup)
+            let confirmed = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
+            XCTAssertNotNil(confirmed.marker.confirmedAt)
+            let payloadPath = try XCTUnwrap(confirmed.marker.intendedPayloadPath)
+            let payloadURL = PendingUploadQueue.resolveAppGroupURL(for: payloadPath)
+            let payload = try Data(contentsOf: payloadURL)
+            let syncAttempts = Counter()
+            let transportCalls = Counter()
+            let fallbackDrops = Counter()
+            var retry = setup
+            retry.getMetadata = { _ in _ = transportCalls.incrementAndGet(); throw CloudProviderError.networkUnavailable }
+            retry.downloadRemoteData = { _ in _ = transportCalls.incrementAndGet(); throw CloudProviderError.networkUnavailable }
+            retry.upload = { _, _, _, _ in _ = transportCalls.incrementAndGet(); throw CloudProviderError.networkUnavailable }
+            retry.synchronizeCacheDirectory = { directory in
+                if syncAttempts.incrementAndGet() == 1 { throw POSIXError(.EACCES) }
+                try synchronizeDirectory(directory)
+            }
+            let localRecovery = retry
+            var env = PendingUploadDrainer.Environment.live
+            env.beginBackgroundTask = { _ in .invalid }
+            env.endBackgroundTask = { _ in }
+            env.listCreations = nil
+            env.resumeCreation = nil
+            env.dropMarker = { marker in
+                _ = fallbackDrops.incrementAndGet()
+                _ = try PendingUploadQueue.dropIfUnchanged(marker)
+            }
+            if fallback {
+                env.deliverMarker = nil
+                env.pushPendingUpload = { reference, bytes, rev in
+                    try await CloudDatabaseSaver.pushPendingUpload(reference: reference, encryptedBytes: bytes,
+                        expectedRev: rev, environment: localRecovery)
+                }
+            } else {
+                env.deliverMarker = { marker, reference in
+                    try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: localRecovery)
+                }
+            }
+            let drainer = PendingUploadDrainer(environment: env)
+            let first = await drainer.drainAll()
+            XCTAssertTrue(first.drainedDatabaseIDs.isEmpty)
+            XCTAssertNil(first.userIssue)
+            XCTAssertEqual(first.skippedDatabaseIDs, [reference.id])
+            XCTAssertEqual(fallbackDrops.value, 0)
+            let unchanged = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
+            XCTAssertEqual(unchanged.marker, confirmed.marker, "Retention does not rely on a generation bump to prevent fallback deletion")
+            XCTAssertEqual(try Data(contentsOf: payloadURL), payload)
+            XCTAssertNil(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata?.lastSyncedAt)
+            let second = await drainer.drainAll()
+            XCTAssertEqual(second.drainedDatabaseIDs, [reference.id])
+            XCTAssertTrue(PendingUploadQueue.listMarkers(for: reference.id).isEmpty)
+            XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), payload)
+            XCTAssertEqual(transportCalls.value, 0)
+            XCTAssertEqual(uploads.value, 1)
+        }
+    }
+
     func test_drain_provisionalMarkerKeepsItsCoverUntilFinalized() async throws {
         let reference = makeCloudReference()
         let directory = FileManager.default.temporaryDirectory

@@ -426,6 +426,7 @@ enum PendingUploadQueue {
     /// Drops every marker for `databaseId` whose recorded payload SHA-512
     /// equals `payloadSHA512`, except `excludedMarkerID`.
     ///
+    /// Confirmed journals stay with delivery until local durability is established.
     /// SHA equality proves supersession: that exact content is the base of
     /// what the caller is about to upload or just uploaded, so the marker can
     /// no longer represent unsaved content — including conflicted markers,
@@ -457,6 +458,7 @@ enum PendingUploadQueue {
         where storedMarker.id != excludedMarkerID
             && (storedMarker.marker.uploadAttemptID == nil || storedMarker.marker.attemptIsFenced == true)
             && storedMarker.marker.isPayloadFinalized == true
+            && storedMarker.marker.confirmedAt == nil
             && storedMarker.marker.openTimeSHA512 == payloadSHA512 {
             _ = try? dropIfUnchanged(storedMarker, environment: environment)
         }
@@ -518,6 +520,10 @@ enum PendingUploadQueue {
             guard var owner = listMarkers(for: databaseID, environment: environment).last(where: {
                 $0.marker.isPayloadFinalized == true && $0.marker.intendedPayloadSHA512 == sha && $0.marker.intendedPayloadPath != nil
             }) else { return }
+            guard let path = owner.marker.intendedPayloadPath,
+                  KDBXCrypto.sha512(try environment.readData(resolveAppGroupURL(for: path, environment: environment))) == sha else {
+                throw SaveError.saveContextUnavailable
+            }
             owner.marker.absorbedOperationIDs = Array(Set((owner.marker.absorbedOperationIDs ?? []) + sources.map(\.id)))
             owner = try update(owner, environment: environment)
             for source in sources where source.id != owner.id && (source.marker.uploadAttemptID == nil || source.marker.attemptIsFenced == true || source.marker.confirmedAt != nil) {
