@@ -1,92 +1,18 @@
 {
   "en": {
-    "01-free": "Free · Open Source\nNo Account Needed",
-    "02-autofill": "AutoFill Passwords,\nPasskeys and 2FA Codes",
-    "03-keepassxc": "Works with Your\nKeePassXC Files",
-    "04-unlock": "Unlock Fast,\nStay Secure",
-    "05-entries": "All Your Accounts,\nAlways Accessible",
-    "06-search": "Search Your Vault\nin Seconds",
-    "07-edit": "Create and Edit\nEntries on iPhone",
-    "08-settings": "Tune Each Vault\nYour Way"
-  },
-  "de": {
-    "01-free": "Kostenlos · Open Source\nKein Konto nötig",
-    "02-autofill": "AutoFill für Passwörter,\nPasskeys und 2FA-Codes",
-    "03-keepassxc": "Funktioniert mit\ndeinen KeePassXC-Dateien",
-    "04-unlock": "Schnell entsperrt,\nsicher geschützt",
-    "05-entries": "Alle Accounts,\nimmer griffbereit",
-    "06-search": "Den Tresor in\nSekunden durchsuchen",
-    "07-edit": "Einträge direkt auf dem\niPhone anlegen und ändern",
-    "08-settings": "Jeden Tresor nach\nWunsch einstellen"
-  },
-  "fr": {
-    "01-free": "Gratuit · Open source\nSans compte",
-    "02-autofill": "Remplissage auto des\nmots de passe, clés d’accès\net codes 2FA",
-    "03-keepassxc": "Compatible avec vos\nfichiers KeePassXC",
-    "04-unlock": "Déverrouillage rapide,\nsécurité totale",
-    "05-entries": "Tous vos comptes,\ntoujours à portée de main",
-    "06-search": "Trouvez tout dans votre\ncoffre en quelques secondes",
-    "07-edit": "Créez et modifiez\nvos entrées sur iPhone",
-    "08-settings": "Chaque coffre,\nréglé à votre façon"
-  },
-  "es": {
-    "01-free": "Gratis · Código abierto\nSin cuentas",
-    "02-autofill": "Autorrelleno de contraseñas,\nllaves de acceso y\ncódigos 2FA",
-    "03-keepassxc": "Compatible con tus\narchivos de KeePassXC",
-    "04-unlock": "Desbloqueo rápido,\nseguridad total",
-    "05-entries": "Todas tus cuentas,\nsiempre a mano",
-    "06-search": "Encuentra lo que buscas\nen segundos",
-    "07-edit": "Crea y edita\nentradas en el iPhone",
-    "08-settings": "Ajusta cada bóveda\na tu manera"
-  },
-  "zh-Hans": {
-    "01-free": "免费·开源\n无需注册账户",
-    "02-autofill": "自动填充密码、\n通行密钥和双重认证码",
-    "03-keepassxc": "直接使用你的\nKeePassXC 文件",
-    "04-unlock": "快速解锁，\n安全无忧",
-    "05-entries": "所有账户，\n随时取用",
-    "06-search": "秒速搜索\n你的保险库",
-    "07-edit": "在 iPhone 上\n创建和编辑条目",
-    "08-settings": "每个保险库，\n按你的方式设置"
-  },
-  "zh-Hant": {
-    "01-free": "免費、開源\n無需註冊帳號",
-    "02-autofill": "自動填寫密碼、\n通行金鑰和雙重認證碼",
-    "03-keepassxc": "直接使用你的\nKeePassXC 檔案",
-    "04-unlock": "快速解鎖，\n安全無虞",
-    "05-entries": "所有帳號，\n隨時取用",
-    "06-search": "秒速搜尋\n你的保險庫",
-    "07-edit": "在 iPhone 上\n建立和編輯項目",
-    "08-settings": "每個保險庫，\n依你的方式設定"
-  },
-  "ja": {
-    "01-free": "無料・オープンソース\nアカウント登録不要",
-    "02-autofill": "パスワード、パスキー、\n確認コードを自動入力",
-    "03-keepassxc": "KeePassXC のファイルを\nそのまま使える",
-    "04-unlock": "すばやく解除、\nしっかり保護",
-    "05-entries": "すべてのアカウントを\nいつでも手元に",
-    "06-search": "保管庫を\n数秒で検索",
-    "07-edit": "iPhone で項目を\n作成・編集",
-    "08-settings": "保管庫ごとに\n自由にカスタマイズ"
-  },
-  "it": {
-    "01-free": "Gratis · Open source\nNessun account",
-    "02-autofill": "Password, passkey e codici\n2FA inseriti in automatico",
-    "03-keepassxc": "Compatibile con i tuoi\nfile KeePassXC",
-    "04-unlock": "Sblocco rapido,\nmassima sicurezza",
-    "05-entries": "Tutti i tuoi account,\nsempre a portata di mano",
-    "06-search": "Trova tutto\nin pochi secondi",
-    "07-edit": "Crea e modifica\nle voci su iPhone",
-    "08-settings": "Ogni vault,\nimpostato a modo tuo"
-  },
-  "ru": {
-    "01-free": "Бесплатно · Открытый код\nБез регистрации",
-    "02-autofill": "Автозаполнение паролей,\nключей входа и кодов 2FA",
-    "03-keepassxc": "Работает с вашими\nфайлами KeePassXC",
-    "04-unlock": "Быстрая разблокировка,\nнадёжная защита",
-    "05-entries": "Все аккаунты\nвсегда под рукой",
-    "06-search": "Поиск по хранилищу\nза секунды",
-    "07-edit": "Создавайте и меняйте\nзаписи на iPhone",
-    "08-settings": "Настройте каждое\nхранилище под себя"
+    "01-pitch": "Open source.\nNo account.",
+    "01-pitch:sub@mac": "A native Mac app. Your vault is\none file that you own.",
+    "02-autofill": "Passwords,\npasskeys and\n2FA codes.",
+    "02-autofill:sub@mac": "Fill logins and one-time codes\nwith macOS AutoFill.",
+    "03-keepassxc": "Opens your\nKeePassXC\nfiles.",
+    "03-keepassxc:sub@mac": "KDBX 4 with AES-256 and Argon2.\nNo import, no conversion.",
+    "04-security": "Locks fast.\nUnlocks with\nyour key.",
+    "04-security:sub@mac": "Auto-lock and clipboard clearing,\nwith a key file if you want one.",
+    "05-everyday": "Find, edit\nand create\nin seconds.",
+    "05-everyday:sub@mac": "Search every entry and make strong\npasswords with the built-in generator.",
+    "06-included": "No limits.\nNothing locked.",
+    "06-included:list": "Unlimited vaults\nFace ID & Touch ID unlock\nAutoFill & passkeys\nQuickType suggestions\nKey files & attachments",
+    "06-included:list@mac": "Unlimited vaults\nTouch ID & Apple Watch unlock\nAutoFill & passkeys\nSSH agent\nWebDAV sync",
+    "06-included:sub@mac": "Every feature included,\non every Mac you use."
   }
 }

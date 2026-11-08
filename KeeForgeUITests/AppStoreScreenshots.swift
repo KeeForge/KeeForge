@@ -36,6 +36,7 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         case databaseSettings = "04-database-settings"
         case entryList = "05-entry-list"
         case entryDetail = "06-entry-detail"
+        case entryPasskey = "06b-entry-passkey"
         case entryEdit = "07-entry-edit"
         case search = "08-search"
     }
@@ -352,6 +353,30 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         }
         saveScreenshot(.entryDetail)
 
+        // The demo Discord entry also holds a passkey; its section sits below the one-time code.
+        // Found by its relying party, which reads the same in every locale; card rows hide the copy button's ID.
+        let passkeySection = app.staticTexts.matching(NSPredicate(format: "label == 'discord.com'")).firstMatch
+        // The section's username row sits below the relying party, so keep the relying party in the top 70%.
+        func passkeyFits() -> Bool {
+            passkeySection.exists && passkeySection.frame.maxY < app.frame.height * 0.7
+                && passkeySection.frame.minY > app.frame.height * 0.12
+        }
+        var drags = 0
+        while drags < 6 && !passkeyFits() {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65))
+                .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)))
+            drags += 1
+            sleep(1)
+        }
+        XCTAssertTrue(passkeyFits(), "The demo Discord entry should show its whole passkey section")
+        saveScreenshot(.entryPasskey)
+        // iPad shows the passkey without scrolling, and a stray swipe there breaks the way back.
+        for _ in 0..<drags {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+                .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65)))
+            sleep(1)
+        }
+
         let editButton = app.buttons["entry-detail.edit"]
         XCTAssertTrue(editButton.waitForExistence(timeout: Self.ciElementTimeout), "Edit button should be visible from entry detail")
         editButton.tap()
@@ -363,10 +388,12 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         cancelButton.tap()
         sleep(1)
 
-        tapBackButton()
-        tapBackButton()
-
         let searchField = app.searchFields.firstMatch
+        tapBackButton()
+        // iPad's split view shows the group list after one step back; a second tap would hide the sidebar.
+        if app.navigationBars.buttons["BackButton"].waitForExistence(timeout: 2) {
+            tapBackButton()
+        }
         XCTAssertTrue(searchField.waitForExistence(timeout: 5), "Search field should be visible on GroupListView")
         searchField.tap()
         sleep(1)

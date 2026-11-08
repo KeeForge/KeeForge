@@ -632,8 +632,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         // system lays the six controls out at stable, evenly spaced positions
         // (0.104 of the width apart, centered) in its toolbar, so address them
         // through window-relative coordinates. Each click is still verified
-        // through the identifier on the content it reveals. Capture names keep
-        // their letters, which `ci_scripts/make_appstore_screenshots.py` reads.
+        // through the identifier on the content it reveals.
         let tabs: [(String, CGFloat, String, String)] = [
             ("Security", 0.240, "settings.tab.security", "07a-settings-security"),
             ("AutoFill", 0.344, "settings.tab.autofill", "07b-settings-autofill"),

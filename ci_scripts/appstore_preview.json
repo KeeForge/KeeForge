@@ -1,0 +1,10 @@
+{
+  "en": {
+    "01-database-list": "Opens your\nKeePassXC files.",
+    "02-unlock-screen": "Unlocks with\nyour key.",
+    "03-vault-groups": "Open source.\nNo account.",
+    "06-entry-detail": "Passwords and\n2FA codes.",
+    "06b-entry-passkey": "Passkeys too.",
+    "08-search": "Find any login\nin seconds."
+  }
+}
