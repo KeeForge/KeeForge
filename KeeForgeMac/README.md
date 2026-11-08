@@ -17,12 +17,13 @@ Setup:
 
 1. Turn on Enable SSH Agent.
 2. Click Copy SSH Configuration and paste it into `~/.ssh/config`. It points
-   every host at the socket, `~/Library/Containers/com.keevault.app/Data/ssh-agent.sock`
-   for both release channels:
+   every host at `ssh-agent.sock` in the app's sandbox container. Copy the path from
+   there rather than typing it: macOS may name the container folder after a UUID
+   instead of `com.keevault.app`, as in this example:
 
    ```text
    Host *
-     IdentityAgent "/Users/<you>/Library/Containers/com.keevault.app/Data/ssh-agent.sock"
+     IdentityAgent "/Users/<you>/Library/Containers/ECC6B676-0D4E-46EE-9539-F33541F8924B/Data/ssh-agent.sock"
    ```
 
    Setting `SSH_AUTH_SOCK` to the same path works too.
@@ -42,7 +43,7 @@ none, as the comment `ssh-add -l` prints.
 Verifying on a Mac, with one key turned on and the database unlocked:
 
 ```bash
-SSH_AUTH_SOCK=~/Library/Containers/com.keevault.app/Data/ssh-agent.sock ssh-add -l
+SSH_AUTH_SOCK="<path from Copy SSH Configuration>" ssh-add -l
 ssh -T git@github.com   # or any host that trusts the key
 ```
 
