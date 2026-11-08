@@ -33,13 +33,13 @@ final class PendingUploadDrainerTests: XCTestCase {
             setup.beginBackgroundTask = { _ in .invalid }
             setup.endBackgroundTask = { _ in }
             setup.queue.postDarwinNotification = { }
-            setup.getMetadata = { _ in .init(modifiedDate: nil, contentHash: nil, size: nil, rev: "rev-1") }
             let sourceData = loaded.sourceData
+            setup.getMetadata = { _ in .init(modifiedDate: Date(timeIntervalSince1970: 1_000), contentHash: nil, size: Int64(sourceData.count), rev: "rev-1") }
             setup.downloadRemoteData = { _ in sourceData }
             setup.writeGuarantee = { _, _, _ in .serverConditional }
-            setup.upload = { _, _, _, _ in
+            setup.upload = { _, bytes, _, _ in
                 _ = uploads.incrementAndGet()
-                return .init(modifiedDate: nil, contentHash: nil, size: nil, rev: "rev-2")
+                return .init(modifiedDate: Date(timeIntervalSince1970: 1_001), contentHash: nil, size: Int64(bytes.count), rev: "rev-2")
             }
             setup.synchronizeCacheDirectory = { _ in throw POSIXError(.EACCES) }
             _ = try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: loaded.compositeKey,
