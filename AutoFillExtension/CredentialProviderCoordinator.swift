@@ -1400,9 +1400,14 @@ final class CredentialProviderCoordinator {
             ?? databaseReference
     }
 
+    // Leaving an unreadable key file out would report a correct password as wrong.
     private func loadAssociatedKeyFileData(for databaseReference: DatabaseReference) throws -> Data? {
-        guard let url = DatabaseListStore.resolveKeyFileURL(for: databaseReference) else { return nil }
-        return try readSecurityScoped(url: url)
+        guard databaseReference.hasAssociatedKeyFile else { return nil }
+        guard let url = DatabaseListStore.resolveKeyFileURL(for: databaseReference),
+              let data = try? readSecurityScoped(url: url) else {
+            throw KeyFileUnavailableError()
+        }
+        return data
     }
 
     private func clearPendingCreationRequests() {
@@ -2823,5 +2828,11 @@ final class CredentialProviderCoordinator {
 private struct HardwareKeyUnavailableError: LocalizedError {
     var errorDescription: String? {
         String(localized: "This database needs a YubiKey, which AutoFill can't use yet. Open it in the KeeForge app instead.")
+    }
+}
+
+private struct KeyFileUnavailableError: LocalizedError {
+    var errorDescription: String? {
+        String(localized: "AutoFill couldn't read the key file saved for this database. Open the database in the KeeForge app and check that its key file is still available.")
     }
 }

@@ -1004,6 +1004,58 @@
         }
       }
     },
+    "AutoFill couldn't read the key file saved for this database. Open the database in the KeeForge app and check that its key file is still available." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das automatische Ausfüllen konnte die für diese Datenbank gespeicherte Schlüsseldatei nicht lesen. Öffne die Datenbank in der KeeForge-App und prüfe, ob ihre Schlüsseldatei noch verfügbar ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorrelleno no ha podido leer el archivo de clave guardado para esta base de datos. Abre la base de datos en la app KeeForge y comprueba que su archivo de clave sigue disponible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le remplissage automatique n'a pas pu lire le fichier de clé enregistré pour cette base de données. Ouvrez la base de données dans l'app KeeForge et vérifiez que son fichier de clé est toujours disponible."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'inserimento automatico non è riuscito a leggere il file chiave salvato per questo database. Apri il database nell'app KeeForge e verifica che il suo file chiave sia ancora disponibile."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で、このデータベース用に保存されたキーファイルを読み取れませんでした。KeeForge App でデータベースを開き、キーファイルが引き続き利用可能か確認してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автозаполнению не удалось прочитать файл ключа, сохранённый для этой базы данных. Откройте базу данных в приложении KeeForge и проверьте, что её файл ключа по-прежнему доступен."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动填充无法读取为此数据库保存的密钥文件。请在 KeeForge App 中打开数据库，并检查其密钥文件是否仍然可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動填寫無法讀取為此資料庫儲存的金鑰檔案。請在 KeeForge App 中開啟資料庫，並檢查其金鑰檔案是否仍可使用。"
+          }
+        }
+      }
+    },
     "AutoFill with KeeForge" : {
       "localizations" : {
         "de" : {

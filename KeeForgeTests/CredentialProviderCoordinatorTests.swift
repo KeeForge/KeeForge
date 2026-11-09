@@ -2897,6 +2897,50 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         ).usedCachedKey)
     }
 
+    func test_passwordUnlock_keyFileDatabase_combinesThePasswordWithTheRememberedKeyFile() async throws {
+        let bundle = Bundle(for: Self.self)
+        let fixture = KDBXTestFixture.demoKeyfile
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedKeyFileDefaultDatabase(fixture, bundle: bundle)
+        XCTAssertNotNil(DatabaseListStore.resolveKeyFileURL(for: database))
+        let persisted = PersistedQuickUnlockKeys()
+        coordinator.persistQuickUnlockKeys = { keys, _, masterKeyEntered in
+            persisted.record(keys, masterKeyEntered: masterKeyEntered)
+            return true
+        }
+
+        _ = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter, password: fixture.password)
+
+        XCTAssertEqual(persisted.last?.storedKey, try fixture.compositeKey(in: bundle))
+    }
+
+    /// A key file the extension cannot reach must not turn into a
+    /// password-only unlock that reports a wrong password.
+    func test_passwordUnlock_keyFileDatabase_unreachableKeyFile_reportsTheKeyFile() async throws {
+        let bundle = Bundle(for: Self.self)
+        let fixture = KDBXTestFixture.demoKeyfile
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedKeyFileDefaultDatabase(fixture, bundle: bundle)
+        let keyFileURL = try XCTUnwrap(DatabaseListStore.resolveKeyFileURL(for: database))
+        try FileManager.default.removeItem(at: keyFileURL.deletingLastPathComponent())
+        coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+        presenter.isPresentationActive = true
+
+        coordinator.prepareCredentialList(
+            for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)]
+        )
+        coordinator.presentationDidBecomeActive()
+        let prompt = try XCTUnwrap(presenter.unlockPrompt)
+        let errorPresented = expectation(description: "unlock error presented")
+        presenter.onUnlockErrorPresented = { errorPresented.fulfill() }
+        prompt.onSubmitPassword(fixture.password)
+        await fulfillment(of: [errorPresented], timeout: 60)
+
+        let message = try XCTUnwrap(presenter.unlockError?.message)
+        XCTAssertEqual(message, String(localized: "AutoFill couldn't read the key file saved for this database. Open the database in the KeeForge app and check that its key file is still available."))
+        XCTAssertNil(coordinator.sessionKey)
+    }
+
     /// A silent fill reads the quick-unlock item only while the master
     /// password is not due; once it is, the system must bring up the UI.
     func test_silentFill_overdueMasterPassword_requiresInteractionWithoutReadingTheKey() async throws {
@@ -3605,6 +3649,19 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         return reference
     }
 
+    /// The default AutoFill database holding `fixture`, with its key file
+    /// remembered through a bookmark to a copy in its own temporary folder.
+    private func seedKeyFileDefaultDatabase(_ fixture: KDBXTestFixture, bundle: Bundle) throws -> DatabaseReference {
+        var reference = try seedResolvableDefaultDatabase()
+        try seedDatabaseBytes(fixture.data(in: bundle), for: reference)
+        let keyFileURL = try makeTemporaryFileURL(name: "database.key")
+        try XCTUnwrap(fixture.keyFileData(in: bundle)).write(to: keyFileURL)
+        reference.keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: keyFileURL, readOnly: true)
+        reference.keyFileFilename = keyFileURL.lastPathComponent
+        DatabaseListStore.update(reference)
+        return reference
+    }
+
     private func makeTemporaryFileURL(name: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
@@ -3634,7 +3691,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         serviceIdentifier: ASCredentialServiceIdentifier = ASCredentialServiceIdentifier(
             identifier: "no-such-service.example",
             type: .domain
-        )
+        ),
+        password: String = "testpassword123"
     ) async throws -> CredentialProviderPresentingSpy.SearchView {
         coordinator.memoryBudgetOverride = 512 * 1024 * 1024
         coordinator.prepareCredentialList(for: [serviceIdentifier])
@@ -3648,7 +3706,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             XCTFail("Unlock must succeed: \(presenter.unlockError?.message ?? "unknown error")")
         }
 
-        prompt.onSubmitPassword("testpassword123")
+        prompt.onSubmitPassword(password)
         await fulfillment(of: [searchPresented], timeout: 60)
         return try XCTUnwrap(presenter.searchView)
     }
