@@ -254,16 +254,34 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         guard keyboard.waitForExistence(timeout: 3) else { return }
         let latinLetter = keyboard.keys.matching(NSPredicate(format: "label ==[c] 'd'")).firstMatch
         for _ in 0..<3 where !latinLetter.waitForExistence(timeout: 1) {
-            let keyboardFrame = keyboard.frame
-            let globe = app.buttons.allElementsBoundByIndex
-                .filter { button in
-                    button.identifier.isEmpty && button.frame.midY > keyboardFrame.minY
-                        && button.frame.midX < keyboardFrame.midX
-                }
-                .max { $0.frame.midY < $1.frame.midY }
-            guard let globe else { return }
+            guard let globe = nextKeyboardKey(in: keyboard) else { break }
             globe.tap()
         }
+        if !latinLetter.exists {
+            let attachment = XCTAttachment(string: keyboard.debugDescription)
+            attachment.name = "keyboard-without-latin-letters"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
+
+    /// iPhone lists the globe among the app's buttons below the keys. iPad's Russian layout has
+    /// no globe but a Cyrillic/Latin toggle key at the left of the home row. Letters, the
+    /// number-mode key, padding and the wide space bar are never it.
+    private func nextKeyboardKey(in keyboard: XCUIElement) -> XCUIElement? {
+        let keyboardFrame = keyboard.frame
+        let candidates = (app.buttons.allElementsBoundByIndex + keyboard.keys.allElementsBoundByIndex)
+            .filter { element in
+                let frame = element.frame
+                return element.identifier.isEmpty && element.label.count > 1
+                    && element.label.rangeOfCharacter(from: .decimalDigits) == nil
+                    && frame.width > 0 && frame.width < frame.height * 3
+                    && frame.midY > keyboardFrame.minY && frame.midX < keyboardFrame.midX
+            }
+        guard let lowest = candidates.map(\.frame.midY).max() else { return nil }
+        return candidates
+            .filter { $0.frame.midY > lowest - 10 }
+            .min { $0.frame.midX < $1.frame.midX }
     }
 
     private func tapBackButton() {

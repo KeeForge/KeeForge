@@ -52,7 +52,8 @@ SCREEN_RADIUS = 64
 
 
 def run(args, **kwargs):
-    return subprocess.run([str(a) for a in args], check=True, **kwargs)
+    # ffmpeg reads stdin unless told not to, which swallows a calling shell loop's input.
+    return subprocess.run([str(a) for a in args], check=True, stdin=subprocess.DEVNULL, **kwargs)
 
 
 def video_start(video):

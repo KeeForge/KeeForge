@@ -264,11 +264,12 @@ def find_card(image, hint, mode):
             x, y = x + dx, y + dy
         return x, y
 
-    # The backdrop is the first light, flat, non-white run left of the hint.
+    # The backdrop is the first light, flat, non-white run left of the hint; list backdrops
+    # sit near 242, and the floor keeps long CJK strokes in grey labels from passing for one.
     backdrop = None
     for x in range(hx, 24, -1):
         p = px[x, hy]
-        if not _is_white(p) and min(p[:3]) >= 200 and all(px[x - k, hy] == p for k in range(1, 24)):
+        if not _is_white(p) and min(p[:3]) >= 225 and all(px[x - k, hy] == p for k in range(1, 24)):
             backdrop = p
             break
     if backdrop is None:
