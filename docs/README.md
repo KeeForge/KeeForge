@@ -10,7 +10,7 @@ Archived files and folders are prefixed with the date the doc was written. Do no
 
 The threat model and the `i18n/` folder have no date prefix. The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo); code changes should not contradict it.
 
-`i18n/` is **living**: it holds the translated `README.<locale>.md` and `CONTRIBUTING.<locale>.md` files for every shipped locale. Update them whenever the root `README.md` or `CONTRIBUTING.md` changes, and keep their relative links pointing at repo-root paths through `../../`.
+`i18n/` is **living**: it holds the translated `README.<locale>.md` and `CONTRIBUTING.<locale>.md` files for every shipped locale, plus `glossary.md`, the canonical term translations and per-locale style for the String Catalogs. Update the translated files whenever the root `README.md` or `CONTRIBUTING.md` changes, and keep their relative links pointing at repo-root paths through `../../`. Update the glossary when a recurring term or a locale convention changes.
 
 ## `specs/` — Feature Design Specs
 
