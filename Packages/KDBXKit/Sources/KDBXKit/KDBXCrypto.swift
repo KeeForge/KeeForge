@@ -209,7 +209,7 @@ public enum KDBXCrypto {
 
         mutating func xor(_ data: Data) -> Data {
             var output = [UInt8](repeating: 0, count: data.count)
-            data.withUnsafeBytes { input in
+            data.withUnsafeBytes { (input: UnsafeRawBufferPointer) in
                 var readOffset = 0
                 while readOffset < data.count {
                     if blockOffset >= block.count {
