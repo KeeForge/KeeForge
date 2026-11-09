@@ -203,7 +203,8 @@ final class EntryEditViewModel {
         self.totpDigits = totpDigits
         self.totpAlgorithm = totpAlgorithm
         self.expires = expiryTime != nil
-        self.expiryDate = expiryTime ?? Self.date(months: Self.defaultExpiryMonths, after: .now)
+        // KeePass 2.x parity: without a changed date, turning Expires on expires the entry.
+        self.expiryDate = expiryTime ?? Calendar.current.startOfDay(for: .now)
         let seededAttachments = attachments.map { Attachment(name: $0.name, source: .existing($0)) }
         self.attachments = seededAttachments
         self.passkeyCredential = passkeyCredential
@@ -797,10 +798,6 @@ final class EntryEditViewModel {
             attachments: attachments
         )
     }
-
-    /// Where the date picker starts when an entry that never expired is
-    /// switched to expiring.
-    private static let defaultExpiryMonths = 1
 
     private static func date(months: Int, after date: Date) -> Date {
         Calendar.current.date(byAdding: .month, value: months, to: date) ?? date
