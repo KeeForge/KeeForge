@@ -177,13 +177,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "„%@“ ist bereits in Ihrer Datenbankliste enthalten."
+            "value" : "„%@“ ist bereits in deiner Datenbankliste enthalten."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "«%@» ya está en su lista de bases de datos."
+            "value" : "«%@» ya está en tu lista de bases de datos."
           }
         },
         "fr" : {
@@ -385,13 +385,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@\n\nKeeForge hat vorerst die Cache-Kopie geöffnet. Die Cloud-Synchronisierung erfordert Ihre Aufmerksamkeit, bevor diese Datenbank vom Anbieter aktualisiert werden kann."
+            "value" : "%@\n\nKeeForge hat vorerst die Cache-Kopie geöffnet. Die Cloud-Synchronisierung erfordert deine Aufmerksamkeit, bevor diese Datenbank vom Anbieter aktualisiert werden kann."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@\n\nKeeForge ha abierto por ahora la copia almacenada en caché. La sincronización en la nube requiere su atención antes de poder actualizar esta base de datos desde su proveedor."
+            "value" : "%@\n\nKeeForge ha abierto por ahora la copia almacenada en caché. La sincronización en la nube requiere tu atención antes de poder actualizar esta base de datos desde su proveedor."
           }
         },
         "fr" : {
@@ -1202,13 +1202,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "1 Änderung aus der anderen Kopie wurde mit Ihren zusammengeführt und gesichert."
+                  "value" : "1 Änderung aus der anderen Kopie wurde mit deinen zusammengeführt und gesichert."
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld Änderungen aus der anderen Kopie wurden mit Ihren zusammengeführt und gesichert."
+                  "value" : "%lld Änderungen aus der anderen Kopie wurden mit deinen zusammengeführt und gesichert."
                 }
               }
             }
@@ -1238,13 +1238,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "1 cambio de la otra copia se combinó con los suyos y se guardó."
+                  "value" : "1 cambio de la otra copia se combinó con los tuyos y se guardó."
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld cambios de la otra copia se combinaron con los suyos y se guardaron."
+                  "value" : "%lld cambios de la otra copia se combinaron con los tuyos y se guardaron."
                 }
               }
             }
@@ -1398,13 +1398,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld cambio pendiente de subir"
+                  "value" : "%lld cambio pendiente de cargar"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld cambios pendientes de subir"
+                  "value" : "%lld cambios pendientes de cargar"
                 }
               }
             }
@@ -3747,13 +3747,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eine über AutoFill gespeicherte Änderung konnte nicht hochgeladen werden, weil sich die Cloud-Kopie geändert hat. Führen Sie sie in diese Datenbank zusammen, um sie hochzuladen."
+            "value" : "Eine über AutoFill gespeicherte Änderung konnte nicht hochgeladen werden, weil sich die Cloud-Kopie geändert hat. Führe sie in diese Datenbank zusammen, um sie hochzuladen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un cambio guardado mediante el autorrelleno no se pudo cargar porque la copia de la nube cambió. Combínelo con esta base de datos para cargarlo."
+            "value" : "Un cambio guardado mediante el autorrelleno no se pudo cargar porque la copia de la nube cambió. Combínalo con esta base de datos para cargarlo."
           }
         },
         "fr" : {
@@ -3799,13 +3799,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eine über AutoFill gespeicherte Änderung konnte nicht hochgeladen werden, weil die Kopie dieser Datenbank in der Cloud seitdem geändert wurde. Öffnen Sie die Datenbank, um die Änderung darin zusammenzuführen. Sie können auch eine Kopie exportieren, um sie in einer anderen KeePass-App zusammenzuführen, oder den ausstehenden Upload verwerfen. KeeForge behält eine Sicherungskopie der verworfenen Änderung auf diesem Gerät."
+            "value" : "Eine über AutoFill gespeicherte Änderung konnte nicht hochgeladen werden, weil die Kopie dieser Datenbank in der Cloud seitdem geändert wurde. Öffne die Datenbank, um die Änderung darin zusammenzuführen. Du kannst auch eine Kopie exportieren, um sie in einer anderen KeePass-App zusammenzuführen, oder den ausstehenden Upload verwerfen. KeeForge behält eine Sicherungskopie der verworfenen Änderung auf diesem Gerät."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un cambio guardado mediante el autorrelleno no se pudo cargar porque la copia de esta base de datos en la nube cambió desde entonces. Abra la base de datos para combinar el cambio con ella. También puede exportar una copia para combinarla en otra app de KeePass, o descartar la carga pendiente. KeeForge conserva una copia de seguridad del cambio descartado en este dispositivo."
+            "value" : "Un cambio guardado mediante el autorrelleno no se pudo cargar porque la copia de esta base de datos en la nube cambió desde entonces. Abre la base de datos para combinar el cambio con ella. También puedes exportar una copia para combinarla en otra app de KeePass, o descartar la carga pendiente. KeeForge conserva una copia de seguridad del cambio descartado en este dispositivo."
           }
         },
         "fr" : {
@@ -4059,13 +4059,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eine neuere Kopie wurde heruntergeladen. Sperren Sie die Datenbank und entsperren Sie sie erneut mit Ihrem YubiKey, um sie zu öffnen."
+            "value" : "Eine neuere Kopie wurde heruntergeladen. Sperre die Datenbank und entsperre sie erneut mit deinem YubiKey, um sie zu öffnen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se descargó una copia más reciente. Bloquee la base de datos y desbloquéela de nuevo con su YubiKey para abrirla."
+            "value" : "Se descargó una copia más reciente. Bloquea la base de datos y desbloquéala de nuevo con tu YubiKey para abrirla."
           }
         },
         "fr" : {
@@ -4111,13 +4111,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eine neuere Kopie wurde heruntergeladen. Beim Sichern fragt KeeForge, wie sie mit Ihren Änderungen zusammengeführt werden soll."
+            "value" : "Eine neuere Kopie wurde heruntergeladen. Beim Sichern fragt KeeForge, wie sie mit deinen Änderungen zusammengeführt werden soll."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se descargó una copia más reciente. Al guardar, KeeForge le preguntará cómo combinarla con sus cambios."
+            "value" : "Se descargó una copia más reciente. Al guardar, KeeForge te preguntará cómo combinarla con tus cambios."
           }
         },
         "fr" : {
@@ -4163,13 +4163,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eine übergeordnete Gruppe ist aus Suche & AutoFill ausgeblendet. Deaktivieren Sie diese Option, um diese Gruppe dennoch anzuzeigen."
+            "value" : "Eine übergeordnete Gruppe ist aus Suche & AutoFill ausgeblendet. Deaktiviere diese Option, um diese Gruppe dennoch anzuzeigen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un grupo superior está oculto de la búsqueda y el autorrelleno. Desactive esta opción para mostrar este grupo de todas formas."
+            "value" : "Un grupo superior está oculto de la búsqueda y el autorrelleno. Desactiva esta opción para mostrar este grupo de todas formas."
           }
         },
         "fr" : {
@@ -4579,13 +4579,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fügen Sie in der Datenbankliste eine Cloud-Datenbank hinzu, um ein Konto zu verbinden."
+            "value" : "Füge in der Datenbankliste eine Cloud-Datenbank hinzu, um ein Konto zu verbinden."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Añada una base de datos en la nube desde la lista de bases de datos para conectar una cuenta."
+            "value" : "Añade una base de datos en la nube desde la lista de bases de datos para conectar una cuenta."
           }
         },
         "fr" : {
@@ -4631,13 +4631,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fügen Sie ein Master-Passwort, eine Schlüsseldatei oder beides hinzu."
+            "value" : "Füge ein Master-Passwort, eine Schlüsseldatei oder beides hinzu."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Añada una contraseña maestra, un archivo de clave o ambos."
+            "value" : "Añade una contraseña maestra, un archivo de clave o ambos."
           }
         },
         "fr" : {
@@ -4683,13 +4683,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fügen Sie vor dem Senden des Feedbacks eine kurze Nachricht hinzu."
+            "value" : "Füge vor dem Senden des Feedbacks eine kurze Nachricht hinzu."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Añada un breve mensaje antes de enviar los comentarios."
+            "value" : "Añade un breve mensaje antes de enviar los comentarios."
           }
         },
         "fr" : {
@@ -5671,13 +5671,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nachdem Sie auf „Erstellen“ geklickt haben, wählen Sie den Ordner „%@“ für die verschlüsselte .kdbx-Datenbank."
+            "value" : "Nachdem du auf „Erstellen“ geklickt hast, wähle den Ordner „%@“ für die verschlüsselte .kdbx-Datenbank."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Después de hacer clic en «Crear», elija la carpeta «%@» para la base de datos .kdbx cifrada."
+            "value" : "Después de hacer clic en «Crear», elige la carpeta «%@» para la base de datos .kdbx cifrada."
           }
         },
         "fr" : {
@@ -5723,13 +5723,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nachdem Sie auf „Erstellen“ geklickt haben, fragt KeeForge, wo die verschlüsselte .kdbx-Datenbank gesichert werden soll."
+            "value" : "Nachdem du auf „Erstellen“ geklickt hast, fragt KeeForge, wo die verschlüsselte .kdbx-Datenbank gesichert werden soll."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Después de hacer clic en «Crear», KeeForge le preguntará dónde guardar la base de datos .kdbx cifrada."
+            "value" : "Después de hacer clic en «Crear», KeeForge te preguntará dónde guardar la base de datos .kdbx cifrada."
           }
         },
         "fr" : {
@@ -5775,13 +5775,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nachdem Sie auf „Erstellen“ getippt haben, wählen Sie den Ordner „%@“ für die verschlüsselte .kdbx-Datenbank."
+            "value" : "Nachdem du auf „Erstellen“ getippt hast, wähle den Ordner „%@“ für die verschlüsselte .kdbx-Datenbank."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Después de tocar «Crear», elija la carpeta «%@» para la base de datos .kdbx cifrada."
+            "value" : "Después de tocar «Crear», elige la carpeta «%@» para la base de datos .kdbx cifrada."
           }
         },
         "fr" : {
@@ -5827,13 +5827,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nachdem Sie auf „Erstellen“ getippt haben, fragt „Dateien“, wo die verschlüsselte .kdbx-Datenbank gesichert werden soll."
+            "value" : "Nachdem du auf „Erstellen“ getippt hast, fragt „Dateien“, wo die verschlüsselte .kdbx-Datenbank gesichert werden soll."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Después de tocar «Crear», Archivos le preguntará dónde guardar la base de datos .kdbx cifrada."
+            "value" : "Después de tocar «Crear», Archivos te preguntará dónde guardar la base de datos .kdbx cifrada."
           }
         },
         "fr" : {
@@ -6139,13 +6139,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Erlauben Sie den Kamerazugriff in den Einstellungen, um QR-Codes für Bestätigungscodes zu scannen."
+            "value" : "Erlaube den Kamerazugriff in den Einstellungen, um QR-Codes für Bestätigungscodes zu scannen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Permita el acceso a la cámara en Ajustes para escanear códigos QR de códigos de verificación."
+            "value" : "Permite el acceso a la cámara en Ajustes para escanear códigos QR de códigos de verificación."
           }
         },
         "fr" : {
@@ -6659,13 +6659,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Es läuft bereits ein Speichervorgang. Warten Sie, bis er abgeschlossen ist, und versuchen Sie es erneut."
+            "value" : "Es läuft bereits ein Speichervorgang. Warte, bis er abgeschlossen ist, und versuche es erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hay otro guardado en curso. Espere a que termine e inténtelo de nuevo."
+            "value" : "Hay otro guardado en curso. Espera a que termine e inténtalo de nuevo."
           }
         },
         "fr" : {
@@ -7335,13 +7335,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fügen Sie bei Bedarf ein Foto hinzu und geben Sie optional eine E-Mail-Adresse an, wenn Sie eine Antwort wünschen."
+            "value" : "Füge bei Bedarf ein Foto hinzu und gib optional eine E-Mail-Adresse an, wenn du eine Antwort wünschst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Adjunte una foto si ayuda a explicar un problema y, opcionalmente, añada una dirección de correo electrónico si desea una respuesta."
+            "value" : "Adjunta una foto si ayuda a explicar un problema y, opcionalmente, añade una dirección de correo electrónico si deseas una respuesta."
           }
         },
         "fr" : {
@@ -8115,13 +8115,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AutoFill aus allen Ihren Datenbanken"
+            "value" : "AutoFill aus allen deinen Datenbanken"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Autorrelleno de todas sus bases de datos"
+            "value" : "Autorrelleno de todas tus bases de datos"
           }
         },
         "fr" : {
@@ -8843,13 +8843,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Biometrisches Entsperren ist derzeit nicht verfügbar. Sie können weiterhin Ihr Passwort und Ihre Schlüsseldatei verwenden."
+            "value" : "Biometrisches Entsperren ist derzeit nicht verfügbar. Du kannst weiterhin dein Passwort und deine Schlüsseldatei verwenden."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El desbloqueo biométrico no está disponible en este momento. Aún puede usar su contraseña y su archivo de clave."
+            "value" : "El desbloqueo biométrico no está disponible en este momento. Aún puedes usar tu contraseña y tu archivo de clave."
           }
         },
         "fr" : {
@@ -9051,13 +9051,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Blättern Sie durch die früheren Versionen eines Eintrags und stellen Sie eine davon wieder her. Der aktuelle Inhalt bleibt erhalten, sodass Sie den Schritt rückgängig machen können. Dank an @miquno."
+            "value" : "Blättere durch die früheren Versionen eines Eintrags und stelle eine davon wieder her. Der aktuelle Inhalt bleibt erhalten, sodass du den Schritt rückgängig machen kannst. Dank an @miquno."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Explore las versiones anteriores de una entrada y restaure una de ellas. El contenido actual se conserva, por lo que puede deshacer el cambio. Gracias a @miquno."
+            "value" : "Explora las versiones anteriores de una entrada y restaura una de ellas. El contenido actual se conserva, por lo que puedes deshacer el cambio. Gracias a @miquno."
           }
         },
         "fr" : {
@@ -9103,13 +9103,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre Einträge nach Tags durchsuchen"
+            "value" : "Deine Einträge nach Tags durchsuchen"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Explore sus entradas por etiqueta"
+            "value" : "Explora tus entradas por etiqueta"
           }
         },
         "fr" : {
@@ -9571,7 +9571,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verschlüsselungseinstellungen ändern…"
+            "value" : "Verschlüsselungseinstellungen ändern …"
           }
         },
         "es" : {
@@ -9884,7 +9884,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Master-Schlüssel ändern…"
+            "value" : "Master-Schlüssel ändern …"
           }
         },
         "es" : {
@@ -10098,7 +10098,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los cambios guardados mediante el autorrelleno aún están pendientes de subir."
+            "value" : "Los cambios guardados mediante el autorrelleno aún están pendientes de cargar."
           }
         },
         "fr" : {
@@ -10508,13 +10508,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wählen Sie eine Datenbank in der Seitenleiste aus, um sie zu entsperren und zu durchsuchen."
+            "value" : "Wähle eine Datenbank in der Seitenleiste aus, um sie zu entsperren und zu durchsuchen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elija una base de datos en la barra lateral para desbloquearla y explorarla."
+            "value" : "Elige una base de datos en la barra lateral para desbloquearla y explorarla."
           }
         },
         "fr" : {
@@ -10612,13 +10612,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wählen Sie eine Gruppe aus, um ihre Einträge anzuzeigen."
+            "value" : "Wähle eine Gruppe aus, um ihre Einträge anzuzeigen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elija un grupo para ver sus entradas."
+            "value" : "Elige un grupo para ver sus entradas."
           }
         },
         "fr" : {
@@ -10664,13 +10664,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wählen Sie eine KeePass-Datenbank im .kdbx-Format zum Öffnen aus."
+            "value" : "Wähle eine KeePass-Datenbank im .kdbx-Format zum Öffnen aus."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Seleccione una base de datos de KeePass con extensión .kdbx para abrirla."
+            "value" : "Selecciona una base de datos de KeePass con extensión .kdbx para abrirla."
           }
         },
         "fr" : {
@@ -10716,13 +10716,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wählen Sie ein langes, einzigartiges Master-Passwort: Es schützt die gesamte Datenbank und kann nicht wiederhergestellt werden, wenn Sie es vergessen."
+            "value" : "Wähle ein langes, einzigartiges Master-Passwort: Es schützt die gesamte Datenbank und kann nicht wiederhergestellt werden, wenn du es vergisst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elija una contraseña maestra larga y única: protege toda la base de datos y no se puede recuperar si la olvida."
+            "value" : "Elige una contraseña maestra larga y única: protege toda la base de datos y no se puede recuperar si la olvidas."
           }
         },
         "fr" : {
@@ -10768,13 +10768,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wählen Sie ein beschreibbares Ziel in „Dateien“ aus."
+            "value" : "Wähle ein beschreibbares Ziel in „Dateien“ aus."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elija un destino con permiso de escritura en «Archivos»."
+            "value" : "Elige un destino con permiso de escritura en «Archivos»."
           }
         },
         "fr" : {
@@ -10820,13 +10820,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wählen Sie einen Eintrag aus, um seine Details anzuzeigen oder zu bearbeiten."
+            "value" : "Wähle einen Eintrag aus, um seine Details anzuzeigen oder zu bearbeiten."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elija una entrada para ver o editar sus detalles."
+            "value" : "Elige una entrada para ver o editar sus detalles."
           }
         },
         "fr" : {
@@ -10908,13 +10908,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "可从 KeePass 图标集或数据库的自定图标中选择条目的图标，也可以下载网站自己的图标。您的选择会保存在数据库中，因此会在各处显示。感谢 @miquno。"
+            "value" : "可从 KeePass 图标集或数据库的自定图标中选择条目的图标，也可以下载网站自己的图标。你的选择会保存在数据库中，因此会在各处显示。感谢 @miquno。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "可從 KeePass 圖示集或資料庫的自訂圖示中選擇項目的圖示，也可以下載網站本身的圖示。您的選擇會儲存在資料庫中，因此會在各處顯示。感謝 @miquno。"
+            "value" : "可從 KeePass 圖示集或資料庫的自訂圖示中選擇項目的圖示，也可以下載網站本身的圖示。你的選擇會儲存在資料庫中，因此會在各處顯示。感謝 @miquno。"
           }
         }
       }
@@ -11028,7 +11028,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Datenbank auswählen…"
+            "value" : "Datenbank auswählen …"
           }
         },
         "es" : {
@@ -11184,13 +11184,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wählen Sie aus dem Standard-Symbolsatz von KeePass, damit Ihre Gruppen auf einen Blick erkennbar sind. Dank an @miquno."
+            "value" : "Wähle aus dem Standard-Symbolsatz von KeePass, damit deine Gruppen auf einen Blick erkennbar sind. Dank an @miquno."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elija entre el conjunto de iconos estándar de KeePass para que sus grupos sean reconocibles de un vistazo. Gracias a @miquno."
+            "value" : "Elige entre el conjunto de iconos estándar de KeePass para que tus grupos sean reconocibles de un vistazo. Gracias a @miquno."
           }
         },
         "fr" : {
@@ -11278,7 +11278,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選取群組"
+            "value" : "選擇群組"
           }
         }
       }
@@ -11288,13 +11288,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wählen Sie aus, wie dieser Eintrag entfernt werden soll."
+            "value" : "Wähle aus, wie dieser Eintrag entfernt werden soll."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elija cómo quitar esta entrada."
+            "value" : "Elige cómo quitar esta entrada."
           }
         },
         "fr" : {
@@ -11496,13 +11496,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wählen Sie die Verschlüsselung, die Schlüsselableitung und die Komprimierung, mit denen diese Datenbankdatei gespeichert wird."
+            "value" : "Wähle die Verschlüsselung, die Schlüsselableitung und die Komprimierung, mit denen diese Datenbankdatei gespeichert wird."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elija el cifrado, la derivación de claves y la compresión con que se guarda este archivo de base de datos."
+            "value" : "Elige el cifrado, la derivación de claves y la compresión con que se guarda este archivo de base de datos."
           }
         },
         "fr" : {
@@ -11808,13 +11808,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wählen Sie, wo dieser Bestätigungscode gespeichert werden soll."
+            "value" : "Wähle, wo dieser Bestätigungscode gespeichert werden soll."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elija dónde guardar este código de verificación."
+            "value" : "Elige dónde guardar este código de verificación."
           }
         },
         "fr" : {
@@ -12802,7 +12802,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Las bases de datos en la nube se almacenan en caché localmente y se actualizan cada vez que las abre en la app principal. El autorrelleno solo utiliza la copia en caché."
+            "value" : "Las bases de datos en la nube se almacenan en caché localmente y se actualizan cada vez que las abres en la app principal. El autorrelleno solo utiliza la copia en caché."
           }
         },
         "fr" : {
@@ -13062,7 +13062,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La sincronización en la nube no está configurada para este build."
+            "value" : "La sincronización en la nube no está configurada para esta compilación."
           }
         },
         "fr" : {
@@ -13108,13 +13108,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cloud-Synchronisierung erfordert Ihre Aufmerksamkeit"
+            "value" : "Cloud-Synchronisierung erfordert deine Aufmerksamkeit"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La sincronización en la nube requiere su atención"
+            "value" : "La sincronización en la nube requiere tu atención"
           }
         },
         "fr" : {
@@ -13888,13 +13888,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verbinden Sie Ihr WebDAV-Konto erneut, anstatt eine Datei auszuwählen."
+            "value" : "Verbinde dein WebDAV-Konto erneut, anstatt eine Datei auszuwählen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vuelva a conectar su cuenta de WebDAV en lugar de seleccionar un archivo."
+            "value" : "Vuelve a conectar tu cuenta de WebDAV en lugar de seleccionar un archivo."
           }
         },
         "fr" : {
@@ -13924,13 +13924,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请重新连接您的 WebDAV 账户，而不是选取文件。"
+            "value" : "请重新连接你的 WebDAV 账户，而不是选取文件。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "請重新連接您的 WebDAV 帳戶，而不是選取檔案。"
+            "value" : "請重新連接你的 WebDAV 帳戶，而不是選取檔案。"
           }
         }
       }
@@ -13992,13 +13992,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kopierte Werte werden nach Ablauf dieser Frist gelöscht (sofern Sie zwischenzeitlich nichts anderes kopiert haben) und vor Apps zur Verwaltung der Zwischenablage verborgen. Anders als iOS kann macOS Kopien nicht von der universellen Zwischenablage von Handoff ausschließen. Daher kann ein kopiertes Passwort kurzzeitig in den Zwischenablagen Ihrer anderen Geräte erscheinen."
+            "value" : "Kopierte Werte werden nach Ablauf dieser Frist gelöscht (sofern du zwischenzeitlich nichts anderes kopiert hast) und vor Apps zur Verwaltung der Zwischenablage verborgen. Anders als iOS kann macOS Kopien nicht von der universellen Zwischenablage von Handoff ausschließen. Daher kann ein kopiertes Passwort kurzzeitig in den Zwischenablagen deiner anderen Geräte erscheinen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los valores copiados se borran al vencer este plazo (a menos que haya copiado algo más mientras tanto) y se ocultan de las apps de gestión del portapapeles. A diferencia de iOS, macOS no puede excluir las copias del portapapeles universal de Handoff, por lo que una contraseña copiada puede aparecer brevemente en el portapapeles de sus otros dispositivos."
+            "value" : "Los valores copiados se borran al vencer este plazo (a menos que hayas copiado algo más mientras tanto) y se ocultan de las apps de gestión del portapapeles. A diferencia de iOS, macOS no puede excluir las copias del portapapeles universal de Handoff, por lo que una contraseña copiada puede aparecer brevemente en el portapapeles de tus otros dispositivos."
           }
         },
         "fr" : {
@@ -14772,13 +14772,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Es konnte keine sichere Verbindung hergestellt werden. Die TLS-Einstellungen des Servers sind vermutlich veraltet oder mit diesem Gerät nicht kompatibel. Bitten Sie den Serverbetreiber, TLS 1.3 oder TLS 1.2 mit modernen Cipher-Suiten (ECDHE + AES-GCM) zu aktivieren."
+            "value" : "Es konnte keine sichere Verbindung hergestellt werden. Die TLS-Einstellungen des Servers sind vermutlich veraltet oder mit diesem Gerät nicht kompatibel. Bitte den Serverbetreiber, TLS 1.3 oder TLS 1.2 mit modernen Cipher-Suiten (ECDHE + AES-GCM) zu aktivieren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No se pudo establecer una conexión segura. Es probable que la configuración TLS del servidor esté desactualizada o no sea compatible con este dispositivo. Pida al operador del servidor que habilite TLS 1.3, o TLS 1.2 con conjuntos de cifrado modernos (ECDHE + AES-GCM)."
+            "value" : "No se pudo establecer una conexión segura. Es probable que la configuración TLS del servidor esté desactualizada o no sea compatible con este dispositivo. Pide al operador del servidor que habilite TLS 1.3, o TLS 1.2 con conjuntos de cifrado modernos (ECDHE + AES-GCM)."
           }
         },
         "fr" : {
@@ -15350,7 +15350,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Symbol konnte nicht geladen werden"
+            "value" : "Symbol konnte nicht heruntergeladen werden"
           }
         },
         "es" : {
@@ -15876,7 +15876,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No se pudieron subir los cambios pendientes"
+            "value" : "No se pudieron cargar los cambios pendientes"
           }
         },
         "fr" : {
@@ -16338,13 +16338,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Erstellen Sie eine neue KeePass-Datenbank oder importieren Sie eine vorhandene .kdbx-Datei."
+            "value" : "Erstelle eine neue KeePass-Datenbank oder importiere eine vorhandene .kdbx-Datei."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cree una nueva base de datos de KeePass o importe un archivo .kdbx existente."
+            "value" : "Crea una nueva base de datos de KeePass o importa un archivo .kdbx existente."
           }
         },
         "fr" : {
@@ -17442,7 +17442,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Base de datos modificada — abra KeeForge para guardar"
+            "value" : "Base de datos modificada — abre KeeForge para guardar"
           }
         },
         "fr" : {
@@ -18424,13 +18424,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre Datenbank wird sicher entschlüsselt …"
+            "value" : "Deine Datenbank wird sicher entschlüsselt …"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Descifrando su base de datos de forma segura…"
+            "value" : "Descifrando tu base de datos de forma segura…"
           }
         },
         "fr" : {
@@ -18442,13 +18442,13 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Decrittografia sicura del database in corso..."
+            "value" : "Decrittografia sicura del database in corso…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "データベースを安全に復号しています..."
+            "value" : "データベースを安全に復号しています…"
           }
         },
         "ru" : {
@@ -18460,13 +18460,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在安全解密您的数据库…"
+            "value" : "正在安全解密你的数据库…"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在安全解密您的資料庫…"
+            "value" : "正在安全解密你的資料庫…"
           }
         }
       }
@@ -19896,13 +19896,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verbindung zu %@ trennen? KeeForge behält alle Cloud-Datenbanken im Cache, bis Sie sie entfernen."
+            "value" : "Verbindung zu %@ trennen? KeeForge behält alle Cloud-Datenbanken im Cache, bis du sie entfernst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "¿Desconectar %@? KeeForge conservará las bases de datos en la nube almacenadas en caché hasta que las elimine."
+            "value" : "¿Desconectar %@? KeeForge conservará las bases de datos en la nube almacenadas en caché hasta que las elimines."
           }
         },
         "fr" : {
@@ -19932,13 +19932,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "要断开与 %@ 的连接吗？KeeForge 会保留已缓存的云端数据库，直到您将其移除。"
+            "value" : "要断开与 %@ 的连接吗？KeeForge 会保留已缓存的云端数据库，直到你将其移除。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "要中斷與 %@ 的連線嗎？KeeForge 會保留已快取的雲端資料庫，直到您將其移除。"
+            "value" : "要中斷與 %@ 的連線嗎？KeeForge 會保留已快取的雲端資料庫，直到你將其移除。"
           }
         }
       }
@@ -20312,7 +20312,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Website-Favicons laden"
+            "value" : "Website-Favicons herunterladen"
           }
         },
         "es" : {
@@ -20792,7 +20792,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Error al subir a Dropbox."
+            "value" : "Error al cargar en Dropbox."
           }
         },
         "fr" : {
@@ -21046,7 +21046,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Frühere Versionen erscheinen hier, sobald Sie diesen Eintrag bearbeiten."
+            "value" : "Frühere Versionen erscheinen hier, sobald du diesen Eintrag bearbeitest."
           }
         },
         "es" : {
@@ -21624,13 +21624,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aktivieren Sie KeeForge in den Systemeinstellungen unter „Allgemein“ > „AutoFill & Passwörter“, um Passwörter in Safari und anderen Apps auszufüllen."
+            "value" : "Aktiviere KeeForge in den Systemeinstellungen unter „Allgemein“ > „AutoFill & Passwörter“, um Passwörter in Safari und anderen Apps auszufüllen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Active KeeForge en Ajustes del Sistema, en «General» > «Autorrelleno y contraseñas», para rellenar contraseñas en Safari y otras apps."
+            "value" : "Activa KeeForge en Ajustes del Sistema, en «General» > «Autorrelleno y contraseñas», para rellenar contraseñas en Safari y otras apps."
           }
         },
         "fr" : {
@@ -21884,13 +21884,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie einen Namen für dieses Feld ein."
+            "value" : "Gib einen Namen für dieses Feld ein."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca un nombre para este campo."
+            "value" : "Introduce un nombre para este campo."
           }
         },
         "fr" : {
@@ -21936,13 +21936,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie eine Rundenzahl von 1 bis %@ ein."
+            "value" : "Gib eine Rundenzahl von 1 bis %@ ein."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca un número de rondas entre 1 y %@."
+            "value" : "Introduce un número de rondas entre 1 y %@."
           }
         },
         "fr" : {
@@ -21988,13 +21988,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie ein Passwort für diese Zugangsdaten ein."
+            "value" : "Gib ein Passwort für diese Zugangsdaten ein."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca una contraseña para esta credencial."
+            "value" : "Introduce una contraseña para esta credencial."
           }
         },
         "fr" : {
@@ -22040,13 +22040,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie einen Titel oder Benutzernamen für diese Zugangsdaten ein."
+            "value" : "Gib einen Titel oder Benutzernamen für diese Zugangsdaten ein."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca un título o nombre de usuario para esta credencial."
+            "value" : "Introduce un título o nombre de usuario para esta credencial."
           }
         },
         "fr" : {
@@ -22092,13 +22092,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie einen gültigen Datenbanknamen ein."
+            "value" : "Gib einen gültigen Datenbanknamen ein."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca un nombre de base de datos válido."
+            "value" : "Introduce un nombre de base de datos válido."
           }
         },
         "fr" : {
@@ -22144,13 +22144,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie eine gültige E-Mail-Adresse für Rückfragen ein."
+            "value" : "Gib eine gültige E-Mail-Adresse für Rückfragen ein."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca una dirección de correo electrónico válida para el seguimiento."
+            "value" : "Introduce una dirección de correo electrónico válida para el seguimiento."
           }
         },
         "fr" : {
@@ -22248,13 +22248,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie eine E-Mail-Adresse für Rückfragen ein oder deaktivieren Sie Rückfragen."
+            "value" : "Gib eine E-Mail-Adresse für Rückfragen ein oder deaktiviere Rückfragen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca una dirección de correo electrónico para el seguimiento, o desactive el seguimiento."
+            "value" : "Introduce una dirección de correo electrónico para el seguimiento, o desactiva el seguimiento."
           }
         },
         "fr" : {
@@ -22456,13 +22456,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie die Adresse des FTP-Servers ein."
+            "value" : "Gib die Adresse des FTP-Servers ein."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca la dirección del servidor FTP."
+            "value" : "Introduce la dirección del servidor FTP."
           }
         },
         "fr" : {
@@ -22508,13 +22508,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie die Adresse des WebDAV-Servers ein."
+            "value" : "Gib die Adresse des WebDAV-Servers ein."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca la dirección del servidor WebDAV."
+            "value" : "Introduce la dirección del servidor WebDAV."
           }
         },
         "fr" : {
@@ -22560,13 +22560,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie Ihr Master-Passwort ein oder verwenden Sie biometrisches Entsperren."
+            "value" : "Gib dein Master-Passwort ein oder verwende biometrisches Entsperren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca su contraseña maestra o utilice datos biométricos."
+            "value" : "Introduce tu contraseña maestra o utiliza datos biométricos."
           }
         },
         "fr" : {
@@ -22612,13 +22612,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie Ihr Passwort ein."
+            "value" : "Gib dein Passwort ein."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca su contraseña."
+            "value" : "Introduce tu contraseña."
           }
         },
         "fr" : {
@@ -22664,13 +22664,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie Ihren Benutzernamen ein."
+            "value" : "Gib deinen Benutzernamen ein."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca su nombre de usuario."
+            "value" : "Introduce tu nombre de usuario."
           }
         },
         "fr" : {
@@ -23392,13 +23392,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Alle Einträge mit Bestätigungscode, aus allen Gruppen. Tippen Sie auf einen Eintrag, um ihn zu öffnen."
+            "value" : "Alle Einträge mit Bestätigungscode, aus allen Gruppen. Tippe auf einen Eintrag, um ihn zu öffnen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Todas las entradas con código de verificación, de todos los grupos. Toque una entrada para abrirla."
+            "value" : "Todas las entradas con código de verificación, de todos los grupos. Toca una entrada para abrirla."
           }
         },
         "fr" : {
@@ -23434,7 +23434,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "所有群組中含驗證碼的項目。點一下項目即可打開。"
+            "value" : "所有群組中含驗證碼的項目。點一下項目即可開啟。"
           }
         }
       }
@@ -23444,13 +23444,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Genaue Treffer für eine Website werden getrennt von möglichen Treffern auf verwandten Subdomains aufgeführt. Ein möglicher Treffer wird nie ausgefüllt, ohne dass Sie ihn auswählen. Dank an @ftorga."
+            "value" : "Genaue Treffer für eine Website werden getrennt von möglichen Treffern auf verwandten Subdomains aufgeführt. Ein möglicher Treffer wird nie ausgefüllt, ohne dass du ihn auswählst. Dank an @ftorga."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Las coincidencias exactas de un sitio se muestran separadas de las posibles coincidencias en subdominios relacionados. Una posible coincidencia nunca se rellena a menos que la seleccione. Gracias a @ftorga."
+            "value" : "Las coincidencias exactas de un sitio se muestran separadas de las posibles coincidencias en subdominios relacionados. Una posible coincidencia nunca se rellena a menos que la selecciones. Gracias a @ftorga."
           }
         },
         "fr" : {
@@ -23480,13 +23480,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "网站的精确匹配项会与相关子域名上的可能匹配项分开列出。除非您主动选择，否则绝不会填充可能匹配项。感谢 @ftorga。"
+            "value" : "网站的精确匹配项会与相关子域名上的可能匹配项分开列出。除非你主动选择，否则绝不会填充可能匹配项。感谢 @ftorga。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "網站的完全符合項目會與相關子網域的可能符合項目分開列出。除非您主動選擇，否則絕不會填寫可能符合的項目。感謝 @ftorga。"
+            "value" : "網站的完全符合項目會與相關子網域的可能符合項目分開列出。除非你主動選擇，否則絕不會填寫可能符合的項目。感謝 @ftorga。"
           }
         }
       }
@@ -23496,13 +23496,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Beispiel: https://cloud.example.com/remote.php/dav/files/USERNAME/ — verwenden Sie für Nextcloud ein App-Passwort"
+            "value" : "Beispiel: https://cloud.example.com/remote.php/dav/files/USERNAME/ — verwende für Nextcloud ein App-Passwort"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ejemplo: https://cloud.example.com/remote.php/dav/files/USERNAME/ — para Nextcloud, utilice una contraseña de aplicación"
+            "value" : "Ejemplo: https://cloud.example.com/remote.php/dav/files/USERNAME/ — para Nextcloud, utiliza una contraseña de aplicación"
           }
         },
         "fr" : {
@@ -24006,7 +24006,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「匯出副本」現在改為「分享」。可將副本儲存到「檔案」、透過 AirDrop 傳送，或在其他 KeePass App 中打開。"
+            "value" : "「匯出副本」現在改為「分享」。可將副本儲存到「檔案」、透過 AirDrop 傳送，或在其他 KeePass App 中開啟。"
           }
         }
       }
@@ -24276,13 +24276,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Face ID oder Touch ID konnte Ihre Identität nicht bestätigen. Daher konnte KeeForge nicht mit dem Entsperren fortfahren."
+            "value" : "Face ID oder Touch ID konnte deine Identität nicht bestätigen. Daher konnte KeeForge nicht mit dem Entsperren fortfahren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Face ID o Touch ID no pudo confirmar su identidad. Por lo tanto, KeeForge no pudo continuar con el desbloqueo."
+            "value" : "Face ID o Touch ID no pudo confirmar tu identidad. Por lo tanto, KeeForge no pudo continuar con el desbloqueo."
           }
         },
         "fr" : {
@@ -25368,13 +25368,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Finden Sie Einträge anhand der Tags, die Sie bereits verwenden – einschließlich der von ihrer Gruppe geerbten Tags. Suchen Sie nach Tags und wählen Sie beim Bearbeiten aus Vorschlägen."
+            "value" : "Finde Einträge anhand der Tags, die du bereits verwendest – einschließlich der von ihrer Gruppe geerbten Tags. Suche nach Tags und wähle beim Bearbeiten aus Vorschlägen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Encuentre entradas mediante las etiquetas que ya utiliza, incluidas las etiquetas heredadas de su grupo. Busque por etiqueta y elija entre las sugerencias mientras edita."
+            "value" : "Encuentra entradas mediante las etiquetas que ya utilizas, incluidas las etiquetas heredadas de su grupo. Busca por etiqueta y elige entre las sugerencias mientras editas."
           }
         },
         "fr" : {
@@ -25404,13 +25404,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "通过您已在使用的标签查找条目，包括从群组继承的标签。按标签搜索，并在编辑时从建议中选择。"
+            "value" : "通过你已在使用的标签查找条目，包括从群组继承的标签。按标签搜索，并在编辑时从建议中选择。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "透過您已在使用的標籤尋找項目，包括從群組繼承的標籤。可依標籤搜尋，並在編輯時從建議中選取。"
+            "value" : "透過你已在使用的標籤尋找項目，包括從群組繼承的標籤。可依標籤搜尋，並在編輯時從建議中選取。"
           }
         }
       }
@@ -25456,13 +25456,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "前往 Mac App Store 获取 KeeForge。原生 Mac App 支持 macOS 15 或更高版本，提供自动填充，并可使用您的本地和 WebDAV 数据库。"
+            "value" : "前往 Mac App Store 获取 KeeForge。原生 Mac App 支持 macOS 15 或更高版本，提供自动填充，并可使用你的本地和 WebDAV 数据库。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "前往 Mac App Store 取得 KeeForge。原生 Mac App 支援 macOS 15 或更新版本，提供自動填寫，並可使用您的本機和 WebDAV 資料庫。"
+            "value" : "前往 Mac App Store 取得 KeeForge。原生 Mac App 支援 macOS 15 或更新版本，提供自動填寫，並可使用你的本機和 WebDAV 資料庫。"
           }
         }
       }
@@ -25524,13 +25524,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wählen Sie für jede Datenbank in Ihrer Liste „Aus der Liste entfernen“ und anschließend „Vorhandene Datenbank importieren“, und wählen Sie dieselbe .kdbx-Datei aus. Das Entfernen einer Datenbank aus der Liste löscht niemals die Datei selbst."
+            "value" : "Wähle für jede Datenbank in deiner Liste „Aus der Liste entfernen“ und anschließend „Vorhandene Datenbank importieren“, und wähle dieselbe .kdbx-Datei aus. Das Entfernen einer Datenbank aus der Liste löscht niemals die Datei selbst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Para cada base de datos de su lista, elija «Quitar de la lista» y luego use «Importar base de datos existente» y seleccione el mismo archivo .kdbx. Quitar una base de datos de la lista nunca elimina el archivo en sí."
+            "value" : "Para cada base de datos de tu lista, elige «Quitar de la lista» y luego usa «Importar base de datos existente» y selecciona el mismo archivo .kdbx. Quitar una base de datos de la lista nunca elimina el archivo en sí."
           }
         },
         "fr" : {
@@ -25628,13 +25628,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FTP kann nicht jede gleichzeitige Speicherung absichern. Bearbeiten Sie diese Datenbank nicht gleichzeitig in einer anderen App oder auf einem anderen Gerät; eine gleichzeitige Änderung kann überschrieben werden."
+            "value" : "FTP kann nicht jede gleichzeitige Speicherung absichern. Bearbeite diese Datenbank nicht gleichzeitig in einer anderen App oder auf einem anderen Gerät; eine gleichzeitige Änderung kann überschrieben werden."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FTP no puede impedir todas las sobrescrituras durante guardados simultáneos. Evite editar esta base de datos al mismo tiempo desde otra app u otro dispositivo; un cambio simultáneo podría sobrescribirse."
+            "value" : "FTP no puede impedir todas las sobrescrituras durante guardados simultáneos. Evita editar esta base de datos al mismo tiempo desde otra app u otro dispositivo; un cambio simultáneo podría sobrescribirse."
           }
         },
         "fr" : {
@@ -25680,13 +25680,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FTP ist unverschlüsselt. Aktivieren Sie „Unverschlüsseltes FTP erlauben“, um eine Verbindung herzustellen."
+            "value" : "FTP ist unverschlüsselt. Aktiviere „Unverschlüsseltes FTP erlauben“, um eine Verbindung herzustellen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FTP no está cifrado. Active «Permitir FTP sin cifrar» para conectarse."
+            "value" : "FTP no está cifrado. Activa «Permitir FTP sin cifrar» para conectarte."
           }
         },
         "fr" : {
@@ -25732,13 +25732,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FTP überträgt Ihren Benutzernamen, Ihr Passwort und die Datenbankdatei unverschlüsselt. Verwenden Sie es nur in einem lokalen Netzwerk, dem Sie vertrauen."
+            "value" : "FTP überträgt deinen Benutzernamen, dein Passwort und die Datenbankdatei unverschlüsselt. Verwende es nur in einem lokalen Netzwerk, dem du vertraust."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FTP envía su nombre de usuario, contraseña y archivo de la base de datos sin cifrar. Utilícelo solo en una red local de confianza."
+            "value" : "FTP envía tu nombre de usuario, contraseña y archivo de la base de datos sin cifrar. Utilízalo solo en una red local de confianza."
           }
         },
         "fr" : {
@@ -25768,13 +25768,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FTP 会以未加密方式传输您的用户名、密码和数据库文件。请仅在您信任的本地网络中使用。"
+            "value" : "FTP 会以未加密方式传输你的用户名、密码和数据库文件。请仅在你信任的本地网络中使用。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FTP 會以未加密方式傳輸您的使用者名稱、密碼和資料庫檔案。請僅在您信任的本機網路中使用。"
+            "value" : "FTP 會以未加密方式傳輸你的使用者名稱、密碼和資料庫檔案。請僅在你信任的本機網路中使用。"
           }
         }
       }
@@ -25998,13 +25998,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Erhalten Sie Vorschläge aus allen Datenbanken gleichzeitig, legen Sie fest, welche AutoFill verwendet, und wechseln Sie die Datenbank, ohne das AutoFill-Fenster zu verlassen."
+            "value" : "Erhalte Vorschläge aus allen Datenbanken gleichzeitig, lege fest, welche AutoFill verwendet, und wechsle die Datenbank, ohne das AutoFill-Fenster zu verlassen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reciba sugerencias de todas las bases de datos a la vez, decida cuáles utiliza Autorrelleno y cambie de base de datos sin salir del panel de Autorrelleno."
+            "value" : "Recibe sugerencias de todas las bases de datos a la vez, decide cuáles utiliza Autorrelleno y cambia de base de datos sin salir del panel de Autorrelleno."
           }
         },
         "fr" : {
@@ -26102,13 +26102,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie Ihren Gruppen eigene Symbole"
+            "value" : "Gib deinen Gruppen eigene Symbole"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dé a sus grupos sus propios iconos"
+            "value" : "Dale a tus grupos sus propios iconos"
           }
         },
         "fr" : {
@@ -27038,13 +27038,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verbergen Sie eine Gruppe, und ihre Einträge erscheinen beim Ausfüllen von Passwörtern nicht mehr – beim Durchsuchen der Datenbank in der App bleiben sie vollständig sichtbar."
+            "value" : "Verbirg eine Gruppe, und ihre Einträge erscheinen beim Ausfüllen von Passwörtern nicht mehr – beim Durchsuchen der Datenbank in der App bleiben sie vollständig sichtbar."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Oculte un grupo y sus entradas dejarán de aparecer al rellenar contraseñas, aunque seguirán totalmente visibles al examinar la base de datos en la aplicación."
+            "value" : "Oculta un grupo y sus entradas dejarán de aparecer al rellenar contraseñas, aunque seguirán totalmente visibles al examinar la base de datos en la aplicación."
           }
         },
         "fr" : {
@@ -27402,13 +27402,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "HTTP überträgt Ihren WebDAV-Benutzernamen, Ihr Passwort und den Datenbankverkehr unverschlüsselt. Verwenden Sie es nur in einem lokalen Netzwerk, dem Sie vertrauen."
+            "value" : "HTTP überträgt deinen WebDAV-Benutzernamen, dein Passwort und den Datenbankverkehr unverschlüsselt. Verwende es nur in einem lokalen Netzwerk, dem du vertraust."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "HTTP envía su nombre de usuario, contraseña y tráfico de la base de datos de WebDAV sin cifrar. Utilícelo solo en una red local de confianza."
+            "value" : "HTTP envía tu nombre de usuario, contraseña y tráfico de la base de datos de WebDAV sin cifrar. Utilízalo solo en una red local de confianza."
           }
         },
         "fr" : {
@@ -27438,13 +27438,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "HTTP 会以未加密方式传输您的 WebDAV 用户名、密码和数据库流量。请仅在您信任的本地网络中使用。"
+            "value" : "HTTP 会以未加密方式传输你的 WebDAV 用户名、密码和数据库流量。请仅在你信任的本地网络中使用。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "HTTP 會以未加密方式傳輸您的 WebDAV 使用者名稱、密碼和資料庫流量。請僅在您信任的本機網路中使用。"
+            "value" : "HTTP 會以未加密方式傳輸你的 WebDAV 使用者名稱、密碼和資料庫流量。請僅在你信任的本機網路中使用。"
           }
         }
       }
@@ -27616,13 +27616,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wenn AutoFill deaktiviert ist, weist KeeForge Sie jetzt darauf hin und hilft Ihnen, es direkt über die Datenbankliste oder die Einstellungen zu aktivieren."
+            "value" : "Wenn AutoFill deaktiviert ist, weist KeeForge dich jetzt darauf hin und hilft dir, es direkt über die Datenbankliste oder die Einstellungen zu aktivieren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Si Autorrelleno está desactivado, KeeForge ahora se lo indica y le ayuda a activarlo directamente desde la lista de bases de datos o los ajustes."
+            "value" : "Si Autorrelleno está desactivado, KeeForge ahora te lo indica y te ayuda a activarlo directamente desde la lista de bases de datos o los ajustes."
           }
         },
         "fr" : {
@@ -27652,13 +27652,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "如果自动填充处于关闭状态，KeeForge 现在会提醒您，并帮助您直接从数据库列表或设置中开启。"
+            "value" : "如果自动填充处于关闭状态，KeeForge 现在会提醒你，并帮助你直接从数据库列表或设置中开启。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "如果自動填寫已關閉，KeeForge 現在會提醒您，並協助您直接從資料庫清單或設定中開啟。"
+            "value" : "如果自動填寫已關閉，KeeForge 現在會提醒你，並協助你直接從資料庫清單或設定中開啟。"
           }
         }
       }
@@ -28864,13 +28864,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge fügt diesen Passkey der Datenbankdatei hinzu, sobald Sie die Datenbank das nächste Mal in der App entsperren."
+            "value" : "KeeForge fügt diesen Passkey der Datenbankdatei hinzu, sobald du die Datenbank das nächste Mal in der App entsperrst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge añadirá esta llave de acceso al archivo de la base de datos la próxima vez que desbloquee la base de datos en la app."
+            "value" : "KeeForge añadirá esta llave de acceso al archivo de la base de datos la próxima vez que desbloquees la base de datos en la app."
           }
         },
         "fr" : {
@@ -29176,13 +29176,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge kann nicht feststellen, welche Kopie auf diesem Gerät die über AutoFill gespeicherte Änderung enthält, daher wurde nichts zusammengeführt. Die Änderung ist möglicherweise bereits in dieser Datenbank enthalten; andernfalls suchen Sie sie in den Sicherungskopien in den Datenbankdetails und exportieren Sie diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen. Sobald die Änderung zusammengeführt ist, verwenden Sie „Ausstehenden Upload verwerfen“ in der Datenbankliste, um den Konflikt aufzulösen."
+            "value" : "KeeForge kann nicht feststellen, welche Kopie auf diesem Gerät die über AutoFill gespeicherte Änderung enthält, daher wurde nichts zusammengeführt. Die Änderung ist möglicherweise bereits in dieser Datenbank enthalten; andernfalls suche sie in den Sicherungskopien in den Datenbankdetails und exportiere diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen. Sobald die Änderung zusammengeführt ist, verwende „Ausstehenden Upload verwerfen“ in der Datenbankliste, um den Konflikt aufzulösen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge no puede determinar qué copia de este dispositivo contiene el cambio guardado mediante el autorrelleno, así que no se combinó nada. Es posible que el cambio ya esté en esta base de datos; si no, búsquelo en las copias de seguridad de los detalles de la base de datos y exporte esa copia de seguridad para combinarlo en otra app de KeePass. Una vez combinado el cambio, use «Descartar carga pendiente» en la lista de bases de datos para resolver el conflicto."
+            "value" : "KeeForge no puede determinar qué copia de este dispositivo contiene el cambio guardado mediante el autorrelleno, así que no se combinó nada. Es posible que el cambio ya esté en esta base de datos; si no, búscalo en las copias de seguridad de los detalles de la base de datos y exporta esa copia de seguridad para combinarlo en otra app de KeePass. Una vez combinado el cambio, usa «Descartar carga pendiente» en la lista de bases de datos para resolver el conflicto."
           }
         },
         "fr" : {
@@ -29540,13 +29540,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge konnte den Cloud-Anbieter nicht erreichen. Versuchen Sie es erneut, sobald Ihre Verbindung wiederhergestellt ist."
+            "value" : "KeeForge konnte den Cloud-Anbieter nicht erreichen. Versuche es erneut, sobald deine Verbindung wiederhergestellt ist."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge no pudo conectar con el proveedor de la nube. Vuelva a intentarlo cuando recupere la conexión."
+            "value" : "KeeForge no pudo conectar con el proveedor de la nube. Vuelve a intentarlo cuando recuperes la conexión."
           }
         },
         "fr" : {
@@ -29592,13 +29592,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge konnte dieses Foto nicht lesen. Wählen Sie ein anderes aus."
+            "value" : "KeeForge konnte dieses Foto nicht lesen. Wähle ein anderes aus."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge no pudo leer esa foto. Elija otra."
+            "value" : "KeeForge no pudo leer esa foto. Elige otra."
           }
         },
         "fr" : {
@@ -29696,13 +29696,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge konnte das Feedback derzeit nicht senden. Versuchen Sie es später erneut."
+            "value" : "KeeForge konnte das Feedback derzeit nicht senden. Versuche es später erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge no pudo enviar los comentarios en este momento. Inténtelo de nuevo más tarde."
+            "value" : "KeeForge no pudo enviar los comentarios en este momento. Inténtalo de nuevo más tarde."
           }
         },
         "fr" : {
@@ -29800,13 +29800,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge konnte den für die Entsperrung per Face ID oder Touch ID gespeicherten Schlüssel nicht verwenden, zum Beispiel weil sich das registrierte Gesicht oder die Fingerabdrücke geändert haben. Entsperren Sie mit Ihrem Master-Passwort und Ihrer Schlüsseldatei; KeeForge speichert dann einen neuen Schlüssel."
+            "value" : "KeeForge konnte den für die Entsperrung per Face ID oder Touch ID gespeicherten Schlüssel nicht verwenden, zum Beispiel weil sich das registrierte Gesicht oder die Fingerabdrücke geändert haben. Entsperre mit deinem Master-Passwort und deiner Schlüsseldatei; KeeForge speichert dann einen neuen Schlüssel."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge no pudo usar la clave guardada para desbloquear con Face ID o Touch ID, por ejemplo porque cambiaron la cara o las huellas registradas. Desbloquee con su contraseña maestra y su archivo de clave, y KeeForge guardará una nueva."
+            "value" : "KeeForge no pudo usar la clave guardada para desbloquear con Face ID o Touch ID, por ejemplo porque cambiaron la cara o las huellas registradas. Desbloquea con tu contraseña maestra y tu archivo de clave, y KeeForge guardará una nueva."
           }
         },
         "fr" : {
@@ -29852,13 +29852,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge konnte den für die Entsperrung per Touch ID oder Apple Watch gespeicherten Schlüssel nicht verwenden, zum Beispiel weil sich die registrierten Fingerabdrücke geändert haben. Entsperren Sie mit Ihrem Master-Passwort und Ihrer Schlüsseldatei; KeeForge speichert dann einen neuen Schlüssel."
+            "value" : "KeeForge konnte den für die Entsperrung per Touch ID oder Apple Watch gespeicherten Schlüssel nicht verwenden, zum Beispiel weil sich die registrierten Fingerabdrücke geändert haben. Entsperre mit deinem Master-Passwort und deiner Schlüsseldatei; KeeForge speichert dann einen neuen Schlüssel."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge no pudo usar la clave guardada para desbloquear con Touch ID o Apple Watch, por ejemplo porque cambiaron las huellas registradas. Desbloquee con su contraseña maestra y su archivo de clave, y KeeForge guardará una nueva."
+            "value" : "KeeForge no pudo usar la clave guardada para desbloquear con Touch ID o Apple Watch, por ejemplo porque cambiaron las huellas registradas. Desbloquea con tu contraseña maestra y tu archivo de clave, y KeeForge guardará una nueva."
           }
         },
         "fr" : {
@@ -30060,13 +30060,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge hat noch keine lokale Kopie dieser Datenbank. Öffnen Sie sie einmal, während Sie online sind, und versuchen Sie den Export dann erneut."
+            "value" : "KeeForge hat noch keine lokale Kopie dieser Datenbank. Öffne sie einmal, während du online bist, und versuche den Export dann erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge aún no tiene una copia local de esta base de datos. Ábrala una vez estando en línea y vuelva a intentar la exportación."
+            "value" : "KeeForge aún no tiene una copia local de esta base de datos. Ábrela una vez estando en línea y vuelve a intentar la exportación."
           }
         },
         "fr" : {
@@ -30736,13 +30736,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge verlangsamt Entsperrversuche vorübergehend. Versuchen Sie es in %lld Sekunden erneut."
+            "value" : "KeeForge verlangsamt Entsperrversuche vorübergehend. Versuche es in %lld Sekunden erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge está ralentizando temporalmente los intentos de desbloqueo. Vuelva a intentarlo en %lld segundos."
+            "value" : "KeeForge está ralentizando temporalmente los intentos de desbloqueo. Vuelve a intentarlo en %lld segundos."
           }
         },
         "fr" : {
@@ -30840,13 +30840,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge ist noch nicht als AutoFill-Anbieter aktiviert. Aktivieren Sie KeeForge, um Passwörter in Safari und anderen Apps auszufüllen."
+            "value" : "KeeForge ist noch nicht als AutoFill-Anbieter aktiviert. Aktiviere KeeForge, um Passwörter in Safari und anderen Apps auszufüllen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge todavía no está habilitado como proveedor de Autorrelleno. Actívelo para rellenar contraseñas en Safari y otras aplicaciones."
+            "value" : "KeeForge todavía no está habilitado como proveedor de Autorrelleno. Actívalo para rellenar contraseñas en Safari y otras aplicaciones."
           }
         },
         "fr" : {
@@ -30892,13 +30892,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge ist noch nicht als AutoFill-Anbieter aktiviert. Aktivieren Sie KeeForge unter „Allgemein“ > „AutoFill & Passwörter“, um Passwörter in Safari und anderen Apps auszufüllen."
+            "value" : "KeeForge ist noch nicht als AutoFill-Anbieter aktiviert. Aktiviere KeeForge unter „Allgemein“ > „AutoFill & Passwörter“, um Passwörter in Safari und anderen Apps auszufüllen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge todavía no está habilitado como proveedor de Autorrelleno. Actívelo en «General» > «Autorrelleno y contraseñas» para rellenar contraseñas en Safari y otras aplicaciones."
+            "value" : "KeeForge todavía no está habilitado como proveedor de Autorrelleno. Actívalo en «General» > «Autorrelleno y contraseñas» para rellenar contraseñas en Safari y otras aplicaciones."
           }
         },
         "fr" : {
@@ -31100,13 +31100,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sie müssen dieses Cloud-Konto erneut verbinden, bevor KeeForge die Datenbank öffnen kann."
+            "value" : "Du musst dieses Cloud-Konto erneut verbinden, bevor KeeForge die Datenbank öffnen kann."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Debe volver a conectar esta cuenta en la nube para que KeeForge pueda abrir la base de datos."
+            "value" : "Debes volver a conectar esta cuenta en la nube para que KeeForge pueda abrir la base de datos."
           }
         },
         "fr" : {
@@ -31136,13 +31136,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 需要您重新连接此云账户后才能打开数据库。"
+            "value" : "KeeForge 需要你重新连接此云账户后才能打开数据库。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 需要您重新連接此雲端帳號後才能開啟資料庫。"
+            "value" : "KeeForge 需要你重新連接此雲端帳號後才能開啟資料庫。"
           }
         }
       }
@@ -31152,13 +31152,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge hat keine Leseberechtigung für diese Datenbankdatei mehr. Wählen Sie sie erneut in der Datenbankliste aus, um den Zugriff zu aktualisieren."
+            "value" : "KeeForge hat keine Leseberechtigung für diese Datenbankdatei mehr. Wähle sie erneut in der Datenbankliste aus, um den Zugriff zu aktualisieren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge ya no tiene permiso para leer este archivo de base de datos. Selecciónelo de nuevo en la lista de bases de datos para actualizar el acceso."
+            "value" : "KeeForge ya no tiene permiso para leer este archivo de base de datos. Selecciónalo de nuevo en la lista de bases de datos para actualizar el acceso."
           }
         },
         "fr" : {
@@ -31204,13 +31204,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge erkennt jetzt Einmalpasswörter, die von den Plugins KeeOTP und KeeOtp2 gespeichert wurden, sodass Sie deren Bestätigungscodes wie gewohnt verwenden können."
+            "value" : "KeeForge erkennt jetzt Einmalpasswörter, die von den Plugins KeeOTP und KeeOtp2 gespeichert wurden, sodass du deren Bestätigungscodes wie gewohnt verwenden kannst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge ahora reconoce las contraseñas de un solo uso guardadas por los complementos KeeOTP y KeeOtp2, de modo que puede usar sus códigos de verificación con normalidad."
+            "value" : "KeeForge ahora reconoce las contraseñas de un solo uso guardadas por los complementos KeeOTP y KeeOtp2, de modo que puedes usar sus códigos de verificación con normalidad."
           }
         },
         "fr" : {
@@ -31240,13 +31240,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 现在可识别由 KeeOTP 和 KeeOtp2 插件保存的一次性密码，您可以正常使用它们的验证码。"
+            "value" : "KeeForge 现在可识别由 KeeOTP 和 KeeOtp2 插件保存的一次性密码，你可以正常使用它们的验证码。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 現在可辨識由 KeeOTP 和 KeeOtp2 外掛程式儲存的一次性密碼，您可以正常使用它們的驗證碼。"
+            "value" : "KeeForge 現在可辨識由 KeeOTP 和 KeeOtp2 外掛程式儲存的一次性密碼，你可以正常使用它們的驗證碼。"
           }
         }
       }
@@ -31308,13 +31308,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge öffnet die auf diesem Gerät gespeicherte Kopie, ohne die Cloud zu prüfen. Verwenden Sie „Jetzt synchronisieren“ in der entsperrten Datenbank, um neuere Änderungen zu laden. Beim Sichern wird die Cloud-Kopie weiterhin zuerst geprüft und der Vorgang angehalten, falls sie sich geändert hat. AutoFill verwendet nur die Cache-Kopie."
+            "value" : "KeeForge öffnet die auf diesem Gerät gespeicherte Kopie, ohne die Cloud zu prüfen. Verwende „Jetzt synchronisieren“ in der entsperrten Datenbank, um neuere Änderungen zu laden. Beim Sichern wird die Cloud-Kopie weiterhin zuerst geprüft und der Vorgang angehalten, falls sie sich geändert hat. AutoFill verwendet nur die Cache-Kopie."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge abre la copia guardada en este dispositivo sin comprobar la nube. Use «Sincronizar ahora» en la base de datos desbloqueada para obtener cambios más recientes. Al guardar, se sigue comprobando primero la copia en la nube y se detiene si ha cambiado. El autorrelleno solo utiliza la copia en caché."
+            "value" : "KeeForge abre la copia guardada en este dispositivo sin comprobar la nube. Usa «Sincronizar ahora» en la base de datos desbloqueada para obtener cambios más recientes. Al guardar, se sigue comprobando primero la copia en la nube y se detiene si ha cambiado. El autorrelleno solo utiliza la copia en caché."
           }
         },
         "fr" : {
@@ -31412,13 +31412,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge merkt sich diese Schlüsseldatei und trägt sie beim Entsperren automatisch ein. Um die von der Datenbank verlangte Schlüsseldatei zu ändern, ändern Sie den Master-Schlüssel."
+            "value" : "KeeForge merkt sich diese Schlüsseldatei und trägt sie beim Entsperren automatisch ein. Um die von der Datenbank verlangte Schlüsseldatei zu ändern, ändere den Master-Schlüssel."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge recuerda este archivo de clave y lo rellena automáticamente al desbloquear. Para cambiar el archivo de clave que requiere la base de datos, cambie la clave maestra."
+            "value" : "KeeForge recuerda este archivo de clave y lo rellena automáticamente al desbloquear. Para cambiar el archivo de clave que requiere la base de datos, cambia la clave maestra."
           }
         },
         "fr" : {
@@ -31708,13 +31708,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 的“文稿”文件夹现在会显示在 Finder 和 Windows 文件共享中。将 .kdbx 文件放入其中，它会自动加入您的数据库列表。"
+            "value" : "KeeForge 的“文稿”文件夹现在会显示在 Finder 和 Windows 文件共享中。将 .kdbx 文件放入其中，它会自动加入你的数据库列表。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 的「文件」資料夾現在會顯示在 Finder 和 Windows 檔案共享中。將 .kdbx 檔案放入其中，它會自動加入您的資料庫清單。"
+            "value" : "KeeForge 的「文件」資料夾現在會顯示在 Finder 和 Windows 檔案共享中。將 .kdbx 檔案放入其中，它會自動加入你的資料庫清單。"
           }
         }
       }
@@ -31776,13 +31776,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lassen Sie diese Option deaktiviert, sofern Ihr vertrauenswürdiger lokaler WebDAV-Server kein HTTPS verwenden kann."
+            "value" : "Lass diese Option deaktiviert, sofern dein vertrauenswürdiger lokaler WebDAV-Server kein HTTPS verwenden kann."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mantenga esta opción desactivada a menos que su servidor WebDAV local de confianza no pueda usar HTTPS."
+            "value" : "Mantén esta opción desactivada a menos que tu servidor WebDAV local de confianza no pueda usar HTTPS."
           }
         },
         "fr" : {
@@ -31812,13 +31812,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "除非您信任的本地 WebDAV 服务器无法使用 HTTPS，否则请保持此项关闭。"
+            "value" : "除非你信任的本地 WebDAV 服务器无法使用 HTTPS，否则请保持此项关闭。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "除非您信任的本機 WebDAV 伺服器無法使用 HTTPS，否則請保持此項關閉。"
+            "value" : "除非你信任的本機 WebDAV 伺服器無法使用 HTTPS，否則請保持此項關閉。"
           }
         }
       }
@@ -33753,13 +33753,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS zeigt Vorschläge immer nur aus einer Datenbank – aus der zuletzt entsperrten. Entsperren Sie eine andere ausgewählte Datenbank, um zu wechseln, welche Einträge erscheinen."
+            "value" : "macOS zeigt Vorschläge immer nur aus einer Datenbank – aus der zuletzt entsperrten. Entsperre eine andere ausgewählte Datenbank, um zu wechseln, welche Einträge erscheinen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS muestra sugerencias de una sola base de datos a la vez: la que haya desbloqueado más recientemente. Desbloquee otra base de datos seleccionada para cambiar qué entradas aparecen."
+            "value" : "macOS muestra sugerencias de una sola base de datos a la vez: la que hayas desbloqueado más recientemente. Desbloquea otra base de datos seleccionada para cambiar qué entradas aparecen."
           }
         },
         "fr" : {
@@ -35371,7 +35371,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neue Datenbank…"
+            "value" : "Neue Datenbank …"
           }
         },
         "es" : {
@@ -36573,13 +36573,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kein GitHub-Konto und keine E-Mail-Adresse erforderlich. KeeForge sendet nur die von Ihnen eingegebene Nachricht, die sichtbaren angehängten Fehlerdetails, Ihre E-Mail-Adresse, falls Sie Rückfragen erlauben, und das Foto, falls Sie eines anhängen. Berichte zum Öffnen von Datenbanken können sichtbare App- und Gerätemetadaten, den Status der Cloud-Synchronisierung und kurze Präfixe von Datei-Hashes enthalten, aber niemals Datenbankinhalte, Passwörter, Schlüsseldateien oder unverarbeitete Tresordateien."
+            "value" : "Kein GitHub-Konto und keine E-Mail-Adresse erforderlich. KeeForge sendet nur die von dir eingegebene Nachricht, die sichtbaren angehängten Fehlerdetails, deine E-Mail-Adresse, falls du Rückfragen erlaubst, und das Foto, falls du eines anhängst. Berichte zum Öffnen von Datenbanken können sichtbare App- und Gerätemetadaten, den Status der Cloud-Synchronisierung und kurze Präfixe von Datei-Hashes enthalten, aber niemals Datenbankinhalte, Passwörter, Schlüsseldateien oder unverarbeitete Tresordateien."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No se requiere una cuenta de GitHub ni una dirección de correo electrónico. KeeForge solo envía el mensaje que escribe, los detalles visibles del error adjuntos, su dirección de correo electrónico si permite el seguimiento, y la foto si adjunta una. Los informes de apertura de bases de datos pueden incluir metadatos visibles de la aplicación y el dispositivo, el estado de la sincronización con la nube y prefijos cortos de hash de archivo, pero nunca el contenido de la base de datos, las contraseñas, los archivos de clave ni los archivos de bóveda sin procesar."
+            "value" : "No se requiere una cuenta de GitHub ni una dirección de correo electrónico. KeeForge solo envía el mensaje que escribes, los detalles visibles del error adjuntos, tu dirección de correo electrónico si permites el seguimiento, y la foto si adjuntas una. Los informes de apertura de bases de datos pueden incluir metadatos visibles de la aplicación y el dispositivo, el estado de la sincronización con la nube y prefijos cortos de hash de archivo, pero nunca el contenido de la base de datos, las contraseñas, los archivos de clave ni los archivos de bóveda sin procesar."
           }
         },
         "fr" : {
@@ -36609,13 +36609,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无需 GitHub 或电子邮件。KeeForge 仅发送您输入的消息、可见的随附错误详情、启用后续跟进时的联系邮箱，以及您附上的照片（如有）。数据库打开报告可能包含可见的 App/设备元数据、云同步状态和简短的文件哈希前缀，但绝不会包含数据库内容、密码、密钥文件或原始保险库文件。"
+            "value" : "无需 GitHub 或电子邮件。KeeForge 仅发送你输入的消息、可见的随附错误详情、启用后续跟进时的联系邮箱，以及你附上的照片（如有）。数据库打开报告可能包含可见的 App/设备元数据、云同步状态和简短的文件哈希前缀，但绝不会包含数据库内容、密码、密钥文件或原始保险库文件。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無需 GitHub 或電子郵件。KeeForge 僅會傳送您輸入的訊息、可見的隨附錯誤詳細資訊、啟用後續回覆時的聯絡電子郵件，以及您附加的照片（如有）。資料庫開啟報告可能包含可見的 App/裝置元資料、雲端同步狀態和簡短的檔案雜湊前綴，但絕不會包含資料庫內容、密碼、金鑰檔案或原始保險庫檔案。"
+            "value" : "無需 GitHub 或電子郵件。KeeForge 僅會傳送你輸入的訊息、可見的隨附錯誤詳細資訊、啟用後續回覆時的聯絡電子郵件，以及你附加的照片（如有）。資料庫開啟報告可能包含可見的 App/裝置元資料、雲端同步狀態和簡短的檔案雜湊前綴，但絕不會包含資料庫內容、密碼、金鑰檔案或原始保險庫檔案。"
           }
         }
       }
@@ -36625,7 +36625,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Für diese Website konnte kein Symbol geladen werden. Möglicherweise hat sie keines, oder die Verbindung ist fehlgeschlagen."
+            "value" : "Für diese Website konnte kein Symbol heruntergeladen werden. Möglicherweise hat sie keines, oder die Verbindung ist fehlgeschlagen."
           }
         },
         "es" : {
@@ -37457,13 +37457,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hinweis: Dropbox weist möglicherweise darauf hin, dass KeeForge nur wenige Benutzer hat. Das ist bei einer unabhängigen App normal. KeeForge ist quelloffen und greift nur auf die Datenbankdatei zu, die Sie öffnen oder erstellen."
+            "value" : "Hinweis: Dropbox weist möglicherweise darauf hin, dass KeeForge nur wenige Benutzer hat. Das ist bei einer unabhängigen App normal. KeeForge ist quelloffen und greift nur auf die Datenbankdatei zu, die du öffnest oder erstellst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nota: Dropbox puede advertir que KeeForge tiene pocos usuarios. Esto es normal en una aplicación independiente. KeeForge es de código abierto y solo accede al archivo de base de datos que usted elija abrir o crear."
+            "value" : "Nota: Dropbox puede advertir que KeeForge tiene pocos usuarios. Esto es normal en una aplicación independiente. KeeForge es de código abierto y solo accede al archivo de base de datos que elijas abrir o crear."
           }
         },
         "fr" : {
@@ -37493,13 +37493,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "注意：Dropbox 可能会提示 KeeForge 用户数量较少。这对独立开发的 App 来说很正常。KeeForge 是开源的，只会使用您选择打开或创建的数据库文件。"
+            "value" : "注意：Dropbox 可能会提示 KeeForge 用户数量较少。这对独立开发的 App 来说很正常。KeeForge 是开源的，只会使用你选择打开或创建的数据库文件。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "注意：Dropbox 可能會提示 KeeForge 使用者數量較少。這對獨立開發的 App 來說很正常。KeeForge 是開源的，只會使用您選擇開啟或建立的資料庫檔案。"
+            "value" : "注意：Dropbox 可能會提示 KeeForge 使用者數量較少。這對獨立開發的 App 來說很正常。KeeForge 是開源的，只會使用你選擇開啟或建立的資料庫檔案。"
           }
         }
       }
@@ -38290,13 +38290,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Öffnen Sie einen Eintrag, tippen Sie auf „Bearbeiten“ und füllen Sie dessen Feld „Tags“ aus, um zusammengehörige Einträge aus allen Gruppen zu sammeln."
+            "value" : "Öffne einen Eintrag, tippe auf „Bearbeiten“ und fülle dessen Feld „Tags“ aus, um zusammengehörige Einträge aus allen Gruppen zu sammeln."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Abra una entrada, toque «Editar» y rellene su campo «Etiquetas» para agrupar entradas relacionadas de cualquier grupo."
+            "value" : "Abre una entrada, toca «Editar» y rellena su campo «Etiquetas» para agrupar entradas relacionadas de cualquier grupo."
           }
         },
         "fr" : {
@@ -38332,7 +38332,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打開項目，點一下「編輯」，填寫其「標籤」欄位，即可將任何群組中的相關項目彙整在一起。"
+            "value" : "開啟項目，點一下「編輯」，填寫其「標籤」欄位，即可將任何群組中的相關項目彙整在一起。"
           }
         }
       }
@@ -38342,13 +38342,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Öffnen und entsperren Sie eine Datenbank, dann fügt KeeForge den Bestätigungscode hinzu."
+            "value" : "Öffne und entsperre eine Datenbank, dann fügt KeeForge den Bestätigungscode hinzu."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Abra y desbloquee una base de datos y KeeForge añadirá entonces el código de verificación."
+            "value" : "Abre y desbloquea una base de datos y KeeForge añadirá entonces el código de verificación."
           }
         },
         "fr" : {
@@ -38436,7 +38436,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打開自動填寫設定…"
+            "value" : "開啟自動填寫設定…"
           }
         }
       }
@@ -38550,7 +38550,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Datenbank öffnen…"
+            "value" : "Datenbank öffnen …"
           }
         },
         "es" : {
@@ -38696,7 +38696,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打開 iOS 自動填寫設定"
+            "value" : "開啟 iOS 自動填寫設定"
           }
         }
       }
@@ -38748,7 +38748,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打開 Mac 版"
+            "value" : "開啟 Mac 版"
           }
         }
       }
@@ -38800,7 +38800,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打開更多 KeePass 資料庫"
+            "value" : "開啟更多 KeePass 資料庫"
           }
         }
       }
@@ -38852,7 +38852,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打開「設定」"
+            "value" : "開啟「設定」"
           }
         }
       }
@@ -38956,7 +38956,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打開 URL"
+            "value" : "開啟 URL"
           }
         }
       }
@@ -39164,7 +39164,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在打開 %@"
+            "value" : "正在開啟 %@"
           }
         }
       }
@@ -39950,13 +39950,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "编辑条目时，可粘贴设置链接或手动输入密钥来添加验证码。验证码保存在您的数据库中，因此在其他 KeePass App 中同样可用。"
+            "value" : "编辑条目时，可粘贴设置链接或手动输入密钥来添加验证码。验证码保存在你的数据库中，因此在其他 KeePass App 中同样可用。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "編輯項目時，可貼上設定連結或手動輸入金鑰來新增驗證碼。驗證碼儲存在您的資料庫中，因此在其他 KeePass App 中同樣可用。"
+            "value" : "編輯項目時，可貼上設定連結或手動輸入金鑰來新增驗證碼。驗證碼儲存在你的資料庫中，因此在其他 KeePass App 中同樣可用。"
           }
         }
       }
@@ -40330,13 +40330,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bitte verbinden Sie dieses Cloud-Konto erneut."
+            "value" : "Bitte verbinde dieses Cloud-Konto erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vuelva a conectar esta cuenta en la nube."
+            "value" : "Vuelve a conectar esta cuenta en la nube."
           }
         },
         "fr" : {
@@ -40382,13 +40382,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bitte wählen Sie eine KeePass-Datenbank im .kdbx-Format aus."
+            "value" : "Bitte wähle eine KeePass-Datenbank im .kdbx-Format aus."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Seleccione una base de datos de KeePass con extensión .kdbx."
+            "value" : "Selecciona una base de datos de KeePass con extensión .kdbx."
           }
         },
         "fr" : {
@@ -41024,7 +41024,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Subir cambios pendientes"
+            "value" : "Cargar cambios pendientes"
           }
         },
         "fr" : {
@@ -41902,13 +41902,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verbinden Sie %@ erneut, um Änderungen zu sichern."
+            "value" : "Verbinde %@ erneut, um Änderungen zu sichern."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vuelva a conectar %@ para guardar los cambios."
+            "value" : "Vuelve a conectar %@ para guardar los cambios."
           }
         },
         "fr" : {
@@ -41954,13 +41954,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Stellen Sie die Verbindung wieder her, indem Sie den FTP-Server erneut mit Adresse, Benutzername und Passwort hinzufügen."
+            "value" : "Stelle die Verbindung wieder her, indem du den FTP-Server erneut mit Adresse, Benutzername und Passwort hinzufügst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vuelva a conectarse añadiendo de nuevo el servidor FTP con su dirección, nombre de usuario y contraseña."
+            "value" : "Vuelve a conectarte añadiendo de nuevo el servidor FTP con su dirección, nombre de usuario y contraseña."
           }
         },
         "fr" : {
@@ -42058,13 +42058,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verbinden Sie dieses Cloud-Konto erneut, um Änderungen zu sichern."
+            "value" : "Verbinde dieses Cloud-Konto erneut, um Änderungen zu sichern."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vuelva a conectar esta cuenta en la nube para guardar los cambios."
+            "value" : "Vuelve a conectar esta cuenta en la nube para guardar los cambios."
           }
         },
         "fr" : {
@@ -43000,13 +43000,13 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eliminar código de verificación"
+            "value" : "Quitar código de verificación"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Supprimer le code de vérification"
+            "value" : "Retirer le code de vérification"
           }
         },
         "it" : {
@@ -44238,13 +44238,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在列表中右键点按条目，即可拷贝其用户名或密码。拷贝密码时仍需确认您的身份。"
+            "value" : "在列表中右键点按条目，即可拷贝其用户名或密码。拷贝密码时仍需确认你的身份。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在列表中右鍵點按項目，即可拷貝其使用者名稱或密碼。拷貝密碼時仍需確認您的身分。"
+            "value" : "在列表中右鍵點按項目，即可拷貝其使用者名稱或密碼。拷貝密碼時仍需確認你的身分。"
           }
         }
       }
@@ -44722,7 +44722,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neue Einträge speichern in"
+            "value" : "Neue Einträge sichern in"
           }
         },
         "es" : {
@@ -44826,13 +44826,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Speichern oder verwerfen Sie Ihre Änderungen, bevor Sie die Verschlüsselungseinstellungen ändern."
+            "value" : "Speichere oder verwirf deine Änderungen, bevor du die Verschlüsselungseinstellungen änderst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Guarde o descarte sus cambios antes de cambiar los ajustes de cifrado."
+            "value" : "Guarda o descarta tus cambios antes de cambiar los ajustes de cifrado."
           }
         },
         "fr" : {
@@ -44878,13 +44878,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Speichern oder verwerfen Sie Ihre Änderungen, bevor Sie den Master-Schlüssel ändern."
+            "value" : "Speichere oder verwirf deine Änderungen, bevor du den Master-Schlüssel änderst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Guarde o descarte sus cambios antes de cambiar la clave maestra."
+            "value" : "Guarda o descarta tus cambios antes de cambiar la clave maestra."
           }
         },
         "fr" : {
@@ -45035,7 +45035,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ohne Master-Passwort speichern?"
+            "value" : "Ohne Master-Passwort sichern?"
           }
         },
         "es" : {
@@ -45088,7 +45088,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ohne Passwort speichern"
+            "value" : "Ohne Passwort sichern"
           }
         },
         "es" : {
@@ -45244,13 +45244,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sichern Sie Ihre Änderungen vor dem Synchronisieren."
+            "value" : "Sichere deine Änderungen vor dem Synchronisieren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Guarde sus cambios antes de sincronizar."
+            "value" : "Guarda tus cambios antes de sincronizar."
           }
         },
         "fr" : {
@@ -45400,13 +45400,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Speichert eine Kopie der Datenbank in dem Stand, den KeeForge derzeit hat. Verwenden Sie sie, um Änderungen mit einer anderen KeePass-App in Ihre Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
+            "value" : "Speichert eine Kopie der Datenbank in dem Stand, den KeeForge derzeit hat. Verwende sie, um Änderungen mit einer anderen KeePass-App in deine Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Guarda una copia de la base de datos tal como la tiene KeeForge actualmente. Úsela para combinar los cambios en su archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
+            "value" : "Guarda una copia de la base de datos tal como la tiene KeeForge actualmente. Úsala para combinar los cambios en tu archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
           }
         },
         "fr" : {
@@ -45452,13 +45452,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Speichert die lokal zwischengespeicherte Kopie der Datenbank in dem Stand, den KeeForge derzeit hat. Verwenden Sie sie, um Änderungen mit einer anderen KeePass-App in Ihre Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
+            "value" : "Speichert die lokal zwischengespeicherte Kopie der Datenbank in dem Stand, den KeeForge derzeit hat. Verwende sie, um Änderungen mit einer anderen KeePass-App in deine Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Guarda la copia almacenada localmente en caché de la base de datos tal como la tiene KeeForge actualmente. Úsela para combinar los cambios en su archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
+            "value" : "Guarda la copia almacenada localmente en caché de la base de datos tal como la tiene KeeForge actualmente. Úsala para combinar los cambios en tu archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
           }
         },
         "fr" : {
@@ -45504,7 +45504,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Speichert in %@"
+            "value" : "Sichert in %@"
           }
         },
         "es" : {
@@ -45626,13 +45626,13 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Salvataggio delle modifiche..."
+            "value" : "Salvataggio delle modifiche…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "変更を保存しています..."
+            "value" : "変更を保存しています…"
           }
         },
         "ru" : {
@@ -45644,13 +45644,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在保存更改..."
+            "value" : "正在保存更改…"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在儲存變更..."
+            "value" : "正在儲存變更…"
           }
         }
       }
@@ -45764,7 +45764,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wird gespeichert …"
+            "value" : "Wird gesichert …"
           }
         },
         "en" : {
@@ -45858,13 +45858,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "编辑条目时，可扫描二维码、粘贴设置链接或手动输入密钥来添加验证码。验证码保存在您的数据库中，因此在其他 KeePass App 中同样可用。"
+            "value" : "编辑条目时，可扫描二维码、粘贴设置链接或手动输入密钥来添加验证码。验证码保存在你的数据库中，因此在其他 KeePass App 中同样可用。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "編輯項目時，可掃描 QR 碼、貼上設定連結或手動輸入金鑰來新增驗證碼。驗證碼儲存在您的資料庫中，因此在其他 KeePass App 中同樣可用。"
+            "value" : "編輯項目時，可掃描 QR 碼、貼上設定連結或手動輸入金鑰來新增驗證碼。驗證碼儲存在你的資料庫中，因此在其他 KeePass App 中同樣可用。"
           }
         }
       }
@@ -46498,13 +46498,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Durchsucht wurde die Kopie dieser Datenbank in KeeForge vom %@. Entsperren Sie diese Datenbank in KeeForge, um neuere Zugangsdaten zu finden. Wählen Sie bei Cloud-Datenbanken „Jetzt synchronisieren“ in den Datenbankdetails."
+            "value" : "Durchsucht wurde die Kopie dieser Datenbank in KeeForge vom %@. Entsperre diese Datenbank in KeeForge, um neuere Zugangsdaten zu finden. Wähle bei Cloud-Datenbanken „Jetzt synchronisieren“ in den Datenbankdetails."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se buscó en la copia de esta base de datos de KeeForge del %@. Para encontrar credenciales más recientes, desbloquee esta base de datos en KeeForge. Para las bases de datos en la nube, use «Sincronizar ahora» en «Detalles de la base de datos»."
+            "value" : "Se buscó en la copia de esta base de datos de KeeForge del %@. Para encontrar credenciales más recientes, desbloquea esta base de datos en KeeForge. Para las bases de datos en la nube, usa «Sincronizar ahora» en «Detalles de la base de datos»."
           }
         },
         "fr" : {
@@ -46550,13 +46550,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Durchsucht wurde die Kopie vom %@. Entsperren Sie diese Datenbank in KeeForge, um sie zu aktualisieren."
+            "value" : "Durchsucht wurde die Kopie vom %@. Entsperre diese Datenbank in KeeForge, um sie zu aktualisieren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se buscó en la copia del %@. Desbloquee esta base de datos en KeeForge para actualizarla."
+            "value" : "Se buscó en la copia del %@. Desbloquea esta base de datos en KeeForge para actualizarla."
           }
         },
         "fr" : {
@@ -46764,7 +46764,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vea y restaure versiones anteriores"
+            "value" : "Consulta y restaura versiones anteriores"
           }
         },
         "fr" : {
@@ -46862,13 +46862,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sehen Sie Format, Dateigröße, letzte Änderung, Verschlüsselung, Einstellungen zur Schlüsselableitung und Komprimierung Ihrer Datenbank, ohne sie zu entsperren."
+            "value" : "Sieh dir Format, Dateigröße, letzte Änderung, Verschlüsselung, Einstellungen zur Schlüsselableitung und Komprimierung deiner Datenbank an, ohne sie zu entsperren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vea el formato, el tamaño del archivo, la última actualización, el cifrado, los ajustes de derivación de claves y la compresión de su base de datos sin desbloquearla."
+            "value" : "Consulta el formato, el tamaño del archivo, la última actualización, el cifrado, los ajustes de derivación de claves y la compresión de tu base de datos sin desbloquearla."
           }
         },
         "fr" : {
@@ -47070,13 +47070,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wählen Sie einen passenden Eintrag aus, um seine Details anzuzeigen."
+            "value" : "Wähle einen passenden Eintrag aus, um seine Details anzuzeigen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Seleccione una entrada coincidente para ver sus detalles."
+            "value" : "Selecciona una entrada coincidente para ver sus detalles."
           }
         },
         "fr" : {
@@ -47320,7 +47320,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選擇群組"
+            "value" : "選取群組"
           }
         }
       }
@@ -47862,7 +47862,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Configure el autorrelleno con más facilidad"
+            "value" : "Configura el autorrelleno con más facilidad"
           }
         },
         "fr" : {
@@ -48844,13 +48844,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Melden Sie sich an, um Ihre %@-Datenbanken zu durchsuchen."
+            "value" : "Melde dich an, um deine %@-Datenbanken zu durchsuchen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Inicie sesión para explorar sus bases de datos de %@."
+            "value" : "Inicia sesión para explorar tus bases de datos de %@."
           }
         },
         "fr" : {
@@ -48880,13 +48880,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "登录以浏览您的 %@ 数据库。"
+            "value" : "登录以浏览你的 %@ 数据库。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "登入以瀏覽您的 %@ 資料庫。"
+            "value" : "登入以瀏覽你的 %@ 資料庫。"
           }
         }
       }
@@ -48896,13 +48896,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Melden Sie sich an, um Ihre %@-Ordner zu durchsuchen."
+            "value" : "Melde dich an, um deine %@-Ordner zu durchsuchen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Inicie sesión para explorar sus carpetas de %@."
+            "value" : "Inicia sesión para explorar tus carpetas de %@."
           }
         },
         "fr" : {
@@ -48932,13 +48932,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "登录以浏览您的 %@ 文件夹。"
+            "value" : "登录以浏览你的 %@ 文件夹。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "登入以瀏覽您的 %@ 資料夾。"
+            "value" : "登入以瀏覽你的 %@ 資料夾。"
           }
         }
       }
@@ -49000,13 +49000,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Beim Abmelden werden zukünftige Synchronisierungen getrennt, zwischengespeicherte Cloud-Datenbanken bleiben jedoch verfügbar, bis Sie sie entfernen."
+            "value" : "Beim Abmelden werden zukünftige Synchronisierungen getrennt, zwischengespeicherte Cloud-Datenbanken bleiben jedoch verfügbar, bis du sie entfernst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Al cerrar sesión se desconectan las futuras sincronizaciones, pero las bases de datos en la nube almacenadas en caché siguen disponibles hasta que las quite."
+            "value" : "Al cerrar sesión se desconectan las futuras sincronizaciones, pero las bases de datos en la nube almacenadas en caché siguen disponibles hasta que las quites."
           }
         },
         "fr" : {
@@ -49036,13 +49036,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "退出登录后将不再同步，但缓存的云数据库在您移除之前仍可使用。"
+            "value" : "退出登录后将不再同步，但缓存的云数据库在你移除之前仍可使用。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "登出後將不再同步，但快取的雲端資料庫在您移除之前仍可使用。"
+            "value" : "登出後將不再同步，但快取的雲端資料庫在你移除之前仍可使用。"
           }
         }
       }
@@ -50578,13 +50578,13 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sincronizzazione con %@..."
+            "value" : "Sincronizzazione con %@…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@と同期しています..."
+            "value" : "%@と同期しています…"
           }
         },
         "ru" : {
@@ -50596,13 +50596,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在与 %@ 同步..."
+            "value" : "正在与 %@ 同步…"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在與 %@ 同步..."
+            "value" : "正在與 %@ 同步…"
           }
         }
       }
@@ -50716,13 +50716,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Teilen Sie uns mit, was passiert ist oder wie KeeForge verbessert werden könnte."
+            "value" : "Teile uns mit, was passiert ist oder wie KeeForge verbessert werden könnte."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cuéntenos qué ocurrió o qué podría mejorar KeeForge."
+            "value" : "Cuéntanos qué ocurrió o qué podría mejorar KeeForge."
           }
         },
         "fr" : {
@@ -50768,13 +50768,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Beschreiben Sie, was Sie getan haben, als KeeForge versuchte, die Datenbank zu öffnen."
+            "value" : "Beschreibe, was du getan hast, als KeeForge versuchte, die Datenbank zu öffnen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cuéntenos qué estaba haciendo cuando KeeForge intentó abrir la base de datos."
+            "value" : "Cuéntanos qué estabas haciendo cuando KeeForge intentó abrir la base de datos."
           }
         },
         "fr" : {
@@ -50804,13 +50804,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "告诉我们 KeeForge 尝试打开数据库时您正在进行的操作。"
+            "value" : "告诉我们 KeeForge 尝试打开数据库时你正在进行的操作。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "告訴我們 KeeForge 嘗試開啟資料庫時您正在進行的操作。"
+            "value" : "告訴我們 KeeForge 嘗試開啟資料庫時你正在進行的操作。"
           }
         }
       }
@@ -50820,13 +50820,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vielen Dank für Ihr Trinkgeld!"
+            "value" : "Vielen Dank für dein Trinkgeld!"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "¡Gracias por su propina!"
+            "value" : "¡Gracias por tu propina!"
           }
         },
         "fr" : {
@@ -50856,13 +50856,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "感谢您的打赏！"
+            "value" : "感谢你的打赏！"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "感謝您的贊助！"
+            "value" : "感謝你的贊助！"
           }
         }
       }
@@ -50908,13 +50908,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "谢谢您！🎉"
+            "value" : "谢谢你！🎉"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "謝謝您！🎉"
+            "value" : "謝謝你！🎉"
           }
         }
       }
@@ -50924,7 +50924,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vielen Dank, dass Sie zur Verbesserung von KeeForge beitragen."
+            "value" : "Vielen Dank, dass du zur Verbesserung von KeeForge beiträgst."
           }
         },
         "es" : {
@@ -50960,13 +50960,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "感谢您帮助改进 KeeForge。"
+            "value" : "感谢你帮助改进 KeeForge。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "感謝您協助改進 KeeForge。"
+            "value" : "感謝你協助改進 KeeForge。"
           }
         }
       }
@@ -51080,13 +51080,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Das angehängte Foto ist zu groß. Wählen Sie ein kleineres Foto."
+            "value" : "Das angehängte Foto ist zu groß. Wähle ein kleineres Foto."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La foto adjunta es demasiado grande. Elija una foto más pequeña."
+            "value" : "La foto adjunta es demasiado grande. Elige una foto más pequeña."
           }
         },
         "fr" : {
@@ -51184,13 +51184,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Änderung kann gerade nicht zusammengeführt werden. Stellen Sie sicher, dass die Datenbank bearbeitbar ist und kein Speicherkonflikt offen ist, und versuchen Sie es dann erneut."
+            "value" : "Die Änderung kann gerade nicht zusammengeführt werden. Stelle sicher, dass die Datenbank bearbeitbar ist und kein Speicherkonflikt offen ist, und versuche es dann erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El cambio no se puede combinar en este momento. Asegúrese de que la base de datos se pueda editar y de que no haya ningún conflicto de guardado pendiente, y vuelva a intentarlo."
+            "value" : "El cambio no se puede combinar en este momento. Asegúrate de que la base de datos se pueda editar y de que no haya ningún conflicto de guardado pendiente, y vuelve a intentarlo."
           }
         },
         "fr" : {
@@ -51236,13 +51236,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die über AutoFill gespeicherte Änderung und die Cloud-Kopie speichern ihre Anhänge unterschiedlich. Beim Zusammenführen könnte ein Anhang daher auf die falsche Datei verweisen. Sie ist in der Sicherungskopie vom %@ in den Datenbankdetails gespeichert. Exportieren Sie diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen."
+            "value" : "Die über AutoFill gespeicherte Änderung und die Cloud-Kopie speichern ihre Anhänge unterschiedlich. Beim Zusammenführen könnte ein Anhang daher auf die falsche Datei verweisen. Sie ist in der Sicherungskopie vom %@ in den Datenbankdetails gespeichert. Exportiere diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El cambio guardado mediante el autorrelleno y la copia de la nube almacenan sus archivos adjuntos de forma distinta, así que combinarlos podría hacer que un adjunto apunte al archivo equivocado. Se conserva en la copia de seguridad del %@ en los detalles de la base de datos. Exporte esa copia de seguridad para combinarlo en otra app de KeePass."
+            "value" : "El cambio guardado mediante el autorrelleno y la copia de la nube almacenan sus archivos adjuntos de forma distinta, así que combinarlos podría hacer que un adjunto apunte al archivo equivocado. Se conserva en la copia de seguridad del %@ en los detalles de la base de datos. Exporta esa copia de seguridad para combinarlo en otra app de KeePass."
           }
         },
         "fr" : {
@@ -51288,13 +51288,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die über AutoFill gespeicherte Änderung und die Cloud-Kopie speichern ihre Anhänge unterschiedlich. Beim Zusammenführen könnte ein Anhang daher auf die falsche Datei verweisen. Um sie in einer anderen KeePass-App zusammenzuführen, verwenden Sie „Kopie exportieren“ in der Datenbankliste."
+            "value" : "Die über AutoFill gespeicherte Änderung und die Cloud-Kopie speichern ihre Anhänge unterschiedlich. Beim Zusammenführen könnte ein Anhang daher auf die falsche Datei verweisen. Um sie in einer anderen KeePass-App zusammenzuführen, verwende „Kopie exportieren“ in der Datenbankliste."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El cambio guardado mediante el autorrelleno y la copia de la nube almacenan sus archivos adjuntos de forma distinta, así que combinarlos podría hacer que un adjunto apunte al archivo equivocado. Para combinarlo en otra app de KeePass, use «Exportar copia» en la lista de bases de datos."
+            "value" : "El cambio guardado mediante el autorrelleno y la copia de la nube almacenan sus archivos adjuntos de forma distinta, así que combinarlos podría hacer que un adjunto apunte al archivo equivocado. Para combinarlo en otra app de KeePass, usa «Exportar copia» en la lista de bases de datos."
           }
         },
         "fr" : {
@@ -51340,13 +51340,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die über AutoFill gespeicherte Änderung und die Cloud-Kopie speichern ihre Anhänge unterschiedlich. Beim Zusammenführen könnte ein Anhang daher auf die falsche Datei verweisen. Um sie in einer anderen KeePass-App zusammenzuführen, verwenden Sie „Teilen“ in der Datenbankliste."
+            "value" : "Die über AutoFill gespeicherte Änderung und die Cloud-Kopie speichern ihre Anhänge unterschiedlich. Beim Zusammenführen könnte ein Anhang daher auf die falsche Datei verweisen. Um sie in einer anderen KeePass-App zusammenzuführen, verwende „Teilen“ in der Datenbankliste."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El cambio guardado mediante el autorrelleno y la copia de la nube almacenan sus archivos adjuntos de forma distinta, así que combinarlos podría hacer que un adjunto apunte al archivo equivocado. Para combinarlo en otra app de KeePass, use «Compartir» en la lista de bases de datos."
+            "value" : "El cambio guardado mediante el autorrelleno y la copia de la nube almacenan sus archivos adjuntos de forma distinta, así que combinarlos podría hacer que un adjunto apunte al archivo equivocado. Para combinarlo en otra app de KeePass, usa «Compartir» en la lista de bases de datos."
           }
         },
         "fr" : {
@@ -51392,13 +51392,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die über AutoFill gespeicherte Änderung und diese Datenbank speichern ihre Anhänge unterschiedlich. Beim Zusammenführen könnte ein Anhang daher auf die falsche Datei verweisen. Sie ist in der Sicherungskopie vom %@ in den Datenbankdetails gespeichert. Exportieren Sie diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen."
+            "value" : "Die über AutoFill gespeicherte Änderung und diese Datenbank speichern ihre Anhänge unterschiedlich. Beim Zusammenführen könnte ein Anhang daher auf die falsche Datei verweisen. Sie ist in der Sicherungskopie vom %@ in den Datenbankdetails gespeichert. Exportiere diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El cambio guardado mediante el autorrelleno y esta base de datos almacenan sus archivos adjuntos de forma distinta, así que combinarlos podría hacer que un adjunto apunte al archivo equivocado. Se conserva en la copia de seguridad del %@ en los detalles de la base de datos. Exporte esa copia de seguridad para combinarlo en otra app de KeePass."
+            "value" : "El cambio guardado mediante el autorrelleno y esta base de datos almacenan sus archivos adjuntos de forma distinta, así que combinarlos podría hacer que un adjunto apunte al archivo equivocado. Se conserva en la copia de seguridad del %@ en los detalles de la base de datos. Exporta esa copia de seguridad para combinarlo en otra app de KeePass."
           }
         },
         "fr" : {
@@ -51444,13 +51444,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die über AutoFill gespeicherte Änderung konnte mit dem Master-Schlüssel dieser Datenbank nicht geöffnet werden. Sie ist in der Sicherungskopie vom %@ in den Datenbankdetails gespeichert. Exportieren Sie diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen."
+            "value" : "Die über AutoFill gespeicherte Änderung konnte mit dem Master-Schlüssel dieser Datenbank nicht geöffnet werden. Sie ist in der Sicherungskopie vom %@ in den Datenbankdetails gespeichert. Exportiere diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El cambio guardado mediante el autorrelleno no se pudo abrir con la clave maestra de esta base de datos. Se conserva en la copia de seguridad del %@ en los detalles de la base de datos. Exporte esa copia de seguridad para combinarlo en otra app de KeePass."
+            "value" : "El cambio guardado mediante el autorrelleno no se pudo abrir con la clave maestra de esta base de datos. Se conserva en la copia de seguridad del %@ en los detalles de la base de datos. Exporta esa copia de seguridad para combinarlo en otra app de KeePass."
           }
         },
         "fr" : {
@@ -51496,13 +51496,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die über AutoFill gespeicherte Änderung konnte mit dem Master-Schlüssel dieser Datenbank nicht geöffnet werden. Um sie in einer anderen KeePass-App zusammenzuführen, verwenden Sie „Kopie exportieren“ in der Datenbankliste."
+            "value" : "Die über AutoFill gespeicherte Änderung konnte mit dem Master-Schlüssel dieser Datenbank nicht geöffnet werden. Um sie in einer anderen KeePass-App zusammenzuführen, verwende „Kopie exportieren“ in der Datenbankliste."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El cambio guardado mediante el autorrelleno no se pudo abrir con la clave maestra de esta base de datos. Para combinarlo en otra app de KeePass, use «Exportar copia» en la lista de bases de datos."
+            "value" : "El cambio guardado mediante el autorrelleno no se pudo abrir con la clave maestra de esta base de datos. Para combinarlo en otra app de KeePass, usa «Exportar copia» en la lista de bases de datos."
           }
         },
         "fr" : {
@@ -51548,13 +51548,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die über AutoFill gespeicherte Änderung konnte mit dem Master-Schlüssel dieser Datenbank nicht geöffnet werden. Um sie in einer anderen KeePass-App zusammenzuführen, verwenden Sie „Teilen“ in der Datenbankliste."
+            "value" : "Die über AutoFill gespeicherte Änderung konnte mit dem Master-Schlüssel dieser Datenbank nicht geöffnet werden. Um sie in einer anderen KeePass-App zusammenzuführen, verwende „Teilen“ in der Datenbankliste."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El cambio guardado mediante el autorrelleno no se pudo abrir con la clave maestra de esta base de datos. Para combinarlo en otra app de KeePass, use «Compartir» en la lista de bases de datos."
+            "value" : "El cambio guardado mediante el autorrelleno no se pudo abrir con la clave maestra de esta base de datos. Para combinarlo en otra app de KeePass, usa «Compartir» en la lista de bases de datos."
           }
         },
         "fr" : {
@@ -51600,13 +51600,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die über AutoFill gespeicherte Änderung ist nicht mehr auf diesem Gerät gespeichert oder wurde vor der Änderung des Master-Schlüssels gespeichert. Verwenden Sie „Ausstehenden Upload verwerfen“ in der Datenbankliste, um den Konflikt aufzulösen."
+            "value" : "Die über AutoFill gespeicherte Änderung ist nicht mehr auf diesem Gerät gespeichert oder wurde vor der Änderung des Master-Schlüssels gespeichert. Verwende „Ausstehenden Upload verwerfen“ in der Datenbankliste, um den Konflikt aufzulösen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El cambio guardado mediante el autorrelleno ya no está almacenado en este dispositivo, o se guardó antes de que cambiara la clave maestra. Use «Descartar carga pendiente» en la lista de bases de datos para resolver el conflicto."
+            "value" : "El cambio guardado mediante el autorrelleno ya no está almacenado en este dispositivo, o se guardó antes de que cambiara la clave maestra. Usa «Descartar carga pendiente» en la lista de bases de datos para resolver el conflicto."
           }
         },
         "fr" : {
@@ -51704,13 +51704,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Cloud-Kopie wurde seit der letzten Synchronisierung dieser Datenbank geändert. Es ist nichts verloren gegangen. Verwenden Sie „Jetzt synchronisieren“ in den Datenbankdetails, um die neueste Kopie zu laden, und wählen Sie dann erneut „Änderungen zusammenführen“."
+            "value" : "Die Cloud-Kopie wurde seit der letzten Synchronisierung dieser Datenbank geändert. Es ist nichts verloren gegangen. Verwende „Jetzt synchronisieren“ in den Datenbankdetails, um die neueste Kopie zu laden, und wähle dann erneut „Änderungen zusammenführen“."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La copia de la nube ha cambiado desde la última sincronización de esta base de datos. No se perdió nada. Use «Sincronizar ahora» en Detalles de la base de datos para obtener la copia más reciente y, después, vuelva a elegir «Combinar cambios»."
+            "value" : "La copia de la nube ha cambiado desde la última sincronización de esta base de datos. No se perdió nada. Usa «Sincronizar ahora» en Detalles de la base de datos para obtener la copia más reciente y, después, vuelve a elegir «Combinar cambios»."
           }
         },
         "fr" : {
@@ -51756,13 +51756,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der Cloud-Dienst ist ausgelastet oder vorübergehend nicht verfügbar. Versuchen Sie es gleich noch einmal."
+            "value" : "Der Cloud-Dienst ist ausgelastet oder vorübergehend nicht verfügbar. Versuche es gleich noch einmal."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El servicio en la nube está ocupado o no está disponible temporalmente. Inténtelo de nuevo en un momento."
+            "value" : "El servicio en la nube está ocupado o no está disponible temporalmente. Inténtalo de nuevo en un momento."
           }
         },
         "fr" : {
@@ -51808,13 +51808,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der Cloud-Dienst ist gerade ausgelastet. Versuchen Sie es gleich noch einmal."
+            "value" : "Der Cloud-Dienst ist gerade ausgelastet. Versuche es gleich noch einmal."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El servicio en la nube está ocupado en este momento. Inténtelo de nuevo en un momento."
+            "value" : "El servicio en la nube está ocupado en este momento. Inténtalo de nuevo en un momento."
           }
         },
         "fr" : {
@@ -51860,13 +51860,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der Cloud-Dienst ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut."
+            "value" : "Der Cloud-Dienst ist vorübergehend nicht verfügbar. Versuche es später erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El servicio en la nube no está disponible temporalmente. Inténtelo de nuevo más tarde."
+            "value" : "El servicio en la nube no está disponible temporalmente. Inténtalo de nuevo más tarde."
           }
         },
         "fr" : {
@@ -52016,13 +52016,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die aktuelle Schlüsseldatei konnte nicht gelesen werden. Wählen Sie sie erneut aus oder leeren Sie sie, und versuchen Sie es dann erneut."
+            "value" : "Die aktuelle Schlüsseldatei konnte nicht gelesen werden. Wähle sie erneut aus oder leere sie, und versuche es dann erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No se pudo leer el archivo de clave actual. Selecciónelo de nuevo o bórrelo e inténtelo otra vez."
+            "value" : "No se pudo leer el archivo de clave actual. Selecciónalo de nuevo o bórralo e inténtalo otra vez."
           }
         },
         "fr" : {
@@ -52120,13 +52120,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbank wurde außerhalb von KeeForge geändert. Führen Sie beide Änderungen zusammen, laden Sie sie neu oder sichern Sie Ihren Entwurf als Konfliktkopie neben der Datenbank."
+            "value" : "Die Datenbank wurde außerhalb von KeeForge geändert. Führe beide Änderungen zusammen, lade sie neu oder sichere deinen Entwurf als Konfliktkopie neben der Datenbank."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La base de datos cambió fuera de KeeForge. Combine ambos conjuntos de cambios, vuelva a cargarla o guarde su borrador como una copia de conflicto junto a ella."
+            "value" : "La base de datos cambió fuera de KeeForge. Combina ambos conjuntos de cambios, vuelve a cargarla o guarda tu borrador como una copia de conflicto junto a ella."
           }
         },
         "fr" : {
@@ -52230,13 +52230,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbankdatei wurde seit dem Öffnen geändert. Laden Sie die Datenbank neu und versuchen Sie es erneut."
+            "value" : "Die Datenbankdatei wurde seit dem Öffnen geändert. Lade die Datenbank neu und versuche es erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de base de datos cambió desde que se abrió. Recargue la base de datos e inténtelo de nuevo."
+            "value" : "El archivo de base de datos cambió desde que se abrió. Recarga la base de datos e inténtalo de nuevo."
           }
         },
         "fr" : {
@@ -52282,13 +52282,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbankdatei konnte nicht gefunden werden. Stellen Sie sicher, dass sie in der Dateien-App noch verfügbar ist."
+            "value" : "Die Datenbankdatei konnte nicht gefunden werden. Stelle sicher, dass sie in der Dateien-App noch verfügbar ist."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No se pudo encontrar el archivo de la base de datos. Asegúrese de que sigue disponible en la app Archivos."
+            "value" : "No se pudo encontrar el archivo de la base de datos. Asegúrate de que sigue disponible en la app Archivos."
           }
         },
         "fr" : {
@@ -52438,13 +52438,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbankdatei hat nicht rechtzeitig geantwortet. Prüfen Sie, ob der Server oder die Netzwerkverbindung verfügbar ist."
+            "value" : "Die Datenbankdatei hat nicht rechtzeitig geantwortet. Prüfe, ob der Server oder die Netzwerkverbindung verfügbar ist."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos no respondió a tiempo. Compruebe que su servidor o conexión de red esté disponible."
+            "value" : "El archivo de la base de datos no respondió a tiempo. Comprueba que su servidor o conexión de red esté disponible."
           }
         },
         "fr" : {
@@ -52490,13 +52490,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbankdatei hat nicht geantwortet. Prüfen Sie, ob der Server erreichbar ist, oder stellen Sie eine Verbindung zum zugehörigen Netzwerk oder VPN her. Versuchen Sie es dann erneut."
+            "value" : "Die Datenbankdatei hat nicht geantwortet. Prüfe, ob der Server erreichbar ist, oder stelle eine Verbindung zum zugehörigen Netzwerk oder VPN her. Versuche es dann erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos no respondió. Compruebe que el servidor sea accesible o conéctese a su red o VPN y, después, inténtelo de nuevo."
+            "value" : "El archivo de la base de datos no respondió. Comprueba que el servidor sea accesible o conéctate a su red o VPN y, después, inténtalo de nuevo."
           }
         },
         "fr" : {
@@ -52542,13 +52542,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbankdatei befindet sich in „Zuletzt gelöscht“ in der Dateien-App. Stellen Sie sie in der Dateien-App wieder her, oder wählen Sie in KeeForge mit „Datenbankdatei suchen“ die aktuelle Datei aus."
+            "value" : "Die Datenbankdatei befindet sich in „Zuletzt gelöscht“ in der Dateien-App. Stelle sie in der Dateien-App wieder her, oder wähle in KeeForge mit „Datenbankdatei suchen“ die aktuelle Datei aus."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos está en «Eliminados recientemente» en la app Archivos. Restáurelo en Archivos o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
+            "value" : "El archivo de la base de datos está en «Eliminados recientemente» en la app Archivos. Restáuralo en Archivos o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
           }
         },
         "fr" : {
@@ -52594,13 +52594,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbankdatei befindet sich im Papierkorb – sie wurde möglicherweise gelöscht oder durch eine neuere Kopie ersetzt. Stellen Sie sie im Finder aus dem Papierkorb wieder her, oder wählen Sie mit „Datenbankdatei suchen“ die aktuelle Datei aus."
+            "value" : "Die Datenbankdatei befindet sich im Papierkorb – sie wurde möglicherweise gelöscht oder durch eine neuere Kopie ersetzt. Stelle sie im Finder aus dem Papierkorb wieder her, oder wähle mit „Datenbankdatei suchen“ die aktuelle Datei aus."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos está en la Papelera; es posible que se haya eliminado o que se haya sustituido por una copia más reciente. Restáurelo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos»."
+            "value" : "El archivo de la base de datos está en la Papelera; es posible que se haya eliminado o que se haya sustituido por una copia más reciente. Restáuralo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos»."
           }
         },
         "fr" : {
@@ -52646,13 +52646,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbankdatei befindet sich im Papierkorb. Stellen Sie sie im Finder aus dem Papierkorb wieder her, oder wählen Sie in KeeForge mit „Datenbankdatei suchen“ die aktuelle Datei aus."
+            "value" : "Die Datenbankdatei befindet sich im Papierkorb. Stelle sie im Finder aus dem Papierkorb wieder her, oder wähle in KeeForge mit „Datenbankdatei suchen“ die aktuelle Datei aus."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos está en la Papelera. Restáurelo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
+            "value" : "El archivo de la base de datos está en la Papelera. Restáuralo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
           }
         },
         "fr" : {
@@ -52698,13 +52698,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbankdatei wurde in der Dateien-App nach „Zuletzt gelöscht“ verschoben – sie wurde möglicherweise gelöscht oder durch eine neuere Kopie ersetzt. Stellen Sie sie in der Dateien-App wieder her, oder wählen Sie mit „Datenbankdatei suchen“ die aktuelle Datei aus."
+            "value" : "Die Datenbankdatei wurde in der Dateien-App nach „Zuletzt gelöscht“ verschoben – sie wurde möglicherweise gelöscht oder durch eine neuere Kopie ersetzt. Stelle sie in der Dateien-App wieder her, oder wähle mit „Datenbankdatei suchen“ die aktuelle Datei aus."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos se movió a «Eliminados recientemente» en la app Archivos; es posible que se haya eliminado o que se haya sustituido por una copia más reciente. Restáurelo en Archivos o elija el archivo actual con «Localizar archivo de base de datos»."
+            "value" : "El archivo de la base de datos se movió a «Eliminados recientemente» en la app Archivos; es posible que se haya eliminado o que se haya sustituido por una copia más reciente. Restáuralo en Archivos o elija el archivo actual con «Localizar archivo de base de datos»."
           }
         },
         "fr" : {
@@ -52750,13 +52750,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbank ist gesperrt. Entsperren Sie sie und versuchen Sie es erneut."
+            "value" : "Die Datenbank ist gesperrt. Entsperre sie und versuche es erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La base de datos está bloqueada. Desbloquéela e inténtelo de nuevo."
+            "value" : "La base de datos está bloqueada. Desbloquéala e inténtalo de nuevo."
           }
         },
         "fr" : {
@@ -53010,13 +53010,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nach der Änderung verlangt die Datenbank diese Schlüsseldatei. Leeren Sie sie, um nur mit dem Master-Passwort zu entsperren."
+            "value" : "Nach der Änderung verlangt die Datenbank diese Schlüsseldatei. Leere sie, um nur mit dem Master-Passwort zu entsperren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tras el cambio, la base de datos requiere este archivo de clave. Bórrelo para desbloquear solo con la contraseña maestra."
+            "value" : "Tras el cambio, la base de datos requiere este archivo de clave. Bórralo para desbloquear solo con la contraseña maestra."
           }
         },
         "fr" : {
@@ -53219,13 +53219,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der aktuelle Inhalt des Eintrags wird als neue Verlaufsversion aufbewahrt, Sie können das also rückgängig machen."
+            "value" : "Der aktuelle Inhalt des Eintrags wird als neue Verlaufsversion aufbewahrt, du kannst das also rückgängig machen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El contenido actual de la entrada se conserva como una nueva versión del historial, por lo que puede deshacer esta acción."
+            "value" : "El contenido actual de la entrada se conserva como una nueva versión del historial, por lo que puedes deshacer esta acción."
           }
         },
         "fr" : {
@@ -53479,13 +53479,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der letzte Versuch hat es nicht aktiviert. Öffnen Sie die iOS-AutoFill-Einstellungen und aktivieren Sie KeeForge dort."
+            "value" : "Der letzte Versuch hat es nicht aktiviert. Öffne die iOS-AutoFill-Einstellungen und aktiviere KeeForge dort."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El último intento no lo activó. Abra los ajustes de autorrelleno de iOS y active KeeForge allí."
+            "value" : "El último intento no lo activó. Abre los ajustes de autorrelleno de iOS y activa KeeForge allí."
           }
         },
         "fr" : {
@@ -53642,7 +53642,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La nueva clave maestra se subió, pero la copia local no se pudo actualizar. El archivo en la nube ahora requiere la nueva clave maestra."
+            "value" : "La nueva clave maestra se cargó, pero la copia local no se pudo actualizar. El archivo en la nube ahora requiere la nueva clave maestra."
           }
         },
         "fr" : {
@@ -53688,13 +53688,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die andere Kopie enthielt keine neuen Änderungen. Ihre Änderungen wurden gesichert."
+            "value" : "Die andere Kopie enthielt keine neuen Änderungen. Deine Änderungen wurden gesichert."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La otra copia no tenía cambios nuevos que añadir. Sus cambios se guardaron."
+            "value" : "La otra copia no tenía cambios nuevos que añadir. Tus cambios se guardaron."
           }
         },
         "fr" : {
@@ -53740,13 +53740,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die andere Kopie dieser Datenbank konnte nicht geöffnet werden. Möglicherweise verwendet sie einen anderen Master-Schlüssel oder ist eine ältere KDBX-3.1-Datei. Laden Sie die Datenbank stattdessen neu oder sichern Sie Ihre Änderungen als Konfliktkopie."
+            "value" : "Die andere Kopie dieser Datenbank konnte nicht geöffnet werden. Möglicherweise verwendet sie einen anderen Master-Schlüssel oder ist eine ältere KDBX-3.1-Datei. Lade die Datenbank stattdessen neu oder sichere deine Änderungen als Konfliktkopie."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No se pudo abrir la otra copia de esta base de datos. Puede que use una clave maestra distinta o que sea un archivo KDBX 3.1 más antiguo. En su lugar, vuelva a cargar la base de datos o guarde sus cambios como una copia de conflicto."
+            "value" : "No se pudo abrir la otra copia de esta base de datos. Puede que use una clave maestra distinta o que sea un archivo KDBX 3.1 más antiguo. En su lugar, vuelve a cargar la base de datos o guarda tus cambios como una copia de conflicto."
           }
         },
         "fr" : {
@@ -53844,13 +53844,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbank konnte mit dem Passwort oder der Schlüsseldatei nicht entsperrt werden. Wenn Sie sicher sind, dass Ihre Angaben korrekt sind, ist die Datei möglicherweise beschädigt."
+            "value" : "Die Datenbank konnte mit dem Passwort oder der Schlüsseldatei nicht entsperrt werden. Wenn du sicher bist, dass deine Angaben korrekt sind, ist die Datei möglicherweise beschädigt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La contraseña o el archivo de clave no desbloquearon esta base de datos. Si está seguro de que son correctos, es posible que el archivo esté dañado."
+            "value" : "La contraseña o el archivo de clave no desbloquearon esta base de datos. Si estás seguro de que son correctos, es posible que el archivo esté dañado."
           }
         },
         "fr" : {
@@ -53948,13 +53948,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der Pfad beginnt in dem Ordner, in dem Ihr FTP-Konto startet."
+            "value" : "Der Pfad beginnt in dem Ordner, in dem dein FTP-Konto startet."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La ruta empieza en la carpeta en la que se abre su cuenta FTP."
+            "value" : "La ruta empieza en la carpeta en la que se abre tu cuenta FTP."
           }
         },
         "fr" : {
@@ -53984,13 +53984,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "路径从您的 FTP 账户登录后所在的文件夹开始。"
+            "value" : "路径从你的 FTP 账户登录后所在的文件夹开始。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "路徑從您的 FTP 帳號登入後所在的資料夾開始。"
+            "value" : "路徑從你的 FTP 帳號登入後所在的資料夾開始。"
           }
         }
       }
@@ -54104,13 +54104,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Remote-Datenbank ist durch einen anderen Client gesperrt. Versuchen Sie es in Kürze erneut."
+            "value" : "Die Remote-Datenbank ist durch einen anderen Client gesperrt. Versuche es in Kürze erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La base de datos remota está bloqueada por otro cliente. Inténtelo de nuevo en breve."
+            "value" : "La base de datos remota está bloqueada por otro cliente. Inténtalo de nuevo en breve."
           }
         },
         "fr" : {
@@ -54520,13 +54520,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der Server hat den Zugriff verweigert. Prüfen Sie, ob dieses Konto die Berechtigung für diese Datei oder diesen Ordner besitzt."
+            "value" : "Der Server hat den Zugriff verweigert. Prüfe, ob dieses Konto die Berechtigung für diese Datei oder diesen Ordner besitzt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El servidor denegó el acceso. Compruebe que esta cuenta tenga permiso para este archivo o carpeta."
+            "value" : "El servidor denegó el acceso. Comprueba que esta cuenta tenga permiso para este archivo o carpeta."
           }
         },
         "fr" : {
@@ -54676,13 +54676,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der Server hat einen Fehler gemeldet (HTTP %lld). Versuchen Sie es in Kürze erneut."
+            "value" : "Der Server hat einen Fehler gemeldet (HTTP %lld). Versuche es in Kürze erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El servidor notificó un error (HTTP %lld). Inténtelo de nuevo en breve."
+            "value" : "El servidor notificó un error (HTTP %lld). Inténtalo de nuevo en breve."
           }
         },
         "fr" : {
@@ -54988,13 +54988,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die beiden Kopien speichern ihre Anhänge unterschiedlich; beim Zusammenführen könnte ein Anhang auf die falsche Datei verweisen. Laden Sie die Datenbank stattdessen neu oder sichern Sie Ihre Änderungen als Konfliktkopie."
+            "value" : "Die beiden Kopien speichern ihre Anhänge unterschiedlich; beim Zusammenführen könnte ein Anhang auf die falsche Datei verweisen. Lade die Datenbank stattdessen neu oder sichere deine Änderungen als Konfliktkopie."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Las dos copias almacenan sus archivos adjuntos de forma distinta, así que combinarlas podría hacer que un adjunto apunte al archivo equivocado. En su lugar, vuelva a cargar la base de datos o guarde sus cambios como una copia de conflicto."
+            "value" : "Las dos copias almacenan sus archivos adjuntos de forma distinta, así que combinarlas podría hacer que un adjunto apunte al archivo equivocado. En su lugar, vuelve a cargar la base de datos o guarda tus cambios como una copia de conflicto."
           }
         },
         "fr" : {
@@ -55612,13 +55612,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses Konto ist getrennt. KeeForge behält die Cache-Kopie, bis Sie die Datenbank entfernen."
+            "value" : "Dieses Konto ist getrennt. KeeForge behält die Cache-Kopie, bis du die Datenbank entfernst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta cuenta está desconectada. KeeForge conserva la copia en caché hasta que quite la base de datos."
+            "value" : "Esta cuenta está desconectada. KeeForge conserva la copia en caché hasta que quites la base de datos."
           }
         },
         "fr" : {
@@ -55664,7 +55664,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dadurch wird „%1$@“ zu „%2$@“ hinzugefügt, damit AutoFill den Eintrag künftig auf dieser Website vorschlägt. Prüfen Sie die Adresse, bevor Sie sie hinzufügen."
+            "value" : "Dadurch wird „%1$@“ zu „%2$@“ hinzugefügt, damit AutoFill den Eintrag künftig auf dieser Website vorschlägt. Prüfe die Adresse, bevor du sie hinzufügst."
           }
         },
         "en" : {
@@ -55676,7 +55676,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esto añade «%1$@» a «%2$@» para que Autorrelleno sugiera la entrada en ese sitio web la próxima vez. Compruebe la dirección antes de añadirla."
+            "value" : "Esto añade «%1$@» a «%2$@» para que Autorrelleno sugiera la entrada en ese sitio web la próxima vez. Comprueba la dirección antes de añadirla."
           }
         },
         "fr" : {
@@ -55878,13 +55878,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Datenbank wurde in der Cloud geändert. Laden Sie sie vor dem erneuten Sichern neu."
+            "value" : "Diese Datenbank wurde in der Cloud geändert. Lade sie vor dem erneuten Sichern neu."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta base de datos cambió en la nube. Vuelva a cargarla antes de guardar de nuevo."
+            "value" : "Esta base de datos cambió en la nube. Vuelve a cargarla antes de guardar de nuevo."
           }
         },
         "fr" : {
@@ -56190,13 +56190,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Datenbank hat ausstehende AutoFill-Änderungen. Lassen Sie sie zuerst fertig synchronisieren und versuchen Sie es dann erneut."
+            "value" : "Diese Datenbank hat ausstehende AutoFill-Änderungen. Lass sie zuerst fertig synchronisieren und versuche es dann erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta base de datos tiene cambios de autorrelleno pendientes. Deje que terminen de sincronizarse e inténtelo de nuevo."
+            "value" : "Esta base de datos tiene cambios de autorrelleno pendientes. Deja que terminen de sincronizarse e inténtalo de nuevo."
           }
         },
         "fr" : {
@@ -56242,13 +56242,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Datenbank kann derzeit nicht zusammengeführt werden. Laden Sie sie stattdessen neu oder sichern Sie Ihre Änderungen als Konfliktkopie."
+            "value" : "Diese Datenbank kann derzeit nicht zusammengeführt werden. Lade sie stattdessen neu oder sichere deine Änderungen als Konfliktkopie."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta base de datos no está lista para combinarse ahora mismo. En su lugar, vuelva a cargarla o guarde sus cambios como una copia de conflicto."
+            "value" : "Esta base de datos no está lista para combinarse ahora mismo. En su lugar, vuelve a cargarla o guarda tus cambios como una copia de conflicto."
           }
         },
         "fr" : {
@@ -56398,13 +56398,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Datenbank ist schreibgeschützt. Öffnen Sie KeeForge, um die Bearbeitung zu aktivieren."
+            "value" : "Diese Datenbank ist schreibgeschützt. Öffne KeeForge, um die Bearbeitung zu aktivieren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta base de datos es de solo lectura. Abra KeeForge para activar la edición."
+            "value" : "Esta base de datos es de solo lectura. Abre KeeForge para activar la edición."
           }
         },
         "fr" : {
@@ -56450,13 +56450,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Datenbank ist nicht verfügbar. Kehren Sie zur Datenbankliste zurück, um sie zu entfernen oder ihr Lesezeichen zu aktualisieren."
+            "value" : "Diese Datenbank ist nicht verfügbar. Kehre zur Datenbankliste zurück, um sie zu entfernen oder ihr Lesezeichen zu aktualisieren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta base de datos no está disponible. Vuelva a la lista de bases de datos para quitarla o actualizar su marcador."
+            "value" : "Esta base de datos no está disponible. Vuelve a la lista de bases de datos para quitarla o actualizar su marcador."
           }
         },
         "fr" : {
@@ -56658,7 +56658,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Datenbank benötigt zum Entsperren etwa %1$@ Arbeitsspeicher — mehr als die %2$@, die AutoFill verwenden darf. Öffnen Sie den Eintrag in der KeeForge-App oder verringern Sie die Argon2-Speichereinstellung der Datenbank in einer KeePass-App für den Computer."
+            "value" : "Diese Datenbank benötigt zum Entsperren etwa %1$@ Arbeitsspeicher — mehr als die %2$@, die AutoFill verwenden darf. Öffne den Eintrag in der KeeForge-App oder verringere die Argon2-Speichereinstellung der Datenbank in einer KeePass-App für den Computer."
           }
         },
         "en" : {
@@ -56670,7 +56670,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta base de datos necesita unos %1$@ de memoria para desbloquearse, más de los %2$@ que AutoFill puede usar. Abra la entrada en la app KeeForge, o reduzca el ajuste de memoria Argon2 de la base de datos en una app KeePass de escritorio."
+            "value" : "Esta base de datos necesita unos %1$@ de memoria para desbloquearse, más de los %2$@ que el autorrelleno puede usar. Abre la entrada en la app KeeForge, o reduce el ajuste de memoria Argon2 de la base de datos en una app KeePass de escritorio."
           }
         },
         "fr" : {
@@ -57028,13 +57028,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Argon2-Einstellungen dieser Datenbank erfordern mehr Speicher oder Rechenleistung, als dieses Gerät sicher ausführen kann. Verringern Sie die Argon2-Einstellungen in einer Desktop-KeePass-App, speichern Sie die Datenbank und versuchen Sie dann erneut, sie zu öffnen."
+            "value" : "Die Argon2-Einstellungen dieser Datenbank erfordern mehr Speicher oder Rechenleistung, als dieses Gerät sicher ausführen kann. Verringere die Argon2-Einstellungen in einer Desktop-KeePass-App, speichere die Datenbank und versuche dann erneut, sie zu öffnen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los ajustes de Argon2 de esta base de datos requieren más memoria o procesamiento de lo que este dispositivo puede ejecutar de forma segura. Reduzca los ajustes de Argon2 en una app de KeePass de escritorio, guarde la base de datos y vuelva a intentar abrirla."
+            "value" : "Los ajustes de Argon2 de esta base de datos requieren más memoria o procesamiento de lo que este dispositivo puede ejecutar de forma segura. Reduce los ajustes de Argon2 en una app de KeePass de escritorio, guarda la base de datos y vuelve a intentar abrirla."
           }
         },
         "fr" : {
@@ -57190,13 +57190,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Schlüsselableitungs-Einstellungen dieser Datenbank (%@ Arbeitsspeicher × %@ Iterationen, %@ Threads) überschreiten das, was diese App sicher ausführen kann. Verringern Sie die Argon2-Einstellungen der Datenbank in einer Desktop-KeePass-App, speichern Sie sie und versuchen Sie es dann erneut."
+            "value" : "Die Schlüsselableitungs-Einstellungen dieser Datenbank (%@ Arbeitsspeicher × %@ Iterationen, %@ Threads) überschreiten das, was diese App sicher ausführen kann. Verringere die Argon2-Einstellungen der Datenbank in einer Desktop-KeePass-App, speichere sie und versuche es dann erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los ajustes de derivación de clave de esta base de datos (%@ de memoria × %@ iteraciones, %@ hilos) superan lo que esta app puede ejecutar de forma segura. Reduzca los ajustes de Argon2 de la base de datos en una app de KeePass de escritorio, guárdela y vuelva a intentarlo."
+            "value" : "Los ajustes de derivación de clave de esta base de datos (%@ de memoria × %@ iteraciones, %@ hilos) superan lo que esta app puede ejecutar de forma segura. Reduce los ajustes de Argon2 de la base de datos en una app de KeePass de escritorio, guárdala y vuelve a intentarlo."
           }
         },
         "fr" : {
@@ -57554,13 +57554,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieser Eintrag hat keine Website-Adresse, von der ein Symbol geladen werden könnte. Fügen Sie dem Eintrag zuerst eine hinzu."
+            "value" : "Dieser Eintrag hat keine Website-Adresse, von der ein Symbol heruntergeladen werden könnte. Füge dem Eintrag zuerst eine hinzu."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta entrada no tiene una dirección web de la que descargar un icono. Añada una a la entrada primero."
+            "value" : "Esta entrada no tiene una dirección web de la que descargar un icono. Añade una a la entrada primero."
           }
         },
         "fr" : {
@@ -58382,13 +58382,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这是全新的原生 Mac App，提供自动填充，并可使用您的本地和 WebDAV 数据库。"
+            "value" : "这是全新的原生 Mac App，提供自动填充，并可使用你的本地和 WebDAV 数据库。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這是全新的原生 Mac App，提供自動填寫，並可使用您的本機和 WebDAV 資料庫。"
+            "value" : "這是全新的原生 Mac App，提供自動填寫，並可使用你的本機和 WebDAV 資料庫。"
           }
         }
       }
@@ -58658,13 +58658,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses Passwort ist schwach. Sie können den Master-Schlüssel trotzdem ändern, ein längeres, einzigartiges Passwort ist jedoch sicherer."
+            "value" : "Dieses Passwort ist schwach. Du kannst den Master-Schlüssel trotzdem ändern, ein längeres, einzigartiges Passwort ist jedoch sicherer."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta contraseña es débil. Aun así puede cambiar la clave maestra, pero una contraseña más larga y única es más segura."
+            "value" : "Esta contraseña es débil. Aun así puedes cambiar la clave maestra, pero una contraseña más larga y única es más segura."
           }
         },
         "fr" : {
@@ -58710,13 +58710,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses Passwort ist schwach. Sie können die Datenbank trotzdem erstellen, ein längeres, einzigartiges Passwort ist jedoch sicherer."
+            "value" : "Dieses Passwort ist schwach. Du kannst die Datenbank trotzdem erstellen, ein längeres, einzigartiges Passwort ist jedoch sicherer."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta contraseña es débil. Aun así puede crear la base de datos, pero una contraseña más larga y única es más segura."
+            "value" : "Esta contraseña es débil. Aun así puedes crear la base de datos, pero una contraseña más larga y única es más segura."
           }
         },
         "fr" : {
@@ -58768,7 +58768,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esto vuelve a cifrar el archivo de la base de datos de forma permanente. Solo se abrirá con la nueva clave maestra: si pierde la nueva contraseña maestra o el archivo de clave, los datos no se podrán recuperar."
+            "value" : "Esto vuelve a cifrar el archivo de la base de datos de forma permanente. Solo se abrirá con la nueva clave maestra: si pierdes la nueva contraseña maestra o el archivo de clave, los datos no se podrán recuperar."
           }
         },
         "fr" : {
@@ -58814,13 +58814,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dadurch werden alle Vorschläge aus AutoFill entfernt. Die Vorschläge erscheinen wieder, sobald Sie eine Datenbank mit aktiviertem AutoFill das nächste Mal entsperren."
+            "value" : "Dadurch werden alle Vorschläge aus AutoFill entfernt. Die Vorschläge erscheinen wieder, sobald du eine Datenbank mit aktiviertem AutoFill das nächste Mal entsperrst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esto quita todas las sugerencias del autorrelleno. Las sugerencias volverán a aparecer la próxima vez que desbloquee cada base de datos que tenga el autorrelleno activado."
+            "value" : "Esto quita todas las sugerencias del autorrelleno. Las sugerencias volverán a aparecer la próxima vez que desbloquees cada base de datos que tenga el autorrelleno activado."
           }
         },
         "fr" : {
@@ -58866,13 +58866,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieser Server scheint kein WebDAV-Server zu sein (HTTP %lld). Prüfen Sie die Serveradresse."
+            "value" : "Dieser Server scheint kein WebDAV-Server zu sein (HTTP %lld). Prüfe die Serveradresse."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este servidor no parece ser un servidor WebDAV (HTTP %lld). Compruebe la dirección del servidor."
+            "value" : "Este servidor no parece ser un servidor WebDAV (HTTP %lld). Comprueba la dirección del servidor."
           }
         },
         "fr" : {
@@ -59230,13 +59230,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Version von KeeForge für Mac verbindet sich nicht mit Dropbox oder OneDrive. Öffnen Sie die iPad-Version einmal und lassen Sie die Synchronisierung abschließen, und fügen Sie die Datei dann aus dem Ordner hinzu, den Dropbox oder OneDrive auf Ihrem Mac bereithält – so bleibt sie aktuell."
+            "value" : "Diese Version von KeeForge für Mac verbindet sich nicht mit Dropbox oder OneDrive. Öffne die iPad-Version einmal und lass die Synchronisierung abschließen, und füge die Datei dann aus dem Ordner hinzu, den Dropbox oder OneDrive auf deinem Mac bereithält – so bleibt sie aktuell."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta versión de KeeForge para Mac no se conecta a Dropbox ni a OneDrive. Abra una vez la versión para iPad y deje que termine de sincronizar; después, añada el archivo desde la carpeta que Dropbox o OneDrive mantiene en su Mac, y así se mantendrá actualizado."
+            "value" : "Esta versión de KeeForge para Mac no se conecta a Dropbox ni a OneDrive. Abre una vez la versión para iPad y deja que termine de sincronizar; después, añade el archivo desde la carpeta que Dropbox o OneDrive mantiene en tu Mac, y así se mantendrá actualizado."
           }
         },
         "fr" : {
@@ -59266,13 +59266,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此版本的 Mac 版 KeeForge 不连接 Dropbox 或 OneDrive。请先打开 iPad 版并让它完成同步，然后从 Dropbox 或 OneDrive 在您 Mac 上保留的文件夹中添加该文件——这样它会保持最新。"
+            "value" : "此版本的 Mac 版 KeeForge 不连接 Dropbox 或 OneDrive。请先打开 iPad 版并让它完成同步，然后从 Dropbox 或 OneDrive 在你 Mac 上保留的文件夹中添加该文件——这样它会保持最新。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此版本的 Mac 版 KeeForge 不連接 Dropbox 或 OneDrive。請先開啟 iPad 版並讓它完成同步，然後從 Dropbox 或 OneDrive 在您 Mac 上保留的資料夾中加入該檔案——這樣它會保持最新。"
+            "value" : "此版本的 Mac 版 KeeForge 不連接 Dropbox 或 OneDrive。請先開啟 iPad 版並讓它完成同步，然後從 Dropbox 或 OneDrive 在你 Mac 上保留的資料夾中加入該檔案——這樣它會保持最新。"
           }
         }
       }
@@ -59490,13 +59490,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Um Passwörter aus KeeForge in Safari und anderen Apps auszufüllen, aktivieren Sie KeeForge in den iOS-AutoFill-Einstellungen."
+            "value" : "Um Passwörter aus KeeForge in Safari und anderen Apps auszufüllen, aktiviere KeeForge in den iOS-AutoFill-Einstellungen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Para rellenar contraseñas de KeeForge en Safari y otras apps, active KeeForge en los ajustes de autorrelleno de iOS."
+            "value" : "Para rellenar contraseñas de KeeForge en Safari y otras apps, activa KeeForge en los ajustes de autorrelleno de iOS."
           }
         },
         "fr" : {
@@ -59542,13 +59542,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Um Passwörter aus KeeForge in Safari und anderen Apps auszufüllen, aktivieren Sie KeeForge in den Systemeinstellungen unter „Allgemein“ > „AutoFill & Passwörter“."
+            "value" : "Um Passwörter aus KeeForge in Safari und anderen Apps auszufüllen, aktiviere KeeForge in den Systemeinstellungen unter „Allgemein“ > „AutoFill & Passwörter“."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Para rellenar contraseñas de KeeForge en Safari y otras apps, active KeeForge en Ajustes del Sistema, en «General» > «Autorrelleno y contraseñas»."
+            "value" : "Para rellenar contraseñas de KeeForge en Safari y otras apps, activa KeeForge en Ajustes del Sistema, en «General» > «Autorrelleno y contraseñas»."
           }
         },
         "fr" : {
@@ -59594,13 +59594,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Um sie zu sichern, beheben Sie zuerst Folgendes: %@"
+            "value" : "Um sie zu sichern, behebe zuerst Folgendes: %@"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Para guardarlos, primero corrija esto: %@"
+            "value" : "Para guardarlos, primero corrige esto: %@"
           }
         },
         "fr" : {
@@ -59958,13 +59958,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Touch ID und Apple Watch sind derzeit nicht verfügbar. Sie können weiterhin Ihr Passwort und Ihre Schlüsseldatei verwenden."
+            "value" : "Touch ID und Apple Watch sind derzeit nicht verfügbar. Du kannst weiterhin dein Passwort und deine Schlüsseldatei verwenden."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Touch ID y Apple Watch no están disponibles en este momento. Aún puede usar su contraseña y su archivo de clave."
+            "value" : "Touch ID y Apple Watch no están disponibles en este momento. Aún puedes usar tu contraseña y tu archivo de clave."
           }
         },
         "fr" : {
@@ -60062,13 +60062,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Touch ID oder Apple Watch konnte Ihre Identität nicht bestätigen. Daher konnte KeeForge nicht mit dem Entsperren fortfahren."
+            "value" : "Touch ID oder Apple Watch konnte deine Identität nicht bestätigen. Daher konnte KeeForge nicht mit dem Entsperren fortfahren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Touch ID o Apple Watch no pudo confirmar su identidad. Por lo tanto, KeeForge no pudo continuar con el desbloqueo."
+            "value" : "Touch ID o Apple Watch no pudo confirmar tu identidad. Por lo tanto, KeeForge no pudo continuar con el desbloqueo."
           }
         },
         "fr" : {
@@ -60224,7 +60224,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Inténtelo de nuevo"
+            "value" : "Inténtalo de nuevo"
           }
         },
         "fr" : {
@@ -60270,13 +60270,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Probieren Sie unsere native macOS-App für ein besseres Desktop-Erlebnis."
+            "value" : "Probiere unsere native macOS-App für ein besseres Desktop-Erlebnis."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pruebe nuestra app nativa para macOS y disfrute de una mejor experiencia de escritorio."
+            "value" : "Prueba nuestra app nativa para macOS y disfrute de una mejor experiencia de escritorio."
           }
         },
         "fr" : {
@@ -60374,13 +60374,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aktivieren Sie unter „Erweitert“ die Option „Unverschlüsseltes HTTP erlauben“, um eine http://-Serveradresse zu verwenden."
+            "value" : "Aktiviere unter „Erweitert“ die Option „Unverschlüsseltes HTTP erlauben“, um eine http://-Serveradresse zu verwenden."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Active «Permitir HTTP sin cifrar» en «Avanzado» para usar una dirección de servidor http://."
+            "value" : "Activa «Permitir HTTP sin cifrar» en «Avanzado» para usar una dirección de servidor http://."
           }
         },
         "fr" : {
@@ -60530,13 +60530,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aktivieren Sie AutoFill für eine Datenbank in den KeeForge-Einstellungen, um sie hier zu verwenden."
+            "value" : "Aktiviere AutoFill für eine Datenbank in den KeeForge-Einstellungen, um sie hier zu verwenden."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Active Autorrelleno para una base de datos en los ajustes de KeeForge para usarlo aquí."
+            "value" : "Activa Autorrelleno para una base de datos en los ajustes de KeeForge para usarlo aquí."
           }
         },
         "fr" : {
@@ -60686,7 +60686,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tastenkürzel eingeben…"
+            "value" : "Tastenkürzel eingeben …"
           }
         },
         "es" : {
@@ -60738,13 +60738,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Suchen Sie nach Titel, Benutzername, URL, Notizen oder Tags."
+            "value" : "Suche nach Titel, Benutzername, URL, Notizen oder Tags."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Escriba para buscar por título, nombre de usuario, URL, notas o etiquetas."
+            "value" : "Escribe para buscar por título, nombre de usuario, URL, notas o etiquetas."
           }
         },
         "fr" : {
@@ -61160,7 +61160,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Desbloquee una base de datos"
+            "value" : "Desbloquea una base de datos"
           }
         },
         "fr" : {
@@ -61206,13 +61206,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Entsperren Sie eine Datenbank, um Gruppen und Einträge zu durchsuchen."
+            "value" : "Entsperre eine Datenbank, um Gruppen und Einträge zu durchsuchen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Desbloquee una base de datos para explorar grupos y entradas."
+            "value" : "Desbloquea una base de datos para explorar grupos y entradas."
           }
         },
         "fr" : {
@@ -61310,13 +61310,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Entsperren Sie eine Datenbank, um Gruppen und Einträge anzuzeigen."
+            "value" : "Entsperre eine Datenbank, um Gruppen und Einträge anzuzeigen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Desbloquee una base de datos para ver grupos y entradas."
+            "value" : "Desbloquea una base de datos para ver grupos y entradas."
           }
         },
         "fr" : {
@@ -62142,13 +62142,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Entsperren Sie Ihre Passwortdatenbank"
+            "value" : "Entsperre deine Passwortdatenbank"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Desbloquee su base de datos de contraseñas"
+            "value" : "Desbloquea tu base de datos de contraseñas"
           }
         },
         "fr" : {
@@ -62194,7 +62194,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Entsperren…"
+            "value" : "Entsperren …"
           }
         },
         "es" : {
@@ -63130,13 +63130,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verwenden Sie einen benutzerdefinierten Namen für %@."
+            "value" : "Verwende einen benutzerdefinierten Namen für %@."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Use un nombre personalizado para %@."
+            "value" : "Usa un nombre personalizado para %@."
           }
         },
         "fr" : {
@@ -63702,13 +63702,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verwenden Sie KeeForge mit einem vertrauenswürdigen lokalen WebDAV-Server, auch wenn dieser HTTPS nicht unterstützt. Die Option befindet sich unter „Erweitert“ und enthält einen deutlichen Sicherheitshinweis."
+            "value" : "Verwende KeeForge mit einem vertrauenswürdigen lokalen WebDAV-Server, auch wenn dieser HTTPS nicht unterstützt. Die Option befindet sich unter „Erweitert“ und enthält einen deutlichen Sicherheitshinweis."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Use KeeForge con un servidor WebDAV local de confianza incluso si no admite HTTPS. La opción se encuentra en «Avanzado» e incluye una advertencia de seguridad clara."
+            "value" : "Usa KeeForge con un servidor WebDAV local de confianza incluso si no admite HTTPS. La opción se encuentra en «Avanzado» e incluye una advertencia de seguridad clara."
           }
         },
         "fr" : {
@@ -64020,7 +64020,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "¿Usa KeeForge en un Mac?"
+            "value" : "¿Usas KeeForge en un Mac?"
           }
         },
         "fr" : {
@@ -64118,13 +64118,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Cache-Kopie wird verwendet. Verbinden Sie dieses Cloud-Konto erneut, um sie zu aktualisieren."
+            "value" : "Die Cache-Kopie wird verwendet. Verbinde dieses Cloud-Konto erneut, um sie zu aktualisieren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Usando la copia en caché. Vuelva a conectar esta cuenta en la nube para actualizarla."
+            "value" : "Usando la copia en caché. Vuelve a conectar esta cuenta en la nube para actualizarla."
           }
         },
         "fr" : {
@@ -65252,7 +65252,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "如果資料庫自上次打開後沒有變更，使用 Face ID、Touch ID 和 Apple Watch 解鎖會快得多，在 App 和自動填寫中皆是如此。"
+            "value" : "如果資料庫自上次開啟後沒有變更，使用 Face ID、Touch ID 和 Apple Watch 解鎖會快得多，在 App 和自動填寫中皆是如此。"
           }
         }
       }
@@ -65304,7 +65304,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "如果資料庫自上次打開後沒有變更，使用 Touch ID 和 Apple Watch 解鎖會快得多，在 App 和自動填寫中皆是如此。"
+            "value" : "如果資料庫自上次開啟後沒有變更，使用 Touch ID 和 Apple Watch 解鎖會快得多，在 App 和自動填寫中皆是如此。"
           }
         }
       }
@@ -65366,13 +65366,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wenn AutoFill ein Passwort ausfüllt, kopiert es auch den Bestätigungscode des Eintrags für Codefelder, die iOS nicht erkennt. Sie bestätigen das Ausfüllen in KeeForge, und der Code wird nach der Löschfrist der Zwischenablage gelöscht."
+            "value" : "Wenn AutoFill ein Passwort ausfüllt, kopiert es auch den Bestätigungscode des Eintrags für Codefelder, die iOS nicht erkennt. Du bestätigst das Ausfüllen in KeeForge, und der Code wird nach der Löschfrist der Zwischenablage gelöscht."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cuando el autorrelleno completa una contraseña, también copia el código de verificación de la entrada para los campos de código que iOS no reconoce. Confirmará el autorrelleno en KeeForge y el código se borrará al cumplirse el tiempo de espera de borrado del portapapeles."
+            "value" : "Cuando el autorrelleno completa una contraseña, también copia el código de verificación de la entrada para los campos de código que iOS no reconoce. Confirmarás el autorrelleno en KeeForge y el código se borrará al cumplirse el tiempo de espera de borrado del portapapeles."
           }
         },
         "fr" : {
@@ -65574,13 +65574,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wenn diese Option deaktiviert ist, werden Passwörter, Passkeys und Bestätigungscodes aus dieser Datenbank in AutoFill weder vorgeschlagen noch sind sie dort verfügbar. Nach dem erneuten Aktivieren erscheinen die Vorschläge wieder, sobald Sie diese Datenbank das nächste Mal entsperren."
+            "value" : "Wenn diese Option deaktiviert ist, werden Passwörter, Passkeys und Bestätigungscodes aus dieser Datenbank in AutoFill weder vorgeschlagen noch sind sie dort verfügbar. Nach dem erneuten Aktivieren erscheinen die Vorschläge wieder, sobald du diese Datenbank das nächste Mal entsperrst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cuando está desactivada, las contraseñas, las llaves de acceso y los códigos de verificación de esta base de datos no se sugieren ni están disponibles en el autorrelleno. Después de volver a activarla, las sugerencias reaparecerán la próxima vez que desbloquee esta base de datos."
+            "value" : "Cuando está desactivada, las contraseñas, las llaves de acceso y los códigos de verificación de esta base de datos no se sugieren ni están disponibles en el autorrelleno. Después de volver a activarla, las sugerencias reaparecerán la próxima vez que desbloquees esta base de datos."
           }
         },
         "fr" : {
@@ -65840,13 +65840,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sie können diese Datenbank weiterhin öffnen, aber das Erstellen, Bearbeiten und Löschen bleibt blockiert, bis Sie die Bearbeitung wieder aktivieren."
+            "value" : "Du kannst diese Datenbank weiterhin öffnen, aber das Erstellen, Bearbeiten und Löschen bleibt blockiert, bis du die Bearbeitung wieder aktivierst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aún puede abrir esta base de datos, pero las acciones de crear, editar y eliminar permanecen bloqueadas hasta que vuelva a activar la edición."
+            "value" : "Aún puedes abrir esta base de datos, pero las acciones de crear, editar y eliminar permanecen bloqueadas hasta que vuelvas a activar la edición."
           }
         },
         "fr" : {
@@ -65892,13 +65892,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sie haben keine Berechtigung, diese Datei zu ändern."
+            "value" : "Du hast keine Berechtigung, diese Datei zu ändern."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No tiene permiso para cambiar este archivo."
+            "value" : "No tienes permiso para cambiar este archivo."
           }
         },
         "fr" : {
@@ -65944,7 +65944,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre Änderungen wurden noch nicht in dieser Datenbank gesichert. Beim Schließen dieses Fensters wird die Datenbank gesperrt und die Änderungen werden verworfen."
+            "value" : "Deine Änderungen wurden noch nicht in dieser Datenbank gesichert. Beim Schließen dieses Fensters wird die Datenbank gesperrt und die Änderungen werden verworfen."
           }
         },
         "es" : {
@@ -65996,13 +65996,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre Datenbankdateien sind sicher und unverändert. Die Mac-App öffnet Dateien anders als die iPad-Version, daher müssen Sie sie erneut hinzufügen."
+            "value" : "Deine Datenbankdateien sind sicher und unverändert. Die Mac-App öffnet Dateien anders als die iPad-Version, daher musst du sie erneut hinzufügen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sus archivos de base de datos están a salvo y sin cambios. La app para Mac abre los archivos de forma distinta a la versión para iPad, por lo que debe añadirlos de nuevo."
+            "value" : "Tus archivos de base de datos están a salvo y sin cambios. La app para Mac abre los archivos de forma distinta a la versión para iPad, por lo que debes añadirlos de nuevo."
           }
         },
         "fr" : {
@@ -66032,13 +66032,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "您的数据库文件安全且未被更改。Mac App 打开文件的方式与 iPad 版不同，因此需要您重新添加它们。"
+            "value" : "你的数据库文件安全且未被更改。Mac App 打开文件的方式与 iPad 版不同，因此需要你重新添加它们。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "您的資料庫檔案安全且未被更改。Mac App 開啟檔案的方式與 iPad 版不同，因此需要您重新加入它們。"
+            "value" : "你的資料庫檔案安全且未被更改。Mac App 開啟檔案的方式與 iPad 版不同，因此需要你重新加入它們。"
           }
         }
       }
@@ -66048,13 +66048,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre E-Mail-Adresse wird nur verwendet, um auf dieses Feedback zu antworten."
+            "value" : "Deine E-Mail-Adresse wird nur verwendet, um auf dieses Feedback zu antworten."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Su correo electrónico solo se utiliza para responder sobre este comentario."
+            "value" : "Tu correo electrónico solo se utiliza para responder sobre este comentario."
           }
         },
         "fr" : {
@@ -66100,7 +66100,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre Änderungen am Eintrag wurden noch nicht in diesem Datenbankentwurf gesichert."
+            "value" : "Deine Änderungen am Eintrag wurden noch nicht in diesem Datenbankentwurf gesichert."
           }
         },
         "es" : {
@@ -66152,7 +66152,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre Änderungen am Eintrag wurden noch nicht in dieser Datenbank gesichert."
+            "value" : "Deine Änderungen am Eintrag wurden noch nicht in dieser Datenbank gesichert."
           }
         },
         "es" : {
@@ -66204,7 +66204,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre Änderungen an der Gruppe wurden noch nicht in diesem Datenbankentwurf gesichert."
+            "value" : "Deine Änderungen an der Gruppe wurden noch nicht in diesem Datenbankentwurf gesichert."
           }
         },
         "es" : {
@@ -66256,7 +66256,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre Änderungen an der Gruppe wurden noch nicht in dieser Datenbank gesichert."
+            "value" : "Deine Änderungen an der Gruppe wurden noch nicht in dieser Datenbank gesichert."
           }
         },
         "es" : {
@@ -66308,13 +66308,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre Unterstützung hilft, KeeForge kostenlos und quelloffen zu halten."
+            "value" : "Deine Unterstützung hilft, KeeForge kostenlos und quelloffen zu halten."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Su apoyo ayuda a mantener KeeForge gratuito y de código abierto."
+            "value" : "Tu apoyo ayuda a mantener KeeForge gratuito y de código abierto."
           }
         },
         "fr" : {
@@ -66360,13 +66360,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre Unterstützung bedeutet uns die Welt. Vielen Dank, dass Sie KeeForge am Leben erhalten!"
+            "value" : "Deine Unterstützung bedeutet uns die Welt. Vielen Dank, dass du KeeForge am Leben erhältst!"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Su apoyo lo significa todo. ¡Gracias por ayudar a mantener vivo KeeForge!"
+            "value" : "Tu apoyo lo significa todo. ¡Gracias por ayudar a mantener vivo KeeForge!"
           }
         },
         "fr" : {
@@ -66448,13 +66448,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "您的打赏需要批准才能完成（例如通过“购买前询问”）。批准后会自动完成。"
+            "value" : "你的打赏需要批准才能完成（例如通过“购买前询问”）。批准后会自动完成。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "您的打賞需要核准才能完成（例如透過「購買前詢問」）。核准後會自動完成。"
+            "value" : "你的打賞需要核准才能完成（例如透過「購買前詢問」）。核准後會自動完成。"
           }
         }
       }
@@ -66464,7 +66464,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre ungesicherten Änderungen am Eintrag gehen verloren."
+            "value" : "Deine ungesicherten Änderungen am Eintrag gehen verloren."
           }
         },
         "es" : {

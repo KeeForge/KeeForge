@@ -5,20 +5,19 @@ The canonical translation of KeeForge's recurring terms in every shipped locale.
 - Use these forms in new and edited strings, in the app and the AutoFill extensions alike, so the same concept reads the same everywhere.
 - For a term not listed, search the catalogs for the English word and follow the majority form. If it will recur, add it here in the same change.
 - The catalogs win over this file only for a deliberate, reviewed change. Then update this file in the same change.
-- The Known Drift section lists existing strings that disagree with this file. Fix them when you touch them, and do not copy them.
 
 ## Locale Conventions
 
 | Locale | Address | Quotes | Ellipsis | Other |
 |---|---|---|---|---|
-| `de` | `Sie` (majority). What's New, feature highlights, and some newer strings use `du` (see Known Drift) | `„…“` | Space before: `Exportieren …` | Buttons and commands use *Sichern* for Save; prose may say *speichern*. `Symbol` for icon, never `Icon` |
+| `de` | `du` (lowercase): `Wähle`, `dein`, `kannst du`. Never `Sie` | `„…“` | Space before: `Exportieren …` | Buttons and commands use *Sichern* for Save; prose may say *speichern*. `Symbol` for icon, never `Icon` |
 | `fr` | `vous` | `« … »` with spaces inside | `…` attached | Space before `:` `?` `!` `;` (no-break U+00A0 preferred). Apostrophe: straight `'` is the majority |
-| `es` | `usted` (majority: `Introduzca`, `su`). What's New, feature highlights, and some newer strings use `tú` | `«…»` | `…` attached | `Ajustes` (Apple wording), not `Configuración`, for Settings |
+| `es` | `tú`: `Introduce`, `tu`, `puedes`. Never `usted` | `«…»` | `…` attached | `Ajustes` (Apple wording), not `Configuración`, for Settings |
 | `it` | `tu` (`Scegli`, `tuo`) | `“…”` | `…` attached | Straight `'` apostrophe |
 | `ru` | `вы` (lowercase), imperative plural | `«…»` | `…` attached | Always write `ё`. Counts with a colon where declension is awkward: `Символов: %lld` |
 | `ja` | Polite `です/ます` in sentences; plain noun or verb-stem for buttons | `「…」` | `…` attached | Full-width `：` and `（）`. Counters as `エントリ %lld 件`. `App` in Apple app names (`「ファイル」App`); `アプリ` only in prose. No long-vowel mark: `ユーザ`, `サーバ`, `フォルダ`, `プロバイダ` |
-| `zh-Hans` | `你` (Apple style) | `“…”` | `…` | `App`, not `应用`. Full-width `：` `（）`. Space between CJK and Latin/numbers: `%lld 个条目` |
-| `zh-Hant` | `你` (Apple style) | `「…」` | `…` | `App`. Full-width punctuation. Space between CJK and Latin/numbers |
+| `zh-Hans` | `你` (Apple style), never `您` | `“…”` | `…` | `App`, not `应用`. Full-width `：` `（）`. Space between CJK and Latin/numbers: `%lld 个条目` |
+| `zh-Hant` | `你` (Apple style), never `您` | `「…」` | `…` | `App`. Full-width punctuation. Space between CJK and Latin/numbers |
 
 All locales use the typographic `…`, never `...`.
 
@@ -175,18 +174,3 @@ These follow Apple's platform wording. The delete/remove/clear split matters: *d
 | X failed | X fehlgeschlagen | Échec de X | Error de X | X non riuscito | Ошибка X / Не удалось X | Xに失敗しました | X失败 | X失敗 |
 | feedback | Feedback | commentaires | comentarios | feedback | отзыв | フィードバック | 反馈 | 意見回饋 |
 | What's New | Neuigkeiten | Nouveautés | Novedades | Novità | Что нового | 新機能 | 新功能 | 新功能 |
-
-## Known Drift
-
-Existing strings that disagree with this file. Fix them when you touch them; do not copy them.
-
-- **de / es address form.** What's New and feature-highlight copy, plus some newer settings footers and errors (about 50 strings in de, 30 in es), use `du` / `tú`; the other strings use `Sie` / `usted`. Use the formal form for new UI, errors, and settings. Whether to unify on one form is an open product decision.
-- **zh-Hans / zh-Hant `您`.** About 30 strings per locale use `您`; the majority and Apple use `你`.
-- **de Save.** Some commands and statuses use *speichern* (`Ohne Passwort speichern`, `Wird gespeichert …`, `Speichert in %@`) where commands use *Sichern*.
-- **de Download.** Some strings use `laden` for download (`Symbol konnte nicht geladen werden`); use `herunterladen`. Keep `laden` for load.
-- **de ellipsis.** About a third of `…` lack the preceding space (`Datenbank öffnen…`).
-- **zh-Hant Open.** About a dozen strings use `打開`; use `開啟`.
-- **zh-Hant Select.** `Choose Group` uses `選取群組`; `Select Group` uses `選擇群組`. Follow the choose/select rows above.
-- **es upload.** `Dropbox upload failed.` uses `subir`; use `carga` / `cargar`.
-- **es / fr Remove Verification Code.** These use `Eliminar` / `Supprimer`; the code is removed from the entry, so use `Quitar` / `Retirer`.
-- **`...` instead of `…`.** A few strings in ja, zh-Hans, zh-Hant, and it (`Saving changes...`, `Syncing with %@...`).
