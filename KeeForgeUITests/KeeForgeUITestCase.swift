@@ -216,9 +216,12 @@ class KeeForgeUITestCase: XCTestCase {
             }
 
             // A centre tap can leave the caret mid-text on a narrow field, where
-            // backspaces miss everything after it.
+            // backspaces miss everything after it. Tap the trailing edge: on a
+            // trailing-aligned field the text ends there.
             if element.elementType == .textField {
-                element.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
+                element.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5))
+                    .withOffset(CGVector(dx: -1, dy: 0))
+                    .tap()
             }
             element.typeText(deleteSequence(for: element))
             element.typeText(text)
