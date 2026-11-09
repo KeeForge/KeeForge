@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// Known-answer tests for the hand-rolled inner-stream ChaCha20 in `KDBXCrypto`.
@@ -155,8 +156,7 @@ final class ChaCha20Tests: XCTestCase {
         let xml = try Self.serializeProtectedValueEntry(sessionKey: sessionKey)
         let parsed = try KDBXXMLParser(
             data: xml,
-            innerStreamKey: Self.innerStreamKey,
-            innerStreamID: KDBXParser.innerStreamChaCha20,
+            innerStream: KDBXInnerStream(streamID: KDBXContainer.innerStreamChaCha20, key: Self.innerStreamKey),
             sessionKey: sessionKey
         ).parse()
 
@@ -185,8 +185,7 @@ final class ChaCha20Tests: XCTestCase {
         )
         let parsed = try KDBXXMLParser(
             data: try serializer.serialize(),
-            innerStreamKey: Self.innerStreamKey,
-            innerStreamID: KDBXParser.innerStreamChaCha20,
+            innerStream: KDBXInnerStream(streamID: KDBXContainer.innerStreamChaCha20, key: Self.innerStreamKey),
             sessionKey: sessionKey
         ).parse()
 

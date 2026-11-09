@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import KDBXKit
 
 enum SaveResult: Sendable, Equatable {
     /// `expressKey` opens exactly the saved version (`ExpressUnlockKey`). It
@@ -37,14 +38,14 @@ struct SaveBaseline: Sendable, Equatable {
 
 /// Outer-header settings a save rewrites; a nil field keeps the file's value.
 ///
-/// `@unchecked Sendable` for the same reason as `KDBXParser.Header`: the KDF
+/// `@unchecked Sendable` for the same reason as `KDBXContainer.Header`: the KDF
 /// variant map only ever holds value types.
 struct EncryptionSettingsChange: @unchecked Sendable {
     var cipherID: Data?
     var kdfParameters: [String: Any]?
     var compressionFlags: UInt32?
 
-    func applied(to header: KDBXParser.Header) -> KDBXParser.Header {
+    func applied(to header: KDBXContainer.Header) -> KDBXContainer.Header {
         var header = header
         if let cipherID {
             header.cipherID = cipherID
@@ -108,8 +109,8 @@ enum LocalDatabaseSaver {
         var endBackgroundTask: @MainActor @Sendable (BackgroundTaskHandle) -> Void
         var resolveLocation: @Sendable (DatabaseReference) -> ResolvedLocation?
         var readData: @Sendable (URL) throws -> Data
-        var extractHeader: @Sendable (Data, SymmetricKey, KDFExecutionPolicy) throws -> KDBXParser.Header
-        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXParser.Header, KDFExecutionPolicy) throws -> ExpressUnlock.Written
+        var extractHeader: @Sendable (Data, SymmetricKey, KDFExecutionPolicy) throws -> KDBXContainer.Header
+        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXContainer.Header, KDFExecutionPolicy) throws -> ExpressUnlock.Written
         var backupDirectoryURL: @Sendable (DatabaseReference) -> URL
         var createDirectory: @Sendable (URL) throws -> Void
         var writeBackup: @Sendable (Data, URL) throws -> Void

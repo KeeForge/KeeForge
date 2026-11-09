@@ -1,4 +1,5 @@
 import Foundation
+import KDBXKit
 
 /// A key derivation the Encryption Settings screen writes. Wider than
 /// creation's Argon2id presets: an existing database may also move to AES-KDF,
@@ -109,7 +110,7 @@ final class EncryptionSettingsViewModel {
     /// Rounds the parser accepts, so a changed file always reopens.
     var aesKDFRounds: UInt64? {
         guard let rounds = UInt64(aesKDFRoundsText.trimmingCharacters(in: .whitespaces)),
-              (1...KDBXParser.aesKDFMaxRounds).contains(rounds) else {
+              (1...KDBXContainer.aesKDFMaxRounds).contains(rounds) else {
             return nil
         }
         return rounds
@@ -117,7 +118,7 @@ final class EncryptionSettingsViewModel {
 
     var aesKDFRoundsError: String? {
         guard showsAESKDFRounds, aesKDFRounds == nil else { return nil }
-        return String(localized: "Enter a number of rounds from 1 to \(KDBXParser.aesKDFMaxRounds.formatted()).")
+        return String(localized: "Enter a number of rounds from 1 to \(KDBXContainer.aesKDFMaxRounds.formatted()).")
     }
 
     var currentCipherOptionTitle: String {

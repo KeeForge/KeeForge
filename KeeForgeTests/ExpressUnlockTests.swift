@@ -2,6 +2,7 @@ import CryptoKit
 import LocalAuthentication
 import Security
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// `ExpressUnlock` must open exactly what the KDF path opens, and only offer a
@@ -86,7 +87,7 @@ final class ExpressUnlockTests: XCTestCase {
             data: data, compositeKey: compositeKey, cachedKey: nil, sessionKey: sessionKey, kdfPolicy: .mainApp
         )
 
-        let expected = try KDBXParser.deriveKey(
+        let expected = try KDBXContainer.deriveKey(
             compositeKey: compositeKey, kdfParams: header.kdfParameters, kdfPolicy: .mainApp
         )
         let stored = try XCTUnwrap(opened.keyToStore)
@@ -222,7 +223,7 @@ final class ExpressUnlockTests: XCTestCase {
             "M": UInt64(32 << 20),
             "P": UInt32(1),
             "V": UInt32(0x10),
-            "$UUID": KDBXParser.argon2dUUID,
+            "$UUID": KDBXContainer.argon2dUUID,
         ]
         for (name, value) in variants {
             var changed = parameters
@@ -241,7 +242,7 @@ final class ExpressUnlockTests: XCTestCase {
 
     func testParametersTheBindingCannotEncodeAreNeverCached() {
         let compositeKey = KDBXCrypto.compositeKey(password: "binding")
-        let parameters: [String: Any] = ["$UUID": KDBXParser.argon2idUUID, "X": Double(1)]
+        let parameters: [String: Any] = ["$UUID": KDBXContainer.argon2idUUID, "X": Double(1)]
 
         XCTAssertNil(ExpressUnlockKey.binding(kdfParameters: parameters, compositeKey: compositeKey))
         XCTAssertNil(ExpressUnlockKey(
@@ -306,7 +307,7 @@ final class ExpressUnlockTests: XCTestCase {
         XCTAssertFalse(expressKey.matches(kdfParameters: parsed.header.kdfParameters, compositeKey: compositeKey))
         XCTAssertEqual(
             expressKey.transformedKey.withUnsafeBytes { Data($0) },
-            try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: savedHeader.kdfParameters, kdfPolicy: .mainApp)
+            try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: savedHeader.kdfParameters, kdfPolicy: .mainApp)
         )
 
         let reopened = try ExpressUnlock.parse(
@@ -424,10 +425,10 @@ final class ExpressUnlockTests: XCTestCase {
         try KDBXCrypto.compositeKey(password: fixture.password, keyFileData: nil)
     }
 
-    private func header(of data: Data) throws -> KDBXParser.Header {
+    private func header(of data: Data) throws -> KDBXContainer.Header {
         var reader = DataReader(data: data)
-        _ = try KDBXParser.parseVersion(from: &reader)
-        return try KDBXParser.parseHeader(&reader)
+        _ = try KDBXContainer.parseVersion(from: &reader)
+        return try KDBXContainer.parseHeader(&reader)
     }
 
     private func resave(
@@ -446,7 +447,7 @@ final class ExpressUnlockTests: XCTestCase {
         }
         return try KDBXWriter.write(
             rootGroup: parsed.rootGroup, meta: parsed.meta, compositeKey: compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(cipherID: parsed.header.cipherID, kdfParameters: kdfParameters),
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(cipherID: parsed.header.cipherID, kdfParameters: kdfParameters),
             sessionKey: sessionKey, kdfPolicy: .mainApp
         )
     }
@@ -563,7 +564,7 @@ final class DerivationCounter: @unchecked Sendable {
     var derive: ExpressUnlock.KeyDerivation {
         { [self] compositeKey, kdfParameters, kdfPolicy in
             lock.withLock { runs += 1 }
-            return try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: kdfParameters, kdfPolicy: kdfPolicy)
+            return try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: kdfParameters, kdfPolicy: kdfPolicy)
         }
     }
 }
@@ -976,10 +977,10 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
         ).keyToStore)
     }
 
-    private func header(of data: Data) throws -> KDBXParser.Header {
+    private func header(of data: Data) throws -> KDBXContainer.Header {
         var reader = DataReader(data: data)
-        _ = try KDBXParser.parseVersion(from: &reader)
-        return try KDBXParser.parseHeader(&reader)
+        _ = try KDBXContainer.parseVersion(from: &reader)
+        return try KDBXContainer.parseHeader(&reader)
     }
 
     private func resave(_ data: Data, compositeKey: SymmetricKey) throws -> Data {

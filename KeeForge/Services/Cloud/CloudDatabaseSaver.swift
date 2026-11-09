@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import KDBXKit
 
 enum CloudDatabaseSaver {
     typealias ProgressHandler = @Sendable (Double) -> Void
@@ -14,8 +15,8 @@ enum CloudDatabaseSaver {
         var endBackgroundTask: @MainActor @Sendable (LocalDatabaseSaver.BackgroundTaskHandle) -> Void
         var cacheURL: @Sendable (DatabaseReference) -> URL
         var readData: @Sendable (URL) throws -> Data
-        var extractHeader: @Sendable (Data, SymmetricKey, KDFExecutionPolicy) throws -> KDBXParser.Header
-        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXParser.Header, KDFExecutionPolicy) throws -> ExpressUnlock.Written
+        var extractHeader: @Sendable (Data, SymmetricKey, KDFExecutionPolicy) throws -> KDBXContainer.Header
+        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXContainer.Header, KDFExecutionPolicy) throws -> ExpressUnlock.Written
         var getMetadata: @Sendable (DatabaseReference) async throws -> CloudFileMetadata
         var upload: @Sendable (DatabaseReference, Data, String?, @escaping ProgressHandler) async throws -> CloudFileMetadata
         var downloadRemoteData: @Sendable (DatabaseReference) async throws -> Data

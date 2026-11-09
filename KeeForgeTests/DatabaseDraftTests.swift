@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class DatabaseDraftTests: XCTestCase {
@@ -233,8 +234,7 @@ final class DatabaseDraftTests: XCTestCase {
 
         let reparsed = try KDBXXMLParser(
             data: xml,
-            innerStreamKey: innerStreamKey,
-            innerStreamID: KDBXParser.innerStreamChaCha20,
+            innerStream: KDBXInnerStream(streamID: KDBXContainer.innerStreamChaCha20, key: innerStreamKey),
             sessionKey: sessionKey
         ).parse()
         let reloaded = try XCTUnwrap(reparsed.rootGroup.allEntries.first { $0.title == "Registered Passkey" })
@@ -2119,8 +2119,7 @@ final class DatabaseDraftTests: XCTestCase {
     private func parseDraftXML(_ xml: String) throws -> (rootGroup: KPGroup, meta: KPMeta) {
         try KDBXXMLParser(
             data: Data(xml.utf8),
-            innerStreamKey: Data("KeeForge Draft Inner Stream Key".utf8),
-            innerStreamID: KDBXParser.innerStreamChaCha20,
+            innerStream: KDBXInnerStream(streamID: KDBXContainer.innerStreamChaCha20, key: Data("KeeForge Draft Inner Stream Key".utf8)),
             sessionKey: sessionKey
         ).parse()
     }

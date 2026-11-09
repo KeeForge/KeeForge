@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import KDBXKit
 
 /// The KDF output for one KDBX 4 file version, kept beside the quick-unlock
 /// key so that quick unlock of an unchanged file skips the KDF.
@@ -72,7 +73,7 @@ struct ExpressUnlockKey: Sendable, Equatable {
         return Data(HMAC<SHA256>.authenticationCode(for: message, using: compositeKey))
     }
 
-    /// A canonical encoding of the parsed KDF parameters. `KDBXParser.deriveKey`
+    /// A canonical encoding of the parsed KDF parameters. `KDBXContainer.deriveKey`
     /// reads only this dictionary, so equal encodings derive equal keys.
     private static func bindingMessage(kdfParameters: [String: Any]) -> Data? {
         var message = bindingDomain
@@ -88,7 +89,7 @@ struct ExpressUnlockKey: Sendable, Equatable {
         return message
     }
 
-    // Tags match the KDBX variant-map types `KDBXParser.parseVariantMap` decodes.
+    // Tags match the KDBX variant-map types `KDBXContainer.parseVariantMap` decodes.
     private static func encodedValue(_ value: Any) -> (UInt8, Data)? {
         switch value {
         case let value as UInt32: (0x04, withUnsafeBytes(of: value.littleEndian) { Data($0) })
@@ -115,7 +116,7 @@ enum ExpressUnlock {
     struct Outcome {
         let rootGroup: KPGroup
         let meta: KPMeta
-        let header: KDBXParser.Header
+        let header: KDBXContainer.Header
         /// The key for the version just opened, to store for the next quick
         /// unlock. nil for KDBX 3.1, which this path does not cover.
         let keyToStore: ExpressUnlockKey?
@@ -134,9 +135,9 @@ enum ExpressUnlock {
         cachedKey: ExpressUnlockKey?,
         sessionKey: SymmetricKey,
         kdfPolicy: KDFExecutionPolicy,
-        deriveKey: KeyDerivation = { try KDBXParser.deriveKey(compositeKey: $0, kdfParams: $1, kdfPolicy: $2) }
+        deriveKey: KeyDerivation = { try KDBXContainer.deriveKey(compositeKey: $0, kdfParams: $1, kdfPolicy: $2) }
     ) throws -> Outcome {
-        guard case .kdbx4 = try KDBXParser.parseFileVersion(from: data) else {
+        guard case .kdbx4 = try KDBXContainer.parseFileVersion(from: data) else {
             let parsed = try KDBXParser.parseWithMetaAndHeader(
                 data: data,
                 compositeKey: compositeKey,
@@ -206,9 +207,9 @@ enum ExpressUnlock {
     static func write(
         draft: DatabaseDraft,
         compositeKey: SymmetricKey,
-        header: KDBXParser.Header,
+        header: KDBXContainer.Header,
         kdfPolicy: KDFExecutionPolicy,
-        deriveKey: KeyDerivation = { try KDBXParser.deriveKey(compositeKey: $0, kdfParams: $1, kdfPolicy: $2) }
+        deriveKey: KeyDerivation = { try KDBXContainer.deriveKey(compositeKey: $0, kdfParams: $1, kdfPolicy: $2) }
     ) throws -> Written {
         var expressKey: ExpressUnlockKey?
         let data = try draft.write(header: header) { kdfParameters in

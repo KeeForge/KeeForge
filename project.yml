@@ -22,11 +22,10 @@ settings:
     CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: "YES"
     STRING_CATALOG_GENERATE_SYMBOLS: "YES"
 packages:
+  KDBXKit:
+    path: Packages/KDBXKit
   KeeForgeTwofish:
     path: Vendor/KeeForgeTwofish
-  argon2:
-    url: https://github.com/P-H-C/phc-winner-argon2.git
-    revision: f57e61e19229e23c4445b85494dbf7c07de721cb
   SwiftyDropbox:
     url: https://github.com/dropbox/SwiftyDropbox.git
     from: 10.0.7
@@ -127,8 +126,7 @@ targets:
       - target: KeeForgeAutoFill
         embed: true
         codeSign: true
-      - package: argon2
-      - package: KeeForgeTwofish
+      - package: KDBXKit
       - package: SwiftyDropbox
       - package: MSAL
       - package: swift-psl
@@ -210,8 +208,7 @@ targets:
       - target: KeeForgeMacAutoFill
         embed: true
         codeSign: true
-      - package: argon2
-      - package: KeeForgeTwofish
+      - package: KDBXKit
       - package: swift-psl
         product: PublicSuffixList
     sources:
@@ -272,8 +269,7 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
-      - package: argon2
-      - package: KeeForgeTwofish
+      - package: KDBXKit
       - package: swift-psl
         product: PublicSuffixList
     sources:
@@ -309,7 +305,6 @@ targets:
       # the coordinator gates the behavior on `#if os(iOS)`.
       - path: KeeForge/Services/AppSupport/ClipboardService.swift
       - path: KeeForge/Services/Persistence/CoordinatedFileReader.swift
-      - path: KeeForge/Services/Persistence/KeyFileProcessor.swift
       - path: KeeForge/Services/Persistence/LocalDatabaseSaver.swift
       - path: KeeForge/Services/Persistence/PendingLocalSaveStore.swift
       - path: KeeForge/Services/Security/PasskeyCrypto.swift
@@ -349,8 +344,7 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
-      - package: argon2
-      - package: KeeForgeTwofish
+      - package: KDBXKit
       - package: swift-psl
         product: PublicSuffixList
     sources:
@@ -386,7 +380,6 @@ targets:
       # the coordinator gates the behavior on `#if os(iOS)`.
       - path: KeeForge/Services/AppSupport/ClipboardService.swift
       - path: KeeForge/Services/Persistence/CoordinatedFileReader.swift
-      - path: KeeForge/Services/Persistence/KeyFileProcessor.swift
       - path: KeeForge/Services/Persistence/LocalDatabaseSaver.swift
       - path: KeeForge/Services/Persistence/PendingLocalSaveStore.swift
       - path: KeeForge/Services/Security/PasskeyCrypto.swift

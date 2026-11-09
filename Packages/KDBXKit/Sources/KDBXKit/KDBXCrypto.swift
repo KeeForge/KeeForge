@@ -5,43 +5,37 @@ import KeeForgeTwofish
 import zlib
 import argon2
 
-struct KDFDescriptor: Equatable, Sendable {
-    let identifier: String
-    let displayName: String
+public struct KDFDescriptor: Equatable, Sendable {
+    public let identifier: String
+    public let displayName: String
 
-    var userFacingDescription: String {
-        switch identifier {
-        case "missing UUID":
-            return String(localized: "The database is missing key derivation metadata.")
-        case "missing salt":
-            return String(localized: "The database is missing key derivation salt data.")
-        default:
-            return displayName
-        }
+    public init(identifier: String, displayName: String) {
+        self.identifier = identifier
+        self.displayName = displayName
     }
 }
 
 // MARK: - Argon2
 
-enum Argon2Variant: UInt32, Sendable {
+public enum Argon2Variant: UInt32, Sendable {
     case d = 0    // Argon2d
     case id = 2   // Argon2id
 }
 
-enum Argon2 {
-    enum Argon2Error: Error {
+public enum Argon2 {
+    public enum Argon2Error: Error, Equatable, Sendable {
         case hashFailed(Int32)
     }
 
     /// Supported Argon2 version bytes; construction from a raw header value is
     /// the single validation point for the "V" parameter.
-    enum Version: UInt32, Sendable {
+    public enum Version: UInt32, Sendable {
         case v10 = 0x10
         case v13 = 0x13
     }
 
     /// Derive key using Argon2d or Argon2id
-    static func hash(
+    public static func hash(
         password: SymmetricKey,
         salt: Data,
         timeCost: UInt32,
@@ -90,8 +84,8 @@ enum Argon2 {
 
 // MARK: - KDBXCrypto
 
-enum KDBXCrypto {
-    enum CryptoError: Error, LocalizedError {
+public enum KDBXCrypto {
+    public enum CryptoError: Error, Equatable, Sendable {
         case invalidKey
         case encryptionFailed
         case decryptionFailed
@@ -100,34 +94,21 @@ enum KDBXCrypto {
         case unsupportedKDF(KDFDescriptor)
         case compressionFailed
         case decompressionFailed
-
-        var errorDescription: String? {
-            switch self {
-            case .invalidKey: String(localized: "Invalid master key")
-            case .encryptionFailed: String(localized: "Encryption failed")
-            case .decryptionFailed: String(localized: "Decryption failed — wrong password?")
-            case .hmacMismatch: String(localized: "HMAC verification failed — file corrupted or wrong password")
-            case .unsupportedCipher(let c): String(localized: "Unsupported cipher: \(c)")
-            case .unsupportedKDF(let descriptor): String(localized: "Unsupported key derivation function: \(descriptor.userFacingDescription)")
-            case .compressionFailed: String(localized: "Compression failed")
-            case .decompressionFailed: String(localized: "Decompression failed")
-            }
-        }
     }
 
     // MARK: - SHA-256
 
-    static func sha256(_ data: Data) -> Data {
+    public static func sha256(_ data: Data) -> Data {
         Data(CryptoKit.SHA256.hash(data: data))
     }
 
-    static func sha512(_ data: Data) -> Data {
+    public static func sha512(_ data: Data) -> Data {
         Data(CryptoKit.SHA512.hash(data: data))
     }
 
     // MARK: - HMAC-SHA256
 
-    static func hmacSHA256(key: Data, data: Data) -> Data {
+    public static func hmacSHA256(key: Data, data: Data) -> Data {
         let symKey = SymmetricKey(data: key)
         return Data(CryptoKit.HMAC<SHA256>.authenticationCode(for: data, using: symKey))
     }
@@ -135,7 +116,7 @@ enum KDBXCrypto {
     // MARK: - Composite Key
 
     /// Build the composite key from master password (hash of hash)
-    static func compositeKey(password: String) -> SymmetricKey {
+    public static func compositeKey(password: String) -> SymmetricKey {
         guard password.isEmpty == false else { return SymmetricKey(data: sha256(Data())) }
         var passwordBytes = Data(password.utf8)
         defer { SecureWipe.wipe(&passwordBytes) }
@@ -152,14 +133,14 @@ enum KDBXCrypto {
     /// if keyFile:  preKey += processKeyFile(keyFileData)
     /// compositeKey = SHA256(preKey)
     /// ```
-    static func compositeKey(password: String?, keyFileData: Data?) throws -> SymmetricKey {
+    public static func compositeKey(password: String?, keyFileData: Data?) throws -> SymmetricKey {
         let preKey = try preKey(password: password, keyFileData: keyFileData)
         return preKey.withUnsafeBytes { SymmetricKey(data: CryptoKit.SHA256.hash(data: $0)) }
     }
 
     /// The concatenated key components `compositeKey` hashes, kept apart so a
-    /// challenge-response can be appended first (`ChallengeResponseKey`).
-    static func preKey(password: String?, keyFileData: Data?) throws -> SymmetricKey {
+    /// hardware challenge-response can be appended first.
+    public static func preKey(password: String?, keyFileData: Data?) throws -> SymmetricKey {
         var preKey = Data(capacity: 64)
         defer { SecureWipe.wipe(&preKey) }
 
@@ -182,7 +163,7 @@ enum KDBXCrypto {
 
     // MARK: - AES-KDF
 
-    static func transformKeyAESKDF(compositeKey: SymmetricKey, seed: Data, rounds: UInt64) throws -> Data {
+    public static func transformKeyAESKDF(compositeKey: SymmetricKey, seed: Data, rounds: UInt64) throws -> Data {
         guard compositeKey.bitCount == kCCKeySizeAES256 * 8, seed.count == kCCKeySizeAES256 else {
             throw CryptoError.invalidKey
         }
@@ -302,7 +283,7 @@ enum KDBXCrypto {
 
     // MARK: - AES-256-CBC Decrypt
 
-    static func decryptAES256CBC(data: Data, key: Data, iv: Data) throws -> Data {
+    public static func decryptAES256CBC(data: Data, key: Data, iv: Data) throws -> Data {
         let outLength = data.count + kCCBlockSizeAES128
         var outData = Data(count: outLength)
         var bytesWritten: Int = 0
@@ -333,7 +314,7 @@ enum KDBXCrypto {
 
     // MARK: - AES-256-CBC Encrypt
 
-    static func encryptAES256CBC(data: Data, key: Data, iv: Data) throws -> Data {
+    public static func encryptAES256CBC(data: Data, key: Data, iv: Data) throws -> Data {
         let outLength = data.count + kCCBlockSizeAES128
         var outData = Data(count: outLength)
         var bytesWritten: Int = 0
@@ -364,7 +345,7 @@ enum KDBXCrypto {
 
     // MARK: - Twofish-256-CBC Encrypt/Decrypt
 
-    static func decryptTwofish256CBC(data: Data, key: Data, iv: Data) throws -> Data {
+    public static func decryptTwofish256CBC(data: Data, key: Data, iv: Data) throws -> Data {
         do {
             return try TwofishCBC.decrypt(data, key: key, iv: iv)
         } catch {
@@ -372,7 +353,7 @@ enum KDBXCrypto {
         }
     }
 
-    static func encryptTwofish256CBC(data: Data, key: Data, iv: Data) throws -> Data {
+    public static func encryptTwofish256CBC(data: Data, key: Data, iv: Data) throws -> Data {
         do {
             return try TwofishCBC.encrypt(data, key: key, iv: iv)
         } catch {
@@ -382,7 +363,7 @@ enum KDBXCrypto {
 
     // MARK: - ChaCha20 Encrypt/Decrypt
 
-    static func decryptChaCha20(data: Data, key: Data, nonce: Data) throws -> Data {
+    public static func decryptChaCha20(data: Data, key: Data, nonce: Data) throws -> Data {
         guard key.count == 32, nonce.count == 12 else {
             throw CryptoError.decryptionFailed
         }
@@ -390,7 +371,7 @@ enum KDBXCrypto {
         return chacha20Stream(key: key, nonce: nonce, data: data)
     }
 
-    static func encryptChaCha20(data: Data, key: Data, nonce: Data) throws -> Data {
+    public static func encryptChaCha20(data: Data, key: Data, nonce: Data) throws -> Data {
         guard key.count == 32, nonce.count == 12 else {
             throw CryptoError.encryptionFailed
         }
@@ -402,38 +383,38 @@ enum KDBXCrypto {
 
     /// KDBX uses raw, unauthenticated ChaCha20 here, which CryptoKit does not expose.
     /// ChaCha20 is XOR-based, so encrypt and decrypt are the same operation.
-    static func chacha20Stream(key: Data, nonce: Data, data: Data) -> Data {
+    public static func chacha20Stream(key: Data, nonce: Data, data: Data) -> Data {
         guard var keystream = ChaCha20Keystream(key: key, nonce: nonce) else { return data }
         defer { keystream.wipe() }
         return keystream.xor(data)
     }
 
-    /// The one ChaCha20 implementation in the app: outer cipher, KDBX4 inner
+    /// The one ChaCha20 implementation in the library: outer cipher, KDBX4 inner
     /// random stream decode, and protected-field re-encryption on write all
     /// run through it.
     ///
     /// The inner random stream is a single keystream spanning every protected
     /// value in document order, so those callers keep one instance alive and
     /// feed it values one at a time; block boundaries fall wherever they fall.
-    struct ChaCha20Keystream {
+    public struct ChaCha20Keystream {
         private var initialState: [UInt32]
         private var counter: UInt32 = 0
         private var block: [UInt8] = []
         private var blockOffset = 0
 
-        init?(key: Data, nonce: Data) {
+        public init?(key: Data, nonce: Data) {
             guard let state = KDBXCrypto.chacha20InitialState(key: key, nonce: nonce) else { return nil }
             initialState = state
         }
 
         /// Zeroes the key words and the buffered keystream block; the stream is unusable afterwards.
-        mutating func wipe() {
+        public mutating func wipe() {
             SecureWipe.wipe(&initialState)
             SecureWipe.wipe(&block)
             blockOffset = block.count
         }
 
-        mutating func xor(_ data: Data) -> Data {
+        public mutating func xor(_ data: Data) -> Data {
             guard !data.isEmpty else { return data }
 
             var output = [UInt8](repeating: 0, count: data.count)
@@ -523,7 +504,7 @@ enum KDBXCrypto {
 
     // MARK: - GZip Decompression
 
-    static func gunzip(_ data: Data) throws -> Data {
+    public static func gunzip(_ data: Data) throws -> Data {
         guard !data.isEmpty else { throw CryptoError.decompressionFailed }
         let modes: [Int32] = [MAX_WBITS + 16, MAX_WBITS, -MAX_WBITS]
         for mode in modes {
@@ -537,7 +518,7 @@ enum KDBXCrypto {
     /// The largest decompressed payload `gunzip` accepts. The writer refuses
     /// to compress anything larger, or it would produce a file this reader
     /// cannot open again.
-    static let maxDecompressedSize = 256 * 1024 * 1024
+    public static let maxDecompressedSize = 256 * 1024 * 1024
 
     private static func inflateStream(data: Data, windowBits: Int32) throws -> Data {
         var stream = z_stream()
@@ -598,7 +579,7 @@ enum KDBXCrypto {
 
     // MARK: - GZip Compression
 
-    static func gzip(_ data: Data) throws -> Data {
+    public static func gzip(_ data: Data) throws -> Data {
         var stream = z_stream()
         let initResult = deflateInit2_(
             &stream,

@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class KDBXRoundTripTests: XCTestCase {
@@ -853,10 +854,9 @@ final class KDBXRoundTripTests: XCTestCase {
     }
 
     private func parseXML(_ xmlData: Data) throws -> (rootGroup: KPGroup, meta: KPMeta) {
-        let parser = KDBXXMLParser(
+        let parser = try KDBXXMLParser(
             data: xmlData,
-            innerStreamKey: roundTripInnerStreamKey,
-            innerStreamID: KDBXParser.innerStreamChaCha20,
+            innerStream: KDBXInnerStream(streamID: KDBXContainer.innerStreamChaCha20, key: roundTripInnerStreamKey),
             sessionKey: roundTripSessionKey
         )
         return try parser.parse()
@@ -1797,7 +1797,7 @@ final class KDBXRoundTripTests: XCTestCase {
             sessionKey: roundTripSessionKey
         )
 
-        XCTAssertEqual(try KDBXParser.parseFileVersion(from: written), .kdbx4(minor: 1))
+        XCTAssertEqual(try KDBXContainer.parseFileVersion(from: written), .kdbx4(minor: 1))
     }
 
     /// `<PreviousParentGroup>` is KDBX 4.1 too, and KeePass writes it right
@@ -1825,7 +1825,7 @@ final class KDBXRoundTripTests: XCTestCase {
             header: fixture.header,
             sessionKey: roundTripSessionKey
         )
-        XCTAssertEqual(try KDBXParser.parseFileVersion(from: written), .kdbx4(minor: 1))
+        XCTAssertEqual(try KDBXContainer.parseFileVersion(from: written), .kdbx4(minor: 1))
 
         var serializer = KDBXXMLSerializer(
             rootGroup: updated.rootGroup,
@@ -1877,7 +1877,7 @@ final class KDBXRoundTripTests: XCTestCase {
             sessionKey: roundTripSessionKey
         )
 
-        XCTAssertEqual(try KDBXParser.parseFileVersion(from: written), .kdbx4(minor: 0))
+        XCTAssertEqual(try KDBXContainer.parseFileVersion(from: written), .kdbx4(minor: 0))
     }
 
     /// The floor is `max(required, existing)`, never a downgrade: KeeForge
@@ -1913,12 +1913,12 @@ final class KDBXRoundTripTests: XCTestCase {
             sessionKey: roundTripSessionKey
         )
 
-        XCTAssertEqual(try KDBXParser.parseFileVersion(from: written), .kdbx4(minor: 1))
+        XCTAssertEqual(try KDBXContainer.parseFileVersion(from: written), .kdbx4(minor: 1))
     }
 
     private func parseFixtureWithHeader(
         _ fixture: KDBXTestFixture
-    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header, compositeKey: SymmetricKey) {
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header, compositeKey: SymmetricKey) {
         try fixture.parse(in: Bundle(for: Self.self), sessionKey: roundTripSessionKey)
     }
 
@@ -2260,15 +2260,15 @@ final class KDBXRoundTripTests: XCTestCase {
         _ = try reader.readUInt32()
         _ = try reader.readUInt16()
         _ = try reader.readUInt16()
-        let header = try KDBXParser.parseHeader(&reader)
+        let header = try KDBXContainer.parseHeader(&reader)
         _ = try reader.readBytes(32)
         _ = try reader.readBytes(32)
 
-        let transformedKey = try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters)
+        let transformedKey = try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters)
         let masterKey = KDBXCrypto.sha256(header.masterSeed + transformedKey)
         let hmacBaseKey = KDBXCrypto.sha512(header.masterSeed + transformedKey + Data([0x01]))
 
-        let encryptedPayload = try KDBXParser.readHMACBlocks(reader: &reader, baseKey: hmacBaseKey)
+        let encryptedPayload = try KDBXContainer.readHMACBlocks(reader: &reader, baseKey: hmacBaseKey)
         let cipher = try KDBXOuterCipher.require(uuid: header.cipherID)
         let decrypted = try cipher.decrypt(
             data: encryptedPayload,
@@ -2278,7 +2278,7 @@ final class KDBXRoundTripTests: XCTestCase {
 
         let payload = header.compressionFlags == 1 ? try KDBXCrypto.gunzip(decrypted) : decrypted
         var innerReader = DataReader(data: payload)
-        _ = try KDBXParser.parseInnerHeader(&innerReader)
+        _ = try KDBXContainer.parseInnerHeader(&innerReader)
         return payload.subdata(in: innerReader.offset..<payload.count)
     }
 

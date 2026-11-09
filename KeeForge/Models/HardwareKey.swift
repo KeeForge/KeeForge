@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import KDBXKit
 
 /// A YubiKey HMAC-SHA1 challenge-response slot that is part of a database's
 /// composite key, and how this device reaches it.
@@ -51,17 +52,17 @@ enum ChallengeResponseKey {
     /// seed), PKCS#7-padded to 64 bytes so fixed-length and variable-length
     /// slots agree.
     static func challenge(forDatabase data: Data) throws -> Data {
-        guard case .kdbx4 = try KDBXParser.parseFileVersion(from: data) else {
+        guard case .kdbx4 = try KDBXContainer.parseFileVersion(from: data) else {
             throw HardwareKeyError.unsupportedDatabase
         }
         var reader = DataReader(data: data)
-        _ = try KDBXParser.parseVersion(from: &reader)
-        let header = try KDBXParser.parseHeader(&reader)
+        _ = try KDBXContainer.parseVersion(from: &reader)
+        let header = try KDBXContainer.parseHeader(&reader)
 
         // KeePassXC writes KDBX 4 AES-KDF under the legacy UUID and reads it
         // back as its KDBX 4 AES-KDF, which takes the response like Argon2.
         guard let kdfUUID = header.kdfParameters["$UUID"] as? Data,
-              [KDBXParser.argon2dUUID, KDBXParser.argon2idUUID, KDBXParser.aesKDFUUID].contains(kdfUUID),
+              [KDBXContainer.argon2dUUID, KDBXContainer.argon2idUUID, KDBXContainer.aesKDFUUID].contains(kdfUUID),
               let salt = header.kdfParameters["S"] as? Data,
               salt.isEmpty == false,
               salt.count <= challengeLength

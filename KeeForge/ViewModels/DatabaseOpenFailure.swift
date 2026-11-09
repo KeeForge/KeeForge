@@ -1,5 +1,6 @@
 import Foundation
 import LocalAuthentication
+import KDBXKit
 #if os(iOS)
 import UIKit
 #endif
@@ -114,10 +115,10 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
 
     private static func headerSummary(for data: Data) -> String {
         do {
-            let version = try KDBXParser.parseFileVersion(from: data)
+            let version = try KDBXContainer.parseFileVersion(from: data)
             switch version {
             case .kdbx3_1:
-                let header = try KDBXParser.parseKDBX3Header(from: data)
+                let header = try KDBXContainer.parseKDBX3Header(from: data)
                 return [
                     "version=\(formatVersionDescription(header.formatVersion))",
                     "cipher=\(cipherDescription(header.cipherID))",
@@ -127,8 +128,8 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
                 ].joined(separator: ", ")
             case .kdbx4:
                 var reader = DataReader(data: data)
-                let parsedVersion = try KDBXParser.parseVersion(from: &reader)
-                let header = try KDBXParser.parseHeader(&reader)
+                let parsedVersion = try KDBXContainer.parseVersion(from: &reader)
+                let header = try KDBXContainer.parseHeader(&reader)
                 return [
                     "version=\(formatVersionDescription(parsedVersion))",
                     "cipher=\(cipherDescription(header.cipherID))",
@@ -142,7 +143,7 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
         }
     }
 
-    private static func formatVersionDescription(_ version: KDBXParser.FileVersion) -> String {
+    private static func formatVersionDescription(_ version: KDBXContainer.FileVersion) -> String {
         switch version {
         case .kdbx3_1:
             return "KDBX 3.1"
@@ -171,13 +172,13 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
             return "unknown"
         }
 
-        if uuidData == KDBXParser.aesKDFUUID {
+        if uuidData == KDBXContainer.aesKDFUUID {
             let rounds = (parameters["R"] as? UInt64) ?? 0
             return "AES-KDF rounds=\(rounds)"
         }
 
-        if uuidData == KDBXParser.argon2dUUID || uuidData == KDBXParser.argon2idUUID {
-            let name = uuidData == KDBXParser.argon2idUUID ? "Argon2id" : "Argon2d"
+        if uuidData == KDBXContainer.argon2dUUID || uuidData == KDBXContainer.argon2idUUID {
+            let name = uuidData == KDBXContainer.argon2idUUID ? "Argon2id" : "Argon2d"
             let iterations = (parameters["I"] as? UInt64) ?? 3
             let memoryBytes = (parameters["M"] as? UInt64) ?? (64 * 1024 * 1024)
             let parallelism = (parameters["P"] as? UInt32) ?? 1
@@ -190,13 +191,13 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
 
     private static func protectedStreamDescription(_ streamID: UInt32) -> String {
         switch streamID {
-        case KDBXParser.innerStreamNone:
+        case KDBXContainer.innerStreamNone:
             return "none(0)"
-        case KDBXParser.innerStreamArcFourVariant:
+        case KDBXContainer.innerStreamArcFourVariant:
             return "ArcFourVariant(1)"
-        case KDBXParser.innerStreamSalsa20:
+        case KDBXContainer.innerStreamSalsa20:
             return "Salsa20(2)"
-        case KDBXParser.innerStreamChaCha20:
+        case KDBXContainer.innerStreamChaCha20:
             return "ChaCha20(3)"
         default:
             return "unknown(\(streamID))"
@@ -368,7 +369,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             return fromCryptoError(cryptoError, hardwareKeyContext: hardwareKeyContext).attaching(diagnostics)
         }
 
-        if let parseError = error as? KDBXParser.ParseError {
+        if let parseError = error as? KDBXContainer.ParseError {
             return fromParseError(parseError, hardwareKeyContext: hardwareKeyContext).attaching(diagnostics)
         }
 
@@ -533,7 +534,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
     }
 
     private static func fromParseError(
-        _ error: KDBXParser.ParseError,
+        _ error: KDBXContainer.ParseError,
         hardwareKeyContext: HardwareKeyContext
     ) -> DatabaseOpenFailure {
         switch error {

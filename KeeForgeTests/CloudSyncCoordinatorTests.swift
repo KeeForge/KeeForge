@@ -1,6 +1,7 @@
 import AuthenticationServices
 import Foundation
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class CloudSyncCoordinatorTests: XCTestCase {

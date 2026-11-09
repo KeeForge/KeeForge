@@ -1,4 +1,5 @@
 #if os(iOS)
+import KDBXKit
 import SwiftUI
 import XCTest
 @testable import KeeForge

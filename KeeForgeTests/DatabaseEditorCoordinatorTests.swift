@@ -1,4 +1,5 @@
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 @MainActor

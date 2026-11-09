@@ -1,6 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 @MainActor
@@ -201,7 +202,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             sessionKey: loaded.sessionKey,
             kdfPolicy: .autoFillExtension
         )
-        XCTAssertEqual(reparsed.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertEqual(reparsed.header.cipherID, KDBXContainer.twofishCipherUUID)
         XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Twofish AutoFill Entry" })
     }
 

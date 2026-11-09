@@ -4,6 +4,7 @@
 import AuthenticationServices
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// Verifies that `CredentialProviderCoordinator.cleanup()` — the extension's
@@ -163,7 +164,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let writable = try seedResolvableDefaultDatabase()
         var readOnly = writable
         readOnly.isReadOnly = true
-        let cases: [(name: String, reference: DatabaseReference, format: KDBXParser.FileVersion, offersAddURL: Bool)] = [
+        let cases: [(name: String, reference: DatabaseReference, format: KDBXContainer.FileVersion, offersAddURL: Bool)] = [
             ("writable KDBX 4", writable, .kdbx4(minor: 0), true),
             ("read-only reference", readOnly, .kdbx4(minor: 0), false),
             ("legacy KDBX 3.1", writable, .kdbx3_1, false)
@@ -388,7 +389,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let writable = try seedResolvableDefaultDatabase()
         var readOnly = writable
         readOnly.isReadOnly = true
-        let cases: [(name: String, reference: DatabaseReference, format: KDBXParser.FileVersion, identifiers: [ASCredentialServiceIdentifier], offersAddURL: Bool)] = [
+        let cases: [(name: String, reference: DatabaseReference, format: KDBXContainer.FileVersion, identifiers: [ASCredentialServiceIdentifier], offersAddURL: Bool)] = [
             ("writable KDBX 4", writable, .kdbx4(minor: 0), [website], true),
             ("read-only reference", readOnly, .kdbx4(minor: 0), [website], false),
             ("legacy KDBX 3.1", writable, .kdbx3_1, [website], false),
@@ -3034,7 +3035,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
             let notice = try XCTUnwrap(presenter.readOnlyNotice, name)
             XCTAssertEqual(notice.message, coordinator.kdfWriteRefusalMessage)
-            let expectedError = KDBXParser.ParseError.kdfResourceLimitExceeded(
+            let expectedError = KDBXContainer.ParseError.kdfResourceLimitExceeded(
                 iterations: 2,
                 memoryBytes: memory,
                 parallelism: 1
@@ -3503,7 +3504,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         )
         var header = parsed.header
         header.kdfParameters = [
-            "$UUID": KDBXParser.argon2idUUID,
+            "$UUID": KDBXContainer.argon2idUUID,
             "S": Data(repeating: 9, count: 32),
             "M": argon2MemoryBytes,
             "I": UInt64(2),

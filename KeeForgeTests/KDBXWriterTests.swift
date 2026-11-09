@@ -1,12 +1,13 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class KDBXWriterTests: XCTestCase {
     private struct ParsedFixture {
         let rootGroup: KPGroup
         let meta: KPMeta
-        let header: KDBXParser.Header
+        let header: KDBXContainer.Header
         let compositeKey: SymmetricKey
     }
 
@@ -14,7 +15,7 @@ final class KDBXWriterTests: XCTestCase {
 
     func test_writeRoundTrip_test_kdbx_AES_returnsEqualTree() throws {
         let parsed = try parseFixture(.test)
-        XCTAssertEqual(parsed.header.cipherID, KDBXParser.aesCipherUUID)
+        XCTAssertEqual(parsed.header.cipherID, KDBXContainer.aesCipherUUID)
 
         let written = try KDBXWriter.write(
             rootGroup: parsed.rootGroup,
@@ -86,7 +87,7 @@ final class KDBXWriterTests: XCTestCase {
 
     func test_writeRoundTrip_demo_kdbx_returnsEqualTree() throws {
         let parsed = try parseFixture(.demo)
-        XCTAssertEqual(parsed.header.cipherID, KDBXParser.aesCipherUUID)
+        XCTAssertEqual(parsed.header.cipherID, KDBXContainer.aesCipherUUID)
 
         let written = try KDBXWriter.write(
             rootGroup: parsed.rootGroup,
@@ -102,7 +103,7 @@ final class KDBXWriterTests: XCTestCase {
 
     func test_writeRoundTrip_demoKeyfile_kdbx_returnsEqualTree() throws {
         let parsed = try parseFixture(.demoKeyfile)
-        XCTAssertEqual(parsed.header.cipherID, KDBXParser.aesCipherUUID)
+        XCTAssertEqual(parsed.header.cipherID, KDBXContainer.aesCipherUUID)
 
         let written = try KDBXWriter.write(
             rootGroup: parsed.rootGroup,
@@ -132,7 +133,7 @@ final class KDBXWriterTests: XCTestCase {
         XCTAssertEqual(
             fileComponents.storedHeaderHMAC,
             KDBXCrypto.hmacSHA256(
-                key: KDBXParser.computeBlockHMACKey(
+                key: KDBXContainer.computeBlockHMACKey(
                     blockIndex: UInt64.max,
                     baseKey: fileComponents.hmacBaseKey
                 ),
@@ -165,12 +166,12 @@ final class KDBXWriterTests: XCTestCase {
         _ = try reader.readUInt32()
         _ = try reader.readUInt16()
         _ = try reader.readUInt16()
-        _ = try KDBXParser.parseHeader(&reader)
+        _ = try KDBXContainer.parseHeader(&reader)
         _ = try reader.readBytes(32)
         _ = try reader.readBytes(32)
 
         let baseKey = try readWrittenFileComponents(written, compositeKey: parsed.compositeKey).hmacBaseKey
-        let encryptedPayload = try KDBXParser.readHMACBlocks(reader: &reader, baseKey: baseKey)
+        let encryptedPayload = try KDBXContainer.readHMACBlocks(reader: &reader, baseKey: baseKey)
 
         XCTAssertFalse(encryptedPayload.isEmpty)
         XCTAssertGreaterThan(try countPayloadBlocks(in: written), 1)
@@ -183,8 +184,8 @@ final class KDBXWriterTests: XCTestCase {
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             compositeKey: parsed.compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: KDBXParser.chachaCipherUUID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipherID: KDBXContainer.chachaCipherUUID,
                 kdfParameters: parsed.header.kdfParameters,
                 innerHeaderBinaryFields: parsed.header.innerHeaderBinaryFields
             ),
@@ -192,7 +193,7 @@ final class KDBXWriterTests: XCTestCase {
         )
 
         let fileComponents = try readWrittenFileComponents(written, compositeKey: parsed.compositeKey)
-        XCTAssertEqual(fileComponents.header.cipherID, KDBXParser.chachaCipherUUID)
+        XCTAssertEqual(fileComponents.header.cipherID, KDBXContainer.chachaCipherUUID)
         let encryptedPayload = try readEncryptedPayload(
             from: written,
             payloadOffset: fileComponents.payloadOffset,
@@ -217,8 +218,8 @@ final class KDBXWriterTests: XCTestCase {
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             compositeKey: parsed.compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: KDBXParser.twofishCipherUUID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipherID: KDBXContainer.twofishCipherUUID,
                 kdfParameters: parsed.header.kdfParameters,
                 innerHeaderBinaryFields: parsed.header.innerHeaderBinaryFields
             ),
@@ -226,7 +227,7 @@ final class KDBXWriterTests: XCTestCase {
         )
 
         let fileComponents = try readWrittenFileComponents(written, compositeKey: parsed.compositeKey)
-        XCTAssertEqual(fileComponents.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertEqual(fileComponents.header.cipherID, KDBXContainer.twofishCipherUUID)
         XCTAssertEqual(fileComponents.header.encryptionIV.count, 16)
 
         let encryptedPayload = try readEncryptedPayload(
@@ -251,7 +252,7 @@ final class KDBXWriterTests: XCTestCase {
     func test_writeWithTwofishReportedArgon2dProfile_roundTrip() throws {
         let parsed = try parseFixture(.test)
         let reportedKDFParameters: [String: Any] = [
-            "$UUID": KDBXParser.argon2dUUID,
+            "$UUID": KDBXContainer.argon2dUUID,
             "I": UInt64(3),
             "M": UInt64(16 * 1024 * 1024),
             "P": UInt32(4),
@@ -263,8 +264,8 @@ final class KDBXWriterTests: XCTestCase {
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             compositeKey: parsed.compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: KDBXParser.twofishCipherUUID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipherID: KDBXContainer.twofishCipherUUID,
                 kdfParameters: reportedKDFParameters,
                 innerHeaderBinaryFields: parsed.header.innerHeaderBinaryFields
             ),
@@ -276,8 +277,8 @@ final class KDBXWriterTests: XCTestCase {
             compositeKey: parsed.compositeKey,
             sessionKey: sessionKey
         )
-        XCTAssertEqual(reparsed.header.cipherID, KDBXParser.twofishCipherUUID)
-        XCTAssertEqual(reparsed.header.kdfParameters["$UUID"] as? Data, KDBXParser.argon2dUUID)
+        XCTAssertEqual(reparsed.header.cipherID, KDBXContainer.twofishCipherUUID)
+        XCTAssertEqual(reparsed.header.kdfParameters["$UUID"] as? Data, KDBXContainer.argon2dUUID)
         XCTAssertEqual(reparsed.header.kdfParameters["I"] as? UInt64, 3)
         XCTAssertEqual(reparsed.header.kdfParameters["M"] as? UInt64, 16 * 1024 * 1024)
         XCTAssertEqual(reparsed.header.kdfParameters["P"] as? UInt32, 4)
@@ -287,7 +288,7 @@ final class KDBXWriterTests: XCTestCase {
     func test_writeReusedTwofishHeader_preservesNoCompression() throws {
         let parsed = try parseFixture(.test)
         var twofishHeader = parsed.header
-        twofishHeader.cipherID = KDBXParser.twofishCipherUUID
+        twofishHeader.cipherID = KDBXContainer.twofishCipherUUID
         twofishHeader.compressionFlags = 0
 
         let written = try KDBXWriter.write(
@@ -303,7 +304,7 @@ final class KDBXWriterTests: XCTestCase {
             compositeKey: parsed.compositeKey,
             sessionKey: sessionKey
         )
-        XCTAssertEqual(reparsed.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertEqual(reparsed.header.cipherID, KDBXContainer.twofishCipherUUID)
         XCTAssertEqual(reparsed.header.compressionFlags, 0)
         try assertTreesEqual(parsed, (rootGroup: reparsed.rootGroup, meta: reparsed.meta))
     }
@@ -311,7 +312,7 @@ final class KDBXWriterTests: XCTestCase {
     func test_writeWithArgon2idKDF_roundTrip() throws {
         let parsed = try parseFixture(.test)
         var argon2idHeader = parsed.header
-        argon2idHeader.kdfParameters["$UUID"] = KDBXParser.argon2idUUID
+        argon2idHeader.kdfParameters["$UUID"] = KDBXContainer.argon2idUUID
 
         let written = try KDBXWriter.write(
             rootGroup: parsed.rootGroup,
@@ -322,7 +323,7 @@ final class KDBXWriterTests: XCTestCase {
         )
 
         let fileComponents = try readWrittenFileComponents(written, compositeKey: parsed.compositeKey)
-        XCTAssertEqual(fileComponents.header.kdfParameters["$UUID"] as? Data, KDBXParser.argon2idUUID)
+        XCTAssertEqual(fileComponents.header.kdfParameters["$UUID"] as? Data, KDBXContainer.argon2idUUID)
 
         let reparsed = try parseWrittenFile(written, fixture: .test)
         try assertTreesEqual(parsed, reparsed)
@@ -337,7 +338,7 @@ final class KDBXWriterTests: XCTestCase {
         header.formatVersion = .kdbx4(minor: 0)
         let written = try KDBXWriter.write(rootGroup: parsed.rootGroup, meta: meta, compositeKey: parsed.compositeKey,
                                            header: header, sessionKey: sessionKey)
-        XCTAssertEqual(try KDBXParser.parseFileVersion(from: written), .kdbx4(minor: 1))
+        XCTAssertEqual(try KDBXContainer.parseFileVersion(from: written), .kdbx4(minor: 1))
         let reopened = try parseWrittenFile(written, fixture: .test)
         XCTAssertEqual(reopened.meta.customIcons[uuid], Data([1]))
         XCTAssertNil(reopened.meta.customIconNames[uuid])
@@ -356,7 +357,7 @@ final class KDBXWriterTests: XCTestCase {
             sessionKey: sessionKey
         )
 
-        XCTAssertEqual(try KDBXParser.parseFileVersion(from: written), .kdbx4(minor: 1))
+        XCTAssertEqual(try KDBXContainer.parseFileVersion(from: written), .kdbx4(minor: 1))
 
         let reparsed = try parseWrittenFile(written, fixture: .test)
         try assertTreesEqual(parsed, reparsed)
@@ -365,8 +366,8 @@ final class KDBXWriterTests: XCTestCase {
     func test_writeReusedHeader_preservesUnknownOuterHeaderFields() throws {
         let parsed = try parseFixture(.test)
         let unknownFields = [
-            KDBXParser.UnknownHeaderField(id: 12, data: Data("public-custom-data".utf8)),
-            KDBXParser.UnknownHeaderField(id: 0x7F, data: Data([0x01, 0x02, 0x03])),
+            KDBXContainer.UnknownHeaderField(id: 12, data: Data("public-custom-data".utf8)),
+            KDBXContainer.UnknownHeaderField(id: 0x7F, data: Data([0x01, 0x02, 0x03])),
         ]
         var header = parsed.header
         header.unknownOuterHeaderFields = unknownFields
@@ -392,12 +393,12 @@ final class KDBXWriterTests: XCTestCase {
     func test_writeReusedHeader_reemitsUnknownInnerHeaderFieldsBeforeTheBinaryPool() throws {
         let parsed = try parseFixture(.unknownInnerHeader)
         let sourceUnknownFields = [
-            KDBXParser.UnknownHeaderField(id: 0x21, data: Data("mid-pool-unknown-field".utf8)),
-            KDBXParser.UnknownHeaderField(
+            KDBXContainer.UnknownHeaderField(id: 0x21, data: Data("mid-pool-unknown-field".utf8)),
+            KDBXContainer.UnknownHeaderField(
                 id: 0x7F,
                 data: Data("kdbx-format-hardening-fixture:unknown-field-0x7f-marker".utf8)
             ),
-            KDBXParser.UnknownHeaderField(id: 0x10, data: Data()),
+            KDBXContainer.UnknownHeaderField(id: 0x10, data: Data()),
         ]
         XCTAssertEqual(parsed.header.unknownInnerHeaderFields, sourceUnknownFields)
 
@@ -500,7 +501,7 @@ final class KDBXWriterTests: XCTestCase {
         let parsed = try parseFixture(.unknownInnerHeader)
         let largePayload = Data((0..<(512 * 1024)).map { UInt8(truncatingIfNeeded: $0 &* 31 &+ 7) })
         var header = parsed.header
-        header.unknownInnerHeaderFields.append(KDBXParser.UnknownHeaderField(id: 0x42, data: largePayload))
+        header.unknownInnerHeaderFields.append(KDBXContainer.UnknownHeaderField(id: 0x42, data: largePayload))
 
         let written = try KDBXWriter.write(
             rootGroup: parsed.rootGroup,
@@ -601,7 +602,7 @@ final class KDBXWriterTests: XCTestCase {
                 sessionKey: sessionKey
             )
         ) { error in
-            guard case KDBXParser.ParseError.kdfParameterOutOfRange(let message) = error else {
+            guard case KDBXContainer.ParseError.kdfParameterOutOfRange(let message) = error else {
                 XCTFail("Expected KDF parameter failure, got \(error)")
                 return
             }
@@ -725,8 +726,8 @@ final class KDBXWriterTests: XCTestCase {
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             compositeKey: parsed.compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: KDBXParser.chachaCipherUUID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipherID: KDBXContainer.chachaCipherUUID,
                 kdfParameters: parsed.header.kdfParameters,
                 innerHeaderBinaryFields: parsed.header.innerHeaderBinaryFields
             ),
@@ -811,7 +812,7 @@ final class KDBXWriterTests: XCTestCase {
         _ data: Data,
         compositeKey: SymmetricKey
     ) throws -> (
-        header: KDBXParser.Header,
+        header: KDBXContainer.Header,
         headerBytes: Data,
         storedHeaderSHA256: Data,
         storedHeaderHMAC: Data,
@@ -824,12 +825,12 @@ final class KDBXWriterTests: XCTestCase {
         _ = try reader.readUInt16()
         _ = try reader.readUInt16()
 
-        let header = try KDBXParser.parseHeader(&reader)
+        let header = try KDBXContainer.parseHeader(&reader)
         let headerBytes = data.subdata(in: 0..<reader.offset)
         let storedHeaderSHA256 = try reader.readBytes(32)
         let storedHeaderHMAC = try reader.readBytes(32)
 
-        let transformedKey = try KDBXParser.deriveKey(
+        let transformedKey = try KDBXContainer.deriveKey(
             compositeKey: compositeKey,
             kdfParams: header.kdfParameters
         )
@@ -855,11 +856,11 @@ final class KDBXWriterTests: XCTestCase {
         _ = try reader.readUInt32()
         _ = try reader.readUInt16()
         _ = try reader.readUInt16()
-        let header = try KDBXParser.parseHeader(&reader)
+        let header = try KDBXContainer.parseHeader(&reader)
         _ = try reader.readBytes(32)
         _ = try reader.readBytes(32)
 
-        let transformedKey = try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters)
+        let transformedKey = try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters)
 
         var masterPreKey = Data()
         masterPreKey.append(header.masterSeed)
@@ -872,7 +873,7 @@ final class KDBXWriterTests: XCTestCase {
         hmacPreKey.append(Data([0x01]))
         let hmacBaseKey = KDBXCrypto.sha512(hmacPreKey)
 
-        let encryptedPayload = try KDBXParser.readHMACBlocks(reader: &reader, baseKey: hmacBaseKey)
+        let encryptedPayload = try KDBXContainer.readHMACBlocks(reader: &reader, baseKey: hmacBaseKey)
         let cipher = try KDBXOuterCipher.require(uuid: header.cipherID)
         let decryptedPayload = try cipher.decrypt(
             data: encryptedPayload,
@@ -882,7 +883,7 @@ final class KDBXWriterTests: XCTestCase {
 
         let payload = header.compressionFlags == 1 ? try KDBXCrypto.gunzip(decryptedPayload) : decryptedPayload
         var innerReader = DataReader(data: payload)
-        _ = try KDBXParser.parseInnerHeader(&innerReader)
+        _ = try KDBXContainer.parseInnerHeader(&innerReader)
         return payload.subdata(in: innerReader.offset..<payload.count)
     }
 
@@ -893,15 +894,15 @@ final class KDBXWriterTests: XCTestCase {
     ) throws -> Data {
         var reader = DataReader(data: data)
         try reader.skip(payloadOffset)
-        return try KDBXParser.readHMACBlocks(reader: &reader, baseKey: hmacBaseKey)
+        return try KDBXContainer.readHMACBlocks(reader: &reader, baseKey: hmacBaseKey)
     }
 
     private func decryptPayload(
         _ encryptedPayload: Data,
-        header: KDBXParser.Header,
+        header: KDBXContainer.Header,
         compositeKey: SymmetricKey
     ) throws -> Data {
-        let transformedKey = try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters)
+        let transformedKey = try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters)
 
         var masterPreKey = Data()
         masterPreKey.append(header.masterSeed)
@@ -935,7 +936,7 @@ final class KDBXWriterTests: XCTestCase {
             let id = try reader.readUInt8()
             let size = Int(try reader.readUInt32())
             items.append(InnerHeaderItem(id: id, payload: try reader.readBytes(size)))
-            if id == KDBXParser.InnerHeaderField.endOfHeader.rawValue {
+            if id == KDBXContainer.InnerHeaderField.endOfHeader.rawValue {
                 return items
             }
         }
@@ -943,11 +944,11 @@ final class KDBXWriterTests: XCTestCase {
 
     private func parseInnerPayload(
         _ decryptedPayload: Data,
-        header: KDBXParser.Header
+        header: KDBXContainer.Header
     ) throws -> Data {
         let payload = header.compressionFlags == 1 ? try KDBXCrypto.gunzip(decryptedPayload) : decryptedPayload
         var innerReader = DataReader(data: payload)
-        _ = try KDBXParser.parseInnerHeader(&innerReader)
+        _ = try KDBXContainer.parseInnerHeader(&innerReader)
         return payload.subdata(in: innerReader.offset..<payload.count)
     }
 
@@ -957,7 +958,7 @@ final class KDBXWriterTests: XCTestCase {
         _ = try reader.readUInt32()
         _ = try reader.readUInt16()
         _ = try reader.readUInt16()
-        _ = try KDBXParser.parseHeader(&reader)
+        _ = try KDBXContainer.parseHeader(&reader)
         _ = try reader.readBytes(32)
         _ = try reader.readBytes(32)
 

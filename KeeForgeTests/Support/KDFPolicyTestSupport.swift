@@ -1,6 +1,7 @@
 // Tests default to the main-app KDF policy; tests that exercise policy selection pass `kdfPolicy:` explicitly.
 import CryptoKit
 import Foundation
+import KDBXKit
 @testable import KeeForge
 
 extension KDBXParser {
@@ -45,7 +46,7 @@ extension KDBXParser {
         data: Data,
         password: String,
         sessionKey: SymmetricKey
-    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header) {
         try parseWithMetaAndHeader(data: data, password: password, sessionKey: sessionKey, kdfPolicy: .mainApp)
     }
 
@@ -54,7 +55,7 @@ extension KDBXParser {
         password: String?,
         keyFileData: Data?,
         sessionKey: SymmetricKey
-    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header) {
         try parseWithMetaAndHeader(data: data, password: password, keyFileData: keyFileData, sessionKey: sessionKey, kdfPolicy: .mainApp)
     }
 
@@ -62,10 +63,12 @@ extension KDBXParser {
         data: Data,
         compositeKey: SymmetricKey,
         sessionKey: SymmetricKey
-    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header) {
         try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: .mainApp)
     }
+}
 
+extension KDBXContainer {
     static func deriveKey(compositeKey: SymmetricKey, kdfParams: [String: Any]) throws -> Data {
         try deriveKey(compositeKey: compositeKey, kdfParams: kdfParams, kdfPolicy: .mainApp)
     }
@@ -76,7 +79,7 @@ extension KDBXWriter {
         rootGroup: KPGroup,
         meta: KPMeta,
         compositeKey: SymmetricKey,
-        header: KDBXParser.Header,
+        header: KDBXContainer.Header,
         sessionKey: SymmetricKey
     ) throws -> Data {
         try write(
@@ -93,7 +96,7 @@ extension KDBXWriter {
         rootGroup: KPGroup,
         meta: KPMeta,
         compositeKey: SymmetricKey,
-        freshHeader: FreshHeaderConfiguration,
+        freshHeader: KDBXContainerWriter.FreshHeaderConfiguration,
         sessionKey: SymmetricKey
     ) throws -> Data {
         try write(

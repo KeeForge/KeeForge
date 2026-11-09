@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import KDBXKit
 
 /// The entry editor's attachment list: remove existing files, add new ones.
 /// The file importer lives on `EntryEditView`, which also has to dismiss it

@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class LocalDatabaseSaverTests: XCTestCase {
@@ -102,7 +103,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             password: fixturePassword,
             sessionKey: SymmetricKey(size: .bits256)
         )
-        XCTAssertEqual(reparsed.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertEqual(reparsed.header.cipherID, KDBXContainer.twofishCipherUUID)
         XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Twofish Saved Entry" })
 
         let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
@@ -896,7 +897,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             openTimeSHA512: context.openTimeSHA512,
             kdfPolicy: .mainApp,
             encryptionSettings: EncryptionSettingsChange(
-                cipherID: KDBXParser.chachaCipherUUID,
+                cipherID: KDBXContainer.chachaCipherUUID,
                 kdfParameters: kdfParameters,
                 compressionFlags: original.isCompressed ? 0 : 1
             )
@@ -1030,7 +1031,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
                 compositeKey: context.compositeKey,
                 openTimeSHA512: context.openTimeSHA512,
                 kdfPolicy: .mainApp,
-                encryptionSettings: EncryptionSettingsChange(cipherID: KDBXParser.chachaCipherUUID),
+                encryptionSettings: EncryptionSettingsChange(cipherID: KDBXContainer.chachaCipherUUID),
                 environment: environment
             )
             XCTFail("Expected the encryption settings save to fail verification.")
@@ -1126,7 +1127,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
                 openTimeSHA512: context.openTimeSHA512
             )
             XCTFail("Expected the save to refuse a payload the reader cannot inflate.", file: file, line: line)
-        } catch KDBXWriter.WriteError.payloadTooLarge {
+        } catch KDBXContainerWriter.WriteError.payloadTooLarge {
         } catch {
             XCTFail("Expected payloadTooLarge, got \(error)", file: file, line: line)
         }
@@ -1339,8 +1340,8 @@ final class LocalDatabaseSaverTests: XCTestCase {
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             compositeKey: compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: KDBXParser.twofishCipherUUID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipherID: KDBXContainer.twofishCipherUUID,
                 kdfParameters: parsed.header.kdfParameters,
                 innerHeaderBinaryFields: parsed.header.innerHeaderBinaryFields
             ),

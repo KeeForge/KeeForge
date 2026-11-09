@@ -1,5 +1,6 @@
 import AuthenticationServices
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// Drives `FTPCloudProvider` end to end against `FakeFTPServer`, so the real

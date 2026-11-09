@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import LocalAuthentication
 import Observation
+import KDBXKit
 
 enum DatabaseSaveError: Error, LocalizedError, Identifiable, Equatable, Sendable {
     case databaseIsReadOnly
@@ -222,7 +223,7 @@ final class DatabaseViewModel {
         let reference: DatabaseReference
         let rootGroup: KPGroup
         let meta: KPMeta
-        let formatVersion: KDBXParser.FileVersion
+        let formatVersion: KDBXContainer.FileVersion
         let sessionKey: SymmetricKey
         let openTimeSHA512: Data
         let binaryPool: BinaryPool
@@ -475,7 +476,7 @@ final class DatabaseViewModel {
     private(set) var rootGroup: KPGroup? {
         didSet { rebuildDerivedState() }
     }
-    private(set) var openedFormatVersion: KDBXParser.FileVersion?
+    private(set) var openedFormatVersion: KDBXContainer.FileVersion?
     private(set) var inactivityTimer: Timer?
     private(set) var inactivityTimerInterval: TimeInterval?
     private(set) var inactivityDeadline: Date?
@@ -3346,7 +3347,7 @@ final class DatabaseViewModel {
         localBinaryPoolFields: [Data]
     ) async throws -> KDBXMerger.Merged {
         try await Task.detached(priority: .userInitiated) {
-            let remote: (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header)
+            let remote: (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header)
             do {
                 remote = try KDBXParser.parseWithMetaAndHeader(
                     data: remoteData,
@@ -4037,7 +4038,7 @@ final class DatabaseViewModel {
     private struct UnlockPayload: Sendable {
         let rootGroup: KPGroup
         let meta: KPMeta
-        let formatVersion: KDBXParser.FileVersion
+        let formatVersion: KDBXContainer.FileVersion
         let openTimeSHA512: Data
         let binaryPool: BinaryPool
         var expressKey: ExpressUnlockKey?

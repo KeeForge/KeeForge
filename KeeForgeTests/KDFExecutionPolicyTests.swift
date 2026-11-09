@@ -1,9 +1,10 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// Boundary coverage for `KDFExecutionPolicy` enforcement in
-/// `KDBXParser.deriveKey`. Rejections happen before any derivation, so
+/// `KDBXContainer.deriveKey`. Rejections happen before any derivation, so
 /// rejection tests are free; acceptance tests perform a real derivation and
 /// keep memory small so the whole suite stays fast.
 final class KDFExecutionPolicyTests: XCTestCase {
@@ -16,7 +17,7 @@ final class KDFExecutionPolicyTests: XCTestCase {
         version: UInt32? = 0x13
     ) -> [String: Any] {
         var params: [String: Any] = [
-            "$UUID": KDBXParser.argon2idUUID,
+            "$UUID": KDBXContainer.argon2idUUID,
             "I": iterations,
             "M": memory,
             "P": parallelism,
@@ -29,7 +30,7 @@ final class KDFExecutionPolicyTests: XCTestCase {
     }
 
     private func derive(_ params: [String: Any], policy: KDFExecutionPolicy) throws -> Data {
-        try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: params, kdfPolicy: policy)
+        try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: params, kdfPolicy: policy)
     }
 
     private func assertResourceLimitExceeded(
@@ -39,7 +40,7 @@ final class KDFExecutionPolicyTests: XCTestCase {
         line: UInt = #line
     ) {
         XCTAssertThrowsError(try derive(params, policy: policy), file: file, line: line) { error in
-            guard case KDBXParser.ParseError.kdfResourceLimitExceeded = error else {
+            guard case KDBXContainer.ParseError.kdfResourceLimitExceeded = error else {
                 XCTFail("Expected kdfResourceLimitExceeded, got \(error)", file: file, line: line)
                 return
             }
@@ -54,7 +55,7 @@ final class KDFExecutionPolicyTests: XCTestCase {
         line: UInt = #line
     ) {
         XCTAssertThrowsError(try derive(params, policy: policy), file: file, line: line) { error in
-            guard case KDBXParser.ParseError.kdfParameterOutOfRange(let message) = error else {
+            guard case KDBXContainer.ParseError.kdfParameterOutOfRange(let message) = error else {
                 XCTFail("Expected kdfParameterOutOfRange, got \(error)", file: file, line: line)
                 return
             }
@@ -157,13 +158,13 @@ final class KDFExecutionPolicyTests: XCTestCase {
             maxParallelism: 4
         )
         let atLimit = argon2Params(iterations: 3, memory: 1 << 20, parallelism: 1)
-        XCTAssertEqual(try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: atLimit, kdfPolicy: policy).count, 32)
+        XCTAssertEqual(try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: atLimit, kdfPolicy: policy).count, 32)
 
         let overLimit = argon2Params(iterations: 4, memory: 1 << 20, parallelism: 1)
         XCTAssertThrowsError(
-            try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: overLimit, kdfPolicy: policy)
+            try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: overLimit, kdfPolicy: policy)
         ) { error in
-            guard case KDBXParser.ParseError.kdfResourceLimitExceeded = error else {
+            guard case KDBXContainer.ParseError.kdfResourceLimitExceeded = error else {
                 XCTFail("Expected kdfResourceLimitExceeded, got \(error)")
                 return
             }

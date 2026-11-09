@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class CloudDatabaseSaverTests: XCTestCase {
@@ -169,7 +170,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             compositeKey: loaded.compositeKey,
             sessionKey: loaded.sessionKey
         )
-        XCTAssertEqual(reparsed.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertEqual(reparsed.header.cipherID, KDBXContainer.twofishCipherUUID)
         XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Twofish Cloud Entry" })
         XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), uploaded)
     }
@@ -1053,7 +1054,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             expectedRev: "rev-A",
             kdfPolicy: .mainApp,
             encryptionSettings: EncryptionSettingsChange(
-                cipherID: KDBXParser.chachaCipherUUID,
+                cipherID: KDBXContainer.chachaCipherUUID,
                 compressionFlags: original.isCompressed ? 0 : 1
             ),
             environment: environment

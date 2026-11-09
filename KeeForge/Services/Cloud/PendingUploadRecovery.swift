@@ -1,4 +1,5 @@
 import Foundation
+import KDBXKit
 
 /// Finds the bytes of AutoFill saves whose upload conflicted, so an unlocked
 /// session can merge them into the cloud copy it opened.

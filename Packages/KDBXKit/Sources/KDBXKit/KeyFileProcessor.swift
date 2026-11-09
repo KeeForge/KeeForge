@@ -8,23 +8,15 @@ import Foundation
 /// 2. Hex — exactly 64 ASCII hex characters → 32 bytes
 /// 3. XML — v1.0 (base64) or v2.0 (hex + hash verify)
 /// 4. Fallback — SHA-256 of entire file contents
-enum KeyFileProcessor {
-    enum KeyFileError: Error, LocalizedError {
+public enum KeyFileProcessor {
+    public enum KeyFileError: Error, Equatable, Sendable {
         case emptyKeyFile
         case xmlKeyDataInvalid
         case xmlHashMismatch
-
-        var errorDescription: String? {
-            switch self {
-            case .emptyKeyFile: String(localized: "Key file is empty")
-            case .xmlKeyDataInvalid: String(localized: "Key file XML contains invalid key data")
-            case .xmlHashMismatch: String(localized: "Key file hash verification failed — file may be corrupted")
-            }
-        }
     }
 
     /// Process key file data into a 32-byte key, trying formats in KeePass order.
-    static func processKeyFile(_ data: Data) throws -> Data {
+    public static func processKeyFile(_ data: Data) throws -> Data {
         guard !data.isEmpty else { throw KeyFileError.emptyKeyFile }
 
         // 1. Exactly 32 bytes → raw binary key
@@ -42,12 +34,12 @@ enum KeyFileProcessor {
 
     // MARK: - Format Handlers
 
-    static func tryBinaryFormat(_ data: Data) -> Data? {
+    public static func tryBinaryFormat(_ data: Data) -> Data? {
         guard data.count == 32 else { return nil }
         return data
     }
 
-    static func tryHexFormat(_ data: Data) -> Data? {
+    public static func tryHexFormat(_ data: Data) -> Data? {
         guard data.count == 64 else { return nil }
 
         // Must be valid ASCII hex characters
@@ -58,7 +50,7 @@ enum KeyFileProcessor {
         return dataFromHex(trimmed)
     }
 
-    static func tryXMLFormat(_ data: Data) throws -> Data? {
+    public static func tryXMLFormat(_ data: Data) throws -> Data? {
         // Quick check: does it look like XML?
         let prefix = data.prefix(256)
         guard let prefixStr = String(data: prefix, encoding: .utf8),
@@ -79,7 +71,7 @@ enum KeyFileProcessor {
         }
     }
 
-    static func hashFallback(_ data: Data) -> Data {
+    public static func hashFallback(_ data: Data) -> Data {
         Data(SHA256.hash(data: data))
     }
 

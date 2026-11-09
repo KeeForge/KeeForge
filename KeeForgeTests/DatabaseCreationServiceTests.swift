@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 @MainActor
@@ -166,7 +167,7 @@ final class DatabaseCreationServiceTests: XCTestCase {
         let salt = Data(repeating: 7, count: DatabaseCreationDefaults.kdfSaltByteCount)
         let parameters = try DatabaseCreationDefaults.argon2idKDFParameters(salt: salt)
 
-        XCTAssertEqual(parameters["$UUID"] as? Data, KDBXParser.argon2idUUID)
+        XCTAssertEqual(parameters["$UUID"] as? Data, KDBXContainer.argon2idUUID)
         XCTAssertEqual(parameters["I"] as? UInt64, 10)
         XCTAssertEqual(parameters["M"] as? UInt64, 64 * 1024 * 1024)
         XCTAssertEqual(parameters["P"] as? UInt32, UInt32(min(ProcessInfo.processInfo.processorCount, 4)))
@@ -203,7 +204,7 @@ final class DatabaseCreationServiceTests: XCTestCase {
             sessionKey: SymmetricKey(size: .bits256)
         )
 
-        XCTAssertEqual(parsed.header.cipherID, KDBXParser.chachaCipherUUID)
+        XCTAssertEqual(parsed.header.cipherID, KDBXContainer.chachaCipherUUID)
         XCTAssertEqual(parsed.rootGroup.groups.first?.name, "ChaCha")
     }
 

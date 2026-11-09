@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// AutoFill saves the Mac extension can only write to the shared copy (#182):

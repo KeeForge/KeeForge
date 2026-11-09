@@ -1,5 +1,6 @@
 import CoreFoundation
 import Foundation
+import KDBXKit
 
 @MainActor
 final class PendingUploadDrainer {

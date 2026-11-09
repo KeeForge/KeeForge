@@ -1,4 +1,5 @@
 import Foundation
+import KDBXKit
 
 /// Credential-free summary of a KDBX file's outer header.
 ///
@@ -12,7 +13,7 @@ struct KDBXFileSummary: Equatable, Sendable {
         case unknown
     }
 
-    let formatVersion: KDBXParser.FileVersion
+    let formatVersion: KDBXContainer.FileVersion
     let cipher: KDBXOuterCipher?
     let isCompressed: Bool
     let keyDerivation: KeyDerivation
@@ -59,10 +60,10 @@ struct KDBXFileSummary: Equatable, Sendable {
     /// Inspects the plaintext outer header. `data` may be a prefix of the file
     /// as long as it covers the full header.
     static func inspect(data: Data) throws -> KDBXFileSummary {
-        let version = try KDBXParser.parseFileVersion(from: data)
+        let version = try KDBXContainer.parseFileVersion(from: data)
         switch version {
         case .kdbx3_1:
-            let header = try KDBXParser.parseKDBX3Header(from: data)
+            let header = try KDBXContainer.parseKDBX3Header(from: data)
             return KDBXFileSummary(
                 formatVersion: version,
                 cipher: KDBXOuterCipher(uuid: header.cipherID),
@@ -71,8 +72,8 @@ struct KDBXFileSummary: Equatable, Sendable {
             )
         case .kdbx4:
             var reader = DataReader(data: data)
-            _ = try KDBXParser.parseVersion(from: &reader)
-            let header = try KDBXParser.parseHeader(&reader)
+            _ = try KDBXContainer.parseVersion(from: &reader)
+            let header = try KDBXContainer.parseHeader(&reader)
             return KDBXFileSummary(
                 formatVersion: version,
                 cipher: KDBXOuterCipher(uuid: header.cipherID),
@@ -82,12 +83,12 @@ struct KDBXFileSummary: Equatable, Sendable {
         }
     }
 
-    // Missing-parameter fallbacks mirror KDBXParser.deriveKey so the displayed
+    // Missing-parameter fallbacks mirror KDBXContainer.deriveKey so the displayed
     // values match what unlock actually uses.
     private static func keyDerivation(fromKDFParameters params: [String: Any]) -> KeyDerivation {
         guard let uuid = params["$UUID"] as? Data else { return .unknown }
 
-        if uuid == KDBXParser.aesKDFUUID {
+        if uuid == KDBXContainer.aesKDFUUID {
             return .aesKDF(rounds: (params["R"] as? UInt64) ?? 0)
         }
 
@@ -95,10 +96,10 @@ struct KDBXFileSummary: Equatable, Sendable {
         let memoryBytes = (params["M"] as? UInt64) ?? (64 * 1024 * 1024)
         let parallelism = (params["P"] as? UInt32) ?? 1
 
-        if uuid == KDBXParser.argon2dUUID {
+        if uuid == KDBXContainer.argon2dUUID {
             return .argon2d(iterations: iterations, memoryBytes: memoryBytes, parallelism: parallelism)
         }
-        if uuid == KDBXParser.argon2idUUID {
+        if uuid == KDBXContainer.argon2idUUID {
             return .argon2id(iterations: iterations, memoryBytes: memoryBytes, parallelism: parallelism)
         }
         return .unknown

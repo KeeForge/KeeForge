@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class AttachmentTests: XCTestCase {
@@ -105,8 +106,8 @@ final class AttachmentTests: XCTestCase {
             rootGroup: root,
             meta: meta,
             compositeKey: compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: KDBXParser.aesCipherUUID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipherID: KDBXContainer.aesCipherUUID,
                 kdfParameters: KDBXCompatibilitySupport.fastArgon2idParameters(),
                 innerHeaderBinaryFields: [protectedBinary, plainBinary]
             ),
@@ -481,7 +482,7 @@ final class AttachmentTests: XCTestCase {
     private struct EditableFixture {
         let rootGroup: KPGroup
         let meta: KPMeta
-        let header: KDBXParser.Header
+        let header: KDBXContainer.Header
         let compositeKey: SymmetricKey
         let sessionKey: SymmetricKey
 
@@ -498,7 +499,7 @@ final class AttachmentTests: XCTestCase {
             )
         }
 
-        func writeAndReparse(_ draft: DatabaseDraft) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header) {
+        func writeAndReparse(_ draft: DatabaseDraft) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header) {
             let data = try draft.write(compositeKey: compositeKey, header: header, kdfPolicy: .mainApp)
             return try KDBXParser.parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
         }
@@ -551,8 +552,8 @@ final class AttachmentTests: XCTestCase {
             rootGroup: root,
             meta: meta,
             compositeKey: compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: KDBXParser.aesCipherUUID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipherID: KDBXContainer.aesCipherUUID,
                 kdfParameters: KDBXCompatibilitySupport.fastArgon2idParameters(),
                 innerHeaderBinaryFields: [Data([0x00]) + Data("alpha-bytes".utf8)]
             ),
@@ -590,8 +591,8 @@ final class AttachmentTests: XCTestCase {
             rootGroup: root,
             meta: meta,
             compositeKey: compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: KDBXParser.aesCipherUUID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipherID: KDBXContainer.aesCipherUUID,
                 kdfParameters: KDBXCompatibilitySupport.fastArgon2idParameters()
             ),
             sessionKey: sessionKey

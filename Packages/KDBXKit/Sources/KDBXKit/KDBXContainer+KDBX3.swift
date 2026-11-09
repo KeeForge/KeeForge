@@ -1,23 +1,51 @@
 import CryptoKit
 import Foundation
 
-extension KDBXParser {
-    struct LegacyHeader: Sendable {
-        var formatVersion: FileVersion = .kdbx3_1
-        var cipherID = Data()
-        var compressionFlags: UInt32 = 0
-        var masterSeed = Data()
-        var transformSeed = Data()
-        var transformRounds: UInt64 = 0
-        var encryptionIV = Data()
-        var protectedStreamKey = Data()
-        var streamStartBytes = Data()
-        var innerRandomStreamID: UInt32 = 0
-        var headerData = Data()
-        var payloadOffset = 0
+extension KDBXContainer {
+    public struct LegacyHeader: Sendable {
+        public var formatVersion: FileVersion = .kdbx3_1
+        public var cipherID = Data()
+        public var compressionFlags: UInt32 = 0
+        public var masterSeed = Data()
+        public var transformSeed = Data()
+        public var transformRounds: UInt64 = 0
+        public var encryptionIV = Data()
+        public var protectedStreamKey = Data()
+        public var streamStartBytes = Data()
+        public var innerRandomStreamID: UInt32 = 0
+        public var headerData = Data()
+        public var payloadOffset = 0
+
+        public init(
+            formatVersion: FileVersion = .kdbx3_1,
+            cipherID: Data = Data(),
+            compressionFlags: UInt32 = 0,
+            masterSeed: Data = Data(),
+            transformSeed: Data = Data(),
+            transformRounds: UInt64 = 0,
+            encryptionIV: Data = Data(),
+            protectedStreamKey: Data = Data(),
+            streamStartBytes: Data = Data(),
+            innerRandomStreamID: UInt32 = 0,
+            headerData: Data = Data(),
+            payloadOffset: Int = 0
+        ) {
+            self.formatVersion = formatVersion
+            self.cipherID = cipherID
+            self.compressionFlags = compressionFlags
+            self.masterSeed = masterSeed
+            self.transformSeed = transformSeed
+            self.transformRounds = transformRounds
+            self.encryptionIV = encryptionIV
+            self.protectedStreamKey = protectedStreamKey
+            self.streamStartBytes = streamStartBytes
+            self.innerRandomStreamID = innerRandomStreamID
+            self.headerData = headerData
+            self.payloadOffset = payloadOffset
+        }
     }
 
-    static func parseKDBX3Header(from data: Data) throws -> LegacyHeader {
+    public static func parseKDBX3Header(from data: Data) throws -> LegacyHeader {
         var reader = DataReader(data: data)
         let version = try parseVersion(from: &reader)
         guard case .kdbx3_1 = version else {
@@ -31,7 +59,7 @@ extension KDBXParser {
         return header
     }
 
-    static func deriveKDBX3MasterKey(
+    public static func deriveKDBX3MasterKey(
         compositeKey: SymmetricKey,
         header: LegacyHeader
     ) throws -> Data {
@@ -53,11 +81,7 @@ extension KDBXParser {
         return KDBXCrypto.sha256(preKey)
     }
 
-    static func parseKDBX3WithMetaAndHeader(
-        data: Data,
-        compositeKey: SymmetricKey,
-        sessionKey: SymmetricKey
-    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
+    static func readKDBX3(data: Data, compositeKey: SymmetricKey) throws -> Payload {
         let legacyHeader = try parseKDBX3Header(from: data)
         try validateSupportedProtectedFieldStream(legacyHeader.innerRandomStreamID)
 
@@ -97,13 +121,6 @@ extension KDBXParser {
             ? try KDBXCrypto.gunzip(xmlPayload)
             : xmlPayload
 
-        let parsed = try parseXML(
-            xmlData: xmlData,
-            innerStreamKey: legacyHeader.protectedStreamKey,
-            innerStreamID: legacyHeader.innerRandomStreamID,
-            sessionKey: sessionKey
-        )
-
         var header = Header()
         header.formatVersion = legacyHeader.formatVersion
         header.cipherID = legacyHeader.cipherID
@@ -114,7 +131,7 @@ extension KDBXParser {
         header.innerStreamID = legacyHeader.innerRandomStreamID
         header.innerStreamKey = legacyHeader.protectedStreamKey
 
-        return (parsed.rootGroup, parsed.meta, header)
+        return Payload(header: header, xml: xmlData)
     }
 
     private static func parseLegacyHeader(_ reader: inout DataReader) throws -> LegacyHeader {
@@ -195,7 +212,7 @@ extension KDBXParser {
         throw ParseError.truncatedFile
     }
 
-    static func validateSupportedProtectedFieldStream(_ streamID: UInt32) throws {
+    public static func validateSupportedProtectedFieldStream(_ streamID: UInt32) throws {
         switch streamID {
         case innerStreamNone, innerStreamSalsa20, innerStreamChaCha20:
             return
@@ -213,7 +230,7 @@ private extension DataReader {
 
     mutating func readUInt64From(_ size: Int) throws -> UInt64 {
         let bytes = try readBytes(size)
-        guard bytes.count >= 8 else { throw KDBXParser.ParseError.truncatedFile }
+        guard bytes.count >= 8 else { throw KDBXContainer.ParseError.truncatedFile }
         return bytes.withUnsafeBytes { $0.loadUnaligned(as: UInt64.self).littleEndian }
     }
 }

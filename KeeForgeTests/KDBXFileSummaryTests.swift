@@ -1,4 +1,5 @@
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class KDBXFileSummaryTests: XCTestCase {
@@ -48,12 +49,12 @@ final class KDBXFileSummaryTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXFileSummary.inspect(data: Data(repeating: 0xAB, count: 128))
         ) { error in
-            XCTAssertEqual(error as? KDBXParser.ParseError, .invalidSignature)
+            XCTAssertEqual(error as? KDBXContainer.ParseError, .invalidSignature)
         }
         XCTAssertThrowsError(
             try KDBXFileSummary.inspect(data: Data())
         ) { error in
-            XCTAssertEqual(error as? KDBXParser.ParseError, .truncatedFile)
+            XCTAssertEqual(error as? KDBXContainer.ParseError, .truncatedFile)
         }
     }
 }

@@ -1,6 +1,7 @@
 import CryptoKit
 import CommonCrypto
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class KDBXParserTests: XCTestCase {
@@ -699,7 +700,7 @@ final class KDBXParserTests: XCTestCase {
         )
 
         XCTAssertEqual(parsed.header.formatVersion, .kdbx3_1)
-        XCTAssertEqual(parsed.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertEqual(parsed.header.cipherID, KDBXContainer.twofishCipherUUID)
         XCTAssertTrue(parsed.header.formatVersion.requiresReadOnlyMode)
         XCTAssertEqual(parsed.rootGroup.allEntries.count, 5)
         let twitter = try XCTUnwrap(parsed.rootGroup.allEntries.first { $0.title == "Twitter" })
@@ -741,7 +742,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXParser.parse(data: corrupted, password: legacyFixturePassword, sessionKey: testSessionKey)
         ) { error in
-            XCTAssertEqual(error as? KDBXParser.ParseError, .invalidLegacyBlockHash)
+            XCTAssertEqual(error as? KDBXContainer.ParseError, .invalidLegacyBlockHash)
         }
     }
 
@@ -780,7 +781,7 @@ final class KDBXParserTests: XCTestCase {
                 sessionKey: testSessionKey
             )
         ) { error in
-            XCTAssertEqual(error as? KDBXParser.ParseError, .invalidBlockHMAC)
+            XCTAssertEqual(error as? KDBXContainer.ParseError, .invalidBlockHMAC)
         }
     }
 
@@ -804,7 +805,7 @@ final class KDBXParserTests: XCTestCase {
                 sessionKey: testSessionKey
             )
         ) { error in
-            XCTAssertEqual(error as? KDBXParser.ParseError, .invalidSignature)
+            XCTAssertEqual(error as? KDBXContainer.ParseError, .invalidSignature)
         }
     }
 
@@ -825,7 +826,7 @@ final class KDBXParserTests: XCTestCase {
                 sessionKey: testSessionKey
             )
         ) { error in
-            XCTAssertEqual(error as? KDBXParser.ParseError, .truncatedFile)
+            XCTAssertEqual(error as? KDBXContainer.ParseError, .truncatedFile)
         }
     }
 
@@ -888,8 +889,8 @@ final class KDBXParserTests: XCTestCase {
             rootGroup: rootGroup,
             meta: KPMeta(),
             compositeKey: compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: KDBXParser.aesCipherUUID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipherID: KDBXContainer.aesCipherUUID,
                 kdfParameters: try KDBXCompatibilitySupport.fastArgon2idParameters()
             ),
             sessionKey: testSessionKey
@@ -908,8 +909,8 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertEqual(try entry.password.decrypt(using: testSessionKey), "integrity-secret")
 
         var reader = DataReader(data: data)
-        _ = try KDBXParser.parseVersion(from: &reader)
-        _ = try KDBXParser.parseHeader(&reader)
+        _ = try KDBXContainer.parseVersion(from: &reader)
+        _ = try KDBXContainer.parseHeader(&reader)
 
         return KDBX4IntegrityFixture(
             data: data,
@@ -929,7 +930,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXParser.parse(data: mutated, password: legacyFixturePassword, sessionKey: testSessionKey)
         ) { error in
-            XCTAssertEqual(error as? KDBXParser.ParseError, .unsupportedProtectedFieldStream(1))
+            XCTAssertEqual(error as? KDBXContainer.ParseError, .unsupportedProtectedFieldStream(1))
             XCTAssertEqual(
                 error.localizedDescription,
                 String(localized: "This database uses an unsupported protected-field stream.")
@@ -1108,14 +1109,14 @@ final class KDBXParserTests: XCTestCase {
     func testForeignChaCha20FixtureParsesAndDecryptsProtectedValues() throws {
         try assertForeignCipherFixtureParses(
             .foreignChaCha20,
-            expectedCipherUUID: KDBXParser.chachaCipherUUID
+            expectedCipherUUID: KDBXContainer.chachaCipherUUID
         )
     }
 
     func testForeignTwofishFixtureParsesAndDecryptsProtectedValues() throws {
         try assertForeignCipherFixtureParses(
             .foreignTwofish,
-            expectedCipherUUID: KDBXParser.twofishCipherUUID
+            expectedCipherUUID: KDBXContainer.twofishCipherUUID
         )
     }
 
@@ -1206,12 +1207,12 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertEqual(
             parsed.header.unknownInnerHeaderFields,
             [
-                KDBXParser.UnknownHeaderField(id: 0x21, data: Data("mid-pool-unknown-field".utf8)),
-                KDBXParser.UnknownHeaderField(
+                KDBXContainer.UnknownHeaderField(id: 0x21, data: Data("mid-pool-unknown-field".utf8)),
+                KDBXContainer.UnknownHeaderField(
                     id: 0x7F,
                     data: Data("kdbx-format-hardening-fixture:unknown-field-0x7f-marker".utf8)
                 ),
-                KDBXParser.UnknownHeaderField(id: 0x10, data: Data()),
+                KDBXContainer.UnknownHeaderField(id: 0x10, data: Data()),
             ]
         )
 
@@ -1371,8 +1372,7 @@ final class KDBXParserTests: XCTestCase {
 
         let parsed = try KDBXXMLParser(
             data: Data(xml.utf8),
-            innerStreamKey: Self.salsa20InnerStreamKey,
-            innerStreamID: KDBXParser.innerStreamSalsa20,
+            innerStream: KDBXInnerStream(streamID: KDBXContainer.innerStreamSalsa20, key: Self.salsa20InnerStreamKey),
             sessionKey: testSessionKey
         ).parse()
 
@@ -1385,9 +1385,9 @@ final class KDBXParserTests: XCTestCase {
 
     private func makeLegacyFixtureWithCorruptedHashedBlock() throws -> Data {
         let data = try legacyFixtureData()
-        let legacyHeader = try KDBXParser.parseKDBX3Header(from: data)
+        let legacyHeader = try KDBXContainer.parseKDBX3Header(from: data)
         let compositeKey = KDBXCrypto.compositeKey(password: legacyFixturePassword)
-        let masterKey = try KDBXParser.deriveKDBX3MasterKey(
+        let masterKey = try KDBXContainer.deriveKDBX3MasterKey(
             compositeKey: compositeKey,
             header: legacyHeader
         )
@@ -1415,9 +1415,9 @@ final class KDBXParserTests: XCTestCase {
 
     private func makeLegacyTwofishFixture() throws -> Data {
         let data = try legacyFixtureData()
-        let legacyHeader = try KDBXParser.parseKDBX3Header(from: data)
+        let legacyHeader = try KDBXContainer.parseKDBX3Header(from: data)
         let compositeKey = KDBXCrypto.compositeKey(password: legacyFixturePassword)
-        let masterKey = try KDBXParser.deriveKDBX3MasterKey(
+        let masterKey = try KDBXContainer.deriveKDBX3MasterKey(
             compositeKey: compositeKey,
             header: legacyHeader
         )
@@ -1436,8 +1436,8 @@ final class KDBXParserTests: XCTestCase {
         let cipherOffset = try XCTUnwrap(legacyHeaderFieldValueOffset(fieldID: 2, in: data))
         var convertedHeader = Data(data.prefix(legacyHeader.payloadOffset))
         convertedHeader.replaceSubrange(
-            cipherOffset..<(cipherOffset + KDBXParser.twofishCipherUUID.count),
-            with: KDBXParser.twofishCipherUUID
+            cipherOffset..<(cipherOffset + KDBXContainer.twofishCipherUUID.count),
+            with: KDBXContainer.twofishCipherUUID
         )
         convertedHeader.append(twofishPayload)
         return convertedHeader
@@ -1481,7 +1481,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXParser.parse(data: Data(), password: "x", sessionKey: testSessionKey)
         ) { error in
-            XCTAssertEqual(error as? KDBXParser.ParseError, .truncatedFile)
+            XCTAssertEqual(error as? KDBXContainer.ParseError, .truncatedFile)
         }
     }
 
@@ -1491,7 +1491,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
-            XCTAssertEqual(error as? KDBXParser.ParseError, .truncatedFile)
+            XCTAssertEqual(error as? KDBXContainer.ParseError, .truncatedFile)
         }
     }
 
@@ -1505,7 +1505,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
-            XCTAssertEqual(error as? KDBXParser.ParseError, .invalidSignature)
+            XCTAssertEqual(error as? KDBXContainer.ParseError, .invalidSignature)
         }
     }
 
@@ -1522,7 +1522,7 @@ final class KDBXParserTests: XCTestCase {
         ) { error in
             // The header parsing loop sees hasMore=false, returns empty header,
             // then readBytes(32) for storedHeaderSHA fails
-            XCTAssertEqual(error as? KDBXParser.ParseError, .truncatedFile)
+            XCTAssertEqual(error as? KDBXContainer.ParseError, .truncatedFile)
         }
     }
 
@@ -1539,7 +1539,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
-            XCTAssertEqual(error as? KDBXParser.ParseError, .truncatedFile)
+            XCTAssertEqual(error as? KDBXContainer.ParseError, .truncatedFile)
         }
     }
 
@@ -1551,7 +1551,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
-            guard case KDBXParser.ParseError.kdfResourceLimitExceeded = error else {
+            guard case KDBXContainer.ParseError.kdfResourceLimitExceeded = error else {
                 XCTFail("Expected kdfResourceLimitExceeded, got \(error)")
                 return
             }
@@ -1563,7 +1563,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
-            guard case KDBXParser.ParseError.kdfParameterOutOfRange(let msg) = error else {
+            guard case KDBXContainer.ParseError.kdfParameterOutOfRange(let msg) = error else {
                 XCTFail("Expected kdfParameterOutOfRange, got \(error)")
                 return
             }
@@ -1577,7 +1577,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
-            guard case KDBXParser.ParseError.kdfResourceLimitExceeded = error else {
+            guard case KDBXContainer.ParseError.kdfResourceLimitExceeded = error else {
                 XCTFail("Expected kdfResourceLimitExceeded, got \(error)")
                 return
             }
@@ -1590,7 +1590,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
-            guard case KDBXParser.ParseError.kdfParameterOutOfRange(let msg) = error else {
+            guard case KDBXContainer.ParseError.kdfParameterOutOfRange(let msg) = error else {
                 XCTFail("Expected kdfParameterOutOfRange, got \(error)")
                 return
             }
@@ -1604,7 +1604,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
-            guard case KDBXParser.ParseError.kdfResourceLimitExceeded = error else {
+            guard case KDBXContainer.ParseError.kdfResourceLimitExceeded = error else {
                 XCTFail("Expected kdfResourceLimitExceeded, got \(error)")
                 return
             }
@@ -1612,12 +1612,12 @@ final class KDBXParserTests: XCTestCase {
     }
 
     func testArgon2HighParallelismAccepted() throws {
-        // 64 threads — valid for modern machines. Exercise KDBXParser.deriveKey
+        // 64 threads — valid for modern machines. Exercise KDBXContainer.deriveKey
         // directly (the actual unit under range-validation) so the test can
         // assert the positive outcome — a real 32-byte derived key — instead
         // of only checking that a specific error wasn't thrown.
         let params: [String: Any] = [
-            "$UUID": KDBXParser.argon2idUUID,
+            "$UUID": KDBXContainer.argon2idUUID,
             "I": UInt64(2),
             "M": UInt64(64 * 1024 * 1024),
             "P": UInt32(64),
@@ -1625,7 +1625,7 @@ final class KDBXParserTests: XCTestCase {
             "S": Data((0..<32).map { UInt8($0) }),
         ]
 
-        let derivedKey = try KDBXParser.deriveKey(compositeKey: SymmetricKey(data: Data("composite-key".utf8)), kdfParams: params)
+        let derivedKey = try KDBXContainer.deriveKey(compositeKey: SymmetricKey(data: Data("composite-key".utf8)), kdfParams: params)
 
         XCTAssertEqual(derivedKey.count, 32)
     }
@@ -1635,7 +1635,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
-            guard case KDBXParser.ParseError.kdfParameterOutOfRange(let msg) = error else {
+            guard case KDBXContainer.ParseError.kdfParameterOutOfRange(let msg) = error else {
                 XCTFail("Expected kdfParameterOutOfRange, got \(error)")
                 return
             }
@@ -1679,7 +1679,7 @@ final class KDBXParserTests: XCTestCase {
 
         // KDF Parameters field (field 11)
         let kdfData = buildArgon2VariantMap(
-            uuid: KDBXParser.argon2dUUID,
+            uuid: KDBXContainer.argon2dUUID,
             iterations: iterations,
             memory: memory,
             parallelism: parallelism
@@ -1744,7 +1744,7 @@ final class KDBXParserTests: XCTestCase {
             "S": Data((32..<64).map(UInt8.init)),
             "R": UInt64(10),
         ]
-        let derived = try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: params)
+        let derived = try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: params)
 
         XCTAssertEqual(
             derived.hexString,
@@ -1755,34 +1755,34 @@ final class KDBXParserTests: XCTestCase {
     func testAESVariantMapRejectsRoundsAboveUpdatedMaximum() {
         let compositeKey = SymmetricKey(data: Data((0..<32).map(UInt8.init)))
         let params: [String: Any] = [
-            "$UUID": KDBXParser.aesKDFUUID,
+            "$UUID": KDBXContainer.aesKDFUUID,
             "S": Data((32..<64).map(UInt8.init)),
-            "R": KDBXParser.aesKDFMaxRounds + 1,
+            "R": KDBXContainer.aesKDFMaxRounds + 1,
         ]
 
         XCTAssertThrowsError(
-            try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: params)
+            try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: params)
         ) { error in
-            guard case KDBXParser.ParseError.kdfParameterOutOfRange(let message) = error else {
+            guard case KDBXContainer.ParseError.kdfParameterOutOfRange(let message) = error else {
                 XCTFail("Expected kdfParameterOutOfRange, got \(error)")
                 return
             }
             XCTAssertEqual(
                 message,
-                "rounds \(KDBXParser.aesKDFMaxRounds + 1) not in 1...\(KDBXParser.aesKDFMaxRounds)"
+                "rounds \(KDBXContainer.aesKDFMaxRounds + 1) not in 1...\(KDBXContainer.aesKDFMaxRounds)"
             )
         }
     }
 
     func testLegacyHeaderRejectsRoundsAboveUpdatedMaximum() {
         let compositeKey = SymmetricKey(data: Data(repeating: 0x11, count: 32))
-        let header = KDBXParser.LegacyHeader(
+        let header = KDBXContainer.LegacyHeader(
             formatVersion: .kdbx3_1,
             cipherID: Data(),
             compressionFlags: 0,
             masterSeed: Data(repeating: 0x22, count: 32),
             transformSeed: Data(repeating: 0x33, count: 32),
-            transformRounds: KDBXParser.aesKDFMaxRounds + 1,
+            transformRounds: KDBXContainer.aesKDFMaxRounds + 1,
             encryptionIV: Data(),
             protectedStreamKey: Data(),
             streamStartBytes: Data(),
@@ -1792,15 +1792,15 @@ final class KDBXParserTests: XCTestCase {
         )
 
         XCTAssertThrowsError(
-            try KDBXParser.deriveKDBX3MasterKey(compositeKey: compositeKey, header: header)
+            try KDBXContainer.deriveKDBX3MasterKey(compositeKey: compositeKey, header: header)
         ) { error in
-            guard case KDBXParser.ParseError.kdfParameterOutOfRange(let message) = error else {
+            guard case KDBXContainer.ParseError.kdfParameterOutOfRange(let message) = error else {
                 XCTFail("Expected kdfParameterOutOfRange, got \(error)")
                 return
             }
             XCTAssertEqual(
                 message,
-                "rounds \(KDBXParser.aesKDFMaxRounds + 1) not in 1...\(KDBXParser.aesKDFMaxRounds)"
+                "rounds \(KDBXContainer.aesKDFMaxRounds + 1) not in 1...\(KDBXContainer.aesKDFMaxRounds)"
             )
         }
     }
@@ -1809,14 +1809,14 @@ final class KDBXParserTests: XCTestCase {
         let compositeKey = SymmetricKey(data: Data((0..<32).map(UInt8.init)))
         let salt = Data(repeating: 0xCC, count: 32)
         let params: [String: Any] = [
-            "$UUID": KDBXParser.argon2idUUID,
+            "$UUID": KDBXContainer.argon2idUUID,
             "S": salt,
             "I": UInt64(3),
             "M": UInt64(64 * 1024 * 1024),
             "P": UInt32(1),
         ]
 
-        let derived = try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: params)
+        let derived = try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: params)
         let expected = try Argon2.hash(
             password: compositeKey,
             salt: salt,

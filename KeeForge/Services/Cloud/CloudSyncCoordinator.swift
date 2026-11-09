@@ -1,4 +1,5 @@
 import Foundation
+import KDBXKit
 
 struct CloudSyncResolution: Sendable {
     enum Status: Equatable, Sendable {

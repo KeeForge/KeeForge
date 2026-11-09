@@ -2,6 +2,7 @@ import AuthenticationServices
 import CryptoKit
 import Foundation
 import LocalAuthentication
+import KDBXKit
 
 // Must stay free of UIKit and AppKit: presentation and extension-context calls
 // go through the `CredentialProviderPresenting` seam so both the iOS and macOS
@@ -244,7 +245,7 @@ final class CredentialProviderCoordinator {
     var parsedEntries: [KPEntry] = []
     var parsedRootGroup: KPGroup?
     var parsedMeta: KPMeta?
-    var parsedFormatVersion: KDBXParser.FileVersion?
+    var parsedFormatVersion: KDBXContainer.FileVersion?
     /// Set when the header's KDF exceeds `.autoFillExtension`. An express-unlock
     /// key opens such a file without running the KDF, but every save derives
     /// under that policy and would fail.
@@ -1473,7 +1474,7 @@ final class CredentialProviderCoordinator {
         return usesExpressUnlock ? parsed.keyToStore : nil
     }
 
-    private static func kdfWriteRefusal(for header: KDBXParser.Header) -> String? {
+    private static func kdfWriteRefusal(for header: KDBXContainer.Header) -> String? {
         do {
             try KDFExecutionPolicy.autoFillExtension.validate(kdfParameters: header.kdfParameters)
             return nil
@@ -1488,7 +1489,7 @@ final class CredentialProviderCoordinator {
             return keyDerivationOverride
         }
         #endif
-        return { try KDBXParser.deriveKey(compositeKey: $0, kdfParams: $1, kdfPolicy: $2) }
+        return { try KDBXContainer.deriveKey(compositeKey: $0, kdfParams: $1, kdfPolicy: $2) }
     }
 
     private var remainingMemoryBytes: UInt64 {

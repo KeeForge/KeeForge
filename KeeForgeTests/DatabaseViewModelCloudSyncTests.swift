@@ -2,6 +2,7 @@ import AuthenticationServices
 import CryptoKit
 import LocalAuthentication
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// The manual cloud sync policy as the unlocked session sees it: the skipped

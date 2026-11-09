@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// KeePassXC-compatible YubiKey challenge-response key derivation, pinned
@@ -12,8 +13,8 @@ final class ChallengeResponseKeyTests: XCTestCase {
         let challenge = try ChallengeResponseKey.challenge(forDatabase: data)
 
         var reader = DataReader(data: data)
-        _ = try KDBXParser.parseVersion(from: &reader)
-        let salt = try XCTUnwrap(KDBXParser.parseHeader(&reader).kdfParameters["S"] as? Data)
+        _ = try KDBXContainer.parseVersion(from: &reader)
+        let salt = try XCTUnwrap(KDBXContainer.parseHeader(&reader).kdfParameters["S"] as? Data)
         XCTAssertEqual(salt.count, 32)
         XCTAssertEqual(challenge.count, 64)
         XCTAssertEqual(challenge.prefix(32), salt)
@@ -34,9 +35,9 @@ final class ChallengeResponseKeyTests: XCTestCase {
         let fixture = KDBXTestFixture.challengeResponseAESKDF
         let data = try fixture.data(in: bundle)
         var reader = DataReader(data: data)
-        _ = try KDBXParser.parseVersion(from: &reader)
-        let kdfParameters = try KDBXParser.parseHeader(&reader).kdfParameters
-        XCTAssertEqual(kdfParameters["$UUID"] as? Data, KDBXParser.aesKDFUUID)
+        _ = try KDBXContainer.parseVersion(from: &reader)
+        let kdfParameters = try KDBXContainer.parseHeader(&reader).kdfParameters
+        XCTAssertEqual(kdfParameters["$UUID"] as? Data, KDBXContainer.aesKDFUUID)
         let seed = try XCTUnwrap(kdfParameters["S"] as? Data)
 
         let challenge = try ChallengeResponseKey.challenge(forDatabase: data)

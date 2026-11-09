@@ -1,5 +1,6 @@
 import AuthenticationServices
 import Foundation
+import KDBXKit
 
 /// Plain-FTP provider. Stateless like `WebDAVCloudProvider`: the credential
 /// is read from `CloudTokenStore` on every call and every call opens its own

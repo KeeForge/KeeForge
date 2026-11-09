@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import KDBXKit
 #if os(iOS)
 import UIKit
 #endif
@@ -36,8 +37,8 @@ enum DatabaseCreationCipher: String, CaseIterable, Identifiable, Sendable {
 
     var cipherID: Data {
         switch self {
-        case .aes256: KDBXParser.aesCipherUUID
-        case .chacha20: KDBXParser.chachaCipherUUID
+        case .aes256: KDBXContainer.aesCipherUUID
+        case .chacha20: KDBXContainer.chachaCipherUUID
         }
     }
 
@@ -101,7 +102,7 @@ struct PreparedDatabase: Sendable {
     let addedAt: Date
     let rootGroup: KPGroup
     let meta: KPMeta
-    let formatVersion: KDBXParser.FileVersion
+    let formatVersion: KDBXContainer.FileVersion
     let sessionKey: SymmetricKey
     let compositeKey: SymmetricKey
     let openTimeSHA512: Data
@@ -112,7 +113,7 @@ struct CreatedDatabase: Sendable {
     let reference: DatabaseReference
     let rootGroup: KPGroup
     let meta: KPMeta
-    let formatVersion: KDBXParser.FileVersion
+    let formatVersion: KDBXContainer.FileVersion
     let sessionKey: SymmetricKey
     let compositeKey: SymmetricKey
     let openTimeSHA512: Data
@@ -129,8 +130,8 @@ enum DatabaseCreationDefaults {
     static func freshHeaderConfiguration(
         cipher: DatabaseCreationCipher = .aes256,
         kdfPreset: DatabaseCreationKDFPreset = .balanced
-    ) throws -> KDBXWriter.FreshHeaderConfiguration {
-        try KDBXWriter.FreshHeaderConfiguration(
+    ) throws -> KDBXContainerWriter.FreshHeaderConfiguration {
+        try KDBXContainerWriter.FreshHeaderConfiguration(
             cipherID: cipher.cipherID,
             kdfParameters: argon2idKDFParameters(preset: kdfPreset)
         )
@@ -142,7 +143,7 @@ enum DatabaseCreationDefaults {
     ) throws -> [String: Any] {
         let resolvedSalt = try salt ?? SecureRandom.data(count: kdfSaltByteCount)
         return [
-            "$UUID": KDBXParser.argon2idUUID,
+            "$UUID": KDBXContainer.argon2idUUID,
             "I": preset.iterations,
             "M": preset.memoryBytes,
             "P": argon2idParallelism,
@@ -157,7 +158,7 @@ enum DatabaseCreationDefaults {
     static func aesKDFParameters(rounds: UInt64, salt: Data? = nil) throws -> [String: Any] {
         let resolvedSalt = try salt ?? SecureRandom.data(count: kdfSaltByteCount)
         return [
-            "$UUID": KDBXParser.aesKDFUUID,
+            "$UUID": KDBXContainer.aesKDFUUID,
             "R": rounds,
             "S": resolvedSalt,
         ]
@@ -381,7 +382,7 @@ enum DatabaseCreationService {
             sessionKey: sessionKey,
             kdfPolicy: .autoFillExtension
         )
-        guard parsed.header.formatVersion.majorVersion == KDBXParser.versionKDBX4 else {
+        guard parsed.header.formatVersion.majorVersion == KDBXContainer.versionKDBX4 else {
             throw CreationError.generatedFileFailedToReopen
         }
 

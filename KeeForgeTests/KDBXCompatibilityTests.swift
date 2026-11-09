@@ -1,6 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// The authoritative KDBX edit-semantics matrix.
@@ -127,7 +128,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         let untouched = try XCTUnwrap(rich.rootGroup.allEntries.first { $0.title == "Compat Untouched Entry" })
         XCTAssertFalse(untouched.expires, "Fixture precondition: a stored date need not enable expiry")
         XCTAssertEqual(untouched.expiryTime, Date(timeIntervalSince1970: 1_577_934_245))
-        var writtenVersions: [String: KDBXParser.FileVersion] = [:]
+        var writtenVersions: [String: KDBXContainer.FileVersion] = [:]
         for scenario in KDBXCompatibilitySupport.fullEditScenarios() {
             let result = try collector.run(scenario, on: rich)
             assertHeaderPreserved(result, loaded: rich, scenario: scenario)
@@ -280,12 +281,12 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(
             loaded.header.unknownInnerHeaderFields,
             [
-                KDBXParser.UnknownHeaderField(id: 0x21, data: Data("mid-pool-unknown-field".utf8)),
-                KDBXParser.UnknownHeaderField(
+                KDBXContainer.UnknownHeaderField(id: 0x21, data: Data("mid-pool-unknown-field".utf8)),
+                KDBXContainer.UnknownHeaderField(
                     id: 0x7F,
                     data: Data("kdbx-format-hardening-fixture:unknown-field-0x7f-marker".utf8)
                 ),
-                KDBXParser.UnknownHeaderField(id: 0x10, data: Data()),
+                KDBXContainer.UnknownHeaderField(id: 0x10, data: Data()),
             ],
             "Fixture precondition: the parser must retain all three unknown fields in on-disk order"
         )
@@ -368,9 +369,9 @@ final class KDBXCompatibilityTests: XCTestCase {
             on: aesBaseline
         )
         XCTAssertNil(chacha.rekey)
-        XCTAssertEqual(chacha.afterHeader.cipherID, KDBXParser.chachaCipherUUID)
+        XCTAssertEqual(chacha.afterHeader.cipherID, KDBXContainer.chachaCipherUUID)
         XCTAssertEqual(chacha.afterHeader.compressionFlags, aesBaseline.header.compressionFlags == 1 ? 0 : 1)
-        XCTAssertEqual(chacha.afterHeader.kdfParameters["$UUID"] as? Data, KDBXParser.argon2idUUID)
+        XCTAssertEqual(chacha.afterHeader.kdfParameters["$UUID"] as? Data, KDBXContainer.argon2idUUID)
         XCTAssertEqual(
             chacha.afterHeader.kdfParameters["I"] as? UInt64,
             DatabaseCreationKDFPreset.balanced.iterations
@@ -388,7 +389,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             on: twofish
         )
         XCTAssertNil(aes.rekey)
-        XCTAssertEqual(aes.afterHeader.cipherID, KDBXParser.aesCipherUUID)
+        XCTAssertEqual(aes.afterHeader.cipherID, KDBXContainer.aesCipherUUID)
         XCTAssertEqual(aes.afterHeader.encryptionIV.count, 16)
         XCTAssertEqual(aes.afterHeader.compressionFlags, twofish.header.compressionFlags == 1 ? 0 : 1)
         for key in ["$UUID", "I", "M", "P", "V"] {
@@ -404,13 +405,13 @@ final class KDBXCompatibilityTests: XCTestCase {
             "The KDF salt still rotates"
         )
 
-        XCTAssertNotEqual(aesBaseline.header.kdfParameters["$UUID"] as? Data, KDBXParser.aesKDFUUID, "Fixture precondition")
+        XCTAssertNotEqual(aesBaseline.header.kdfParameters["$UUID"] as? Data, KDBXContainer.aesKDFUUID, "Fixture precondition")
         let aesKDF = try collector.run(
             KDBXCompatibilitySupport.encryptionSettingsAESKDFScenario(),
             on: aesBaseline
         )
         XCTAssertNil(aesKDF.rekey)
-        XCTAssertEqual(aesKDF.afterHeader.kdfParameters["$UUID"] as? Data, KDBXParser.aesKDFUUID)
+        XCTAssertEqual(aesKDF.afterHeader.kdfParameters["$UUID"] as? Data, KDBXContainer.aesKDFUUID)
         XCTAssertEqual(aesKDF.afterHeader.kdfParameters["R"] as? UInt64, DatabaseCreationDefaults.aesKDFRounds)
         XCTAssertEqual((aesKDF.afterHeader.kdfParameters["S"] as? Data)?.count, 32)
         XCTAssertEqual(aesKDF.afterHeader.cipherID, aesBaseline.header.cipherID, "AES-KDF leaves the cipher alone")
@@ -1491,8 +1492,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         let reparsed = try KDBXXMLParser(
             data: firstXML,
-            innerStreamKey: innerStreamKey,
-            innerStreamID: KDBXParser.innerStreamChaCha20,
+            innerStream: KDBXInnerStream(streamID: KDBXContainer.innerStreamChaCha20, key: innerStreamKey),
             sessionKey: entrySessionKey
         ).parse()
         let reparsedEntry = try XCTUnwrap(firstEntry(titled: "Passkey Byte Identity", in: reparsed.rootGroup))

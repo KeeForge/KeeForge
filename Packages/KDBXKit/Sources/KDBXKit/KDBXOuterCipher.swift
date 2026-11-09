@@ -4,36 +4,36 @@ import Foundation
 ///
 /// Headers continue to retain their raw UUID bytes so unknown/plugin ciphers
 /// can be diagnosed without being silently rewritten.
-enum KDBXOuterCipher: Equatable, Sendable {
+public enum KDBXOuterCipher: Equatable, Sendable {
     case aes256CBC
     case chacha20
     case twofish256CBC
 
-    init?(uuid: Data) {
+    public init?(uuid: Data) {
         switch uuid {
-        case KDBXParser.aesCipherUUID:
+        case KDBXContainer.aesCipherUUID:
             self = .aes256CBC
-        case KDBXParser.chachaCipherUUID:
+        case KDBXContainer.chachaCipherUUID:
             self = .chacha20
-        case KDBXParser.twofishCipherUUID:
+        case KDBXContainer.twofishCipherUUID:
             self = .twofish256CBC
         default:
             return nil
         }
     }
 
-    var uuid: Data {
+    public var uuid: Data {
         switch self {
         case .aes256CBC:
-            KDBXParser.aesCipherUUID
+            KDBXContainer.aesCipherUUID
         case .chacha20:
-            KDBXParser.chachaCipherUUID
+            KDBXContainer.chachaCipherUUID
         case .twofish256CBC:
-            KDBXParser.twofishCipherUUID
+            KDBXContainer.twofishCipherUUID
         }
     }
 
-    var displayName: String {
+    public var displayName: String {
         switch self {
         case .aes256CBC:
             "AES-256"
@@ -44,7 +44,7 @@ enum KDBXOuterCipher: Equatable, Sendable {
         }
     }
 
-    var encryptionIVLength: Int {
+    public var encryptionIVLength: Int {
         switch self {
         case .aes256CBC, .twofish256CBC:
             16
@@ -53,7 +53,7 @@ enum KDBXOuterCipher: Equatable, Sendable {
         }
     }
 
-    var supportsKDBX3: Bool {
+    public var supportsKDBX3: Bool {
         switch self {
         case .aes256CBC, .twofish256CBC:
             true
@@ -62,7 +62,7 @@ enum KDBXOuterCipher: Equatable, Sendable {
         }
     }
 
-    func decrypt(data: Data, key: Data, iv: Data) throws -> Data {
+    public func decrypt(data: Data, key: Data, iv: Data) throws -> Data {
         switch self {
         case .aes256CBC:
             try KDBXCrypto.decryptAES256CBC(data: data, key: key, iv: iv)
@@ -73,7 +73,7 @@ enum KDBXOuterCipher: Equatable, Sendable {
         }
     }
 
-    func encrypt(data: Data, key: Data, iv: Data) throws -> Data {
+    public func encrypt(data: Data, key: Data, iv: Data) throws -> Data {
         switch self {
         case .aes256CBC:
             try KDBXCrypto.encryptAES256CBC(data: data, key: key, iv: iv)
@@ -84,7 +84,7 @@ enum KDBXOuterCipher: Equatable, Sendable {
         }
     }
 
-    static func require(uuid: Data) throws -> KDBXOuterCipher {
+    public static func require(uuid: Data) throws -> KDBXOuterCipher {
         guard let cipher = KDBXOuterCipher(uuid: uuid) else {
             throw KDBXCrypto.CryptoError.unsupportedCipher(uuid.hexString)
         }

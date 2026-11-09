@@ -4,6 +4,7 @@ import LocalAuthentication
 import Security
 import SwiftUI
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 @MainActor
@@ -7191,9 +7192,9 @@ final class DatabaseViewModelTests: XCTestCase {
         try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: .argon2id(.maximum), isCompressed: false)
 
         let change = try XCTUnwrap(capture.change)
-        XCTAssertEqual(change.cipherID, KDBXParser.chachaCipherUUID)
+        XCTAssertEqual(change.cipherID, KDBXContainer.chachaCipherUUID)
         XCTAssertEqual(change.compressionFlags, 0)
-        XCTAssertEqual(change.kdfParameters?["$UUID"] as? Data, KDBXParser.argon2idUUID)
+        XCTAssertEqual(change.kdfParameters?["$UUID"] as? Data, KDBXContainer.argon2idUUID)
         XCTAssertEqual(change.kdfParameters?["I"] as? UInt64, DatabaseCreationKDFPreset.maximum.iterations)
         XCTAssertEqual(change.kdfParameters?["M"] as? UInt64, DatabaseCreationKDFPreset.maximum.memoryBytes)
         XCTAssertEqual(capture.compositeKey, compositeKey)
@@ -7219,7 +7220,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let change = try XCTUnwrap(capture.change)
         XCTAssertNil(change.cipherID, "AES-KDF is a key derivation; the cipher stays as it was")
         XCTAssertNil(change.compressionFlags)
-        XCTAssertEqual(change.kdfParameters?["$UUID"] as? Data, KDBXParser.aesKDFUUID)
+        XCTAssertEqual(change.kdfParameters?["$UUID"] as? Data, KDBXContainer.aesKDFUUID)
         XCTAssertEqual(change.kdfParameters?["R"] as? UInt64, 250_000)
         XCTAssertEqual((change.kdfParameters?["S"] as? Data)?.count, 32)
         XCTAssertNil(capture.newCompositeKey, "A settings change must not rekey.")
@@ -7292,7 +7293,7 @@ final class DatabaseViewModelTests: XCTestCase {
         try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
 
         XCTAssertEqual(capture.expectedRev, "rev-A")
-        XCTAssertEqual(capture.change?.cipherID, KDBXParser.chachaCipherUUID)
+        XCTAssertEqual(capture.change?.cipherID, KDBXContainer.chachaCipherUUID)
         XCTAssertEqual(vm.openTimeSHA512, Data("cloud-re-encrypted-hash".utf8))
         XCTAssertEqual(
             vm.databaseReference.expectedCloudRevision,
