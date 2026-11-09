@@ -1334,15 +1334,13 @@ final class CredentialProviderCoordinator {
     }
 
     func presentTextInsertionPicker() {
-        let generation = requestGeneration
-        let databaseID = activeDatabaseReference?.id
         let entries = parsedEntries.filter(\.hasTOTP)
         presentSearchView(entries: entries, includesDatabaseSwitcher: true) { [weak self] entry in
-            guard let self, self.isRequestActive(generation), self.activeDatabaseReference?.id == databaseID else { return }
+            guard let self else { return }
             guard let config = entry.totpConfig, let key = self.sessionKey else { self.cancelRequest(code: .failed); return }
             let code = TOTPGenerator.generateCode(config: config, sessionKey: key)
             guard code != "------" else { self.cancelRequest(code: .failed); return }
-            self.finishRequest { $0.completeTextInsertion(code) }
+            self.finishFill { $0.completeTextInsertion(code) }
         }
     }
 
