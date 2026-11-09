@@ -1210,13 +1210,27 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let (coordinator, presenter) = makeCoordinator()
         let databaseA = try seedResolvableDefaultDatabase()
         let databaseB = try makeRegisteredDatabase(named: "text-insertion-codes.kdbx")
-        try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: databaseA)
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try KDBXTestFixture.test.parse(in: Bundle(for: Self.self), sessionKey: sessionKey)
+        let passwordEntry = KPEntry(
+            title: "Password Only",
+            password: try EncryptedValue.encrypt("password", using: sessionKey)
+        )
+        let dataWithoutCodes = try KDBXWriter.write(
+            rootGroup: KPGroup(name: "Passwords", entries: [passwordEntry]),
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            header: parsed.header,
+            sessionKey: sessionKey
+        )
+        try seedDatabaseBytes(dataWithoutCodes, for: databaseA)
         try seedDatabaseBytes(KDBXTestFixture.kitchenSink.data(in: Bundle(for: Self.self)), for: databaseB)
         coordinator.memoryBudgetOverride = 512 * 1024 * 1024
         coordinator.persistQuickUnlockKeys = { _, _, _ in true }
         coordinator.prepareTextInsertion()
         let emptyPicker = try await unlockPreparedRequestAndPresentSearch(coordinator, presenter)
 
+        XCTAssertEqual(coordinator.parsedEntries.map(\.title), ["Password Only"])
         XCTAssertTrue(emptyPicker.entries.isEmpty)
         XCTAssertNil(presenter.cancelledError)
         XCTAssertNil(presenter.insertedText)
