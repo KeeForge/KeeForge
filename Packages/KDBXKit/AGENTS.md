@@ -11,8 +11,16 @@
 - Saving is `prepareHeader` → caller serializes against `header.innerStreamKey` → `seal`. Every prepared header has fresh seeds, IV, inner stream key, and KDF salt, and a ChaCha20 inner stream.
 - Wipe transient key material with `SecureWipe`, under the rules in its header comment.
 
+## Public surface
+
+- `KDBXContainer` reads (`readHeader`, `read`) and `KDBXContainerWriter` writes (`prepareHeader`, `seal`). `KDBXKeyDerivation`, `KDBXVariantMap`, `KDBXOuterCipher`, `KDBXInnerStream`, `KDBXKeyFile`, `KDBXCrypto` (composite keys only), `KDFExecutionPolicy`, and `SecureWipe` are the supporting types. Hashing, ciphers, gzip, and byte reading stay internal; widen the surface only for a caller that needs it.
+- The header keeps raw values (cipher UUID, compression flags, stream ID, the variant map with unknown types) so a foreign file round-trips and an unknown value can be reported. Typed views (`cipher`, `compression`, `keyDerivation`) are computed from them.
+- KDBX 3.1 is mapped onto the KDBX 4 header shape and read through the same calls; it is never written.
+
 ## Tests
 
-- The app's test targets cover the package: `KDBXParserTests` (container read, KDF, Salsa20 and Argon2 known answers), `KDBXWriterTests` (container write), `ChaCha20Tests`, `TwofishTests`, `KeyFileProcessorTests`, `KDFExecutionPolicyTests`, `SecureWipeTests`, and the KeePassXC gate in `KDBXCompatibilityTests`.
-- Test targets import `KDBXKit` without linking it; the symbols come from the host app. Linking the package into a test bundle as well would load a second copy, and errors thrown by one copy would not match the other's types.
-- `swift build` in this folder checks that the package builds on its own.
+- `Tests/KDBXKitTests` covers the package on its own, with `@testable import KDBXKit`. Prefer known-answer vectors from independent sources over round trips: a round trip cannot catch a wrong cipher or KDF. `Tests/KDBXKitTests/Fixtures/README.md` lists the fixtures.
+- Fixture KDF outputs are precomputed constants, because the fixtures' Argon2 settings take minutes in a debug build. Regenerate them if a fixture changes.
+- `scripts/coverage.sh` runs the suite and fails below its line, region, and function floors. Swift has no branch records, so region coverage is the branch measure. Raise a floor when coverage rises; never lower one to land a change. The remaining uncovered regions are library-call failures that cannot happen with valid sizes and compiler regions after `while true` loops.
+- CI runs the script in the `macos-unit-tests` job (`../../.github/workflows/tests.yml`). Locally, run it under the repo Xcode lock.
+- App tests do not link the package; they import it and get its symbols from the host app, since a second copy would make thrown errors fail type matches. They cover what the app adds on top: the model, saves, localization, and the KeePassXC gate in `KDBXCompatibilityTests`.

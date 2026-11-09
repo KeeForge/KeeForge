@@ -37,7 +37,7 @@ final class PendingUploadDrainerTests: XCTestCase {
             PendingUploadQueue.Marker(
                 databaseId: reference.id,
                 encryptedBytesCacheURL: "cache.kdbx",
-                openTimeSHA512: KDBXCrypto.sha512(base),
+                openTimeSHA512: FileDigest.sha512(base),
                 expectedRev: reference.expectedCloudRevision,
                 createdAt: Date(timeIntervalSince1970: 1_000),
                 baseRev: reference.expectedCloudRevision,
@@ -52,7 +52,7 @@ final class PendingUploadDrainerTests: XCTestCase {
             reference: reference,
             recorder: recorder,
             readBytes: { path in try Data(contentsOf: directory.appendingPathComponent(path)) },
-            sha512: { KDBXCrypto.sha512($0) },
+            sha512: { FileDigest.sha512($0) },
             pushPendingUpload: { _, bytes, expectedRev in
                 recorder.pushedBytes.append(bytes)
                 recorder.pushedExpectedRevisions.append(expectedRev)
@@ -92,7 +92,7 @@ final class PendingUploadDrainerTests: XCTestCase {
         }
 
         var saved = provisional
-        saved.marker.openTimeSHA512 = KDBXCrypto.sha512(payload)
+        saved.marker.openTimeSHA512 = FileDigest.sha512(payload)
         let finalized = try PendingUploadQueue.finalize(saved, environment: queue)
         XCTAssertFalse(finalized.marker.isConflicted)
         XCTAssertEqual(finalized.marker.isPayloadFinalized, true)

@@ -63,7 +63,7 @@ final class ViewRenderTests: XCTestCase {
             ("Wrong password", .classify(KDBXCrypto.CryptoError.hmacMismatch, isCloudBacked: false)),
             ("Wrong password, YubiKey possible", .classify(KDBXCrypto.CryptoError.hmacMismatch, isCloudBacked: false, hardwareKeyContext: .available)),
             ("Wrong password, YubiKey configured", .classify(KDBXCrypto.CryptoError.hmacMismatch, isCloudBacked: false, hardwareKeyContext: .configured)),
-            ("Key file hash mismatch", .classify(KeyFileProcessor.KeyFileError.xmlHashMismatch, isCloudBacked: false)),
+            ("Key file hash mismatch", .classify(KDBXKeyFile.KeyFileError.xmlHashMismatch, isCloudBacked: false)),
         ]
         let cards = states.map { caption, failure in
             RenderedState(caption: caption, card: false) {

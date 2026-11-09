@@ -174,7 +174,7 @@ enum CloudDatabaseSaver {
     ) async throws -> SaveResult {
         let cacheURL = environment.cacheURL(reference)
         let currentData = try environment.readData(cacheURL)
-        let currentSHA512 = KDBXCrypto.sha512(currentData)
+        let currentSHA512 = FileDigest.sha512(currentData)
         guard baseline.covers(currentSHA512) else {
             return .conflict(remoteSHA512: currentSHA512, remoteData: currentData)
         }
@@ -192,9 +192,9 @@ enum CloudDatabaseSaver {
             // to what the user opened has no conflict to resolve: rebase onto
             // the fresh rev and proceed.
             let remoteData = try? await environment.downloadRemoteData(reference)
-            guard let remoteData, baseline.covers(KDBXCrypto.sha512(remoteData)) else {
+            guard let remoteData, baseline.covers(FileDigest.sha512(remoteData)) else {
                 let conflictData = remoteData ?? currentData
-                return .conflict(remoteSHA512: KDBXCrypto.sha512(conflictData), remoteData: conflictData)
+                return .conflict(remoteSHA512: FileDigest.sha512(conflictData), remoteData: conflictData)
             }
             effectiveExpectedRev = remoteMetadata.rev
         }
@@ -256,7 +256,7 @@ enum CloudDatabaseSaver {
             let refreshedMetadata = try? await environment.getMetadata(reference)
             let remoteData = try? await environment.downloadRemoteData(reference)
             if let remoteData,
-               baseline.covers(KDBXCrypto.sha512(remoteData)),
+               baseline.covers(FileDigest.sha512(remoteData)),
                let refreshedMetadata {
                 do {
                     let uploadedMetadata = try await environment.upload(reference, newData, refreshedMetadata.rev, { _ in })
@@ -277,7 +277,7 @@ enum CloudDatabaseSaver {
             }
 
             let conflictData = remoteData ?? currentData
-            return .conflict(remoteSHA512: KDBXCrypto.sha512(conflictData), remoteData: conflictData)
+            return .conflict(remoteSHA512: FileDigest.sha512(conflictData), remoteData: conflictData)
         }
     }
 
@@ -306,7 +306,7 @@ enum CloudDatabaseSaver {
         environment.dropSupersededPendingUploads(reference.id, openTimeSHA512)
         try? environment.pruneBackups(reference, 5)
 
-        return .saved(newSHA512: KDBXCrypto.sha512(newData), expressKey: expressKey)
+        return .saved(newSHA512: FileDigest.sha512(newData), expressKey: expressKey)
     }
 
     static func pushPendingUpload(

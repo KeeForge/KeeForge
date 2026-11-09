@@ -481,7 +481,7 @@ enum CloudSyncCoordinator {
 
             let cacheURL = DatabaseListStore.cacheLocation(for: reference)
             let cacheSHA512 = (try? CoordinatedFileReader.readData(from: cacheURL))
-                .map(KDBXCrypto.sha512)
+                .map(FileDigest.sha512)
 
             var discardedCount = 0
             for storedMarker in conflictedMarkers {
@@ -546,7 +546,7 @@ enum CloudSyncCoordinator {
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         if !PendingUploadQueue.listMarkers(for: reference.id).isEmpty,
            let currentCacheBytes = try? CoordinatedFileReader.readData(from: cacheURL),
-           KDBXCrypto.sha512(currentCacheBytes) != KDBXCrypto.sha512(bytes) {
+           FileDigest.sha512(currentCacheBytes) != FileDigest.sha512(bytes) {
             try backUpCacheBeforePendingOverwrite(at: cacheURL, reference: reference)
         }
 

@@ -69,14 +69,6 @@ targetTemplates:
         buildPhase: resources
       - path: TestFixtures/challenge-response-aeskdf.kdbx
         buildPhase: resources
-      - path: TestFixtures/test-hex.key
-        buildPhase: resources
-      - path: TestFixtures/test-v1.key
-        buildPhase: resources
-      - path: TestFixtures/test-v2.keyx
-        buildPhase: resources
-      - path: TestFixtures/test-arbitrary.key
-        buildPhase: resources
       # Folder reference, not the per-file listing every other fixture uses:
       # each merge scenario directory holds a local.kdbx / remote.kdbx /
       # merged-reference.kdbx trio, and a flat resource copy would collide on

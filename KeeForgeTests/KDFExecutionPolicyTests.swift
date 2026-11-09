@@ -3,8 +3,8 @@ import XCTest
 import KDBXKit
 @testable import KeeForge
 
-/// Boundary coverage for `KDFExecutionPolicy` enforcement in
-/// `KDBXContainer.deriveKey`. Rejections happen before any derivation, so
+/// The app's and AutoFill's `KDFExecutionPolicy` presets as enforced by
+/// `KDBXKeyDerivation.deriveKey`. Rejections happen before any derivation, so
 /// rejection tests are free; acceptance tests perform a real derivation and
 /// keep memory small so the whole suite stays fast.
 final class KDFExecutionPolicyTests: XCTestCase {
@@ -15,26 +15,26 @@ final class KDFExecutionPolicyTests: XCTestCase {
         memory: UInt64,
         parallelism: UInt32,
         version: UInt32? = 0x13
-    ) -> [String: Any] {
-        var params: [String: Any] = [
-            "$UUID": KDBXContainer.argon2idUUID,
-            "I": iterations,
-            "M": memory,
-            "P": parallelism,
-            "S": Data((0..<32).map { UInt8($0) }),
+    ) -> KDBXVariantMap {
+        var params: KDBXVariantMap = [
+            "$UUID": .bytes(KDBXKeyDerivation.Algorithm.argon2id.uuid),
+            "I": .uint64(iterations),
+            "M": .uint64(memory),
+            "P": .uint32(parallelism),
+            "S": .bytes(Data((0..<32).map { UInt8($0) })),
         ]
         if let version {
-            params["V"] = version
+            params["V"] = .uint32(version)
         }
         return params
     }
 
-    private func derive(_ params: [String: Any], policy: KDFExecutionPolicy) throws -> Data {
-        try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: params, kdfPolicy: policy)
+    private func derive(_ params: KDBXVariantMap, policy: KDFExecutionPolicy) throws -> Data {
+        try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: params, policy: policy)
     }
 
     private func assertResourceLimitExceeded(
-        _ params: [String: Any],
+        _ params: KDBXVariantMap,
         policy: KDFExecutionPolicy,
         file: StaticString = #filePath,
         line: UInt = #line
@@ -48,7 +48,7 @@ final class KDFExecutionPolicyTests: XCTestCase {
     }
 
     private func assertParameterOutOfRange(
-        _ params: [String: Any],
+        _ params: KDBXVariantMap,
         policy: KDFExecutionPolicy,
         messageContains fragment: String,
         file: StaticString = #filePath,
@@ -119,24 +119,6 @@ final class KDFExecutionPolicyTests: XCTestCase {
         XCTAssertEqual(try derive(params, policy: .mainApp).count, 32)
     }
 
-    func testPeakMemoryBoundaryIsInclusive() throws {
-        // Synthetic policy keeps the at-limit derivation cheap; the comparison
-        // under test is the same one the shipped policies run.
-        let policy = KDFExecutionPolicy(
-            maxPeakMemoryBytes: 2 << 20,
-            maxTotalWorkBytes: .max,
-            maxParallelism: 16
-        )
-        let atLimit = argon2Params(iterations: 1, memory: 2 << 20, parallelism: 1)
-        XCTAssertEqual(try derive(atLimit, policy: policy).count, 32)
-
-        // The comparison is on the raw byte value, so one byte over rejects.
-        assertResourceLimitExceeded(
-            argon2Params(iterations: 1, memory: (2 << 20) + 1, parallelism: 1),
-            policy: policy
-        )
-    }
-
     // MARK: - Total work budget
 
     func testExcessiveTotalWorkRejectedDespiteLowPeakMemory() {
@@ -145,30 +127,6 @@ final class KDFExecutionPolicyTests: XCTestCase {
             argon2Params(iterations: 5_000_000, memory: 1 << 20, parallelism: 1),
             policy: .mainApp
         )
-    }
-
-    func testTotalWorkBoundaryIsInclusive() throws {
-        // Deriving exactly 4 GiB of work to prove the extension's boundary is
-        // inclusive would dominate the suite's runtime, so the comparison
-        // semantics are proven on a synthetic policy at a cheap scale and the
-        // shipped constants are pinned separately below.
-        let policy = KDFExecutionPolicy(
-            maxPeakMemoryBytes: 1 << 20,
-            maxTotalWorkBytes: 3 << 20,
-            maxParallelism: 4
-        )
-        let atLimit = argon2Params(iterations: 3, memory: 1 << 20, parallelism: 1)
-        XCTAssertEqual(try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: atLimit, kdfPolicy: policy).count, 32)
-
-        let overLimit = argon2Params(iterations: 4, memory: 1 << 20, parallelism: 1)
-        XCTAssertThrowsError(
-            try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: overLimit, kdfPolicy: policy)
-        ) { error in
-            guard case KDBXContainer.ParseError.kdfResourceLimitExceeded = error else {
-                XCTFail("Expected kdfResourceLimitExceeded, got \(error)")
-                return
-            }
-        }
     }
 
     func testShippedPolicyConstants() {
@@ -204,31 +162,6 @@ final class KDFExecutionPolicyTests: XCTestCase {
 
     // MARK: - Format validation (spec, not policy)
 
-    func testZeroIterationsRejectedAsOutOfRange() {
-        assertParameterOutOfRange(
-            argon2Params(iterations: 0, memory: 1 << 20, parallelism: 1),
-            policy: .mainApp,
-            messageContains: "iterations"
-        )
-    }
-
-    func testZeroParallelismRejectedAsOutOfRange() {
-        assertParameterOutOfRange(
-            argon2Params(iterations: 3, memory: 1 << 20, parallelism: 0),
-            policy: .mainApp,
-            messageContains: "parallelism"
-        )
-    }
-
-    func testMemoryBelowLaneMinimumRejectedAsOutOfRange() {
-        // RFC 9106 requires m >= 8p KiB: 16 lanes need at least 128 KiB.
-        assertParameterOutOfRange(
-            argon2Params(iterations: 3, memory: 64 * 1024, parallelism: 16),
-            policy: .mainApp,
-            messageContains: "memory"
-        )
-    }
-
     func testIterationsAboveUInt32RejectedAsResourceLimit() {
         // Under the shipped budgets such values are a resource rejection with
         // the actionable message; the defensive exact-UInt32 guard only fires
@@ -252,14 +185,6 @@ final class KDFExecutionPolicyTests: XCTestCase {
         )
     }
 
-    func testParallelismAboveSpecMaximumRejectedAsOutOfRange() {
-        assertParameterOutOfRange(
-            argon2Params(iterations: 1, memory: 1 << 20, parallelism: 0x100_0000),
-            policy: .mainApp,
-            messageContains: "parallelism"
-        )
-    }
-
     func testParallelismAbovePolicyRejectedPerPolicy() {
         // 257 lanes need >= 2056 KiB under the m >= 8p spec rule; 4 MiB keeps
         // the policy check, not the format check, as what fires.
@@ -270,25 +195,4 @@ final class KDFExecutionPolicyTests: XCTestCase {
 
     // MARK: - Argon2 version byte
 
-    func testArgon2Version10DerivesDifferentKeyThanVersion13() throws {
-        let v13 = try derive(argon2Params(iterations: 3, memory: 64 * 1024, parallelism: 1, version: 0x13), policy: .mainApp)
-        let v10 = try derive(argon2Params(iterations: 3, memory: 64 * 1024, parallelism: 1, version: 0x10), policy: .mainApp)
-        XCTAssertEqual(v13.count, 32)
-        XCTAssertEqual(v10.count, 32)
-        XCTAssertNotEqual(v13, v10, "V=0x10 must actually change the derivation, not be silently treated as 0x13")
-    }
-
-    func testAbsentArgon2VersionDefaultsToVersion13() throws {
-        let explicit = try derive(argon2Params(iterations: 3, memory: 64 * 1024, parallelism: 1, version: 0x13), policy: .mainApp)
-        let absent = try derive(argon2Params(iterations: 3, memory: 64 * 1024, parallelism: 1, version: nil), policy: .mainApp)
-        XCTAssertEqual(absent, explicit)
-    }
-
-    func testUnknownArgon2VersionRejectedAsOutOfRange() {
-        assertParameterOutOfRange(
-            argon2Params(iterations: 3, memory: 64 * 1024, parallelism: 1, version: 0x12),
-            policy: .mainApp,
-            messageContains: "version"
-        )
-    }
 }

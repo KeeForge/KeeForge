@@ -10,7 +10,7 @@ final class EntryAttachmentFileLoaderTests: XCTestCase {
         let url = directory.appendingPathComponent("large.bin")
         XCTAssertTrue(FileManager.default.createFile(atPath: url.path, contents: nil))
         let handle = try FileHandle(forWritingTo: url)
-        try handle.truncate(atOffset: UInt64(KDBXCrypto.maxDecompressedSize) + 1)
+        try handle.truncate(atOffset: UInt64(KDBXContainer.maxDecompressedPayloadSize) + 1)
         try handle.close()
         let form = EntryEditViewModel(createIn: UUID())
         form.title = "Unsaved title"

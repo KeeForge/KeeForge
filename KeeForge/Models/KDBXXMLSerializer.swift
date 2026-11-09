@@ -34,7 +34,7 @@ struct KDBXXMLSerializer {
         self.sessionKey = sessionKey
 
         // The writer always writes a ChaCha20 inner stream.
-        self.innerStream = try? KDBXInnerStream(streamID: KDBXContainer.innerStreamChaCha20, key: innerStreamKey)
+        self.innerStream = try? KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: innerStreamKey)
     }
 
     mutating func serialize() throws -> Data {
