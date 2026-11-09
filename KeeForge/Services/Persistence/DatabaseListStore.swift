@@ -321,7 +321,7 @@ enum DatabaseListStore {
                     if !FileManager.default.fileExists(atPath: cache.path) {
                         try writeAtomicallyAndDurably(encryptedBytes, to: cache)
                     }
-                    guard KDBXCrypto.sha512(try Data(contentsOf: cache)) == KDBXCrypto.sha512(encryptedBytes) else {
+                    guard FileDigest.sha512(try Data(contentsOf: cache)) == FileDigest.sha512(encryptedBytes) else {
                         throw SaveError.saveContextUnavailable
                     }
                 } else {

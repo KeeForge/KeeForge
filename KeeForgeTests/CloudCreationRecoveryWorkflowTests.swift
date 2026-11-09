@@ -35,7 +35,7 @@ final class CloudCreationRecoveryWorkflowTests: XCTestCase {
         ))
         var intent = PendingUploadQueue.CreationIntent(
             operationID: operationID, ownerDatabaseID: ownerID, provider: "googledrive",
-            accountID: "original-permission-id", target: target, payloadSHA512: KDBXCrypto.sha512(bytes),
+            accountID: "original-permission-id", target: target, payloadSHA512: FileDigest.sha512(bytes),
             payloadPath: try PendingUploadQueue.makeRelativeAppGroupPath(for: payloadURL),
             referenceTemplate: template, isConflictCopy: true
         )

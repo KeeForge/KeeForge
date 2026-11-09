@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import KDBXKit
 
 struct KDBXXMLSerializer {
     enum SerializationError: Error, LocalizedError, Equatable {
@@ -22,7 +23,7 @@ struct KDBXXMLSerializer {
     private let rootGroup: KPGroup
     private let meta: KPMeta
     private let sessionKey: SymmetricKey
-    private var innerStream: KDBXCrypto.ChaCha20Keystream?
+    private var innerStream: KDBXInnerStream?
 
     private static let xmlPrefix = Data([0xEF, 0xBB, 0xBF]) +
         Data("<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n".utf8)
@@ -32,11 +33,8 @@ struct KDBXXMLSerializer {
         self.meta = meta
         self.sessionKey = sessionKey
 
-        let keyHash = KDBXCrypto.sha512(innerStreamKey)
-        self.innerStream = KDBXCrypto.ChaCha20Keystream(
-            key: Data(keyHash.prefix(32)),
-            nonce: Data(keyHash[32..<44])
-        )
+        // The writer always writes a ChaCha20 inner stream.
+        self.innerStream = try? KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: innerStreamKey)
     }
 
     mutating func serialize() throws -> Data {
@@ -503,7 +501,7 @@ struct KDBXXMLSerializer {
             throw SerializationError.invalidInnerStreamKey
         }
 
-        let encrypted = keystream.xor(Data(plaintext.utf8))
+        let encrypted = keystream.apply(Data(plaintext.utf8))
         innerStream = keystream
         return encrypted.base64EncodedString()
     }

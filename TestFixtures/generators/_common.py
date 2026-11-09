@@ -31,7 +31,7 @@ except ImportError:
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent
 
-# KeeForge's own constants (KeeForge/Models/KDBXParser.swift), duplicated here
+# KeeForge's own constants (Packages/KDBXKit/Sources/KDBXKit/KDBXContainer.swift), duplicated here
 # so verification double-checks pykeepass's mapping against KeeForge's values
 # instead of trusting either implementation alone.
 AES256_CIPHER_UUID = bytes.fromhex("31c1f2e6bf714350be5805216afc5aff")

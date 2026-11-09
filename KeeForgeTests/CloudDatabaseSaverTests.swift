@@ -1,6 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class CloudDatabaseSaverTests: XCTestCase {
@@ -29,7 +30,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             try DatabaseListStore.cacheDatabaseCopy(remoteB, for: reference)
             let marker = PendingUploadQueue.Marker(databaseId: reference.id,
                 encryptedBytesCacheURL: try PendingUploadQueue.makeRelativeAppGroupPath(for: cacheURL),
-                openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "old-rev",
+                openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "old-rev",
                 createdAt: Date(timeIntervalSince1970: 0), isConflicted: true, isPayloadFinalized: true)
             let legacy = try PendingUploadQueue.enqueue(marker, notifying: false)
             // Persist the installed shape, without the new generation/payload fields.
@@ -45,10 +46,10 @@ final class CloudDatabaseSaverTests: XCTestCase {
                 let result: SaveResult
                 if extensionSave {
                     result = try await LocalDatabaseSaver.save(draft: draft, reference: current(reference), compositeKey: context.key,
-                        openTimeSHA512: KDBXCrypto.sha512(previous), kdfPolicy: .autoFillExtension, environment: .autoFillExtension)
+                        openTimeSHA512: FileDigest.sha512(previous), kdfPolicy: .autoFillExtension, environment: .autoFillExtension)
                 } else {
                     result = try await CloudDatabaseSaver.save(draft: draft, reference: current(reference), compositeKey: context.key,
-                        openTimeSHA512: KDBXCrypto.sha512(previous), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+                        openTimeSHA512: FileDigest.sha512(previous), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
                 }
                 guard case .saved = result else { return XCTFail("Offline commit must remain durable") }
             }
@@ -56,7 +57,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             XCTAssertEqual(DatabaseListStore.recentBackups(for: reference).count, 5)
             let promoted = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first { $0.id == legacy.id })
             XCTAssertEqual(promoted.marker.generation, 1)
-            XCTAssertEqual(promoted.marker.intendedPayloadSHA512, KDBXCrypto.sha512(context.source))
+            XCTAssertEqual(promoted.marker.intendedPayloadSHA512, FileDigest.sha512(context.source))
             XCTAssertEqual(try immutableBytes(promoted), context.source)
             XCTAssertNotEqual(try cache(reference), context.source)
             guard case .recovered(let payloads) = PendingUploadRecovery.lookUpPayloads(for: current(reference)) else {
@@ -84,7 +85,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         }
         let marker = PendingUploadQueue.Marker(databaseId: context.reference.id,
             encryptedBytesCacheURL: try PendingUploadQueue.makeRelativeAppGroupPath(for: DatabaseListStore.cacheLocation(for: context.reference)),
-            openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "old", createdAt: .distantPast, isConflicted: true)
+            openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "old", createdAt: .distantPast, isConflicted: true)
         let legacy = try PendingUploadQueue.enqueue(marker, notifying: false)
         try DatabaseListStore.pruneBackups(for: context.reference, keeping: 5)
         XCTAssertFalse(FileManager.default.fileExists(atPath: original.path))
@@ -97,7 +98,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let context = try makeContext()
         let marker = PendingUploadQueue.Marker(databaseId: context.reference.id,
             encryptedBytesCacheURL: try PendingUploadQueue.makeRelativeAppGroupPath(for: DatabaseListStore.cacheLocation(for: context.reference)),
-            openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", createdAt: .distantPast, isConflicted: true)
+            openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", createdAt: .distantPast, isConflicted: true)
         let legacy = try PendingUploadQueue.enqueue(marker, notifying: false)
         var env = environment(Remote(context.source))
         env.queue.writeMarkerAtomically = { _, url in
@@ -106,7 +107,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         }
         do {
             _ = try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference,
-                compositeKey: context.key, openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0",
+                compositeKey: context.key, openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0",
                 kdfPolicy: .mainApp, environment: env)
             XCTFail("Legacy ciphertext must be preserved before replacing its cache")
         } catch { XCTAssertEqual((error as? POSIXError)?.code, .ENOSPC) }
@@ -119,7 +120,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let context = try makeContext()
         let marker = PendingUploadQueue.Marker(databaseId: context.reference.id,
             encryptedBytesCacheURL: try PendingUploadQueue.makeRelativeAppGroupPath(for: DatabaseListStore.cacheLocation(for: context.reference)),
-            openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", createdAt: .distantPast, isConflicted: true)
+            openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", createdAt: .distantPast, isConflicted: true)
         let legacy = try PendingUploadQueue.enqueue(marker, notifying: false)
         guard case .recovered(let payloads) = PendingUploadRecovery.lookUpPayloads(for: context.reference) else {
             return XCTFail("Recovery must promote the installed payload before taking its snapshot")
@@ -131,7 +132,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let remote = Remote(context.source)
         await remote.setOffline(true)
         let result = try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference,
-            compositeKey: context.key, openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0",
+            compositeKey: context.key, openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0",
             kdfPolicy: .mainApp, environment: environment(remote))
         guard case .saved(let sha, _) = result else { return XCTFail("Merged owner must commit durably") }
         try PendingUploadQueue.transferMergedSources([source.storedMarker], toPayloadSHA512: sha, for: context.reference.id)
@@ -191,7 +192,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
                 }
                 fault.synchronizeCacheDirectory = { _ in throw POSIXError(.EACCES) }
                 _ = try await CloudDatabaseSaver.save(draft: context.draft, reference: reference, compositeKey: oldKey,
-                    openTimeSHA512: KDBXCrypto.sha512(original), expectedRev: "r0", kdfPolicy: .mainApp,
+                    openTimeSHA512: FileDigest.sha512(original), expectedRev: "r0", kdfPolicy: .mainApp,
                     newCompositeKey: newKey, rekeyContext: rekey, environment: fault)
                 let journal = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
                 let payload = try immutableBytes(journal)
@@ -447,7 +448,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let (context, remote, journal, payload) = try await confirmedOrdinaryJournal()
         let draft = try edit(payload, key: context.key, sessionKey: context.sessionKey, title: "Later local head")
         _ = try await CloudDatabaseSaver.save(draft: draft, reference: current(context.reference), compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(payload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+            openTimeSHA512: FileDigest.sha512(payload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
         let descendant = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id != journal.id })
         let descendantPayload = try immutableBytes(descendant)
         try writeAtomicallyAndDurably(payload, to: DatabaseListStore.cacheLocation(for: context.reference))
@@ -458,7 +459,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertNil(current(context.reference).cloudSyncMetadata?.lastSyncedAt)
         let remaining = PendingUploadQueue.listMarkers(for: context.reference.id)
         XCTAssertEqual(remaining.map(\.id), [descendant.id])
-        XCTAssertEqual(remaining.first?.marker.remoteBaseSHA512, KDBXCrypto.sha512(payload))
+        XCTAssertEqual(remaining.first?.marker.remoteBaseSHA512, FileDigest.sha512(payload))
         XCTAssertEqual(remaining.first?.marker.predecessorOperationID, journal.id)
         let uploads = await remote.uploadCount()
         XCTAssertEqual(uploads, 1)
@@ -483,7 +484,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             defer { DatabaseListStore.remove(id: context.reference.id) }
             let draft = try edit(parentPayload, key: context.key, sessionKey: context.sessionKey, title: "Child after confirmed parent")
             _ = try await CloudDatabaseSaver.save(draft: draft, reference: current(context.reference), compositeKey: context.key,
-                openTimeSHA512: KDBXCrypto.sha512(parentPayload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+                openTimeSHA512: FileDigest.sha512(parentPayload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
             let child = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id != parent.id })
             let childPayload = try immutableBytes(child)
             let publication = ChildPublication()
@@ -520,7 +521,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             XCTAssertEqual(survivingParent.marker.generation, parent.marker.generation + (casFailure ? 1 : 0))
             XCTAssertGreaterThan(transferred.marker.generation, child.marker.generation)
             XCTAssertEqual(transferred.marker.predecessorOperationID, parent.id)
-            XCTAssertEqual(transferred.marker.remoteBaseSHA512, KDBXCrypto.sha512(parentPayload))
+            XCTAssertEqual(transferred.marker.remoteBaseSHA512, FileDigest.sha512(parentPayload))
             XCTAssertEqual(transferred.marker.expectedRev, parent.marker.confirmedRemoteRev)
             XCTAssertEqual(transferred.marker.baseRev, parent.marker.confirmedRemoteRev)
             XCTAssertNil(transferred.marker.absorbedOperationIDs, "A predecessor edge is not a new merge claim")
@@ -549,7 +550,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let (context, remote, parent, parentPayload) = try await confirmedOrdinaryJournal()
         let childDraft = try edit(parentPayload, key: context.key, sessionKey: context.sessionKey, title: "Confirmed child")
         _ = try await CloudDatabaseSaver.save(draft: childDraft, reference: current(context.reference), compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(parentPayload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+            openTimeSHA512: FileDigest.sha512(parentPayload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
         let queue = PendingUploadQueue.Environment.live
         var fault = environment(remote)
         fault.queue.removeItem = { url in
@@ -569,7 +570,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         child = try PendingUploadQueue.update(child)
         let grandchildDraft = try edit(childPayload, key: context.key, sessionKey: context.sessionKey, title: "Grandchild local head")
         _ = try await CloudDatabaseSaver.save(draft: grandchildDraft, reference: current(context.reference), compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(childPayload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+            openTimeSHA512: FileDigest.sha512(childPayload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
         let grandchild = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id != parent.id && $0.id != child.id })
         let payload = try immutableBytes(grandchild)
         await remote.setOffline(true)
@@ -584,7 +585,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let remaining = PendingUploadQueue.listMarkers(for: context.reference.id)
         XCTAssertEqual(remaining.map(\.id), [grandchild.id])
         XCTAssertEqual(remaining.first?.marker.predecessorOperationID, child.id)
-        XCTAssertEqual(remaining.first?.marker.remoteBaseSHA512, KDBXCrypto.sha512(childPayload))
+        XCTAssertEqual(remaining.first?.marker.remoteBaseSHA512, FileDigest.sha512(childPayload))
         XCTAssertEqual(remaining.first?.marker.expectedRev, receipt.rev)
         XCTAssertEqual(remaining.first?.marker.baseRev, receipt.rev)
         XCTAssertEqual(try cache(context.reference), payload)
@@ -596,7 +597,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let (context, remote, source, payload) = try await confirmedOrdinaryJournal()
         let draft = try edit(payload, key: context.key, sessionKey: context.sessionKey, title: "Merged replacement")
         let result = try await CloudDatabaseSaver.save(draft: draft, reference: current(context.reference), compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(payload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+            openTimeSHA512: FileDigest.sha512(payload), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
         guard case .saved(let sha, _) = result else { return XCTFail("Replacement must commit locally") }
         let owner = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id != source.id })
         let path = try XCTUnwrap(owner.marker.intendedPayloadPath)
@@ -635,7 +636,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         }
         env.synchronizeCacheDirectory = { _ in throw POSIXError(.EACCES) }
         let result = try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference,
-            compositeKey: context.key, openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0",
+            compositeKey: context.key, openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0",
             kdfPolicy: .mainApp, environment: env)
         guard case .saved = result else { return XCTFail("Immutable journal is durable even when cache directory sync fails") }
         let stored = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
@@ -656,9 +657,9 @@ final class CloudDatabaseSaverTests: XCTestCase {
         guard case .saved(let sha, _) = result else { return XCTFail("Local commit must succeed offline") }
         let stored = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
         let payload = try immutableBytes(stored)
-        XCTAssertEqual(KDBXCrypto.sha512(payload), sha)
+        XCTAssertEqual(FileDigest.sha512(payload), sha)
         XCTAssertEqual(try cache(context.reference), payload)
-        XCTAssertEqual(stored.marker.remoteBaseSHA512, KDBXCrypto.sha512(context.source))
+        XCTAssertEqual(stored.marker.remoteBaseSHA512, FileDigest.sha512(context.source))
         XCTAssertNil(stored.marker.uploadAttemptID)
         XCTAssertNil(current(context.reference).cloudSyncMetadata?.lastSyncedAt)
         // A fresh enumeration and environment model process restart; no in-memory queue state is reused.
@@ -682,11 +683,11 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let firstBytes = try cache(context.reference)
         let secondDraft = try edit(firstBytes, key: context.key, sessionKey: context.sessionKey, title: "second")
         _ = try await CloudDatabaseSaver.save(draft: secondDraft, reference: current(context.reference), compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(firstBytes), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+            openTimeSHA512: FileDigest.sha512(firstBytes), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
         let second = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id != first.id })
         XCTAssertEqual(second.marker.predecessorOperationID, first.id)
-        XCTAssertEqual(second.marker.predecessorSHA512, KDBXCrypto.sha512(firstBytes))
-        XCTAssertEqual(second.marker.remoteBaseSHA512, KDBXCrypto.sha512(context.source))
+        XCTAssertEqual(second.marker.predecessorSHA512, FileDigest.sha512(firstBytes))
+        XCTAssertEqual(second.marker.remoteBaseSHA512, FileDigest.sha512(context.source))
         XCTAssertEqual(second.marker.expectedRev, "r0")
         let newest = try cache(context.reference)
         await remote.setOffline(false)
@@ -694,7 +695,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try cache(context.reference), newest)
         XCTAssertNil(current(context.reference).cloudSyncMetadata?.lastSyncedAt)
         let rebased = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
-        XCTAssertEqual(rebased.marker.remoteBaseSHA512, KDBXCrypto.sha512(firstBytes))
+        XCTAssertEqual(rebased.marker.remoteBaseSHA512, FileDigest.sha512(firstBytes))
         XCTAssertEqual(rebased.marker.expectedRev, "r1")
         _ = try await CloudDatabaseSaver.deliver(rebased, reference: current(context.reference), environment: environment(remote))
         let awaited2 = await remote.data()
@@ -710,10 +711,10 @@ final class CloudDatabaseSaverTests: XCTestCase {
             try PendingUploadQueue.prepare(reference: context.reference, currentData: context.source, intendedData: intended, cacheURL: cacheURL)
         }
         XCTAssertEqual(try PendingUploadQueue.recoverPrepared(prepared).marker.isPayloadFinalized, false)
-        _ = try LocalDatabaseSaver.Environment.live.replaceFileAtomically(intended, cacheURL, KDBXCrypto.sha512(context.source))
+        _ = try LocalDatabaseSaver.Environment.live.replaceFileAtomically(intended, cacheURL, FileDigest.sha512(context.source))
         let recovered = try PendingUploadQueue.recoverPrepared(prepared)
         XCTAssertEqual(recovered.marker.isPayloadFinalized, true)
-        XCTAssertEqual(recovered.marker.openTimeSHA512, KDBXCrypto.sha512(intended))
+        XCTAssertEqual(recovered.marker.openTimeSHA512, FileDigest.sha512(intended))
         var legacy = prepared.marker
         legacy.intendedPayloadPath = nil
         legacy.intendedPayloadSHA512 = nil
@@ -832,7 +833,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let env = environment(remote)
         let task = Task {
             let result = try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference, compositeKey: context.key,
-                openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: env)
+                openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: env)
             if let stored = PendingUploadQueue.listMarkers(for: context.reference.id).first {
                 _ = try await CloudDatabaseSaver.deliver(stored, reference: context.reference, environment: env)
             }
@@ -842,7 +843,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let first = try cache(context.reference)
         let secondDraft = try edit(first, key: context.key, sessionKey: context.sessionKey, title: "AutoFill successor")
         _ = try await LocalDatabaseSaver.save(draft: secondDraft, reference: current(context.reference), compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(first), kdfPolicy: .autoFillExtension)
+            openTimeSHA512: FileDigest.sha512(first), kdfPolicy: .autoFillExtension)
         let newest = try cache(context.reference)
         await gate.release()
         _ = try await task.value
@@ -851,7 +852,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertNotEqual(awaited12, newest)
         XCTAssertNil(current(context.reference).cloudSyncMetadata?.lastSyncedAt)
         let successor = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
-        XCTAssertEqual(successor.marker.remoteBaseSHA512, KDBXCrypto.sha512(first))
+        XCTAssertEqual(successor.marker.remoteBaseSHA512, FileDigest.sha512(first))
         _ = try await CloudDatabaseSaver.deliver(successor, reference: current(context.reference), environment: environment(remote))
         let awaited13 = await remote.data()
         XCTAssertEqual(awaited13, newest)
@@ -863,10 +864,10 @@ final class CloudDatabaseSaverTests: XCTestCase {
         await remote.setOffline(true)
         let env = environment(remote)
         async let app = CloudDatabaseSaver.save(draft: context.draft, reference: context.reference, compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: env)
+            openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: env)
         async let autoFill = AutoFillSaveCoordinator.saveNewEntry(draftPayload: EntryDraftPayload(title: "AutoFill"),
             reference: context.reference, rootGroup: context.draft.rootGroup, meta: context.draft.meta,
-            sessionKey: context.sessionKey, compositeKey: context.key, openTimeSHA512: KDBXCrypto.sha512(context.source))
+            sessionKey: context.sessionKey, compositeKey: context.key, openTimeSHA512: FileDigest.sha512(context.source))
         let (appResult, extensionResult) = try await (app, autoFill)
         var saved = 0
         if case .saved = appResult { saved += 1 }
@@ -933,7 +934,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try cache(context.reference), context.source)
         do {
             _ = try await LocalDatabaseSaver.save(draft: context.draft, reference: context.reference, compositeKey: context.key,
-                openTimeSHA512: KDBXCrypto.sha512(context.source), kdfPolicy: .autoFillExtension)
+                openTimeSHA512: FileDigest.sha512(context.source), kdfPolicy: .autoFillExtension)
             XCTFail("An old-key AutoFill commit cannot pass the rekey fence")
         } catch { XCTAssertEqual(error as? SaveError, .saveContextUnavailable) }
         _ = try await CloudDatabaseSaver.deliver(journal, reference: current(context.reference), environment: environment(remote))
@@ -983,7 +984,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(journal.marker.discardRequested, true)
         let path = try PendingUploadQueue.makeRelativeAppGroupPath(for: DatabaseListStore.cacheLocation(for: context.reference))
         let legacy = try PendingUploadQueue.enqueue(.init(databaseId: context.reference.id, encryptedBytesCacheURL: path,
-            openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", createdAt: .distantPast), notifying: false)
+            openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", createdAt: .distantPast), notifying: false)
         let awaited16 = try await CloudDatabaseSaver.deliver(legacy, reference: context.reference, environment: env)
         XCTAssertNil(awaited16)
         let awaited17 = try await CloudDatabaseSaver.deliver(journal, reference: context.reference, environment: env)
@@ -1010,9 +1011,9 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let bytes = try cache(context.reference)
         let merged = try edit(bytes, key: context.key, sessionKey: context.sessionKey, title: "merged")
         _ = try await LocalDatabaseSaver.save(draft: merged, reference: current(context.reference), compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(bytes), kdfPolicy: .mainApp)
+            openTimeSHA512: FileDigest.sha512(bytes), kdfPolicy: .mainApp)
         let mergedBytes = try cache(context.reference)
-        try PendingUploadQueue.transferMergedSources([source], toPayloadSHA512: KDBXCrypto.sha512(mergedBytes), for: context.reference.id)
+        try PendingUploadQueue.transferMergedSources([source], toPayloadSHA512: FileDigest.sha512(mergedBytes), for: context.reference.id)
         let owner = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
         XCTAssertEqual(owner.marker.absorbedOperationIDs, [source.id])
         XCTAssertEqual(try immutableBytes(owner), mergedBytes)
@@ -1100,7 +1101,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         env.getMetadata = { _ in _ = calls.increment(); throw CloudProviderError.networkUnavailable }
         env.upload = { _, _, _, _ in _ = calls.increment(); throw CloudProviderError.networkUnavailable }
         let result = try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference, compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: env)
+            openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: env)
         guard case .saved = result else { return XCTFail("Expected durable local commit") }
         XCTAssertEqual(calls.increment(), 1, "Only this assertion may increment the counter")
         XCTAssertNil(PendingUploadQueue.listMarkers(for: context.reference.id).first?.marker.uploadAttemptID)
@@ -1120,7 +1121,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let result = try await saveAndDrain(context, remote: remote)
         guard case .conflict(let sha, let bytes) = result else { return XCTFail("Actual local overwrite gate must conflict") }
         XCTAssertEqual(bytes, foreign)
-        XCTAssertEqual(sha, KDBXCrypto.sha512(foreign))
+        XCTAssertEqual(sha, FileDigest.sha512(foreign))
         XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
     }
 
@@ -1131,7 +1132,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         readOnly.isReadOnly = true
         do {
             _ = try await CloudDatabaseSaver.save(draft: context.draft, reference: readOnly, compositeKey: context.key,
-                openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+                openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
             XCTFail("Read-only database must reject")
         } catch { XCTAssertEqual(error as? SaveError, .databaseIsReadOnly) }
         let invalidRoot = context.draft.rootGroup
@@ -1139,7 +1140,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let invalidDraft = DatabaseDraft(rootGroup: invalidRoot, meta: context.draft.meta, sessionKey: context.sessionKey)
         do {
             _ = try await CloudDatabaseSaver.save(draft: invalidDraft, reference: context.reference, compositeKey: context.key,
-                openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+                openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
             XCTFail("Invalid XML must reject")
         }
         catch { XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0)) }
@@ -1263,7 +1264,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try immutableBytes(fence), firstBytes)
         let newerDraft = try edit(firstBytes, key: context.key, sessionKey: context.sessionKey, title: "newer")
         _ = try await LocalDatabaseSaver.save(draft: newerDraft, reference: current(context.reference), compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(firstBytes), kdfPolicy: .mainApp)
+            openTimeSHA512: FileDigest.sha512(firstBytes), kdfPolicy: .mainApp)
         let newerBytes = try cache(context.reference)
         let successor = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id != fence.id })
         let blocked = try await CloudDatabaseSaver.deliver(successor, reference: current(context.reference), environment: env)
@@ -1320,7 +1321,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let firstBytes = try cache(context.reference)
         let secondDraft = try edit(firstBytes, key: context.key, sessionKey: context.sessionKey, title: "second offline")
         _ = try await LocalDatabaseSaver.save(draft: secondDraft, reference: current(context.reference), compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(firstBytes), kdfPolicy: .autoFillExtension)
+            openTimeSHA512: FileDigest.sha512(firstBytes), kdfPolicy: .autoFillExtension)
         let remoteDraft = try edit(context.source, key: context.key, sessionKey: context.sessionKey, title: "foreign remote")
         let header = try LocalDatabaseSaver.Environment.live.extractHeader(context.source, context.key, .mainApp)
         let remoteBytes = try LocalDatabaseSaver.Environment.live.encryptDraft(remoteDraft, context.key, header, .mainApp).data
@@ -1348,7 +1349,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         }
         let mergedDraft = DatabaseDraft(rootGroup: root, meta: meta, sessionKey: context.sessionKey, binaryPoolFields: parsed.header.innerHeaderBinaryFields)
         let result = try await CloudDatabaseSaver.save(draft: mergedDraft, reference: current(context.reference), compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(remoteBytes), expectedRev: "r1", kdfPolicy: .mainApp, environment: environment(remote))
+            openTimeSHA512: FileDigest.sha512(remoteBytes), expectedRev: "r1", kdfPolicy: .mainApp, environment: environment(remote))
         guard case .saved(let sha, _) = result else { return XCTFail("Merged local commit must succeed") }
         try PendingUploadQueue.transferMergedSources(sources.map(\.storedMarker), toPayloadSHA512: sha, for: context.reference.id)
         let owner = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
@@ -1454,7 +1455,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         guard case .merged(let merged) = merge else { return XCTFail("Known ciphertext must merge") }
         let draft = DatabaseDraft(rootGroup: merged.rootGroup, meta: merged.meta, sessionKey: context.sessionKey, binaryPoolFields: base.header.innerHeaderBinaryFields)
         let result = try await CloudDatabaseSaver.save(draft: draft, reference: current(context.reference), compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(foreignBytes), expectedRev: "r1", kdfPolicy: .mainApp, environment: env)
+            openTimeSHA512: FileDigest.sha512(foreignBytes), expectedRev: "r1", kdfPolicy: .mainApp, environment: env)
         guard case .saved(let sha, _) = result else { return XCTFail("Merged owner must commit") }
         let refreshedSource = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id == source.id })
         try PendingUploadQueue.transferMergedSources([refreshedSource], toPayloadSHA512: sha, for: context.reference.id)
@@ -1466,12 +1467,12 @@ final class CloudDatabaseSaverTests: XCTestCase {
         _ = try await CloudDatabaseSaver.deliver(refreshedSource, reference: current(context.reference), environment: env)
         let rebasedOwner = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
         XCTAssertEqual(rebasedOwner.id, owner.id)
-        XCTAssertEqual(rebasedOwner.marker.remoteBaseSHA512, KDBXCrypto.sha512(sourceBytes))
+        XCTAssertEqual(rebasedOwner.marker.remoteBaseSHA512, FileDigest.sha512(sourceBytes))
         _ = try await CloudDatabaseSaver.deliver(rebasedOwner, reference: current(context.reference), environment: env)
         let delivered = await remote.data()
         let final = try KDBXParser.parseWithMeta(data: delivered, compositeKey: context.key, sessionKey: context.sessionKey)
         XCTAssertTrue(Set(final.rootGroup.allEntries.map(\.title)).isSuperset(of: ["first", "foreign before late acceptance"]))
-        XCTAssertEqual(KDBXCrypto.sha512(delivered), sha)
+        XCTAssertEqual(FileDigest.sha512(delivered), sha)
         XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
     }
 
@@ -1493,7 +1494,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         }
         fault.synchronizeCacheDirectory = { _ in throw POSIXError(.EACCES) }
         _ = try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference, compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: fault)
+            openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: fault)
         let prepared = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
         let result = try await CloudDatabaseSaver.deliver(prepared, reference: current(context.reference), environment: fault)
         guard case .retained = result else { throw SaveError.saveContextUnavailable }
@@ -1546,7 +1547,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
     private func saveAndDrain(_ context: Context, remote: Remote, environment env: CloudDatabaseSaver.Environment? = nil) async throws -> SaveResult {
         let effective = env ?? environment(remote)
         let result = try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference, compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: effective)
+            openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: effective)
         if case .saved = result {
             for stored in PendingUploadQueue.listMarkers(for: context.reference.id) {
                 _ = try? await CloudDatabaseSaver.deliver(stored, reference: current(context.reference), environment: effective)
@@ -1557,7 +1558,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
 
     private func rekey(_ context: Context, remote: Remote, environment env: CloudDatabaseSaver.Environment? = nil) async throws -> SaveResult {
         try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference, compositeKey: context.key,
-            openTimeSHA512: KDBXCrypto.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp,
+            openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp,
             newCompositeKey: KDBXCrypto.compositeKey(password: "new password"),
             rekeyContext: .init(keyFileBookmarkData: Data("new bookmark".utf8), keyFileFilename: "new.keyx"), environment: env ?? environment(remote))
     }

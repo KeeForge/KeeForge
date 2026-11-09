@@ -1,4 +1,5 @@
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// Covers the pre-flight that stops the AutoFill extension from starting a key

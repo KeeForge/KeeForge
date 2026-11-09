@@ -11,6 +11,7 @@ Views compose state, collect input, and forward intent and lifecycle events. Wor
 - Compact pushes one session from the database list. iPad keeps the list visible and renders the session in a detail workspace. macOS always uses the regular layout (`usesRegularLayout` is hardcoded there).
 - macOS never mounts `Group/GroupListView.swift` or the compact stack: it browses through `macSplitView` in `../App/RegularDatabaseWorkspaceView.swift`. Anything wired only into `GroupListView` is invisible on macOS and needs a counterpart there.
 - `EntryEditView` and `GroupEditView` carry no `NavigationStack`. The presenter supplies one: a push on iOS, a sheet on macOS, where pushes inside split-view columns misrender.
+- On iOS a vault editor is the workspace's (`workspace.present(_:)`), never a list's or detail's own `@State`: a layout switch (iPhone Duo open/close, iPad resize) rebuilds every view and would drop the draft.
 
 ## Invariants
 
@@ -45,6 +46,7 @@ All of these shims live in `../Extensions/PlatformCompat.swift`.
 - iPhone and iPad follow the KeeForge iOS design; the Mac keeps its own look. Colors, spacing, radii, sizes and the Dynamic Type mapping come from `Components/Theme.swift` (colors in `Resources/Theme.xcassets`), never literals in a view.
 - A view macOS shares branches on `PlatformDesign.followsIOSDesign` (in `../Extensions/PlatformCompat.swift`), and state colors there come from `Theme.State`, which keeps the Mac's system colors.
 - Status is said in words; a color or dot only repeats it.
+- `docs/design-system/` writes the iOS design down (tokens, rules, components) for new screens and the Mac redesign. Update it in the same change when `Theme.swift`, `Theme.xcassets` or a component it describes changes.
 
 ### Secrets on screen
 

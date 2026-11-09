@@ -19,8 +19,8 @@ final class OneDriveCloudProviderTests: XCTestCase {
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let pending = try PendingUploadQueue.withCommitLock(for: reference.id) {
             var prepared = try PendingUploadQueue.prepare(reference: reference, currentData: source, intendedData: payload, cacheURL: cacheURL)
-            _ = try LocalDatabaseSaver.Environment.live.replaceFileAtomically(payload, cacheURL, KDBXCrypto.sha512(source))
-            prepared.marker.openTimeSHA512 = KDBXCrypto.sha512(payload)
+            _ = try LocalDatabaseSaver.Environment.live.replaceFileAtomically(payload, cacheURL, FileDigest.sha512(source))
+            prepared.marker.openTimeSHA512 = FileDigest.sha512(payload)
             let finalized = try PendingUploadQueue.finalize(prepared)
             DatabaseListStore.recordCloudLocalCommit(for: reference.id, operationID: finalized.id)
             return finalized

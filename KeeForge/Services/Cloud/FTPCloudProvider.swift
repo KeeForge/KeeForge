@@ -1,6 +1,7 @@
 import AuthenticationServices
 import Foundation
 import os
+import KDBXKit
 
 /// Plain-FTP provider. Stateless like `WebDAVCloudProvider`: the credential
 /// is read from `CloudTokenStore` on every call and every call opens its own
@@ -563,7 +564,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     /// whole seconds, so a stamp-and-size rev misses a same-size write inside
     /// one second; a KDBX re-encryption keeps its length.
     static func rev(of data: Data) -> String {
-        "sha256:" + KDBXCrypto.sha256(data).map { String(format: "%02x", $0) }.joined()
+        "sha256:" + FileDigest.sha256(data).map { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: - Paths

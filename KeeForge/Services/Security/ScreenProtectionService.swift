@@ -21,7 +21,7 @@ final class ScreenProtectionService {
     private var hideAnimator: UIViewPropertyAnimator?
 
     init(
-        isScreenCaptured: @escaping @MainActor () -> Bool = { UIScreen.main.isCaptured },
+        isScreenCaptured: @escaping @MainActor () -> Bool = ScreenProtectionService.isAnySceneScreenCaptured,
         captureEndDelay: Duration = .seconds(1)
     ) {
         self.isScreenCaptured = isScreenCaptured
@@ -31,6 +31,14 @@ final class ScreenProtectionService {
         observe(UIScene.didActivateNotification) { $0.update(phase: .active) }
         observe(UIScene.didEnterBackgroundNotification) { $0.update(phase: .background) }
         observe(UIResponder.keyboardWillShowNotification) { $0.dismissKeyboardDuringCapture() }
+    }
+
+    /// The screen each scene is on, not `UIScreen.main`: iPhone Duo moves the
+    /// scene between its two displays as it opens and closes.
+    static func isAnySceneScreenCaptured() -> Bool {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .contains { $0.screen.isCaptured }
     }
 
     /// A shield that is fading out, or only armed, already counts as down.

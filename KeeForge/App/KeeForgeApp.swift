@@ -304,6 +304,10 @@ private struct AppRootView: View {
     let routing: AppRoutingCoordinator
     #if os(macOS)
     @State private var showsMacTransitionNotice = false
+    #else
+    /// The layout on screen. It trails the size class by one update so the
+    /// workspace is carried over before the other layout is built.
+    @State private var appliedRegularLayout: Bool?
     #endif
 
     var body: some View {
@@ -315,6 +319,23 @@ private struct AppRootView: View {
                 rootContent
             }
         }
+        #if os(iOS)
+        .environment(\.horizontalSizeClass, usesRegularLayout ? .regular : .compact)
+        .onAppear {
+            appliedRegularLayout = horizontalSizeClass == .regular
+        }
+        .onChange(of: horizontalSizeClass) { _, newValue in
+            applyLayout(regular: newValue == .regular)
+        }
+        .overlay(alignment: .top) {
+            if Self.showsLayoutSwitchForUITests {
+                Button { applyLayout(regular: !usesRegularLayout) } label: {
+                    Text(verbatim: "Switch Layout").font(.caption2)
+                }
+                .accessibilityIdentifier("ui-testing.switch-layout")
+            }
+        }
+        #endif
         .task {
             // The list view model owns the AutoFill toggle but only this root
             // knows the active session, so it installs the bridge. The handler
@@ -567,11 +588,27 @@ private struct AppRootView: View {
         // `\.horizontalSizeClass` does not exist on macOS; the Mac app always
         // uses the regular (split-view) layout.
         #if os(iOS)
-        horizontalSizeClass == .regular
+        appliedRegularLayout ?? (horizontalSizeClass == .regular)
         #else
         true
         #endif
     }
+
+    #if os(iOS)
+    /// iPhone Duo opening or closing, or an iPad window resizing.
+    private func applyLayout(regular: Bool) {
+        guard regular != usesRegularLayout else { return }
+        activeDatabaseViewModel?.workspace.adaptNavigation(toRegularLayout: regular)
+        appliedRegularLayout = regular
+    }
+
+    /// UI tests switch layouts with this control: no simulator can open or
+    /// close an iPhone Duo from a test.
+    private static let showsLayoutSwitchForUITests: Bool = {
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("-ui-testing") && arguments.contains("-ui-testing-layout-switch")
+    }()
+    #endif
 
     private func resolveInitialExperienceIfNeeded() async {
         guard !routing.didResolveInitialRoute else { return }
@@ -956,6 +993,10 @@ struct DatabaseNavigationView: View {
                     if let rootID = viewModel.visibleRootGroupID {
                         GroupListView(groupID: rootID, collection: collection, viewModel: viewModel)
                     }
+                case .editor:
+                    if let editor = viewModel.workspace.openEditor {
+                        compactEditor(editor)
+                    }
                 }
             }
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -978,6 +1019,18 @@ struct DatabaseNavigationView: View {
                 }
                 // The lists scroll under this inset, and the banners are only tinted.
                 .background(Color(.systemBackground), ignoresSafeAreaEdges: [])
+            }
+        }
+        // The workspace's editor is pushed over whatever screen opened it.
+        .onChange(of: viewModel.workspace.openEditor != nil) { _, isOpen in
+            if isOpen, viewModel.workspace.navigationPath.last != .editor {
+                viewModel.workspace.navigationPath.append(.editor)
+            }
+        }
+        // Back or a swipe popped it.
+        .onChange(of: viewModel.workspace.navigationPath) { _, path in
+            if viewModel.workspace.openEditor != nil, path.contains(.editor) == false {
+                viewModel.workspace.closeEditor()
             }
         }
         .disabled(viewModel.isSaving)
@@ -1022,6 +1075,20 @@ struct DatabaseNavigationView: View {
             }
         } message: {
             Text("Your unsaved entry changes will be lost.")
+        }
+    }
+
+    @ViewBuilder
+    private func compactEditor(_ editor: DatabaseWorkspaceState.OpenEditor) -> some View {
+        switch editor {
+        case .entry(let formViewModel):
+            EntryEditView(formViewModel: formViewModel, databaseViewModel: viewModel) { completion in
+                viewModel.workspace.finishCompactEntryEditor(completion)
+            }
+        case .group(let formViewModel):
+            GroupEditView(formViewModel: formViewModel, databaseViewModel: viewModel) {
+                viewModel.workspace.closeEditor()
+            }
         }
     }
 

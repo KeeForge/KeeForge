@@ -53,7 +53,7 @@ final class CloudDiscardPresentationTests: XCTestCase {
         try writeAtomicallyAndDurably(original, to: cache)
         return try PendingUploadQueue.withCommitLock(for: reference.id) {
             var stored = try PendingUploadQueue.prepare(reference: reference, currentData: original, intendedData: intended, cacheURL: cache)
-            stored.marker.openTimeSHA512 = KDBXCrypto.sha512(intended)
+            stored.marker.openTimeSHA512 = FileDigest.sha512(intended)
             stored = try PendingUploadQueue.finalize(stored)
             stored.marker.isConflicted = true
             if uncertain { stored.marker.uploadAttemptID = UUID() }

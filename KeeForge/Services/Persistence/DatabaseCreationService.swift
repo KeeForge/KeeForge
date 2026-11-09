@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import KDBXKit
 #if os(iOS)
 import UIKit
 #endif
@@ -34,10 +35,10 @@ enum DatabaseCreationCipher: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    var cipherID: Data {
+    var outerCipher: KDBXOuterCipher {
         switch self {
-        case .aes256: KDBXParser.aesCipherUUID
-        case .chacha20: KDBXParser.chachaCipherUUID
+        case .aes256: .aes256CBC
+        case .chacha20: .chaCha20
         }
     }
 
@@ -101,7 +102,7 @@ struct PreparedDatabase: Sendable {
     let addedAt: Date
     let rootGroup: KPGroup
     let meta: KPMeta
-    let formatVersion: KDBXParser.FileVersion
+    let formatVersion: KDBXContainer.FileVersion
     let sessionKey: SymmetricKey
     let compositeKey: SymmetricKey
     let openTimeSHA512: Data
@@ -112,7 +113,7 @@ struct CreatedDatabase: Sendable {
     let reference: DatabaseReference
     let rootGroup: KPGroup
     let meta: KPMeta
-    let formatVersion: KDBXParser.FileVersion
+    let formatVersion: KDBXContainer.FileVersion
     let sessionKey: SymmetricKey
     let compositeKey: SymmetricKey
     let openTimeSHA512: Data
@@ -129,9 +130,9 @@ enum DatabaseCreationDefaults {
     static func freshHeaderConfiguration(
         cipher: DatabaseCreationCipher = .aes256,
         kdfPreset: DatabaseCreationKDFPreset = .balanced
-    ) throws -> KDBXWriter.FreshHeaderConfiguration {
-        try KDBXWriter.FreshHeaderConfiguration(
-            cipherID: cipher.cipherID,
+    ) throws -> KDBXContainerWriter.FreshHeaderConfiguration {
+        try KDBXContainerWriter.FreshHeaderConfiguration(
+            cipher: cipher.outerCipher,
             kdfParameters: argon2idKDFParameters(preset: kdfPreset)
         )
     }
@@ -139,28 +140,22 @@ enum DatabaseCreationDefaults {
     static func argon2idKDFParameters(
         preset: DatabaseCreationKDFPreset = .balanced,
         salt: Data? = nil
-    ) throws -> [String: Any] {
-        let resolvedSalt = try salt ?? SecureRandom.data(count: kdfSaltByteCount)
-        return [
-            "$UUID": KDBXParser.argon2idUUID,
-            "I": preset.iterations,
-            "M": preset.memoryBytes,
-            "P": argon2idParallelism,
-            "V": argon2Version,
-            "S": resolvedSalt,
-        ]
+    ) throws -> KDBXVariantMap {
+        try KDBXKeyDerivation.argon2(KDBXKeyDerivation.Argon2Parameters(
+            variant: .id,
+            iterations: preset.iterations,
+            memoryBytes: preset.memoryBytes,
+            parallelism: argon2idParallelism,
+            version: argon2Version,
+            salt: salt ?? SecureRandom.data(count: kdfSaltByteCount)
+        )).parameters
     }
 
     /// KeePassXC's default for a newly chosen AES-KDF.
     static let aesKDFRounds: UInt64 = 1_000_000
 
-    static func aesKDFParameters(rounds: UInt64, salt: Data? = nil) throws -> [String: Any] {
-        let resolvedSalt = try salt ?? SecureRandom.data(count: kdfSaltByteCount)
-        return [
-            "$UUID": KDBXParser.aesKDFUUID,
-            "R": rounds,
-            "S": resolvedSalt,
-        ]
+    static func aesKDFParameters(rounds: UInt64, salt: Data? = nil) throws -> KDBXVariantMap {
+        try KDBXKeyDerivation.aesKDF(rounds: rounds, seed: salt ?? SecureRandom.data(count: kdfSaltByteCount)).parameters
     }
 }
 
@@ -401,7 +396,7 @@ enum DatabaseCreationService {
             sessionKey: sessionKey,
             kdfPolicy: .autoFillExtension
         )
-        guard parsed.header.formatVersion.majorVersion == KDBXParser.versionKDBX4 else {
+        guard case .kdbx4 = parsed.header.formatVersion else {
             throw CreationError.generatedFileFailedToReopen
         }
 
@@ -416,7 +411,7 @@ enum DatabaseCreationService {
             formatVersion: parsed.header.formatVersion,
             sessionKey: sessionKey,
             compositeKey: compositeKey,
-            openTimeSHA512: KDBXCrypto.sha512(encryptedBytes),
+            openTimeSHA512: FileDigest.sha512(encryptedBytes),
             encryptedBytes: encryptedBytes
         )
     }
@@ -449,7 +444,7 @@ enum DatabaseCreationService {
                       reference.keyFileBookmarkData == prepared.keyFileBookmarkData,
                       reference.keyFileFilename == prepared.keyFileFilename,
                       let cache = DatabaseListStore.cachedDatabaseURL(for: reference),
-                      KDBXCrypto.sha512(try Data(contentsOf: cache)) == prepared.openTimeSHA512 else {
+                      FileDigest.sha512(try Data(contentsOf: cache)) == prepared.openTimeSHA512 else {
                     throw SaveError.saveContextUnavailable
                 }
                 break

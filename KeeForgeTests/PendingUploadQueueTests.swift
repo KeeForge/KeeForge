@@ -23,7 +23,7 @@ final class PendingUploadQueueTests: XCTestCase {
         for finalized in [nil, false] as [Bool?] {
             let reference = promotionReference()
             let bytes = Data("base ciphertext is not proof of an AutoFill result".utf8)
-            var marker = makeMarker(databaseId: reference.id, openTimeSHA512: KDBXCrypto.sha512(bytes))
+            var marker = makeMarker(databaseId: reference.id, openTimeSHA512: FileDigest.sha512(bytes))
             marker.isPayloadFinalized = finalized
             let url = PendingUploadQueue.resolveAppGroupURL(for: marker.encryptedBytesCacheURL, environment: environment)
             try environment.createDirectory(url.deletingLastPathComponent())
@@ -45,7 +45,7 @@ final class PendingUploadQueueTests: XCTestCase {
             let reference = promotionReference()
             let baseEnvironment = makeEnvironment()
             let bytes = Data("finalized installed ciphertext".utf8)
-            let marker = makeMarker(databaseId: reference.id, openTimeSHA512: KDBXCrypto.sha512(bytes))
+            let marker = makeMarker(databaseId: reference.id, openTimeSHA512: FileDigest.sha512(bytes))
             let url = PendingUploadQueue.resolveAppGroupURL(for: marker.encryptedBytesCacheURL, environment: baseEnvironment)
             try baseEnvironment.createDirectory(url.deletingLastPathComponent())
             try bytes.write(to: url)

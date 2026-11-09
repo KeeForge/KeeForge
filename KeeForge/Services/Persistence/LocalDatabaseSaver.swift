@@ -1,6 +1,7 @@
 import Darwin
 import CryptoKit
 import Foundation
+import KDBXKit
 
 enum SaveResult: Sendable, Equatable {
     /// A durable local commit; pending cloud changes may still need delivery.
@@ -58,15 +59,12 @@ struct SaveBaseline: Sendable, Equatable {
 }
 
 /// Outer-header settings a save rewrites; a nil field keeps the file's value.
-///
-/// `@unchecked Sendable` for the same reason as `KDBXParser.Header`: the KDF
-/// variant map only ever holds value types.
-struct EncryptionSettingsChange: @unchecked Sendable {
+struct EncryptionSettingsChange: Sendable {
     var cipherID: Data?
-    var kdfParameters: [String: Any]?
+    var kdfParameters: KDBXVariantMap?
     var compressionFlags: UInt32?
 
-    func applied(to header: KDBXParser.Header) -> KDBXParser.Header {
+    func applied(to header: KDBXContainer.Header) -> KDBXContainer.Header {
         var header = header
         if let cipherID {
             header.cipherID = cipherID
@@ -138,8 +136,8 @@ enum LocalDatabaseSaver {
         var endBackgroundTask: @MainActor @Sendable (BackgroundTaskHandle) -> Void
         var resolveLocation: @Sendable (DatabaseReference) -> ResolvedLocation?
         var readData: @Sendable (URL) throws -> Data
-        var extractHeader: @Sendable (Data, SymmetricKey, KDFExecutionPolicy) throws -> KDBXParser.Header
-        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXParser.Header, KDFExecutionPolicy) throws -> ExpressUnlock.Written
+        var extractHeader: @Sendable (Data, SymmetricKey, KDFExecutionPolicy) throws -> KDBXContainer.Header
+        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXContainer.Header, KDFExecutionPolicy) throws -> ExpressUnlock.Written
         var backupDirectoryURL: @Sendable (DatabaseReference) -> URL
         var createDirectory: @Sendable (URL) throws -> Void
         var writeBackup: @Sendable (Data, URL) throws -> Void
@@ -335,7 +333,7 @@ enum LocalDatabaseSaver {
         #else
         let currentData = try environment.readData(location.url)
         #endif
-        let currentSHA512 = KDBXCrypto.sha512(currentData)
+        let currentSHA512 = FileDigest.sha512(currentData)
         guard baseline.covers(currentSHA512) else {
             return .conflict(remoteSHA512: currentSHA512, remoteData: currentData)
         }
@@ -376,7 +374,7 @@ enum LocalDatabaseSaver {
             if reference.isCloudBacked {
                 replaceOutcome = try PendingUploadQueue.withCommitLock(for: reference.id) {
                     let latestData = try environment.readData(location.url)
-                    guard KDBXCrypto.sha512(latestData) == currentSHA512 else { return .changed(currentData: latestData) }
+                    guard FileDigest.sha512(latestData) == currentSHA512 else { return .changed(currentData: latestData) }
                     let latestReference = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
                     guard latestReference.cloudSyncMetadata?.keyEpoch == reference.cloudSyncMetadata?.keyEpoch,
                           latestReference.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt else {
@@ -391,7 +389,7 @@ enum LocalDatabaseSaver {
                         _ = try? PendingUploadQueue.dropIfUnchanged(intent)
                         return outcome
                     }
-                    intent.marker.openTimeSHA512 = KDBXCrypto.sha512(newData)
+                    intent.marker.openTimeSHA512 = FileDigest.sha512(newData)
                     // A retained provisional intent proves the commit after a crash or failed finalize.
                     _ = try? PendingUploadQueue.finalize(intent)
                     DatabaseListStore.recordCloudLocalCommit(for: reference.id, operationID: intent.id)
@@ -412,7 +410,7 @@ enum LocalDatabaseSaver {
             if let pendingSave {
                 environment.removePendingLocalSave(pendingSave)
             }
-            return .conflict(remoteSHA512: KDBXCrypto.sha512(changedData), remoteData: changedData)
+            return .conflict(remoteSHA512: FileDigest.sha512(changedData), remoteData: changedData)
         }
         // When the save location already IS the cache file (a cloud reference
         // without a bookmark resolves straight to it), the replace above was
@@ -438,12 +436,12 @@ enum LocalDatabaseSaver {
 
         if replaceOutcome == .replacedWithoutConfirmedDurability, !reference.isCloudBacked {
             return .committedWithoutConfirmedDurability(
-                newSHA512: KDBXCrypto.sha512(newData),
+                newSHA512: FileDigest.sha512(newData),
                 expressKey: reference.hardwareKey == nil ? written.expressKey : nil
             )
         }
         return .saved(
-            newSHA512: KDBXCrypto.sha512(newData),
+            newSHA512: FileDigest.sha512(newData),
             expressKey: reference.hardwareKey == nil ? written.expressKey : nil
         )
     }
@@ -557,7 +555,7 @@ enum LocalDatabaseSaver {
             result = Result {
                 if let expectedSHA512, let readingURL {
                     let onDiskData = try Data(contentsOf: readingURL)
-                    guard KDBXCrypto.sha512(onDiskData) == expectedSHA512 else {
+                    guard FileDigest.sha512(onDiskData) == expectedSHA512 else {
                         return .changed(currentData: onDiskData)
                     }
                 }

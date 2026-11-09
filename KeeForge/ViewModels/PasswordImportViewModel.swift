@@ -1,4 +1,5 @@
 import Foundation
+import KDBXKit
 
 /// State for the Import Passwords screen (`../Views/DatabaseList/PasswordImportView.swift`).
 /// Adding and saving the entries lives in `DatabaseViewModel.importEntries`,

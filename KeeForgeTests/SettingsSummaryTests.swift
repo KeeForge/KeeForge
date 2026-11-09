@@ -117,7 +117,7 @@ final class AppSettingsSummaryTests: XCTestCase {
 final class DatabaseSettingsSummaryTests: XCTestCase {
     private let summary = KDBXFileSummary(
         formatVersion: .kdbx4(minor: 1),
-        cipher: .chacha20,
+        cipher: .chaCha20,
         isCompressed: true,
         keyDerivation: .argon2id(iterations: 3, memoryBytes: 64 * 1024 * 1024, parallelism: 2)
     )

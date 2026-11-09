@@ -1,6 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 @MainActor
@@ -37,12 +38,12 @@ final class CredentialProviderSaveTests: XCTestCase {
         let result = try await AutoFillSaveCoordinator.saveNewEntry(
             draftPayload: EntryDraftPayload(title: "Committed extension entry", password: "secret"), reference: reference,
             rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
-            compositeKey: loaded.compositeKey, openTimeSHA512: KDBXCrypto.sha512(loaded.sourceData), environment: environment)
+            compositeKey: loaded.compositeKey, openTimeSHA512: FileDigest.sha512(loaded.sourceData), environment: environment)
         guard case .committedWithoutConfirmedDurability(let outcome) = result else {
             return XCTFail("Extension must preserve the durability distinction after a real commit")
         }
         let bytes = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
-        XCTAssertEqual(KDBXCrypto.sha512(bytes), outcome.newSHA512)
+        XCTAssertEqual(FileDigest.sha512(bytes), outcome.newSHA512)
         let parsed = try KDBXParser.parseWithMeta(data: bytes, compositeKey: loaded.compositeKey, sessionKey: loaded.sessionKey)
         XCTAssertTrue(parsed.rootGroup.allEntries.contains { $0.title == "Committed extension entry" })
         XCTAssertTrue(recorder.enqueuedMarkers.isEmpty)
@@ -221,7 +222,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             meta: loaded.meta,
             sessionKey: loaded.sessionKey,
             compositeKey: loaded.compositeKey,
-            openTimeSHA512: KDBXCrypto.sha512(loaded.sourceData),
+            openTimeSHA512: FileDigest.sha512(loaded.sourceData),
             environment: environment
         )
 
@@ -235,7 +236,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             sessionKey: loaded.sessionKey,
             kdfPolicy: .autoFillExtension
         )
-        XCTAssertEqual(reparsed.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertEqual(reparsed.header.cipherID, KDBXOuterCipher.twofish256CBC.uuid)
         XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Twofish AutoFill Entry" })
     }
 

@@ -1,6 +1,7 @@
 import CryptoKit
 import Darwin
 import Foundation
+import KDBXKit
 
 enum CloudDatabaseSaver {
     typealias ProgressHandler = @Sendable (Double) -> Void
@@ -17,8 +18,8 @@ enum CloudDatabaseSaver {
         var endBackgroundTask: @MainActor @Sendable (LocalDatabaseSaver.BackgroundTaskHandle) -> Void
         var cacheURL: @Sendable (DatabaseReference) -> URL
         var readData: @Sendable (URL) throws -> Data
-        var extractHeader: @Sendable (Data, SymmetricKey, KDFExecutionPolicy) throws -> KDBXParser.Header
-        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXParser.Header, KDFExecutionPolicy) throws -> ExpressUnlock.Written
+        var extractHeader: @Sendable (Data, SymmetricKey, KDFExecutionPolicy) throws -> KDBXContainer.Header
+        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXContainer.Header, KDFExecutionPolicy) throws -> ExpressUnlock.Written
         var getMetadata: @Sendable (DatabaseReference) async throws -> CloudFileMetadata
         var upload: @Sendable (DatabaseReference, Data, String?, @escaping ProgressHandler) async throws -> CloudFileMetadata
         var downloadRemoteData: @Sendable (DatabaseReference) async throws -> Data
@@ -177,7 +178,7 @@ enum CloudDatabaseSaver {
     ) async throws -> SaveResult {
         let cacheURL = environment.cacheURL(reference)
         let currentData = try environment.readData(cacheURL)
-        let currentSHA512 = KDBXCrypto.sha512(currentData)
+        let currentSHA512 = FileDigest.sha512(currentData)
         guard baseline.covers(currentSHA512) else {
             return .conflict(remoteSHA512: currentSHA512, remoteData: currentData)
         }
@@ -187,8 +188,8 @@ enum CloudDatabaseSaver {
             guard rekeyContext != nil else { throw SaveError.saveContextUnavailable }
             let remoteMetadata = try await environment.getMetadata(reference)
             let remoteBytes = try await environment.downloadRemoteData(reference)
-            guard baseline.covers(KDBXCrypto.sha512(remoteBytes)) else {
-                return .conflict(remoteSHA512: KDBXCrypto.sha512(remoteBytes), remoteData: remoteBytes)
+            guard baseline.covers(FileDigest.sha512(remoteBytes)) else {
+                return .conflict(remoteSHA512: FileDigest.sha512(remoteBytes), remoteData: remoteBytes)
             }
             guard environment.writeGuarantee(reference, remoteMetadata.rev, currentData.count) != .disabled else {
                 throw CloudProviderError.invalidConfiguration
@@ -230,7 +231,7 @@ enum CloudDatabaseSaver {
         var intent: PendingUploadQueue.StoredMarker?
         let replacement = try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue) {
             let latest = try environment.readData(cacheURL)
-            guard KDBXCrypto.sha512(latest) == currentSHA512 else { return LocalDatabaseSaver.ReplaceOutcome.changed(currentData: latest) }
+            guard FileDigest.sha512(latest) == currentSHA512 else { return LocalDatabaseSaver.ReplaceOutcome.changed(currentData: latest) }
             let latestReference = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
             guard latestReference.cloudSyncMetadata?.keyEpoch == reference.cloudSyncMetadata?.keyEpoch,
                   latestReference.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt else { throw SaveError.saveContextUnavailable }
@@ -246,12 +247,12 @@ enum CloudDatabaseSaver {
                 _ = try? PendingUploadQueue.dropIfUnchanged(prepared, environment: environment.queue)
                 return outcome
             }
-            prepared.marker.openTimeSHA512 = KDBXCrypto.sha512(newData)
+            prepared.marker.openTimeSHA512 = FileDigest.sha512(newData)
             intent = (try? PendingUploadQueue.finalize(prepared, environment: environment.queue)) ?? prepared
             DatabaseListStore.recordCloudLocalCommit(for: reference.id, operationID: prepared.id)
             return outcome
         }
-        if case .changed(let bytes) = replacement { return .conflict(remoteSHA512: KDBXCrypto.sha512(bytes), remoteData: bytes) }
+        if case .changed(let bytes) = replacement { return .conflict(remoteSHA512: FileDigest.sha512(bytes), remoteData: bytes) }
         guard let intent else { throw SaveError.saveContextUnavailable }
         if rekeyContext != nil {
             guard let result = try await deliver(intent, reference: reference, environment: environment) else {
@@ -268,7 +269,7 @@ enum CloudDatabaseSaver {
             PendingUploadQueue.postEnqueuedNotification(environment: environment.queue)
         }
         try? environment.pruneBackups(reference, 5)
-        return .saved(newSHA512: KDBXCrypto.sha512(newData), expressKey: expressKey)
+        return .saved(newSHA512: FileDigest.sha512(newData), expressKey: expressKey)
     }
 
     private static func recordIssue(_ error: Error, reference: DatabaseReference) {
@@ -321,7 +322,7 @@ enum CloudDatabaseSaver {
         let payloadPath = marker.intendedPayloadPath ?? marker.encryptedBytesCacheURL
         let bytes = try environment.queue.readData(PendingUploadQueue.resolveAppGroupURL(for: payloadPath, environment: environment.queue))
         let payloadSHA = marker.intendedPayloadSHA512 ?? marker.openTimeSHA512
-        guard KDBXCrypto.sha512(bytes) == payloadSHA else {
+        guard FileDigest.sha512(bytes) == payloadSHA else {
             try PendingUploadQueue.markDatabaseConflicted(for: reference.id, environment: environment.queue)
             return .conflict(remoteRev: nil)
         }
@@ -336,7 +337,7 @@ enum CloudDatabaseSaver {
         if stored.marker.confirmedAt == nil {
             let remoteMetadata = try await environment.getMetadata(reference)
             let remoteBytes = try await environment.downloadRemoteData(reference)
-            let remoteSHA = KDBXCrypto.sha512(remoteBytes)
+            let remoteSHA = FileDigest.sha512(remoteBytes)
             if marker.uploadAttemptID != nil, marker.attemptIsFenced != true,
                let originalRev = marker.expectedRev, remoteMetadata.rev != nil, remoteMetadata.rev != originalRev,
                environment.writeGuarantee(reference, originalRev, bytes.count) == .serverConditional {
@@ -418,7 +419,7 @@ enum CloudDatabaseSaver {
     private static func journalPayload(_ stored: PendingUploadQueue.StoredMarker, environment: Environment) throws -> Data {
         let path = stored.marker.intendedPayloadPath ?? stored.marker.encryptedBytesCacheURL
         let bytes = try environment.queue.readData(PendingUploadQueue.resolveAppGroupURL(for: path, environment: environment.queue))
-        guard KDBXCrypto.sha512(bytes) == (stored.marker.intendedPayloadSHA512 ?? stored.marker.openTimeSHA512) else {
+        guard FileDigest.sha512(bytes) == (stored.marker.intendedPayloadSHA512 ?? stored.marker.openTimeSHA512) else {
             throw SaveError.saveContextUnavailable
         }
         return bytes
@@ -430,9 +431,9 @@ enum CloudDatabaseSaver {
         allowMissing: Bool = true, beforeReplacement: () -> Void = {}, environment: Environment
     ) throws {
         let cacheURL = environment.cacheURL(reference)
-        let payloadSHA = KDBXCrypto.sha512(bytes)
+        let payloadSHA = FileDigest.sha512(bytes)
         let previous = try? environment.readData(cacheURL)
-        let previousSHA = previous.map(KDBXCrypto.sha512)
+        let previousSHA = previous.map(FileDigest.sha512)
         guard previousSHA == payloadSHA || (previousSHA != nil && previousSHA == owner.marker.predecessorSHA512)
             || (allowMissing && previous == nil) else { throw SaveError.saveContextUnavailable }
         beforeReplacement()
@@ -450,7 +451,7 @@ enum CloudDatabaseSaver {
                 guard try environment.installMissingCache(bytes, cacheURL) else { throw SaveError.saveContextUnavailable }
             }
         }
-        guard KDBXCrypto.sha512(try environment.readData(cacheURL)) == payloadSHA else {
+        guard FileDigest.sha512(try environment.readData(cacheURL)) == payloadSHA else {
             throw SaveError.saveContextUnavailable
         }
     }
@@ -461,7 +462,7 @@ enum CloudDatabaseSaver {
         guard let current = DatabaseListStore.databases.first(where: { $0.id == referenceID }),
               current.cloudSyncMetadata?.keyEpoch == owner.marker.keyEpoch,
               current.cloudSyncMetadata?.localHeadOperationID == owner.id,
-              (try? environment.readData(environment.cacheURL(current))).map(KDBXCrypto.sha512) == (owner.marker.intendedPayloadSHA512 ?? owner.marker.openTimeSHA512) else { return nil }
+              (try? environment.readData(environment.cacheURL(current))).map(FileDigest.sha512) == (owner.marker.intendedPayloadSHA512 ?? owner.marker.openTimeSHA512) else { return nil }
         return current
     }
 
@@ -489,7 +490,7 @@ enum CloudDatabaseSaver {
     ) throws -> PendingUploadPushResult {
         do {
             return try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue) {
-                let payloadSHA = KDBXCrypto.sha512(bytes)
+                let payloadSHA = FileDigest.sha512(bytes)
                 var current = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
                 if let rekey = stored.marker.rekeyContext {
                     guard PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).contains(where: {
@@ -693,7 +694,7 @@ enum CloudDatabaseSaver {
         environment: Environment
     ) async throws -> PendingUploadPushResult {
         guard let stored = PendingUploadQueue.listMarkers(for: reference.id, environment: environment.queue).first(where: {
-            $0.marker.isPayloadFinalized == true && $0.marker.openTimeSHA512 == KDBXCrypto.sha512(encryptedBytes)
+            $0.marker.isPayloadFinalized == true && $0.marker.openTimeSHA512 == FileDigest.sha512(encryptedBytes)
         }) else { throw SaveError.saveContextUnavailable }
         guard let result = try await deliver(stored, reference: reference, environment: environment) else {
             throw CloudProviderError.serviceUnavailable

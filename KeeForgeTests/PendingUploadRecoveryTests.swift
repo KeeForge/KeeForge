@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class PendingUploadRecoveryTests: XCTestCase {
@@ -149,7 +150,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
         let snapshot = makeStoredMarker(for: reference, payload: Data("base".utf8))
         let fake = FakeStore(markers: [snapshot], files: [:])
         var finalized = snapshot
-        finalized.marker.openTimeSHA512 = KDBXCrypto.sha512(Data("saved-payload".utf8))
+        finalized.marker.openTimeSHA512 = FileDigest.sha512(Data("saved-payload".utf8))
         finalized.marker.isPayloadFinalized = true
         fake.replaceMarker(finalized)
 
@@ -179,7 +180,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
             PendingUploadQueue.Marker(
                 databaseId: reference.id,
                 encryptedBytesCacheURL: PendingUploadQueue.makeRelativeAppGroupPath(for: liveCacheURL),
-                openTimeSHA512: KDBXCrypto.sha512(payload),
+                openTimeSHA512: FileDigest.sha512(payload),
                 expectedRev: "rev-A",
                 createdAt: Date(timeIntervalSince1970: 1_000),
                 isConflicted: true,
@@ -239,7 +240,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
         {
           "databaseId" : "\(reference.id.uuidString)",
           "encryptedBytesCacheURL" : "\(relativeCachePath)",
-          "openTimeSHA512" : "\(KDBXCrypto.sha512(base).base64EncodedString())",
+          "openTimeSHA512" : "\(FileDigest.sha512(base).base64EncodedString())",
           "expectedRev" : "rev-A",
           "baseRev" : "rev-A",
           "createdAt" : 1000
@@ -313,7 +314,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
             marker: PendingUploadQueue.Marker(
                 databaseId: reference.id,
                 encryptedBytesCacheURL: "cache.kdbx",
-                openTimeSHA512: KDBXCrypto.sha512(payload),
+                openTimeSHA512: FileDigest.sha512(payload),
                 expectedRev: "rev-A",
                 createdAt: createdAt,
                 isConflicted: isConflicted,

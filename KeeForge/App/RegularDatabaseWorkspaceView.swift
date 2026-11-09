@@ -8,15 +8,9 @@ import AppKit
 
 struct RegularDatabaseWorkspaceView: View {
     @Bindable var viewModel: DatabaseViewModel
-    @State private var navigationPath: [DatabaseRoute] = []
     @State private var presentedSaveError: DatabaseSaveError?
     @State private var isCloudReconnectInFlight = false
-    #if os(iOS)
-    /// Editor opened from the sidebar (New Entry, Edit Group). Hosted in the
-    /// detail column: pushed into the 320–440pt sidebar it left the wide
-    /// column idle behind a "Select an Entry" placeholder.
-    @State private var detailEditor: DetailEditor?
-    #else
+    #if os(macOS)
     @SceneStorage("macWorkspace.sidebarWidth") private var macSidebarWidth = MacSidebarWidthSampler.idealWidth
     @State private var macSidebarWidthSampler = MacSidebarWidthSampler()
     @State private var macSplitWidth: Double?
@@ -55,13 +49,11 @@ struct RegularDatabaseWorkspaceView: View {
             .onChange(of: viewModel.visibleRootGroupID) { _, _ in
                 // Lock, close, and database switch all land here (the visible
                 // root goes nil), clearing pushed group *and* tag destinations.
-                navigationPath = []
+                viewModel.workspace.navigationPath = []
                 viewModel.workspace.selectedEntryID = nil
-                #if os(iOS)
-                detailEditor = nil
-                #endif
+                viewModel.workspace.closeEditor()
             }
-            .onChange(of: navigationPath) { _, _ in
+            .onChange(of: viewModel.workspace.navigationPath) { _, _ in
                 viewModel.workspace.selectedEntryID = nil
             }
             .onChange(of: viewModel.searchText) { oldValue, newValue in
@@ -154,8 +146,10 @@ struct RegularDatabaseWorkspaceView: View {
     private var detailColumn: some View {
         NavigationStack {
             #if os(iOS)
-            if let detailEditor {
-                hostedEditor(detailEditor)
+            // The workspace's editor opens here, not in the 320–440pt sidebar,
+            // which would leave the wide column idle behind a placeholder.
+            if let editor = viewModel.workspace.openEditor {
+                hostedEditor(editor)
             } else {
                 selectionDetail
             }
@@ -203,22 +197,17 @@ struct RegularDatabaseWorkspaceView: View {
     }
 
     #if os(iOS)
-    enum DetailEditor {
-        case entry(EntryEditViewModel)
-        case group(GroupEditViewModel)
-    }
-
     @ViewBuilder
-    private func hostedEditor(_ editor: DetailEditor) -> some View {
+    private func hostedEditor(_ editor: DatabaseWorkspaceState.OpenEditor) -> some View {
         switch editor {
         case .entry(let formViewModel):
             EntryEditView(formViewModel: formViewModel, databaseViewModel: viewModel) { completion in
                 selectCreatedEntry(completion)
-                detailEditor = nil
+                viewModel.workspace.closeEditor()
             }
         case .group(let formViewModel):
             GroupEditView(formViewModel: formViewModel, databaseViewModel: viewModel) {
-                detailEditor = nil
+                viewModel.workspace.closeEditor()
             }
         }
     }
@@ -273,14 +262,12 @@ struct RegularDatabaseWorkspaceView: View {
     /// dedicated three-column `macSplitView` instead.
     @ViewBuilder
     private var sidebarColumn: some View {
-        NavigationStack(path: $navigationPath) {
+        NavigationStack(path: Bindable(viewModel.workspace).navigationPath) {
             if let rootID = viewModel.visibleRootGroupID {
                 GroupListView(
                     groupID: rootID,
                     viewModel: viewModel,
                     onSelectEntry: selectEntry,
-                    onCreateEntry: hostEntryEditor,
-                    onEditGroup: hostGroupEditor,
                     onOpenRoute: openSidebarRoute
                 )
                 .navigationDestination(for: DatabaseRoute.self) { destination in
@@ -290,8 +277,6 @@ struct RegularDatabaseWorkspaceView: View {
                             groupID: groupID,
                             viewModel: viewModel,
                             onSelectEntry: selectEntry,
-                            onCreateEntry: hostEntryEditor,
-                            onEditGroup: hostGroupEditor,
                             onOpenRoute: openSidebarRoute
                         )
                     case .collection(let collection):
@@ -300,8 +285,6 @@ struct RegularDatabaseWorkspaceView: View {
                             collection: collection,
                             viewModel: viewModel,
                             onSelectEntry: selectEntry,
-                            onCreateEntry: hostEntryEditor,
-                            onEditGroup: hostGroupEditor,
                             onOpenRoute: openSidebarRoute
                         )
                     case .tag(let tag):
@@ -312,6 +295,9 @@ struct RegularDatabaseWorkspaceView: View {
                         )
                     case .entry(let entryID):
                         EntryDetailView(entryID: entryID, viewModel: viewModel)
+                    case .editor:
+                        // The detail column hosts the editor.
+                        EmptyView()
                     }
                 }
             } else {
@@ -336,19 +322,7 @@ struct RegularDatabaseWorkspaceView: View {
 
     #if os(iOS)
     private func openSidebarRoute(_ route: DatabaseRoute) {
-        navigationPath.append(route)
-    }
-
-    /// An editor already on screen keeps its unsaved work; the sidebar's + and
-    /// row menus stay reachable while it is up, unlike the compact push.
-    private func hostEntryEditor(_ editor: EntryEditViewModel) {
-        guard detailEditor == nil else { return }
-        detailEditor = .entry(editor)
-    }
-
-    private func hostGroupEditor(_ editor: GroupEditViewModel) {
-        guard detailEditor == nil else { return }
-        detailEditor = .group(editor)
+        viewModel.workspace.navigationPath.append(route)
     }
     #endif
 
@@ -360,7 +334,7 @@ struct RegularDatabaseWorkspaceView: View {
         #if os(macOS)
         viewModel.workspace.selectedTag = tag
         #else
-        navigationPath.append(.tag(tag))
+        viewModel.workspace.navigationPath.append(.tag(tag))
         #endif
     }
 

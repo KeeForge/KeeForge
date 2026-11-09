@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class LocalDatabaseSaverTests: XCTestCase {
@@ -27,7 +28,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         }
         let bytes = try Data(contentsOf: url)
         XCTAssertNotEqual(bytes, original)
-        XCTAssertEqual(KDBXCrypto.sha512(bytes), sha)
+        XCTAssertEqual(FileDigest.sha512(bytes), sha)
         XCTAssertNotNil(expressKey)
         XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
         XCTAssertTrue(try DatabaseListStore.recentBackups(for: reference).contains { try Data(contentsOf: $0) == original })
@@ -172,7 +173,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             password: fixturePassword,
             sessionKey: SymmetricKey(size: .bits256)
         )
-        XCTAssertEqual(reparsed.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertEqual(reparsed.header.cipherID, KDBXOuterCipher.twofish256CBC.uuid)
         XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Twofish Saved Entry" })
 
         let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
@@ -241,7 +242,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             draft: dirtyDraft,
             reference: reference,
             compositeKey: KDBXCrypto.compositeKey(password: fixturePassword),
-            openTimeSHA512: KDBXCrypto.sha512(originalData)
+            openTimeSHA512: FileDigest.sha512(originalData)
         )
 
         let verifyKey = SymmetricKey(size: .bits256)
@@ -328,7 +329,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             return
         }
 
-        XCTAssertEqual(newSHA512, KDBXCrypto.sha512(savedData))
+        XCTAssertEqual(newSHA512, FileDigest.sha512(savedData))
     }
 
     func testSaveRefreshesSharedCachedCopyWithSavedBytes() async throws {
@@ -394,7 +395,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         }
         XCTAssertEqual(
             newSHA512,
-            KDBXCrypto.sha512(savedData),
+            FileDigest.sha512(savedData),
             "The file is replaced, so the session must move on to its new bytes"
         )
         let reparsed = try KDBXParser.parseWithMeta(
@@ -435,7 +436,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             XCTFail("Expected save to succeed.")
             return
         }
-        XCTAssertEqual(newSHA512, KDBXCrypto.sha512(savedData))
+        XCTAssertEqual(newSHA512, FileDigest.sha512(savedData))
         XCTAssertNoThrow(
             try KDBXParser.parseWithMeta(
                 data: savedData,
@@ -474,7 +475,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             XCTFail("Expected save to succeed.")
             return
         }
-        XCTAssertEqual(newSHA512, KDBXCrypto.sha512(try Data(contentsOf: databaseURL)))
+        XCTAssertEqual(newSHA512, FileDigest.sha512(try Data(contentsOf: databaseURL)))
         XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: reference))
     }
 
@@ -527,7 +528,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             1,
             "Saving a cloud reference must write the shared cache exactly once"
         )
-        XCTAssertEqual(KDBXCrypto.sha512(try Data(contentsOf: cacheURL)), newSHA512)
+        XCTAssertEqual(FileDigest.sha512(try Data(contentsOf: cacheURL)), newSHA512)
     }
 
     func testSaveFinishingWhileAnotherEncryptsConflictsInsteadOfOverwritingIt() async throws {
@@ -583,7 +584,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let onDisk = try Data(contentsOf: databaseURL)
         XCTAssertEqual(remoteSHA512, finishingSHA512)
         XCTAssertEqual(remoteData, onDisk)
-        XCTAssertEqual(KDBXCrypto.sha512(onDisk), finishingSHA512)
+        XCTAssertEqual(FileDigest.sha512(onDisk), finishingSHA512)
         let titles = try KDBXParser.parse(data: onDisk, password: fixturePassword, sessionKey: SymmetricKey(size: .bits256))
             .allEntries.map(\.title)
         XCTAssertTrue(titles.contains("Finishing Writer Entry"))
@@ -612,7 +613,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             return
         }
 
-        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(remoteData))
+        XCTAssertEqual(remoteSHA512, FileDigest.sha512(remoteData))
         XCTAssertEqual(conflictData, remoteData)
         XCTAssertEqual(try Data(contentsOf: databaseURL), remoteData)
     }
@@ -630,7 +631,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
         let reconciledRemoteData = try makeDivergedDatabaseData(from: databaseURL)
         try reconciledRemoteData.write(to: databaseURL, options: .atomic)
-        let reconciledRemoteSHA512 = KDBXCrypto.sha512(reconciledRemoteData)
+        let reconciledRemoteSHA512 = FileDigest.sha512(reconciledRemoteData)
 
         let result = try await LocalDatabaseSaver.save(
             draft: context.draft,
@@ -645,7 +646,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             XCTFail("A save gated on the reconciled remote must replace exactly that file.")
             return
         }
-        XCTAssertEqual(KDBXCrypto.sha512(try Data(contentsOf: databaseURL)), newSHA512)
+        XCTAssertEqual(FileDigest.sha512(try Data(contentsOf: databaseURL)), newSHA512)
 
         // A third state under the save was never reconciled by anyone, so the
         // widened gate must still refuse it.
@@ -665,7 +666,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             XCTFail("Expected a conflict for content neither the session nor the merge has seen.")
             return
         }
-        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(strangerData))
+        XCTAssertEqual(remoteSHA512, FileDigest.sha512(strangerData))
         XCTAssertEqual(try Data(contentsOf: databaseURL), strangerData)
     }
 
@@ -834,7 +835,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         }
 
         let savedData = try Data(contentsOf: databaseURL)
-        XCTAssertEqual(newSHA512, KDBXCrypto.sha512(savedData))
+        XCTAssertEqual(newSHA512, FileDigest.sha512(savedData))
 
         let reparsed = try KDBXParser.parseWithMeta(
             data: savedData,
@@ -966,7 +967,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             openTimeSHA512: context.openTimeSHA512,
             kdfPolicy: .mainApp,
             encryptionSettings: EncryptionSettingsChange(
-                cipherID: KDBXParser.chachaCipherUUID,
+                cipherID: KDBXOuterCipher.chaCha20.uuid,
                 kdfParameters: kdfParameters,
                 compressionFlags: original.isCompressed ? 0 : 1
             )
@@ -977,10 +978,10 @@ final class LocalDatabaseSaverTests: XCTestCase {
             return
         }
         let savedData = try Data(contentsOf: databaseURL)
-        XCTAssertEqual(newSHA512, KDBXCrypto.sha512(savedData))
+        XCTAssertEqual(newSHA512, FileDigest.sha512(savedData))
 
         let saved = try KDBXFileSummary.inspect(data: savedData)
-        XCTAssertEqual(saved.cipher, .chacha20)
+        XCTAssertEqual(saved.cipher, .chaCha20)
         XCTAssertEqual(saved.isCompressed, !original.isCompressed)
         XCTAssertEqual(
             saved.keyDerivation,
@@ -1003,8 +1004,8 @@ final class LocalDatabaseSaverTests: XCTestCase {
             context.originalRootGroup.allEntries.map(\.title).sorted()
         )
         XCTAssertNotEqual(
-            reparsed.header.kdfParameters["S"] as? Data,
-            kdfParameters["S"] as? Data,
+            reparsed.header.kdfParameters.bytes("S"),
+            kdfParameters.bytes("S"),
             "The writer still rotates the KDF salt it was handed."
         )
 
@@ -1054,7 +1055,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             reparsed.rootGroup.allEntries.map(\.title).sorted(),
             context.originalRootGroup.allEntries.map(\.title).sorted()
         )
-        XCTAssertEqual((reparsed.header.kdfParameters["S"] as? Data)?.count, 32)
+        XCTAssertEqual((reparsed.header.kdfParameters.bytes("S"))?.count, 32)
     }
 
     func testEncryptionSettingsSaveKeepsUnchangedFields() async throws {
@@ -1083,11 +1084,11 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let originalData = try Data(contentsOf: databaseURL)
         let context = try makeCleanSaveContext(databaseURL: databaseURL)
-        let originalSHA512 = KDBXCrypto.sha512(originalData)
+        let originalSHA512 = FileDigest.sha512(originalData)
         var environment = LocalDatabaseSaver.Environment.live
         let liveExtractHeader = environment.extractHeader
         environment.extractHeader = { data, key, kdfPolicy in
-            guard KDBXCrypto.sha512(data) == originalSHA512 else {
+            guard FileDigest.sha512(data) == originalSHA512 else {
                 throw CocoaError(.fileReadCorruptFile)
             }
             return try liveExtractHeader(data, key, kdfPolicy)
@@ -1100,7 +1101,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
                 compositeKey: context.compositeKey,
                 openTimeSHA512: context.openTimeSHA512,
                 kdfPolicy: .mainApp,
-                encryptionSettings: EncryptionSettingsChange(cipherID: KDBXParser.chachaCipherUUID),
+                encryptionSettings: EncryptionSettingsChange(cipherID: KDBXOuterCipher.chaCha20.uuid),
                 environment: environment
             )
             XCTFail("Expected the encryption settings save to fail verification.")
@@ -1123,7 +1124,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let added = try makeAttachmentSaveContext(
             databaseURL: databaseURL,
             name: "large.bin",
-            growingPoolTo: KDBXCrypto.maxDecompressedSize - 1024 * 1024
+            growingPoolTo: KDBXContainer.maxDecompressedPayloadSize - 1024 * 1024
         )
 
         _ = try await LocalDatabaseSaver.save(
@@ -1145,7 +1146,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let added = try makeAttachmentSaveContext(
             databaseURL: databaseURL,
             name: "large.bin",
-            growingPoolTo: KDBXCrypto.maxDecompressedSize
+            growingPoolTo: KDBXContainer.maxDecompressedPayloadSize
         )
 
         await assertSaveRefusesPayloadTooLarge(added.context, reference: reference)
@@ -1159,7 +1160,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let first = try makeAttachmentSaveContext(
             databaseURL: databaseURL,
             name: "first.bin",
-            growingPoolTo: KDBXCrypto.maxDecompressedSize / 2
+            growingPoolTo: KDBXContainer.maxDecompressedPayloadSize / 2
         )
         _ = try await LocalDatabaseSaver.save(
             draft: first.context.draft,
@@ -1172,7 +1173,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let second = try makeAttachmentSaveContext(
             databaseURL: databaseURL,
             name: "second.bin",
-            growingPoolTo: KDBXCrypto.maxDecompressedSize
+            growingPoolTo: KDBXContainer.maxDecompressedPayloadSize
         )
         await assertSaveRefusesPayloadTooLarge(second.context, reference: reference)
 
@@ -1196,7 +1197,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
                 openTimeSHA512: context.openTimeSHA512
             )
             XCTFail("Expected the save to refuse a payload the reader cannot inflate.", file: file, line: line)
-        } catch KDBXWriter.WriteError.payloadTooLarge {
+        } catch KDBXContainerWriter.WriteError.payloadTooLarge {
         } catch {
             XCTFail("Expected payloadTooLarge, got \(error)", file: file, line: line)
         }
@@ -1247,7 +1248,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let context = SaveContext(
             draft: draft,
             compositeKey: KDBXCrypto.compositeKey(password: fixturePassword),
-            openTimeSHA512: KDBXCrypto.sha512(originalData),
+            openTimeSHA512: FileDigest.sha512(originalData),
             originalRootGroup: parsed.rootGroup
         )
         return (context, bytes)
@@ -1322,7 +1323,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         return SaveContext(
             draft: dirtyDraft,
             compositeKey: KDBXCrypto.compositeKey(password: fixturePassword),
-            openTimeSHA512: KDBXCrypto.sha512(originalData),
+            openTimeSHA512: FileDigest.sha512(originalData),
             originalRootGroup: parsed.rootGroup
         )
     }
@@ -1339,7 +1340,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         return SaveContext(
             draft: DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: sessionKey),
             compositeKey: KDBXCrypto.compositeKey(password: fixturePassword),
-            openTimeSHA512: KDBXCrypto.sha512(originalData),
+            openTimeSHA512: FileDigest.sha512(originalData),
             originalRootGroup: parsed.rootGroup
         )
     }
@@ -1409,8 +1410,8 @@ final class LocalDatabaseSaverTests: XCTestCase {
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             compositeKey: compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: KDBXParser.twofishCipherUUID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipher: .twofish256CBC,
                 kdfParameters: parsed.header.kdfParameters,
                 innerHeaderBinaryFields: parsed.header.innerHeaderBinaryFields
             ),

@@ -12,7 +12,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 
 ## What the suite covers
 
-- **Parser, writer, crypto:** `KDBXParserTests` (decrypt, integrity rejection, foreign-authored cipher fixtures, Argon2 and Salsa20 known answers), `KDBXWriterTests` (container, header, HMAC, cipher, KDF), `KDBXRoundTripTests` (XML serializer and opaque-XML preservation), `KDFExecutionPolicyTests` (app versus AutoFill resource budgets), `ChaCha20Tests`, `TwofishTests`, `ChallengeResponseKeyTests`, `EncryptedValueTests`.
+- **Parser, writer, crypto:** `KDBXParserTests` (decrypt, integrity rejection, foreign-authored cipher fixtures, Salsa20 known answers through the parser), `KDBXWriterTests` (saving the model: header reuse, ciphers, KDF, pool), `KDBXRoundTripTests` (XML serializer and opaque-XML preservation), `KDFExecutionPolicyTests` (app versus AutoFill resource budgets), `ChaCha20Tests` (protected-value known answers through the serializer and parser), `TwofishTests`, `ChallengeResponseKeyTests`, `EncryptedValueTests`. The container itself (framing, HMACs, KDFs, ciphers, key files, inner-header order) is tested in `../Packages/KDBXKit/Tests` (`../Packages/KDBXKit/AGENTS.md`).
 - Recycle Bin recovery: `DatabaseDraftTests` covers format references and boundary refusals; `DatabaseViewModelTests` covers save/reopen, destination visibility, nested recovery, read-only/stale requests, cancellation, and failed-write retry. Restore artifacts are in `KDBXCompatibilityTests`.
 - Custom-icon management: `CustomIconXMLTests` pins surgical XML edits; `DatabaseDraftTests` covers entry/group/history fallback; `DatabaseViewModelTests` covers session guards and save/reopen; `KDBXMergerTests` covers icon tombstones and imported names. Rename/delete artifacts live in `KDBXCompatibilityTests`.
 - **Edits and compatibility:** `DatabaseDraftTests` (in-memory edit semantics), `KDBXCompatibilityTests` (every supported edit written, reparsed, and handed to KeePassXC by the external gate).
@@ -51,7 +51,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 
 ### KDBX layering
 
-- Each layer has one home: XML serializer in `KDBXRoundTripTests`, encrypted container in `KDBXWriterTests`, in-memory edits in `DatabaseDraftTests`, save-path safety (conflict, backup, verification, rekey, re-encryption) in the two saver suites and `CredentialProviderSaveTests` with representative edits only.
+- Each layer has one home: XML serializer in `KDBXRoundTripTests`, encrypted container in the KDBXKit package tests, model saves in `KDBXWriterTests`, in-memory edits in `DatabaseDraftTests`, save-path safety (conflict, backup, verification, rekey, re-encryption) in the two saver suites and `CredentialProviderSaveTests` with representative edits only.
 - The all-edit matrix lives only in `KDBXCompatibilityTests` and `Support/KDBXCompatibilitySupport.swift`. Do not copy it into writer, draft, or saver tests.
 - Merge semantics belong to the two merger suites. The merge write path is the single compatibility scenario `merge-remote-divergence`.
 - `KDBXMergerOracleTests` enumerates `../TestFixtures/Merge/manifest.json`. A scenario flagged `oracleMatchesSpec: false` must declare a `SpecOutcome` in the test, because `keepassxc-cli` does not apply `DeletedObjects`, adopt `Meta/RecycleBinUUID`, or update a moved entry's `LocationChanged`.
@@ -92,7 +92,7 @@ Designated gates:
 - `DatabaseViewModel` is split by concern: `DatabaseViewModelTests`, `DatabaseViewModelCloudSyncTests`, `AutoLockTests`, `HardwareKeyUnlockTests`, `SecretAccessSessionTests`, `SortOrderTests`. The vault half of macOS window close is an `#if os(macOS)` section of `DatabaseViewModelTests`.
 - Rekey and re-encryption: the write is in the saver suites, the session guards in `DatabaseViewModelTests`.
 - Editor completion across a save conflict: `EntryEditCompletionGateTests` is the only non-UI coverage. Editor save and reopen against the real saver is in `KDBXCompatibilityTests`.
-- Argon2 and Salsa20 known-answer vectors are in `KDBXParserTests`, not a cipher suite.
+- Argon2, AES-KDF, ChaCha20, and Salsa20 primitive vectors are in the KDBXKit package tests.
 - Not unit-testable here: the live `FTPNetworkStream` (needs a server), live StoreKit purchases, and typed key events in an inactive Mac app (covered in `KeeForgeMacUITests`).
 
 ## See also

@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 enum KDBXCompatibilitySupport {
@@ -77,7 +78,7 @@ enum KDBXCompatibilitySupport {
     struct Fixture {
         enum Source {
             case bundled(KDBXTestFixture)
-            case generated(cipherID: Data, hasRecycleBin: Bool)
+            case generated(cipher: KDBXOuterCipher, hasRecycleBin: Bool)
         }
 
         /// Artifact ID consumed by the gate's manifests and by the allow-lists
@@ -164,25 +165,25 @@ enum KDBXCompatibilitySupport {
         static let syntheticRich = Fixture(
             id: "synthetic-rich",
             displayName: "Synthetic rich KDBX4 fixture",
-            source: .generated(cipherID: KDBXParser.aesCipherUUID, hasRecycleBin: true)
+            source: .generated(cipher: .aes256CBC, hasRecycleBin: true)
         )
 
         static let syntheticNoRecycleBin = Fixture(
             id: "synthetic-no-recycle-bin",
             displayName: "Synthetic fixture without recycle bin",
-            source: .generated(cipherID: KDBXParser.aesCipherUUID, hasRecycleBin: false)
+            source: .generated(cipher: .aes256CBC, hasRecycleBin: false)
         )
 
         static let syntheticChaCha = Fixture(
             id: "synthetic-chacha",
             displayName: "Synthetic ChaCha20 fixture",
-            source: .generated(cipherID: KDBXParser.chachaCipherUUID, hasRecycleBin: true)
+            source: .generated(cipher: .chaCha20, hasRecycleBin: true)
         )
 
         static let syntheticTwofish = Fixture(
             id: "synthetic-twofish",
             displayName: "Synthetic Twofish-256-CBC fixture",
-            source: .generated(cipherID: KDBXParser.twofishCipherUUID, hasRecycleBin: true)
+            source: .generated(cipher: .twofish256CBC, hasRecycleBin: true)
         )
     }
 
@@ -219,7 +220,7 @@ enum KDBXCompatibilitySupport {
         let fixture: Fixture
         let rootGroup: KPGroup
         let meta: KPMeta
-        let header: KDBXParser.Header
+        let header: KDBXContainer.Header
         let compositeKey: SymmetricKey
         let sourceData: Data
         let sessionKey: SymmetricKey
@@ -395,7 +396,7 @@ enum KDBXCompatibilitySupport {
         /// Header of the database reparsed from `written`. Exposed so callers
         /// can assert cipher/KDF/outer-header preservation without paying for
         /// another KDF-bearing parse of the same bytes.
-        let afterHeader: KDBXParser.Header
+        let afterHeader: KDBXContainer.Header
         /// The credentials the scenario rekeyed to, nil for ordinary edits.
         let rekey: RekeyTarget?
     }
@@ -874,11 +875,11 @@ enum KDBXCompatibilitySupport {
             keyFileData = try descriptor.keyFileData(in: bundle)
             compositeKey = try KDBXCrypto.compositeKey(password: descriptor.password, keyFileData: keyFileData)
             sourceData = try descriptor.data(in: bundle)
-        case .generated(let cipherID, let hasRecycleBin):
+        case .generated(let cipher, let hasRecycleBin):
             keyFileData = nil
             compositeKey = try KDBXCrypto.compositeKey(password: fixture.password, keyFileData: nil)
             let generated = try makeSyntheticDatabase(
-                cipherID: cipherID,
+                cipher: cipher,
                 hasRecycleBin: hasRecycleBin,
                 compositeKey: compositeKey,
                 sessionKey: sessionKey
@@ -2195,7 +2196,7 @@ enum KDBXCompatibilitySupport {
             expectedGroupPaths: ["Social"],
             encryptionSettings: { loaded in
                 EncryptionSettingsChange(
-                    cipherID: DatabaseCreationCipher.chacha20.cipherID,
+                    cipherID: DatabaseCreationCipher.chacha20.outerCipher.uuid,
                     kdfParameters: try DatabaseCreationDefaults.argon2idKDFParameters(preset: .balanced),
                     compressionFlags: loaded.header.compressionFlags == 1 ? 0 : 1
                 )
@@ -2217,7 +2218,7 @@ enum KDBXCompatibilitySupport {
             expectedGroupPaths: ["Foreign"],
             encryptionSettings: { loaded in
                 EncryptionSettingsChange(
-                    cipherID: DatabaseCreationCipher.aes256.cipherID,
+                    cipherID: DatabaseCreationCipher.aes256.outerCipher.uuid,
                     compressionFlags: loaded.header.compressionFlags == 1 ? 0 : 1
                 )
             },
@@ -2559,7 +2560,7 @@ enum KDBXCompatibilitySupport {
                 sessionKey: loaded.sessionKey
             )
         ) { error in
-            guard case KDBXWriter.WriteError.unsupportedSourceFormat(.kdbx3_1) = error else {
+            guard case KDBXContainerWriter.WriteError.unsupportedSourceFormat(.kdbx3_1) = error else {
                 XCTFail("Expected KDBX 3.1 writer rejection, got \(error)")
                 return
             }
@@ -2582,7 +2583,7 @@ enum KDBXCompatibilitySupport {
                 sessionKey: loaded.sessionKey
             )
         ) { error in
-            guard case KDBXWriter.WriteError.unsupportedSourceFormat(.kdbx3_1) = error else {
+            guard case KDBXContainerWriter.WriteError.unsupportedSourceFormat(.kdbx3_1) = error else {
                 XCTFail("Expected KDBX 3.1 writer rejection for a rekey write, got \(error)")
                 return
             }
@@ -2594,15 +2595,14 @@ enum KDBXCompatibilitySupport {
     /// this internal (not `private extension`-scoped) section so other test
     /// files — e.g. AttachmentTests.swift — can reuse it instead of
     /// redeclaring their own copy.
-    static func fastArgon2idParameters() throws -> [String: Any] {
-        [
-            "$UUID": KDBXParser.argon2idUUID,
-            "I": UInt64(2),
-            "M": UInt64(1024 * 1024),
-            "P": UInt32(1),
-            "V": UInt32(0x13),
-            "S": Data((0..<32).map { UInt8($0) }),
-        ]
+    static func fastArgon2idParameters() -> KDBXVariantMap {
+        KDBXKeyDerivation.argon2(KDBXKeyDerivation.Argon2Parameters(
+            variant: .id,
+            iterations: 2,
+            memoryBytes: 1024 * 1024,
+            parallelism: 1,
+            salt: Data((0..<32).map { UInt8($0) })
+        )).parameters
     }
 }
 
@@ -3586,7 +3586,7 @@ private extension KDBXCompatibilitySupport {
     }
 
     static func makeSyntheticDatabase(
-        cipherID: Data,
+        cipher: KDBXOuterCipher,
         hasRecycleBin: Bool,
         compositeKey: SymmetricKey,
         sessionKey: SymmetricKey
@@ -3820,8 +3820,8 @@ private extension KDBXCompatibilitySupport {
             rootGroup: root,
             meta: meta,
             compositeKey: compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: cipherID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipher: cipher,
                 kdfParameters: fastArgon2idParameters()
             ),
             sessionKey: sessionKey

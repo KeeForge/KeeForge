@@ -1,4 +1,5 @@
 import Foundation
+import KDBXKit
 
 struct CloudSyncResolution: Sendable {
     enum Status: Equatable, Sendable {
@@ -510,7 +511,7 @@ enum CloudSyncCoordinator {
                     PendingUploadQueue.resolveAppGroupURL(for: marker.encryptedBytesCacheURL), DatabaseListStore.cacheLocation(for: reference)]
                     .compactMap { $0 } + DatabaseListStore.recentBackups(for: reference)
                 guard let payload = candidates.lazy.compactMap({ try? CoordinatedFileReader.readData(from: $0) })
-                    .first(where: { KDBXCrypto.sha512($0) == payloadSHA }) else { continue }
+                    .first(where: { FileDigest.sha512($0) == payloadSHA }) else { continue }
                 do {
                     let directory = DatabaseListStore.databaseBackupDirectoryURL(for: reference)
                     let filename = String(pendingOverwriteBackupFilename(for: .now).dropLast(5)) + DatabaseListStore.retainedBackupSuffix + ".kdbx"
@@ -536,7 +537,7 @@ enum CloudSyncCoordinator {
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let currentReference = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
         guard let currentBytes = try? CoordinatedFileReader.readData(from: cacheURL),
-              KDBXCrypto.sha512(currentBytes) == KDBXCrypto.sha512(bytes),
+              FileDigest.sha512(currentBytes) == FileDigest.sha512(bytes),
               currentReference.cloudSyncMetadata?.localHeadOperationID == reference.cloudSyncMetadata?.localHeadOperationID else {
             return currentReference
         }

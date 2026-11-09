@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import LocalAuthentication
 import Observation
+import KDBXKit
 
 enum DatabaseSaveError: Error, LocalizedError, Identifiable, Equatable, Sendable {
     case databaseIsReadOnly
@@ -222,7 +223,7 @@ final class DatabaseViewModel {
         let reference: DatabaseReference
         let rootGroup: KPGroup
         let meta: KPMeta
-        let formatVersion: KDBXParser.FileVersion
+        let formatVersion: KDBXContainer.FileVersion
         let sessionKey: SymmetricKey
         let openTimeSHA512: Data
         let binaryPool: BinaryPool
@@ -476,7 +477,7 @@ final class DatabaseViewModel {
     private(set) var rootGroup: KPGroup? {
         didSet { rebuildDerivedState() }
     }
-    private(set) var openedFormatVersion: KDBXParser.FileVersion?
+    private(set) var openedFormatVersion: KDBXContainer.FileVersion?
     private(set) var inactivityTimer: Timer?
     private(set) var inactivityTimerInterval: TimeInterval?
     private(set) var inactivityDeadline: Date?
@@ -1543,7 +1544,7 @@ final class DatabaseViewModel {
     /// Import memory is bounded independently of the writer's exact framing/XML limit.
     var attachmentImportByteBudget: Int {
         guard let pool = currentBinaryPool else { return 0 }
-        return pool.rawFields.reduce(KDBXCrypto.maxDecompressedSize) { max(0, $0 - $1.count) }
+        return pool.rawFields.reduce(KDBXContainer.maxDecompressedPayloadSize) { max(0, $0 - $1.count) }
     }
 
     /// The pool the UI resolves attachments against, the draft's taking
@@ -2849,7 +2850,7 @@ final class DatabaseViewModel {
         guard cipher != nil || keyDerivation != nil || isCompressed != nil else { return }
 
         let change = EncryptionSettingsChange(
-            cipherID: cipher?.cipherID,
+            cipherID: cipher?.outerCipher.uuid,
             kdfParameters: try keyDerivation?.kdfParameters(),
             compressionFlags: isCompressed.map { $0 ? 1 : 0 }
         )
@@ -3384,7 +3385,7 @@ final class DatabaseViewModel {
         localBinaryPoolFields: [Data]
     ) async throws -> KDBXMerger.Merged {
         try await Task.detached(priority: .userInitiated) {
-            let remote: (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header)
+            let remote: (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header)
             do {
                 remote = try KDBXParser.parseWithMetaAndHeader(
                     data: remoteData,
@@ -3631,7 +3632,7 @@ final class DatabaseViewModel {
         }
         isCloudRefreshPending = false
 
-        guard KDBXCrypto.sha512(resolution.data) != openTimeSHA512 else {
+        guard FileDigest.sha512(resolution.data) != openTimeSHA512 else {
             cloudSyncOutcome = hasPendingCloudUploads ? nil : .upToDate
             return
         }
@@ -4079,7 +4080,7 @@ final class DatabaseViewModel {
     private struct UnlockPayload: Sendable {
         let rootGroup: KPGroup
         let meta: KPMeta
-        let formatVersion: KDBXParser.FileVersion
+        let formatVersion: KDBXContainer.FileVersion
         let openTimeSHA512: Data
         let binaryPool: BinaryPool
         var expressKey: ExpressUnlockKey?
@@ -4107,7 +4108,7 @@ final class DatabaseViewModel {
                     rootGroup: parsed.rootGroup,
                     meta: parsed.meta,
                     formatVersion: parsed.header.formatVersion,
-                    openTimeSHA512: KDBXCrypto.sha512(data),
+                    openTimeSHA512: FileDigest.sha512(data),
                     binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
                 )
             }
@@ -4123,7 +4124,7 @@ final class DatabaseViewModel {
                 rootGroup: opened.rootGroup,
                 meta: opened.meta,
                 formatVersion: opened.header.formatVersion,
-                openTimeSHA512: KDBXCrypto.sha512(data),
+                openTimeSHA512: FileDigest.sha512(data),
                 binaryPool: BinaryPool(rawFields: opened.header.innerHeaderBinaryFields),
                 expressKey: opened.keyToStore
             )
@@ -4835,7 +4836,7 @@ final class DatabaseViewModel {
         creationEnvironment.provider = { id in id == provider.id ? provider : nil }
         let actionID = operationID ?? conflictCopyActionID ?? UUID()
         if let pending = try PendingUploadQueue.listCreations(for: reference.id, includingCompleted: true).first(where: { $0.operationID == actionID }) {
-            let payloadSHA = await Task.detached(priority: .utility) { KDBXCrypto.sha512(bytes) }.value
+            let payloadSHA = await Task.detached(priority: .utility) { FileDigest.sha512(bytes) }.value
             guard pending.isConflictCopy, pending.ownerDatabaseID == reference.id,
                   pending.requestedTarget == CloudFileCreationTarget(path: fileID),
                   pending.provider == metadata.provider, pending.accountID == metadata.accountId,
@@ -4978,7 +4979,7 @@ final class DatabaseViewModel {
             meta: parsed.meta,
             formatVersion: parsed.header.formatVersion,
             sessionKey: sessionKey,
-            openTimeSHA512: KDBXCrypto.sha512(data),
+            openTimeSHA512: FileDigest.sha512(data),
             binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields),
             cloudSyncStatus: cloudSyncStatus
         )

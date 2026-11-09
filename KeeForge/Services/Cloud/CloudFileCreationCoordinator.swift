@@ -18,7 +18,7 @@ enum CloudFileCreationCoordinator {
                   stored.keyFileBookmarkData == receipt.keyFileBookmarkData,
                   stored.keyFileFilename == receipt.keyFileFilename,
                   let cache = DatabaseListStore.cachedDatabaseURL(for: stored),
-                  KDBXCrypto.sha512(try Data(contentsOf: cache)) == intent.payloadSHA512 else {
+                  FileDigest.sha512(try Data(contentsOf: cache)) == intent.payloadSHA512 else {
                 throw SaveError.saveContextUnavailable
             }
             return stored
@@ -38,7 +38,7 @@ enum CloudFileCreationCoordinator {
         }
         let intent = try withReservationLock(environment) {
             let records = try PendingUploadQueue.listCreations(includingCompleted: true, environment: environment.queue)
-            let sha = KDBXCrypto.sha512(bytes)
+            let sha = FileDigest.sha512(bytes)
             if let existing = records.first(where: { $0.operationID == operationID }) {
                 guard existing.ownerDatabaseID == ownerDatabaseID, existing.provider == provider,
                       existing.accountID == accountID, existing.target == target,
@@ -98,7 +98,7 @@ enum CloudFileCreationCoordinator {
         }
         do {
             let bytes = try environment.queue.readData(PendingUploadQueue.resolveAppGroupURL(for: intent.payloadPath, environment: environment.queue))
-            guard KDBXCrypto.sha512(bytes) == intent.payloadSHA512 else { throw SaveError.saveContextUnavailable }
+            guard FileDigest.sha512(bytes) == intent.payloadSHA512 else { throw SaveError.saveContextUnavailable }
             if intent.receipt == nil {
                 try Task.checkCancellation()
                 guard let provider = environment.provider(intent.provider), provider.id == intent.provider,

@@ -22,7 +22,7 @@ enum KDBXMerger {
         var rootGroup: KPGroup
         var meta: KPMeta
         /// The side's KDBX4 inner-header binary pool, verbatim
-        /// (`KDBXParser.Header.innerHeaderBinaryFields`); on the local side,
+        /// (`KDBXContainer.Header.innerHeaderBinaryFields`); on the local side,
         /// the pool the merged tree will be written with, including files an
         /// unsaved edit appended. Used only for the divergence check: refs are
         /// never renumbered.

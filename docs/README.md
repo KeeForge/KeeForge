@@ -12,7 +12,9 @@ Archived files and folders are prefixed with the date the doc was written. Do no
 
 The threat model and the `i18n/` folder have no date prefix. The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo); code changes should not contradict it.
 
-`i18n/` is **living**: it holds the translated `README.<locale>.md` and `CONTRIBUTING.<locale>.md` files for every shipped locale. Update them whenever the root `README.md` or `CONTRIBUTING.md` changes, and keep their relative links pointing at repo-root paths through `../../`.
+`i18n/` is **living**: it holds the translated `README.<locale>.md` and `CONTRIBUTING.<locale>.md` files for every shipped locale, plus `glossary.md`, the canonical term translations and per-locale style for the String Catalogs. Update the translated files whenever the root `README.md` or `CONTRIBUTING.md` changes, and keep their relative links pointing at repo-root paths through `../../`. Update the glossary when a recurring term or a locale convention changes.
+
+`design-system/` is **living**: it records the shipping iOS design (tokens, design rules and KeeForge's own components) for new screens and the Mac redesign. `KeeForge/Views/Components/Theme.swift`, `KeeForge/Resources/Theme.xcassets` and the views are its source; update it in the same change when they move.
 
 ## `specs/` — Feature Design Specs
 
@@ -37,6 +39,7 @@ Design docs written before or during a feature's implementation. Multi-slice fea
 | 2026-07-20 | `specs/2026-07-20-autofill-store-validation-harness/` | Opt-in real-`ASCredentialIdentityStore` assertion harness: debug inspector screen, simulator provisioning, lifecycle UI tests (epic + slices 01–03) |
 | 2026-07-26 | `specs/2026-07-26-kdbx-format-hardening/` | ChaCha20 implementation consolidation + unknown KDBX4 inner-header preservation (epic + slices 01–02; from the 2026-07-25 test-suite audit) |
 | 2026-10-21 | `specs/2026-10-21-cloudkit-sync.md` | Proposed opt-in app-managed iCloud vault sync through a private CloudKit database (design only; not implemented) |
+| 2026-11-08 | `specs/2026-11-08-iphone-duo-support.md` | iPhone Duo (foldable) support: layout-switch continuity on open/close, lifecycle and lock checks, AutoFill, test lanes |
 
 ## `audits/` — Security Audits
 

@@ -521,7 +521,7 @@ enum PendingUploadQueue {
                 $0.marker.isPayloadFinalized == true && $0.marker.intendedPayloadSHA512 == sha && $0.marker.intendedPayloadPath != nil
             }) else { return }
             guard let path = owner.marker.intendedPayloadPath,
-                  KDBXCrypto.sha512(try environment.readData(resolveAppGroupURL(for: path, environment: environment))) == sha else {
+                  FileDigest.sha512(try environment.readData(resolveAppGroupURL(for: path, environment: environment))) == sha else {
                 throw SaveError.saveContextUnavailable
             }
             owner.marker.absorbedOperationIDs = Array(Set((owner.marker.absorbedOperationIDs ?? []) + sources.map(\.id)))
@@ -556,7 +556,7 @@ enum PendingUploadQueue {
         remoteBaseSHA512: Data? = nil, environment: Environment = .live
     ) throws -> StoredMarker {
         try preserveLegacyPayloads(for: reference, environment: environment)
-        let currentSHA = KDBXCrypto.sha512(currentData)
+        let currentSHA = FileDigest.sha512(currentData)
         let markers = try listMarkers(for: reference.id, environment: environment).map { try recoverPrepared($0, environment: environment) }
         guard !markers.contains(where: { $0.marker.rekeyContext != nil }) else {
             throw SaveError.saveContextUnavailable
@@ -582,7 +582,7 @@ enum PendingUploadQueue {
         marker.predecessorSHA512 = currentSHA
         marker.predecessorOperationID = predecessor?.id
         marker.remoteBaseSHA512 = remoteBaseSHA512 ?? predecessor?.marker.remoteBaseSHA512 ?? (predecessor == nil ? currentSHA : nil)
-        marker.intendedPayloadSHA512 = KDBXCrypto.sha512(intendedData)
+        marker.intendedPayloadSHA512 = FileDigest.sha512(intendedData)
         marker.intendedPayloadPath = try makeRelativeAppGroupPath(for: payloadURL, environment: environment)
         marker.keyEpoch = rekeyContext?.epoch ?? reference.cloudSyncMetadata?.keyEpoch
         marker.rekeyContext = rekeyContext
@@ -598,7 +598,7 @@ enum PendingUploadQueue {
         where stored.marker.isPayloadFinalized == true && stored.marker.intendedPayloadPath == nil {
             let candidates = [resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment)] + backups
             guard let bytes = candidates.lazy.compactMap({ try? environment.readData($0) })
-                .first(where: { KDBXCrypto.sha512($0) == stored.marker.openTimeSHA512 }) else { continue }
+                .first(where: { FileDigest.sha512($0) == stored.marker.openTimeSHA512 }) else { continue }
             let payloadURL = stored.fileURL.deletingPathExtension().appendingPathExtension("kdbx")
             try environment.writeMarkerAtomically(bytes, payloadURL)
             var promoted = stored
@@ -615,10 +615,10 @@ enum PendingUploadQueue {
               stored.marker.rekeyContext == nil,
               let intendedSHA = stored.marker.intendedPayloadSHA512,
               let path = stored.marker.intendedPayloadPath,
-              KDBXCrypto.sha512(try environment.readData(resolveAppGroupURL(for: path, environment: environment))) == intendedSHA else {
+              FileDigest.sha512(try environment.readData(resolveAppGroupURL(for: path, environment: environment))) == intendedSHA else {
             return stored
         }
-        if KDBXCrypto.sha512(try environment.readData(resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment))) == intendedSHA {
+        if FileDigest.sha512(try environment.readData(resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment))) == intendedSHA {
             var finalized = stored
             finalized.marker.openTimeSHA512 = intendedSHA
             return try finalize(finalized, environment: environment)

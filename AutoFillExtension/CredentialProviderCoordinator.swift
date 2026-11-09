@@ -2,6 +2,7 @@ import AuthenticationServices
 import CryptoKit
 import Foundation
 import LocalAuthentication
+import KDBXKit
 
 // Must stay free of UIKit and AppKit: presentation and extension-context calls
 // go through the `CredentialProviderPresenting` seam so both the iOS and macOS
@@ -244,7 +245,7 @@ final class CredentialProviderCoordinator {
     var parsedEntries: [KPEntry] = []
     var parsedRootGroup: KPGroup?
     var parsedMeta: KPMeta?
-    var parsedFormatVersion: KDBXParser.FileVersion?
+    var parsedFormatVersion: KDBXContainer.FileVersion?
     /// Set when the header's KDF exceeds `.autoFillExtension`. An express-unlock
     /// key opens such a file without running the KDF, but every save derives
     /// under that policy and would fail.
@@ -1400,9 +1401,14 @@ final class CredentialProviderCoordinator {
             ?? databaseReference
     }
 
+    // Leaving an unreadable key file out would report a correct password as wrong.
     private func loadAssociatedKeyFileData(for databaseReference: DatabaseReference) throws -> Data? {
-        guard let url = DatabaseListStore.resolveKeyFileURL(for: databaseReference) else { return nil }
-        return try readSecurityScoped(url: url)
+        guard databaseReference.hasAssociatedKeyFile else { return nil }
+        guard let url = DatabaseListStore.resolveKeyFileURL(for: databaseReference),
+              let data = try? readSecurityScoped(url: url) else {
+            throw KeyFileUnavailableError()
+        }
+        return data
     }
 
     private func clearPendingCreationRequests() {
@@ -1459,7 +1465,7 @@ final class CredentialProviderCoordinator {
 
         self.sessionKey = key
         self.compositeKey = compositeKey
-        self.openTimeSHA512 = KDBXCrypto.sha512(data)
+        self.openTimeSHA512 = FileDigest.sha512(data)
         self.sharedCopyDate = loaded.sharedCopyDate
         self.parsedRootGroup = parsed.rootGroup
         self.parsedMeta = parsed.meta
@@ -1473,7 +1479,7 @@ final class CredentialProviderCoordinator {
         return usesExpressUnlock ? parsed.keyToStore : nil
     }
 
-    private static func kdfWriteRefusal(for header: KDBXParser.Header) -> String? {
+    private static func kdfWriteRefusal(for header: KDBXContainer.Header) -> String? {
         do {
             try KDFExecutionPolicy.autoFillExtension.validate(kdfParameters: header.kdfParameters)
             return nil
@@ -1488,7 +1494,7 @@ final class CredentialProviderCoordinator {
             return keyDerivationOverride
         }
         #endif
-        return { try KDBXParser.deriveKey(compositeKey: $0, kdfParams: $1, kdfPolicy: $2) }
+        return { try KDBXKeyDerivation.deriveKey(compositeKey: $0, parameters: $1, policy: $2) }
     }
 
     private var remainingMemoryBytes: UInt64 {
@@ -2835,5 +2841,11 @@ final class CredentialProviderCoordinator {
 private struct HardwareKeyUnavailableError: LocalizedError {
     var errorDescription: String? {
         String(localized: "This database needs a YubiKey, which AutoFill can't use yet. Open it in the KeeForge app instead.")
+    }
+}
+
+private struct KeyFileUnavailableError: LocalizedError {
+    var errorDescription: String? {
+        String(localized: "AutoFill couldn't read the key file saved for this database. Open the database in the KeeForge app and check that its key file is still available.")
     }
 }
