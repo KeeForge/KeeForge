@@ -12,6 +12,8 @@ The threat model and the `i18n/` folder have no date prefix. The user-facing pri
 
 `i18n/` is **living**: it holds the translated `README.<locale>.md` and `CONTRIBUTING.<locale>.md` files for every shipped locale, plus `glossary.md`, the canonical term translations and per-locale style for the String Catalogs. Update the translated files whenever the root `README.md` or `CONTRIBUTING.md` changes, and keep their relative links pointing at repo-root paths through `../../`. Update the glossary when a recurring term or a locale convention changes.
 
+`design-system/` is **living**: it records the shipping iOS design (tokens, design rules and KeeForge's own components) for new screens and the Mac redesign. `KeeForge/Views/Components/Theme.swift`, `KeeForge/Resources/Theme.xcassets` and the views are its source; update it in the same change when they move.
+
 ## `specs/` — Feature Design Specs
 
 Design docs written before or during a feature's implementation. Multi-slice features live in a dated folder with an `epic.md` overview plus numbered slice docs.

@@ -45,6 +45,7 @@ All of these shims live in `../Extensions/PlatformCompat.swift`.
 - iPhone and iPad follow the KeeForge iOS design; the Mac keeps its own look. Colors, spacing, radii, sizes and the Dynamic Type mapping come from `Components/Theme.swift` (colors in `Resources/Theme.xcassets`), never literals in a view.
 - A view macOS shares branches on `PlatformDesign.followsIOSDesign` (in `../Extensions/PlatformCompat.swift`), and state colors there come from `Theme.State`, which keeps the Mac's system colors.
 - Status is said in words; a color or dot only repeats it.
+- `docs/design-system/` writes the iOS design down (tokens, rules, components) for new screens and the Mac redesign. Update it in the same change when `Theme.swift`, `Theme.xcassets` or a component it describes changes.
 
 ### Secrets on screen
 
