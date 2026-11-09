@@ -5,6 +5,7 @@
 ### New Features
 
 - On iPhone and iPad, insert a verification code through the system AutoFill text menu when an app does not recognize its code field.
+- KeeForge for Mac can be installed with Homebrew: `brew install --cask keeforge/tap/keeforge` installs the direct-download build, which then updates itself (#254). See [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) for the one-time `brew trust` step.
 
 ### Fixes
 
