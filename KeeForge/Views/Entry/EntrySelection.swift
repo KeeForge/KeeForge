@@ -134,6 +134,119 @@ extension View {
     }
 }
 
+/// Selection mode's controls: in the navigation and bottom bars on iPhone,
+/// laid out like Notes (Select All and Done at the top, Move to Group at the
+/// bottom, the count as the title); the bottom-edge bar elsewhere.
+struct EntrySelectionChrome: ViewModifier {
+    let viewModel: DatabaseViewModel
+    let usesToolbar: Bool
+    let selectableEntryIDs: [UUID]
+    let onMove: (PendingMove) -> Void
+    @State private var pendingRecycle: Set<UUID>?
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if #available(iOS 26.0, *), usesToolbar {
+            if let selection = viewModel.workspace.entrySelection {
+                content
+                    .navigationBarBackButtonHidden(true)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            selectAllButton(selection: selection)
+                        }
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                viewModel.workspace.endEntrySelection()
+                            } label: {
+                                Image(systemName: "checkmark")
+                            }
+                            .buttonStyle(.glassProminent)
+                            .accessibilityLabel("Done")
+                            .accessibilityIdentifier("entry-selection.cancel")
+                        }
+                        ToolbarItem(placement: .bottomBar) {
+                            Button {
+                                onMove(.entries(selection))
+                            } label: {
+                                Image(systemName: "folder")
+                            }
+                            .disabled(selection.isEmpty || viewModel.isReadOnly)
+                            .accessibilityLabel("Move to Group")
+                            .accessibilityIdentifier("entry-selection.move")
+                        }
+                        ToolbarSpacer(.flexible, placement: .bottomBar)
+                        ToolbarItem(placement: .bottomBar) {
+                            Button(role: .destructive) {
+                                pendingRecycle = selection
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .disabled(selection.isEmpty || viewModel.isReadOnly)
+                            .accessibilityLabel("Delete")
+                            .accessibilityIdentifier("entry-selection.delete")
+                        }
+                    }
+                    .alert(
+                        recycleTitle,
+                        isPresented: Binding(
+                            get: { pendingRecycle != nil },
+                            set: { if $0 == false { pendingRecycle = nil } }
+                        ),
+                        presenting: pendingRecycle
+                    ) { entryIDs in
+                        Button("Delete", role: .destructive) {
+                            recycle(entryIDs)
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: { entryIDs in
+                        if entryIDs.count == 1 {
+                            Text("The entry will be moved to the recycle bin.")
+                        } else {
+                            Text("The selected entries will be moved to the recycle bin.")
+                        }
+                    }
+            } else {
+                content
+            }
+        } else {
+            content.entrySelectionBar(viewModel: viewModel, onMove: onMove)
+        }
+        #else
+        content.entrySelectionBar(viewModel: viewModel, onMove: onMove)
+        #endif
+    }
+
+    private var recycleTitle: String {
+        String(localized: "Delete \(pendingRecycle?.count ?? 0) Entries?")
+    }
+
+    private func recycle(_ entryIDs: Set<UUID>) {
+        do {
+            try viewModel.recycleEntries(entryIDs: entryIDs)
+            viewModel.workspace.endEntrySelection()
+            Task { await viewModel.saveHandlingError() }
+        } catch {
+            viewModel.presentSaveError(error)
+        }
+    }
+
+    @ViewBuilder
+    private func selectAllButton(selection: Set<UUID>) -> some View {
+        let allSelected = selectableEntryIDs.isEmpty == false
+            && Set(selectableEntryIDs).isSubset(of: selection)
+        if selectableEntryIDs.isEmpty == false {
+            Button(allSelected ? "Deselect All" : "Select All") {
+                if allSelected {
+                    viewModel.workspace.deselectEntries(selectableEntryIDs)
+                } else {
+                    viewModel.workspace.selectEntries(selectableEntryIDs)
+                }
+            }
+            .accessibilityIdentifier("entry-selection.select-all")
+        }
+    }
+}
+
 /// Hosts a list's own selection bar, and nothing when the list renders inline
 /// inside a screen that already shows one — the split `ListScopedDeletionAlert`
 /// makes for the delete confirmation, so one screen never stacks two bars.

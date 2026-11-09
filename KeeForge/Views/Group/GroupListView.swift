@@ -105,6 +105,32 @@ struct GroupListView: View {
         return false
     }
 
+    /// iPhone lays selection mode out like Notes, in the bars; elsewhere a
+    /// bar along the bottom edge does it.
+    private var usesSelectionToolbar: Bool {
+        usesBottomToolbar
+    }
+
+    /// "2 Selected" in place of the title while picking entries on iPhone.
+    private var selectionTitle: String? {
+        guard usesSelectionToolbar, let selection = viewModel.workspace.entrySelection else { return nil }
+        return selection.isEmpty
+            ? String(localized: "Select Entries")
+            : String(localized: "\(selection.count) Selected")
+    }
+
+    /// What Select All picks: the movable entries this screen lists.
+    private var selectableEntryIDs: [UUID] {
+        guard viewModel.searchText.isEmpty else { return [] }
+        let entries: [KPEntry] = switch collection {
+        case .allEntries: viewModel.allEntries
+        case .verificationCodes: viewModel.verificationCodeEntries
+        case .tags, .recycleBin: []
+        case nil: visibleEntries
+        }
+        return entries.map(\.id).filter { EntryRowMoveAction.isAvailable(entryID: $0, viewModel: viewModel) }
+    }
+
     /// An app built with the iOS 27 SDK folds trailing bar items into an
     /// overflow menu when the title needs their room — a long title that has
     /// scrolled inline is enough — which would put Lock behind it. The pinned
@@ -131,9 +157,10 @@ struct GroupListView: View {
                         browsingRows
                     }
                     .id(viewModel.contentRevision)
-                    .navigationTitle(navigationTitle(for: resolvedGroup))
+                    .navigationTitle(selectionTitle ?? navigationTitle(for: resolvedGroup))
                     .modifier(GroupListSubtitle(subtitle: subtitle(for: resolvedGroup), isTitlePinned: pinsCloudTitle))
                     .toolbar {
+                        if usesSelectionToolbar == false || viewModel.workspace.entrySelection == nil {
                         ToolbarItem(placement: databaseActionsPlacement) {
                             HStack(spacing: 12) {
                                 // Leads the trailing group rather than sitting
@@ -182,8 +209,9 @@ struct GroupListView: View {
                                 moreMenu
                             }
                         }
-
+                        }
                     }
+                    .modifier(GroupListLeadingTitle(view: self))
                     .sheet(isPresented: $showSettings) {
                         DatabaseDetailsView(
                             reference: viewModel.databaseReference,
@@ -269,7 +297,13 @@ struct GroupListView: View {
             }
         }
         // Covers the inline search results as well as this level's own rows.
-        .entrySelectionBar(viewModel: viewModel) { pendingMove = $0 }
+        .modifier(
+            EntrySelectionChrome(
+                viewModel: viewModel,
+                usesToolbar: usesSelectionToolbar,
+                selectableEntryIDs: selectableEntryIDs
+            ) { pendingMove = $0 }
+        )
         .modifier(GroupListCodeEnrollment(view: self))
     }
 
@@ -471,6 +505,25 @@ struct GroupListView: View {
         #endif
     }
 
+    /// The database's name on iPhone sits level with Lock, Sort, and More,
+    /// rather than as a large title under them.
+    private struct GroupListLeadingTitle: ViewModifier {
+        let view: GroupListView
+
+        func body(content: Content) -> some View {
+            #if os(iOS)
+            if view.isRoot, view.usesBottomToolbar, view.pinsCloudTitle == false,
+               view.viewModel.workspace.entrySelection == nil {
+                content.toolbarTitleDisplayMode(.inlineLarge)
+            } else {
+                content
+            }
+            #else
+            content
+            #endif
+        }
+    }
+
     /// Pushes the entry editor onto the navigation stack.
     private struct GroupListEditorPresentation: ViewModifier {
         let view: GroupListView
@@ -519,7 +572,7 @@ struct GroupListView: View {
 
         func body(content: Content) -> some View {
             #if os(iOS)
-            if #available(iOS 26.0, *), view.usesBottomToolbar {
+            if #available(iOS 26.0, *), view.usesBottomToolbar, view.viewModel.workspace.entrySelection == nil {
                 content
                     .toolbar {
                         DefaultToolbarItem(kind: .search, placement: .bottomBar)
