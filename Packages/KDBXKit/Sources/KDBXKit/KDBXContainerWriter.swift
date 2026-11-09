@@ -386,7 +386,7 @@ public enum KDBXContainerWriter {
         try KDBXOuterCipher.require(uuid: cipherID).encryptionIVLength
     }
 
-    static func randomData(count: Int) throws -> Data {
+    private static func randomData(count: Int) throws -> Data {
         var bytes = [UInt8](repeating: 0, count: count)
         let status = SecRandomCopyBytes(kSecRandomDefault, count, &bytes)
         guard status == errSecSuccess else {
