@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import XCTest
 @testable import KeeForge
@@ -201,5 +202,159 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
             action()
             XCTAssertGreaterThan(interactions, before)
         }
+    }
+    // MARK: - Layout changes (iPhone Duo open/close, iPad resize)
+
+    func testOpeningToRegularMovesTheShownEntryIntoTheDetailColumn() {
+        let workspace = DatabaseWorkspaceState()
+        let groupID = UUID()
+        let entryID = UUID()
+        workspace.navigationPath = [.group(groupID), .entry(entryID)]
+
+        workspace.adaptNavigation(toRegularLayout: true)
+
+        XCTAssertEqual(workspace.navigationPath, [.group(groupID)])
+        XCTAssertEqual(workspace.selectedEntryID, entryID)
+    }
+
+    func testOpeningToRegularDropsEntriesTheSidebarCannotShow() {
+        let workspace = DatabaseWorkspaceState()
+        let firstEntryID = UUID()
+        workspace.navigationPath = [.entry(firstEntryID), .tag("Work")]
+        workspace.selectedEntryID = UUID()
+
+        workspace.adaptNavigation(toRegularLayout: true)
+
+        XCTAssertEqual(workspace.navigationPath, [.tag("Work")])
+        XCTAssertNil(workspace.selectedEntryID, "A stale selection must not resurface in the detail column")
+    }
+
+    func testClosingToCompactPushesTheSelectedEntry() {
+        let workspace = DatabaseWorkspaceState()
+        let entryID = UUID()
+        workspace.navigationPath = [.collection(.tags), .tag("Work")]
+        workspace.selectedEntryID = entryID
+
+        workspace.adaptNavigation(toRegularLayout: false)
+
+        XCTAssertEqual(workspace.navigationPath, [.collection(.tags), .tag("Work"), .entry(entryID)])
+        XCTAssertNil(workspace.selectedEntryID)
+    }
+
+    func testOpenAndCloseRoundTripKeepsThePlace() {
+        let workspace = DatabaseWorkspaceState()
+        let path: [DatabaseRoute] = [.group(UUID()), .group(UUID()), .entry(UUID())]
+        workspace.navigationPath = path
+
+        workspace.adaptNavigation(toRegularLayout: true)
+        workspace.adaptNavigation(toRegularLayout: false)
+
+        XCTAssertEqual(workspace.navigationPath, path)
+    }
+
+    func testLayoutChangeKeepsSearchSelectionAndTheOpenEditor() {
+        let workspace = DatabaseWorkspaceState()
+        let entryID = UUID()
+        let editor = EntryEditViewModel(createIn: UUID())
+        workspace.isSearchActive = true
+        workspace.beginEntrySelection(with: entryID)
+        workspace.present(.entry(editor))
+
+        workspace.adaptNavigation(toRegularLayout: true)
+        workspace.adaptNavigation(toRegularLayout: false)
+
+        XCTAssertEqual(workspace.navigationPath, [.editor])
+        XCTAssertTrue(workspace.isSearchActive)
+        XCTAssertEqual(workspace.entrySelection, [entryID])
+        XCTAssertTrue(workspace.entryEditor === editor, "The editor and its unsaved changes outlive the layout")
+    }
+
+    // MARK: - Editors
+
+    func testAnOpenEditorKeepsItsPlaceAgainstASecondOne() {
+        let workspace = DatabaseWorkspaceState()
+        let first = EntryEditViewModel(createIn: UUID())
+        workspace.present(.entry(first))
+
+        workspace.present(.entry(EntryEditViewModel(createIn: UUID())))
+        workspace.present(.group(GroupEditViewModel(editing: KPGroup(id: UUID(), name: "Work"), isHiddenFromAutoFill: false)))
+
+        XCTAssertTrue(workspace.entryEditor === first)
+    }
+
+    func testCompactCreateReplacesTheEditorWithTheNewEntry() {
+        let workspace = DatabaseWorkspaceState()
+        let groupID = UUID()
+        let createdID = UUID()
+        workspace.present(.entry(EntryEditViewModel(createIn: groupID)))
+        workspace.navigationPath = [.group(groupID), .editor]
+
+        workspace.finishCompactEntryEditor(.created(createdID))
+
+        XCTAssertNil(workspace.openEditor)
+        XCTAssertEqual(workspace.navigationPath, [.group(groupID), .entry(createdID)])
+    }
+
+    func testCompactDeletePopsTheEditorAndTheDeletedEntry() {
+        let workspace = DatabaseWorkspaceState()
+        let groupID = UUID()
+        let entry = KPEntry(title: "Twitter")
+        workspace.present(.entry(EntryEditViewModel(editing: entry, sessionKey: SymmetricKey(size: .bits256))))
+        workspace.navigationPath = [.group(groupID), .entry(entry.id), .editor]
+
+        workspace.finishCompactEntryEditor(.deleted)
+
+        XCTAssertEqual(workspace.navigationPath, [.group(groupID)])
+    }
+
+    func testCompactSaveOnlyPopsTheEditor() {
+        let workspace = DatabaseWorkspaceState()
+        let entry = KPEntry(title: "Twitter")
+        workspace.present(.entry(EntryEditViewModel(editing: entry, sessionKey: SymmetricKey(size: .bits256))))
+        workspace.navigationPath = [.entry(entry.id), .editor]
+
+        workspace.finishCompactEntryEditor(.saved)
+
+        XCTAssertEqual(workspace.navigationPath, [.entry(entry.id)])
+    }
+
+    func testLockClosesTheEditorAndItsScreen() {
+        let workspace = DatabaseWorkspaceState()
+        workspace.present(.entry(EntryEditViewModel(createIn: UUID())))
+        workspace.navigationPath = [.editor]
+
+        workspace.resetForLock()
+
+        XCTAssertNil(workspace.openEditor)
+        XCTAssertEqual(workspace.navigationPath, [])
+    }
+
+    func testEditingAnEntryRoundTripsItsScreenAndEditor() throws {
+        let workspace = DatabaseWorkspaceState()
+        let groupID = UUID()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(title: "Twitter")
+        workspace.navigationPath = [.group(groupID), .entry(entry.id)]
+        workspace.present(.entry(EntryEditViewModel(editing: entry, sessionKey: sessionKey)))
+        workspace.navigationPath.append(.editor)
+
+        workspace.adaptNavigation(toRegularLayout: true)
+        XCTAssertEqual(workspace.navigationPath, [.group(groupID)], "The regular sidebar holds neither the entry nor its editor")
+        XCTAssertEqual(workspace.selectedEntryID, entry.id)
+
+        workspace.adaptNavigation(toRegularLayout: false)
+        XCTAssertEqual(workspace.navigationPath, [.group(groupID), .entry(entry.id), .editor])
+    }
+
+    func testClosingTheEditorPopsItsScreen() {
+        let workspace = DatabaseWorkspaceState()
+        let groupID = UUID()
+        workspace.present(.entry(EntryEditViewModel(createIn: groupID)))
+        workspace.navigationPath = [.group(groupID), .editor]
+
+        workspace.finishCompactEntryEditor(.cancelled)
+
+        XCTAssertNil(workspace.openEditor)
+        XCTAssertEqual(workspace.navigationPath, [.group(groupID)])
     }
 }

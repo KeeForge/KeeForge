@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import KDBXKit
 
 struct DatabaseDraft: Sendable {
     enum DraftError: Error, LocalizedError, Equatable {
@@ -76,7 +77,7 @@ struct DatabaseDraft: Sendable {
     let pendingEdits: [EntryEdit]
 
     /// `binaryPoolFields` is the inner-header binary pool `rootGroup`'s
-    /// attachment refs point into, verbatim (`KDBXParser.Header.innerHeaderBinaryFields`).
+    /// attachment refs point into, verbatim (`KDBXContainer.Header.innerHeaderBinaryFields`).
     /// `nil` leaves the pool to the file being replaced, which is only correct
     /// while no edit adds an attachment, so such edits then throw
     /// `attachmentPoolUnavailable`.
@@ -142,19 +143,19 @@ struct DatabaseDraft: Sendable {
     /// place of the one `header` was read with when the draft carries one.
     func write(
         compositeKey: SymmetricKey,
-        header: KDBXParser.Header,
+        header: KDBXContainer.Header,
         kdfPolicy: KDFExecutionPolicy
     ) throws -> Data {
         try write(header: header) { kdfParameters in
-            try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: kdfParameters, kdfPolicy: kdfPolicy)
+            try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: kdfParameters, policy: kdfPolicy)
         }
     }
 
     /// As above, with the KDF output supplied by `transformedKey`
     /// (`KDBXWriter`'s seam).
     func write(
-        header: KDBXParser.Header,
-        transformedKey provideTransformedKey: (_ kdfParameters: [String: Any]) throws -> Data
+        header: KDBXContainer.Header,
+        transformedKey provideTransformedKey: (_ kdfParameters: KDBXVariantMap) throws -> Data
     ) throws -> Data {
         var header = header
         if let currentBinaryPoolFields {
@@ -723,7 +724,7 @@ struct DatabaseDraft: Sendable {
                     // whatever the file's compression is now; the writer
                     // makes the exact check once the XML is known.
                     let appendedByteCount = innerHeaderFieldFraming + 1 + data.count
-                    guard innerHeaderByteCount(of: pool) + appendedByteCount <= KDBXCrypto.maxDecompressedSize else {
+                    guard innerHeaderByteCount(of: pool) + appendedByteCount <= KDBXContainer.maxDecompressedPayloadSize else {
                         throw DraftError.attachmentsTooLarge
                     }
                     // KeePassXC flags every pool entry it writes as protected.

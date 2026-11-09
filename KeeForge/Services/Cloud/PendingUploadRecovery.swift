@@ -1,4 +1,5 @@
 import Foundation
+import KDBXKit
 
 /// Finds the bytes of AutoFill saves whose upload conflicted, so an unlocked
 /// session can merge them into the cloud copy it opened.
@@ -93,7 +94,7 @@ enum PendingUploadRecovery {
                 .compactMap { candidate in
                     (try? environment.readData(candidate.url)).map { (data: $0, location: candidate.location) }
                 }
-                .first { KDBXCrypto.sha512($0.data) == storedMarker.marker.openTimeSHA512 }
+                .first { FileDigest.sha512($0.data) == storedMarker.marker.openTimeSHA512 }
             guard let match else { return .unavailable }
             payloads.append(Payload(storedMarker: storedMarker, data: match.data, location: match.location))
         }

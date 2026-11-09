@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import KDBXKit
 
 /// A YubiKey HMAC-SHA1 challenge-response slot that is part of a database's
 /// composite key, and how this device reaches it.
@@ -51,18 +52,12 @@ enum ChallengeResponseKey {
     /// seed), PKCS#7-padded to 64 bytes so fixed-length and variable-length
     /// slots agree.
     static func challenge(forDatabase data: Data) throws -> Data {
-        guard case .kdbx4 = try KDBXParser.parseFileVersion(from: data) else {
+        guard case .kdbx4 = try KDBXContainer.parseFileVersion(from: data) else {
             throw HardwareKeyError.unsupportedDatabase
         }
-        var reader = DataReader(data: data)
-        _ = try KDBXParser.parseVersion(from: &reader)
-        let header = try KDBXParser.parseHeader(&reader)
-
         // KeePassXC writes KDBX 4 AES-KDF under the legacy UUID and reads it
         // back as its KDBX 4 AES-KDF, which takes the response like Argon2.
-        guard let kdfUUID = header.kdfParameters["$UUID"] as? Data,
-              [KDBXParser.argon2dUUID, KDBXParser.argon2idUUID, KDBXParser.aesKDFUUID].contains(kdfUUID),
-              let salt = header.kdfParameters["S"] as? Data,
+        guard let salt = try KDBXContainer.readHeader(from: data).keyDerivation?.salt,
               salt.isEmpty == false,
               salt.count <= challengeLength
         else {
@@ -79,7 +74,7 @@ enum ChallengeResponseKey {
     /// `SHA256(preKey || SHA256(response))`, where `preKey` is
     /// `KDBXCrypto.preKey(password:keyFileData:)`.
     static func compositeKey(preKey: SymmetricKey, response: Data) -> SymmetricKey {
-        var responseHash = KDBXCrypto.sha256(response)
+        var responseHash = FileDigest.sha256(response)
         defer { SecureWipe.wipe(&responseHash) }
 
         var material = Data(capacity: preKey.bitCount / 8 + responseHash.count)

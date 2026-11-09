@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// The catalog of bundled KDBX fixtures: every database any unit-test suite
@@ -183,7 +184,7 @@ extension KDBXTestFixture {
     func parse(
         in bundle: Bundle,
         sessionKey: SymmetricKey
-    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header, compositeKey: SymmetricKey) {
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header, compositeKey: SymmetricKey) {
         let key = try compositeKey(in: bundle)
         let parsed = try KDBXParser.parseWithMetaAndHeader(
             data: try data(in: bundle),

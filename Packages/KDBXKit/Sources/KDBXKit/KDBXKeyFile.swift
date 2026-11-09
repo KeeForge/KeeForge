@@ -1,30 +1,21 @@
 import CryptoKit
 import Foundation
 
-/// Processes KeePass key files into 32-byte keys.
+/// Turns a KeePass key file into its 32-byte key component.
 ///
-/// Supports all 4 formats (tried in order):
-/// 1. Binary — exactly 32 bytes raw
-/// 2. Hex — exactly 64 ASCII hex characters → 32 bytes
-/// 3. XML — v1.0 (base64) or v2.0 (hex + hash verify)
-/// 4. Fallback — SHA-256 of entire file contents
-enum KeyFileProcessor {
-    enum KeyFileError: Error, LocalizedError {
+/// Formats, tried in KeePass's order:
+/// 1. Binary — exactly 32 bytes
+/// 2. Hex — exactly 64 ASCII hex characters
+/// 3. XML — version 1.0 (Base64) or 2.0 (hex, with an optional hash check)
+/// 4. Anything else — SHA-256 of the whole file
+public enum KDBXKeyFile {
+    public enum KeyFileError: Error, Equatable, Sendable {
         case emptyKeyFile
         case xmlKeyDataInvalid
         case xmlHashMismatch
-
-        var errorDescription: String? {
-            switch self {
-            case .emptyKeyFile: String(localized: "Key file is empty")
-            case .xmlKeyDataInvalid: String(localized: "Key file XML contains invalid key data")
-            case .xmlHashMismatch: String(localized: "Key file hash verification failed — file may be corrupted")
-            }
-        }
     }
 
-    /// Process key file data into a 32-byte key, trying formats in KeePass order.
-    static func processKeyFile(_ data: Data) throws -> Data {
+    public static func key(from data: Data) throws -> Data {
         guard !data.isEmpty else { throw KeyFileError.emptyKeyFile }
 
         // 1. Exactly 32 bytes → raw binary key
@@ -60,9 +51,9 @@ enum KeyFileProcessor {
 
     static func tryXMLFormat(_ data: Data) throws -> Data? {
         // Quick check: does it look like XML?
-        let prefix = data.prefix(256)
-        guard let prefixStr = String(data: prefix, encoding: .utf8),
-              prefixStr.contains("<?xml") || prefixStr.contains("<KeyFile") else {
+        // Lossy, so a multibyte character cut at byte 256 does not hide the marker.
+        let prefixStr = String(decoding: data.prefix(256), as: UTF8.self)
+        guard prefixStr.contains("<?xml") || prefixStr.contains("<KeyFile") else {
             return nil
         }
 

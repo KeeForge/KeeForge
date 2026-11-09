@@ -16,7 +16,7 @@ class DatabaseCreationUITestCase: EntryEditUITestCase {
     func requireCompactLayout(file: StaticString = #filePath, line: UInt = #line) throws {
         let window = app.windows.firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 5), "App window did not appear", file: file, line: line)
-        guard window.frame.width < 700 else {
+        guard usesRegularWidthLayout == false else {
             throw XCTSkip("Requires a compact-width simulator destination")
         }
     }
@@ -135,7 +135,7 @@ class DatabaseCreationUITestCase: EntryEditUITestCase {
         )
 
         XCTAssertTrue(app.staticTexts["entry-detail.title"].waitForExistence(timeout: 5))
-        if app.windows.firstMatch.frame.width < 700 {
+        if usesRegularWidthLayout == false {
             tapBackButton(file: file, line: line)
         } else {
             revealSidebarIfNeeded()

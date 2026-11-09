@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import KDBXKit
 
 /// The entry editor's attachment list: remove existing files, add new ones.
 /// The file importer lives on `EntryEditView`, which also has to dismiss it
@@ -181,7 +182,7 @@ enum EntryAttachmentFileLoader {
     /// so one unreadable pick does not throw away the others.
     static func load(
         _ urls: [URL],
-        maximumByteCount: Int = KDBXCrypto.maxDecompressedSize
+        maximumByteCount: Int = KDBXContainer.maxDecompressedPayloadSize
     ) async -> (files: [LoadedFile], error: Error?) {
         let task = Task.detached(priority: .userInitiated) {
             var files: [LoadedFile] = []

@@ -4,6 +4,7 @@ import LocalAuthentication
 import Security
 import SwiftUI
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 @MainActor
@@ -536,7 +537,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testUnlockCapturesOpenTimeSHA512() async throws {
         let vm = try makeViewModel()
-        let expectedHash = KDBXCrypto.sha512(try Data(contentsOf: fixtureURL()))
+        let expectedHash = FileDigest.sha512(try Data(contentsOf: fixtureURL()))
 
         await vm.unlock(password: fixturePassword)
 
@@ -1021,7 +1022,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testRecycleBinRestoreConflictKeepsRecoveryStagedForResolution() async throws {
         let remoteData = Data("remote".utf8)
-        let hash = KDBXCrypto.sha512(remoteData)
+        let hash = FileDigest.sha512(remoteData)
         let vm = try makeViewModel(localSaveOperation: { _, _, _, _, _, _, _ in
             .conflict(remoteSHA512: hash, remoteData: remoteData)
         })
@@ -1485,7 +1486,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testAConflictedSaveKeepsTheMovedEntriesInTheDraft() async throws {
         let remoteData = Data("remote".utf8)
-        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let remoteHash = FileDigest.sha512(remoteData)
         let vm = try makeViewModel(
             localSaveOperation: { _, _, _, _, _, _, _ in
                 .conflict(remoteSHA512: remoteHash, remoteData: remoteData)
@@ -3407,7 +3408,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testUnlockWithWrongPasswordTransitionsToError() async throws {
         let vm = try makeViewModel()
         let data = try Data(contentsOf: fixtureURL())
-        let fullSHA256 = KDBXCrypto.sha256(data).hexString
+        let fullSHA256 = FileDigest.sha256(data).hexString
         let expectedSHA256Prefix = String(fullSHA256.prefix(16))
 
         await vm.unlock(password: "wrong-password")
@@ -3510,7 +3511,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testMalformedXMLKeyFileFailureKeepsItsActionableMessage() {
         let failure = DatabaseOpenFailure.classify(
-            KeyFileProcessor.KeyFileError.xmlKeyDataInvalid,
+            KDBXKeyFile.KeyFileError.xmlKeyDataInvalid,
             isCloudBacked: false
         )
 
@@ -4771,7 +4772,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testSaveOnConflictSetsSaveConflictDoesNotClearDraft() async throws {
         let remoteData = Data("remote".utf8)
-        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let remoteHash = FileDigest.sha512(remoteData)
         let vm = try makeViewModel(
             localSaveOperation: { _, _, _, _, _, _, _ in
                 .conflict(remoteSHA512: remoteHash, remoteData: remoteData)
@@ -4797,8 +4798,8 @@ final class DatabaseViewModelTests: XCTestCase {
         let remoteData = try makeRemoteVariantData { visibleRoot in
             visibleRoot.entries.append(KPEntry(title: "Remote Only Entry"))
         }
-        let remoteHash = KDBXCrypto.sha512(remoteData)
-        let mergedHash = KDBXCrypto.sha512(Data("merged".utf8))
+        let remoteHash = FileDigest.sha512(remoteData)
+        let mergedHash = FileDigest.sha512(Data("merged".utf8))
         let recorder = MergeSaveRecorder(results: [
             .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
             .saved(newSHA512: mergedHash),
@@ -4848,8 +4849,8 @@ final class DatabaseViewModelTests: XCTestCase {
         let remoteData = try makeRemoteVariantData { visibleRoot in
             visibleRoot.entries.append(KPEntry(title: "Cloud Remote Entry"))
         }
-        let remoteHash = KDBXCrypto.sha512(remoteData)
-        let mergedHash = KDBXCrypto.sha512(Data("cloud-merged".utf8))
+        let remoteHash = FileDigest.sha512(remoteData)
+        let mergedHash = FileDigest.sha512(Data("cloud-merged".utf8))
         let recorder = MergeSaveRecorder(results: [
             .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
             .saved(newSHA512: mergedHash),
@@ -4905,7 +4906,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let pendingData = try makeRemoteVariantData { visibleRoot in
             visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
         }
-        let savedHash = KDBXCrypto.sha512(Data("merged-upload".utf8))
+        let savedHash = FileDigest.sha512(Data("merged-upload".utf8))
         let recorder = MergeSaveRecorder(results: [.saved(newSHA512: savedHash)])
         let reference = makeCloudReference(remoteRev: "rev-A")
         let pending = PendingUploadFake(reference: reference, payload: pendingData)
@@ -4919,7 +4920,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         let call = try XCTUnwrap(recorder.recordedCalls.first)
         XCTAssertEqual(recorder.recordedCalls.count, 1)
-        XCTAssertEqual(call.openTimeSHA512, KDBXCrypto.sha512(fixtureData))
+        XCTAssertEqual(call.openTimeSHA512, FileDigest.sha512(fixtureData))
         XCTAssertNil(call.reconciledRemoteSHA512)
         XCTAssertEqual(call.expectedRev, "rev-A", "The upload must be conditional on the revision the merge was based on")
         let savedTitles = Set(allEntryTitles(in: call.rootGroup))
@@ -4961,7 +4962,7 @@ final class DatabaseViewModelTests: XCTestCase {
         }
         let newerCloudData = Data("newer-cloud-copy".utf8)
         let recorder = MergeSaveRecorder(results: [
-            .conflict(remoteSHA512: KDBXCrypto.sha512(newerCloudData), remoteData: newerCloudData),
+            .conflict(remoteSHA512: FileDigest.sha512(newerCloudData), remoteData: newerCloudData),
         ])
         let reference = makeCloudReference(remoteRev: "rev-A")
         let pending = PendingUploadFake(reference: reference, payload: pendingData)
@@ -4975,7 +4976,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.hasPendingUploadConflict)
         XCTAssertNil(vm.saveConflict)
         XCTAssertFalse(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)).contains("AutoFill Entry"))
-        XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(fixtureData))
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(fixtureData))
     }
 
     /// `.cloudChanged` is also what a manual-sync-policy open gets: the
@@ -4990,8 +4991,8 @@ final class DatabaseViewModelTests: XCTestCase {
         let newerCloudData = try makeRemoteVariantData { visibleRoot in
             visibleRoot.entries.append(KPEntry(title: "Newer Cloud Entry"))
         }
-        let newerCloudHash = KDBXCrypto.sha512(newerCloudData)
-        let savedHash = KDBXCrypto.sha512(Data("merged-upload".utf8))
+        let newerCloudHash = FileDigest.sha512(newerCloudData)
+        let savedHash = FileDigest.sha512(Data("merged-upload".utf8))
         let recorder = MergeSaveRecorder(results: [
             .conflict(remoteSHA512: newerCloudHash, remoteData: newerCloudData),
             .saved(newSHA512: savedHash),
@@ -5375,7 +5376,7 @@ final class DatabaseViewModelTests: XCTestCase {
             entry.attachments = [KPAttachment(name: "note.txt", ref: 0)]
             visibleRoot.entries.append(entry)
         }
-        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let remoteHash = FileDigest.sha512(remoteData)
         let recorder = MergeSaveRecorder(results: [
             .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
         ])
@@ -5405,7 +5406,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testAddedAttachmentOpensBeforeSaveAndSavesWithThePool() async throws {
         let pools = DraftPoolRecorder()
-        let savedHash = KDBXCrypto.sha512(Data("saved".utf8))
+        let savedHash = FileDigest.sha512(Data("saved".utf8))
         let vm = try makeViewModel(
             localSaveOperation: { draft, _, _, _, _, _, _ in
                 pools.record(draft.binaryPoolFields)
@@ -5446,10 +5447,10 @@ final class DatabaseViewModelTests: XCTestCase {
         let remoteData = try makeRemoteVariantData { visibleRoot in
             visibleRoot.entries.append(KPEntry(title: "Remote Only Entry"))
         }
-        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let remoteHash = FileDigest.sha512(remoteData)
         let recorder = MergeSaveRecorder(results: [
             .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
-            .saved(newSHA512: KDBXCrypto.sha512(Data("merged".utf8))),
+            .saved(newSHA512: FileDigest.sha512(Data("merged".utf8))),
         ])
         let pools = DraftPoolRecorder()
         let vm = try makeViewModel(
@@ -5499,7 +5500,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testMergeAndSaveWithUnreadableRemoteKeepsConflictOptions() async throws {
         let remoteData = Data("not-a-kdbx-file".utf8)
-        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let remoteHash = FileDigest.sha512(remoteData)
         let recorder = MergeSaveRecorder(results: [
             .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
         ])
@@ -5531,8 +5532,8 @@ final class DatabaseViewModelTests: XCTestCase {
         // session opened, so the merge adds nothing — but the user's unsaved
         // edits still have to reach storage.
         let remoteData = try makeRemoteVariantData { _ in }
-        let remoteHash = KDBXCrypto.sha512(remoteData)
-        let mergedHash = KDBXCrypto.sha512(Data("no-op-merged".utf8))
+        let remoteHash = FileDigest.sha512(remoteData)
+        let mergedHash = FileDigest.sha512(Data("no-op-merged".utf8))
         let recorder = MergeSaveRecorder(results: [
             .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
             .saved(newSHA512: mergedHash),
@@ -5570,9 +5571,9 @@ final class DatabaseViewModelTests: XCTestCase {
         let remoteData = try makeRemoteVariantData { visibleRoot in
             visibleRoot.entries.append(KPEntry(title: "First Remote Entry"))
         }
-        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let remoteHash = FileDigest.sha512(remoteData)
         let fresherData = Data("even-newer-remote".utf8)
-        let fresherHash = KDBXCrypto.sha512(fresherData)
+        let fresherHash = FileDigest.sha512(fresherData)
         let recorder = MergeSaveRecorder(results: [
             .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
             .conflict(remoteSHA512: fresherHash, remoteData: fresherData),
@@ -5754,10 +5755,10 @@ final class DatabaseViewModelTests: XCTestCase {
             entry.attachments = [KPAttachment(name: "missing.txt", ref: 0)]
             visibleRoot.entries.append(entry)
         }
-        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let remoteHash = FileDigest.sha512(remoteData)
         let recorder = MergeSaveRecorder(results: [
             .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
-            .saved(newSHA512: KDBXCrypto.sha512(Data("merged".utf8))),
+            .saved(newSHA512: FileDigest.sha512(Data("merged".utf8))),
         ])
         let vm = try makeViewModel(
             localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _, _ in
@@ -5805,7 +5806,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let recorder = ConflictCopyRecorder()
         let vm = try makeViewModel(
             localSaveOperation: { _, _, _, _, _, _, _ in
-                .conflict(remoteSHA512: KDBXCrypto.sha512(remoteData), remoteData: remoteData)
+                .conflict(remoteSHA512: FileDigest.sha512(remoteData), remoteData: remoteData)
             },
             localConflictCopyOperation: { _, filename, bytes in
                 await recorder.record(filename: filename, bytes: bytes)
@@ -6991,7 +6992,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testImportEntriesReportsAConflictAndKeepsTheEntriesInTheDraft() async throws {
         let remoteData = Data("remote".utf8)
-        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let remoteHash = FileDigest.sha512(remoteData)
         let vm = try makeViewModel(
             localSaveOperation: { _, _, _, _, _, _, _ in
                 .conflict(remoteSHA512: remoteHash, remoteData: remoteData)
@@ -7191,11 +7192,11 @@ final class DatabaseViewModelTests: XCTestCase {
         try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: .argon2id(.maximum), isCompressed: false)
 
         let change = try XCTUnwrap(capture.change)
-        XCTAssertEqual(change.cipherID, KDBXParser.chachaCipherUUID)
+        XCTAssertEqual(change.cipherID, KDBXOuterCipher.chaCha20.uuid)
         XCTAssertEqual(change.compressionFlags, 0)
-        XCTAssertEqual(change.kdfParameters?["$UUID"] as? Data, KDBXParser.argon2idUUID)
-        XCTAssertEqual(change.kdfParameters?["I"] as? UInt64, DatabaseCreationKDFPreset.maximum.iterations)
-        XCTAssertEqual(change.kdfParameters?["M"] as? UInt64, DatabaseCreationKDFPreset.maximum.memoryBytes)
+        XCTAssertEqual(change.kdfParameters?.bytes("$UUID"), KDBXKeyDerivation.Algorithm.argon2id.uuid)
+        XCTAssertEqual(change.kdfParameters?.uint64("I"), DatabaseCreationKDFPreset.maximum.iterations)
+        XCTAssertEqual(change.kdfParameters?.uint64("M"), DatabaseCreationKDFPreset.maximum.memoryBytes)
         XCTAssertEqual(capture.compositeKey, compositeKey)
         XCTAssertNil(capture.newCompositeKey, "A settings change must not rekey.")
         XCTAssertEqual(vm.compositeKey, compositeKey)
@@ -7219,9 +7220,9 @@ final class DatabaseViewModelTests: XCTestCase {
         let change = try XCTUnwrap(capture.change)
         XCTAssertNil(change.cipherID, "AES-KDF is a key derivation; the cipher stays as it was")
         XCTAssertNil(change.compressionFlags)
-        XCTAssertEqual(change.kdfParameters?["$UUID"] as? Data, KDBXParser.aesKDFUUID)
-        XCTAssertEqual(change.kdfParameters?["R"] as? UInt64, 250_000)
-        XCTAssertEqual((change.kdfParameters?["S"] as? Data)?.count, 32)
+        XCTAssertEqual(change.kdfParameters?.bytes("$UUID"), KDBXKeyDerivation.Algorithm.aesKDF.uuid)
+        XCTAssertEqual(change.kdfParameters?.uint64("R"), 250_000)
+        XCTAssertEqual((change.kdfParameters?.bytes("S"))?.count, 32)
         XCTAssertNil(capture.newCompositeKey, "A settings change must not rekey.")
     }
 
@@ -7292,7 +7293,7 @@ final class DatabaseViewModelTests: XCTestCase {
         try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
 
         XCTAssertEqual(capture.expectedRev, "rev-A")
-        XCTAssertEqual(capture.change?.cipherID, KDBXParser.chachaCipherUUID)
+        XCTAssertEqual(capture.change?.cipherID, KDBXOuterCipher.chaCha20.uuid)
         XCTAssertEqual(vm.openTimeSHA512, Data("cloud-re-encrypted-hash".utf8))
         XCTAssertEqual(
             vm.databaseReference.expectedCloudRevision,
@@ -7580,7 +7581,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 meta: parsed.meta,
                 formatVersion: parsed.header.formatVersion,
                 sessionKey: sessionKey,
-                openTimeSHA512: KDBXCrypto.sha512(data),
+                openTimeSHA512: FileDigest.sha512(data),
                 binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
             )
         },
@@ -8017,7 +8018,7 @@ private final class PendingUploadFake: @unchecked Sendable {
             marker: PendingUploadQueue.Marker(
                 databaseId: reference.id,
                 encryptedBytesCacheURL: "cache.kdbx",
-                openTimeSHA512: KDBXCrypto.sha512(payload),
+                openTimeSHA512: FileDigest.sha512(payload),
                 expectedRev: "rev-0",
                 createdAt: Date(timeIntervalSince1970: 1_000),
                 isConflicted: isConflicted,

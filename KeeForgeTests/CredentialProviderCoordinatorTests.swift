@@ -4,6 +4,7 @@
 import AuthenticationServices
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// Verifies that `CredentialProviderCoordinator.cleanup()` — the extension's
@@ -163,7 +164,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let writable = try seedResolvableDefaultDatabase()
         var readOnly = writable
         readOnly.isReadOnly = true
-        let cases: [(name: String, reference: DatabaseReference, format: KDBXParser.FileVersion, offersAddURL: Bool)] = [
+        let cases: [(name: String, reference: DatabaseReference, format: KDBXContainer.FileVersion, offersAddURL: Bool)] = [
             ("writable KDBX 4", writable, .kdbx4(minor: 0), true),
             ("read-only reference", readOnly, .kdbx4(minor: 0), false),
             ("legacy KDBX 3.1", writable, .kdbx3_1, false)
@@ -388,7 +389,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let writable = try seedResolvableDefaultDatabase()
         var readOnly = writable
         readOnly.isReadOnly = true
-        let cases: [(name: String, reference: DatabaseReference, format: KDBXParser.FileVersion, identifiers: [ASCredentialServiceIdentifier], offersAddURL: Bool)] = [
+        let cases: [(name: String, reference: DatabaseReference, format: KDBXContainer.FileVersion, identifiers: [ASCredentialServiceIdentifier], offersAddURL: Bool)] = [
             ("writable KDBX 4", writable, .kdbx4(minor: 0), [website], true),
             ("read-only reference", readOnly, .kdbx4(minor: 0), [website], false),
             ("legacy KDBX 3.1", writable, .kdbx3_1, [website], false),
@@ -3078,7 +3079,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
             let notice = try XCTUnwrap(presenter.readOnlyNotice, name)
             XCTAssertEqual(notice.message, coordinator.kdfWriteRefusalMessage)
-            let expectedError = KDBXParser.ParseError.kdfResourceLimitExceeded(
+            let expectedError = KDBXContainer.ParseError.kdfResourceLimitExceeded(
                 iterations: 2,
                 memoryBytes: memory,
                 parallelism: 1
@@ -3145,7 +3146,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(searchView.sharedCopyDate, "Nothing to date when the file itself was read")
         XCTAssertEqual(
             coordinator.openTimeSHA512,
-            KDBXCrypto.sha512(fileData),
+            FileDigest.sha512(fileData),
             "An AutoFill save must be checked against the file it will overwrite"
         )
         #else
@@ -3234,7 +3235,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             draft: draft,
             reference: database,
             compositeKey: KDBXCrypto.compositeKey(password: "testpassword123"),
-            openTimeSHA512: KDBXCrypto.sha512(originalData),
+            openTimeSHA512: FileDigest.sha512(originalData),
             kdfPolicy: .mainApp,
             environment: environment
         )
@@ -3546,14 +3547,13 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             sessionKey: sessionKey
         )
         var header = parsed.header
-        header.kdfParameters = [
-            "$UUID": KDBXParser.argon2idUUID,
-            "S": Data(repeating: 9, count: 32),
-            "M": argon2MemoryBytes,
-            "I": UInt64(2),
-            "P": UInt32(1),
-            "V": UInt32(0x13),
-        ]
+        header.kdfParameters = KDBXKeyDerivation.argon2(KDBXKeyDerivation.Argon2Parameters(
+            variant: .id,
+            iterations: 2,
+            memoryBytes: argon2MemoryBytes,
+            parallelism: 1,
+            salt: Data(repeating: 9, count: 32)
+        )).parameters
         return try ExpressUnlock.write(
             draft: DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: sessionKey),
             compositeKey: compositeKey,
@@ -3562,7 +3562,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             deriveKey: { compositeKey, kdfParameters, _ in
                 var hasher = SHA256()
                 compositeKey.withUnsafeBytes { hasher.update(bufferPointer: $0) }
-                hasher.update(data: (kdfParameters["S"] as? Data) ?? Data())
+                hasher.update(data: (kdfParameters.bytes("S")) ?? Data())
                 return Data(hasher.finalize())
             }
         )

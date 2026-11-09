@@ -30,7 +30,7 @@ The model has the same residual limitations on iOS and macOS:
 - Protected values inside unrecognized XML are retained as plaintext in opaque
   fragments for round-tripping.
 - Decrypted Swift `String` and `Data` copies cannot all be reliably zeroized.
-  [SecureWipe](../KeeForge/Models/SecureWipe.swift) wipes app-owned key-derivation
+  [SecureWipe](../Packages/KDBXKit/Sources/KDBXKit/SecureWipe.swift) wipes app-owned key-derivation
   and encryption intermediates, but does not control framework-owned copies,
   raw key-file data, or every parser/signing temporary.
 
@@ -400,7 +400,7 @@ will not open with the database's key, or cannot be merged safely, moves into
 the database's backups and the app says so. Backup rotation never removes that
 file; it stays until the database is removed from KeeForge.
 
-[KDFExecutionPolicy.autoFillExtension](../KeeForge/Models/KDFExecutionPolicy.swift)
+[KDFExecutionPolicy.autoFillExtension](../KeeForge/Models/KDFExecutionPolicy+App.swift)
 bounds attacker-controlled Argon2 memory, work, and parallelism. The iOS runtime
 memory preflight in [AutoFillMemoryLimit](../KeeForge/Services/AutoFill/AutoFillMemoryLimit.swift)
 is unavailable on Mac, so that runtime check adds no protection there. The main

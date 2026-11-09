@@ -28651,58 +28651,6 @@
         }
       }
     },
-    "Invalid inner header" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ungültiger innerer Header"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Encabezado interno no válido"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "En-tête interne invalide"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Header interno non valido"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "内部ヘッダが無効です"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Недопустимый внутренний заголовок"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无效的内部标头"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無效的內部標頭"
-          }
-        }
-      }
-    },
     "Invalid master key" : {
       "localizations" : {
         "de" : {
@@ -34634,58 +34582,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Microsoft Authentication Library (MSAL)"
-          }
-        }
-      }
-    },
-    "Missing header field: %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fehlendes Header-Feld: %@"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Falta el campo de encabezado: %@"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Champ d'en-tête manquant : %@"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Campo dell'header mancante: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ヘッダフィールドがありません：%@"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Отсутствует поле заголовка: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "缺少标头字段：%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "缺少標頭欄位：%@"
           }
         }
       }
@@ -62653,58 +62549,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不支援的金鑰格式。請使用不含密碼片語的 OpenSSH 私密金鑰。"
-          }
-        }
-      }
-    },
-    "Unsupported variant map value for key: %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nicht unterstützter Wert der Varianten-Map für Schlüssel: %@"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Valor de mapa de variantes no compatible para la clave: %@"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Valeur de mappage de variante non prise en charge pour la clé : %@"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Valore della variant map non supportato per la chiave: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "バリアントマップの値がサポートされていません。キー：%@"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Неподдерживаемое значение словаря вариантов для ключа: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不支持的变体映射值，键：%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不支援的變體對應值，鍵：%@"
           }
         }
       }

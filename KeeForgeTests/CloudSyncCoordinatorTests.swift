@@ -1,6 +1,7 @@
 import AuthenticationServices
 import Foundation
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class CloudSyncCoordinatorTests: XCTestCase {
@@ -460,7 +461,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         let pendingBytes = Data("unuploaded-autofill-bytes".utf8)
         try DatabaseListStore.cacheDatabaseCopy(pendingBytes, for: reference)
         _ = try PendingUploadQueue.enqueue(
-            makeMarker(databaseId: reference.id, openTimeSHA512: KDBXCrypto.sha512(pendingBytes))
+            makeMarker(databaseId: reference.id, openTimeSHA512: FileDigest.sha512(pendingBytes))
         )
 
         let provider = MockCloudProvider()
@@ -520,7 +521,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         let autoFillBytes = Data("interleaved-autofill-bytes".utf8)
         try DatabaseListStore.cacheDatabaseCopy(autoFillBytes, for: reference)
         _ = try PendingUploadQueue.enqueue(
-            makeMarker(databaseId: reference.id, openTimeSHA512: KDBXCrypto.sha512(autoFillBytes))
+            makeMarker(databaseId: reference.id, openTimeSHA512: FileDigest.sha512(autoFillBytes))
         )
 
         let uploadedBytes = Data("app-save-uploaded-bytes".utf8)
@@ -545,7 +546,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         let uploadedBytes = Data("drained-bytes".utf8)
         try DatabaseListStore.cacheDatabaseCopy(uploadedBytes, for: reference)
         _ = try PendingUploadQueue.enqueue(
-            makeMarker(databaseId: reference.id, openTimeSHA512: KDBXCrypto.sha512(uploadedBytes))
+            makeMarker(databaseId: reference.id, openTimeSHA512: FileDigest.sha512(uploadedBytes))
         )
 
         _ = try CloudSyncCoordinator.applyUploadedBytesAfterSave(
@@ -653,7 +654,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         _ = try PendingUploadQueue.enqueue(
             makeMarker(
                 databaseId: reference.id,
-                openTimeSHA512: KDBXCrypto.sha512(strandedBytes),
+                openTimeSHA512: FileDigest.sha512(strandedBytes),
                 isConflicted: true
             )
         )

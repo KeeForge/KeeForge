@@ -34,7 +34,7 @@ final class EntryDuplicateUITests: EntryEditUITestCase {
         let title = app.staticTexts["entry-detail.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 10))
         XCTAssertEqual(title.label, duplicatedEntryTitle)
-        if app.windows.firstMatch.frame.width < 700 {
+        if usesRegularWidthLayout == false {
             tapBackButton()
         } else {
             revealSidebarIfNeeded()

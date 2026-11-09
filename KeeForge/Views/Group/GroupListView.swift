@@ -16,11 +16,6 @@ struct GroupListView: View {
     var collection: DatabaseCollection? = nil
     @Bindable var viewModel: DatabaseViewModel
     var onSelectEntry: ((KPEntry) -> Void)? = nil
-    /// iPad split view: when set, New Entry hands its editor to the host so it
-    /// opens in the detail column instead of being pushed into this sidebar.
-    var onCreateEntry: ((EntryEditViewModel) -> Void)? = nil
-    /// iPad split view: same hand-off for the group editor.
-    var onEditGroup: ((GroupEditViewModel) -> Void)? = nil
     /// iPad split view: pushes onto the sidebar's own stack, which is not the
     /// workspace's navigation path.
     var onOpenRoute: ((DatabaseRoute) -> Void)? = nil
@@ -28,10 +23,6 @@ struct GroupListView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
     @State private var showSettings = false
-    @State private var activeEditor: EntryEditViewModel?
-    @State private var createdEntryToOpen: UUID?
-    /// The group editor's form state, or `nil` when no editor is presented.
-    @State private var activeGroupEditor: GroupEditViewModel?
     @State private var pendingDeletion: PendingDeletion?
     @State private var isShowingNewGroupSheet = false
     @State private var newGroupName = ""
@@ -274,14 +265,6 @@ struct GroupListView: View {
         .modifier(CloudBrowsingTitleStyle(view: self))
         .modifier(GroupListBottomBar(view: self))
         .modifier(GroupListSearchModifier(view: self))
-        .modifier(GroupListEditorPresentation(view: self))
-        .onAppear {
-            guard let entryID = createdEntryToOpen, activeEditor == nil else { return }
-            createdEntryToOpen = nil
-            guard viewModel.entry(withID: entryID) != nil else { return }
-            viewModel.workspace.navigationPath.append(.entry(entryID))
-        }
-        .modifier(GroupListGroupEditorPresentation(view: self))
         // On the outer Group: an alert host on the `resolvedGroup` branch would
         // be stranded if the branch vanishes while the alert is up.
         .alert(item: $pendingDeletion, content: deletionAlert)
@@ -383,11 +366,7 @@ struct GroupListView: View {
                     knownTags: viewModel.tagsInDisplayOrder,
                     inheritedTags: viewModel.inheritedTags(forGroupID: group.id)
                 )
-                if let onCreateEntry {
-                    onCreateEntry(editor)
-                } else {
-                    activeEditor = editor
-                }
+                viewModel.workspace.present(.entry(editor))
             }
 
             Button("New Group", systemImage: "folder.badge.plus") {
@@ -521,45 +500,6 @@ struct GroupListView: View {
             #else
             content
             #endif
-        }
-    }
-
-    /// Pushes the entry editor onto the navigation stack.
-    private struct GroupListEditorPresentation: ViewModifier {
-        let view: GroupListView
-
-        func body(content: Content) -> some View {
-            content
-                .navigationDestination(item: view.$activeEditor) { formViewModel in
-                    EntryEditView(
-                        formViewModel: formViewModel,
-                        databaseViewModel: view.viewModel
-                    ) { completion in
-                        if case .created(let entryID) = completion {
-                            view.createdEntryToOpen = entryID
-                        }
-                        view.activeEditor = nil
-                    }
-                }
-        }
-    }
-
-    /// Pushes the group editor. Attached to the body's outer `Group` so a
-    /// branch that vanishes mid-edit cannot tear the host down under a
-    /// presented editor.
-    private struct GroupListGroupEditorPresentation: ViewModifier {
-        let view: GroupListView
-
-        func body(content: Content) -> some View {
-            content
-                .navigationDestination(item: view.$activeGroupEditor) { formViewModel in
-                    GroupEditView(
-                        formViewModel: formViewModel,
-                        databaseViewModel: view.viewModel
-                    ) {
-                        view.activeGroupEditor = nil
-                    }
-                }
         }
     }
 
@@ -812,11 +752,7 @@ struct GroupListView: View {
             if canEditGroup(groupID) {
                 Button("Edit Group") {
                     guard let editor = makeGroupEditor(groupID) else { return }
-                    if let onEditGroup {
-                        onEditGroup(editor)
-                    } else {
-                        activeGroupEditor = editor
-                    }
+                    viewModel.workspace.present(.group(editor))
                 }
                 .accessibilityIdentifier("group-row.edit-context")
             }
@@ -915,11 +851,7 @@ struct GroupListView: View {
             EntryRowCopyActions(entry: entry, viewModel: viewModel)
 
             EntryRowDuplicateAction(entryID: entry.id, viewModel: viewModel) { editor in
-                if let onCreateEntry {
-                    onCreateEntry(editor)
-                } else {
-                    activeEditor = editor
-                }
+                viewModel.workspace.present(.entry(editor))
             }
 
             EntryRowMoveAction(entryID: entry.id, viewModel: viewModel) { move in

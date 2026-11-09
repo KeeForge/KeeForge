@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 @MainActor
@@ -129,7 +130,7 @@ final class DatabaseCreationServiceTests: XCTestCase {
                 )
             )
             XCTFail("Expected malformed key file to be rejected.")
-        } catch KeyFileProcessor.KeyFileError.xmlKeyDataInvalid {
+        } catch KDBXKeyFile.KeyFileError.xmlKeyDataInvalid {
             XCTAssertTrue(try Data(contentsOf: destinationURL).isEmpty)
             XCTAssertTrue(DatabaseListStore.databases.isEmpty)
         } catch {
@@ -166,23 +167,23 @@ final class DatabaseCreationServiceTests: XCTestCase {
         let salt = Data(repeating: 7, count: DatabaseCreationDefaults.kdfSaltByteCount)
         let parameters = try DatabaseCreationDefaults.argon2idKDFParameters(salt: salt)
 
-        XCTAssertEqual(parameters["$UUID"] as? Data, KDBXParser.argon2idUUID)
-        XCTAssertEqual(parameters["I"] as? UInt64, 10)
-        XCTAssertEqual(parameters["M"] as? UInt64, 64 * 1024 * 1024)
-        XCTAssertEqual(parameters["P"] as? UInt32, UInt32(min(ProcessInfo.processInfo.processorCount, 4)))
-        XCTAssertEqual(parameters["V"] as? UInt32, 0x13)
-        XCTAssertEqual(parameters["S"] as? Data, salt)
+        XCTAssertEqual(parameters.bytes("$UUID"), KDBXKeyDerivation.Algorithm.argon2id.uuid)
+        XCTAssertEqual(parameters.uint64("I"), 10)
+        XCTAssertEqual(parameters.uint64("M"), 64 * 1024 * 1024)
+        XCTAssertEqual(parameters.uint32("P"), UInt32(min(ProcessInfo.processInfo.processorCount, 4)))
+        XCTAssertEqual(parameters.uint32("V"), 0x13)
+        XCTAssertEqual(parameters.bytes("S"), salt)
     }
 
     func testCreateDatabaseUsesChosenPresetKDFParameters() throws {
         let salt = Data(repeating: 9, count: DatabaseCreationDefaults.kdfSaltByteCount)
         let strong = try DatabaseCreationDefaults.argon2idKDFParameters(preset: .strong, salt: salt)
-        XCTAssertEqual(strong["M"] as? UInt64, 128 << 20)
-        XCTAssertEqual(strong["I"] as? UInt64, 10)
+        XCTAssertEqual(strong.uint64("M"), 128 << 20)
+        XCTAssertEqual(strong.uint64("I"), 10)
 
         let maximum = try DatabaseCreationDefaults.argon2idKDFParameters(preset: .maximum, salt: salt)
-        XCTAssertEqual(maximum["M"] as? UInt64, 256 << 20)
-        XCTAssertEqual(maximum["I"] as? UInt64, 12)
+        XCTAssertEqual(maximum.uint64("M"), 256 << 20)
+        XCTAssertEqual(maximum.uint64("I"), 12)
     }
 
     func testPrepareChaCha20DatabaseRoundTripsWithChaChaCipherHeader() async throws {
@@ -203,7 +204,7 @@ final class DatabaseCreationServiceTests: XCTestCase {
             sessionKey: SymmetricKey(size: .bits256)
         )
 
-        XCTAssertEqual(parsed.header.cipherID, KDBXParser.chachaCipherUUID)
+        XCTAssertEqual(parsed.header.cipherID, KDBXOuterCipher.chaCha20.uuid)
         XCTAssertEqual(parsed.rootGroup.groups.first?.name, "ChaCha")
     }
 
