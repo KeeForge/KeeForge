@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New Features
+
+- KeeForge for Mac can be installed with Homebrew: `brew install --cask keeforge/tap/keeforge` installs the direct-download build, which then updates itself (#254). See [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) for the one-time `brew trust` step.
+
 ### Fixes
 
 - On iPhone and iPad, the app switcher now shows KeeForge's cover instead of the screen you left. Before, the cover appeared too late to be in the app switcher's picture of the app, so an open database could be seen there.

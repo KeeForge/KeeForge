@@ -116,6 +116,7 @@ A parte questo README e [`CONTRIBUTING.it.md`](CONTRIBUTING.it.md), la documenta
 
 - App Store (iPhone, iPad e Mac): [KeeForge sull'App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
 - Download diretto per Mac: [ultima release su GitHub](https://github.com/KeeForge/KeeForge/releases/latest)
+- Homebrew (Mac): [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) installa la versione a download diretto
 - Email: [support@keeforge.com](mailto:support@keeforge.com)
 - Issue: [GitHub Issues](https://github.com/KeeForge/KeeForge/issues)
 

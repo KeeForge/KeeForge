@@ -131,6 +131,11 @@ production Sparkle appcast last, using the exact handoff and publish commands in
 [direct-distribution.md](../prepare-release/references/direct-distribution.md#direct-artifact-handoff). Verify live installs, migration, AutoFill, WebDAV, channel
 boundaries, and both App Store version/build numbers; preserve the completed non-secret manifest.
 
+Once the appcast is live, bump the Homebrew cask in [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap):
+set `version` to `"{version},{repoBuild}"` and `sha256` to the zip SHA-256 from `direct-artifact.json`, run the
+`brew style` / `brew audit` / `brew livecheck` checks in its README, and push to its `main`. The cask only points at the
+published zip, so never bump it before the release is public.
+
 Keep the release branch. It is where `{version}.1` will come from.
 
 ## Reconcile the GitHub project
