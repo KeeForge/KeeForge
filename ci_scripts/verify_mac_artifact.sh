@@ -195,6 +195,7 @@ SPARKLE_COMPONENTS="${SPARKLE_FRAMEWORK_PATHS}${SPARKLE_UPDATER_PATHS}"
 FEED_URL="$(plist_value SUFeedURL)"
 PUBLIC_KEY="$(plist_value SUPublicEDKey)"
 INSTALLER_LAUNCHER_SERVICE="$(plist_value SUEnableInstallerLauncherService)"
+AUTOMATIC_CHECKS="$(plist_value SUEnableAutomaticChecks)"
 
 # Keep the embedded-bundle check distinct from dynamic linkage: App Store
 # artifacts link the system StoreKit framework without embedding it.
@@ -239,6 +240,7 @@ case "$CHANNEL" in
     [[ -z "$PUBLIC_KEY" ]] || die "MAS artifact contains a Sparkle public key"
     [[ -z "$INSTALLER_LAUNCHER_SERVICE" ]] \
       || die "MAS artifact enables the Sparkle installer launcher service"
+    [[ -z "$AUTOMATIC_CHECKS" ]] || die "MAS artifact enables Sparkle automatic checks"
     ! grep -q 'com.apple.security.temporary-exception' "$ROOT_ENTITLEMENTS" \
       || die "MAS artifact carries a temporary-exception entitlement"
     ;;
@@ -251,6 +253,7 @@ case "$CHANNEL" in
     [[ -z "$STOREKIT_BUNDLE_PATHS" ]] || die "direct artifact contains a StoreKit bundle"
     [[ "$INSTALLER_LAUNCHER_SERVICE" == "YES" ]] \
       || die "direct artifact does not enable the Sparkle installer launcher service"
+    [[ "$AUTOMATIC_CHECKS" == "YES" ]] || die "direct artifact does not enable Sparkle automatic checks"
     for required_name in "${BUNDLE_IDENTIFIER}-spks" "${BUNDLE_IDENTIFIER}-spki"; do
       grep -Fxq "$required_name" <<<"$(mach_lookup_names)" \
         || die "direct artifact is missing a Sparkle installer mach-lookup exception"

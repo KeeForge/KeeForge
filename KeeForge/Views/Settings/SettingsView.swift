@@ -130,6 +130,9 @@ struct SettingsView: View {
             NavigationStack {
                 Form {
                     feedbackSection
+                    #if KEEFORGE_DIRECT_DOWNLOAD
+                    SoftwareUpdateSettingsSection()
+                    #endif
                     SupportKeeForgeSection()
                     AboutSectionContent()
                 }
