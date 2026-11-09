@@ -16,7 +16,10 @@
 
 <p align="center">
   <a href="https://apps.apple.com/us/app/keeforge/id6759309295">
-    <img alt="在 App Store 下載" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
+    <img alt="在 App Store 下載 iPhone、iPad 或 Mac 版" src="https://img.shields.io/badge/App%20Store-iPhone%2C%20iPad%20%26%20Mac-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
+  </a>
+  <a href="https://github.com/KeeForge/KeeForge/releases/latest">
+    <img alt="直接下載 Mac 版 KeeForge" src="https://img.shields.io/badge/Mac-Direct%20Download-24292F?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
     <img alt="透過 TestFlight 加入 iPhone、iPad 和 Mac 測試版" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
@@ -111,7 +114,9 @@ scripts/              # 本機開發工具
 
 ## 支援
 
-- App Store：[App Store 上的 KeeForge](https://apps.apple.com/us/app/keeforge/id6759309295)
+- App Store（iPhone、iPad 和 Mac）：[App Store 上的 KeeForge](https://apps.apple.com/us/app/keeforge/id6759309295)
+- Mac 直接下載：[GitHub 上的最新版本](https://github.com/KeeForge/KeeForge/releases/latest)
+- Homebrew（Mac）：[KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) 安裝直接下載版
 - 電子郵件：[support@keeforge.com](mailto:support@keeforge.com)
 - 問題回報：[GitHub Issues](https://github.com/KeeForge/KeeForge/issues)
 
