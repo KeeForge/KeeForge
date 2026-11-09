@@ -18,6 +18,22 @@ final class PendingUploadQueueTests: XCTestCase {
         try super.tearDownWithError()
     }
 
+    func testLocalCommitBaselineRoundTripDistinguishesKnownNilFromMissingLegacy() throws {
+        let reference = promotionReference()
+        var marker = makeMarker(databaseId: reference.id)
+        let legacyData = try JSONEncoder().encode(marker)
+        XCTAssertNil(try JSONDecoder().decode(PendingUploadQueue.Marker.self, from: legacyData).localCommitBaseline)
+        marker.localCommitBaseline = PendingUploadQueue.LocalCommitBaseline(reference: reference)
+        let encoded = try JSONEncoder().encode(marker)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        XCTAssertNotNil(object["localCommitBaseline"] as? [String: Any])
+        let decoded = try JSONDecoder().decode(PendingUploadQueue.Marker.self, from: encoded)
+        XCTAssertNotNil(decoded.localCommitBaseline)
+        XCTAssertNil(decoded.localCommitBaseline?.headOperationID)
+        XCTAssertNil(decoded.localCommitBaseline?.keyEpoch)
+        XCTAssertEqual(decoded.localCommitBaseline, marker.localCommitBaseline)
+    }
+
     func testLegacyPromotionNeverIdentifiesProvisionalOrUnknownPayload() throws {
         let environment = makeEnvironment()
         for finalized in [nil, false] as [Bool?] {

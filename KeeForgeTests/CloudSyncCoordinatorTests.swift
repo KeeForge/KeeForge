@@ -566,6 +566,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         reference.updateCloudSyncMetadata { metadata in
             metadata.remoteRev = "rev-A"
         }
+        DatabaseListStore.update(reference)
         let uploadedBytes = Data("uploaded-bytes".utf8)
         try DatabaseListStore.cacheDatabaseCopy(uploadedBytes, for: reference)
 
@@ -767,6 +768,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
             metadata.lastSyncedAt = lastSyncedAt
             metadata.lastSyncIssue = .networkUnavailable
         }
+        DatabaseListStore.update(reference)
         try DatabaseListStore.cacheDatabaseCopy(Data("cached-manual-copy".utf8), for: reference)
 
         let provider = MockCloudProvider()
@@ -797,6 +799,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
     func testManualPolicyStillDownloadsWhenNoCachedCopyExists() async throws {
         var reference = makeCloudReference(remoteContentHash: nil, remoteModifiedAt: nil)
         reference.cloudSyncPolicy = .manual
+        DatabaseListStore.update(reference)
         // Cloud caches are keyed by remote path, not reference id, so an
         // earlier test's copy would otherwise stand in.
         try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
@@ -824,6 +827,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
             remoteModifiedAt: Date(timeIntervalSince1970: 100)
         )
         reference.cloudSyncPolicy = .manual
+        DatabaseListStore.update(reference)
         try DatabaseListStore.cacheDatabaseCopy(Data("cached-manual-copy".utf8), for: reference)
 
         let provider = MockCloudProvider()
@@ -851,6 +855,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
             remoteModifiedAt: Date(timeIntervalSince1970: 100)
         )
         reference.cloudSyncPolicy = .manual
+        DatabaseListStore.update(reference)
         try DatabaseListStore.cacheDatabaseCopy(Data("cached-manual-copy".utf8), for: reference)
 
         let provider = MockCloudProvider()
@@ -1144,7 +1149,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         remoteContentHash: String?,
         remoteModifiedAt: Date?
     ) -> DatabaseReference {
-        DatabaseReference(
+        let reference = DatabaseReference(
             id: UUID(),
             nickname: nil,
             filename: "vault.kdbx",
@@ -1169,6 +1174,8 @@ final class CloudSyncCoordinatorTests: XCTestCase {
                 )
             )
         )
+        DatabaseListStore.update(reference)
+        return reference
     }
 }
 

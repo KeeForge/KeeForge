@@ -94,6 +94,14 @@ final class KDBXCompatibilityTests: XCTestCase {
             let payload = try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: XCTUnwrap(marker.marker.intendedPayloadPath)))
             XCTAssertEqual(FileDigest.sha512(payload), sha)
             XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), payload)
+            XCTAssertNotNil(marker.marker.localCommitBaseline)
+            XCTAssertNil(marker.marker.localCommitBaseline?.headOperationID)
+            // Replay the pre-publication list snapshot while keeping the committed ciphertext and journal.
+            DatabaseListStore.update(reference)
+            try PendingUploadQueue.withCommitLock(for: reference.id) {
+                try PendingUploadQueue.recoverLocalCommits(for: reference.id)
+            }
+            XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata?.localHeadOperationID, marker.id)
             var confirmed = marker
             confirmed.marker.confirmedAt = .now
             confirmed.marker.confirmedRemoteRev = "confirmed"

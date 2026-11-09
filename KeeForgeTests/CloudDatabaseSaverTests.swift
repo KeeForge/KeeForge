@@ -15,6 +15,285 @@ final class CloudDatabaseSaverTests: XCTestCase {
         super.tearDown()
     }
 
+    func testDrainedHeadPublicationFailureRecoversAppAndAutoFillCommitsBeforeOfflineOpenOrDelivery() async throws {
+        for extensionSave in [false, true] {
+            for confirmedBeforeRestart in [false, true] {
+                for recoveryEntry in ["open", "delivery"] {
+                    let context = try makeContext()
+                    defer { DatabaseListStore.remove(id: context.reference.id) }
+                    let remote = Remote(context.source)
+                    _ = try await saveAndDrain(context, remote: remote)
+                    let referenceA = current(context.reference)
+                    let headA = try XCTUnwrap(referenceA.cloudSyncMetadata?.localHeadOperationID)
+                    XCTAssertTrue(PendingUploadQueue.listMarkers(for: referenceA.id).isEmpty)
+                    let bytesA = try cache(referenceA)
+                    let draftB = try edit(bytesA, key: context.key, sessionKey: context.sessionKey, title: "B after drained A")
+                    let root = AppGroupContainer.url
+                    let permissions = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: root.path)[.posixPermissions] as? NSNumber)
+                    defer { try? FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: root.path) }
+                    let freezeAfterReplace: @Sendable (Data, URL, Data?) throws -> LocalDatabaseSaver.ReplaceOutcome = { bytes, url, sha in
+                        let result = try LocalDatabaseSaver.Environment.live.replaceFileAtomically(bytes, url, sha)
+                        if result.didReplace {
+                            try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: root.path)
+                        }
+                        return result
+                    }
+                    let result: SaveResult
+                    if extensionSave {
+                        var env = LocalDatabaseSaver.Environment.autoFillExtension
+                        env.replaceFileAtomically = freezeAfterReplace
+                        result = try await LocalDatabaseSaver.save(draft: draftB, reference: referenceA, compositeKey: context.key,
+                            openTimeSHA512: FileDigest.sha512(bytesA), kdfPolicy: .autoFillExtension, environment: env)
+                    } else {
+                        var env = environment(remote)
+                        env.replaceFile = freezeAfterReplace
+                        result = try await CloudDatabaseSaver.save(draft: draftB, reference: referenceA, compositeKey: context.key,
+                            openTimeSHA512: FileDigest.sha512(bytesA), expectedRev: "r1", kdfPolicy: .mainApp, environment: env)
+                    }
+                    guard case .saved(let savedSHA, _) = result else { return XCTFail("The journal backs the completed local save") }
+                    var journal = try XCTUnwrap(PendingUploadQueue.listMarkers(for: referenceA.id).first)
+                    let bytesB = try immutableBytes(journal)
+                    XCTAssertEqual(FileDigest.sha512(bytesB), savedSHA)
+                    XCTAssertEqual(try cache(referenceA), bytesB)
+                    XCTAssertEqual(journal.marker.isPayloadFinalized, true)
+                    XCTAssertEqual(journal.marker.localCommitBaseline?.headOperationID, headA)
+                    XCTAssertNil(journal.marker.predecessorOperationID, "Drained A has no pending predecessor marker")
+                    XCTAssertEqual(current(referenceA).cloudSyncMetadata?.localHeadOperationID, headA)
+                    let failedPublication = DatabaseListStore.publishCloudLocalCommit(for: referenceA.id, operationID: journal.id,
+                        baseline: try XCTUnwrap(journal.marker.localCommitBaseline))
+                    guard case .writeFailed = failedPublication else { return XCTFail("Real list storage must reject the write") }
+                    if confirmedBeforeRestart {
+                        let response = try await remote.upload(bytesB, expectedRev: "r1")
+                        journal.marker.confirmedAt = .now
+                        journal.marker.confirmedRemoteRev = response.rev
+                        journal = try PendingUploadQueue.update(journal)
+                    }
+                    try FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: root.path)
+                    // Re-decode the actual on-disk journal and list rather than carrying an in-memory head.
+                    let restoredJournal = try JSONDecoder().decode(PendingUploadQueue.Marker.self, from: Data(contentsOf: journal.fileURL))
+                    XCTAssertEqual(restoredJournal.localCommitBaseline?.headOperationID, headA)
+                    var restoredReference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == referenceA.id })
+                    restoredReference.cloudSyncPolicy = .manual
+                    DatabaseListStore.update(restoredReference)
+                    if recoveryEntry == "delivery" {
+                        let delivery = try await CloudDatabaseSaver.deliver(journal, reference: restoredReference, environment: environment(remote))
+                        guard case .saved = delivery else { return XCTFail("Delivery must repair B without an earlier open") }
+                    }
+                    await remote.setOffline(true)
+                    let opened = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: restoredReference, providerResolver: { _ in
+                        XCTFail("Local publication and confirmed recovery must precede manual/offline provider access")
+                        return nil
+                    })
+                    XCTAssertEqual(opened.data, bytesB)
+                    XCTAssertEqual(opened.reference.cloudSyncMetadata?.localHeadOperationID, journal.id)
+                    let reopened = try KDBXParser.parseWithMeta(data: opened.data, compositeKey: context.key, sessionKey: context.sessionKey)
+                    XCTAssertTrue(reopened.rootGroup.allEntries.contains { $0.title == "B after drained A" })
+                    await remote.setOffline(false)
+                    if let pending = PendingUploadQueue.listMarkers(for: referenceA.id).first {
+                        let delivery = try await CloudDatabaseSaver.deliver(pending, reference: current(referenceA), environment: environment(remote))
+                        guard case .saved = delivery else { return XCTFail("B must finish reconciliation") }
+                    }
+                    XCTAssertTrue(PendingUploadQueue.listMarkers(for: referenceA.id).isEmpty)
+                    XCTAssertEqual(try cache(referenceA), bytesB)
+                    XCTAssertNotNil(current(referenceA).cloudSyncMetadata?.lastSyncedAt)
+                    let uploads = await remote.uploadCount()
+                    XCTAssertEqual(uploads, 2, "A and B each upload once, including confirmed restart recovery")
+                    let replay = try await CloudDatabaseSaver.deliver(journal, reference: current(referenceA), environment: environment(remote))
+                    XCTAssertNil(replay)
+                    let replayUploads = await remote.uploadCount()
+                    XCTAssertEqual(replayUploads, 2)
+                }
+            }
+        }
+    }
+
+    func testNextAppAndAutoFillSaveRepairsPriorHeadBeforeCapturingItsBaseline() async throws {
+        for extensionSave in [false, true] {
+            let context = try makeContext()
+            defer { DatabaseListStore.remove(id: context.reference.id) }
+            let remote = Remote(context.source)
+            _ = try await saveAndDrain(context, remote: remote)
+            let referenceA = current(context.reference)
+            let bytesA = try cache(referenceA)
+            let draftB = try edit(bytesA, key: context.key, sessionKey: context.sessionKey, title: "B committed before crash")
+            let bytesB = try ExpressUnlock.write(draft: draftB, compositeKey: context.key,
+                header: LocalDatabaseSaver.Environment.live.extractHeader(bytesA, context.key, .mainApp), kdfPolicy: .mainApp).data
+            let cacheURL = DatabaseListStore.cacheLocation(for: referenceA)
+            let journalB = try PendingUploadQueue.withCommitLock(for: referenceA.id) {
+                var stored = try PendingUploadQueue.prepare(reference: referenceA, currentData: bytesA, intendedData: bytesB, cacheURL: cacheURL)
+                _ = try LocalDatabaseSaver.Environment.live.replaceFileAtomically(bytesB, cacheURL, FileDigest.sha512(bytesA))
+                if extensionSave {
+                    stored.marker.openTimeSHA512 = FileDigest.sha512(bytesB)
+                    return try PendingUploadQueue.finalize(stored)
+                }
+                return stored
+            }
+            XCTAssertEqual(journalB.marker.isPayloadFinalized, extensionSave)
+            XCTAssertEqual(current(referenceA).cloudSyncMetadata?.localHeadOperationID, referenceA.cloudSyncMetadata?.localHeadOperationID)
+            let draftC = try edit(bytesB, key: context.key, sessionKey: context.sessionKey, title: "C after restart")
+            let result: SaveResult
+            if extensionSave {
+                result = try await LocalDatabaseSaver.save(draft: draftC, reference: referenceA, compositeKey: context.key,
+                    openTimeSHA512: FileDigest.sha512(bytesB), kdfPolicy: .autoFillExtension, environment: .autoFillExtension)
+            } else {
+                result = try await CloudDatabaseSaver.save(draft: draftC, reference: referenceA, compositeKey: context.key,
+                    openTimeSHA512: FileDigest.sha512(bytesB), expectedRev: "r1", kdfPolicy: .mainApp, environment: environment(remote))
+            }
+            guard case .saved = result else { return XCTFail("The next save must recover B before committing C") }
+            let journalC = try XCTUnwrap(PendingUploadQueue.listMarkers(for: referenceA.id).first { $0.id != journalB.id })
+            XCTAssertEqual(journalC.marker.localCommitBaseline?.headOperationID, journalB.id)
+            XCTAssertEqual(journalC.marker.predecessorOperationID, journalB.id)
+            XCTAssertEqual(current(referenceA).cloudSyncMetadata?.localHeadOperationID, journalC.id)
+            let final = try KDBXParser.parseWithMeta(data: cache(referenceA), compositeKey: context.key, sessionKey: context.sessionKey)
+            XCTAssertTrue(final.rootGroup.allEntries.contains { $0.title == "B committed before crash" })
+            XCTAssertTrue(final.rootGroup.allEntries.contains { $0.title == "C after restart" })
+        }
+    }
+
+    func testLocalHeadPublicationIsIdempotentWithoutRestampingRemoteOrKeyMetadata() throws {
+        let context = try makeContext()
+        let baseline = PendingUploadQueue.LocalCommitBaseline(reference: context.reference)
+        let operationID = UUID()
+        guard case .published(var published) = DatabaseListStore.publishCloudLocalCommit(for: context.reference.id,
+            operationID: operationID, baseline: baseline) else { return XCTFail("Initial CAS must publish") }
+        published.updateCloudSyncMetadata { $0.remoteRev = "later-observation"; $0.lastSyncedAt = .now }
+        DatabaseListStore.update(published)
+        guard case .published(let replayed) = DatabaseListStore.publishCloudLocalCommit(for: context.reference.id,
+            operationID: operationID, baseline: baseline) else { return XCTFail("Same-operation publication must be idempotent") }
+        XCTAssertEqual(replayed, published)
+        XCTAssertEqual(current(published), published)
+        let observed = try XCTUnwrap(context.reference.cloudSyncMetadata)
+        guard case .mismatch(let adopted) = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: context.reference.id,
+            ifUnchangedFrom: observed, mutate: { $0.lastSyncedAt = nil }) else { return XCTFail("Metadata CAS must distinguish mismatch") }
+        XCTAssertEqual(adopted, published)
+        XCTAssertEqual(current(published), published)
+    }
+
+    func testLocalHeadRecoveryRequiresCommittedCacheAndPreservesLegacyUnknownBaseline() async throws {
+        for phase in ["prepared", "replaced", "finalized", "legacy"] {
+            let context = try makeContext()
+            defer { DatabaseListStore.remove(id: context.reference.id) }
+            let reference = context.reference
+            let bytes = Data("exact intended encrypted payload".utf8)
+            let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+            var journal = try PendingUploadQueue.withCommitLock(for: reference.id) {
+                try PendingUploadQueue.prepare(reference: reference, currentData: context.source, intendedData: bytes, cacheURL: cacheURL)
+            }
+            XCTAssertNotNil(journal.marker.localCommitBaseline)
+            XCTAssertNil(journal.marker.localCommitBaseline?.headOperationID, "A recorded nil head is known, unlike legacy absence")
+            if phase != "prepared" {
+                _ = try LocalDatabaseSaver.Environment.live.replaceFileAtomically(bytes, cacheURL, FileDigest.sha512(context.source))
+            }
+            if phase == "finalized" || phase == "legacy" {
+                journal.marker.openTimeSHA512 = FileDigest.sha512(bytes)
+                journal = try PendingUploadQueue.finalize(journal)
+            }
+            if phase == "legacy" {
+                journal.marker.localCommitBaseline = nil
+                journal = try PendingUploadQueue.update(journal)
+            }
+            try PendingUploadQueue.withCommitLock(for: reference.id) {
+                try PendingUploadQueue.recoverLocalCommits(for: reference.id)
+            }
+            let recovered = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
+            if phase == "prepared" {
+                XCTAssertEqual(recovered.marker.isPayloadFinalized, false)
+                XCTAssertNil(current(reference).cloudSyncMetadata?.localHeadOperationID)
+                XCTAssertEqual(try cache(reference), context.source)
+                XCTAssertNil(recovered.marker.uploadAttemptID)
+            } else if phase == "legacy" {
+                XCTAssertNil(current(reference).cloudSyncMetadata?.localHeadOperationID)
+                XCTAssertEqual(recovered.marker, journal.marker)
+            } else {
+                XCTAssertEqual(recovered.marker.isPayloadFinalized, true)
+                XCTAssertEqual(current(reference).cloudSyncMetadata?.localHeadOperationID, journal.id)
+                XCTAssertEqual(try cache(reference), bytes)
+            }
+        }
+    }
+
+    func testLocalHeadPublicationNeverOverwritesNewerHeadEpochDateOrRemovedReference() throws {
+        for changed in ["head", "epoch", "date", "removed", "cache", "payload"] {
+            let context = try makeContext()
+            defer { DatabaseListStore.remove(id: context.reference.id) }
+            defer { try? PendingUploadQueue.removeAllMarkers(for: context.reference.id) }
+            let reference = context.reference
+            let bytes = Data("B ciphertext".utf8)
+            let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+            var journal = try PendingUploadQueue.withCommitLock(for: reference.id) {
+                try PendingUploadQueue.prepare(reference: reference, currentData: context.source, intendedData: bytes, cacheURL: cacheURL)
+            }
+            _ = try LocalDatabaseSaver.Environment.live.replaceFileAtomically(bytes, cacheURL, FileDigest.sha512(context.source))
+            journal.marker.openTimeSHA512 = FileDigest.sha512(bytes)
+            journal = try PendingUploadQueue.finalize(journal)
+            var newer = current(reference)
+            switch changed {
+            case "head": newer.updateCloudSyncMetadata { $0.localHeadOperationID = UUID() }
+            case "epoch": newer.updateCloudSyncMetadata { $0.keyEpoch = UUID() }
+            case "date": newer.lastMasterKeyChangeAt = .now
+            case "removed": DatabaseListStore.databases = []
+            case "cache": try writeAtomicallyAndDurably(Data("unrelated cache".utf8), to: cacheURL)
+            default: try writeAtomicallyAndDurably(Data("damaged payload".utf8), to: PendingUploadQueue.resolveAppGroupURL(for: XCTUnwrap(journal.marker.intendedPayloadPath)))
+            }
+            if changed != "removed" { DatabaseListStore.update(newer) }
+            let cacheBefore = try Data(contentsOf: cacheURL)
+            let listBefore = DatabaseListStore.databases
+            _ = try PendingUploadQueue.withCommitLock(for: reference.id) {
+                try PendingUploadQueue.recoverLocalCommit(journal)
+            }
+            XCTAssertEqual(DatabaseListStore.databases, listBefore)
+            XCTAssertEqual(try Data(contentsOf: cacheURL), cacheBefore)
+            XCTAssertEqual(PendingUploadQueue.listMarkers(for: reference.id).first?.marker, journal.marker)
+            if changed == "removed" {
+                guard case .removed = DatabaseListStore.publishCloudLocalCommit(for: reference.id, operationID: journal.id,
+                    baseline: try XCTUnwrap(journal.marker.localCommitBaseline)) else { return XCTFail("Removal must be explicit") }
+                XCTAssertThrowsError(try PendingUploadQueue.withCommitLock(for: reference.id) {
+                    try PendingUploadQueue.prepare(reference: reference, currentData: bytes, intendedData: bytes, cacheURL: cacheURL)
+                })
+            } else if ["head", "epoch", "date"].contains(changed) {
+                guard case .mismatch = DatabaseListStore.publishCloudLocalCommit(for: reference.id, operationID: journal.id,
+                    baseline: try XCTUnwrap(journal.marker.localCommitBaseline)) else { return XCTFail("Mismatched baseline must be explicit") }
+                if changed != "head" {
+                    XCTAssertThrowsError(try PendingUploadQueue.withCommitLock(for: reference.id) {
+                        try PendingUploadQueue.prepare(reference: reference, currentData: bytes, intendedData: bytes, cacheURL: cacheURL)
+                    }, "An old-key caller cannot capture the new epoch")
+                }
+            }
+        }
+    }
+
+    func testConfirmedMetadataWriteFailureRetainsCiphertextAndRecoversWithoutReupload() async throws {
+        let context = try makeContext()
+        let remote = Remote(context.source)
+        _ = try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference, compositeKey: context.key,
+            openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+        let journal = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        let payload = try immutableBytes(journal)
+        let root = AppGroupContainer.url
+        let permissions = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: root.path)[.posixPermissions] as? NSNumber)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: root.path) }
+        var fault = environment(remote)
+        fault.synchronizeCacheDirectory = { url in
+            try synchronizeDirectory(url)
+            try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: root.path)
+        }
+        do {
+            _ = try await CloudDatabaseSaver.deliver(journal, reference: current(context.reference), environment: fault)
+            XCTFail("A metadata write failure cannot report synchronization or authorize cleanup")
+        } catch { XCTAssertEqual(error as? SaveError, .saveContextUnavailable) }
+        let retained = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertNotNil(retained.marker.confirmedAt)
+        XCTAssertEqual(try immutableBytes(retained), payload)
+        XCTAssertEqual(try cache(context.reference), payload)
+        XCTAssertNil(current(context.reference).cloudSyncMetadata?.lastSyncedAt)
+        try FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: root.path)
+        let recovered = try CloudDatabaseSaver.recoverConfirmed(retained, reference: current(context.reference), environment: environment(remote))
+        guard case .saved = recovered else { return XCTFail("Confirmed delivery must reconcile locally after storage recovers") }
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+        let uploads = await remote.uploadCount()
+        XCTAssertEqual(uploads, 1)
+    }
+
     func testLegacyFinalizedPayloadSurvivesSixOfflineAppAndExtensionSavesAndDiscard() async throws {
         for extensionSave in [false, true] {
             let context = try makeContext()

@@ -25,6 +25,22 @@ enum PendingUploadQueue {
         }
     }
 
+    struct LocalCommitBaseline: Codable, Equatable, Sendable {
+        let headOperationID: UUID?
+        let keyEpoch: UUID?
+        let lastMasterKeyChangeAt: Date?
+
+        init(reference: DatabaseReference) {
+            headOperationID = reference.cloudSyncMetadata?.localHeadOperationID
+            keyEpoch = reference.cloudSyncMetadata?.keyEpoch
+            lastMasterKeyChangeAt = reference.lastMasterKeyChangeAt
+        }
+
+        func hasCompatibleEpoch(_ reference: DatabaseReference) -> Bool {
+            reference.cloudSyncMetadata?.keyEpoch == keyEpoch && reference.lastMasterKeyChangeAt == lastMasterKeyChangeAt
+        }
+    }
+
     struct Marker: Codable, Equatable, Sendable {
         let databaseId: UUID
         let encryptedBytesCacheURL: String
@@ -56,6 +72,7 @@ enum PendingUploadQueue {
         /// Legacy markers decode as `nil`, disabling auto-rebase for them.
         var baseRev: String?
 
+        var localCommitBaseline: LocalCommitBaseline?
         var attemptIsFenced: Bool?
         var discardRequested: Bool?
         var requiresLocalRecovery: Bool?
@@ -116,6 +133,7 @@ enum PendingUploadQueue {
             // drainer update keeps the marker unproven.
             isPayloadFinalized = try container.decodeIfPresent(Bool.self, forKey: .isPayloadFinalized)
             generation = try container.decodeIfPresent(UInt64.self, forKey: .generation) ?? 0
+            localCommitBaseline = try container.decodeIfPresent(LocalCommitBaseline.self, forKey: .localCommitBaseline)
             attemptIsFenced = try container.decodeIfPresent(Bool.self, forKey: .attemptIsFenced)
             discardRequested = try container.decodeIfPresent(Bool.self, forKey: .discardRequested)
             requiresLocalRecovery = try container.decodeIfPresent(Bool.self, forKey: .requiresLocalRecovery)
@@ -555,6 +573,16 @@ enum PendingUploadQueue {
         cacheURL: URL, rekeyContext: RekeyContext? = nil,
         remoteBaseSHA512: Data? = nil, environment: Environment = .live
     ) throws -> StoredMarker {
+        guard let current = DatabaseListStore.databases.first(where: { $0.id == reference.id }),
+              current.isCloudBacked,
+              LocalCommitBaseline(reference: reference).hasCompatibleEpoch(current) else {
+            throw SaveError.saveContextUnavailable
+        }
+        try recoverLocalCommits(for: reference.id, environment: environment)
+        guard let reference = DatabaseListStore.databases.first(where: { $0.id == reference.id }),
+              LocalCommitBaseline(reference: current).hasCompatibleEpoch(reference) else {
+            throw SaveError.saveContextUnavailable
+        }
         try preserveLegacyPayloads(for: reference, environment: environment)
         let currentSHA = FileDigest.sha512(currentData)
         let markers = try listMarkers(for: reference.id, environment: environment).map { try recoverPrepared($0, environment: environment) }
@@ -579,6 +607,7 @@ enum PendingUploadQueue {
             createdAt: .now, baseRev: predecessor?.marker.baseRev ?? reference.expectedCloudRevision,
             isPayloadFinalized: false
         )
+        marker.localCommitBaseline = LocalCommitBaseline(reference: reference)
         marker.predecessorSHA512 = currentSHA
         marker.predecessorOperationID = predecessor?.id
         marker.remoteBaseSHA512 = remoteBaseSHA512 ?? predecessor?.marker.remoteBaseSHA512 ?? (predecessor == nil ? currentSHA : nil)
@@ -628,6 +657,37 @@ enum PendingUploadQueue {
         recoverable.marker.requiresLocalRecovery = true
         recoverable.marker.isConflicted = true
         return try update(recoverable, environment: environment)
+    }
+
+    /// Caller holds the commit lock. This never restores cache or publishes rekey state.
+    static func recoverLocalCommit(
+        _ snapshot: StoredMarker, environment: Environment = .live
+    ) throws -> DatabaseListStore.CloudMetadataUpdateResult? {
+        guard let stored = listMarkers(for: snapshot.marker.databaseId, environment: environment).first(where: { $0.id == snapshot.id }),
+              stored.marker == snapshot.marker,
+              stored.marker.rekeyContext == nil,
+              stored.marker.isPayloadFinalized == true,
+              let baseline = stored.marker.localCommitBaseline,
+              stored.marker.keyEpoch == baseline.keyEpoch,
+              let intendedSHA = stored.marker.intendedPayloadSHA512,
+              stored.marker.openTimeSHA512 == intendedSHA,
+              let cache = try? environment.readData(resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment)),
+              FileDigest.sha512(cache) == intendedSHA,
+              let path = stored.marker.intendedPayloadPath,
+              let payload = try? environment.readData(resolveAppGroupURL(for: path, environment: environment)),
+              FileDigest.sha512(payload) == intendedSHA else { return nil }
+        return DatabaseListStore.publishCloudLocalCommit(for: stored.marker.databaseId, operationID: stored.id, baseline: baseline)
+    }
+
+    /// Caller holds the commit lock; marker and list locks are acquired only inside it.
+    static func recoverLocalCommits(for databaseID: UUID, environment: Environment = .live) throws {
+        for snapshot in listMarkers(for: databaseID, environment: environment) {
+            let stored = try recoverPrepared(snapshot, environment: environment)
+            switch try recoverLocalCommit(stored, environment: environment) {
+            case .published, nil: break
+            case .mismatch, .removed, .writeFailed: throw SaveError.saveContextUnavailable
+            }
+        }
     }
 
     /// A remote divergence affects the whole local lineage, including descendants not attempted yet.

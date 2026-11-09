@@ -1516,6 +1516,13 @@ final class CredentialProviderCoordinator {
     /// file cannot be reached, and cloud databases, which only the app syncs,
     /// always open from it.
     private func loadDatabaseData(for databaseReference: DatabaseReference) async throws -> LoadedDatabaseData {
+        if databaseReference.isCloudBacked {
+            try await Task.detached(priority: .utility) {
+                try PendingUploadQueue.withCommitLock(for: databaseReference.id) {
+                    try PendingUploadQueue.recoverLocalCommits(for: databaseReference.id)
+                }
+            }.value
+        }
         #if os(iOS)
         var bookmarkedReadTimeout: CoordinatedFileReader.TimeoutError?
         // The Mac extension has no entitlement for the app's bookmarks, and a

@@ -55,6 +55,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 - The all-edit matrix lives only in `KDBXCompatibilityTests` and `Support/KDBXCompatibilitySupport.swift`. Do not copy it into writer, draft, or saver tests.
 - Merge semantics belong to the two merger suites. The merge write path is the single compatibility scenario `merge-remote-divergence`.
 - `KDBXMergerOracleTests` enumerates `../TestFixtures/Merge/manifest.json`. A scenario flagged `oracleMatchesSpec: false` must declare a `SpecOutcome` in the test, because `keepassxc-cli` does not apply `DeletedObjects`, adopt `Meta/RecycleBinUUID`, or update a moved entry's `LocationChanged`.
+- Drained-head publication failures use real list/cache/journal storage in `CloudDatabaseSaverTests`, including app/AutoFill commits, offline/manual reconstruction, subsequent-save repair, metadata failures, epoch/head/removal fences and no repeated confirmed upload. `PendingUploadQueueTests` distinguishes a known-nil local baseline from legacy absence; the offline cloud compatibility scenario reparses after lost-head publication recovery.
 - `PendingUploadQueueTests` is the decode-compatibility gate for the pending-upload marker: marker JSON written by a shipped version must keep decoding.
 
 ### Compatibility matrix

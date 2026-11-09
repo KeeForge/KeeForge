@@ -375,7 +375,9 @@ enum LocalDatabaseSaver {
                 replaceOutcome = try PendingUploadQueue.withCommitLock(for: reference.id) {
                     let latestData = try environment.readData(location.url)
                     guard FileDigest.sha512(latestData) == currentSHA512 else { return .changed(currentData: latestData) }
-                    let latestReference = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
+                    guard let latestReference = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else {
+                        throw SaveError.saveContextUnavailable
+                    }
                     guard latestReference.cloudSyncMetadata?.keyEpoch == reference.cloudSyncMetadata?.keyEpoch,
                           latestReference.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt else {
                         throw SaveError.saveContextUnavailable
@@ -391,8 +393,9 @@ enum LocalDatabaseSaver {
                     }
                     intent.marker.openTimeSHA512 = FileDigest.sha512(newData)
                     // A retained provisional intent proves the commit after a crash or failed finalize.
-                    _ = try? PendingUploadQueue.finalize(intent)
-                    DatabaseListStore.recordCloudLocalCommit(for: reference.id, operationID: intent.id)
+                    let finalized = (try? PendingUploadQueue.finalize(intent)) ?? intent
+                    // The durable intent preserves a committed save even if head publication fails.
+                    _ = try? PendingUploadQueue.recoverLocalCommit(finalized)
                     PendingUploadQueue.postEnqueuedNotification()
                     return outcome
                 }

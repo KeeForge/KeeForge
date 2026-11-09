@@ -232,7 +232,9 @@ enum CloudDatabaseSaver {
         let replacement = try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue) {
             let latest = try environment.readData(cacheURL)
             guard FileDigest.sha512(latest) == currentSHA512 else { return LocalDatabaseSaver.ReplaceOutcome.changed(currentData: latest) }
-            let latestReference = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
+            guard let latestReference = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else {
+                throw SaveError.saveContextUnavailable
+            }
             guard latestReference.cloudSyncMetadata?.keyEpoch == reference.cloudSyncMetadata?.keyEpoch,
                   latestReference.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt else { throw SaveError.saveContextUnavailable }
             var prepared = try PendingUploadQueue.prepare(
@@ -249,7 +251,8 @@ enum CloudDatabaseSaver {
             }
             prepared.marker.openTimeSHA512 = FileDigest.sha512(newData)
             intent = (try? PendingUploadQueue.finalize(prepared, environment: environment.queue)) ?? prepared
-            DatabaseListStore.recordCloudLocalCommit(for: reference.id, operationID: prepared.id)
+            // The immutable journal already backs this commit if metadata publication must wait.
+            _ = try? PendingUploadQueue.recoverLocalCommit(intent ?? prepared, environment: environment.queue)
             return outcome
         }
         if case .changed(let bytes) = replacement { return .conflict(remoteSHA512: FileDigest.sha512(bytes), remoteData: bytes) }
@@ -294,7 +297,13 @@ enum CloudDatabaseSaver {
         _ snapshot: PendingUploadQueue.StoredMarker, reference: DatabaseReference,
         environment: Environment = .live
     ) async throws -> PendingUploadPushResult? {
+        var reference = reference
         guard var stored = try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue, {
+            try PendingUploadQueue.recoverLocalCommits(for: reference.id, environment: environment.queue)
+            guard let currentReference = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else {
+                throw SaveError.saveContextUnavailable
+            }
+            reference = currentReference
             try PendingUploadQueue.preserveLegacyPayloads(for: reference, environment: environment.queue)
             guard let current = PendingUploadQueue.listMarkers(for: reference.id, environment: environment.queue).first(where: { $0.id == snapshot.id }) else {
                 return nil as PendingUploadQueue.StoredMarker?
@@ -491,7 +500,10 @@ enum CloudDatabaseSaver {
         do {
             return try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue) {
                 let payloadSHA = FileDigest.sha512(bytes)
-                var current = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
+                try PendingUploadQueue.recoverLocalCommits(for: reference.id, environment: environment.queue)
+                guard var current = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else {
+                    throw SaveError.saveContextUnavailable
+                }
                 if let rekey = stored.marker.rekeyContext {
                     guard PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).contains(where: {
                         $0.id == stored.id && $0.marker == stored.marker
@@ -531,13 +543,6 @@ enum CloudDatabaseSaver {
                           !(stored.marker.keyEpoch == nil && current.lastMasterKeyChangeAt.map({ stored.marker.createdAt < $0 }) == true) else {
                         throw SaveError.saveContextUnavailable
                     }
-                    if current.cloudSyncMetadata?.localHeadOperationID == nil {
-                        try restoreConfirmedCache(stored, reference: current, bytes: bytes, environment: environment)
-                        guard let updated = DatabaseListStore.recordCloudLocalCommit(for: current.id, operationID: stored.id) else {
-                            throw SaveError.saveContextUnavailable
-                        }
-                        current = updated
-                    }
                     if current.cloudSyncMetadata?.localHeadOperationID == stored.id {
                         owner = stored
                     } else {
@@ -569,13 +574,14 @@ enum CloudDatabaseSaver {
                 if cacheSHA == payloadSHA, current.cloudSyncMetadata?.localHeadOperationID == stored.id,
                    let observed = current.cloudSyncMetadata {
                     let remaining = PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).filter { $0.id != stored.id }
-                    guard let updated = DatabaseListStore.updateCloudSyncMetadata(for: current.id, ifUnchangedFrom: observed, mutate: {
+                    let publication = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: current.id, ifUnchangedFrom: observed, mutate: {
                         if let rev = stored.marker.confirmedRemoteRev { $0.remoteRev = rev }
                         if let hash = stored.marker.confirmedRemoteHash { $0.remoteContentHash = hash }
                         $0.remoteModifiedAt = stored.marker.confirmedAt
                         $0.lastSyncedAt = remaining.isEmpty ? stored.marker.confirmedAt : nil
                         $0.lastSyncIssue = nil
-                    }) else { throw SaveError.saveContextUnavailable }
+                    })
+                    guard case .published(let updated) = publication else { throw SaveError.saveContextUnavailable }
                     current = updated
                 }
                 // A confirmed parent transfers its exact remote ancestry before its journal can disappear.

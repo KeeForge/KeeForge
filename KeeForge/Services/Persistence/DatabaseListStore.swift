@@ -426,6 +426,13 @@ enum DatabaseListStore {
         }
     }
 
+    enum CloudMetadataUpdateResult: Sendable {
+        case published(DatabaseReference)
+        case mismatch(DatabaseReference)
+        case removed
+        case writeFailed
+    }
+
     /// Applies `mutate` to the cloud sync metadata of the *currently stored*
     /// copy, leaving every other stored field alone. Anything that learns
     /// cloud state across an `await` must use this instead of `update(_:)`,
@@ -442,20 +449,31 @@ enum DatabaseListStore {
         ifUnchangedFrom observed: CloudSyncMetadata,
         mutate: (inout CloudSyncMetadata) -> Void
     ) -> DatabaseReference? {
+        switch compareAndUpdateCloudSyncMetadata(for: id, ifUnchangedFrom: observed, mutate: mutate) {
+        case .published(let reference), .mismatch(let reference): reference
+        case .removed, .writeFailed: nil
+        }
+    }
+
+    static func compareAndUpdateCloudSyncMetadata(
+        for id: UUID,
+        ifUnchangedFrom observed: CloudSyncMetadata,
+        mutate: (inout CloudSyncMetadata) -> Void
+    ) -> CloudMetadataUpdateResult {
         withStateLock {
             var currentDatabases = loadDatabases()
             guard let index = currentDatabases.firstIndex(where: { $0.id == id }),
                   let storedMetadata = currentDatabases[index].cloudSyncMetadata else {
-                return nil
+                return .removed
             }
 
             guard cloudRevisionIdentity(storedMetadata) == cloudRevisionIdentity(observed) else {
-                return currentDatabases[index]
+                return .mismatch(currentDatabases[index])
             }
 
             currentDatabases[index].updateCloudSyncMetadata(mutate)
-            guard saveDatabases(currentDatabases) else { return nil }
-            return currentDatabases[index]
+            guard saveDatabases(currentDatabases) else { return .writeFailed }
+            return .published(currentDatabases[index])
         }
     }
 
@@ -490,6 +508,29 @@ enum DatabaseListStore {
                   stored.localHeadOperationID == observed.localHeadOperationID else { return false }
             references[index].updateCloudSyncMetadata { $0.requiresTypedUnlock = false }
             return saveDatabases(references)
+        }
+    }
+
+    /// Caller holds the database commit lock; only local publication fields may change.
+    static func publishCloudLocalCommit(
+        for id: UUID, operationID: UUID, baseline: PendingUploadQueue.LocalCommitBaseline
+    ) -> CloudMetadataUpdateResult {
+        withStateLock {
+            var references = loadDatabases()
+            guard let index = references.firstIndex(where: { $0.id == id }),
+                  references[index].isCloudBacked else { return .removed }
+            let current = references[index]
+            guard baseline.hasCompatibleEpoch(current) else { return .mismatch(current) }
+            if current.cloudSyncMetadata?.localHeadOperationID == operationID { return .published(current) }
+            guard current.cloudSyncMetadata?.localHeadOperationID == baseline.headOperationID else {
+                return .mismatch(current)
+            }
+            references[index].updateCloudSyncMetadata {
+                $0.localHeadOperationID = operationID
+                $0.lastSyncedAt = nil
+            }
+            guard saveDatabases(references) else { return .writeFailed }
+            return .published(references[index])
         }
     }
 

@@ -69,7 +69,15 @@ enum CloudSyncCoordinator {
         providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:),
         progress: @escaping @Sendable (Double) -> Void = { _ in }
     ) async throws -> CloudSyncResolution {
+        guard reference.cloudSyncMetadata != nil else { throw CocoaError(.fileReadUnsupportedScheme) }
         var reference = reference
+        try PendingUploadQueue.withCommitLock(for: reference.id) {
+            try PendingUploadQueue.recoverLocalCommits(for: reference.id)
+        }
+        guard let currentReference = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else {
+            throw SaveError.saveContextUnavailable
+        }
+        reference = currentReference
         for journal in PendingUploadQueue.listMarkers(for: reference.id)
         where journal.marker.confirmedAt != nil {
             _ = try CloudDatabaseSaver.recoverConfirmed(journal, reference: reference)

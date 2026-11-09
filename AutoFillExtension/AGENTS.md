@@ -61,6 +61,7 @@
 
 - No network. The Mac extension's sandbox grants no network entitlement, `PrivacyInfo.xcprivacy` declares no collection, and `FaviconService` is compiled in but never called. Picker rows show an entry's custom icon (`Meta/CustomIcons`, passed in as `customIcons`) and, on iOS with website icons on, the favicon the app already cached in the App Group; the extension never fetches one. `FaviconEntryIconView`, which can fetch, is app-only. Revisit the manifest's required-reason entries when the allow-list changes.
 - Clipboard: only the iOS branch of `ClipboardService` is called from here (verification-code copy; the system pasteboard expiration outlives the process). The macOS branch clears with an in-process timer that dies with the extension, so the coordinator gates the copy on `#if os(iOS)`.
+- Before reading a cloud cache, locally recover eligible ordinary head publications through the shared queue under its commit lock, off the main thread. Exact finalized journal/cache and baseline CAS are required; this makes no network request and never publishes provisional rekey state.
 - App Group writes go only through the services in `../KeeForge/Services/Persistence/AGENTS.md`.
 - `com.keevault.sharedkeychain` must stay first in both extension entitlements files (rule in `../KeeForge/Services/Security/AGENTS.md`). `KeeForgeMacAutoFill` mirrors the iOS extension's single group and enables Hardened Runtime with zero `com.apple.security.cs.*` exceptions.
 
