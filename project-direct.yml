@@ -42,6 +42,9 @@ targets:
         # Sparkle.framework and must never be copied into the app bundle.
         # Turning it on also requires the two mach-lookup names below.
         SPARKLE_INSTALLER_LAUNCHER_SERVICE: "YES"
+        # Check daily from the first launch instead of asking on the second;
+        # Settings → About turns it off.
+        SPARKLE_AUTOMATIC_CHECKS: "YES"
         # The only entitlement difference between the channels. See the
         # comments in the file itself.
         CODE_SIGN_ENTITLEMENTS: KeeForgeMac/KeeForgeMacDirect.entitlements

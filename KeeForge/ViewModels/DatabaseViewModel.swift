@@ -1787,6 +1787,29 @@ final class DatabaseViewModel {
         stageDraft(staged)
     }
 
+    /// Sends several entries to the recycle bin as one staged change, the way
+    /// `moveEntries` moves them. Entries that are gone or already in the bin
+    /// are skipped.
+    func recycleEntries(entryIDs: Set<UUID>) throws {
+        guard isReadOnly == false else { throw SaveError.databaseIsReadOnly }
+        let recyclableEntryIDs = (currentRootGroup?.allEntries ?? []).map(\.id).filter { entryID in
+            entryIDs.contains(entryID) && recycleBinEntryIDs.contains(entryID) == false
+        }
+        guard recyclableEntryIDs.isEmpty == false else { return }
+
+        var staged = try makeWorkingDraft()
+        for entryID in recyclableEntryIDs {
+            staged = try staged.apply(.deleteEntry(entryID: entryID, sendToRecycleBin: true))
+        }
+        stageDraft(staged)
+
+        // A recycled entry still exists in the rebuilt index, so a mounted
+        // detail view cannot observe its disappearance and close itself.
+        if let selectedEntryID = workspace.selectedEntryID, recyclableEntryIDs.contains(selectedEntryID) {
+            workspace.selectedEntryID = nil
+        }
+    }
+
     /// Reparents a group under another group. No-ops mirror `moveEntry`'s
     /// (vanished IDs, the current parent, the group itself); draft-level
     /// refusals — a cycle, a protected group, a sibling name collision in the

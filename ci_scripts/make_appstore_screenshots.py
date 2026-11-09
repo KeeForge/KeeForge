@@ -1,61 +1,39 @@
 #!/usr/bin/env python3
-"""Generate polished App Store screenshots from raw UI-test captures.
+"""Generate the App Store listing screenshots from raw UI-test captures.
 
-Two listings, two platforms, one entry point:
+    ci_scripts/make_appstore_screenshots.py [--platform iphone|ipad|mac] [--locale en ...]
+                                            [--input-dir DIR] [--output-dir DIR]
+    ci_scripts/make_appstore_screenshots.py --capture [--locale de]   # iPhone, local simulator
+    ci_scripts/make_appstore_screenshots.py --self-test
 
-    ci_scripts/make_appstore_screenshots.py --capture  # iPhone: capture + composite every locale
-    ci_scripts/make_appstore_screenshots.py            # iPhone: composite existing captures
-    ci_scripts/make_appstore_screenshots.py --platform mac [--input-dir DIR] [--output-dir DIR]
+Every platform tells the same six-frame story with one headline per frame
+(appstore_captions.json: locale -> frame -> headline, explicit line breaks; a
+"<frame>@<platform>" key overrides one platform). The Mac's larger canvas also
+carries a short subline per frame ("<frame>:sub@mac"); phones and iPads do not.
+A frame with "checklist" also draws a card listing included features
+("<frame>:list", one per line, with "@<platform>" overrides): the features other
+KeePass apps sell separately. Store art never names a price. Each frame is the app's real UI
+in a device or window on an indigo or paper field, plus up to two cards cut from
+real captures (the 2FA code, the KDBX format row) floating over it. The drawing
+kit, fonts and palette are shared with the header and search art in store_art.py.
 
-iPhone -- one listing per shipped locale. Captions live in appstore_captions.json
-(locale -> listing image -> caption, explicit line breaks). Raw captures are read
-from build/screenshots/<locale>/ and listings written to build/appstore/<locale>/,
-6.9" (1320x2868) only. Every caption must fit the canvas in its locale's font with
-no missing glyphs, or the run fails before writing anything.
+Captures are read per locale from the platform's input directory and come from:
 
-`--capture` runs `KeeForgeUITests/AppStoreScreenshots` once per locale on a 6.9"
-simulator (created if missing) with `-testLanguage`/`-testRegion`, so the app
-chrome matches the captions, and exports each run's attachments into
-build/screenshots/<locale>/. It drives local Xcode; on a shared machine run it
-under the repo's Xcode lock. `--locale` narrows either step. By hand, one locale:
+    iphone  KeeForgeUITests/AppStoreScreenshots + AppStoreAutoFillScreenshot  build/screenshots/<locale>/
+    ipad    the same classes on a 13" iPad simulator                          build/screenshots-ipad/<locale>/
+    mac     KeeForgeMacUITests/MacAppStoreScreenshots                         build/screenshots-mac/<locale>/
 
-    TEST_RUNNER_APPSTORE_SCREENSHOTS=1 xcodebuild test -project KeeForge.xcodeproj \\
-        -scheme KeeForge -destination 'platform=iOS Simulator,name=iPhone 18 Pro Max' \\
-        -testLanguage de -testRegion DE -only-testing:KeeForgeUITests/AppStoreScreenshots
-    xcrun xcresulttool export attachments --path <xcresult> --output-path build/screenshots/de
+The classes skip unless APPSTORE_SCREENSHOTS=1 reaches the test runner: set
+TEST_RUNNER_APPSTORE_SCREENSHOTS=1 on the xcodebuild process (or pass
+`--test-env APPSTORE_SCREENSHOTS=1` to studio-test). Export a run with
+`xcrun xcresulttool export attachments --path <xcresult> --output-path <dir>`;
+the export is used as is, each capture found through manifest.json's
+`suggestedHumanReadableName`. Plainly named files (`06-entry-detail.png`) work too.
 
-Mac -- English only. Capture `KeeForgeMacUITests/MacScreenshotAuditUITests` into
-`build/screenshots-mac`; the light design in mac_screenshot_design.py writes seven
-numbered story images plus layout-report.json:
-
-    TEST_RUNNER_SCREENSHOT_AUDIT=1 xcodebuild test -project KeeForge.xcodeproj \\
-        -scheme KeeForgeMac -destination 'platform=macOS,arch=arm64' \\
-        -only-testing:KeeForgeMacUITests/MacScreenshotAuditUITests
-    xcrun xcresulttool export attachments --path <xcresult> --output-path build/screenshots-mac
-
-The export can be used as-is. xcresulttool writes UUID-named files plus a
-manifest.json index; when that index is present, each expected screen is found
-through its `suggestedHumanReadableName` (`01-database-list_0_<UUID>.png`).
-Plainly named files (`01-database-list.png`) also work. `--input-dir` overrides
-the platform's default input directory (for iPhone, the parent of the locale
-directories).
-
-Both classes skip by default (see their doc comments), and both gate variables
-must be real environment variables on the xcodebuild process -- Xcode strips the
-TEST_RUNNER_ prefix and forwards them into the test runner, whereas a trailing
-bare KEY=value argument becomes a build-setting override that never arrives and
-the class silently skips. `--capture` sets it and fails on a short export.
-
-The Mac audit harness additionally needs Screen Recording permission for
-`KeeForgeMacUITests-Runner`, and reports anything it could not capture in its
-`00-skipped-captures` attachment (see KeeForgeMacUITests/AGENTS.md). A short
-export is a harness problem, not a missing screen, so the Mac listing refuses to
-write anything when that evidence is present or any screen is missing or
-ambiguous. Compositing existing iPhone captures still warns and composites what
-it has.
-
-`--self-test` checks input resolution, every locale's captions, and Mac layout
-against disposable fixtures.
+A listing is never partial: a missing or ambiguous capture, a card that cannot be
+found in its capture, or a headline that does not fit fails the run before any
+file is written. Output goes to the platform's output directory, one folder per
+locale, with layout-report.json naming the capture behind every frame.
 """
 
 import argparse
@@ -69,93 +47,97 @@ import sys
 import tempfile
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw
 
-import mac_screenshot_design
-
+import store_art as art
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+CAPTIONS_PATH = Path(__file__).resolve().with_name("appstore_captions.json")
+FRAMES = ["01-pitch", "02-autofill", "03-keepassxc", "04-security", "05-everyday", "06-included"]
 
-# App Store accepts 1280x800, 1440x900, 2560x1600 and 2880x1800 for the Mac
-# listing; 2880x1800 is the largest and downscales cleanly to the rest.
+# Shipped app locales -> xcodebuild -testRegion, in App Store review order.
+LOCALES = {"en": "US", "de": "DE", "fr": "FR", "es": "ES", "zh-Hans": "CN", "zh-Hant": "TW", "ja": "JP", "it": "IT", "ru": "RU"}
+CAPTURE_DEVICE = "iPhone 18 Pro Max"
+CAPTURE_TESTS = ["KeeForgeUITests/AppStoreScreenshots", "KeeForgeUITests/AppStoreAutoFillScreenshot"]
+
+INDIGO, PAPER = "indigo", "paper"
+
+# Cards: (capture, hint point inside the block as fractions of the capture, store_art.find_card mode).
+# Portrait listings stack cards at the bottom over the device; the Mac floats them
+# over the window's lower-left corner. Frames alternate indigo and paper.
 PLATFORMS = {
     "iphone": {
-        # App Store 6.9" display size (iPhone 16/17/18 Pro Max)
+        # App Store 6.9" display size; Apple scales it to every smaller iPhone.
         "canvas": (1320, 2868),
         "input_dir": REPO_ROOT / "build" / "screenshots",
         "output_dir": REPO_ROOT / "build" / "appstore",
-        "corner_radius": 44,
-        "font_size": 88,
-        "min_font_size": 64,
-        "text_margin": 80,
-        "strict": False,
-        # (AppStoreScreenshots attachment, listing file, gradient top, gradient bottom),
-        # in listing order. The caption for each listing file is in CAPTIONS_PATH.
-        "screens": [
-            ("03-vault-groups.png", "01-free.png", (26, 31, 61), (18, 22, 48)),
-            ("06-entry-detail.png", "02-autofill.png", (41, 98, 255), (30, 70, 220)),
-            ("01-database-list.png", "03-keepassxc.png", (0, 150, 136), (0, 110, 100)),
-            ("02-unlock-screen.png", "04-unlock.png", (220, 80, 60), (180, 40, 30)),
-            ("05-entry-list.png", "05-entries.png", (130, 80, 220), (90, 40, 180)),
-            ("08-search.png", "06-search.png", (30, 130, 230), (20, 90, 190)),
-            ("07-entry-edit.png", "07-edit.png", (60, 60, 60), (30, 30, 30)),
-            ("04-database-settings.png", "08-settings.png", (31, 94, 58), (20, 63, 38)),
-        ],
+        "layout": "portrait",
+        "margin": 110, "top": 250, "headline": (176, 112), "leading": 1.02,
+        "device": {"width": 0.74, "bezel": 26, "radius": 150, "gap": 130, "max_top": 0.42},
+        "cards": {"width": 0.84, "radius": 48, "gap": 36, "bottom": 150},
+        "art": {"height": 0.24, "x": 0.03, "y": 0.72},
+        "frames": {
+            "01-pitch": {"field": INDIGO, "focus": (0.7, 0.62), "screen": "03-vault-groups", "art": "kdbx"},
+            "02-autofill": {"field": PAPER, "focus": (0.75, 0.62), "screen": "09-autofill-picker", "cards": [
+                ("06-entry-detail", (0.5, 0.80), "header"),
+                ("06b-entry-passkey", (0.5, 0.61), "header")]},
+            "03-keepassxc": {"field": INDIGO, "focus": (0.35, 0.6), "screen": "01-database-list", "cards": [
+                ("04-database-settings", (0.5, 0.255), "section"),
+                ("04-database-settings", (0.5, 0.58), "row")]},
+            "04-security": {"field": PAPER, "focus": (0.3, 0.6), "screen": "02-unlock-screen", "cards": [
+                ("04-database-settings", (0.5, 0.51), "row")]},
+            "05-everyday": {"field": INDIGO, "focus": (0.65, 0.55), "screen": "05-entry-list", "cards": [
+                ("08-search", (0.5, 0.18), "section")]},
+            "06-included": {"field": PAPER, "focus": (0.3, 0.6), "screen": "01-database-list", "checklist": 64},
+        },
+    },
+    "ipad": {
+        # App Store 13" iPad display size, portrait.
+        "canvas": (2064, 2752),
+        "input_dir": REPO_ROOT / "build" / "screenshots-ipad",
+        "output_dir": REPO_ROOT / "build" / "appstore-ipad",
+        "layout": "portrait",
+        "margin": 170, "top": 230, "headline": (196, 124), "leading": 1.02,
+        "device": {"width": 0.76, "bezel": 24, "radius": 64, "gap": 130, "max_top": 0.36},
+        "cards": {"width": 0.7, "radius": 44, "gap": 36, "bottom": 140},
+        "art": {"height": 0.23, "x": 0.03, "y": 0.72},
+        "frames": {
+            "01-pitch": {"field": INDIGO, "focus": (0.7, 0.62), "screen": "06-entry-detail", "art": "kdbx"},
+            "02-autofill": {"field": PAPER, "focus": (0.75, 0.62), "screen": "09-autofill-picker", "cards": [
+                ("06-entry-detail", (0.68, 0.52), "header"),
+                ("06b-entry-passkey", (0.68, 0.65), "header")]},
+            "03-keepassxc": {"field": INDIGO, "focus": (0.35, 0.6), "screen": "01-database-list", "cards": [
+                ("04-database-settings", (0.5, 0.36), "section"),
+                ("04-database-settings", (0.5, 0.59), "row")]},
+            "04-security": {"field": PAPER, "focus": (0.3, 0.6), "screen": "02-unlock-screen", "cards": [
+                ("04-database-settings", (0.5, 0.54), "row")]},
+            "05-everyday": {"field": INDIGO, "focus": (0.65, 0.55), "screen": "07-entry-edit"},
+            "06-included": {"field": PAPER, "focus": (0.3, 0.6), "screen": "01-database-list", "checklist": 70},
+        },
     },
     "mac": {
-        "canvas": mac_screenshot_design.CANVAS,
+        # The largest Mac size App Store Connect takes; it downscales to the rest.
+        "canvas": (2880, 1800),
         "input_dir": REPO_ROOT / "build" / "screenshots-mac",
         "output_dir": REPO_ROOT / "build" / "appstore-mac",
-        # A partial Mac set is never a listing: missing screens and skipped
-        # captures fail the run instead of warning.
-        "strict": True,
-        # (MacScreenshotAuditUITests attachment, listing file, headline, subhead), in
-        # listing order. Audit captures not named here are audit-only.
-        "screens": [
-            ("05-entry-detail.png", "01-native-mac.png",
-             "Your passwords. At home on Mac.", "A native KeePass manager. Your vaults stay yours."),
-            ("04-group-selected.png", "02-organize.png",
-             "A place for every account.", "Keep your passwords organized in groups."),
-            ("06-search.png", "03-search.png",
-             "Find it. Get on with your day.", "Search every entry in your vault from one place."),
-            ("08-entry-editor-sheet.png", "04-create.png",
-             "Good passwords start here.", "Create and edit entries with built-in password generation."),
-            ("02-unlock.png", "05-unlock.png",
-             "Your vault. Your key.", "Unlock with your master password and an optional key file."),
-            ("01-database-list.png", "06-your-files.png",
-             "Your files. Your vaults.", "Open KeePass databases you already keep, locally or over WebDAV."),
-            ("07a-settings-security.png", "07-privacy.png",
-             "Privacy, down to the details.", "Automatic locking. Clipboard clearing. You choose the limits."),
-        ],
+        "layout": "landscape",
+        "margin": 180, "column": 0.28, "text_top": 0.2, "headline": (150, 96), "leading": 1.04,
+        "sub": (62, 44), "sub_leading": 1.32, "sub_gap": 0.42,
+        "window": {"width": 0.57, "right": 130, "max_height": 0.8, "gap": 100},
+        "cards": {"width": 0.3, "radius": 30, "gap": 28, "bottom": 150, "x": -0.07},
+        "art": {"height": 0.36, "x": -0.05, "y": 0.55},
+        "frames": {
+            "01-pitch": {"field": INDIGO, "focus": (0.7, 0.5), "screen": "01-entry-detail", "art": "kdbx"},
+            "02-autofill": {"field": PAPER, "focus": (0.75, 0.5), "screen": "04-search", "cards": [
+                ("07-autofill-picker", (0.0, 0.0, 0.52, 0.27), "box")]},
+            "03-keepassxc": {"field": INDIGO, "focus": (0.6, 0.5), "screen": "03-database-details"},
+            "04-security": {"field": PAPER, "focus": (0.6, 0.5), "screen": "02-unlock", "cards": [
+                ("06-settings-security", (0.0, 0.0, 1.0, 0.37), "box")]},
+            "05-everyday": {"field": INDIGO, "focus": (0.65, 0.5), "screen": "05-entry-edit"},
+            "06-included": {"field": PAPER, "focus": (0.6, 0.5), "screen": "01-entry-detail", "checklist": 54},
+        },
     },
 }
-
-
-CAPTIONS_PATH = Path(__file__).resolve().with_name("appstore_captions.json")
-SYSTEM_FONTS = Path("/System/Library/Fonts")
-# Caption fonts by script: (file, collection index, weight axis or None, stroke px).
-# macOS ships no bold Traditional Chinese face on disk, so Heiti TC Medium gets a
-# stroke to match the other locales' weight.
-SF_ROUNDED_BOLD = (SYSTEM_FONTS / "SFNSRounded.ttf", 0, 700, 0)
-FONTS = {
-    "ja": (SYSTEM_FONTS / "ヒラギノ角ゴシック W7.ttc", 0, None, 0),
-    "zh-Hans": (SYSTEM_FONTS / "Hiragino Sans GB.ttc", 2, None, 0),
-    "zh-Hant": (SYSTEM_FONTS / "STHeiti Medium.ttc", 0, None, 2),
-}
-# Shipped app locales -> xcodebuild -testRegion, in App Store review order.
-LOCALES = {
-    "en": "US",
-    "de": "DE",
-    "fr": "FR",
-    "es": "ES",
-    "zh-Hans": "CN",
-    "zh-Hant": "TW",
-    "ja": "JP",
-    "it": "IT",
-    "ru": "RU",
-}
-CAPTURE_DEVICE = "iPhone 18 Pro Max"
-CAPTURE_TEST = "KeeForgeUITests/AppStoreScreenshots"
 
 SKIPPED_CAPTURES_STEM = "00-skipped-captures"
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".heic", ".tiff"}
@@ -199,223 +181,212 @@ def indexed_inputs(input_dir):
     return index
 
 
-def resolve_inputs(input_dir, filenames, strict):
-    """Returns ({filename: path}, [problems]) for the screens a listing needs."""
+def resolve_inputs(input_dir, stems):
+    """Returns ({stem: path}, [problems]) for the captures a listing needs."""
     index = indexed_inputs(input_dir)
     problems = []
-    if strict and SKIPPED_CAPTURES_STEM in index:
-        problems.append(
-            f"{SKIPPED_CAPTURES_STEM} is present: the capture run skipped screens "
-            "(see KeeForgeMacUITests/AGENTS.md); fix the harness and re-export"
-        )
+    if SKIPPED_CAPTURES_STEM in index:
+        problems.append(f"{SKIPPED_CAPTURES_STEM} is present: the capture run skipped screens; fix the harness and re-export")
     resolved = {}
-    for filename in filenames:
-        candidates = index.get(Path(filename).stem, {})
-        images = sorted(path for path, suffix in candidates.items() if suffix.lower() in IMAGE_SUFFIXES)
+    for stem in stems:
+        images = sorted(path for path, suffix in index.get(stem, {}).items() if suffix.lower() in IMAGE_SUFFIXES)
         if len(images) == 1:
-            resolved[filename] = images[0]
+            resolved[stem] = images[0]
         elif images:
-            names = ", ".join(path.name for path in images)
-            problems.append(f"{filename} is ambiguous ({len(images)} captures: {names}); export a single run")
+            problems.append(f"{stem} is ambiguous ({len(images)} captures: {', '.join(p.name for p in images)}); export a single run")
         else:
-            problems.append(f"{filename} is missing")
+            problems.append(f"{stem} is missing")
     return resolved, problems
 
 
-def make_gradient(width, height, color_top, color_bottom):
-    """Create a vertical gradient image."""
-    img = Image.new("RGB", (width, height))
-    draw = ImageDraw.Draw(img)
-    for y in range(height):
-        ratio = y / height
-        r = int(color_top[0] + (color_bottom[0] - color_top[0]) * ratio)
-        g = int(color_top[1] + (color_bottom[1] - color_top[1]) * ratio)
-        b = int(color_top[2] + (color_bottom[2] - color_top[2]) * ratio)
-        draw.line([(0, y), (width, y)], fill=(r, g, b))
-    return img
+def needed_captures(spec):
+    stems = []
+    for frame in spec["frames"].values():
+        for stem in [frame["screen"]] + [c[0] for c in frame.get("cards", [])]:
+            if stem not in stems:
+                stems.append(stem)
+    return stems
 
 
-def add_rounded_corners(img, radius):
-    """Add rounded corners to an image."""
-    mask = Image.new("L", img.size, 0)
-    draw = ImageDraw.Draw(mask)
-    draw.rounded_rectangle([(0, 0), img.size], radius=radius, fill=255)
-    result = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    result.paste(img, mask=mask)
-    return result
-
-
-def add_shadow(img, offset=15, blur_radius=30, opacity=80):
-    """Add a drop shadow behind an image."""
-    shadow = Image.new("RGBA", (img.width + blur_radius * 2, img.height + blur_radius * 2), (0, 0, 0, 0))
-    shadow_layer = Image.new("RGBA", img.size, (0, 0, 0, opacity))
-    shadow.paste(shadow_layer, (blur_radius + offset, blur_radius + offset))
-    shadow = shadow.filter(ImageFilter.GaussianBlur(blur_radius))
-    shadow.paste(img, (blur_radius, blur_radius), img)
-    return shadow
-
-
-class CaptionError(Exception):
-    pass
-
-
-def load_caption_font(locale, size):
-    path, index, weight, _ = FONTS.get(locale, SF_ROUNDED_BOLD)
-    font = ImageFont.truetype(str(path), size, index=index)
-    if weight is not None:
-        font.set_variation_by_axes([400, weight])  # SF axes: GRAD, Weight
-    return font
-
-
-def caption_options(locale, font):
-    """multiline_text keyword arguments shared by layout and drawing."""
-    stroke = FONTS.get(locale, SF_ROUNDED_BOLD)[3]
-    return {"font": font, "align": "center", "spacing": round(font.size * 0.18), "stroke_width": stroke}
-
-
-def missing_glyphs(font, text):
-    """Characters the font draws as its .notdef box (tofu)."""
-    def mask(ch):
-        image = font.getmask(ch)
-        return image.size, bytes(image)
-
-    notdef = mask("\U000F0000")  # Supplementary Private Use, in no caption font
-    return sorted({ch for ch in text if not ch.isspace() and mask(ch) == notdef})
-
-
-def load_captions(locales, spec):
-    """Returns {locale: {listing stem: caption}}, insisting every listing image has one."""
+def load_headlines(locale, platform):
+    """{frame: (headline, subline or None)} for one locale; sublines exactly where the platform takes them."""
     table = json.loads(CAPTIONS_PATH.read_text(encoding="utf-8"))
-    expected = {Path(screen[1]).stem for screen in spec["screens"]}
-    problems = []
-    for locale in LOCALES:
-        keys = set(table.get(locale, {}))
-        if keys != expected:
-            problems.append(f"{locale}: missing {sorted(expected - keys)}, unexpected {sorted(keys - expected)}")
     unknown = sorted(set(table) - set(LOCALES))
     if unknown:
-        problems.append(f"captions for unshipped locales {unknown}")
-    if problems:
-        raise CaptionError(f"{CAPTIONS_PATH.name}: " + "; ".join(problems))
-    return {locale: table[locale] for locale in locales}
+        raise art.ArtError(f"{CAPTIONS_PATH.name}: captions for unshipped locales {unknown}")
+    entries = table.get(locale)
+    if entries is None:
+        raise art.ArtError(f"{CAPTIONS_PATH.name}: no captions for {locale}")
+    keys = {key.split("@")[0].split(":")[0] for key in entries}
+    if keys != set(FRAMES):
+        raise art.ArtError(f"{locale}: missing {sorted(set(FRAMES) - keys)}, unexpected {sorted(keys - set(FRAMES))}")
+    takes_sub = "sub" in PLATFORMS[platform]
+    copy = {}
+    for frame in FRAMES:
+        headline = entries.get(f"{frame}@{platform}", entries[frame])
+        sub = entries.get(f"{frame}:sub@{platform}")
+        items = entries.get(f"{frame}:list@{platform}", entries.get(f"{frame}:list"))
+        if items is not None and not 2 <= len(items.split("\n")) <= 6:
+            raise art.ArtError(f"{locale}: {frame} checklist must have 2-6 lines")
+        if takes_sub != (sub is not None):
+            raise art.ArtError(f"{locale}: {frame} {'needs' if takes_sub else 'has'} a {platform} subline")
+        for text, most in ((headline, 3), (sub, 2)):
+            lines = (text or "x").split("\n")
+            if len(lines) > most or any(not line.strip() for line in lines):
+                raise art.ArtError(f"{locale}: {text!r} must be 1-{most} non-empty lines")
+        copy[frame] = (headline, sub, items.split("\n") if items else None)
+    return copy
 
 
-def plan_font(locale, captions, spec):
-    """Largest font size at which every caption of a locale fits, so one listing shares one size."""
-    max_width = spec["canvas"][0] - 2 * spec["text_margin"] - 2 * FONTS.get(locale, SF_ROUNDED_BOLD)[3]
-    for caption in captions.values():
-        lines = caption.split("\n")
-        if len(lines) > 3 or any(not line.strip() for line in lines):
-            raise CaptionError(f"{locale}: {caption!r} must be 1-3 non-empty lines")
-        missing = missing_glyphs(load_caption_font(locale, spec["font_size"]), caption)
-        if missing:
-            raise CaptionError(f"{locale}: font has no glyph for {''.join(missing)!r} in {caption!r}")
-    for size in range(spec["font_size"], spec["min_font_size"] - 1, -2):
-        font = load_caption_font(locale, size)
-        if all(font.getlength(line) <= max_width for caption in captions.values() for line in caption.split("\n")):
-            return font
-    widest = max((line for caption in captions.values() for line in caption.split("\n")), key=font.getlength)
-    raise CaptionError(f"{locale}: {widest!r} is wider than {max_width}px even at {spec['min_font_size']}px")
+def plan_fonts(spec, locale, copy):
+    """(headline font, subline font or None): one size each for every frame of a listing, the largest that fits."""
+    w = spec["canvas"][0]
+    width = round(w * spec["column"]) if spec["layout"] == "landscape" else w - 2 * spec["margin"]
+    headline = art.fit("display", locale, [c[0] for c in copy.values()], spec["headline"][0], width, spec["headline"][1])
+    subs = [c[1] for c in copy.values() if c[1]]
+    sub = art.fit("text", locale, subs, spec["sub"][0], width, spec["sub"][1]) if subs else None
+    return headline, sub
 
 
-def place(image_size, options, caption, spec):
-    """Returns (screenshot size, screenshot origin, caption origin); the caption must clear the top margin."""
-    canvas_w, canvas_h = spec["canvas"]
-    scale = min(canvas_w * 0.92 / image_size[0], canvas_h * 0.82 / image_size[1])
-    shot_size = (int(image_size[0] * scale), int(image_size[1] * scale))
-    shadow_pad = 25 * 2
-    shot_origin = ((canvas_w - shot_size[0] - shadow_pad) // 2, canvas_h - shot_size[1] - shadow_pad + 80)
-
-    left, top, right, bottom = ImageDraw.Draw(Image.new("L", (1, 1))).multiline_textbbox(
-        (0, 0), caption, **options
-    )
-    text_origin = ((canvas_w - (right - left)) // 2 - left, shot_origin[1] - (bottom - top) - 80 - top)
-    if text_origin[1] + top < spec["text_margin"]:
-        raise CaptionError(f"{caption!r} is too tall for the space above the screenshot")
-    return shot_size, shot_origin, text_origin
+def lines_height(text, f, leading):
+    return round(text.count("\n") * f.size * leading + f.size * 0.9)
 
 
-def create_screenshot(screen_path, caption, options, color_top, color_bottom, output_path, spec):
-    """Create a single polished App Store screenshot."""
-    canvas = make_gradient(*spec["canvas"], color_top, color_bottom).convert("RGBA")
-    screenshot = Image.open(screen_path).convert("RGBA")
-    shot_size, shot_origin, text_origin = place(screenshot.size, options, caption, spec)
+def text_height(spec, copy, fonts):
+    (headline, sub, _), (hf, sf) = copy, fonts
+    height = lines_height(headline, hf, spec["leading"])
+    if sub:
+        height += round(hf.size * spec["sub_gap"]) + lines_height(sub, sf, spec["sub_leading"])
+    return height
 
-    screenshot = screenshot.resize(shot_size, Image.LANCZOS)
-    screenshot = add_rounded_corners(screenshot, radius=spec["corner_radius"])
-    screenshot_with_shadow = add_shadow(screenshot, offset=12, blur_radius=25, opacity=60)
-    canvas.paste(screenshot_with_shadow, shot_origin, screenshot_with_shadow)
 
+def layout(spec, frame, copy, fonts, captures, locale):
+    """Every element's image and position for one frame; raises ArtError if it does not fit."""
+    w, h = spec["canvas"]
+    placed = []
+    headline = copy[0]
+    text_h = text_height(spec, copy, fonts)
+    cards_spec = spec["cards"]
+
+    if spec["layout"] == "portrait":
+        text_origin = (spec["margin"], spec["top"])
+        d = spec["device"]
+        dev = art.device(captures[frame["screen"]], round(w * d["width"]), d["bezel"], d["radius"])
+        # The device starts at the same height in every frame, below room for three headline lines.
+        dev_origin = ((w - dev.width) // 2, spec["top"] + lines_height("\n\n", fonts[0], spec["leading"]) + d["gap"])
+        if dev_origin[1] > h * d["max_top"]:
+            raise art.ArtError(f"{headline!r} pushes the device below {d['max_top']:.0%} of the frame")
+        placed.append(("device", dev, dev_origin))
+        card_w, card_x = round(w * cards_spec["width"]), None
+        floor = dev_origin[1] + (h - dev_origin[1]) * 0.3
+    else:
+        win_spec = spec["window"]
+        win_w = round(w * win_spec["width"])
+        with Image.open(captures[frame["screen"]]) as shot:
+            ratio = shot.height / shot.width
+        win_w = min(win_w, round(h * win_spec["max_height"] / ratio))
+        win = art.window(captures[frame["screen"]], win_w)
+        dev_origin = (w - win_spec["right"] - win.width, (h - win.height) // 2)
+        placed.append(("window", win, dev_origin))
+        text_origin = (spec["margin"], round(h * spec["text_top"]))
+        if spec["margin"] + round(w * spec["column"]) + win_spec["gap"] > dev_origin[0]:
+            raise art.ArtError("the headline column runs into the window")
+        card_w, card_x = round(w * cards_spec["width"]), dev_origin[0] + round(w * cards_spec["x"])
+        floor = h * 0.4
+
+    y = h - cards_spec["bottom"]
+    cards = []
+    images = [art.card(captures[stem], hint, mode, card_w, cards_spec["radius"]) for stem, hint, mode in frame.get("cards", [])]
+    if frame.get("checklist"):
+        if not copy[2]:
+            raise art.ArtError(f"{headline.splitlines()[0]!r} needs a checklist")
+        images.insert(0, art.checklist_card(copy[2], card_w, locale, frame["checklist"], cards_spec["radius"]))
+    for c in reversed(images):
+        y -= c.height
+        cards.append(("card", c, ((w - c.width) // 2 if card_x is None else card_x, y)))
+        y -= cards_spec["gap"]
+    if cards and cards[-1][2][1] < floor:
+        raise art.ArtError(f"cards reach {cards[-1][2][1]}px, covering most of the {frame['screen']} screen")
+    placed += reversed(cards)
+
+    if frame.get("art") == "kdbx":
+        a = spec["art"]
+        doc = art.key_file(round(h * a["height"]))
+        x = round(w * a["x"]) if a["x"] >= 0 else dev_origin[0] + round(w * a["x"])
+        placed.append(("art", doc, (x, round(h * a["y"]))))
+
+    text_box = (text_origin[0], text_origin[1], text_origin[0] + round(w * spec.get("column", 1)), text_origin[1] + text_h)
+    for kind, image, (x, y) in placed:
+        if kind != "device" and kind != "window" and x < text_box[2] and y < text_box[3] and x + image.width > text_box[0] and y + image.height > text_box[1]:
+            raise art.ArtError(f"the {kind} overlaps the text of {headline.splitlines()[0]!r}")
+    return text_origin, placed
+
+
+def render(spec, frame, copy, fonts, locale, captures, output):
+    w, h = spec["canvas"]
+    field = art.background if frame["field"] == INDIGO else art.paper
+    canvas = field((w, h), frame["focus"])
+    text_origin, placed = layout(spec, frame, copy, fonts, captures, locale)
+    for kind, image, origin in placed:
+        if kind == "card":
+            art.shadow_paste(canvas, image, origin, art.CARD_SHADOW["blur"], art.CARD_SHADOW["offset"], art.CARD_SHADOW["opacity"])
+        else:
+            art.shadow_paste(canvas, image, origin, 60, 36, 120)
+    indigo = frame["field"] == INDIGO
     draw = ImageDraw.Draw(canvas)
-    shadow, white = (0, 0, 0, 60), (255, 255, 255)
-    draw.multiline_text((text_origin[0] + 3, text_origin[1] + 3), caption, fill=shadow, stroke_fill=shadow, **options)
-    draw.multiline_text(text_origin, caption, fill=white, stroke_fill=white, **options)
-
-    canvas.convert("RGB").save(output_path, quality=95)
-    print(f"Created {display_path(output_path)} ({canvas.width}x{canvas.height})")
+    (headline, sub, _), (hf, sf) = copy, fonts
+    art.draw_lines(draw, text_origin, headline, hf, art.PAPER if indigo else art.INK_TEXT, spec["leading"], locale, "display")
+    if sub:
+        y = text_origin[1] + lines_height(headline, hf, spec["leading"]) + round(hf.size * spec["sub_gap"])
+        art.draw_lines(draw, (text_origin[0] + 4, y), sub, sf, art.GOLD_LIGHT if indigo else art.INK_MUTED, spec["sub_leading"], locale, "text")
+    canvas.convert("RGB").save(output)
 
 
 def display_path(path):
     return path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path
 
 
-def composite(platform, input_dir, output_dir, locales=None):
-    """Composites one listing (every requested locale for iPhone); returns a process exit code."""
+def composite(platform, input_root, output_root, locales):
+    """Plans every requested locale before writing any, then renders; returns a process exit code."""
     spec = PLATFORMS[platform]
-    if platform == "iphone":
-        return composite_iphone(spec, input_dir, output_dir, locales or list(LOCALES))
-
-    filenames = [screen[0] for screen in spec["screens"]]
-    try:
-        resolved, problems = resolve_inputs(input_dir, filenames, spec["strict"])
-    except InputError as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
-    if problems:
-        for problem in problems:
-            print(f"error: {problem}", file=sys.stderr)
-        print(f"error: refusing to write a partial {platform} listing from {display_path(input_dir)}", file=sys.stderr)
-        return 1
-    return composite_mac(spec, resolved, input_dir, output_dir)
-
-
-def composite_iphone(spec, input_root, output_root, locales):
-    """Plans every locale's captions against its captures, then writes build/appstore/<locale>/."""
-    filenames = [screen[0] for screen in spec["screens"]]
+    stems = needed_captures(spec)
     plans = {}
-    warnings = []
     try:
-        captions = load_captions(locales, spec)
+        art.ensure_fonts()
         for locale in locales:
-            resolved, problems = resolve_inputs(input_root / locale, filenames, strict=False)
-            warnings += [f"{locale}: {problem}" for problem in problems]
-            options = caption_options(locale, plan_font(locale, captions[locale], spec))
-            for source, output, *_ in spec["screens"]:
-                if source in resolved:
-                    with Image.open(resolved[source]) as image:
-                        place(image.size, options, captions[locale][Path(output).stem], spec)
-            plans[locale] = (resolved, options)
-    except (InputError, CaptionError) as error:
+            resolved, problems = resolve_inputs(input_root / locale, stems)
+            if problems:
+                raise art.ArtError(f"{platform} {locale}: " + "; ".join(problems))
+            copy = load_headlines(locale, platform)
+            fonts = plan_fonts(spec, locale, copy)
+            for name, frame in spec["frames"].items():
+                layout(spec, frame, copy[name], fonts, resolved, locale)
+            plans[locale] = (resolved, copy, fonts)
+    except (InputError, art.ArtError) as error:
         print(f"error: {error}", file=sys.stderr)
+        print(f"error: refusing to write a partial {platform} listing", file=sys.stderr)
         return 1
 
-    for locale, (resolved, options) in plans.items():
-        output_dir = output_root / locale
-        output_dir.mkdir(parents=True, exist_ok=True)
-        for source, output, color_top, color_bottom in spec["screens"]:
-            if source in resolved:
-                caption = captions[locale][Path(output).stem]
-                create_screenshot(resolved[source], caption, options, color_top, color_bottom, output_dir / output, spec)
-        print(f"{locale}: {options['font'].size}px captions, {len(resolved)} of {len(filenames)} screens")
-
-    print(f"\nDone! Screenshots in {display_path(output_root)}/<locale>/")
-    if warnings:
-        # Said out loud rather than left to the eye: a listing short a screen
-        # because an export was incomplete looks exactly like one that was
-        # meant to be short.
-        for warning in warnings:
-            print(f"warning: {warning}")
-        print(f"warning: {len(warnings)} screens were not usable -- re-capture before uploading.")
+    for locale, (resolved, copy, fonts) in plans.items():
+        out = output_root / locale
+        out.mkdir(parents=True, exist_ok=True)
+        report = {"platform": platform, "locale": locale, "canvas": list(spec["canvas"]), "headline_px": fonts[0].size,
+                  "subline_px": fonts[1].size if fonts[1] else None, "frames": []}
+        for name, frame in spec["frames"].items():
+            render(spec, frame, copy[name], fonts, locale, resolved, out / f"{name}.png")
+            sources = [frame["screen"]] + [c[0] for c in frame.get("cards", [])]
+            report["frames"].append({
+                "output": f"{name}.png",
+                "headline": copy[name][0],
+                "subline": copy[name][1],
+                "sources": {stem: hashlib.sha256(resolved[stem].read_bytes()).hexdigest() for stem in dict.fromkeys(sources)},
+            })
+            print(f"Created {display_path(out / f'{name}.png')}")
+        (out / "layout-report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        stale = sorted(p.name for p in out.glob("*.png") if p.stem not in spec["frames"])
+        for name in stale:
+            print(f"warning: {display_path(out / name)} is not part of this listing; do not upload it")
+    print(f"\nDone! {platform}: {len(plans)} locale(s) in {display_path(output_root)}/<locale>/")
     return 0
 
 
@@ -427,9 +398,7 @@ def run(argv, **kwargs):
 def capture_simulator(device):
     """Returns the UDID of an available simulator named `device`, creating it on the newest iOS runtime that supports it."""
     def simctl_json(*args):
-        return json.loads(subprocess.run(
-            ["xcrun", "simctl", "list", "--json", *args], check=True, capture_output=True, text=True
-        ).stdout)
+        return json.loads(subprocess.run(["xcrun", "simctl", "list", "--json", *args], check=True, capture_output=True, text=True).stdout)
 
     runtimes = sorted(
         (runtime for runtime in simctl_json("runtimes")["runtimes"]
@@ -446,238 +415,138 @@ def capture_simulator(device):
                 return candidate["udid"]
     runtime = runtimes[-1]
     kind = next(kind for kind in runtime["supportedDeviceTypes"] if kind["name"] == device)
-    return subprocess.run(
-        ["xcrun", "simctl", "create", device, kind["identifier"], runtime["identifier"]],
-        check=True, capture_output=True, text=True,
-    ).stdout.strip()
+    return subprocess.run(["xcrun", "simctl", "create", device, kind["identifier"], runtime["identifier"]],
+                          check=True, capture_output=True, text=True).stdout.strip()
 
 
 def capture(locales, device, input_root):
-    """Runs AppStoreScreenshots once per locale and exports each run into input_root/<locale>/."""
+    """Runs the iPhone capture classes once per locale on a local simulator and exports each run."""
     udid = capture_simulator(device)
     subprocess.run(["xcrun", "simctl", "boot", udid], capture_output=True)
     run(["xcrun", "simctl", "bootstatus", udid])
     run(["xcrun", "simctl", "status_bar", udid, "override", "--time", "9:41", "--dataNetwork", "wifi",
          "--wifiMode", "active", "--wifiBars", "3", "--cellularMode", "active", "--cellularBars", "4",
          "--batteryState", "charged", "--batteryLevel", "100"])
-
     derived_data = REPO_ROOT / "build" / "screenshots-derived-data"
     common = ["xcodebuild", "-project", REPO_ROOT / "KeeForge.xcodeproj", "-scheme", "KeeForge",
               "-destination", f"platform=iOS Simulator,id={udid}", "-derivedDataPath", derived_data]
     run(common + ["build-for-testing"])
     environment = dict(os.environ, TEST_RUNNER_APPSTORE_SCREENSHOTS="1")
-    filenames = [screen[0] for screen in PLATFORMS["iphone"]["screens"]]
     for locale in locales:
         bundle = input_root / f"{locale}.xcresult"
         export = input_root / locale
         shutil.rmtree(bundle, ignore_errors=True)
         shutil.rmtree(export, ignore_errors=True)
-        run(common + ["test-without-building", f"-only-testing:{CAPTURE_TEST}",
-                      "-testLanguage", locale, "-testRegion", LOCALES[locale], "-resultBundlePath", bundle],
-            env=environment)
+        run(common + ["test-without-building", *[f"-only-testing:{test}" for test in CAPTURE_TESTS],
+                      "-testLanguage", locale, "-testRegion", LOCALES[locale], "-resultBundlePath", bundle], env=environment)
         run(["xcrun", "xcresulttool", "export", "attachments", "--path", bundle, "--output-path", export])
-        _, problems = resolve_inputs(export, filenames, strict=True)
+        _, problems = resolve_inputs(export, needed_captures(PLATFORMS["iphone"]))
         if problems:
             raise SystemExit(f"error: {locale} capture is incomplete: " + "; ".join(problems))
     run(["xcrun", "simctl", "status_bar", udid, "clear"])
 
 
-def composite_mac(spec, resolved, input_dir, output_dir):
-    """Plans every Mac screen before writing any, then renders them and layout-report.json."""
-    try:
-        for source, output, headline, subhead in spec["screens"]:
-            with Image.open(resolved[source]) as image:
-                mac_screenshot_design.plan(image.size, headline, subhead)
-    except mac_screenshot_design.LayoutError as error:
-        print(f"error: {source}: {error}", file=sys.stderr)
-        return 1
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    report = {"canvas": list(spec["canvas"]), "font": mac_screenshot_design.font_family(), "screens": []}
-    for source, output, headline, subhead in spec["screens"]:
-        layout = mac_screenshot_design.render(resolved[source], output_dir / output, headline, subhead)
-        report["screens"].append({
-            "output": output,
-            "source": source,
-            "source_file": resolved[source].name,
-            "source_sha256": hashlib.sha256(resolved[source].read_bytes()).hexdigest(),
-            **layout,
-        })
-        print(f"Created {display_path(output_dir / output)} from {resolved[source].name}")
-    (output_dir / "layout-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-
-    expected = {screen[1] for screen in spec["screens"]}
-    stale = sorted(path.name for path in output_dir.glob("*.png") if path.name not in expected)
-    for name in stale:
-        print(f"warning: {display_path(output_dir / name)} is not part of this listing; do not upload it")
-    print(f"\nDone! {len(expected)} screenshots in {display_path(output_dir)}/")
-    return 0
+def synthetic_capture(size, blocks):
+    """A grouped-list capture with a white block (and a header label for "header" cards) at each hint."""
+    w, h = size
+    image = Image.new("RGB", size, (242, 242, 247))
+    d = ImageDraw.Draw(image)
+    for hint, mode in blocks:
+        if mode == "box":
+            continue
+        x, y = hint
+        top, bottom = round((y - 0.02) * h), round((y + 0.02) * h)
+        d.rounded_rectangle([(round(w * 0.06), top), (round(w * 0.94), bottom)], radius=20, fill=(255, 255, 255))
+        d.rectangle([(round(w * 0.1), top + 8), (round(w * 0.3), top + 20)], fill=(30, 30, 30))
+        if mode == "header":
+            d.rectangle([(round(w * 0.08), top - 40), (round(w * 0.3), top - 16)], fill=(130, 130, 135))
+    return image
 
 
 def self_test():
-    """Checks input resolution on disposable fixtures in a temporary directory."""
-    uuid = "ED740AA1-6D40-45DA-99F6-2BFB04A8A221"
-    mac_names = [screen[0] for screen in PLATFORMS["mac"]["screens"]]
-    captures = [f"{Path(name).stem}_0_{uuid}.png" for name in mac_names] + [f"09-final-state_0_{uuid}.png"]
-
+    """Lays out and renders every platform from synthetic captures, and checks the failure modes."""
+    art.ensure_fonts()
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
+        for platform, spec in PLATFORMS.items():
+            size = (2880, 1800) if platform == "mac" else spec["canvas"]
+            blocks = {}
+            for frame in spec["frames"].values():
+                blocks.setdefault(frame["screen"], [])
+                for stem, hint, mode in frame.get("cards", []):
+                    blocks.setdefault(stem, []).append((hint, mode))
+            captures = root / platform / "en"
+            captures.mkdir(parents=True)
+            for stem, hints in blocks.items():
+                synthetic_capture(size, hints).save(captures / f"{stem}.png")
+            out = root / f"out-{platform}"
+            assert composite(platform, root / platform, out, ["en"]) == 0, platform
+            for name in spec["frames"]:
+                with Image.open(out / "en" / f"{name}.png") as image:
+                    assert image.size == spec["canvas"] and image.mode == "RGB", (platform, name, image.size, image.mode)
 
-        def export(name, suggested_names):
-            directory = root / name
-            directory.mkdir()
-            attachments = []
-            for index, suggested in enumerate(suggested_names):
-                exported = f"{index:08X}-0000-4000-8000-000000000000{Path(suggested).suffix}"
-                if Path(suggested).suffix == ".png":
-                    Image.new("RGB", (160, 100), (200, 200, 200)).save(directory / exported)
-                else:
-                    (directory / exported).write_text("skipped")
-                attachments.append({"suggestedHumanReadableName": suggested, "exportedFileName": exported})
-            (directory / "manifest.json").write_text(json.dumps([{"attachments": attachments}]))
-            return directory
+            # A missing capture or a skipped-captures report writes nothing.
+            first = next(captures.iterdir())
+            partial = root / f"{platform}-partial" / "en"
+            shutil.copytree(captures, partial)
+            (partial / first.name).unlink()
+            assert composite(platform, partial.parent, root / f"out-{platform}-partial", ["en"]) == 1
+            assert not (root / f"out-{platform}-partial").exists()
+            (captures / f"{SKIPPED_CAPTURES_STEM}.txt").write_text("skipped")
+            assert composite(platform, root / platform, root / f"out-{platform}-skipped", ["en"]) == 1
 
-        listing_names = [screen[1] for screen in PLATFORMS["mac"]["screens"]]
-        assert len(set(mac_names)) == len(mac_names) and len(set(listing_names)) == len(listing_names)
-        output = root / "out-complete"
-        assert composite("mac", export("complete", captures), output) == 0
-        assert sorted(path.name for path in output.iterdir()) == sorted(listing_names + ["layout-report.json"])
-        for name in listing_names:
-            with Image.open(output / name) as image:
-                assert image.size == PLATFORMS["mac"]["canvas"] and image.mode == "RGB", (name, image.size, image.mode)
-        report = json.loads((output / "layout-report.json").read_text())
-        assert [screen["output"] for screen in report["screens"]] == listing_names
-
-        output = root / "out-partial"
-        assert composite("mac", export("partial", captures[1:]), output) == 1
-        assert not output.exists(), "a partial Mac set must not write anything"
-        _, problems = resolve_inputs(root / "partial", mac_names, strict=True)
-        assert problems == [f"{mac_names[0]} is missing"], problems
-
-        # A headline too long for one line wraps inside the margins; a wide or tall
-        # capture scales to fit; a headline that cannot fit fails before drawing.
-        design = mac_screenshot_design
-        long_headline = "Your passwords, your groups, your servers. All at home on your Mac."
-        for size in [(2160, 1400), (1080, 1216), (3200, 1000), (1100, 2000)]:
-            layout = design.plan(size, long_headline, "A native KeePass manager. Your vaults stay yours.")
-            assert len(layout["headline"]["lines"]) == 2, layout["headline"]["lines"]
-            left, top, right, bottom = layout["window"]
-            assert right - left <= design.LAYOUT["window_max_width"] and bottom <= design.CANVAS[1]
-            assert abs((right - left) / (bottom - top) - size[0] / size[1]) < 0.01, "window must scale uniformly"
-        for size, headline in [((2160, 1400), " ".join(["Unbreakable"] * 12)), ((400, 3000), "Short")]:
+        # Cards are found from a hint, row by row; a hint off any white row fails.
+        listing = synthetic_capture((1320, 2868), [((0.5, 0.5), "header")])
+        left, top, right, bottom = art.find_card(listing, (0.5, 0.5), "section")
+        assert abs(left - 79) <= 1 and abs(right - 1242) <= 1 and bottom - top > 100, (left, top, right, bottom)
+        assert art.find_card(listing, (0.5, 0.5), "header")[1] < top
+        for hint in [(0.5, 0.1), (0.02, 0.5)]:
             try:
-                design.plan(size, headline, "Subhead")
-            except design.LayoutError:
+                art.find_card(listing, hint, "row")
+            except art.ArtError:
                 pass
             else:
-                raise AssertionError(f"{size} {headline!r} must fail layout")
+                raise AssertionError(f"{hint} must fail")
 
-        corners = root / "corners.png"
-        window = Image.new("RGBA", (400, 260), (0, 0, 0, 0))
-        ImageDraw.Draw(window).rounded_rectangle([0, 0, 399, 259], radius=40, fill=(250, 250, 250, 255))
-        window.save(corners)
-        design.render(corners, root / "corners-out.png", "Your passwords. At home on Mac.", "Subhead")
-        with Image.open(root / "corners-out.png") as rendered:
-            layout = design.plan(window.size, "Your passwords. At home on Mac.", "Subhead")
-            left, top = layout["window"][:2]
-            assert rendered.getpixel((left + 1, top + 1)) != (250, 250, 250), "capture corner alpha must survive"
-
-        skipped = export("skipped", captures + [f"{SKIPPED_CAPTURES_STEM}_0_{uuid}.txt"])
-        assert composite("mac", skipped, root / "out-skipped") == 1
-        assert not (root / "out-skipped").exists()
-
-        _, problems = resolve_inputs(export("duplicate", captures + [f"02-unlock_1_{uuid}.png"]), mac_names, strict=True)
-        assert len(problems) == 1 and problems[0].startswith("02-unlock.png is ambiguous"), problems
-
-        broken = export("broken", captures)
-        next(broken.glob("00000000-*.png")).unlink()
+        # Every captioned locale fits every platform in its own fonts.
+        table = json.loads(CAPTIONS_PATH.read_text(encoding="utf-8"))
+        for locale in table:
+            for platform, spec in PLATFORMS.items():
+                plan_fonts(spec, locale, load_headlines(locale, platform))
+        latin = art.font("display", "en", 100)
+        assert art.missing_glyphs(latin, "Ab·") == [] and art.missing_glyphs(latin, "Ж保") == ["Ж", "保"]
+        assert art.missing_glyphs(art.font("display", "ru", 100), "Пароли") == []
         try:
-            resolve_inputs(broken, mac_names, strict=True)
-        except InputError:
+            art.fit("display", "en", ["One Two Three Four Five Six Seven"], 176, 1100, 112)
+        except art.ArtError:
             pass
         else:
-            raise AssertionError("a manifest naming a missing file must fail")
-
-        plain = root / "plain"
-        plain.mkdir()
-        for name in mac_names:
-            Image.new("RGB", (160, 100)).save(plain / name)
-        resolved, problems = resolve_inputs(plain, mac_names, strict=True)
-        assert problems == [] and resolved[mac_names[0]] == plain / mac_names[0], problems
-
-        # Every locale's captions fit a device-shaped capture in its own font; a
-        # short iPhone set still composites, with a warning, under <locale>/.
-        spec = PLATFORMS["iphone"]
-        captions = load_captions(list(LOCALES), spec)
-        for locale, table in captions.items():
-            options = caption_options(locale, plan_font(locale, table, spec))
-            for caption in table.values():
-                place((1320, 2868), options, caption, spec)
-        latin = load_caption_font("en", 88)
-        assert missing_glyphs(latin, "Ab·Жё") == [] and missing_glyphs(latin, "保管庫") == ["保", "庫", "管"]
-        for caption in ["One\nTwo\nThree\nFour", " ".join(["Unbreakable"] * 6)]:
-            try:
-                plan_font("en", {"01-free": caption}, spec)
-            except CaptionError:
-                pass
-            else:
-                raise AssertionError(f"{caption!r} must fail caption layout")
-
-        iphone_names = [screen[0] for screen in spec["screens"]]
-        iphone = root / "iphone"
-        (iphone / "de").mkdir(parents=True)
-        Image.new("RGB", (1320, 2868)).save(iphone / "de" / iphone_names[0])
-        output = root / "out-iphone"
-        assert composite("iphone", iphone, output, ["de"]) == 0
-        assert [path.relative_to(output).as_posix() for path in output.rglob("*.png")] == [f"de/{spec['screens'][0][1]}"]
-
+            raise AssertionError("an overlong headline must fail")
     print("self-test passed")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument(
-        "--platform",
-        choices=sorted(PLATFORMS),
-        default="iphone",
-        help="which listing to composite for (default: iphone)",
-    )
-    parser.add_argument(
-        "--input-dir",
-        type=Path,
-        help="raw screenshots or an xcresulttool attachment export (default: the platform's input directory)",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        help="where to write the listing (default: the platform's output directory)",
-    )
-    parser.add_argument(
-        "--locale",
-        action="append",
-        choices=list(LOCALES),
-        help="iPhone only: limit capture and compositing to this locale (repeatable; default: every shipped locale)",
-    )
-    parser.add_argument(
-        "--capture",
-        action="store_true",
-        help="iPhone only: run AppStoreScreenshots per locale on a local simulator before compositing",
-    )
+    parser.add_argument("--platform", choices=sorted(PLATFORMS), default="iphone")
+    parser.add_argument("--input-dir", type=Path, help="parent of the per-locale capture folders (default: the platform's)")
+    parser.add_argument("--output-dir", type=Path, help="where to write <locale>/ listings (default: the platform's)")
+    parser.add_argument("--locale", action="append", choices=list(LOCALES), help="repeatable; default: every shipped locale")
+    parser.add_argument("--capture", action="store_true", help="iPhone only: capture each locale on a local simulator first")
     parser.add_argument("--device", default=CAPTURE_DEVICE, help=f"simulator for --capture (default: {CAPTURE_DEVICE})")
-    parser.add_argument("--self-test", action="store_true", help="check input resolution, captions and Mac layout on disposable fixtures and exit")
+    parser.add_argument("--self-test", action="store_true", help="check layout and failure modes on synthetic captures and exit")
     args = parser.parse_args()
 
     if args.self_test:
         self_test()
         return 0
-    if args.platform != "iphone" and (args.locale or args.capture):
-        parser.error("--locale and --capture apply to the iPhone listing only")
-
+    if args.capture and args.platform != "iphone":
+        parser.error("--capture applies to the iPhone listing only; capture iPad and Mac with studio-test")
     spec = PLATFORMS[args.platform]
-    input_dir = (args.input_dir or spec["input_dir"]).resolve()
+    input_root = (args.input_dir or spec["input_dir"]).resolve()
+    locales = args.locale or list(LOCALES)
     if args.capture:
-        capture(args.locale or list(LOCALES), args.device, input_dir)
-    return composite(args.platform, input_dir, (args.output_dir or spec["output_dir"]).resolve(), args.locale)
+        capture(locales, args.device, input_root)
+    return composite(args.platform, input_root, (args.output_dir or spec["output_dir"]).resolve(), locales)
 
 
 if __name__ == "__main__":

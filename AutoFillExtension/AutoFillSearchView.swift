@@ -28,6 +28,8 @@ struct AutoFillSearchView: View {
     let entries: [KPEntry]
     let searchEntries: [KPEntry]
     let possibleEntries: [KPEntry]
+    /// The database's `Meta/CustomIcons`, for entries that use one.
+    let customIcons: [UUID: Data]
     let onSelect: (KPEntry) -> Void
     let onSelectPossible: (KPEntry) -> Void
     /// Nil when the database cannot be written (read-only or KDBX 3.1) or
@@ -59,6 +61,7 @@ struct AutoFillSearchView: View {
         entries: [KPEntry],
         searchEntries: [KPEntry]? = nil,
         possibleEntries: [KPEntry] = [],
+        customIcons: [UUID: Data] = [:],
         initialSearchText: String = "",
         sharedCopyDate: Date? = nil,
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext? = nil,
@@ -71,6 +74,7 @@ struct AutoFillSearchView: View {
         self.entries = entries
         self.searchEntries = searchEntries ?? entries
         self.possibleEntries = possibleEntries
+        self.customIcons = customIcons
         self.initialSearchText = initialSearchText
         self.sharedCopyDate = sharedCopyDate
         self.databaseSwitcher = databaseSwitcher
@@ -446,10 +450,13 @@ struct AutoFillSearchView: View {
         }
     }
 
-    /// No favicon: the extension never reaches the network.
     private func designedEntryRow(_ entry: KPEntry) -> some View {
         HStack(spacing: Theme.Spacing.iconText) {
-            EntryIconView(entry: entry, size: entryIconSize)
+            AutoFillEntryIcon(
+                entry: entry,
+                customIconData: entry.customIconUUID.flatMap { customIcons[$0] },
+                size: entryIconSize
+            )
 
             VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
                 Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
@@ -597,5 +604,28 @@ struct AutoFillNoEnabledDatabasesView: View {
         } description: {
             Text("Turn on AutoFill for a database in KeeForge’s settings to use it here.")
         }
+    }
+}
+
+/// An entry's icon as the app draws it: its custom icon, else on iOS the
+/// website icon the app already cached in the App Group. The extension never
+/// fetches one; it has no network on macOS and must not add egress on iOS.
+private struct AutoFillEntryIcon: View {
+    let entry: KPEntry
+    let customIconData: Data?
+    let size: CGFloat
+
+    @State private var favicon: PlatformImage?
+
+    var body: some View {
+        EntryIconView(entry: entry, customIconData: customIconData, favicon: favicon, size: size)
+            .task(id: entry.id) {
+                #if os(iOS)
+                guard customIconData == nil,
+                      SettingsService.showWebsiteIcons,
+                      let domain = FaviconService.extractDomain(from: entry.url) else { return }
+                favicon = FaviconService.cachedImage(for: domain)
+                #endif
+            }
     }
 }

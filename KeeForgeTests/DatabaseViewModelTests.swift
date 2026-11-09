@@ -1298,6 +1298,30 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.contentRevision, contentRevision)
     }
 
+    func testRecycleEntriesSendsThemToTheBinInOneChangeAndSkipsTheRest() async throws {
+        let first = KPEntry(title: "First")
+        let second = KPEntry(title: "Second")
+        let kept = KPEntry(title: "Kept")
+        let alreadyRecycled = KPEntry(title: "Already Recycled")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "One", entries: [first, kept, alreadyRecycled]),
+            KPGroup(name: "Two", entries: [second]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+        try vm.deleteEntry(alreadyRecycled.id, sendToRecycleBin: true)
+        vm.workspace.selectedEntryID = second.id
+        let contentRevision = vm.contentRevision
+
+        try vm.recycleEntries(entryIDs: [first.id, second.id, alreadyRecycled.id, UUID()])
+
+        XCTAssertEqual(vm.contentRevision, contentRevision + 1, "the tree must be rebuilt once, not per entry")
+        XCTAssertTrue(vm.isEntryInRecycleBin(entryID: first.id))
+        XCTAssertTrue(vm.isEntryInRecycleBin(entryID: second.id))
+        XCTAssertTrue(vm.isEntryInRecycleBin(entryID: alreadyRecycled.id))
+        XCTAssertFalse(vm.isEntryInRecycleBin(entryID: kept.id))
+        XCTAssertNil(vm.workspace.selectedEntryID, "a recycled entry must not stay open in the detail column")
+    }
+
     func testMoveEntriesNeverMovesIntoTheRecycleBin() async throws {
         let movable = KPEntry(title: "Movable")
         let recycledGroup = KPGroup(name: "Recycled Group")

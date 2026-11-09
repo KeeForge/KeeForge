@@ -150,10 +150,11 @@ and iOS recognizable. Read back each field after saving and check documented fie
 Do not change descriptions, keywords, URLs, or other listing fields unless in scope.
 
 Verify the version's screenshot sets and processed assets, including inherited galleries. iOS
-screenshots do not satisfy macOS. When new Mac screenshots are requested, use
-`KeeForgeMacUITests/MacScreenshotAuditUITests` exports and
-`ci_scripts/make_appstore_screenshots.py --platform mac --input-dir <export>` for the seven
-2880×1800 images; read the test folder's guidance before capturing. Upload only the appropriate
+screenshots do not satisfy macOS. When new screenshots are requested, capture with the classes
+named in `ci_scripts/make_appstore_screenshots.py` (`KeeForgeMacUITests/MacAppStoreScreenshots`
+for Mac) and generate each platform's six images with `--platform iphone|ipad|mac`; cut the
+iPhone app preview with `ci_scripts/make_app_preview.py`. Read the test folders' guidance
+before capturing. Upload only the appropriate
 platform assets using the reservation/upload/commit protocol in the API reference.
 
 ### 5. Verify reviewer details and fixture

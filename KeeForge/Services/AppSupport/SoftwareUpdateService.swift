@@ -15,6 +15,8 @@ import SwiftUI
 /// The feed URL and the public EdDSA key come from `SUFeedURL` /
 /// `SUPublicEDKey` in `KeeForgeMac/Info.plist`, which read the
 /// `SPARKLE_FEED_URL` and `SPARKLE_PUBLIC_ED_KEY` build settings.
+/// `SUEnableAutomaticChecks` turns on daily background checks by default;
+/// Sparkle persists the user's later choice in its own defaults.
 @MainActor
 @Observable
 final class SoftwareUpdateService {
@@ -26,18 +28,32 @@ final class SoftwareUpdateService {
             updaterDelegate: nil,
             userDriverDelegate: nil
         )
+        let updater = controller.updater
         return SoftwareUpdateService(
-            readiness: controller.updater.publisher(for: \.canCheckForUpdates).eraseToAnyPublisher(),
-            checkForUpdates: { controller.updater.checkForUpdates() }
+            readiness: updater.publisher(for: \.canCheckForUpdates).eraseToAnyPublisher(),
+            checkForUpdates: { updater.checkForUpdates() },
+            automaticChecks: updater.automaticallyChecksForUpdates,
+            setAutomaticChecks: { updater.automaticallyChecksForUpdates = $0 }
         )
     }()
 
     private(set) var canCheckForUpdates = false
+    var automaticallyChecksForUpdates: Bool {
+        didSet { applyAutomaticChecks(automaticallyChecksForUpdates) }
+    }
     @ObservationIgnored private var readinessSubscription: AnyCancellable?
     @ObservationIgnored private let performUpdateCheck: @MainActor () -> Void
+    @ObservationIgnored private let applyAutomaticChecks: @MainActor (Bool) -> Void
 
-    init(readiness: AnyPublisher<Bool, Never>, checkForUpdates: @escaping @MainActor () -> Void) {
+    init(
+        readiness: AnyPublisher<Bool, Never>,
+        checkForUpdates: @escaping @MainActor () -> Void,
+        automaticChecks: Bool,
+        setAutomaticChecks: @escaping @MainActor (Bool) -> Void
+    ) {
         performUpdateCheck = checkForUpdates
+        automaticallyChecksForUpdates = automaticChecks
+        applyAutomaticChecks = setAutomaticChecks
         readinessSubscription = readiness
             .receive(on: DispatchQueue.main)
             .sink { [weak self] ready in
@@ -61,6 +77,20 @@ struct CheckForUpdatesCommand: View {
             SoftwareUpdateService.shared.checkForUpdates()
         }
         .disabled(SoftwareUpdateService.shared.canCheckForUpdates == false)
+    }
+}
+
+/// The Updates section of the Mac Settings window's About tab.
+struct SoftwareUpdateSettingsSection: View {
+    @Bindable private var service = SoftwareUpdateService.shared
+
+    var body: some View {
+        Section("Updates") {
+            Toggle("Automatically Check for Updates", isOn: $service.automaticallyChecksForUpdates)
+                .accessibilityIdentifier("settings.updates.automatic-checks")
+            CheckForUpdatesCommand()
+                .accessibilityIdentifier("settings.updates.check-now")
+        }
     }
 }
 #endif

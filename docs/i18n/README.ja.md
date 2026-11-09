@@ -16,7 +16,10 @@
 
 <p align="center">
   <a href="https://apps.apple.com/us/app/keeforge/id6759309295">
-    <img alt="App Store でダウンロード" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
+    <img alt="iPhone、iPad、Mac 向けに App Store でダウンロード" src="https://img.shields.io/badge/App%20Store-iPhone%2C%20iPad%20%26%20Mac-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
+  </a>
+  <a href="https://github.com/KeeForge/KeeForge/releases/latest">
+    <img alt="Mac 版 KeeForge を直接ダウンロード" src="https://img.shields.io/badge/Mac-Direct%20Download-24292F?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
     <img alt="TestFlight で iPhone、iPad、Mac 向けベータに参加" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
@@ -111,7 +114,9 @@ scripts/              # ローカル開発用ツール
 
 ## サポート
 
-- App Store: [App Store の KeeForge](https://apps.apple.com/us/app/keeforge/id6759309295)
+- App Store（iPhone、iPad、Mac）: [App Store の KeeForge](https://apps.apple.com/us/app/keeforge/id6759309295)
+- Mac 版の直接ダウンロード: [GitHub の最新リリース](https://github.com/KeeForge/KeeForge/releases/latest)
+- Homebrew（Mac）: [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) で直接ダウンロード版をインストール
 - メール: [support@keeforge.com](mailto:support@keeforge.com)
 - 不具合の報告: [GitHub Issues](https://github.com/KeeForge/KeeForge/issues)
 

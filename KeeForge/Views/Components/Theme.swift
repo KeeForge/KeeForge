@@ -89,7 +89,6 @@ enum Theme {
         static let statusDot: CGFloat = 8
         static let navButton: CGFloat = 44
         static let failureBadge: CGFloat = 56
-        static let unlockIcon: CGFloat = 88
         static let unlockField: CGFloat = 54
         static let focusRing: CGFloat = 2
         static let meterSegment = CGSize(width: 16, height: 4)
@@ -100,8 +99,6 @@ enum Theme {
     /// The design's type styles mapped onto Dynamic Type text styles.
     enum Font {
         static let entryTitle = SwiftUI.Font.title.bold()
-        static let unlockTitle = SwiftUI.Font.largeTitle.bold()
-        static let unlockGlyph = SwiftUI.Font.system(.largeTitle).weight(.semibold)
         static let rowTitle = SwiftUI.Font.headline
         static let subhead = SwiftUI.Font.subheadline
         static let footnote = SwiftUI.Font.footnote

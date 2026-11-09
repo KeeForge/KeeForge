@@ -116,6 +116,7 @@ scripts/              # Локальные инструменты разрабо
 
 - App Store (iPhone, iPad и Mac): [KeeForge в App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
 - Прямая загрузка для Mac: [последний выпуск на GitHub](https://github.com/KeeForge/KeeForge/releases/latest)
+- Homebrew (Mac): [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) устанавливает версию для прямой загрузки
 - Эл. почта: [support@keeforge.com](mailto:support@keeforge.com)
 - Обращения: [GitHub Issues](https://github.com/KeeForge/KeeForge/issues)
 

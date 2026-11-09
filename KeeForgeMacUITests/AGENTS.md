@@ -15,6 +15,8 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - `MacSmokeUITests` is the required local release smoke (`prepare-release` skill). Run one class per invocation.
 - `MacScreenshotAuditUITests` skips unless `TEST_RUNNER_SCREENSHOT_AUDIT=1` is set; `TEST_RUNNER_SCREENSHOT_AUDIT_DARK=1` switches its captures to dark. Both must be real environment variables on the `xcodebuild` process: a trailing `KEY=value` argument is a build-setting override that never reaches the runner, and the class skips silently.
 
+- `MacAppStoreScreenshots` skips unless `TEST_RUNNER_APPSTORE_SCREENSHOTS=1` is set. It captures the Mac App Store screenshots from `demo.kdbx` in a 1440x900 pt window, sized through the `NSWindow Frame main-AppWindow-1` launch default because XCUITest corner drags do not resize windows on macOS 27.
+
 - Passphrase generator copy and Use controls: the generator case in `MacSmokeUITests`. Generation and saved options are covered headlessly by `PasswordGeneratorTests` and `SettingsServiceTests`.
 - Custom-icon management: `MacCustomIconManagementUITests` exercises rename, cancelled deletion, and confirmed deletion from the entry picker.
 - Restore entry/group context actions and split-view refresh: the restore cases in `MacSmokeUITests`. Shared policy and persistence remain unit-tested.

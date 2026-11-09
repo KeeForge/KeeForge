@@ -38,6 +38,7 @@ Before changing a folder, read its `AGENTS.md` and each parent's up to this file
 
 - Keep temporary agent artifacts in the main checkout's gitignored `scratch/`, never a linked worktree's. Find the main checkout with the first entry in `git worktree list --porcelain`.
 - `scratch/` may be emptied at any time. Release artifacts and evidence a later step needs go in the main checkout's `build/releases/` (`ci_scripts/release_dir.sh`; layout in `.agents/skills/prepare-release/references/shared.md`).
+- For iOS UI work, preview with `scripts/render-views.sh` before driving a simulator or device; `KeeForge/Views/AGENTS.md` says what it covers.
 - Update the folder's `AGENTS.md` when an invariant, ownership boundary, or test mapping changes. Do not add file maps, identifier lists, or history. Leave historical `docs/specs` alone unless explicitly asked.
 - Preserve accessibility identifiers or update the relevant UI tests in the same change. `KeeForgeUITests` and `KeeForgeMacUITests` share one identifier surface, so update both.
 - Add concise, user-facing changes to `CHANGELOG.md` under `## Unreleased`; fixes for unreleased features may skip it.

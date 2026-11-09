@@ -158,13 +158,22 @@ stage_appcast() {
   fi
   local -a input_args=()
   [[ -n "$INPUT_APPCAST" ]] && input_args+=(--input "$INPUT_APPCAST")
-  python3 "$APPCAST_GENERATOR" --artifact-json "$ARTIFACT_JSON" --output "$staged" "${input_args[@]}" >/dev/null
-  local signature length filename rc_tag commit_sha source_tree
+  local signature length filename rc_tag commit_sha source_tree changelog
+  commit_sha="$(json_value '.commitSHA | strings')"
+  # The release notes are the changelog exactly as the candidate commit has it.
+  changelog="${FIXTURE_CHANGELOG:-}"
+  if [[ -z "$changelog" ]]; then
+    changelog="$(mktemp "${TMPDIR:-/tmp}/keeforge-changelog.XXXXXX")"
+    git -C "$REPO_ROOT" show "${commit_sha}:CHANGELOG.md" >"$changelog" \
+      || { rm -f "$changelog"; die "cannot read CHANGELOG.md at ${commit_sha}"; }
+  fi
+  python3 "$APPCAST_GENERATOR" --artifact-json "$ARTIFACT_JSON" --output "$staged" --changelog "$changelog" \
+    "${input_args[@]}" >/dev/null || { [[ -n "${FIXTURE_CHANGELOG:-}" ]] || rm -f "$changelog"; die "appcast generation failed"; }
+  [[ -n "${FIXTURE_CHANGELOG:-}" ]] || rm -f "$changelog"
   signature="$(json_value '.sparkleSignatureAttributes["sparkle:edSignature"] | strings')"
   length="$(json_value '.sparkleSignatureAttributes.length | strings')"
   filename="$(json_value '.zipFilename | strings')"
   rc_tag="$(json_value '.rcTag | strings')"
-  commit_sha="$(json_value '.commitSHA | strings')"
   source_tree="$(json_value '.sourceTree | strings')"
   grep -Fq "sparkle:edSignature=\"${signature}\"" "$staged" || die "staged appcast signature differs from artifact JSON"
   grep -Fq "length=\"${length}\"" "$staged" || die "staged appcast length differs from artifact JSON"
@@ -388,7 +397,7 @@ verify_live_feed() {
 
 fixture() {
   require_command jq
-  local dir="${1:-${REPO_ROOT}/scratch/direct-release-fixture}" zip payload artifact old notes
+  local dir="${1:-${REPO_ROOT}/scratch/direct-release-fixture}" zip payload artifact old
   mkdir -p "$dir"
   payload="${dir}/fixture-payload.txt"
   zip="${dir}/KeeForge-9.9.9-b999.zip"
@@ -412,6 +421,10 @@ XML
       archivePath: "fixture/archive.xcarchive", symbolsPath: "fixture/archive.xcarchive/dSYMs",
       appPath: "fixture/KeeForge.app", feedURL: "https://keeforge.com/appcast.xml", minimumSystemVersion: "15.0"}' \
     >"$artifact"
+  FIXTURE_CHANGELOG="${dir}/CHANGELOG.md"
+  printf '%s\n' '# Changelog' '' '## Unreleased' '' '- Not in this release.' '' '## v9.9.9 (2099-01-01)' '' \
+    '### Fixes' '' '- Fixture fix with <markup> & ampersand (#1).' '' '## v9.9.8 (2098-01-01)' '' '- Older release.' \
+    >"$FIXTURE_CHANGELOG"
   ARTIFACT_JSON="$artifact" OUTPUT_DIR="$dir/staged" INPUT_APPCAST="$old" NEW_FEED=0
   validate_artifact
   stage_appcast >&2
@@ -431,13 +444,20 @@ XML
   STAGED_METADATA="$dir/staged/staged-appcast.json" LIVE_URL="file://${DESTINATION}" \
     PUBLIC_VERIFICATION="$dir/live-feed.json" verify_live_feed >&2
   grep -Fq '9.9.8' "$DESTINATION" || die "fixture publication lost the older appcast item"
-  python3 - "$DESTINATION" <<'PY' || die "fixture releaseNotesLink does not point at the v9.9.9 release notes"
+  python3 - "$DESTINATION" <<'PY' || die "fixture appcast does not embed exactly the v9.9.9 changelog section"
 import sys
 import xml.etree.ElementTree as ET
 ns = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
 items = ET.parse(sys.argv[1]).getroot().find("channel").findall("item")
-links = {item.findtext(f"{ns}shortVersionString"): item.findtext(f"{ns}releaseNotesLink") for item in items}
-sys.exit(links.get("9.9.9") != "https://github.com/KeeForge/KeeForge/releases/tag/v9.9.9")
+item = next(item for item in items if item.findtext(f"{ns}shortVersionString") == "9.9.9")
+description = item.find("description")
+expected = "### Fixes\n\n- Fixture fix with <markup> & ampersand (#1).\n"
+sys.exit(
+    description is None
+    or description.get(f"{ns}format") != "markdown"
+    or description.text != expected
+    or item.find(f"{ns}releaseNotesLink") is not None
+)
 PY
   local mismatch_destination="$dir/mismatched-appcast.xml"
   printf '%s\n' 'changed after staging' >"$mismatch_destination"
@@ -445,8 +465,12 @@ PY
       --public-verification "$PUBLIC_VERIFICATION" --destination "$mismatch_destination" >/dev/null 2>&1; then
     die "fixture base-mismatch publication unexpectedly succeeded"
   fi
-  if python3 "$APPCAST_GENERATOR" --artifact-json "$artifact" --input "$STAGED_APPCAST" --output "$dir/duplicate.xml" >/dev/null 2>&1; then
+  if python3 "$APPCAST_GENERATOR" --artifact-json "$artifact" --changelog "$FIXTURE_CHANGELOG" --input "$STAGED_APPCAST" --output "$dir/duplicate.xml" >/dev/null 2>&1; then
     die "fixture duplicate appcast item unexpectedly succeeded"
+  fi
+  printf '%s\n' '# Changelog' '' '## v9.9.8 (2098-01-01)' '' '- Older release.' >"${dir}/CHANGELOG-missing.md"
+  if python3 "$APPCAST_GENERATOR" --artifact-json "$artifact" --changelog "${dir}/CHANGELOG-missing.md" --input "$old" --output "$dir/no-notes.xml" >/dev/null 2>&1; then
+    die "fixture staged an item without a changelog section"
   fi
   # An explicit first-release stage records absence; a stale live base still
   # refuses publication. This remains local and has no release side effects.
@@ -461,7 +485,7 @@ PY
     die "fixture allowed a respin to overwrite an existing staged feed"
   fi
   jq -cn --arg mode fixture --arg artifact "$artifact" --arg appcast "$dir/staged/appcast.xml" \
-    '{mode: $mode, artifactJSON: $artifact, stagedAppcast: $appcast, network: false, github: false, notarization: false, draftVerification: "local-byte-check", pathEquivalence: true, stageResumeVerified: true, atomicPublish: true, baseMismatchRefused: true, absentBaseRefused: true, respinOverwriteRefused: true, duplicateRefused: true}'
+    '{mode: $mode, artifactJSON: $artifact, stagedAppcast: $appcast, network: false, github: false, notarization: false, draftVerification: "local-byte-check", pathEquivalence: true, stageResumeVerified: true, atomicPublish: true, baseMismatchRefused: true, absentBaseRefused: true, respinOverwriteRefused: true, duplicateRefused: true, releaseNotesEmbedded: true, missingNotesRefused: true}'
 }
 
 if [[ "${1:-}" == "--fixture" ]]; then

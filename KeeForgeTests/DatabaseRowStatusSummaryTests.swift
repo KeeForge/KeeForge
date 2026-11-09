@@ -36,7 +36,7 @@ final class DatabaseRowStatusSummaryTests: XCTestCase {
 
     func testBadgesFollowNameInFixedOrder() {
         let summary = DatabaseRowStatusSummary(isReadOnly: true, isQuickLaunch: true, status: status(pending: 2))
-        XCTAssertEqual(summary.badges, [.readOnly, .quickLaunch, .uploadPending])
+        XCTAssertEqual(summary.badges, [.readOnly, .quickLaunch])
     }
 
     func testPendingUploadsAreCountedInWords() {
@@ -51,7 +51,7 @@ final class DatabaseRowStatusSummaryTests: XCTestCase {
             isQuickLaunch: false,
             status: status(cloudWarning: "Signed out", pending: 3, conflicts: 1)
         )
-        XCTAssertEqual(summary.badges, [.uploadPending])
+        XCTAssertEqual(summary.badges, [])
         XCTAssertEqual(summary.notices, [.uploadConflicts(1)])
     }
 

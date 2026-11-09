@@ -13,7 +13,6 @@ struct DatabaseCreationView: View {
     @State private var exportDocument = KDBXExportDocument(data: Data())
     @State private var isMasterPasswordVisible = false
     @State private var isConfirmPasswordVisible = false
-    @State private var isAdvancedExpanded = false
 
     var body: some View {
         NavigationStack {
@@ -154,70 +153,72 @@ struct DatabaseCreationView: View {
                 }
             }
             Section {
-                labeledField(String(localized: "Database name")) {
-                    TextField("Database name", text: $viewModel.databaseName)
+                LabeledContent("Database name") {
+                    TextField("Database name", text: $viewModel.databaseName, prompt: Text("Required"))
                         .textInputAutocapitalization(.words)
+                        .multilineTextAlignment(.trailing)
+                        .foregroundStyle(Theme.labelSecondary)
+                        .macLabelsHidden()
                         .accessibilityIdentifier("database-create.name-field")
-                    if let filename = viewModel.filenamePreview {
+                }
+
+                // A menu, not segments: five destinations truncate as segments on iPhone.
+                Picker("Save To", selection: $viewModel.destinationChoice) {
+                    ForEach(DatabaseCreationDestinationChoice.availableChoices) { destination in
+                        Text(destination.title).tag(destination)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(Theme.labelSecondary)
+                .accessibilityIdentifier("database-create.destination-picker")
+            } header: {
+                Text("Database")
+            } footer: {
+                if let filename = viewModel.filenamePreview {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text("Filename: \(filename)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                             .accessibilityIdentifier("database-create.filename")
                         if viewModel.showsFilenameReplacementExplanation {
                             Text("Unsupported filename characters are replaced with _.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
                                 .accessibilityIdentifier("database-create.filename-explanation")
                         }
                     }
                 }
-            } header: {
-                Text("Database")
-            } footer: {
-                Text(destinationFooter)
             }
 
             Section {
-                labeledField(String(localized: "Save To")) {
-                    Picker("Save To", selection: $viewModel.destinationChoice) {
-                        ForEach(DatabaseCreationDestinationChoice.availableChoices) { destination in
-                            Text(destination.title).tag(destination)
+                PasswordInputRow(
+                    title: String(localized: "Master password"),
+                    text: $viewModel.password,
+                    isVisible: $isMasterPasswordVisible,
+                    fieldAccessibilityIdentifier: "database-create.password-field",
+                    visibilityAccessibilityIdentifier: "database-create.password-visibility-button",
+                    usesPasswordAutoFill: false
+                )
+                .tint(Theme.labelSecondary)
+                .macLabelsHidden()
+
+                PasswordInputRow(
+                    title: String(localized: "Confirm password"),
+                    text: $viewModel.confirmPassword,
+                    isVisible: $isConfirmPasswordVisible,
+                    fieldAccessibilityIdentifier: "database-create.confirm-password-field",
+                    visibilityAccessibilityIdentifier: "database-create.confirm-password-visibility-button",
+                    usesPasswordAutoFill: false
+                )
+                .tint(Theme.labelSecondary)
+                .macLabelsHidden()
+
+                if viewModel.password.isEmpty == false {
+                    VStack(alignment: .leading, spacing: 6) {
+                        PasswordStrengthIndicator(password: viewModel.password, caption: .passwordStrength)
+                        if let warning = viewModel.passwordStrengthWarning {
+                            Text(warning)
+                                .font(.footnote)
+                                .foregroundStyle(Theme.State.warning)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    // A menu, not segments: five destinations truncate as segments on iPhone.
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .accessibilityIdentifier("database-create.destination-picker")
-                }
-            }
-
-            Section {
-                labeledField(String(localized: "Master password")) {
-                    PasswordInputRow(
-                        title: String(localized: "Master password"),
-                        text: $viewModel.password,
-                        isVisible: $isMasterPasswordVisible,
-                        fieldAccessibilityIdentifier: "database-create.password-field",
-                        visibilityAccessibilityIdentifier: "database-create.password-visibility-button",
-                        usesPasswordAutoFill: false
-                    )
-                }
-
-                labeledField(String(localized: "Confirm password")) {
-                    PasswordInputRow(
-                        title: String(localized: "Confirm password"),
-                        text: $viewModel.confirmPassword,
-                        isVisible: $isConfirmPasswordVisible,
-                        fieldAccessibilityIdentifier: "database-create.confirm-password-field",
-                        visibilityAccessibilityIdentifier: "database-create.confirm-password-visibility-button",
-                        usesPasswordAutoFill: false
-                    )
-                }
-
-                if let warning = viewModel.passwordStrengthWarning {
-                    Text(warning)
-                        .font(.footnote)
-                        .foregroundStyle(Theme.State.warning)
                 }
             } header: {
                 Text("Master Password")
@@ -226,15 +227,14 @@ struct DatabaseCreationView: View {
             }
 
             Section {
-                labeledField(String(localized: "Selected")) {
-                    Text(viewModel.keyFileSummary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if let keyFileFilename = viewModel.keyFileFilename {
+                    LabeledContent("Selected", value: keyFileFilename)
                 }
 
                 Button {
                     isKeyFileImporterPresented = true
                 } label: {
-                    Label("Select Key File", systemImage: "key")
+                    Label(viewModel.keyFileFilename == nil ? "Select Key File" : "Change Key File", systemImage: "key.horizontal")
                 }
                 .accessibilityIdentifier("database-create.keyfile.select")
 
@@ -249,49 +249,33 @@ struct DatabaseCreationView: View {
             }
 
             Section {
-                DisclosureGroup(isExpanded: $isAdvancedExpanded) {
-                    Picker("Encryption", selection: $viewModel.cipher) {
-                        ForEach(DatabaseCreationCipher.allCases) { cipher in
-                            Text(cipher.displayName).tag(cipher)
-                        }
+                Picker("Encryption", selection: $viewModel.cipher) {
+                    ForEach(DatabaseCreationCipher.allCases) { cipher in
+                        Text(cipher.displayName).tag(cipher)
                     }
-                    .accessibilityIdentifier("database-create.cipher-picker")
-
-                    Picker("Key Derivation", selection: $viewModel.kdfPreset) {
-                        ForEach(DatabaseCreationKDFPreset.allCases) { preset in
-                            Text(preset.displayName).tag(preset)
-                        }
-                    }
-                    .accessibilityIdentifier("database-create.kdf-preset-picker")
-                } label: {
-                    Text("Advanced")
                 }
-                .accessibilityIdentifier("database-create.advanced-disclosure")
+                .pickerStyle(.menu)
+                .tint(Theme.labelSecondary)
+                .accessibilityIdentifier("database-create.cipher-picker")
+
+                Picker("Key Derivation", selection: $viewModel.kdfPreset) {
+                    ForEach(DatabaseCreationKDFPreset.allCases) { preset in
+                        Text(preset.displayName).tag(preset)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(Theme.labelSecondary)
+                .accessibilityIdentifier("database-create.kdf-preset-picker")
+            } header: {
+                Text("Advanced")
             } footer: {
-                Text(advancedFooter)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(advancedFooter)
+                    Text(destinationFooter)
+                }
             }
         }
         .macGroupedForm()
-    }
-
-    /// Top-aligned caption over its field, matching the entry/group editors.
-    /// `macLabelsHidden` drops the field's own label so macOS does not reserve a
-    /// leading label column that pushes multi-control rows off the sheet.
-    private func labeledField<Content: View>(
-        _ title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            content()
-                .macLabelsHidden()
-                .macFormFieldStyle()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 2)
     }
 
     private var advancedFooter: String {

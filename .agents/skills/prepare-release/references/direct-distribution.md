@@ -148,8 +148,9 @@ attributes, and archive/symbol paths.
 
 `ci_scripts/release_direct_artifact.sh` performs every step below. `generate_appcast.py` is its
 deterministic, standard-library appcast builder: it inserts the new signed item ahead of older
-items and rejects a duplicate version/build. Each new item's `sparkle:releaseNotesLink` is the
-version's GitHub release page, `https://github.com/KeeForge/KeeForge/releases/tag/v{version}`.
+items and rejects a duplicate version/build. Each new item embeds the `## v{version}` section of
+`CHANGELOG.md` at the artifact's commit as a Markdown `<description>`, which Sparkle's update window
+renders natively; staging fails if that section is missing or empty.
 
 ### Stage (candidate time)
 

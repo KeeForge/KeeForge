@@ -114,6 +114,7 @@ scripts/              # Local dev tooling
 
 - App Store (iPhone, iPad, and Mac): [KeeForge on the App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
 - Direct Mac download: [latest GitHub release](https://github.com/KeeForge/KeeForge/releases/latest)
+- Homebrew (Mac): [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) installs the direct-download build
 - Email: [support@keeforge.com](mailto:support@keeforge.com)
 - Issues: [GitHub Issues](https://github.com/KeeForge/KeeForge/issues)
 

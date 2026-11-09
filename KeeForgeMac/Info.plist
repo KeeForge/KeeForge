@@ -70,6 +70,8 @@
 	<string>$(SPARKLE_PUBLIC_ED_KEY)</string>
 	<key>SUEnableInstallerLauncherService</key>
 	<string>$(SPARKLE_INSTALLER_LAUNCHER_SERVICE)</string>
+	<key>SUEnableAutomaticChecks</key>
+	<string>$(SPARKLE_AUTOMATIC_CHECKS)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSApplicationCategoryType</key>

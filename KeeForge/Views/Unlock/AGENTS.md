@@ -17,14 +17,14 @@
 
 ### Page layout
 
-- iPhone and iPad draw the design's unlock page: the database centred under its padlock, the password field, Key File and Hardware Key in one card, then Unlock, the biometric button, and Choose Different File. macOS keeps its form. Both layouts share the password input and the hardware-key menu, so a behaviour change goes in one place.
+- iPhone and iPad draw the design's unlock page: the database's name, file, and storage in the navigation bar, then the password field, Key File and Hardware Key in one card, then Unlock, the biometric button, and Choose Different File. macOS keeps its form. Both layouts share the password input and the hardware-key menu, so a behaviour change goes in one place.
 
-- While a database opens, iPhone and iPad show `DatabaseOpeningView` with the database's own source tile and its steps (sync for a cloud database, decrypt, open), driven by `DatabaseViewModel.openingStep`. It only reports progress; it never changes how the database opens.
+- While a database opens, iPhone and iPad show `DatabaseOpeningView` under the same navigation-bar title (`databaseNavigationTitle`) with its steps (sync for a cloud database, decrypt, open), driven by `DatabaseViewModel.openingStep`. It only reports progress; it never changes how the database opens.
 
 ### Failure screen and pickers
 
-- iPhone and iPad draw the failure as the design's error page, macOS keeps its card; both offer the same actions under the same identifiers.
-- The password form stays below the failure whenever `DatabaseOpenFailure.canRetryUnlock` holds, which includes every biometric failure. Try Again repeats quick unlock only while `canRetryQuickUnlock`, so an unreadable saved key sends the user to the password.
+- On iPhone and iPad a failure the form can fix (`DatabaseOpenFailure.canRetryUnlock`) is `UnlockFailureCard` above the form: Unlock is the retry and Send Feedback is in its menu. Any other failure is the design's error page. macOS keeps its card. Shared actions keep the same identifiers everywhere, and the summary always carries `unlock.error.label`.
+- The password form stays below the failure whenever `DatabaseOpenFailure.canRetryUnlock` holds, which includes every biometric failure. Where Try Again shows (the error page, macOS), it repeats quick unlock only while `canRetryQuickUnlock`, so an unreadable saved key sends the user to the password.
 - The key-file picker and Locate Database File share one `.fileImporter` through `PickerPresentationState<FilePickerTarget>`; a second importer on the same view does not present reliably. The target outlives dismissal so the completion still knows what was picked.
 - Locate Database File shows only while `canRelinkDatabaseFile`. That includes any non-timeout failure while `DatabaseReference.hasUnverifiedRelink`, because a wrong pick fails as a wrong password.
 
@@ -32,12 +32,13 @@
 
 - On Mac the password form and explicit biometric retry stay available while locked. The app shell owns opt-in automatic prompting on foreground return; this view never starts a lifecycle prompt. Button text comes from `DatabaseViewModel.biometricLabel` / `biometricCaption`.
 - The Hardware Key row appears only when the device offers a transport or the database already has one stored. A YubiKey alone is a valid key, so Unlock is enabled with no password or key file. Cancel during a challenge cancels only the YubiKey request.
-- The header padlock starts shut and replays open-to-shut only when `didManuallyLock` says the user pressed Lock. Opening from the list must not animate.
+- The macOS header padlock starts shut and replays open-to-shut only when `didManuallyLock` says the user pressed Lock. Opening from the list must not animate.
 
 ## Tests
 
-- `MacUnlockPasswordFieldTests` (focus and field-editor routing), `UnlockKeyFileSelectionTests`, `HardwareKeyUnlockTests`, `DatabaseOverviewTests` (opening steps).
+- `MacUnlockPasswordFieldTests` (focus and field-editor routing), `UnlockKeyFileSelectionTests`, `HardwareKeyUnlockTests`, `DatabaseOpeningStepTests`.
 - UI: `UnlockFlowUITests`, `KeyFileUnlockUITests`, `LockUnlockUITests`.
+- Visual: `ViewRenderTests.testUnlockFailureCards` renders `UnlockFailureCard` in each shipped language (`scripts/render-views.sh`).
 
 ## See also
 

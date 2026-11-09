@@ -161,6 +161,16 @@ final class DatabaseWorkspaceState {
         entrySelection = selection
     }
 
+    func selectEntries(_ entryIDs: [UUID]) {
+        guard let selection = entrySelection else { return }
+        entrySelection = selection.union(entryIDs)
+    }
+
+    func deselectEntries(_ entryIDs: [UUID]) {
+        guard let selection = entrySelection else { return }
+        entrySelection = selection.subtracting(entryIDs)
+    }
+
     func endEntrySelection() {
         entrySelection = nil
     }
