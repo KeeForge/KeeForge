@@ -6,6 +6,7 @@ enum PasswordGenerator {
         case passphrase
     }
 
+    static let lengthRange = 8...128
     static let wordCountRange = 4...12
 
     static let passphraseWords: [String] = {

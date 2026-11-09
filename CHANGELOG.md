@@ -6,6 +6,7 @@
 
 - KeeForge for Mac can be installed with Homebrew: `brew install --cask keeforge/tap/keeforge` installs the direct-download build, which then updates itself (#254). See [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) for the one-time `brew trust` step.
 - iPhone Duo support: opening the phone switches to the iPad layout, with the list beside the entry, and closing it switches back. The open group, the entry you were viewing, search, selected entries, and an unsaved new or edited entry or group all stay as they were. The same now holds when you resize KeeForge's window on iPad.
+- The password generator creates passwords up to 128 characters long; before, the length slider stopped at 64 (#272).
 
 ### Fixes
 
