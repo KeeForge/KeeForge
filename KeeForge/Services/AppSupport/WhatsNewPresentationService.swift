@@ -585,8 +585,12 @@ enum WhatsNewPresentationService {
     }
 
     private static var uiTestingPresentationOverride: Bool? {
+        #if DEBUG
         let processInfo = ProcessInfo.processInfo
         guard processInfo.arguments.contains("-ui-testing") else { return nil }
         return processInfo.environment["UI_TEST_SHOW_WHATS_NEW"] == "1"
+        #else
+        return nil
+        #endif
     }
 }

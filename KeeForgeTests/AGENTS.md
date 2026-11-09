@@ -44,6 +44,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 - `LocalDatabaseSaverTests` saves attachments at the reader's size limit and holds several hundred megabytes. Do not add tests of that size elsewhere.
 - Inject the prompt, clipboard, clock, notification centers, and window effects. No unit test raises a system authentication prompt, writes the real pasteboard, shows a window, registers a global hot key, or locks the screen.
 - Keychain-dependent cases (`CloudTokenStore`, `KeychainService`, WebDAV and FTP credentials) `XCTSkip` when the host cannot write the Keychain. A skip is not coverage.
+- `ViewRenderTests` (iOS only) writes PNGs for visual review and skips unless `VIEW_RENDER_DIR` is set; `scripts/render-views.sh` sets it and runs each shipped language. It asserts nothing about layout. Small views go through `ImageRenderer`; whole screens with Form, Toggle, Slider, Picker, or a navigation bar go through `renderScreens`, which snapshots a window in the test host, because `ImageRenderer` draws UIKit-backed controls as placeholders. Secure fields render blank either way.
 - Suites that touch the AutoFill identity store follow the reset rule in [Support/AGENTS.md](Support/AGENTS.md).
 
 ### KDBX layering

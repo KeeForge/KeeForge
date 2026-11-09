@@ -1550,6 +1550,22 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    func test_passkeyAssertion_refusesEntryForAnotherRelyingParty() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = try makePasskeyEntry(privateKey: P256.Signing.PrivateKey(), sessionKey: sessionKey)
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+
+        try coordinator.completePasskeyRequest(
+            with: entry,
+            relyingPartyID: "attacker.example",
+            clientDataHash: Data(repeating: 7, count: 32)
+        )
+
+        XCTAssertNil(presenter.completedAssertion)
+        XCTAssertEqual(presenter.cancelledErrorCodes, [.failed])
+    }
+
     // MARK: - Record-identifier resolution in the fill paths (slice 02)
 
     func test_passwordFill_resolvesCurrentFormatIdentifier() throws {

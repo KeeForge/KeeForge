@@ -7,6 +7,9 @@ struct DatabaseListRow: View {
     let reference: DatabaseReference
     let status: DatabaseRowStatus
     let lastOpenedDescription: String?
+    /// Off hides when the database was last synced, as it hides when it was
+    /// last opened; sync warnings still show.
+    var showsUsageStats = true
 
     @ScaledMetric(relativeTo: .body) private var iconSize = Theme.Size.entryIcon
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -30,7 +33,7 @@ struct DatabaseListRow: View {
                 Text(sourceLine)
                     .font(Theme.Font.subhead)
                     .foregroundStyle(Theme.labelSecondary)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     .truncationMode(.middle)
 
                 statusLine(cloudWarning: cloudWarning(in: summary.notices))
@@ -39,6 +42,8 @@ struct DatabaseListRow: View {
                     noticeText(notice)
                 }
             }
+            // Otherwise the list guesses from the status line and starts the divider past its icon.
+            .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
 
             Spacer(minLength: 0)
 
@@ -50,22 +55,32 @@ struct DatabaseListRow: View {
         .contentShape(Rectangle())
     }
 
-    /// The name with its badges beside it; stacked at accessibility sizes.
+    /// The name with its badges beside it when everything fits, else the
+    /// badges on a line of their own, else one per line. Badges never truncate.
     @ViewBuilder
     private func titleLine(_ badges: [DatabaseRowStatusSummary.Badge]) -> some View {
         let name = Text(reference.displayName)
             .font(Theme.Font.rowTitle)
             .foregroundStyle(Color.primary)
-            .lineLimit(1)
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: Theme.Spacing.badgeGap) {
-                name
-                self.badges(badges)
-            }
+        if badges.isEmpty {
+            name.lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
         } else {
-            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.badgeGap) {
-                name
-                self.badges(badges)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.badgeGap) {
+                    name.lineLimit(1).fixedSize()
+                    self.badges(badges)
+                }
+                VStack(alignment: .leading, spacing: Theme.Spacing.badgeGap) {
+                    name.lineLimit(2)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: Theme.Spacing.badgeGap) {
+                            self.badges(badges)
+                        }
+                        VStack(alignment: .leading, spacing: Theme.Spacing.badgeGap) {
+                            self.badges(badges)
+                        }
+                    }
+                }
             }
         }
     }
@@ -83,7 +98,7 @@ struct DatabaseListRow: View {
             if let cloudWarning {
                 Label(cloudWarning, systemImage: "exclamationmark.icloud")
                     .foregroundStyle(Theme.warning)
-            } else if let lastSyncedAt = reference.cloudSyncMetadata?.lastSyncedAt {
+            } else if showsUsageStats, let lastSyncedAt = reference.cloudSyncMetadata?.lastSyncedAt {
                 Label {
                     Text("Last synced \(lastSyncedAt, format: .relative(presentation: .named))")
                 } icon: {
@@ -97,7 +112,7 @@ struct DatabaseListRow: View {
             }
         }
         .font(Theme.Font.footnote)
-        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
     }
 
     private func cloudWarning(in notices: [DatabaseRowStatusSummary.Notice]) -> String? {
@@ -113,13 +128,12 @@ struct DatabaseListRow: View {
             switch badge {
             case .readOnly:
                 StatusBadge(text: String(localized: "READ ONLY"), tone: .accent)
+                    .fixedSize()
                     .accessibilityIdentifier("database-row.read-only-badge")
             case .quickLaunch:
                 StatusBadge(text: String(localized: "QUICK LAUNCH"), tone: .accent)
+                    .fixedSize()
                     .accessibilityIdentifier("database-row.quick-launch-badge")
-            case .uploadPending:
-                StatusBadge(text: String(localized: "Upload Pending"), tone: .warning)
-                    .accessibilityIdentifier("database-row.pending-uploads-badge")
             }
         }
     }

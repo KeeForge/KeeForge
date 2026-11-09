@@ -116,8 +116,17 @@ struct PasswordConcealedText: View {
 }
 
 struct PasswordStrengthIndicator: View {
+    /// How the iOS row reads: "Strength ▬▬▬▬ Very good (~120 bits)", the meter
+    /// then just the rating, or the meter then "Password strength: Very good".
+    enum Caption {
+        case strength
+        case rating
+        case passwordStrength
+    }
+
     let password: String
     var maximumEntropyBits: Double = .infinity
+    var caption: Caption = .strength
 
     private var estimate: PasswordStrengthEstimate? {
         PasswordStrengthEstimator.estimate(password, maximumEntropyBits: maximumEntropyBits)
@@ -126,7 +135,7 @@ struct PasswordStrengthIndicator: View {
     var body: some View {
         if let estimate {
             if PlatformDesign.followsIOSDesign {
-                StrengthRow(estimate: estimate, color: color(for: estimate.level))
+                StrengthRow(estimate: estimate, color: color(for: estimate.level), caption: caption)
             } else {
                 legacyIndicator(estimate)
             }
@@ -169,13 +178,27 @@ struct PasswordStrengthIndicator: View {
 private struct StrengthRow: View {
     let estimate: PasswordStrengthEstimate
     let color: Color
+    let caption: PasswordStrengthIndicator.Caption
 
     @ScaledMetric(relativeTo: .subheadline) private var segmentWidth = Theme.Size.meterSegment.width
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Group {
-            if dynamicTypeSize.isAccessibilitySize {
+            if caption != .strength {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Theme.Spacing.tileGap) {
+                        meter
+                        trailingCaption
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                    VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+                        meter
+                        trailingCaption
+                    }
+                }
+            } else if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
                     label
                     HStack(spacing: Theme.Spacing.tileGap) {
@@ -195,6 +218,17 @@ private struct StrengthRow: View {
         .font(Theme.Font.subhead)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Password strength: \(estimate.summary)")
+    }
+
+    @ViewBuilder
+    private var trailingCaption: some View {
+        let rating = Text(estimate.level.title).fontWeight(.semibold).foregroundColor(color)
+        if caption == .passwordStrength {
+            Text("Password strength: \(rating)")
+                .foregroundStyle(Theme.labelSecondary)
+        } else {
+            rating
+        }
     }
 
     private var label: some View {

@@ -35,6 +35,7 @@
 - The Mac window selects Security explicitly so it does not restore the last tab.
 - The support section stays inline on the iOS root; a tip jar behind a row is not seen.
 - A direct-download build must not show the StoreKit tip jar (no receipt to purchase against); it links to GitHub Sponsors.
+- Only a direct-download build has the About tab's Updates section (`settings.updates.{automatic-checks,check-now}`). Its toggle writes Sparkle's own setting, so it always matches what the updater does.
 - `MacTransitionNoticeView` copy is static. It must read correctly whether the list behind it is intact, stale, or empty, so it never names a database or a count.
 - `MacShortcutRecorder` sets the controller's `isRecordingShortcut` so the live global shortcut is released while recording.
 - What's New rows with a link are `.contain` containers so the link stays individually actionable; others combine.

@@ -63,7 +63,6 @@ struct DatabaseListView: View {
     @Environment(\.openURL) private var openURL
     #if os(iOS)
     @State private var editMode: EditMode = .inactive
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     #endif
 
     var body: some View {
@@ -241,23 +240,16 @@ struct DatabaseListView: View {
     @ViewBuilder
     private var databaseList: some View {
         #if os(iOS)
-        // Reordering needs rows. The overview sits in a scroll view, not a
-        // List: a list cell holding several tiles takes one context menu and
-        // one lift preview for all of them.
-        if editMode.isEditing || PlatformDesign.followsIOSDesign == false {
-            List {
+        List {
+            Section {
+                databaseRows
+            }
+            if tipsFollowTheList {
                 Section {
-                    databaseRows
-                }
-                if tipsFollowTheList {
-                    Section {
-                        tips
-                            .environment(\.isListedTip, true)
-                    }
+                    tips
+                        .environment(\.isListedTip, true)
                 }
             }
-        } else {
-            databaseOverview
         }
         #else
         List {
@@ -271,53 +263,6 @@ struct DatabaseListView: View {
     private var tipsFollowTheList: Bool {
         PlatformDesign.followsIOSDesign && viewModel.databases.isEmpty == false
     }
-
-    #if os(iOS)
-    /// The spotlight database's card, then every other database as a tile.
-    private var databaseOverview: some View {
-        let spotlight = DatabaseListViewModel.spotlightDatabase(
-            in: viewModel.databases,
-            showsUsageStats: showDatabaseUsageStats
-        )
-        let others = viewModel.databases.filter { $0.id != spotlight?.id }
-        return ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.tileGap) {
-                if let spotlight {
-                    databaseRowButton(for: spotlight, style: .spotlight)
-                }
-                if others.isEmpty == false {
-                    Text("Other Databases")
-                        .font(Theme.Font.subhead)
-                        .foregroundStyle(Theme.labelSecondary)
-                        .padding(.horizontal, Theme.Spacing.side)
-                        .padding(.top, Theme.Spacing.side)
-                        .accessibilityAddTraits(.isHeader)
-                    LazyVGrid(
-                        columns: Array(
-                            repeating: GridItem(.flexible(), spacing: Theme.Spacing.tileGap, alignment: .top),
-                            count: dynamicTypeSize.isAccessibilitySize ? 1 : 2
-                        ),
-                        spacing: Theme.Spacing.tileGap
-                    ) {
-                        ForEach(others) { reference in
-                            databaseRowButton(for: reference, style: .tile)
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, Theme.Spacing.side)
-            .padding(.top, Theme.Spacing.cardGap)
-            if tipsFollowTheList {
-                tips
-            }
-        }
-        .background {
-            if isSidebarColumn == false {
-                Color(.systemGroupedBackground).ignoresSafeArea()
-            }
-        }
-    }
-    #endif
 
     @ViewBuilder
     private var tips: some View {
@@ -461,41 +406,17 @@ struct DatabaseListView: View {
         }
     }
 
-    /// How a database is drawn: a row in Edit mode and on macOS, the
-    /// overview's card or one of its tiles otherwise.
-    private enum DatabaseEntryStyle {
-        case row
-        case spotlight
-        case tile
-    }
-
-    private func databaseRowButton(for reference: DatabaseReference, style: DatabaseEntryStyle = .row) -> some View {
+    private func databaseRowButton(for reference: DatabaseReference) -> some View {
         Button {
             onSelectDatabase(reference)
         } label: {
             #if os(iOS)
-            let status = viewModel.status(for: reference)
-            let lastOpened = viewModel.lastOpenedDescription(for: reference, showsUsageStats: showDatabaseUsageStats)
-            switch style {
-            case .row:
-                DatabaseListRow(reference: reference, status: status, lastOpenedDescription: lastOpened)
-            case .spotlight:
-                DatabaseSpotlightCard(
-                    reference: reference,
-                    status: status,
-                    lastOpenedDescription: lastOpened,
-                    isSelected: reference.id == selectedDatabaseID
-                )
-                .environment(\.isSidebarColumnContent, isSidebarColumn)
-            case .tile:
-                DatabaseTile(
-                    reference: reference,
-                    status: status,
-                    lastOpenedDescription: lastOpened,
-                    isSelected: reference.id == selectedDatabaseID
-                )
-                .environment(\.isSidebarColumnContent, isSidebarColumn)
-            }
+            DatabaseListRow(
+                reference: reference,
+                status: viewModel.status(for: reference),
+                lastOpenedDescription: viewModel.lastOpenedDescription(for: reference, showsUsageStats: showDatabaseUsageStats),
+                showsUsageStats: showDatabaseUsageStats
+            )
             #else
             DatabaseRowView(
                 reference: reference,
@@ -510,15 +431,11 @@ struct DatabaseListView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("database.row")
-        .modifier(CardContextMenuPreview(isCard: style != .row))
         .contextMenu {
             contextMenu(for: reference)
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            // Cards and tiles sit outside a List; Remove stays in their menu.
-            if style == .row {
-                removeSwipeAction(for: reference)
-            }
+            removeSwipeAction(for: reference)
         }
         // Both dialogs are attached to the row (not the List) so iOS anchors
         // them to the database they act on instead of an arbitrary popover in
@@ -883,23 +800,5 @@ private struct DatabaseRowChrome: ViewModifier {
             content
                 .macHoverHighlight()
         }
-    }
-}
-
-/// A card or tile lifts its own rounded shape for the context menu.
-private struct CardContextMenuPreview: ViewModifier {
-    let isCard: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        #if os(iOS)
-        if isCard {
-            content.contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-        } else {
-            content
-        }
-        #else
-        content
-        #endif
     }
 }

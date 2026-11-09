@@ -1,12 +1,12 @@
 import Foundation
 
 /// What a database row says about its database, in display order: the badges
-/// beside its name and the notices below it.
+/// beside its name and the notices below it. Pending uploads are a notice,
+/// counted in words, not a badge.
 struct DatabaseRowStatusSummary: Equatable {
     enum Badge: Equatable {
         case readOnly
         case quickLaunch
-        case uploadPending
     }
 
     enum Notice: Equatable {
@@ -42,7 +42,6 @@ struct DatabaseRowStatusSummary: Equatable {
         var badges: [Badge] = []
         if isReadOnly { badges.append(.readOnly) }
         if isQuickLaunch { badges.append(.quickLaunch) }
-        if status.pendingUploadCount > 0 { badges.append(.uploadPending) }
         self.badges = badges
 
         var notices: [Notice] = []

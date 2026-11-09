@@ -1,0 +1,110 @@
+{
+  "en": {
+    "header_title": "One file. Every device.",
+    "header_subtitle": "iPhone, iPad and Mac.",
+    "search_title": "Every feature\nincluded.",
+    "checklist": [
+      "Unlimited vaults",
+      "Face ID & Touch ID unlock",
+      "AutoFill, passkeys & 2FA codes",
+      "Key files & attachments",
+      "WebDAV, Dropbox & OneDrive"
+    ]
+  },
+  "de": {
+    "header_title": "Eine Datei. Jedes Gerät.",
+    "header_subtitle": "iPhone, iPad und Mac.",
+    "search_title": "Alle Funktionen\ninklusive.",
+    "checklist": [
+      "Unbegrenzt viele Tresore",
+      "Entsperren mit Face ID & Touch ID",
+      "AutoFill, Passkeys & 2FA-Codes",
+      "Schlüsseldateien & Anhänge",
+      "WebDAV, Dropbox & OneDrive"
+    ]
+  },
+  "fr": {
+    "header_title": "Un fichier. Tous vos appareils.",
+    "header_subtitle": "iPhone, iPad et Mac.",
+    "search_title": "Toutes les fonctions\nincluses.",
+    "checklist": [
+      "Coffres illimités",
+      "Déverrouillage Face ID & Touch ID",
+      "Remplissage auto, clés d’accès & 2FA",
+      "Fichiers clés & pièces jointes",
+      "WebDAV, Dropbox & OneDrive"
+    ]
+  },
+  "es": {
+    "header_title": "Un archivo. Todos tus dispositivos.",
+    "header_subtitle": "iPhone, iPad y Mac.",
+    "search_title": "Todas las funciones\nincluidas.",
+    "checklist": [
+      "Bóvedas ilimitadas",
+      "Desbloqueo con Face ID y Touch ID",
+      "Autorrelleno, llaves de acceso y 2FA",
+      "Archivos de clave y adjuntos",
+      "WebDAV, Dropbox y OneDrive"
+    ]
+  },
+  "zh-Hans": {
+    "header_title": "一个文件，所有设备。",
+    "header_subtitle": "iPhone、iPad 和 Mac。",
+    "search_title": "所有功能\n全部包含。",
+    "checklist": [
+      "无限数量的保险库",
+      "面容 ID 与触控 ID 解锁",
+      "自动填充、通行密钥与双重认证码",
+      "密钥文件与附件",
+      "WebDAV、Dropbox 与 OneDrive"
+    ]
+  },
+  "zh-Hant": {
+    "header_title": "一個檔案，所有裝置。",
+    "header_subtitle": "iPhone、iPad 和 Mac。",
+    "search_title": "所有功能\n全部包含。",
+    "checklist": [
+      "無限數量的保險庫",
+      "Face ID 與 Touch ID 解鎖",
+      "自動填寫、通行金鑰與雙重認證碼",
+      "金鑰檔案與附件",
+      "WebDAV、Dropbox 與 OneDrive"
+    ]
+  },
+  "ja": {
+    "header_title": "ひとつのファイルを、すべてのデバイスで。",
+    "header_subtitle": "iPhone、iPad、Mac。",
+    "search_title": "すべての機能を\n標準で。",
+    "checklist": [
+      "保管庫は無制限",
+      "Face ID と Touch ID でロック解除",
+      "自動入力、パスキー、確認コード",
+      "キーファイルと添付ファイル",
+      "WebDAV、Dropbox、OneDrive"
+    ]
+  },
+  "it": {
+    "header_title": "Un file. Ogni dispositivo.",
+    "header_subtitle": "iPhone, iPad e Mac.",
+    "search_title": "Ogni funzione\ninclusa.",
+    "checklist": [
+      "Vault illimitati",
+      "Sblocco con Face ID e Touch ID",
+      "Inserimento automatico, passkey e 2FA",
+      "File chiave e allegati",
+      "WebDAV, Dropbox e OneDrive"
+    ]
+  },
+  "ru": {
+    "header_title": "Один файл. Все устройства.",
+    "header_subtitle": "iPhone, iPad и Mac.",
+    "search_title": "Все функции\nвключены.",
+    "checklist": [
+      "Любое число хранилищ",
+      "Разблокировка Face ID и Touch ID",
+      "Автозаполнение, ключи входа и 2FA",
+      "Файлы-ключи и вложения",
+      "WebDAV, Dropbox и OneDrive"
+    ]
+  }
+}

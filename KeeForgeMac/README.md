@@ -17,12 +17,13 @@ Setup:
 
 1. Turn on Enable SSH Agent.
 2. Click Copy SSH Configuration and paste it into `~/.ssh/config`. It points
-   every host at the socket, `~/Library/Containers/com.keevault.app/Data/ssh-agent.sock`
-   for both release channels:
+   every host at `ssh-agent.sock` in the app's sandbox container. Copy the path from
+   there rather than typing it: macOS may name the container folder after a UUID
+   instead of `com.keevault.app`, as in this example:
 
    ```text
    Host *
-     IdentityAgent "/Users/<you>/Library/Containers/com.keevault.app/Data/ssh-agent.sock"
+     IdentityAgent "/Users/<you>/Library/Containers/ECC6B676-0D4E-46EE-9539-F33541F8924B/Data/ssh-agent.sock"
    ```
 
    Setting `SSH_AUTH_SOCK` to the same path works too.
@@ -42,7 +43,7 @@ none, as the comment `ssh-add -l` prints.
 Verifying on a Mac, with one key turned on and the database unlocked:
 
 ```bash
-SSH_AUTH_SOCK=~/Library/Containers/com.keevault.app/Data/ssh-agent.sock ssh-add -l
+SSH_AUTH_SOCK="<path from Copy SSH Configuration>" ssh-add -l
 ssh -T git@github.com   # or any host that trusts the key
 ```
 
@@ -79,7 +80,7 @@ See "macOS tests" in `../AGENTS.md`, with the build and test commands. CI covera
 One target, two channels, chosen when the project is generated rather than when it is built:
 
 - `xcodegen generate` — **Mac App Store**: no Sparkle in the binary and StoreKit tip jar. Adding macOS to the existing App Store Connect app record established universal purchase with iOS; there is no separate toggle. This is the default, so every ordinary workflow and every CI job builds this.
-- `xcodegen generate --spec project-direct.yml` — **Developer ID direct download**: links Sparkle, compiles `KEEFORGE_DIRECT_DOWNLOAD`, shows GitHub Sponsors instead of the tip jar, never calls StoreKit. It is also the only spec that selects `KeeForgeMacDirect.entitlements` and sets `SUEnableInstallerLauncherService`: a sandboxed app cannot submit Sparkle's installer job itself, and without the `-spks`/`-spki` mach-lookup exceptions an update downloads and verifies and then hangs forever at the progress window. Those two entitlement files must stay identical apart from that one key. `ci_scripts/build_mac_direct.sh` drives it and restores the App Store spec on exit.
+- `xcodegen generate --spec project-direct.yml` — **Developer ID direct download**: links Sparkle, compiles `KEEFORGE_DIRECT_DOWNLOAD`, shows GitHub Sponsors instead of the tip jar, never calls StoreKit. It is also the only spec that selects `KeeForgeMacDirect.entitlements` and sets `SUEnableInstallerLauncherService` and `SUEnableAutomaticChecks` (daily checks from the first launch, switchable in Settings → About): a sandboxed app cannot submit Sparkle's installer job itself, and without the `-spks`/`-spki` mach-lookup exceptions an update downloads and verifies and then hangs forever at the progress window. Those two entitlement files must stay identical apart from that one key. `ci_scripts/build_mac_direct.sh` drives it and restores the App Store spec on exit.
 
 Two specs rather than two targets: both channels ship an app named `KeeForge.app` (the executable name is inside the signature and cannot be renamed afterwards), and two targets producing the same product path is a hard Xcode error. Separate specs also make the channels mutually exclusive by construction — an App Store build must never contain an updater.
 

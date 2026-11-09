@@ -1,0 +1,74 @@
+{
+  "en": {
+    "01-database-list": "Opens your\nKeePassXC files.",
+    "02-unlock-screen": "Unlocks with\nyour key.",
+    "03-vault-groups": "Open source.\nNo account.",
+    "06-entry-detail": "Passwords and\n2FA codes.",
+    "06b-entry-passkey": "Passkeys too.",
+    "08-search": "Find any login\nin seconds."
+  },
+  "de": {
+    "01-database-list": "Öffnet deine\nKeePassXC-Dateien.",
+    "02-unlock-screen": "Entsperrt mit\ndeinem Schlüssel.",
+    "03-vault-groups": "Open Source.\nKein Konto.",
+    "06-entry-detail": "Passwörter und\n2FA-Codes.",
+    "06b-entry-passkey": "Auch Passkeys.",
+    "08-search": "Jedes Login\nin Sekunden."
+  },
+  "fr": {
+    "01-database-list": "Ouvre vos\nfichiers KeePassXC.",
+    "02-unlock-screen": "Se déverrouille\navec votre clé.",
+    "03-vault-groups": "Open source.\nSans compte.",
+    "06-entry-detail": "Mots de passe\net codes 2FA.",
+    "06b-entry-passkey": "Et les clés d’accès.",
+    "08-search": "Trouvez un identifiant\nen quelques secondes."
+  },
+  "es": {
+    "01-database-list": "Abre tus archivos\nde KeePassXC.",
+    "02-unlock-screen": "Se desbloquea\ncon tu clave.",
+    "03-vault-groups": "Código abierto.\nSin cuentas.",
+    "06-entry-detail": "Contraseñas y\ncódigos 2FA.",
+    "06b-entry-passkey": "Y llaves de acceso.",
+    "08-search": "Encuentra cualquier\ncuenta en segundos."
+  },
+  "zh-Hans": {
+    "01-database-list": "直接打开你的\nKeePassXC 文件。",
+    "02-unlock-screen": "用你的密钥\n解锁。",
+    "03-vault-groups": "开源。\n无需账户。",
+    "06-entry-detail": "密码和\n双重认证码。",
+    "06b-entry-passkey": "还有通行密钥。",
+    "08-search": "几秒找到\n任何登录信息。"
+  },
+  "zh-Hant": {
+    "01-database-list": "直接開啟你的\nKeePassXC 檔案。",
+    "02-unlock-screen": "用你的金鑰\n解鎖。",
+    "03-vault-groups": "開源。\n無需帳號。",
+    "06-entry-detail": "密碼和\n雙重認證碼。",
+    "06b-entry-passkey": "還有通行金鑰。",
+    "08-search": "幾秒找到\n任何登入資訊。"
+  },
+  "ja": {
+    "01-database-list": "KeePassXC の\nファイルを開く。",
+    "02-unlock-screen": "キーで\nロック解除。",
+    "03-vault-groups": "オープンソース。\nアカウント不要。",
+    "06-entry-detail": "パスワードと\n確認コード。",
+    "06b-entry-passkey": "パスキーも。",
+    "08-search": "どのログインも\n数秒で見つかる。"
+  },
+  "it": {
+    "01-database-list": "Apre i tuoi\nfile KeePassXC.",
+    "02-unlock-screen": "Si sblocca con\nla tua chiave.",
+    "03-vault-groups": "Open source.\nNessun account.",
+    "06-entry-detail": "Password e\ncodici 2FA.",
+    "06b-entry-passkey": "Anche le passkey.",
+    "08-search": "Trova ogni login\nin pochi secondi."
+  },
+  "ru": {
+    "01-database-list": "Открывает ваши\nфайлы KeePassXC.",
+    "02-unlock-screen": "Разблокировка\nвашим ключом.",
+    "03-vault-groups": "Открытый код.\nБез аккаунта.",
+    "06-entry-detail": "Пароли и\nкоды 2FA.",
+    "06b-entry-passkey": "И ключи входа.",
+    "08-search": "Любой логин —\nза секунды."
+  }
+}

@@ -111,11 +111,12 @@ enum BiometricService {
         // device-owner prompt: XCUITest cannot dismiss the Face ID/passcode
         // sheet, so on CI simulators that DO have a passcode enrolled the
         // reveal flow would hang. The boundary tests opt back in through the
-        // stub below. Production builds (no `-ui-testing` launch argument) are
-        // unaffected.
+        // stub below. Release builds compile this branch out.
+        #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-ui-testing") {
             return isUITestAuthenticationPending
         }
+        #endif
         var error: NSError?
         return LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: &error)
     }
@@ -125,19 +126,23 @@ enum BiometricService {
     /// which is how the reveal/copy boundary tests observe "authentication was
     /// requested and nothing was disclosed" without a system dialog XCUITest
     /// cannot drive.
+    #if DEBUG
     private static var isUITestAuthenticationPending: Bool {
         ProcessInfo.processInfo.arguments.contains("-ui-testing")
             && ProcessInfo.processInfo.environment["UI_TEST_DEVICE_OWNER_AUTH_PENDING"] == "1"
     }
+    #endif
 
     /// Authenticate with `.deviceOwnerAuthentication`, which allows biometrics
     /// when available and falls back to the passcode / login password / Apple
     /// Watch otherwise.
     static func authenticateDeviceOwner(reason: String) async throws -> LAContext {
+        #if DEBUG
         if isUITestAuthenticationPending {
             try await Task.sleep(for: .seconds(3600))
             throw LAError(.userCancel)
         }
+        #endif
         let context = LAContext()
         await MainActor.run { isBiometricAuthInProgress = true }
         do {

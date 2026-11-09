@@ -579,32 +579,35 @@ struct DatabaseDetailsView: View {
     }
 
     private var exportSection: some View {
+        #if os(macOS)
         Section {
             Button(DatabaseExportLabels.currentCopy) {
                 exportRequest = .currentCopy(currentReference)
             }
             .accessibilityIdentifier("database-details.export-copy")
         } header: {
-            #if os(macOS)
             Text("Export")
-            #else
-            Text("Share")
-            #endif
         } footer: {
-            #if os(macOS)
             if currentReference.isCloudBacked {
                 Text("Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
             } else {
                 Text("Saves a copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
             }
-            #else
-            if currentReference.isCloudBacked {
-                Text("Shares the locally cached copy of the database as KeeForge currently has it, to save in Files, send with AirDrop, or open in another app. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
-            } else {
-                Text("Shares a copy of the database as KeeForge currently has it, to save in Files, send with AirDrop, or open in another app. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
-            }
-            #endif
         }
+        #else
+        Section {
+            Button("Export…") {
+                exportRequest = .currentCopy(currentReference)
+            }
+            .accessibilityIdentifier("database-details.export-copy")
+        } footer: {
+            if currentReference.isCloudBacked {
+                Text("Export the locally cached copy of the database via iOS Sharing.")
+            } else {
+                Text("Export a copy of the database via iOS Sharing.")
+            }
+        }
+        #endif
     }
 
     private var backupsSection: some View {

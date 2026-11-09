@@ -25,8 +25,14 @@ enum AppGroupContainer {
     /// test's app under test never gets it, so `KeeForgeUITests` and
     /// `KeeForgeMacUITests` keep exercising the real container and stay able to
     /// share it with the separate AutoFill extension process.
-    static let isRedirectedForTesting =
+    /// Always false in Release, where no unit-test host exists.
+    static let isRedirectedForTesting: Bool = {
+        #if DEBUG
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        #else
+        false
+        #endif
+    }()
 
     static var url: URL {
         resolvedURL ?? FileManager.default.temporaryDirectory

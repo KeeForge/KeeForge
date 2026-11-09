@@ -158,6 +158,14 @@ for owned_executable in "${OWNED_EXECUTABLES[@]}"; do
     || die "KeeForge executable architectures do not match the requested release set"
 done
 
+# UI-test launch hooks are Debug-only. `-ui-testing` itself is a Swift small
+# string that `strings` cannot see, so check the UI_TEST_* names around it.
+for owned_executable in "${OWNED_EXECUTABLES[@]}"; do
+  ! strings "$owned_executable" 2>/dev/null \
+    | grep -Eq 'UI_TEST_|XCTestConfigurationFilePath|autofill-store-inspector' \
+    || die "KeeForge executable contains Debug-only test hooks"
+done
+
 # Collect every Mach-O binary in the exported artifact for dependency checks.
 # Sparkle's own helpers are skipped below: they are expected to contain Sparkle
 # and must not make the direct build fail its StoreKit exclusion check.
@@ -187,6 +195,7 @@ SPARKLE_COMPONENTS="${SPARKLE_FRAMEWORK_PATHS}${SPARKLE_UPDATER_PATHS}"
 FEED_URL="$(plist_value SUFeedURL)"
 PUBLIC_KEY="$(plist_value SUPublicEDKey)"
 INSTALLER_LAUNCHER_SERVICE="$(plist_value SUEnableInstallerLauncherService)"
+AUTOMATIC_CHECKS="$(plist_value SUEnableAutomaticChecks)"
 
 # Keep the embedded-bundle check distinct from dynamic linkage: App Store
 # artifacts link the system StoreKit framework without embedding it.
@@ -231,6 +240,7 @@ case "$CHANNEL" in
     [[ -z "$PUBLIC_KEY" ]] || die "MAS artifact contains a Sparkle public key"
     [[ -z "$INSTALLER_LAUNCHER_SERVICE" ]] \
       || die "MAS artifact enables the Sparkle installer launcher service"
+    [[ -z "$AUTOMATIC_CHECKS" ]] || die "MAS artifact enables Sparkle automatic checks"
     ! grep -q 'com.apple.security.temporary-exception' "$ROOT_ENTITLEMENTS" \
       || die "MAS artifact carries a temporary-exception entitlement"
     ;;
@@ -243,6 +253,7 @@ case "$CHANNEL" in
     [[ -z "$STOREKIT_BUNDLE_PATHS" ]] || die "direct artifact contains a StoreKit bundle"
     [[ "$INSTALLER_LAUNCHER_SERVICE" == "YES" ]] \
       || die "direct artifact does not enable the Sparkle installer launcher service"
+    [[ "$AUTOMATIC_CHECKS" == "YES" ]] || die "direct artifact does not enable Sparkle automatic checks"
     for required_name in "${BUNDLE_IDENTIFIER}-spks" "${BUNDLE_IDENTIFIER}-spki"; do
       grep -Fxq "$required_name" <<<"$(mach_lookup_names)" \
         || die "direct artifact is missing a Sparkle installer mach-lookup exception"

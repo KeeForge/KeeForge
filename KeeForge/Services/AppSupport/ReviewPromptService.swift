@@ -39,9 +39,12 @@ enum ReviewPromptService {
     /// otherwise cover whichever test reaches a threshold. Launches without
     /// `-ui-testing` opt out through the `KeeForge.reviewPrompt.suppressed`
     /// argument-domain default.
-    nonisolated(unsafe) static var isSuppressedForUITesting =
-        ProcessInfo.processInfo.arguments.contains("-ui-testing")
-        || UserDefaults.standard.bool(forKey: Key.suppressed)
+    nonisolated(unsafe) static var isSuppressedForUITesting: Bool = {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing") { return true }
+        #endif
+        return UserDefaults.standard.bool(forKey: Key.suppressed)
+    }()
 
     static var successfulSaveCount: Int {
         get { defaults.integer(forKey: Key.successfulSaveCount) }

@@ -1288,9 +1288,9 @@ final class SearchResultsMoveUITests: EntryEditUITestCase {
 }
 
 /// Selection mode (#186): Select Entries on an entry's long-press menu turns
-/// the rows into toggles and shows the selection bar, whose Move to Group
-/// sends everything picked to one destination. Cancel comes first in the same
-/// launch, since leaving the mode must change nothing.
+/// the rows into toggles and shows the selection controls, whose Move to Group
+/// sends everything picked to one destination. Leaving the mode comes first in
+/// the same launch, since it must change nothing.
 @MainActor
 final class EntrySelectionMoveUITests: EntryEditUITestCase {
     func testSelectedEntriesMoveTogetherAndCancelLeavesThemInPlace() {
@@ -1298,10 +1298,9 @@ final class EntrySelectionMoveUITests: EntryEditUITestCase {
         openGroup(named: socialGroupName)
 
         let cancelButton = app.buttons["entry-selection.cancel"]
-        let selectionCount = app.staticTexts["entry-selection.count"]
 
         beginSelection(onRowNamed: twitterEntryTitle)
-        XCTAssertEqual(selectionCount.label, "1 entry")
+        assertSelectionCount(1)
         cancelButton.tap()
         XCTAssertTrue(
             cancelButton.waitForNonExistence(timeout: Self.ciElementTimeout),
@@ -1311,7 +1310,7 @@ final class EntrySelectionMoveUITests: EntryEditUITestCase {
 
         beginSelection(onRowNamed: twitterEntryTitle)
         tapElement(entry(named: discordEntryTitle))
-        XCTAssertEqual(selectionCount.label, "2 entries", "Tapping a row in selection mode did not select it")
+        assertSelectionCount(2, "Tapping a row in selection mode did not select it")
 
         app.buttons["entry-selection.move"].tap()
         let destination = moveDestination(named: workGroupName)
@@ -1339,6 +1338,32 @@ final class EntrySelectionMoveUITests: EntryEditUITestCase {
         openGroup(named: workGroupName)
         XCTAssertTrue(revealElement(entry(named: twitterEntryTitle)), "A selected entry did not land in the chosen group")
         XCTAssertTrue(revealElement(entry(named: discordEntryTitle)), "A selected entry did not land in the chosen group")
+    }
+
+    /// iPhone from iOS 26 shows the count as the navigation title
+    /// ("2 Selected"); iPad and earlier releases keep it in the selection bar.
+    private func assertSelectionCount(
+        _ count: Int,
+        _ message: String = "",
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        if #available(iOS 26.0, *), UIDevice.current.userInterfaceIdiom == .phone {
+            XCTAssertTrue(
+                app.navigationBars.staticTexts["\(count) Selected"].waitForExistence(timeout: Self.ciElementTimeout),
+                message,
+                file: file,
+                line: line
+            )
+        } else {
+            XCTAssertEqual(
+                app.staticTexts["entry-selection.count"].label,
+                count == 1 ? "1 entry" : "\(count) entries",
+                message,
+                file: file,
+                line: line
+            )
+        }
     }
 
     private func beginSelection(onRowNamed name: String, file: StaticString = #filePath, line: UInt = #line) {

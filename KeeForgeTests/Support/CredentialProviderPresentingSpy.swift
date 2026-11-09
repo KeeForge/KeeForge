@@ -36,6 +36,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         let entries: [KPEntry]
         let searchEntries: [KPEntry]
         let possibleEntries: [KPEntry]
+        let customIcons: [UUID: Data]
         let initialSearchText: String
         let sharedCopyDate: Date?
         let databaseSwitcher: CredentialProviderDatabaseSwitcherContext?
@@ -115,6 +116,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         entries: [KPEntry],
         searchEntries: [KPEntry],
         possibleEntries: [KPEntry],
+        customIcons: [UUID: Data],
         initialSearchText: String,
         sharedCopyDate: Date?,
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
@@ -128,6 +130,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
             entries: entries,
             searchEntries: searchEntries,
             possibleEntries: possibleEntries,
+            customIcons: customIcons,
             initialSearchText: initialSearchText,
             sharedCopyDate: sharedCopyDate,
             databaseSwitcher: databaseSwitcher,

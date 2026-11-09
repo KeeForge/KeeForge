@@ -6,6 +6,7 @@
 
 Views compose state, collect input, and forward intent and lifecycle events. Workflow policy (unlock/lock, draft/save/conflict, editor completion, settings effects, routing) is owned in `../ViewModels/AGENTS.md`; never repeat it in a view. When a view starts needing real async or state logic, move it to `../ViewModels` or a helper type.
 
+- Preview iOS UI work with `scripts/render-views.sh` before building, installing, or driving a simulator: add or update the screen's states in `KeeForgeTests/ViewRenderTests`, render every shipped language, and review the PNGs. Fall back to a simulator or device only for what a render cannot show, such as navigation, keyboard and focus, animation, glass effects, and secure-field contents.
 - All three shells are first-class. A change to navigation, chrome, editing, or status UI has to be checked in each; prefer sharing the row/detail/editor view over forking per shell.
 - Compact pushes one session from the database list. iPad keeps the list visible and renders the session in a detail workspace. macOS always uses the regular layout (`usesRegularLayout` is hardcoded there).
 - macOS never mounts `Group/GroupListView.swift` or the compact stack: it browses through `macSplitView` in `../App/RegularDatabaseWorkspaceView.swift`. Anything wired only into `GroupListView` is invisible on macOS and needs a counterpart there.

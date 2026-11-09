@@ -2790,6 +2790,166 @@
         }
       }
     },
+    "%lld Selected" : {
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld ausgewählt"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld ausgewählt"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Selected"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Selected"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld seleccionada"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld seleccionadas"
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sélectionnée"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sélectionnées"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld selezionata"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld selezionate"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld 件を選択"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Выбрано %lld"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Выбрано %lld"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Выбрана %lld"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Выбрано %lld"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "已选择 %lld 项"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "已選取 %lld 項"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld subgroups" : {
       "localizations" : {
         "de" : {
@@ -8206,6 +8366,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 KeeForge 自動填寫"
+          }
+        }
+      }
+    },
+    "Automatically Check for Updates" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatisch nach Updates suchen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar actualizaciones automáticamente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher automatiquement les mises à jour"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifica automaticamente gli aggiornamenti"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデートを自動的に確認"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автоматически проверять обновления"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动检查更新"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動檢查更新"
           }
         }
       }
@@ -18415,6 +18627,166 @@
         }
       }
     },
+    "Delete %lld Entries?" : {
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Eintrag löschen?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Einträge löschen?"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Delete %lld Entry?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Delete %lld Entries?"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "¿Eliminar %lld entrada?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "¿Eliminar %lld entradas?"
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Supprimer %lld entrée ?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Supprimer %lld entrées ?"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Eliminare %lld voce?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Eliminare %lld voci?"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld 件のエントリを削除しますか？"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Удалить %lld записи?"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Удалить %lld записей?"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Удалить %lld запись?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Удалить %lld записи?"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "要删除 %lld 个条目吗？"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "要刪除 %lld 個項目嗎？"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Delete Custom Icon?" : {
       "localizations" : {
         "de" : {
@@ -18891,6 +19263,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "遞減"
+          }
+        }
+      }
+    },
+    "Deselect All" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auswahl aufheben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deseleccionar todo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout désélectionner"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deseleziona tutto"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての選択を解除"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снять выбор"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消全选"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消全選"
           }
         }
       }
@@ -22807,6 +23231,58 @@
         }
       }
     },
+    "Error Options" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fehleroptionen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opciones del error"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Options de l'erreur"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opzioni errore"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エラーのオプション"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Параметры ошибки"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "错误选项"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "錯誤選項"
+          }
+        }
+      }
+    },
     "Every 14 Days" : {
       "localizations" : {
         "de" : {
@@ -23379,6 +23855,58 @@
         }
       }
     },
+    "Export a copy of the database via iOS Sharing." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportiert eine Kopie der Datenbank über das Teilen-Menü von iOS."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporta una copia de la base de datos mediante Compartir de iOS."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporte une copie de la base de données via le partage iOS."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esporta una copia del database tramite la condivisione di iOS."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースのコピーを iOS の共有機能で書き出します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Экспортирует копию базы данных через меню «Поделиться» iOS."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 iOS 共享导出数据库副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 iOS 分享匯出資料庫副本。"
+          }
+        }
+      }
+    },
     "Export a copy of your database" : {
       "localizations" : {
         "de" : {
@@ -23531,6 +24059,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "匯出副本…"
+          }
+        }
+      }
+    },
+    "Export the locally cached copy of the database via iOS Sharing." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportiert die lokal zwischengespeicherte Kopie der Datenbank über das Teilen-Menü von iOS."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporta la copia en caché local de la base de datos mediante Compartir de iOS."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporte la copie de la base de données mise en cache localement via le partage iOS."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esporta la copia del database memorizzata nella cache locale tramite la condivisione di iOS."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルにキャッシュされたデータベースのコピーを iOS の共有機能で書き出します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Экспортирует локальную кэшированную копию базы данных через меню «Поделиться» iOS."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 iOS 共享导出数据库的本地缓存副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 iOS 分享匯出資料庫的本機快取副本。"
+          }
+        }
+      }
+    },
+    "Export…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportieren …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporter…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esporta…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き出す…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Экспортировать…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出…"
           }
         }
       }
@@ -38589,58 +39221,6 @@
         }
       }
     },
-    "Other Databases" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Weitere Datenbanken"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Otras bases de datos"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Autres bases de données"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Altri database"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "その他のデータベース"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Другие базы данных"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "其他数据库"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "其他資料庫"
-          }
-        }
-      }
-    },
     "Passkey" : {
       "localizations" : {
         "de" : {
@@ -43039,6 +43619,58 @@
         }
       }
     },
+    "Required" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erforderlich"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obligatorio"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obligatoire"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obbligatorio"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "必須"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обязательно"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "必填"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "必填"
+          }
+        }
+      }
+    },
     "Restore" : {
       "localizations" : {
         "de" : {
@@ -46485,6 +47117,58 @@
         }
       }
     },
+    "Select All" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle auswählen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seleccionar todo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout sélectionner"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seleziona tutto"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてを選択"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать все"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全选"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全選"
+          }
+        }
+      }
+    },
     "Select an Entry" : {
       "localizations" : {
         "de" : {
@@ -47631,110 +48315,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享…"
-          }
-        }
-      }
-    },
-    "Shares a copy of the database as KeeForge currently has it, to save in Files, send with AirDrop, or open in another app. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Teilt eine Kopie der Datenbank in dem Stand, den KeeForge derzeit hat, um sie in „Dateien“ zu sichern, per AirDrop zu senden oder in einer anderen App zu öffnen. Verwenden Sie sie, um Änderungen mit einer anderen KeePass-App in Ihre Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Comparte una copia de la base de datos tal como la tiene KeeForge actualmente, para guardarla en Archivos, enviarla con AirDrop o abrirla en otra app. Úsela para combinar los cambios en su archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Partage une copie de la base de données telle que KeeForge la possède actuellement, pour l'enregistrer dans Fichiers, l'envoyer via AirDrop ou l'ouvrir dans une autre app. Utilisez-la pour fusionner les modifications dans votre fichier principal avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Condivide una copia del database così come si trova attualmente in KeeForge, per salvarla in File, inviarla con AirDrop o aprirla in un'altra app. Usala per unire le modifiche al tuo file principale con un'altra app KeePass quando un caricamento sul cloud è bloccato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge が現在保持している状態のデータベースのコピーを共有し、“ファイル”への保存、AirDrop での送信、他の App で開くことができます。クラウドへのアップロードが滞っているときに、他の KeePass App でメインのファイルに変更を統合するために使用できます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Отправляет копию базы данных в том виде, в каком она сейчас есть в KeeForge, чтобы сохранить её в «Файлах», отправить через AirDrop или открыть в другом приложении. Используйте её, чтобы объединить изменения с основным файлом в другом приложении KeePass, если облачная отправка застряла."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "共享 KeeForge 当前所持有的数据库副本，可存储到“文件”、通过隔空投送发送或在其他 App 中打开。当云端上传卡住时，可用它在其他 KeePass App 中将更改合并到你的主文件。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分享 KeeForge 目前所持有的資料庫副本，可儲存到「檔案」、透過 AirDrop 傳送或在其他 App 中開啟。當雲端上傳卡住時，可用它在其他 KeePass App 中將變更合併到你的主檔案。"
-          }
-        }
-      }
-    },
-    "Shares the locally cached copy of the database as KeeForge currently has it, to save in Files, send with AirDrop, or open in another app. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Teilt die lokal zwischengespeicherte Kopie der Datenbank in dem Stand, den KeeForge derzeit hat, um sie in „Dateien“ zu sichern, per AirDrop zu senden oder in einer anderen App zu öffnen. Verwenden Sie sie, um Änderungen mit einer anderen KeePass-App in Ihre Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Comparte la copia almacenada localmente en caché de la base de datos tal como la tiene KeeForge actualmente, para guardarla en Archivos, enviarla con AirDrop o abrirla en otra app. Úsela para combinar los cambios en su archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Partage la copie mise en cache localement de la base de données telle que KeeForge la possède actuellement, pour l'enregistrer dans Fichiers, l'envoyer via AirDrop ou l'ouvrir dans une autre app. Utilisez-la pour fusionner les modifications dans votre fichier principal avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Condivide la copia del database nella cache locale così come si trova attualmente in KeeForge, per salvarla in File, inviarla con AirDrop o aprirla in un'altra app. Usala per unire le modifiche al tuo file principale con un'altra app KeePass quando un caricamento sul cloud è bloccato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge が現在保持している、ローカルにキャッシュされたデータベースのコピーを共有し、“ファイル”への保存、AirDrop での送信、他の App で開くことができます。クラウドへのアップロードが滞っているときに、他の KeePass App でメインのファイルに変更を統合するために使用できます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Отправляет локальную кэшированную копию базы данных в том виде, в каком она сейчас есть в KeeForge, чтобы сохранить её в «Файлах», отправить через AirDrop или открыть в другом приложении. Используйте её, чтобы объединить изменения с основным файлом в другом приложении KeePass, если облачная отправка застряла."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "共享 KeeForge 当前所持有的数据库本地缓存副本，可存储到“文件”、通过隔空投送发送或在其他 App 中打开。当云端上传卡住时，可用它在其他 KeePass App 中将更改合并到你的主文件。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分享 KeeForge 目前所持有的資料庫本機快取副本，可儲存到「檔案」、透過 AirDrop 傳送或在其他 App 中開啟。當雲端上傳卡住時，可用它在其他 KeePass App 中將變更合併到你的主檔案。"
           }
         }
       }
@@ -53619,6 +54199,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此要求已無法使用。"
+          }
+        }
+      }
+    },
+    "The selected entries will be moved to the recycle bin." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die ausgewählten Einträge werden in den Papierkorb verschoben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las entradas seleccionadas se moverán a la papelera."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les entrées sélectionnées seront déplacées vers la corbeille."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le voci selezionate verranno spostate nel cestino."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択したエントリはごみ箱に移動されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбранные записи будут перемещены в корзину."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所选条目将被移至回收站。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所選項目將移至資源回收筒。"
           }
         }
       }
@@ -62181,6 +62813,58 @@
         }
       }
     },
+    "Updates" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizaciones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mises à jour"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiornamenti"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデート"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновления"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新"
+          }
+        }
+      }
+    },
     "Updating KeeForge prevents new corruption when saving entry notes but does not repair already damaged files. Restore a readable backup or create a recovered copy with the offline tool." : {
       "localizations" : {
         "de" : {
@@ -62229,58 +62913,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新 KeeForge 可防止儲存項目備註時造成新的損毀，但不會修復已損毀的檔案。請還原可讀取的備份，或使用離線工具建立復原後的副本。"
-          }
-        }
-      }
-    },
-    "Upload Pending" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Upload ausstehend"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Subida pendiente"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Envoi en attente"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Caricamento in attesa"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アップロード待ち"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ожидает загрузки"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "等待上传"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "等待上傳"
           }
         }
       }

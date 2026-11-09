@@ -22,7 +22,6 @@ struct UnlockView: View {
     @State private var isSealed = true
     @FocusState private var passwordFocused: Bool
     @ScaledMetric(relativeTo: .body) private var keyFileNameMinimumWidth: CGFloat = 100
-    @ScaledMetric(relativeTo: .largeTitle) private var unlockIconSize = Theme.Size.unlockIcon
     @ScaledMetric(relativeTo: .body) private var unlockFieldHeight = Theme.Size.unlockField
 
     /// Plays the shackle closing on the screen the user actually lands on after
@@ -39,9 +38,7 @@ struct UnlockView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
-                if PlatformDesign.followsIOSDesign {
-                    designedHeader
-                } else {
+                if PlatformDesign.followsIOSDesign == false {
                     headerCard
                 }
 
@@ -55,6 +52,15 @@ struct UnlockView: View {
         }
         .background(UnlockViewBackground())
         .scrollIndicators(.hidden)
+        #if os(iOS)
+        .databaseNavigationTitle(
+            viewModel.databaseDisplayName,
+            subtitle: SettingsSummaryText.joined([
+                viewModel.databaseFilename,
+                viewModel.databaseReference.cloudProviderKind?.displayName,
+            ])
+        )
+        #endif
         // One importer for both targets: SwiftUI does not reliably present a
         // second `.fileImporter` attached to the same view.
         .fileImporter(
@@ -276,36 +282,6 @@ struct UnlockView: View {
         }
     }
 
-    /// The design's unlock page head: the database centred under its lock.
-    private var designedHeader: some View {
-        VStack(spacing: Theme.Spacing.textLine) {
-            Image(systemName: isSealed ? "lock.fill" : "lock.open.fill")
-                .font(Theme.Font.unlockGlyph)
-                .foregroundStyle(.tint)
-                .contentTransition(.symbolEffect(.replace.downUp))
-                .frame(width: unlockIconSize, height: unlockIconSize)
-                .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-                .accessibilityHidden(true)
-                .onAppear(perform: sealShutIfArrivingFromLock)
-                .padding(.bottom, Theme.Spacing.cardGap)
-
-            Text("Open Database")
-                .font(Theme.Font.footnote.weight(.semibold))
-                .foregroundStyle(Theme.labelSecondary)
-                .textCase(.uppercase)
-
-            Text(viewModel.databaseDisplayName)
-                .font(Theme.Font.unlockTitle)
-                .multilineTextAlignment(.center)
-
-            Text(viewModel.databaseFilename)
-                .font(Theme.Font.subhead)
-                .foregroundStyle(Theme.labelSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
     private var designedCredentialsSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.cardGap) {
             designedFieldLabel("Master Password")
@@ -434,10 +410,18 @@ struct UnlockView: View {
 
     @ViewBuilder
     private func failureSection(_ failure: DatabaseOpenFailure) -> some View {
-        if PlatformDesign.followsIOSDesign {
+        if PlatformDesign.followsIOSDesign, failure.canRetryUnlock {
+            retryableFailureCard(failure)
+        } else if PlatformDesign.followsIOSDesign {
             designedFailureSection(failure)
         } else {
             legacyFailureSection(failure)
+        }
+    }
+
+    private func retryableFailureCard(_ failure: DatabaseOpenFailure) -> some View {
+        UnlockFailureCard(failure: failure) {
+            feedbackContext = .databaseOpenFailure(failure)
         }
     }
 
@@ -970,6 +954,7 @@ struct UnlockView: View {
     }
 
     private func loadUITestKeyFileIfNeeded() {
+        #if DEBUG
         guard ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
         guard keyFileData == nil else { return }
         let env = ProcessInfo.processInfo.environment
@@ -977,6 +962,7 @@ struct UnlockView: View {
               let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) else { return }
         keyFileData = data
         keyFileName = env["UI_TEST_KEYFILE_FILENAME"] ?? "test.key"
+        #endif
     }
 
     private func handleFilePickerSelection(_ result: Result<URL, Error>) {
@@ -1176,8 +1162,6 @@ struct DatabaseOpeningView: View {
     var provider: CloudProviderKind? = nil
     var isCloudBacked = false
 
-    @ScaledMetric(relativeTo: .largeTitle) private var iconSize = Theme.Size.unlockIcon
-
     var body: some View {
         if PlatformDesign.followsIOSDesign {
             designedBody
@@ -1186,37 +1170,10 @@ struct DatabaseOpeningView: View {
         }
     }
 
-    /// Laid out like the unlock page's header, with the database's tile from
-    /// the list, so neither hand-over moves it.
+    /// Titled like the unlock page, so neither hand-over moves the name.
     private var designedBody: some View {
         ScrollView {
             VStack(spacing: 22) {
-                VStack(spacing: Theme.Spacing.textLine) {
-                    #if os(iOS)
-                    DatabaseSourceTile(
-                        name: databaseName,
-                        provider: provider,
-                        isCloudBacked: isCloudBacked,
-                        size: iconSize
-                    )
-                    .padding(.bottom, Theme.Spacing.cardGap)
-                    #endif
-
-                    Text(databaseName)
-                        .font(Theme.Font.unlockTitle)
-                        .multilineTextAlignment(.center)
-
-                    if let sourceLine {
-                        Text(sourceLine)
-                            .font(Theme.Font.subhead)
-                            .foregroundStyle(Theme.labelSecondary)
-                            .multilineTextAlignment(.center)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text("Opening \(databaseName)"))
-
                 VStack(spacing: 0) {
                     ForEach(Array(steps.enumerated()), id: \.offset) { index, item in
                         if index > 0 {
@@ -1254,6 +1211,9 @@ struct DatabaseOpeningView: View {
         }
         .scrollIndicators(.hidden)
         .background(UnlockViewBackground())
+        #if os(iOS)
+        .databaseNavigationTitle(databaseName, subtitle: sourceLine ?? "")
+        #endif
     }
 
     private var sourceLine: String? {
@@ -1396,5 +1356,91 @@ struct UnlockViewBackground: View {
     var body: some View {
         (PlatformDesign.followsIOSDesign ? Color(.systemGroupedBackground) : Color(.systemBackground))
             .ignoresSafeArea()
+    }
+}
+
+#if os(iOS)
+extension View {
+    /// The unlock and opening pages' title: the database's name over its file
+    /// and storage, centred in the navigation bar.
+    func databaseNavigationTitle(_ name: String, subtitle: String) -> some View {
+        navigationTitle(name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 0) {
+                        Text(name)
+                            .font(.headline)
+                        if subtitle.isEmpty == false {
+                            Text(subtitle)
+                                .font(.caption)
+                                .foregroundStyle(Theme.labelSecondary)
+                        }
+                    }
+                    .lineLimit(1)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isHeader)
+                }
+            }
+    }
+}
+#endif
+
+/// A failure the unlock form can fix, such as a wrong password: what went
+/// wrong, above the fields, with Unlock as the retry.
+struct UnlockFailureCard: View {
+    let failure: DatabaseOpenFailure
+    let onSendFeedback: () -> Void
+
+    var body: some View {
+        let tint = failure.isAuthenticationFailure ? Theme.danger : Theme.warning
+        return HStack(alignment: .top, spacing: Theme.Spacing.iconText) {
+            Image(systemName: failure.isAuthenticationFailure ? "lock.fill" : "exclamationmark.triangle.fill")
+                .font(.title2)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.badgeGap) {
+                Text(failure.title)
+                    .font(.title3.weight(.bold))
+
+                Text(failure.summary)
+                    .font(.body)
+                    .accessibilityIdentifier("unlock.error.label")
+
+                Text(failure.errorCode)
+                    .font(.footnote.monospaced())
+                    .foregroundStyle(Theme.labelSecondary)
+                    .textSelection(.enabled)
+            }
+
+            Spacer(minLength: 0)
+
+            Menu {
+                Button("Send Feedback", systemImage: "paperplane") {
+                    onSendFeedback()
+                }
+                .accessibilityIdentifier("unlock.send-feedback")
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.title2)
+                    .frame(minWidth: Theme.Size.navButton, minHeight: Theme.Size.navButton, alignment: .topTrailing)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Error Options")
+        }
+        .padding(Theme.Spacing.side)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            failure.isAuthenticationFailure ? AnyShapeStyle(Theme.dangerSoft) : AnyShapeStyle(Theme.warning.opacity(0.14)),
+            in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .strokeBorder(tint.opacity(0.35), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("unlock.error.card")
     }
 }

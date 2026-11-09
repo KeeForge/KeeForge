@@ -9,14 +9,13 @@
 - The macOS workspace's Database Details button passes the live session; that is the only way Change Master Key is reachable on macOS.
 - The details root is a hub of summary rows. A new setting goes into a page's section, never onto the hub. Row wording lives in the pure `DatabaseSettingsSummary`.
 - The per-database AutoFill toggle goes through `DatabaseListViewModel.setAutoFillEnabled`, never the store directly, so disabling removes identities and enabling republishes the open session.
-- Each form's work, validation, and cancellation live in its view model (`DatabaseCreationViewModel`, `MasterKeyChangeViewModel`, `EncryptionSettingsViewModel`, `PasswordImportViewModel`). `DatabaseExportPresenter` owns the load, the hand-off (`.fileExporter` on macOS, the share sheet on iOS), and the failure alert for every export entry point. The iOS hand-off stages a temp file that is deleted when the share sheet closes; the current-copy action is labelled Export Copy on macOS and Share on iOS (`DatabaseExportLabels`).
+- Each form's work, validation, and cancellation live in its view model (`DatabaseCreationViewModel`, `MasterKeyChangeViewModel`, `EncryptionSettingsViewModel`, `PasswordImportViewModel`). `DatabaseExportPresenter` owns the load, the hand-off (`.fileExporter` on macOS, the share sheet on iOS), and the failure alert for every export entry point. The iOS hand-off stages a temp file that is deleted when the share sheet closes; the current-copy action is labelled Export Copy on macOS and Share on iOS (`DatabaseExportLabels`), except in iOS Database Details, which says Export….
 
 ## Invariants
 
 ### Database list
 
-- Outside Edit mode, iPhone and iPad draw an overview: the spotlight card (`DatabaseListViewModel.spotlightDatabase`: Quick Launch, else the one opened last, else the first; with usage stats hidden it never picks by last opened) above a grid of tiles for the rest. Edit mode and macOS draw plain rows, `DatabaseListRow` on iOS and `DatabaseRowView` on macOS, so reordering and swipe Remove work only on rows. The overview is a `ScrollView`, not a `List`: a list cell holding several tiles gives them one shared context menu.
-- The card, tiles, and iOS rows say one line about a database, from the pure `DatabaseStatusLine`; the badges and notices behind it come from `DatabaseRowStatusSummary`, which the macOS row uses directly. Keep identifiers on the same elements across all of them.
+- iPhone, iPad, and macOS list databases as plain rows: `DatabaseListRow` on iOS and `DatabaseRowView` on macOS. The badges and notices on both come from the pure `DatabaseRowStatusSummary`; keep identifiers on the same elements on both platforms. Pending uploads are a notice counted in words, not a badge. With Show Usage Stats off, a row says neither when its database was last opened nor when it last synced; sync warnings still show. On iOS a badge never truncates: badges move under the name, then one per line.
 - On iOS rows move only in Edit mode (`moveDisabled` plus the shared `EditMode` binding). Otherwise the reorder gesture competes with the long-press context menu and XCTest waits on animations. macOS reorders by drag with no Edit button.
 - `isSidebarColumn` is passed in by the host, not read from `horizontalSizeClass`, which a sidebar column reports as compact. It picks `.sidebar` over `.insetGrouped`; the grouped card renders darker than the column on iPadOS and opaque over the material on macOS.
 - On macOS the list has no `NavigationStack` of its own; one would paint over the sidebar material.
@@ -40,7 +39,8 @@
 ## Tests
 
 - UI: `DatabaseListUITests`, `DatabaseCreationCompactUITests` / `DatabaseCreationRegularWidthUITests`, `MasterKeyChangeUITests`, `EncryptionSettingsUITests`, `SaveConflictMergeUITests`.
-- Unit: the four view models' `<Type>Tests`, `DatabaseSettingsSummaryTests`, `DatabaseRowStatusSummaryTests`, `DatabaseOverviewTests` (spotlight choice, status line, opening steps). `PasswordImportViewModelTests` is in `PasswordImportTests.swift`.
+- Unit: the four view models' `<Type>Tests`, `DatabaseSettingsSummaryTests`, `DatabaseRowStatusSummaryTests`.
+- Visual: `ViewRenderTests.testDatabaseListRows` renders every row state in each shipped language and three layouts (`scripts/render-views.sh`). Check it after changing row text or layout. `PasswordImportViewModelTests` is in `PasswordImportTests.swift`.
 
 ## See also
 
