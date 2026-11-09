@@ -13,27 +13,24 @@ struct PasswordGeneratorSheet: View {
         NavigationStack {
             Form {
                 Section("Suggested Password") {
-                    PasswordDisplayRow(
-                        revealedText: generatedPassword,
-                        passwordAccessibilityIdentifier: "password-generator.password",
-                        maximumEntropyBits: PasswordGenerator.minimumEntropyBits(options: options),
-                        isProminent: true
-                    ) {
-                        HStack(spacing: 16) {
-                            Button {
-                                regenerate()
-                            } label: {
-                                Image(systemName: "arrow.clockwise")
-                            }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("Regenerate")
-                            .accessibilityIdentifier("password-generator.regenerate")
-                            .macHelp(String(localized: "Regenerate"))
+                    // Deliberately not selectable: the system copy path would bypass ClipboardService.
+                    PasswordDisplayText(generatedPassword, isProminent: true)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .accessibilityIdentifier("password-generator.password")
 
-                            CopyButton(
-                                text: generatedPassword,
-                                accessibilityID: "password-generator.copy"
-                            )
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 12) {
+                            strengthIndicator
+                            Spacer(minLength: 0)
+                            suggestionActions
+                        }
+                        VStack(alignment: .leading, spacing: 10) {
+                            strengthIndicator
+                            suggestionActions
                         }
                     }
                 }
@@ -44,6 +41,7 @@ struct PasswordGeneratorSheet: View {
                         Text("Passphrase").tag(PasswordGenerator.Mode.passphrase)
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
                     .accessibilityIdentifier("password-generator.mode")
                 }
 
@@ -58,41 +56,49 @@ struct PasswordGeneratorSheet: View {
                                 .textInputAutocapitalization(.never)
                                 .macFormFieldStyle()
                                 .macLabelsHidden()
-                                .multilineTextAlignment(.leading)
+                                .multilineTextAlignment(.trailing)
                                 .accessibilityIdentifier("password-generator.separator")
                         }
                     }
                 } else {
                     Section("Length") {
-                        Slider(
-                            value: Binding(
-                                get: { Double(options.length) },
-                                set: { options.length = Int($0.rounded()) }
-                            ),
-                            in: 8...64,
-                            step: 1
-                        )
-                        .accessibilityIdentifier("password-generator.length-slider")
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text("\(options.length) characters")
+                                    .font(.headline)
+                                Spacer(minLength: 8)
+                                Text(verbatim: "\(Self.lengthRange.lowerBound) – \(Self.lengthRange.upperBound)")
+                                    .font(.footnote.monospacedDigit())
+                                    .foregroundStyle(Theme.labelSecondary)
+                                    .accessibilityHidden(true)
+                            }
 
-                        Text("\(options.length) characters")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            Slider(
+                                value: Binding(
+                                    get: { Double(options.length) },
+                                    set: { options.length = Int($0.rounded()) }
+                                ),
+                                in: Double(Self.lengthRange.lowerBound)...Double(Self.lengthRange.upperBound),
+                                step: 1
+                            )
+                            .accessibilityLabel(Text("Length"))
+                            .accessibilityValue(Text("\(options.length) characters"))
+                            .accessibilityIdentifier("password-generator.length-slider")
+                        }
+                        .padding(.vertical, 4)
                     }
 
                     Section("Character Sets") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Toggle("Uppercase", isOn: charsetBinding(\.includeUppercase))
-                                .accessibilityIdentifier("password-generator.charset-toggle.uppercase")
-                            Toggle("Lowercase", isOn: charsetBinding(\.includeLowercase))
-                                .accessibilityIdentifier("password-generator.charset-toggle.lowercase")
-                            Toggle("Digits", isOn: charsetBinding(\.includeDigits))
-                                .accessibilityIdentifier("password-generator.charset-toggle.digits")
-                            Toggle("Symbols", isOn: charsetBinding(\.includeSymbols))
-                                .accessibilityIdentifier("password-generator.charset-toggle.symbols")
-                            Toggle("Exclude Ambiguous Characters", isOn: $options.excludeAmbiguous)
-                                .accessibilityIdentifier("password-generator.charset-toggle.ambiguous")
-                        }
-                        .accessibilityIdentifier("password-generator.charset-toggle")
+                        charsetToggle("Uppercase", sample: "A–Z", sampleColor: Theme.labelSecondary,
+                                      isOn: charsetBinding(\.includeUppercase), id: "uppercase")
+                        charsetToggle("Lowercase", sample: "a–z", sampleColor: Theme.labelSecondary,
+                                      isOn: charsetBinding(\.includeLowercase), id: "lowercase")
+                        charsetToggle("Digits", sample: "0–9", sampleColor: PlatformDesign.followsIOSDesign ? Theme.digit : .blue,
+                                      isOn: charsetBinding(\.includeDigits), id: "digits")
+                        charsetToggle("Symbols", sample: "!#$&", sampleColor: PlatformDesign.followsIOSDesign ? Theme.symbol : .orange,
+                                      isOn: charsetBinding(\.includeSymbols), id: "symbols")
+                        Toggle("Exclude Ambiguous Characters", isOn: $options.excludeAmbiguous)
+                            .accessibilityIdentifier("password-generator.charset-toggle.ambiguous")
                     }
                 }
             }
@@ -127,6 +133,62 @@ struct PasswordGeneratorSheet: View {
                 regenerate()
             }
         }
+    }
+
+    private static let lengthRange = 8...64
+
+    private var strengthIndicator: some View {
+        PasswordStrengthIndicator(
+            password: generatedPassword,
+            maximumEntropyBits: PasswordGenerator.minimumEntropyBits(options: options),
+            caption: .rating
+        )
+    }
+
+    private var suggestionActions: some View {
+        HStack(spacing: 16) {
+            Button {
+                regenerate()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Regenerate")
+                }
+                .font(Theme.Font.subhead)
+                .lineLimit(1)
+                .fixedSize()
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier("password-generator.regenerate")
+            .macHelp(String(localized: "Regenerate"))
+
+            #if os(macOS)
+            CopyButton(
+                text: generatedPassword,
+                accessibilityID: "password-generator.copy"
+            )
+            #endif
+        }
+    }
+
+    /// A character-set switch with a sample of the set, colored like the password.
+    private func charsetToggle(
+        _ title: LocalizedStringKey,
+        sample: String,
+        sampleColor: Color,
+        isOn: Binding<Bool>,
+        id: String
+    ) -> some View {
+        Toggle(isOn: isOn) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(title)
+                Text(verbatim: sample)
+                    .font(.footnote.monospaced())
+                    .foregroundStyle(sampleColor)
+                    .accessibilityHidden(true)
+            }
+        }
+        .accessibilityIdentifier("password-generator.charset-toggle.\(id)")
     }
 
     private func regenerate() {

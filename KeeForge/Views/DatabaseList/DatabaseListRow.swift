@@ -42,6 +42,8 @@ struct DatabaseListRow: View {
                     noticeText(notice)
                 }
             }
+            // Otherwise the list guesses from the status line and starts the divider past its icon.
+            .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
 
             Spacer(minLength: 0)
 
