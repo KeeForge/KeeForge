@@ -262,6 +262,111 @@ final class CloudDatabaseSaverTests: XCTestCase {
         }
     }
 
+    func testPostRenameListSyncFailureBlocksUploadUntilHeadDurabilityThenRetainsConfirmedCacheFailure() async throws {
+        for cacheState in ["current", "predecessor", "missing"] {
+            let context = try makeContext()
+            defer { DatabaseListStore.remove(id: context.reference.id) }
+            let remote = Remote(context.source)
+            _ = try await saveAndDrain(context, remote: remote)
+            let referenceA = current(context.reference)
+            let headA = try XCTUnwrap(referenceA.cloudSyncMetadata?.localHeadOperationID)
+            XCTAssertTrue(PendingUploadQueue.listMarkers(for: referenceA.id).isEmpty)
+            let bytesA = try cache(referenceA)
+            let draftB = try edit(bytesA, key: context.key, sessionKey: context.sessionKey, title: "B after post-rename failure")
+            let listURL = AppGroupContainer.url.appendingPathComponent("database-list.json")
+            let failedSyncs = JournalWriteCounter()
+            defer { DatabaseListStore.databaseListDirectorySynchronizationOverride = nil }
+            DatabaseListStore.databaseListDirectorySynchronizationOverride = { directory in
+                XCTAssertEqual(directory, listURL.deletingLastPathComponent())
+                let visible = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: listURL))
+                let visibleHead = try XCTUnwrap(visible.first { $0.id == referenceA.id }?.cloudSyncMetadata?.localHeadOperationID)
+                XCTAssertNotEqual(visibleHead, headA, "The real rename must expose B before this sync fault")
+                _ = failedSyncs.increment()
+                throw POSIXError(.EIO)
+            }
+            let saved = try await CloudDatabaseSaver.save(draft: draftB, reference: referenceA, compositeKey: context.key,
+                openTimeSHA512: FileDigest.sha512(bytesA), expectedRev: "r1", kdfPolicy: .mainApp, environment: environment(remote))
+            guard case .saved = saved else { return XCTFail("The immutable journal backs the committed B") }
+            let journal = try XCTUnwrap(PendingUploadQueue.listMarkers(for: referenceA.id).first)
+            let payload = try immutableBytes(journal)
+            XCTAssertEqual(current(referenceA).cloudSyncMetadata?.localHeadOperationID, journal.id, "Visible does not yet mean durable")
+            XCTAssertEqual(failedSyncs.count(), 1)
+            let cacheURL = DatabaseListStore.cacheLocation(for: referenceA)
+            if cacheState == "predecessor" { try writeAtomicallyAndDurably(bytesA, to: cacheURL) }
+            if cacheState == "missing" { try FileManager.default.removeItem(at: cacheURL) }
+            var cacheFault = environment(remote)
+            cacheFault.synchronizeCacheDirectory = { _ in throw POSIXError(.EIO) }
+            do {
+                _ = try await CloudDatabaseSaver.deliver(journal, reference: current(referenceA), environment: cacheFault)
+                XCTFail("A same-head replay must not upload through failed list durability")
+            } catch { XCTAssertEqual(error as? SaveError, .saveContextUnavailable) }
+            XCTAssertGreaterThan(failedSyncs.count(), 1, "Replay must retry the actual post-rename sync boundary")
+            let unconfirmed = try XCTUnwrap(PendingUploadQueue.listMarkers(for: referenceA.id).first)
+            XCTAssertNil(unconfirmed.marker.uploadAttemptID)
+            XCTAssertNil(unconfirmed.marker.confirmedAt)
+            let uploadsBeforeDurability = await remote.uploadCount()
+            XCTAssertEqual(uploadsBeforeDurability, 1, "Only drained A may have reached the provider")
+            XCTAssertEqual(try immutableBytes(unconfirmed), payload)
+            if cacheState == "current" { XCTAssertEqual(try cache(referenceA), payload) }
+            if cacheState == "predecessor" { XCTAssertEqual(try cache(referenceA), bytesA) }
+            if cacheState == "missing" { XCTAssertFalse(FileManager.default.fileExists(atPath: cacheURL.path)) }
+            let successfulSyncs = JournalWriteCounter()
+            DatabaseListStore.databaseListDirectorySynchronizationOverride = { directory in
+                try synchronizeDirectory(directory)
+                _ = successfulSyncs.increment()
+            }
+            cacheFault.upload = { _, bytes, rev, _ in
+                XCTAssertGreaterThan(successfulSyncs.count(), 0, "List durability must precede B's first upload")
+                return try await remote.upload(bytes, expectedRev: rev)
+            }
+            let retained = try await CloudDatabaseSaver.deliver(unconfirmed, reference: current(referenceA), environment: cacheFault)
+            guard case .retained = retained else { return XCTFail("The cache directory fault must retain confirmed ciphertext") }
+            let confirmed = try XCTUnwrap(PendingUploadQueue.listMarkers(for: referenceA.id).first)
+            XCTAssertNotNil(confirmed.marker.confirmedAt)
+            XCTAssertEqual(current(referenceA).cloudSyncMetadata?.localHeadOperationID, journal.id)
+            XCTAssertNil(current(referenceA).cloudSyncMetadata?.lastSyncedAt)
+            XCTAssertEqual(try immutableBytes(confirmed), payload)
+            DatabaseListStore.databaseListDirectorySynchronizationOverride = nil
+            let reopened = try CloudDatabaseSaver.recoverConfirmed(confirmed, reference: current(referenceA), environment: environment(remote))
+            guard case .saved = reopened else { return XCTFail("Local retry must finish without another upload") }
+            XCTAssertTrue(PendingUploadQueue.listMarkers(for: referenceA.id).isEmpty)
+            XCTAssertEqual(try cache(referenceA), payload)
+            let uploadsAfterRecovery = await remote.uploadCount()
+            XCTAssertEqual(uploadsAfterRecovery, 2)
+        }
+    }
+
+    func testAlreadyPublishedRekeyMustReconfirmListDurabilityBeforeRetainedCacheRecovery() async throws {
+        let context = try makeContext()
+        let remote = Remote(context.source)
+        var cacheFault = environment(remote)
+        cacheFault.synchronizeCacheDirectory = { _ in throw POSIXError(.EIO) }
+        _ = try await rekey(context, remote: remote, environment: cacheFault)
+        let journal = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        XCTAssertNotNil(journal.marker.confirmedAt)
+        let before = current(context.reference)
+        let listURL = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        let syncs = JournalWriteCounter()
+        defer { DatabaseListStore.databaseListDirectorySynchronizationOverride = nil }
+        DatabaseListStore.databaseListDirectorySynchronizationOverride = { _ in
+            let visible = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: listURL))
+            XCTAssertEqual(visible.first { $0.id == before.id }, before)
+            _ = syncs.increment()
+            throw POSIXError(.EIO)
+        }
+        XCTAssertThrowsError(try CloudDatabaseSaver.recoverConfirmed(journal, reference: before, environment: cacheFault)) {
+            XCTAssertEqual($0 as? SaveError, .rekeyAppliedRemotely)
+        }
+        XCTAssertEqual(syncs.count(), 1)
+        XCTAssertEqual(current(before), before, "Replay must not restamp the epoch or key-file association")
+        XCTAssertEqual(PendingUploadQueue.listMarkers(for: before.id).first?.marker, journal.marker)
+        DatabaseListStore.databaseListDirectorySynchronizationOverride = nil
+        let recovered = try CloudDatabaseSaver.recoverConfirmed(journal, reference: before, environment: environment(remote))
+        guard case .saved = recovered else { return XCTFail("Confirmed rekey must recover locally once list sync succeeds") }
+        let uploads = await remote.uploadCount()
+        XCTAssertEqual(uploads, 1)
+    }
+
     func testConfirmedMetadataWriteFailureRetainsCiphertextAndRecoversWithoutReupload() async throws {
         let context = try makeContext()
         let remote = Remote(context.source)
@@ -1971,4 +2076,5 @@ private final class JournalWriteCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var value = 0
     func increment() -> Int { lock.lock(); defer { lock.unlock() }; value += 1; return value }
+    func count() -> Int { lock.lock(); defer { lock.unlock() }; return value }
 }

@@ -57,6 +57,37 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertThrowsError(try DatabaseListStore.registerCloudCreation(mismatched, encryptedBytes: Data("original".utf8)))
     }
 
+    func testIdempotentCloudRegistrationAndMatchingMetadataCASRequirePostRenameDirectorySync() throws {
+        var reference = creationTemplate(id: UUID())
+        var metadata = CloudSyncMetadata(provider: "googledrive", accountId: "account", fileId: "generated_sync",
+            displayPath: "generated_sync", remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil)
+        metadata.localHeadOperationID = reference.id
+        reference.source = .cloud(metadata)
+        let payload = Data("retained encrypted ciphertext".utf8)
+        let registered = try DatabaseListStore.registerCloudCreation(reference, encryptedBytes: payload)
+        let listURL = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        defer { DatabaseListStore.databaseListDirectorySynchronizationOverride = nil }
+        DatabaseListStore.databaseListDirectorySynchronizationOverride = { _ in
+            let visible = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: listURL))
+            XCTAssertEqual(visible.first { $0.id == registered.id }, registered)
+            throw POSIXError(.EIO)
+        }
+        XCTAssertThrowsError(try DatabaseListStore.registerCloudCreation(reference, encryptedBytes: payload))
+        for _ in 0..<2 {
+            let observed = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata)
+            guard case .writeFailed = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id,
+                ifUnchangedFrom: observed, mutate: { _ in }) else {
+                return XCTFail("Matching visible metadata must still cross the durable writer")
+            }
+        }
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }, registered)
+        DatabaseListStore.databaseListDirectorySynchronizationOverride = nil
+        XCTAssertEqual(try DatabaseListStore.registerCloudCreation(reference, encryptedBytes: payload), registered)
+        guard case .published(let durable) = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id,
+            ifUnchangedFrom: metadata, mutate: { _ in }) else { return XCTFail("Retry must establish durability") }
+        XCTAssertEqual(durable, registered)
+    }
+
     func testCloudCreationRegistrationReportsDatabaseListWriteFailure() throws {
         let listURL = AppGroupContainer.url.appendingPathComponent("database-list.json")
         let saved = try? Data(contentsOf: listURL)

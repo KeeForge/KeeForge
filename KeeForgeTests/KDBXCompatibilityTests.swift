@@ -102,6 +102,12 @@ final class KDBXCompatibilityTests: XCTestCase {
                 try PendingUploadQueue.recoverLocalCommits(for: reference.id)
             }
             XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata?.localHeadOperationID, marker.id)
+            let repaired = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            try PendingUploadQueue.withCommitLock(for: reference.id) {
+                try PendingUploadQueue.recoverLocalCommits(for: reference.id)
+            }
+            XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }, repaired)
+            XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), payload)
             var confirmed = marker
             confirmed.marker.confirmedAt = .now
             confirmed.marker.confirmedRemoteRev = "confirmed"

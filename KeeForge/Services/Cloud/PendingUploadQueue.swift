@@ -671,12 +671,19 @@ enum PendingUploadQueue {
               stored.marker.keyEpoch == baseline.keyEpoch,
               let intendedSHA = stored.marker.intendedPayloadSHA512,
               stored.marker.openTimeSHA512 == intendedSHA,
-              let cache = try? environment.readData(resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment)),
-              FileDigest.sha512(cache) == intendedSHA,
               let path = stored.marker.intendedPayloadPath,
               let payload = try? environment.readData(resolveAppGroupURL(for: path, environment: environment)),
               FileDigest.sha512(payload) == intendedSHA else { return nil }
-        return DatabaseListStore.publishCloudLocalCommit(for: stored.marker.databaseId, operationID: stored.id, baseline: baseline)
+        let cache = try? environment.readData(resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment))
+        if cache.map(FileDigest.sha512) == intendedSHA {
+            return DatabaseListStore.publishCloudLocalCommit(for: stored.marker.databaseId, operationID: stored.id, baseline: baseline)
+        }
+        guard let current = DatabaseListStore.databases.first(where: { $0.id == stored.marker.databaseId }),
+              current.cloudSyncMetadata?.localHeadOperationID == stored.id else { return nil }
+        guard baseline.hasCompatibleEpoch(current) else { return .mismatch(current) }
+        // Reconfirm only this already-visible head; cache restoration still needs confirmed-owner proof.
+        return DatabaseListStore.publishCloudLocalCommit(for: current.id, operationID: stored.id,
+            baseline: LocalCommitBaseline(reference: current))
     }
 
     /// Caller holds the commit lock; marker and list locks are acquired only inside it.
@@ -736,6 +743,12 @@ enum PendingUploadQueue {
 }
 
 func writeAtomicallyAndDurably(_ data: Data, to destinationURL: URL) throws {
+    try writeAtomicallyAndDurably(data, to: destinationURL, synchronizeDirectory: synchronizeDirectory)
+}
+
+func writeAtomicallyAndDurably(
+    _ data: Data, to destinationURL: URL, synchronizeDirectory: (URL) throws -> Void
+) throws {
     let fileManager = FileManager.default
     let directoryURL = destinationURL.deletingLastPathComponent()
     var missingDirectories: [URL] = []
@@ -784,11 +797,7 @@ func writeAtomicallyAndDurably(_ data: Data, to destinationURL: URL) throws {
     }
 
     for directory in [directoryURL] + missingDirectories.map({ $0.deletingLastPathComponent() }) {
-        let directoryFD = open(directory.path, O_RDONLY)
-        guard directoryFD >= 0 else { throw POSIXError(.EIO) }
-        let status = fsync(directoryFD)
-        close(directoryFD)
-        guard status == 0 else { throw POSIXError(.EIO) }
+        try synchronizeDirectory(directory)
     }
 }
 

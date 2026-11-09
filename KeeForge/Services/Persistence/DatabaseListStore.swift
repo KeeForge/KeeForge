@@ -52,6 +52,9 @@ enum DatabaseListStore {
     /// before any store call, matching the UI-test statics above.
     nonisolated(unsafe) static var documentsDirectoryOverride: URL?
 
+    /// Test hook at the real list writer's post-rename durability boundary.
+    nonisolated(unsafe) static var databaseListDirectorySynchronizationOverride: (@Sendable (URL) throws -> Void)?
+
     static var documentsDirectoryURL: URL {
         documentsDirectoryOverride ?? URL.documentsDirectory
     }
@@ -329,6 +332,7 @@ enum DatabaseListStore {
                         throw SaveError.saveContextUnavailable
                     }
                 }
+                guard saveDatabases(current) else { throw CocoaError(.fileWriteUnknown) }
                 return existing
             }
             try validateCreatedCloud(reference, in: current)
@@ -521,7 +525,11 @@ enum DatabaseListStore {
                   references[index].isCloudBacked else { return .removed }
             let current = references[index]
             guard baseline.hasCompatibleEpoch(current) else { return .mismatch(current) }
-            if current.cloudSyncMetadata?.localHeadOperationID == operationID { return .published(current) }
+            if current.cloudSyncMetadata?.localHeadOperationID == operationID {
+                // A prior rename may be visible even though its directory sync failed.
+                guard saveDatabases(references) else { return .writeFailed }
+                return .published(current)
+            }
             guard current.cloudSyncMetadata?.localHeadOperationID == baseline.headOperationID else {
                 return .mismatch(current)
             }
@@ -1020,7 +1028,8 @@ enum DatabaseListStore {
                     withIntermediateDirectories: true,
                     attributes: nil
                 )
-                try writeAtomicallyAndDurably(encoded, to: databaseListURL)
+                try writeAtomicallyAndDurably(encoded, to: databaseListURL,
+                    synchronizeDirectory: databaseListDirectorySynchronizationOverride ?? synchronizeDirectory)
                 sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
             } catch {
                 return false

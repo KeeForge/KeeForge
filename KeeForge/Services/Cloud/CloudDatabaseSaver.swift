@@ -514,9 +514,12 @@ enum CloudDatabaseSaver {
                             throw SaveError.rekeyAppliedRemotely
                         }
                     } else {
-                        guard current.cloudSyncMetadata?.localHeadOperationID == stored.id else {
-                            throw SaveError.rekeyAppliedRemotely
-                        }
+                        guard let observed = current.cloudSyncMetadata,
+                              observed.localHeadOperationID == stored.id,
+                              case .published(let durable) = DatabaseListStore.compareAndUpdateCloudSyncMetadata(
+                                for: current.id, ifUnchangedFrom: observed, mutate: { _ in }
+                              ) else { throw SaveError.rekeyAppliedRemotely }
+                        current = durable
                     }
                     try restoreConfirmedCache(stored, reference: current, bytes: bytes, allowMissing: !publishingEpoch,
                         beforeReplacement: {
