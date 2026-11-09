@@ -1,138 +1,34 @@
-import Foundation
-import CryptoKit
 import CommonCrypto
+import CryptoKit
+import Foundation
 import KeeForgeTwofish
-import zlib
-import argon2
 
-public struct KDFDescriptor: Equatable, Sendable {
-    public let identifier: String
-    public let displayName: String
-
-    public init(identifier: String, displayName: String) {
-        self.identifier = identifier
-        self.displayName = displayName
-    }
-}
-
-// MARK: - Argon2
-
-public enum Argon2Variant: UInt32, Sendable {
-    case d = 0    // Argon2d
-    case id = 2   // Argon2id
-}
-
-public enum Argon2 {
-    public enum Argon2Error: Error, Equatable, Sendable {
-        case hashFailed(Int32)
-    }
-
-    /// Supported Argon2 version bytes; construction from a raw header value is
-    /// the single validation point for the "V" parameter.
-    public enum Version: UInt32, Sendable {
-        case v10 = 0x10
-        case v13 = 0x13
-    }
-
-    /// Derive key using Argon2d or Argon2id
-    public static func hash(
-        password: SymmetricKey,
-        salt: Data,
-        timeCost: UInt32,
-        memoryCost: UInt32, // in KiB
-        parallelism: UInt32,
-        hashLength: Int = 32,
-        version: Version,
-        variant: Argon2Variant
-    ) throws -> Data {
-        let type: argon2_type = switch variant {
-        case .d: Argon2_d
-        case .id: Argon2_id
-        }
-
-        var output = [UInt8](repeating: 0, count: hashLength)
-        defer { SecureWipe.wipe(&output) }
-
-        let status = password.withUnsafeBytes { passwordBytes in
-            salt.withUnsafeBytes { saltBytes in
-                output.withUnsafeMutableBytes { outputBytes in
-                    argon2_hash(
-                        timeCost,
-                        memoryCost,
-                        parallelism,
-                        passwordBytes.baseAddress,
-                        passwordBytes.count,
-                        saltBytes.baseAddress,
-                        saltBytes.count,
-                        outputBytes.baseAddress,
-                        outputBytes.count,
-                        nil,
-                        0,
-                        type,
-                        version.rawValue
-                    )
-                }
-            }
-        }
-
-        guard status == Int32(ARGON2_OK.rawValue) else {
-            throw Argon2Error.hashFailed(status)
-        }
-        return Data(output)
-    }
-}
-
-// MARK: - KDBXCrypto
-
+/// Composite keys and the cryptographic primitives the container uses.
 public enum KDBXCrypto {
     public enum CryptoError: Error, Equatable, Sendable {
         case invalidKey
         case encryptionFailed
         case decryptionFailed
         case hmacMismatch
-        case unsupportedCipher(String)
-        case unsupportedKDF(KDFDescriptor)
+        case unsupportedCipher(Data)
+        case unsupportedKDF(KDBXKeyDerivation.Unsupported)
         case compressionFailed
         case decompressionFailed
     }
 
-    // MARK: - SHA-256
-
-    public static func sha256(_ data: Data) -> Data {
-        Data(CryptoKit.SHA256.hash(data: data))
-    }
-
-    public static func sha512(_ data: Data) -> Data {
-        Data(CryptoKit.SHA512.hash(data: data))
-    }
-
-    // MARK: - HMAC-SHA256
-
-    public static func hmacSHA256(key: Data, data: Data) -> Data {
-        let symKey = SymmetricKey(data: key)
-        return Data(CryptoKit.HMAC<SHA256>.authenticationCode(for: data, using: symKey))
-    }
-
     // MARK: - Composite Key
 
-    /// Build the composite key from master password (hash of hash)
+    /// The composite key for a password alone: SHA-256 of SHA-256 of its UTF-8
+    /// bytes, or SHA-256 of nothing for an empty password.
     public static func compositeKey(password: String) -> SymmetricKey {
-        guard password.isEmpty == false else { return SymmetricKey(data: sha256(Data())) }
-        var passwordBytes = Data(password.utf8)
-        defer { SecureWipe.wipe(&passwordBytes) }
-        var passwordHash = sha256(passwordBytes)
-        defer { SecureWipe.wipe(&passwordHash) }
-        return SymmetricKey(data: CryptoKit.SHA256.hash(data: passwordHash))
+        var preKey = Data(capacity: 32)
+        defer { SecureWipe.wipe(&preKey) }
+        appendPasswordHash(password, to: &preKey)
+        return preKey.withUnsafeBytes { SymmetricKey(data: CryptoKit.SHA256.hash(data: $0)) }
     }
 
-    /// Build the composite key from password and/or key file data.
-    ///
-    /// ```
-    /// preKey = []
-    /// if password: preKey += SHA256(password_utf8)
-    /// if keyFile:  preKey += processKeyFile(keyFileData)
-    /// compositeKey = SHA256(preKey)
-    /// ```
+    /// The composite key for a password and/or key file:
+    /// `SHA256(SHA256(password) || keyFileKey)`, skipping absent parts.
     public static func compositeKey(password: String?, keyFileData: Data?) throws -> SymmetricKey {
         let preKey = try preKey(password: password, keyFileData: keyFileData)
         return preKey.withUnsafeBytes { SymmetricKey(data: CryptoKit.SHA256.hash(data: $0)) }
@@ -144,16 +40,11 @@ public enum KDBXCrypto {
         var preKey = Data(capacity: 64)
         defer { SecureWipe.wipe(&preKey) }
 
-        if let password, !password.isEmpty {
-            var passwordBytes = Data(password.utf8)
-            defer { SecureWipe.wipe(&passwordBytes) }
-            var pwdHash = sha256(passwordBytes)
-            defer { SecureWipe.wipe(&pwdHash) }
-            preKey.append(pwdHash)
+        if let password {
+            appendPasswordHash(password, to: &preKey)
         }
-
         if let keyFileData {
-            var keyFileKey = try KeyFileProcessor.processKeyFile(keyFileData)
+            var keyFileKey = try KDBXKeyFile.key(from: keyFileData)
             defer { SecureWipe.wipe(&keyFileKey) }
             preKey.append(keyFileKey)
         }
@@ -161,141 +52,66 @@ public enum KDBXCrypto {
         return SymmetricKey(data: preKey)
     }
 
-    // MARK: - AES-KDF
-
-    public static func transformKeyAESKDF(compositeKey: SymmetricKey, seed: Data, rounds: UInt64) throws -> Data {
-        guard compositeKey.bitCount == kCCKeySizeAES256 * 8, seed.count == kCCKeySizeAES256 else {
-            throw CryptoError.invalidKey
-        }
-
-        var derived = compositeKey.withUnsafeBytes { [UInt8]($0) }
-        defer { SecureWipe.wipe(&derived) }
-        let keyBytes = [UInt8](seed)
-        let cryptor = try makeAESECBEncryptor(key: keyBytes)
-        defer { CCCryptorRelease(cryptor) }
-
-        let blockByteCount = derived.count
-        let updateStatus = derived.withUnsafeMutableBytes { derivedPtr in
-            var remainingRounds = rounds
-            var bytesMoved = 0
-
-            while remainingRounds > 0 {
-                let status = CCCryptorUpdate(
-                    cryptor,
-                    derivedPtr.baseAddress,
-                    blockByteCount,
-                    derivedPtr.baseAddress,
-                    blockByteCount,
-                    &bytesMoved
-                )
-
-                if status != kCCSuccess || bytesMoved != blockByteCount {
-                    return status
-                }
-
-                remainingRounds -= 1
-            }
-
-            return CCCryptorStatus(kCCSuccess)
-        }
-
-        guard updateStatus == kCCSuccess else {
-            throw CryptoError.encryptionFailed
-        }
-
-        var finalBytesMoved = 0
-        let finalStatus = CCCryptorFinal(cryptor, nil, 0, &finalBytesMoved)
-        guard finalStatus == kCCSuccess, finalBytesMoved == 0 else {
-            throw CryptoError.encryptionFailed
-        }
-
-        return Data(CryptoKit.SHA256.hash(data: derived))
+    /// An empty password contributes nothing, as in KeePass.
+    private static func appendPasswordHash(_ password: String, to preKey: inout Data) {
+        guard !password.isEmpty else { return }
+        var passwordBytes = Data(password.utf8)
+        defer { SecureWipe.wipe(&passwordBytes) }
+        var passwordHash = sha256(passwordBytes)
+        defer { SecureWipe.wipe(&passwordHash) }
+        preKey.append(passwordHash)
     }
 
-    private static func makeAESECBEncryptor(key: [UInt8]) throws -> CCCryptorRef {
-        guard key.count == kCCKeySizeAES256 else {
-            throw CryptoError.invalidKey
-        }
+    // MARK: - Hashes
 
-        var cryptor: CCCryptorRef?
-        let status = key.withUnsafeBytes { keyPtr in
-            CCCryptorCreateWithMode(
-                CCOperation(kCCEncrypt),
-                CCMode(kCCModeECB),
-                CCAlgorithm(kCCAlgorithmAES),
-                CCPadding(ccNoPadding),
-                nil,
-                keyPtr.baseAddress,
-                key.count,
-                nil,
-                0,
-                0,
-                CCModeOptions(),
-                &cryptor
-            )
-        }
-
-        guard status == kCCSuccess, let cryptor else {
-            throw CryptoError.encryptionFailed
-        }
-
-        return cryptor
+    static func sha256(_ data: Data) -> Data {
+        Data(CryptoKit.SHA256.hash(data: data))
     }
 
-    private static func aesECBEncryptBlock(_ block: some DataProtocol, key: some DataProtocol) throws -> Data {
-        let blockData = Data(block)
-        guard blockData.count == kCCBlockSizeAES128 else {
-            throw CryptoError.invalidKey
+    static func sha512(_ data: Data) -> Data {
+        Data(CryptoKit.SHA512.hash(data: data))
+    }
+
+    static func hmacSHA256(key: Data, data: Data) -> Data {
+        Data(CryptoKit.HMAC<SHA256>.authenticationCode(for: data, using: SymmetricKey(data: key)))
+    }
+
+    // MARK: - AES-256-CBC
+
+    static func decryptAES256CBC(data: Data, key: Data, iv: Data) throws -> Data {
+        guard let output = aes256CBC(CCOperation(kCCDecrypt), data: data, key: key, iv: iv) else {
+            throw CryptoError.decryptionFailed
+        }
+        return output
+    }
+
+    static func encryptAES256CBC(data: Data, key: Data, iv: Data) throws -> Data {
+        guard let output = aes256CBC(CCOperation(kCCEncrypt), data: data, key: key, iv: iv) else {
+            throw CryptoError.encryptionFailed
+        }
+        return output
+    }
+
+    /// Decryption strips PKCS#7 padding here: CommonCrypto on macOS 27 accepts
+    /// misaligned input and invalid padding without an error.
+    private static func aes256CBC(_ operation: CCOperation, data: Data, key: Data, iv: Data) -> Data? {
+        guard key.count == kCCKeySizeAES256, iv.count == kCCBlockSizeAES128 else { return nil }
+        let decrypting = operation == CCOperation(kCCDecrypt)
+        if decrypting {
+            guard !data.isEmpty, data.count.isMultiple(of: kCCBlockSizeAES128) else { return nil }
         }
 
-        let cryptor = try makeAESECBEncryptor(key: [UInt8](key))
-        defer { CCCryptorRelease(cryptor) }
-
-        var outData = Data(count: kCCBlockSizeAES128)
+        let outLength = data.count + kCCBlockSizeAES128
+        var output = Data(count: outLength)
         var bytesWritten = 0
-        let outLength = outData.count
-
-        let status = blockData.withUnsafeBytes { dataPtr in
-            outData.withUnsafeMutableBytes { outPtr in
-                CCCryptorUpdate(
-                    cryptor,
-                    dataPtr.baseAddress,
-                    blockData.count,
-                    outPtr.baseAddress,
-                    outLength,
-                    &bytesWritten
-                )
-            }
-        }
-
-        guard status == kCCSuccess, bytesWritten == kCCBlockSizeAES128 else {
-            throw CryptoError.encryptionFailed
-        }
-
-        var finalBytesWritten = 0
-        let finalStatus = CCCryptorFinal(cryptor, nil, 0, &finalBytesWritten)
-        guard finalStatus == kCCSuccess, finalBytesWritten == 0 else {
-            throw CryptoError.encryptionFailed
-        }
-
-        return outData.prefix(kCCBlockSizeAES128)
-    }
-
-    // MARK: - AES-256-CBC Decrypt
-
-    public static func decryptAES256CBC(data: Data, key: Data, iv: Data) throws -> Data {
-        let outLength = data.count + kCCBlockSizeAES128
-        var outData = Data(count: outLength)
-        var bytesWritten: Int = 0
-
-        let status = outData.withUnsafeMutableBytes { outPtr in
+        let status = output.withUnsafeMutableBytes { outPtr in
             data.withUnsafeBytes { dataPtr in
                 key.withUnsafeBytes { keyPtr in
                     iv.withUnsafeBytes { ivPtr in
                         CCCrypt(
-                            CCOperation(kCCDecrypt),
+                            operation,
                             CCAlgorithm(kCCAlgorithmAES),
-                            CCOptions(kCCOptionPKCS7Padding),
+                            CCOptions(decrypting ? 0 : kCCOptionPKCS7Padding),
                             keyPtr.baseAddress, key.count,
                             ivPtr.baseAddress,
                             dataPtr.baseAddress, data.count,
@@ -306,46 +122,19 @@ public enum KDBXCrypto {
                 }
             }
         }
-
-        guard status == kCCSuccess else { throw CryptoError.decryptionFailed }
-        outData.count = bytesWritten
-        return outData
-    }
-
-    // MARK: - AES-256-CBC Encrypt
-
-    public static func encryptAES256CBC(data: Data, key: Data, iv: Data) throws -> Data {
-        let outLength = data.count + kCCBlockSizeAES128
-        var outData = Data(count: outLength)
-        var bytesWritten: Int = 0
-
-        let status = outData.withUnsafeMutableBytes { outPtr in
-            data.withUnsafeBytes { dataPtr in
-                key.withUnsafeBytes { keyPtr in
-                    iv.withUnsafeBytes { ivPtr in
-                        CCCrypt(
-                            CCOperation(kCCEncrypt),
-                            CCAlgorithm(kCCAlgorithmAES),
-                            CCOptions(kCCOptionPKCS7Padding),
-                            keyPtr.baseAddress, key.count,
-                            ivPtr.baseAddress,
-                            dataPtr.baseAddress, data.count,
-                            outPtr.baseAddress, outLength,
-                            &bytesWritten
-                        )
-                    }
-                }
-            }
+        guard status == kCCSuccess else { return nil }
+        output.count = bytesWritten
+        if decrypting {
+            guard let padding = output.last.map(Int.init), (1...kCCBlockSizeAES128).contains(padding),
+                  output.suffix(padding).allSatisfy({ $0 == UInt8(padding) }) else { return nil }
+            output.removeLast(padding)
         }
-
-        guard status == kCCSuccess else { throw CryptoError.encryptionFailed }
-        outData.count = bytesWritten
-        return outData
+        return output
     }
 
-    // MARK: - Twofish-256-CBC Encrypt/Decrypt
+    // MARK: - Twofish-256-CBC
 
-    public static func decryptTwofish256CBC(data: Data, key: Data, iv: Data) throws -> Data {
+    static func decryptTwofish256CBC(data: Data, key: Data, iv: Data) throws -> Data {
         do {
             return try TwofishCBC.decrypt(data, key: key, iv: iv)
         } catch {
@@ -353,7 +142,7 @@ public enum KDBXCrypto {
         }
     }
 
-    public static func encryptTwofish256CBC(data: Data, key: Data, iv: Data) throws -> Data {
+    static func encryptTwofish256CBC(data: Data, key: Data, iv: Data) throws -> Data {
         do {
             return try TwofishCBC.encrypt(data, key: key, iv: iv)
         } catch {
@@ -361,68 +150,70 @@ public enum KDBXCrypto {
         }
     }
 
-    // MARK: - ChaCha20 Encrypt/Decrypt
+    // MARK: - ChaCha20
 
-    public static func decryptChaCha20(data: Data, key: Data, nonce: Data) throws -> Data {
-        guard key.count == 32, nonce.count == 12 else {
-            throw CryptoError.decryptionFailed
+    /// Raw, unauthenticated ChaCha20, which CryptoKit does not expose. XOR-based,
+    /// so encrypting and decrypting are the same operation.
+    static func chaCha20(data: Data, key: Data, nonce: Data) throws -> Data {
+        guard key.count == ChaCha20Keystream.keyLength, nonce.count == ChaCha20Keystream.nonceLength else {
+            throw CryptoError.invalidKey
         }
-
-        return chacha20Stream(key: key, nonce: nonce, data: data)
-    }
-
-    public static func encryptChaCha20(data: Data, key: Data, nonce: Data) throws -> Data {
-        guard key.count == 32, nonce.count == 12 else {
-            throw CryptoError.encryptionFailed
-        }
-
-        return chacha20Stream(key: key, nonce: nonce, data: data)
-    }
-
-    // MARK: - ChaCha20 stream cipher (inner random stream)
-
-    /// KDBX uses raw, unauthenticated ChaCha20 here, which CryptoKit does not expose.
-    /// ChaCha20 is XOR-based, so encrypt and decrypt are the same operation.
-    public static func chacha20Stream(key: Data, nonce: Data, data: Data) -> Data {
-        guard var keystream = ChaCha20Keystream(key: key, nonce: nonce) else { return data }
+        var keystream = ChaCha20Keystream(key: key, nonce: nonce)
         defer { keystream.wipe() }
         return keystream.xor(data)
     }
 
-    /// The one ChaCha20 implementation in the library: outer cipher, KDBX4 inner
-    /// random stream decode, and protected-field re-encryption on write all
-    /// run through it.
+    /// The one ChaCha20 implementation: the outer cipher and the KDBX 4 inner
+    /// random stream both run through it.
     ///
     /// The inner random stream is a single keystream spanning every protected
-    /// value in document order, so those callers keep one instance alive and
-    /// feed it values one at a time; block boundaries fall wherever they fall.
-    public struct ChaCha20Keystream {
+    /// value in document order, so callers keep one instance alive and feed it
+    /// values one at a time; block boundaries fall wherever they fall.
+    struct ChaCha20Keystream {
+        static let keyLength = 32
+        static let nonceLength = 12
+
         private var initialState: [UInt32]
         private var counter: UInt32 = 0
         private var block: [UInt8] = []
         private var blockOffset = 0
 
-        public init?(key: Data, nonce: Data) {
-            guard let state = KDBXCrypto.chacha20InitialState(key: key, nonce: nonce) else { return nil }
+        /// `key` and `nonce` must be 32 and 12 bytes.
+        init(key: Data, nonce: Data) {
+            precondition(key.count == Self.keyLength && nonce.count == Self.nonceLength)
+            var state = [UInt32](repeating: 0, count: 16)
+            // "expand 32-byte k"
+            state[0] = 0x61707865
+            state[1] = 0x3320646e
+            state[2] = 0x79622d32
+            state[3] = 0x6b206574
+            key.withUnsafeBytes { pointer in
+                for index in 0..<8 {
+                    state[4 + index] = pointer.loadUnaligned(fromByteOffset: index * 4, as: UInt32.self).littleEndian
+                }
+            }
+            nonce.withUnsafeBytes { pointer in
+                for index in 0..<3 {
+                    state[13 + index] = pointer.loadUnaligned(fromByteOffset: index * 4, as: UInt32.self).littleEndian
+                }
+            }
             initialState = state
         }
 
         /// Zeroes the key words and the buffered keystream block; the stream is unusable afterwards.
-        public mutating func wipe() {
+        mutating func wipe() {
             SecureWipe.wipe(&initialState)
             SecureWipe.wipe(&block)
             blockOffset = block.count
         }
 
-        public mutating func xor(_ data: Data) -> Data {
-            guard !data.isEmpty else { return data }
-
+        mutating func xor(_ data: Data) -> Data {
             var output = [UInt8](repeating: 0, count: data.count)
             data.withUnsafeBytes { (input: UnsafeRawBufferPointer) in
                 var readOffset = 0
                 while readOffset < data.count {
                     if blockOffset >= block.count {
-                        block = KDBXCrypto.chacha20Block(initialState: initialState, counter: counter)
+                        block = Self.block(initialState: initialState, counter: counter)
                         blockOffset = 0
                         counter &+= 1
                     }
@@ -435,205 +226,42 @@ public enum KDBXCrypto {
                     blockOffset += chunkLength
                 }
             }
-
             return Data(output)
         }
-    }
 
-    private static func chacha20InitialState(key: Data, nonce: Data) -> [UInt32]? {
-        guard key.count == 32, nonce.count == 12 else { return nil }
+        private static func block(initialState: [UInt32], counter: UInt32) -> [UInt8] {
+            var state = initialState
+            state[12] = counter
+            defer { SecureWipe.wipe(&state) }
 
-        var state = [UInt32](repeating: 0, count: 16)
-        // "expand 32-byte k"
-        state[0] = 0x61707865
-        state[1] = 0x3320646e
-        state[2] = 0x79622d32
-        state[3] = 0x6b206574
-
-        key.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) in
-            for index in 0..<8 {
-                state[4 + index] = pointer.loadUnaligned(fromByteOffset: index * 4, as: UInt32.self).littleEndian
+            var working = state
+            defer { SecureWipe.wipe(&working) }
+            for _ in 0..<10 {
+                quarterRound(&working, 0, 4, 8, 12)
+                quarterRound(&working, 1, 5, 9, 13)
+                quarterRound(&working, 2, 6, 10, 14)
+                quarterRound(&working, 3, 7, 11, 15)
+                quarterRound(&working, 0, 5, 10, 15)
+                quarterRound(&working, 1, 6, 11, 12)
+                quarterRound(&working, 2, 7, 8, 13)
+                quarterRound(&working, 3, 4, 9, 14)
             }
-        }
+            for index in 0..<16 { working[index] = working[index] &+ state[index] }
 
-        nonce.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) in
-            for index in 0..<3 {
-                state[13 + index] = pointer.loadUnaligned(fromByteOffset: index * 4, as: UInt32.self).littleEndian
+            var block: [UInt8] = []
+            block.reserveCapacity(64)
+            for word in working {
+                var littleEndian = word.littleEndian
+                Swift.withUnsafeBytes(of: &littleEndian) { block.append(contentsOf: $0) }
             }
+            return block
         }
 
-        return state
-    }
-
-    private static func chacha20Block(initialState: [UInt32], counter: UInt32) -> [UInt8] {
-        var state = initialState
-        state[12] = counter
-        defer { SecureWipe.wipe(&state) }
-
-        var working = state
-        defer { SecureWipe.wipe(&working) }
-        for _ in 0..<10 {
-            quarterRound(&working, 0, 4, 8, 12)
-            quarterRound(&working, 1, 5, 9, 13)
-            quarterRound(&working, 2, 6, 10, 14)
-            quarterRound(&working, 3, 7, 11, 15)
-            quarterRound(&working, 0, 5, 10, 15)
-            quarterRound(&working, 1, 6, 11, 12)
-            quarterRound(&working, 2, 7, 8, 13)
-            quarterRound(&working, 3, 4, 9, 14)
-        }
-        for index in 0..<16 { working[index] = working[index] &+ state[index] }
-
-        var block: [UInt8] = []
-        block.reserveCapacity(64)
-        for word in working {
-            var littleEndian = word.littleEndian
-            withUnsafeBytes(of: &littleEndian) { bytes in
-                block.append(contentsOf: bytes)
-            }
-        }
-        return block
-    }
-
-    private static func quarterRound(_ s: inout [UInt32], _ a: Int, _ b: Int, _ c: Int, _ d: Int) {
-        s[a] = s[a] &+ s[b]; s[d] ^= s[a]; s[d] = (s[d] << 16) | (s[d] >> 16)
-        s[c] = s[c] &+ s[d]; s[b] ^= s[c]; s[b] = (s[b] << 12) | (s[b] >> 20)
-        s[a] = s[a] &+ s[b]; s[d] ^= s[a]; s[d] = (s[d] << 8) | (s[d] >> 24)
-        s[c] = s[c] &+ s[d]; s[b] ^= s[c]; s[b] = (s[b] << 7) | (s[b] >> 25)
-    }
-
-    // MARK: - GZip Decompression
-
-    public static func gunzip(_ data: Data) throws -> Data {
-        guard !data.isEmpty else { throw CryptoError.decompressionFailed }
-        let modes: [Int32] = [MAX_WBITS + 16, MAX_WBITS, -MAX_WBITS]
-        for mode in modes {
-            if let output = try? inflateStream(data: data, windowBits: mode), !output.isEmpty {
-                return output
-            }
-        }
-        throw CryptoError.decompressionFailed
-    }
-
-    /// The largest decompressed payload `gunzip` accepts. The writer refuses
-    /// to compress anything larger, or it would produce a file this reader
-    /// cannot open again.
-    public static let maxDecompressedSize = 256 * 1024 * 1024
-
-    private static func inflateStream(data: Data, windowBits: Int32) throws -> Data {
-        var stream = z_stream()
-        let initResult = inflateInit2_(
-            &stream,
-            windowBits,
-            ZLIB_VERSION,
-            Int32(MemoryLayout<z_stream>.size)
-        )
-        guard initResult == Z_OK else {
-            throw CryptoError.decompressionFailed
-        }
-        defer {
-            inflateEnd(&stream)
-        }
-
-        return try data.withUnsafeBytes { rawInput in
-            guard let inputBase = rawInput.bindMemory(to: Bytef.self).baseAddress else {
-                throw CryptoError.decompressionFailed
-            }
-
-            stream.next_in = UnsafeMutablePointer(mutating: inputBase)
-            stream.avail_in = uInt(data.count)
-
-            var output = Data()
-            var outBuffer = [UInt8](repeating: 0, count: 64 * 1024)
-
-            while true {
-                let status = outBuffer.withUnsafeMutableBufferPointer { buffer -> Int32 in
-                    stream.next_out = buffer.baseAddress
-                    stream.avail_out = uInt(buffer.count)
-                    return inflate(&stream, Z_NO_FLUSH)
-                }
-
-                let produced = outBuffer.count - Int(stream.avail_out)
-                if produced > 0 {
-                    output.append(contentsOf: outBuffer.prefix(produced))
-                }
-
-                if output.count > maxDecompressedSize {
-                    throw CryptoError.decompressionFailed
-                }
-
-                if status == Z_STREAM_END {
-                    break
-                }
-                guard status == Z_OK else {
-                    throw CryptoError.decompressionFailed
-                }
-                if produced == 0 && stream.avail_in == 0 {
-                    throw CryptoError.decompressionFailed
-                }
-            }
-
-            return output
-        }
-    }
-
-    // MARK: - GZip Compression
-
-    public static func gzip(_ data: Data) throws -> Data {
-        var stream = z_stream()
-        let initResult = deflateInit2_(
-            &stream,
-            Z_DEFAULT_COMPRESSION,
-            Z_DEFLATED,
-            MAX_WBITS + 16,
-            MAX_MEM_LEVEL,
-            Z_DEFAULT_STRATEGY,
-            ZLIB_VERSION,
-            Int32(MemoryLayout<z_stream>.size)
-        )
-        guard initResult == Z_OK else {
-            throw CryptoError.compressionFailed
-        }
-        defer {
-            deflateEnd(&stream)
-        }
-
-        return try data.withUnsafeBytes { rawInput in
-            if !data.isEmpty {
-                guard let inputBase = rawInput.bindMemory(to: Bytef.self).baseAddress else {
-                    throw CryptoError.compressionFailed
-                }
-                stream.next_in = UnsafeMutablePointer(mutating: inputBase)
-            } else {
-                stream.next_in = nil
-            }
-            stream.avail_in = uInt(data.count)
-
-            var output = Data()
-            var outBuffer = [UInt8](repeating: 0, count: 64 * 1024)
-
-            while true {
-                let status = outBuffer.withUnsafeMutableBufferPointer { buffer -> Int32 in
-                    stream.next_out = buffer.baseAddress
-                    stream.avail_out = uInt(buffer.count)
-                    return deflate(&stream, Z_FINISH)
-                }
-
-                let produced = outBuffer.count - Int(stream.avail_out)
-                if produced > 0 {
-                    output.append(contentsOf: outBuffer.prefix(produced))
-                }
-
-                if status == Z_STREAM_END {
-                    break
-                }
-
-                guard status == Z_OK else {
-                    throw CryptoError.compressionFailed
-                }
-            }
-
-            return output
+        private static func quarterRound(_ s: inout [UInt32], _ a: Int, _ b: Int, _ c: Int, _ d: Int) {
+            s[a] = s[a] &+ s[b]; s[d] ^= s[a]; s[d] = (s[d] << 16) | (s[d] >> 16)
+            s[c] = s[c] &+ s[d]; s[b] ^= s[c]; s[b] = (s[b] << 12) | (s[b] >> 20)
+            s[a] = s[a] &+ s[b]; s[d] ^= s[a]; s[d] = (s[d] << 8) | (s[d] >> 24)
+            s[c] = s[c] &+ s[d]; s[b] ^= s[c]; s[b] = (s[b] << 7) | (s[b] >> 25)
         }
     }
 }

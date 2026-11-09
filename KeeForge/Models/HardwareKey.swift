@@ -55,15 +55,9 @@ enum ChallengeResponseKey {
         guard case .kdbx4 = try KDBXContainer.parseFileVersion(from: data) else {
             throw HardwareKeyError.unsupportedDatabase
         }
-        var reader = DataReader(data: data)
-        _ = try KDBXContainer.parseVersion(from: &reader)
-        let header = try KDBXContainer.parseHeader(&reader)
-
         // KeePassXC writes KDBX 4 AES-KDF under the legacy UUID and reads it
         // back as its KDBX 4 AES-KDF, which takes the response like Argon2.
-        guard let kdfUUID = header.kdfParameters["$UUID"] as? Data,
-              [KDBXContainer.argon2dUUID, KDBXContainer.argon2idUUID, KDBXContainer.aesKDFUUID].contains(kdfUUID),
-              let salt = header.kdfParameters["S"] as? Data,
+        guard let salt = try KDBXContainer.readHeader(from: data).keyDerivation?.salt,
               salt.isEmpty == false,
               salt.count <= challengeLength
         else {
@@ -80,7 +74,7 @@ enum ChallengeResponseKey {
     /// `SHA256(preKey || SHA256(response))`, where `preKey` is
     /// `KDBXCrypto.preKey(password:keyFileData:)`.
     static func compositeKey(preKey: SymmetricKey, response: Data) -> SymmetricKey {
-        var responseHash = KDBXCrypto.sha256(response)
+        var responseHash = FileDigest.sha256(response)
         defer { SecureWipe.wipe(&responseHash) }
 
         var material = Data(capacity: preKey.bitCount / 8 + responseHash.count)

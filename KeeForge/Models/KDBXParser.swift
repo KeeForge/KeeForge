@@ -85,15 +85,15 @@ enum KDBXParser {
         return try parse(payload, sessionKey: sessionKey)
     }
 
-    /// Parses a KDBX 4 file with the KDF output supplied by `transformedKey`,
-    /// which receives the header's KDF parameters. A key that does not belong
-    /// to the file fails the header HMAC (`CryptoError.hmacMismatch`).
-    static func parseKDBX4WithMetaAndHeader(
+    /// Parses a file with the KDF output supplied by `transformedKey`, which
+    /// receives the header's KDF parameters. A KDBX 4 key that does not
+    /// belong to the file fails the header HMAC (`CryptoError.hmacMismatch`).
+    static func parseWithMetaAndHeader(
         data: Data,
         sessionKey: SymmetricKey,
-        transformedKey provideTransformedKey: (_ kdfParameters: [String: Any]) throws -> Data
+        transformedKey provideTransformedKey: (_ kdfParameters: KDBXVariantMap) throws -> Data
     ) throws -> Opened {
-        let payload = try KDBXContainer.readKDBX4(data: data, transformedKey: provideTransformedKey)
+        let payload = try KDBXContainer.read(data: data, transformedKey: provideTransformedKey)
         return try parse(payload, sessionKey: sessionKey)
     }
 
@@ -124,6 +124,11 @@ enum KDBXParser {
 
 
 // MARK: - XML Parser
+
+/// The decrypted payload is not well-formed XML.
+struct KDBXXMLParseError: LocalizedError, Equatable {
+    var errorDescription: String? { String(localized: "Failed to parse database XML") }
+}
 
 final class KDBXXMLParser: NSObject, XMLParserDelegate {
     private struct GroupBuilder {
@@ -290,7 +295,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         let parser = XMLParser(data: data)
         parser.delegate = self
         guard parser.parse() else {
-            throw KDBXContainer.ParseError.xmlParsingFailed
+            throw KDBXXMLParseError()
         }
         let root = KPGroup(
             id: Self.syntheticRootUUID,

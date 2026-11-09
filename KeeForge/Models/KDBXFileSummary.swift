@@ -60,48 +60,27 @@ struct KDBXFileSummary: Equatable, Sendable {
     /// Inspects the plaintext outer header. `data` may be a prefix of the file
     /// as long as it covers the full header.
     static func inspect(data: Data) throws -> KDBXFileSummary {
-        let version = try KDBXContainer.parseFileVersion(from: data)
-        switch version {
-        case .kdbx3_1:
-            let header = try KDBXContainer.parseKDBX3Header(from: data)
-            return KDBXFileSummary(
-                formatVersion: version,
-                cipher: KDBXOuterCipher(uuid: header.cipherID),
-                isCompressed: header.compressionFlags == 1,
-                keyDerivation: .aesKDF(rounds: header.transformRounds)
-            )
-        case .kdbx4:
-            var reader = DataReader(data: data)
-            _ = try KDBXContainer.parseVersion(from: &reader)
-            let header = try KDBXContainer.parseHeader(&reader)
-            return KDBXFileSummary(
-                formatVersion: version,
-                cipher: KDBXOuterCipher(uuid: header.cipherID),
-                isCompressed: header.compressionFlags == 1,
-                keyDerivation: keyDerivation(fromKDFParameters: header.kdfParameters)
-            )
-        }
+        let header = try KDBXContainer.readHeader(from: data)
+        return KDBXFileSummary(
+            formatVersion: header.formatVersion,
+            cipher: header.cipher,
+            isCompressed: header.compression == .gzip,
+            keyDerivation: KeyDerivation(header.keyDerivation)
+        )
     }
+}
 
-    // Missing-parameter fallbacks mirror KDBXContainer.deriveKey so the displayed
-    // values match what unlock actually uses.
-    private static func keyDerivation(fromKDFParameters params: [String: Any]) -> KeyDerivation {
-        guard let uuid = params["$UUID"] as? Data else { return .unknown }
-
-        if uuid == KDBXContainer.aesKDFUUID {
-            return .aesKDF(rounds: (params["R"] as? UInt64) ?? 0)
+private extension KDBXFileSummary.KeyDerivation {
+    init(_ keyDerivation: KDBXKeyDerivation?) {
+        switch keyDerivation {
+        case .aesKDF(let rounds, _)?:
+            self = .aesKDF(rounds: rounds)
+        case .argon2(let parameters)?:
+            self = parameters.variant == .d
+                ? .argon2d(iterations: parameters.iterations, memoryBytes: parameters.memoryBytes, parallelism: parameters.parallelism)
+                : .argon2id(iterations: parameters.iterations, memoryBytes: parameters.memoryBytes, parallelism: parameters.parallelism)
+        case nil:
+            self = .unknown
         }
-
-        let iterations = (params["I"] as? UInt64) ?? 3
-        let memoryBytes = (params["M"] as? UInt64) ?? (64 * 1024 * 1024)
-        let parallelism = (params["P"] as? UInt32) ?? 1
-
-        if uuid == KDBXContainer.argon2dUUID {
-            return .argon2d(iterations: iterations, memoryBytes: memoryBytes, parallelism: parallelism)
-        }
-        if uuid == KDBXContainer.argon2idUUID {
-            return .argon2id(iterations: iterations, memoryBytes: memoryBytes, parallelism: parallelism)
-        }
-        return .unknown
     }
 }

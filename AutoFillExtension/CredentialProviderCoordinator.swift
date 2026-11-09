@@ -1401,9 +1401,14 @@ final class CredentialProviderCoordinator {
             ?? databaseReference
     }
 
+    // Leaving an unreadable key file out would report a correct password as wrong.
     private func loadAssociatedKeyFileData(for databaseReference: DatabaseReference) throws -> Data? {
-        guard let url = DatabaseListStore.resolveKeyFileURL(for: databaseReference) else { return nil }
-        return try readSecurityScoped(url: url)
+        guard databaseReference.hasAssociatedKeyFile else { return nil }
+        guard let url = DatabaseListStore.resolveKeyFileURL(for: databaseReference),
+              let data = try? readSecurityScoped(url: url) else {
+            throw KeyFileUnavailableError()
+        }
+        return data
     }
 
     private func clearPendingCreationRequests() {
@@ -1460,7 +1465,7 @@ final class CredentialProviderCoordinator {
 
         self.sessionKey = key
         self.compositeKey = compositeKey
-        self.openTimeSHA512 = KDBXCrypto.sha512(data)
+        self.openTimeSHA512 = FileDigest.sha512(data)
         self.sharedCopyDate = loaded.sharedCopyDate
         self.parsedRootGroup = parsed.rootGroup
         self.parsedMeta = parsed.meta
@@ -1489,7 +1494,7 @@ final class CredentialProviderCoordinator {
             return keyDerivationOverride
         }
         #endif
-        return { try KDBXContainer.deriveKey(compositeKey: $0, kdfParams: $1, kdfPolicy: $2) }
+        return { try KDBXKeyDerivation.deriveKey(compositeKey: $0, parameters: $1, policy: $2) }
     }
 
     private var remainingMemoryBytes: UInt64 {
@@ -2824,5 +2829,11 @@ final class CredentialProviderCoordinator {
 private struct HardwareKeyUnavailableError: LocalizedError {
     var errorDescription: String? {
         String(localized: "This database needs a YubiKey, which AutoFill can't use yet. Open it in the KeeForge app instead.")
+    }
+}
+
+private struct KeyFileUnavailableError: LocalizedError {
+    var errorDescription: String? {
+        String(localized: "AutoFill couldn't read the key file saved for this database. Open the database in the KeeForge app and check that its key file is still available.")
     }
 }

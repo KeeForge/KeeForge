@@ -5,6 +5,7 @@
 ### New Features
 
 - KeeForge for Mac can be installed with Homebrew: `brew install --cask keeforge/tap/keeforge` installs the direct-download build, which then updates itself (#254). See [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) for the one-time `brew trust` step.
+- iPhone Duo support: opening the phone switches to the iPad layout, with the list beside the entry, and closing it switches back. The open group, the entry you were viewing, search, selected entries, and an unsaved new or edited entry or group all stay as they were. The same now holds when you resize KeeForge's window on iPad.
 
 ### Fixes
 
@@ -17,6 +18,8 @@
 - On iPhone and iPad, KeeForge stays covered during a screen recording, mirroring, or AirPlay after you close Control Center or return to the app. Before, coming back to the app removed the cover while the recording kept running, and a recording started before opening KeeForge was never covered.
 - In AutoFill, a search that matches none of the possible matches no longer leaves an empty "Possible matches" heading.
 - In the Mac app downloaded from the website, the update window shows the release notes instead of a GitHub page.
+- In AutoFill, entering the master password for a database whose saved key file can't be read now says that the key file is the problem. Before, AutoFill tried the password without the key file and reported a wrong password or a corrupted file, even when the password was correct (#274).
+- An XML key file with a non-ASCII character near its start now opens its database. Before, KeeForge could misread it as a plain file and derive the wrong key.
 
 ### Changes
 

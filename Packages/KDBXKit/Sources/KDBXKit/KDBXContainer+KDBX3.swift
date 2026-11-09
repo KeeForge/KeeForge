@@ -1,236 +1,128 @@
-import CryptoKit
 import Foundation
 
+// KDBX 3.1: read-only. Its outer header is unauthenticated, the payload is
+// checked by stream start bytes and per-block SHA-256 hashes, and AES-KDF is
+// the only KDF.
 extension KDBXContainer {
-    public struct LegacyHeader: Sendable {
-        public var formatVersion: FileVersion = .kdbx3_1
-        public var cipherID = Data()
-        public var compressionFlags: UInt32 = 0
-        public var masterSeed = Data()
-        public var transformSeed = Data()
-        public var transformRounds: UInt64 = 0
-        public var encryptionIV = Data()
-        public var protectedStreamKey = Data()
-        public var streamStartBytes = Data()
-        public var innerRandomStreamID: UInt32 = 0
-        public var headerData = Data()
-        public var payloadOffset = 0
+    struct LegacyHeader {
+        enum Field: UInt8 {
+            case endOfHeader = 0
+            case cipherID = 2
+            case compressionFlags = 3
+            case masterSeed = 4
+            case transformSeed = 5
+            case transformRounds = 6
+            case encryptionIV = 7
+            case protectedStreamKey = 8
+            case streamStartBytes = 9
+            case innerRandomStreamID = 10
+        }
 
-        public init(
-            formatVersion: FileVersion = .kdbx3_1,
-            cipherID: Data = Data(),
-            compressionFlags: UInt32 = 0,
-            masterSeed: Data = Data(),
-            transformSeed: Data = Data(),
-            transformRounds: UInt64 = 0,
-            encryptionIV: Data = Data(),
-            protectedStreamKey: Data = Data(),
-            streamStartBytes: Data = Data(),
-            innerRandomStreamID: UInt32 = 0,
-            headerData: Data = Data(),
-            payloadOffset: Int = 0
-        ) {
-            self.formatVersion = formatVersion
-            self.cipherID = cipherID
-            self.compressionFlags = compressionFlags
-            self.masterSeed = masterSeed
-            self.transformSeed = transformSeed
-            self.transformRounds = transformRounds
-            self.encryptionIV = encryptionIV
-            self.protectedStreamKey = protectedStreamKey
-            self.streamStartBytes = streamStartBytes
-            self.innerRandomStreamID = innerRandomStreamID
-            self.headerData = headerData
-            self.payloadOffset = payloadOffset
+        var header = Header(formatVersion: .kdbx3_1)
+        var transformSeed = Data()
+        var transformRounds: UInt64 = 0
+        var streamStartBytes = Data()
+
+        /// Reads the fields after the version. Unknown fields are skipped, as
+        /// KeePass does; the result is never written back.
+        init(reading reader: inout DataReader) throws {
+            while true {
+                let fieldID = try reader.readUInt8()
+                let fieldSize = Int(try reader.readUInt16())
+
+                switch Field(rawValue: fieldID) {
+                case .endOfHeader?:
+                    try reader.skip(fieldSize)
+                    header.headerData = reader.data.prefix(reader.offset)
+                    header.kdfParameters = KDBXKeyDerivation.aesKDF(rounds: transformRounds, seed: transformSeed).parameters
+                    return
+                case .cipherID?:
+                    header.cipherID = try reader.readBytes(fieldSize)
+                case .compressionFlags?:
+                    header.compressionFlags = try reader.readInteger(fieldSize: fieldSize)
+                case .masterSeed?:
+                    header.masterSeed = try reader.readBytes(fieldSize)
+                case .transformSeed?:
+                    transformSeed = try reader.readBytes(fieldSize)
+                case .transformRounds?:
+                    transformRounds = try reader.readInteger(fieldSize: fieldSize)
+                case .encryptionIV?:
+                    header.encryptionIV = try reader.readBytes(fieldSize)
+                case .protectedStreamKey?:
+                    header.innerStreamKey = try reader.readBytes(fieldSize)
+                case .streamStartBytes?:
+                    streamStartBytes = try reader.readBytes(fieldSize)
+                case .innerRandomStreamID?:
+                    header.innerStreamID = try reader.readInteger(fieldSize: fieldSize)
+                case nil:
+                    try reader.skip(fieldSize)
+                }
+            }
         }
     }
 
-    public static func parseKDBX3Header(from data: Data) throws -> LegacyHeader {
-        var reader = DataReader(data: data)
-        let version = try parseVersion(from: &reader)
-        guard case .kdbx3_1 = version else {
-            throw ParseError.unsupportedVersion(version.majorVersion)
+    static func readKDBX3(
+        data: Data,
+        reader: inout DataReader,
+        transformedKey provideTransformedKey: (KDBXVariantMap) throws -> Data
+    ) throws -> Payload {
+        let legacy = try LegacyHeader(reading: &reader)
+        let header = legacy.header
+        // Fail on an unreadable protected stream before running the KDF.
+        _ = try KDBXInnerStream(streamID: header.innerStreamID, key: Data())
+
+        guard let cipher = header.cipher, cipher.supportsKDBX3 else {
+            throw KDBXCrypto.CryptoError.unsupportedCipher(header.cipherID)
         }
 
-        let headerStart = 0
-        var header = try parseLegacyHeader(&reader)
-        header.payloadOffset = reader.offset
-        header.headerData = data.subdata(in: headerStart..<header.payloadOffset)
-        return header
-    }
-
-    public static func deriveKDBX3MasterKey(
-        compositeKey: SymmetricKey,
-        header: LegacyHeader
-    ) throws -> Data {
-        guard header.transformRounds >= 1, header.transformRounds <= aesKDFMaxRounds else {
-            throw ParseError.kdfParameterOutOfRange("rounds \(header.transformRounds) not in 1...\(aesKDFMaxRounds)")
-        }
-
-        var transformedKey = try KDBXCrypto.transformKeyAESKDF(
-            compositeKey: compositeKey,
-            seed: header.transformSeed,
-            rounds: header.transformRounds
-        )
-        defer { SecureWipe.wipe(&transformedKey) }
-
-        var preKey = Data(capacity: 64)
-        defer { SecureWipe.wipe(&preKey) }
-        preKey.append(header.masterSeed)
-        preKey.append(transformedKey)
-        return KDBXCrypto.sha256(preKey)
-    }
-
-    static func readKDBX3(data: Data, compositeKey: SymmetricKey) throws -> Payload {
-        let legacyHeader = try parseKDBX3Header(from: data)
-        try validateSupportedProtectedFieldStream(legacyHeader.innerRandomStreamID)
-
-        guard let cipher = KDBXOuterCipher(uuid: legacyHeader.cipherID), cipher.supportsKDBX3 else {
-            throw KDBXCrypto.CryptoError.unsupportedCipher(legacyHeader.cipherID.hexString)
-        }
-
-        let encryptedPayload = data.subdata(in: legacyHeader.payloadOffset..<data.count)
-        let decryptedPayload: Data
+        let encryptedPayload = data.subdata(in: reader.offset..<data.count)
+        let decrypted: Data
         do {
-            var masterKey = try deriveKDBX3MasterKey(compositeKey: compositeKey, header: legacyHeader)
-            defer { SecureWipe.wipe(&masterKey) }
-            decryptedPayload = try cipher.decrypt(
-                data: encryptedPayload,
-                key: masterKey,
-                iv: legacyHeader.encryptionIV
-            )
+            var keys = try MasterKeys(masterSeed: header.masterSeed, transformedKey: provideTransformedKey(header.kdfParameters))
+            defer { keys.wipe() }
+            decrypted = try cipher.decrypt(data: encryptedPayload, key: keys.masterKey, iv: header.encryptionIV)
         } catch KDBXCrypto.CryptoError.decryptionFailed {
-            // KDBX 3.1 has no authenticated outer header. Wrong credentials
-            // commonly surface as a padding failure before stream-start bytes
-            // can be checked, so normalize both paths to the same auth error.
+            // Wrong credentials usually surface as a padding failure before
+            // the stream start bytes can be checked; report both the same way.
             throw ParseError.invalidStreamStartBytes
         }
 
-        guard decryptedPayload.count >= legacyHeader.streamStartBytes.count else {
+        let startBytes = legacy.streamStartBytes
+        guard decrypted.count >= startBytes.count,
+              constantTimeEqual(decrypted.prefix(startBytes.count), startBytes) else {
             throw ParseError.invalidStreamStartBytes
         }
 
-        let payloadStartBytes = Data(decryptedPayload.prefix(legacyHeader.streamStartBytes.count))
-        guard constantTimeEqual(payloadStartBytes, legacyHeader.streamStartBytes) else {
-            throw ParseError.invalidStreamStartBytes
-        }
-
-        let blockStream = Data(decryptedPayload.dropFirst(legacyHeader.streamStartBytes.count))
-        let xmlPayload = try readHashedBlockStream(blockStream)
-        let xmlData = legacyHeader.compressionFlags == 1
-            ? try KDBXCrypto.gunzip(xmlPayload)
-            : xmlPayload
-
-        var header = Header()
-        header.formatVersion = legacyHeader.formatVersion
-        header.cipherID = legacyHeader.cipherID
-        header.compressionFlags = legacyHeader.compressionFlags
-        header.masterSeed = legacyHeader.masterSeed
-        header.encryptionIV = legacyHeader.encryptionIV
-        header.headerData = legacyHeader.headerData
-        header.innerStreamID = legacyHeader.innerRandomStreamID
-        header.innerStreamKey = legacyHeader.protectedStreamKey
-
-        return Payload(header: header, xml: xmlData)
-    }
-
-    private static func parseLegacyHeader(_ reader: inout DataReader) throws -> LegacyHeader {
-        var header = LegacyHeader()
-
-        while reader.hasMore {
-            let fieldID = try reader.readUInt8()
-            let fieldSize = Int(try reader.readUInt16())
-
-            guard let field = LegacyHeaderField(rawValue: fieldID) else {
-                try reader.skip(fieldSize)
-                continue
-            }
-
-            switch field {
-            case .endOfHeader:
-                try reader.skip(fieldSize)
-                return header
-            case .cipherID:
-                header.cipherID = try reader.readBytes(fieldSize)
-            case .compressionFlags:
-                header.compressionFlags = try reader.readUInt32From(fieldSize)
-            case .masterSeed:
-                header.masterSeed = try reader.readBytes(fieldSize)
-            case .transformSeed:
-                header.transformSeed = try reader.readBytes(fieldSize)
-            case .transformRounds:
-                header.transformRounds = try reader.readUInt64From(fieldSize)
-            case .encryptionIV:
-                header.encryptionIV = try reader.readBytes(fieldSize)
-            case .protectedStreamKey:
-                header.protectedStreamKey = try reader.readBytes(fieldSize)
-            case .streamStartBytes:
-                header.streamStartBytes = try reader.readBytes(fieldSize)
-            case .innerRandomStreamID:
-                header.innerRandomStreamID = try reader.readUInt32From(fieldSize)
-            }
-        }
-
-        throw ParseError.truncatedFile
+        let blocks = try readHashedBlockStream(decrypted.dropFirst(startBytes.count))
+        let xml = header.compressionFlags == Compression.gzip.rawValue
+            ? try Gzip.decompress(blocks, maxOutputSize: maxDecompressedPayloadSize)
+            : blocks
+        return Payload(header: header, xml: xml)
     }
 
     private static func readHashedBlockStream(_ data: Data) throws -> Data {
-        var reader = DataReader(data: data)
+        var reader = DataReader(data: Data(data))
         var result = Data()
         var expectedBlockIndex: UInt32 = 0
 
-        while reader.hasMore {
-            let blockIndex = try reader.readUInt32()
-            guard blockIndex == expectedBlockIndex else {
+        while true {
+            guard try reader.readUInt32() == expectedBlockIndex else {
                 throw ParseError.invalidLegacyBlockHash
             }
-
             let storedHash = try reader.readBytes(32)
-            let blockSizeRaw = try reader.readInt32()
-            guard blockSizeRaw >= 0 else {
-                throw ParseError.truncatedFile
-            }
+            let blockSize = try reader.readInt32()
+            guard blockSize >= 0 else { throw ParseError.truncatedFile }
+            let block = try reader.readBytes(Int(blockSize))
 
-            if blockSizeRaw == 0 {
-                let zeroHash = Data(repeating: 0, count: 32)
-                guard constantTimeEqual(storedHash, zeroHash) else {
-                    throw ParseError.invalidLegacyBlockHash
-                }
+            let expectedHash = block.isEmpty ? Data(count: 32) : KDBXCrypto.sha256(block)
+            guard constantTimeEqual(storedHash, expectedHash) else {
+                throw ParseError.invalidLegacyBlockHash
+            }
+            if block.isEmpty {
                 return result
             }
-
-            let blockData = try reader.readBytes(Int(blockSizeRaw))
-            let computedHash = KDBXCrypto.sha256(blockData)
-            guard constantTimeEqual(storedHash, computedHash) else {
-                throw ParseError.invalidLegacyBlockHash
-            }
-
-            result.append(blockData)
+            result.append(block)
             expectedBlockIndex &+= 1
         }
-
-        throw ParseError.truncatedFile
-    }
-
-    public static func validateSupportedProtectedFieldStream(_ streamID: UInt32) throws {
-        switch streamID {
-        case innerStreamNone, innerStreamSalsa20, innerStreamChaCha20:
-            return
-        default:
-            throw ParseError.unsupportedProtectedFieldStream(streamID)
-        }
-    }
-}
-
-private extension DataReader {
-    mutating func readUInt64() throws -> UInt64 {
-        let bytes = try readBytes(8)
-        return bytes.withUnsafeBytes { $0.loadUnaligned(as: UInt64.self).littleEndian }
-    }
-
-    mutating func readUInt64From(_ size: Int) throws -> UInt64 {
-        let bytes = try readBytes(size)
-        guard bytes.count >= 8 else { throw KDBXContainer.ParseError.truncatedFile }
-        return bytes.withUnsafeBytes { $0.loadUnaligned(as: UInt64.self).littleEndian }
     }
 }

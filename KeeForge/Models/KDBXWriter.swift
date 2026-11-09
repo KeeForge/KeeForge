@@ -15,7 +15,7 @@ enum KDBXWriter {
         kdfPolicy: KDFExecutionPolicy
     ) throws -> Data {
         try write(rootGroup: rootGroup, meta: meta, header: header, sessionKey: sessionKey) { kdfParameters in
-            try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: kdfParameters, kdfPolicy: kdfPolicy)
+            try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: kdfParameters, policy: kdfPolicy)
         }
     }
 
@@ -27,7 +27,7 @@ enum KDBXWriter {
         meta: KPMeta,
         header: KDBXContainer.Header,
         sessionKey: SymmetricKey,
-        transformedKey provideTransformedKey: (_ kdfParameters: [String: Any]) throws -> Data
+        transformedKey provideTransformedKey: (_ kdfParameters: KDBXVariantMap) throws -> Data
     ) throws -> Data {
         try write(
             rootGroup: rootGroup,
@@ -52,7 +52,7 @@ enum KDBXWriter {
             sessionKey: sessionKey,
             headerSource: .fresh(freshHeader)
         ) { kdfParameters in
-            try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: kdfParameters, kdfPolicy: kdfPolicy)
+            try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: kdfParameters, policy: kdfPolicy)
         }
     }
 
@@ -61,7 +61,7 @@ enum KDBXWriter {
         meta: KPMeta,
         sessionKey: SymmetricKey,
         headerSource: KDBXContainerWriter.HeaderSource,
-        provideTransformedKey: (_ kdfParameters: [String: Any]) throws -> Data
+        provideTransformedKey: (_ kdfParameters: KDBXVariantMap) throws -> Data
     ) throws -> Data {
         let header = try KDBXContainerWriter.prepareHeader(
             headerSource,

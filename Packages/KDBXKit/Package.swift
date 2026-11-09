@@ -26,5 +26,10 @@ let package = Package(
                 .product(name: "argon2", package: "phc-winner-argon2"),
             ]
         ),
+        .testTarget(
+            name: "KDBXKitTests",
+            dependencies: ["KDBXKit"],
+            resources: [.copy("Fixtures")]
+        ),
     ]
 )

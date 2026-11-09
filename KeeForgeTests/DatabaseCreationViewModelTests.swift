@@ -152,7 +152,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
 
         XCTAssertTrue(succeeded)
         let summary = try KDBXFileSummary.inspect(data: viewModel.preparedEncryptedBytes)
-        XCTAssertEqual(summary.cipher, .chacha20)
+        XCTAssertEqual(summary.cipher, .chaCha20)
         XCTAssertEqual(
             summary.keyDerivation,
             .argon2id(

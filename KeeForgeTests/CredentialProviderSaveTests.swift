@@ -188,7 +188,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             meta: loaded.meta,
             sessionKey: loaded.sessionKey,
             compositeKey: loaded.compositeKey,
-            openTimeSHA512: KDBXCrypto.sha512(loaded.sourceData),
+            openTimeSHA512: FileDigest.sha512(loaded.sourceData),
             environment: environment
         )
 
@@ -202,7 +202,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             sessionKey: loaded.sessionKey,
             kdfPolicy: .autoFillExtension
         )
-        XCTAssertEqual(reparsed.header.cipherID, KDBXContainer.twofishCipherUUID)
+        XCTAssertEqual(reparsed.header.cipherID, KDBXOuterCipher.twofish256CBC.uuid)
         XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Twofish AutoFill Entry" })
     }
 

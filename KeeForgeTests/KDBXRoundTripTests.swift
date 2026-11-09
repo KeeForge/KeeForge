@@ -856,7 +856,7 @@ final class KDBXRoundTripTests: XCTestCase {
     private func parseXML(_ xmlData: Data) throws -> (rootGroup: KPGroup, meta: KPMeta) {
         let parser = try KDBXXMLParser(
             data: xmlData,
-            innerStream: KDBXInnerStream(streamID: KDBXContainer.innerStreamChaCha20, key: roundTripInnerStreamKey),
+            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: roundTripInnerStreamKey),
             sessionKey: roundTripSessionKey
         )
         return try parser.parse()
@@ -2255,31 +2255,7 @@ final class KDBXRoundTripTests: XCTestCase {
         let databaseData = try fixture.data(in: bundle)
         let compositeKey = try fixture.compositeKey(in: bundle)
 
-        var reader = DataReader(data: databaseData)
-        _ = try reader.readUInt32()
-        _ = try reader.readUInt32()
-        _ = try reader.readUInt16()
-        _ = try reader.readUInt16()
-        let header = try KDBXContainer.parseHeader(&reader)
-        _ = try reader.readBytes(32)
-        _ = try reader.readBytes(32)
-
-        let transformedKey = try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters)
-        let masterKey = KDBXCrypto.sha256(header.masterSeed + transformedKey)
-        let hmacBaseKey = KDBXCrypto.sha512(header.masterSeed + transformedKey + Data([0x01]))
-
-        let encryptedPayload = try KDBXContainer.readHMACBlocks(reader: &reader, baseKey: hmacBaseKey)
-        let cipher = try KDBXOuterCipher.require(uuid: header.cipherID)
-        let decrypted = try cipher.decrypt(
-            data: encryptedPayload,
-            key: masterKey,
-            iv: header.encryptionIV
-        )
-
-        let payload = header.compressionFlags == 1 ? try KDBXCrypto.gunzip(decrypted) : decrypted
-        var innerReader = DataReader(data: payload)
-        _ = try KDBXContainer.parseInnerHeader(&innerReader)
-        return payload.subdata(in: innerReader.offset..<payload.count)
+        return try KDBXContainer.read(data: databaseData, compositeKey: compositeKey, kdfPolicy: .mainApp).xml
     }
 
     private func kpDate(_ secondsSinceKeePassEpoch: Int64) -> Date {

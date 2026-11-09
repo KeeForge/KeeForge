@@ -68,9 +68,9 @@ extension KDBXParser {
     }
 }
 
-extension KDBXContainer {
-    static func deriveKey(compositeKey: SymmetricKey, kdfParams: [String: Any]) throws -> Data {
-        try deriveKey(compositeKey: compositeKey, kdfParams: kdfParams, kdfPolicy: .mainApp)
+extension KDBXKeyDerivation {
+    static func deriveKey(compositeKey: SymmetricKey, parameters: KDBXVariantMap) throws -> Data {
+        try deriveKey(compositeKey: compositeKey, parameters: parameters, policy: .mainApp)
     }
 }
 

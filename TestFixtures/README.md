@@ -210,8 +210,7 @@ Everything else (entry conflict resolution, history union, history dedupe by `La
 
 | File | Use |
 | --- | --- |
-| `test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key` | The supported key-file parsing formats. Bundled only into the unit-test targets |
-| `demo-keyfile.key` | Paired with `demo-keyfile.kdbx`; also `KeyFileProcessorTests`' 32-byte binary-format sample |
+| `demo-keyfile.key` | Paired with `demo-keyfile.kdbx` |
 | `invalid-xml.keyx` | Non-base64 XML key data. Bundled into `KeeForgeUITests` so `KeyFileUITests` can verify malformed XML fails visibly during unlock |
 
 ## Regenerating fixtures

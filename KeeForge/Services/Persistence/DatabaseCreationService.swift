@@ -35,10 +35,10 @@ enum DatabaseCreationCipher: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    var cipherID: Data {
+    var outerCipher: KDBXOuterCipher {
         switch self {
-        case .aes256: KDBXContainer.aesCipherUUID
-        case .chacha20: KDBXContainer.chachaCipherUUID
+        case .aes256: .aes256CBC
+        case .chacha20: .chaCha20
         }
     }
 
@@ -132,7 +132,7 @@ enum DatabaseCreationDefaults {
         kdfPreset: DatabaseCreationKDFPreset = .balanced
     ) throws -> KDBXContainerWriter.FreshHeaderConfiguration {
         try KDBXContainerWriter.FreshHeaderConfiguration(
-            cipherID: cipher.cipherID,
+            cipher: cipher.outerCipher,
             kdfParameters: argon2idKDFParameters(preset: kdfPreset)
         )
     }
@@ -140,28 +140,22 @@ enum DatabaseCreationDefaults {
     static func argon2idKDFParameters(
         preset: DatabaseCreationKDFPreset = .balanced,
         salt: Data? = nil
-    ) throws -> [String: Any] {
-        let resolvedSalt = try salt ?? SecureRandom.data(count: kdfSaltByteCount)
-        return [
-            "$UUID": KDBXContainer.argon2idUUID,
-            "I": preset.iterations,
-            "M": preset.memoryBytes,
-            "P": argon2idParallelism,
-            "V": argon2Version,
-            "S": resolvedSalt,
-        ]
+    ) throws -> KDBXVariantMap {
+        try KDBXKeyDerivation.argon2(KDBXKeyDerivation.Argon2Parameters(
+            variant: .id,
+            iterations: preset.iterations,
+            memoryBytes: preset.memoryBytes,
+            parallelism: argon2idParallelism,
+            version: argon2Version,
+            salt: salt ?? SecureRandom.data(count: kdfSaltByteCount)
+        )).parameters
     }
 
     /// KeePassXC's default for a newly chosen AES-KDF.
     static let aesKDFRounds: UInt64 = 1_000_000
 
-    static func aesKDFParameters(rounds: UInt64, salt: Data? = nil) throws -> [String: Any] {
-        let resolvedSalt = try salt ?? SecureRandom.data(count: kdfSaltByteCount)
-        return [
-            "$UUID": KDBXContainer.aesKDFUUID,
-            "R": rounds,
-            "S": resolvedSalt,
-        ]
+    static func aesKDFParameters(rounds: UInt64, salt: Data? = nil) throws -> KDBXVariantMap {
+        try KDBXKeyDerivation.aesKDF(rounds: rounds, seed: salt ?? SecureRandom.data(count: kdfSaltByteCount)).parameters
     }
 }
 
@@ -382,7 +376,7 @@ enum DatabaseCreationService {
             sessionKey: sessionKey,
             kdfPolicy: .autoFillExtension
         )
-        guard parsed.header.formatVersion.majorVersion == KDBXContainer.versionKDBX4 else {
+        guard case .kdbx4 = parsed.header.formatVersion else {
             throw CreationError.generatedFileFailedToReopen
         }
 
@@ -397,7 +391,7 @@ enum DatabaseCreationService {
             formatVersion: parsed.header.formatVersion,
             sessionKey: sessionKey,
             compositeKey: compositeKey,
-            openTimeSHA512: KDBXCrypto.sha512(encryptedBytes),
+            openTimeSHA512: FileDigest.sha512(encryptedBytes),
             encryptedBytes: encryptedBytes
         )
     }

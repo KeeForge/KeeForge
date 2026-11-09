@@ -10,7 +10,7 @@ final class EncryptionSettingsViewModelTests: XCTestCase {
 
     func testOfferedSettingsAreSelectedWithoutACurrentOption() {
         let viewModel = makeViewModel(
-            current: summary(cipher: .chacha20, keyDerivation: preset(.strong), isCompressed: true)
+            current: summary(cipher: .chaCha20, keyDerivation: preset(.strong), isCompressed: true)
         )
 
         XCTAssertEqual(viewModel.cipher, .chacha20)
@@ -231,7 +231,7 @@ final class EncryptionSettingsViewModelTests: XCTestCase {
         let recorder = ChangeRecorder()
         let viewModel = makeViewModel(current: summary(keyDerivation: .aesKDF(rounds: 60_000)), recorder: recorder)
 
-        for text in ["", "0", "12a", "-5", "1 000", String(KDBXContainer.aesKDFMaxRounds + 1)] {
+        for text in ["", "0", "12a", "-5", "1 000", String(KDBXKeyDerivation.aesKDFMaxRounds + 1)] {
             viewModel.aesKDFRoundsText = text
             XCTAssertNil(viewModel.aesKDFRounds, text)
             XCTAssertNotNil(viewModel.aesKDFRoundsError, text)
@@ -243,7 +243,7 @@ final class EncryptionSettingsViewModelTests: XCTestCase {
         XCTAssertTrue(recorder.calls.isEmpty)
         XCTAssertEqual(viewModel.keyDerivationSummary, "AES-KDF")
 
-        viewModel.aesKDFRoundsText = String(KDBXContainer.aesKDFMaxRounds)
+        viewModel.aesKDFRoundsText = String(KDBXKeyDerivation.aesKDFMaxRounds)
         XCTAssertNil(viewModel.aesKDFRoundsError)
         XCTAssertTrue(viewModel.canSave)
     }
@@ -282,10 +282,10 @@ final class EncryptionSettingsViewModelTests: XCTestCase {
     func testAESKDFParametersMatchWhatKeePassWrites() throws {
         let parameters = try EncryptionSettingsKeyDerivation.aesKDF(rounds: 123_456).kdfParameters()
 
-        XCTAssertEqual(parameters["$UUID"] as? Data, KDBXContainer.aesKDFUUID)
-        XCTAssertEqual(parameters["R"] as? UInt64, 123_456)
-        XCTAssertEqual((parameters["S"] as? Data)?.count, 32, "AES-KDF takes a 256-bit seed")
-        XCTAssertEqual(Set(parameters.keys), ["$UUID", "R", "S"])
+        XCTAssertEqual(parameters.bytes("$UUID"), KDBXKeyDerivation.Algorithm.aesKDF.uuid)
+        XCTAssertEqual(parameters["R"], .uint64(123_456))
+        XCTAssertEqual(parameters.bytes("S")?.count, 32, "AES-KDF takes a 256-bit seed")
+        XCTAssertEqual(Set(parameters.entries.keys), ["$UUID", "R", "S"])
     }
 
     // MARK: - Helpers

@@ -12,7 +12,9 @@ Base commands and repo-wide policy (`-only-testing:` always, no full UI suite un
 - Run one class per invocation. `-only-testing:KeeForgeUITests/<Class>` takes the class name, not the file name, and several files hold many classes, so grep for the class.
 - Pass `-test-timeouts-enabled YES` locally. `KeeForgeUITestCase` sets a 300 s per-test allowance that is enforced only with it; Xcode Cloud already enables it.
 - Xcode Cloud splits this target into `KeeForgeCloudUIA` (a class list in `project.yml`) and `KeeForgeCloudUIB` (its complement, so a new class lands in B). Renaming or deleting a class in A needs the list updated; see `../ci_scripts/AGENTS.md`.
-- Layout-gated classes skip on the wrong destination: `DatabaseCreationRegularWidthUITests` and `RegularWidthWorkspaceUITests` need an iPad, `DatabaseCreationCompactUITests` an iPhone. A skip is not coverage.
+- Layout-gated classes skip on the wrong destination: `DatabaseCreationRegularWidthUITests` and `RegularWidthWorkspaceUITests` need an iPad, `DatabaseCreationCompactUITests` an iPhone. A skip is not coverage. Branch on layout with `usesRegularWidthLayout` (window at least 600pt: the open iPhone Duo is 669pt, the closed one 466pt), never on device idiom.
+- `LayoutSwitchUITests` covers iPhone Duo open/close and iPad resizing through the app's `-ui-testing-layout-switch` control; no simulator can open or close a Duo from a test, and the Duo simulator boots closed. Its passing on the simulator is not device coverage of the hinge.
+- The closed Duo's outer display puts navigation bars vertically down the right edge. `tapBackButton()` and the search-field helpers look for a horizontal top bar, so most classes fail there although the app works; only `LayoutSwitchUITests` runs on the Duo lane until they learn the vertical bar.
 - `AutoFillStoreUITests` is the only device-only class; see below.
 
 ### Launch arguments and environment
@@ -24,6 +26,7 @@ Base commands and repo-wide policy (`-only-testing:` always, no full UI suite un
 | `-ui-testing` | Reseeds the database list from the fixture payload on every launch, skips the device-owner prompt for reveal/copy, and hides the What's New sheet, AutoFill tip, and App Store review prompt. |
 | `UI_TEST_DATABASES_JSON`, `UI_TEST_KEYFILE_*` | Written by `setUp`. Override `databaseFixtureName`, `databaseFixtures`, or `keyFileFixtureName` instead of setting them. |
 | `UI_TEST_DATABASE_READ_ONLY=1` | Opens the database read-only. |
+| `-ui-testing-layout-switch` | Shows `ui-testing.switch-layout` at the top of the window, which switches between the compact and regular layouts the way an iPhone Duo opening or closing does. |
 | `UI_TEST_DEVICE_OWNER_AUTH_PENDING=1` | Re-arms the reveal/copy gate with an authentication that never completes, to assert nothing is disclosed before it succeeds. |
 | `UI_TEST_ENABLE_QUICK_LAUNCH=1` | Turns Quick Launch on; never rely on the single-database default. |
 | `UI_TEST_SHOW_WHATS_NEW=1`, `UI_TEST_SHOW_AUTOFILL_TIP=1`, `UI_TEST_SHOW_MAC_APP_SUGGESTION=1` | Force a surface that `-ui-testing` otherwise hides. |

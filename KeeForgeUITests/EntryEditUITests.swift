@@ -465,7 +465,7 @@ final class EntryCreateSmokeUITests: EntryEditUITestCase {
         XCTAssertTrue(app.staticTexts["entry-detail.title"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["entry-detail.title"].label, createdEntryTitle)
         XCTAssertTrue(app.staticTexts["ui-created-user"].waitForExistence(timeout: 5))
-        if app.windows.firstMatch.frame.width < 700 {
+        if usesRegularWidthLayout == false {
             tapBackButton()
         } else {
             revealSidebarIfNeeded()
@@ -1340,15 +1340,16 @@ final class EntrySelectionMoveUITests: EntryEditUITestCase {
         XCTAssertTrue(revealElement(entry(named: discordEntryTitle)), "A selected entry did not land in the chosen group")
     }
 
-    /// iPhone from iOS 26 shows the count as the navigation title
-    /// ("2 Selected"); iPad and earlier releases keep it in the selection bar.
+    /// The compact layout from iOS 26 shows the count as the navigation title
+    /// ("2 Selected"); the regular layout and earlier releases keep it in the
+    /// selection bar.
     private func assertSelectionCount(
         _ count: Int,
         _ message: String = "",
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        if #available(iOS 26.0, *), UIDevice.current.userInterfaceIdiom == .phone {
+        if #available(iOS 26.0, *), usesRegularWidthLayout == false {
             XCTAssertTrue(
                 app.navigationBars.staticTexts["\(count) Selected"].waitForExistence(timeout: Self.ciElementTimeout),
                 message,
@@ -1480,7 +1481,7 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
         XCTAssertTrue(waitForElementToDisappear(app.buttons["entry-edit.save"], timeout: 10))
 
         XCTAssertTrue(app.staticTexts["entry-detail.title"].waitForExistence(timeout: 5))
-        if app.windows.firstMatch.frame.width < 700 {
+        if usesRegularWidthLayout == false {
             tapBackButton()
         } else {
             revealSidebarIfNeeded()
@@ -1498,7 +1499,7 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
     }
 
     private func openPassphraseWorkGroup() {
-        if app.windows.firstMatch.frame.width >= 700 {
+        if usesRegularWidthLayout {
             revealSidebarIfNeeded()
             let group = firstRowMatching(name: workGroupName, preferredIdentifier: "group.navlink")
             XCTAssertTrue(revealElement(group))
