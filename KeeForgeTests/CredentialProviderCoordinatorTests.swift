@@ -3102,7 +3102,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(searchView.sharedCopyDate, "Nothing to date when the file itself was read")
         XCTAssertEqual(
             coordinator.openTimeSHA512,
-            KDBXCrypto.sha512(fileData),
+            FileDigest.sha512(fileData),
             "An AutoFill save must be checked against the file it will overwrite"
         )
         #else
@@ -3191,7 +3191,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             draft: draft,
             reference: database,
             compositeKey: KDBXCrypto.compositeKey(password: "testpassword123"),
-            openTimeSHA512: KDBXCrypto.sha512(originalData),
+            openTimeSHA512: FileDigest.sha512(originalData),
             kdfPolicy: .mainApp,
             environment: environment
         )
@@ -3503,14 +3503,13 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             sessionKey: sessionKey
         )
         var header = parsed.header
-        header.kdfParameters = [
-            "$UUID": KDBXContainer.argon2idUUID,
-            "S": Data(repeating: 9, count: 32),
-            "M": argon2MemoryBytes,
-            "I": UInt64(2),
-            "P": UInt32(1),
-            "V": UInt32(0x13),
-        ]
+        header.kdfParameters = KDBXKeyDerivation.argon2(KDBXKeyDerivation.Argon2Parameters(
+            variant: .id,
+            iterations: 2,
+            memoryBytes: argon2MemoryBytes,
+            parallelism: 1,
+            salt: Data(repeating: 9, count: 32)
+        )).parameters
         return try ExpressUnlock.write(
             draft: DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: sessionKey),
             compositeKey: compositeKey,
@@ -3519,7 +3518,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             deriveKey: { compositeKey, kdfParameters, _ in
                 var hasher = SHA256()
                 compositeKey.withUnsafeBytes { hasher.update(bufferPointer: $0) }
-                hasher.update(data: (kdfParameters["S"] as? Data) ?? Data())
+                hasher.update(data: (kdfParameters.bytes("S")) ?? Data())
                 return Data(hasher.finalize())
             }
         )

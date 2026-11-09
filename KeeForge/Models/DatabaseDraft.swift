@@ -147,7 +147,7 @@ struct DatabaseDraft: Sendable {
         kdfPolicy: KDFExecutionPolicy
     ) throws -> Data {
         try write(header: header) { kdfParameters in
-            try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: kdfParameters, kdfPolicy: kdfPolicy)
+            try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: kdfParameters, policy: kdfPolicy)
         }
     }
 
@@ -155,7 +155,7 @@ struct DatabaseDraft: Sendable {
     /// (`KDBXWriter`'s seam).
     func write(
         header: KDBXContainer.Header,
-        transformedKey provideTransformedKey: (_ kdfParameters: [String: Any]) throws -> Data
+        transformedKey provideTransformedKey: (_ kdfParameters: KDBXVariantMap) throws -> Data
     ) throws -> Data {
         var header = header
         if let currentBinaryPoolFields {
@@ -724,7 +724,7 @@ struct DatabaseDraft: Sendable {
                     // whatever the file's compression is now; the writer
                     // makes the exact check once the XML is known.
                     let appendedByteCount = innerHeaderFieldFraming + 1 + data.count
-                    guard innerHeaderByteCount(of: pool) + appendedByteCount <= KDBXCrypto.maxDecompressedSize else {
+                    guard innerHeaderByteCount(of: pool) + appendedByteCount <= KDBXContainer.maxDecompressedPayloadSize else {
                         throw DraftError.attachmentsTooLarge
                     }
                     // KeePassXC flags every pool entry it writes as protected.

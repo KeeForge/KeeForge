@@ -43,6 +43,13 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 - The Mac observer lives above the locked/unlocked view switch, keyed by session. Mounting it counts as opening, so placing it inside a view that a lock replaces would prompt on every automatic lock while the window is frontmost.
 - `BiometricAutoUnlockPolicy` disables auto-unlock for the iOS build running on Mac or Vision Pro, because `active` does not prove the compatibility window is frontmost. Those keep the explicit biometric action in `UnlockView`.
 
+### Layout changes (iPhone Duo, iPad resizing)
+
+- Opening or closing an iPhone Duo, and resizing an iPad window, flips the size class and rebuilds every view under the root. `AppRootView` applies the new layout one update behind the size class, after `DatabaseWorkspaceState.adaptNavigation(toRegularLayout:)` has carried the place across, and passes its applied size class down so no view sees the next layout early.
+- Anything that must survive the switch lives on `DatabaseWorkspaceState`, never in a shell's `@State`: the navigation path (compact stack or regular sidebar), the selected entry, search, selection mode, and the open editor (`openEditor`). Both shells present `openEditor`: compact pushes it as the path's `.editor` route, regular hosts it in the detail column and keeps `.editor` and entries out of its sidebar path. Never present the compact editor with `navigationDestination(item:)` at the stack's root: popping it replaces the path, dropping the user back to the vault root.
+- A layout switch is not a scene-phase change. It never locks or shows the capture shield unless iOS also backgrounds the app.
+- `-ui-testing-layout-switch` shows a control that switches layouts in-app; no simulator can open or close a Duo from a test (`../../KeeForgeUITests/AGENTS.md`).
+
 ### macOS workspace lists
 
 - The group sidebar width lives in scene storage, outside the unlocked workspace's lifetime. Measure the visible column and restore its preferred width on unlock; never retain database contents to preserve layout. Only a width measured in a split view of unchanged width is a preference: a narrower window compresses the column without replacing it (`MacSidebarWidthSampler`). Keep `navigationSplitViewColumnWidth` the column's outermost modifier: wrapped by `onGeometryChange`, the split view ignored it on macOS 27.0.1 and laid the sidebar out at 144 pt.
@@ -60,7 +67,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 ### iPad workspace
 
 - Successful New Entry completion selects the saved entry through `revealEntry` in both regular shells, including a changed destination group. Cancel, edit, and Save and Lock keep their existing selection behavior.
-- Editors raised from the sidebar (New Entry, Edit Group) are hosted in the detail column, not pushed into the narrow sidebar. A hosted editor keeps its unsaved work: later requests are ignored while one is up.
+- Editors (New Entry, Duplicate, Edit Group, Edit Entry) are hosted in the detail column, not pushed into the narrow sidebar. An open editor keeps its unsaved work: later requests are ignored while one is up.
 - iPad mini in portrait starts with the sidebar collapsed behind the system "Show Sidebar" button. That is the platform's default visibility for a 744 pt regular window. An explicit `columnVisibility: .all` does open it side by side (iOS 18.6 and 27.0); the workspace passes no column visibility and keeps the platform default.
 
 ### Menu bar

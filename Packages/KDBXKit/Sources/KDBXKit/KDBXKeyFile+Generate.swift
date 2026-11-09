@@ -2,17 +2,21 @@ import CryptoKit
 import Foundation
 import Security
 
-/// Creates key files in the KeePass XML 2.0 format (`.keyx`), laid out as KeePass 2.x and
-/// KeePassXC write them: 32 random bytes as upper-case hex in groups of eight characters,
-/// and the first 4 bytes of their SHA-256 in the `Hash` attribute.
-public enum KeyFileGenerator {
-    public static let fileExtension = "keyx"
+extension KDBXKeyFile {
+    public static let generatedFileExtension = "keyx"
 
-    /// The returned bytes are zeroed when their last holder releases them.
-    public static func makeKeyFile() throws -> Data {
+    /// A new key file in the KeePass XML 2.0 format, laid out as KeePass 2.x and KeePassXC
+    /// write it: 32 random bytes as upper-case hex in groups of eight characters, and the
+    /// first 4 bytes of their SHA-256 in the `Hash` attribute. The returned bytes are zeroed
+    /// when their last holder releases them.
+    public static func generate() throws -> Data {
+        try generate { SecRandomCopyBytes(kSecRandomDefault, $0.count, &$0) }
+    }
+
+    static func generate(fillingRandomBytes fill: (inout [UInt8]) -> OSStatus) throws -> Data {
         var key = [UInt8](repeating: 0, count: 32)
         defer { SecureWipe.wipe(&key) }
-        let status = SecRandomCopyBytes(kSecRandomDefault, key.count, &key)
+        let status = fill(&key)
         guard status == errSecSuccess else {
             throw KDBXContainerWriter.WriteError.randomGenerationFailed(status)
         }

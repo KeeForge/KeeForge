@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 /// A newly generated key file for `.fileExporter`, used by database creation
 /// and the master key change.
 struct KeyFileExportDocument: FileDocument {
-    static let contentType = UTType(filenameExtension: KeyFileGenerator.fileExtension, conformingTo: .xml) ?? .xml
+    static let contentType = UTType(filenameExtension: KDBXKeyFile.generatedFileExtension, conformingTo: .xml) ?? .xml
 
     static var readableContentTypes: [UTType] {
         [contentType]
@@ -22,12 +22,12 @@ struct KeyFileExportDocument: FileDocument {
     }
 
     static func generate() throws -> KeyFileExportDocument {
-        KeyFileExportDocument(data: try KeyFileGenerator.makeKeyFile())
+        KeyFileExportDocument(data: try KDBXKeyFile.generate())
     }
 
     /// Names the key file after its database, as KeePassXC does.
     static func defaultFilename(forDatabaseFilename databaseFilename: String) -> String {
-        "\((databaseFilename as NSString).deletingPathExtension).\(KeyFileGenerator.fileExtension)"
+        "\((databaseFilename as NSString).deletingPathExtension).\(KDBXKeyFile.generatedFileExtension)"
     }
 
     static func creationFailureAlert(for error: Error) -> DocumentPickerService.SelectionAlert? {

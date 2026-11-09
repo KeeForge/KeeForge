@@ -104,7 +104,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(uploadCallCount, 1)
         XCTAssertEqual(uploadCall.expectedRev, "rev-A")
         XCTAssertEqual(cachedData, uploadCall.data)
-        XCTAssertEqual(newSHA512, KDBXCrypto.sha512(uploadCall.data))
+        XCTAssertEqual(newSHA512, FileDigest.sha512(uploadCall.data))
         XCTAssertEqual(updatedReference.cloudSyncMetadata?.remoteRev, "rev-B")
         XCTAssertEqual(updatedReference.cloudSyncMetadata?.remoteContentHash, "remote-hash-B")
         XCTAssertEqual(updatedReference.cloudSyncMetadata?.remoteModifiedAt, uploadedMetadata.modifiedDate)
@@ -158,7 +158,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             draft: dirtyDraft,
             reference: reference,
             compositeKey: loaded.compositeKey,
-            openTimeSHA512: KDBXCrypto.sha512(loaded.sourceData),
+            openTimeSHA512: FileDigest.sha512(loaded.sourceData),
             expectedRev: "rev-A",
             environment: environment
         )
@@ -170,7 +170,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             compositeKey: loaded.compositeKey,
             sessionKey: loaded.sessionKey
         )
-        XCTAssertEqual(reparsed.header.cipherID, KDBXContainer.twofishCipherUUID)
+        XCTAssertEqual(reparsed.header.cipherID, KDBXOuterCipher.twofish256CBC.uuid)
         XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Twofish Cloud Entry" })
         XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), uploaded)
     }
@@ -215,7 +215,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let uploadCallCount = await recorder.callCount()
 
         XCTAssertEqual(uploadCallCount, 1)
-        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(remoteData))
+        XCTAssertEqual(remoteSHA512, FileDigest.sha512(remoteData))
         XCTAssertEqual(conflictData, remoteData)
         XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
         // The pre-save backup is written before the upload, so a conflicting
@@ -269,7 +269,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let uploadCallCount = await recorder.callCount()
 
         XCTAssertEqual(uploadCallCount, 0)
-        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(remoteData))
+        XCTAssertEqual(remoteSHA512, FileDigest.sha512(remoteData))
         XCTAssertEqual(conflictData, remoteData)
         XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
         XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
@@ -372,7 +372,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             reference: reference,
             compositeKey: context.compositeKey,
             openTimeSHA512: context.openTimeSHA512,
-            reconciledRemoteSHA512: KDBXCrypto.sha512(reconciledRemoteData),
+            reconciledRemoteSHA512: FileDigest.sha512(reconciledRemoteData),
             expectedRev: "rev-A",
             kdfPolicy: .mainApp,
             environment: environment
@@ -430,7 +430,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             draft: context.draft,
             reference: opened.reference,
             compositeKey: context.compositeKey,
-            openTimeSHA512: KDBXCrypto.sha512(opened.data),
+            openTimeSHA512: FileDigest.sha512(opened.data),
             expectedRev: opened.reference.expectedCloudRevision,
             kdfPolicy: .mainApp,
             environment: environment
@@ -442,7 +442,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         }
         let uploadCallCount = await recorder.callCount()
         XCTAssertEqual(uploadCallCount, 0)
-        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(remoteData))
+        XCTAssertEqual(remoteSHA512, FileDigest.sha512(remoteData))
         XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
     }
 
@@ -488,7 +488,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             XCTFail("An unreconciled divergence must still conflict.")
             return
         }
-        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(divergedRemoteData))
+        XCTAssertEqual(remoteSHA512, FileDigest.sha512(divergedRemoteData))
         XCTAssertEqual(remoteData, divergedRemoteData)
         let uploadCallCount = await recorder.callCount()
         XCTAssertEqual(uploadCallCount, 0)
@@ -646,7 +646,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
 
         let uploadCallCount = await recorder.callCount()
         XCTAssertEqual(uploadCallCount, 2, "Exactly one retry, never a loop.")
-        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(context.currentData))
+        XCTAssertEqual(remoteSHA512, FileDigest.sha512(context.currentData))
         XCTAssertEqual(conflictData, context.currentData)
     }
 
@@ -695,7 +695,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let uploadCallCount = await recorder.callCount()
 
         XCTAssertEqual(uploadCallCount, 0)
-        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(locallyChangedData))
+        XCTAssertEqual(remoteSHA512, FileDigest.sha512(locallyChangedData))
         XCTAssertEqual(conflictData, locallyChangedData)
         XCTAssertEqual(try Data(contentsOf: cacheURL), locallyChangedData)
         XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
@@ -1023,7 +1023,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Cloud Settings Entry")
         let original = try KDBXFileSummary.inspect(data: context.currentData)
-        XCTAssertNotEqual(original.cipher, .chacha20, "Fixture precondition")
+        XCTAssertNotEqual(original.cipher, .chaCha20, "Fixture precondition")
         let recorder = UploadRecorder()
         let environment = makeEnvironment(
             getMetadata: { _ in
@@ -1054,7 +1054,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             expectedRev: "rev-A",
             kdfPolicy: .mainApp,
             encryptionSettings: EncryptionSettingsChange(
-                cipherID: KDBXContainer.chachaCipherUUID,
+                cipherID: KDBXOuterCipher.chaCha20.uuid,
                 compressionFlags: original.isCompressed ? 0 : 1
             ),
             environment: environment
@@ -1069,7 +1069,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let uploaded = try XCTUnwrap(uploadCall?.data)
         XCTAssertEqual(uploadCall?.expectedRev, "rev-A")
         let saved = try KDBXFileSummary.inspect(data: uploaded)
-        XCTAssertEqual(saved.cipher, .chacha20)
+        XCTAssertEqual(saved.cipher, .chaCha20)
         XCTAssertEqual(saved.isCompressed, !original.isCompressed)
         XCTAssertEqual(saved.keyDerivation, original.keyDerivation)
         let reparsed = try KDBXParser.parseWithMeta(
@@ -1128,7 +1128,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let uploadCallCount = await recorder.callCount()
 
         XCTAssertEqual(uploadCallCount, 0)
-        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(remoteData))
+        XCTAssertEqual(remoteSHA512, FileDigest.sha512(remoteData))
         XCTAssertEqual(conflictData, remoteData)
         XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
     }
@@ -1465,7 +1465,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         return CloudSaveContext(
             draft: dirtyDraft,
             compositeKey: KDBXCrypto.compositeKey(password: fixturePassword),
-            openTimeSHA512: KDBXCrypto.sha512(currentData),
+            openTimeSHA512: FileDigest.sha512(currentData),
             currentData: currentData
         )
     }

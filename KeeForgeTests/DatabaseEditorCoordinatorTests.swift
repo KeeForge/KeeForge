@@ -474,7 +474,7 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
         let remoteData = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
         let database = try await makeDatabase { _, _, _, _, reconciledHash, _, _ in
             if let reconciledHash { return .saved(newSHA512: reconciledHash) }
-            return .conflict(remoteSHA512: KDBXCrypto.sha512(remoteData), remoteData: remoteData)
+            return .conflict(remoteSHA512: FileDigest.sha512(remoteData), remoteData: remoteData)
         }
         defer { database.lock() }
         let rootID = try XCTUnwrap(database.rootGroup?.id)
@@ -508,7 +508,7 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
         let remoteData = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
         let database = try await makeDatabase { _, _, _, _, reconciledHash, _, _ in
             if let reconciledHash { return .saved(newSHA512: reconciledHash) }
-            return .conflict(remoteSHA512: KDBXCrypto.sha512(remoteData), remoteData: remoteData)
+            return .conflict(remoteSHA512: FileDigest.sha512(remoteData), remoteData: remoteData)
         }
         let group = try XCTUnwrap(database.rootGroup?.groups.first)
         let form = GroupEditViewModel(editing: group, isHiddenFromAutoFill: false)

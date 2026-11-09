@@ -156,7 +156,7 @@ final class PendingLocalSaveTests: XCTestCase {
             return XCTFail("Expected the save to the shared copy to succeed")
         }
         let sharedCopy = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
-        XCTAssertEqual(KDBXCrypto.sha512(sharedCopy), newSHA512)
+        XCTAssertEqual(FileDigest.sha512(sharedCopy), newSHA512)
         XCTAssertTrue(try entryTitles(in: sharedCopy).contains("New Passkey"))
         XCTAssertEqual(try Data(contentsOf: databaseURL), original, "The bookmarked file is the app's to write")
 
@@ -298,7 +298,7 @@ final class PendingLocalSaveTests: XCTestCase {
             meta: parsed.meta,
             sessionKey: sessionKey,
             compositeKey: KDBXCrypto.compositeKey(password: fixturePassword),
-            openTimeSHA512: KDBXCrypto.sha512(original),
+            openTimeSHA512: FileDigest.sha512(original),
             environment: environment
         )
 
@@ -306,7 +306,7 @@ final class PendingLocalSaveTests: XCTestCase {
             return XCTFail("Expected the AutoFill save to succeed")
         }
         let sharedCopy = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
-        XCTAssertEqual(KDBXCrypto.sha512(sharedCopy), outcome.newSHA512)
+        XCTAssertEqual(FileDigest.sha512(sharedCopy), outcome.newSHA512)
         #if os(macOS)
         XCTAssertTrue(LocalDatabaseSaver.autoFillSavesAwaitWriteBack(for: reference))
         XCTAssertEqual(try Data(contentsOf: databaseURL), original, "The Mac extension cannot open the bookmarked file")
@@ -358,7 +358,7 @@ final class PendingLocalSaveTests: XCTestCase {
         XCTAssertTrue(try entryTitles(in: saved).contains("New Passkey"))
         XCTAssertTrue(Set(try entryTitles(in: saved)).isSuperset(of: try entryTitles(in: original)))
         XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
-        XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(saved))
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(saved))
         XCTAssertTrue(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)).contains("New Passkey"))
         XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), saved)
         XCTAssertTrue(
@@ -744,7 +744,7 @@ final class PendingLocalSaveTests: XCTestCase {
         return SaveContext(
             draft: dirtyDraft,
             compositeKey: KDBXCrypto.compositeKey(password: fixturePassword),
-            openTimeSHA512: KDBXCrypto.sha512(data)
+            openTimeSHA512: FileDigest.sha512(data)
         )
     }
 

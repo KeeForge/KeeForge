@@ -25,13 +25,13 @@ struct ExpressUnlockKey: Sendable, Equatable {
         self.transformedKey = transformedKey
     }
 
-    /// nil when the KDF parameters hold a value type the binding cannot encode.
-    init?(transformedKey: Data, kdfParameters: [String: Any], compositeKey: SymmetricKey) {
-        guard transformedKey.count == Self.keyByteCount,
-              let binding = Self.binding(kdfParameters: kdfParameters, compositeKey: compositeKey) else {
-            return nil
-        }
-        self.init(binding: binding, transformedKey: SymmetricKey(data: transformedKey))
+    /// nil when `transformedKey` is not a KDF output.
+    init?(transformedKey: Data, kdfParameters: KDBXVariantMap, compositeKey: SymmetricKey) {
+        guard transformedKey.count == Self.keyByteCount else { return nil }
+        self.init(
+            binding: Self.binding(kdfParameters: kdfParameters, compositeKey: compositeKey),
+            transformedKey: SymmetricKey(data: transformedKey)
+        )
     }
 
     init?(serialized: some ContiguousBytes) {
@@ -60,28 +60,27 @@ struct ExpressUnlockKey: Sendable, Equatable {
         return SecureWipe.wipingData(copying: bytes)
     }
 
-    func matches(kdfParameters: [String: Any], compositeKey: SymmetricKey) -> Bool {
-        guard binding.count == Self.bindingByteCount,
-              let message = Self.bindingMessage(kdfParameters: kdfParameters) else {
-            return false
-        }
-        return HMAC<SHA256>.isValidAuthenticationCode(binding, authenticating: message, using: compositeKey)
+    func matches(kdfParameters: KDBXVariantMap, compositeKey: SymmetricKey) -> Bool {
+        guard binding.count == Self.bindingByteCount else { return false }
+        return HMAC<SHA256>.isValidAuthenticationCode(
+            binding,
+            authenticating: Self.bindingMessage(kdfParameters: kdfParameters),
+            using: compositeKey
+        )
     }
 
-    static func binding(kdfParameters: [String: Any], compositeKey: SymmetricKey) -> Data? {
-        guard let message = bindingMessage(kdfParameters: kdfParameters) else { return nil }
-        return Data(HMAC<SHA256>.authenticationCode(for: message, using: compositeKey))
+    static func binding(kdfParameters: KDBXVariantMap, compositeKey: SymmetricKey) -> Data {
+        Data(HMAC<SHA256>.authenticationCode(for: bindingMessage(kdfParameters: kdfParameters), using: compositeKey))
     }
 
-    /// A canonical encoding of the parsed KDF parameters. `KDBXContainer.deriveKey`
-    /// reads only this dictionary, so equal encodings derive equal keys.
-    private static func bindingMessage(kdfParameters: [String: Any]) -> Data? {
+    /// A canonical encoding of every KDF parameter with its type, so equal
+    /// encodings derive equal keys under `KDBXKeyDerivation.deriveKey`.
+    private static func bindingMessage(kdfParameters: KDBXVariantMap) -> Data {
         var message = bindingDomain
-        for key in kdfParameters.keys.sorted(by: { Data($0.utf8).lexicographicallyPrecedes(Data($1.utf8)) }) {
-            guard let value = kdfParameters[key],
-                  let (type, bytes) = encodedValue(value) else {
-                return nil
-            }
+        let entries = kdfParameters.entries
+        for key in entries.keys.sorted(by: { Data($0.utf8).lexicographicallyPrecedes(Data($1.utf8)) }) {
+            guard let value = entries[key] else { continue }
+            let (type, bytes) = encodedValue(value)
             append(Data(key.utf8), to: &message)
             message.append(type)
             append(bytes, to: &message)
@@ -89,17 +88,17 @@ struct ExpressUnlockKey: Sendable, Equatable {
         return message
     }
 
-    // Tags match the KDBX variant-map types `KDBXContainer.parseVariantMap` decodes.
-    private static func encodedValue(_ value: Any) -> (UInt8, Data)? {
+    /// KDBX variant-map type tags.
+    private static func encodedValue(_ value: KDBXVariantMap.Value) -> (UInt8, Data) {
         switch value {
-        case let value as UInt32: (0x04, withUnsafeBytes(of: value.littleEndian) { Data($0) })
-        case let value as UInt64: (0x05, withUnsafeBytes(of: value.littleEndian) { Data($0) })
-        case let value as Bool: (0x08, Data([value ? 1 : 0]))
-        case let value as Int32: (0x0C, withUnsafeBytes(of: value.littleEndian) { Data($0) })
-        case let value as Int64: (0x0D, withUnsafeBytes(of: value.littleEndian) { Data($0) })
-        case let value as String: (0x18, Data(value.utf8))
-        case let value as Data: (0x42, value)
-        default: nil
+        case .uint32(let value): (0x04, withUnsafeBytes(of: value.littleEndian) { Data($0) })
+        case .uint64(let value): (0x05, withUnsafeBytes(of: value.littleEndian) { Data($0) })
+        case .bool(let value): (0x08, Data([value ? 1 : 0]))
+        case .int32(let value): (0x0C, withUnsafeBytes(of: value.littleEndian) { Data($0) })
+        case .int64(let value): (0x0D, withUnsafeBytes(of: value.littleEndian) { Data($0) })
+        case .string(let value): (0x18, Data(value.utf8))
+        case .bytes(let value): (0x42, value)
+        case .unknown(let type, let data): (type, data)
         }
     }
 
@@ -125,7 +124,7 @@ enum ExpressUnlock {
 
     typealias KeyDerivation = @Sendable (
         _ compositeKey: SymmetricKey,
-        _ kdfParameters: [String: Any],
+        _ kdfParameters: KDBXVariantMap,
         _ kdfPolicy: KDFExecutionPolicy
     ) throws -> Data
 
@@ -135,7 +134,7 @@ enum ExpressUnlock {
         cachedKey: ExpressUnlockKey?,
         sessionKey: SymmetricKey,
         kdfPolicy: KDFExecutionPolicy,
-        deriveKey: KeyDerivation = { try KDBXContainer.deriveKey(compositeKey: $0, kdfParams: $1, kdfPolicy: $2) }
+        deriveKey: KeyDerivation = { try KDBXKeyDerivation.deriveKey(compositeKey: $0, parameters: $1, policy: $2) }
     ) throws -> Outcome {
         guard case .kdbx4 = try KDBXContainer.parseFileVersion(from: data) else {
             let parsed = try KDBXParser.parseWithMetaAndHeader(
@@ -157,7 +156,7 @@ enum ExpressUnlock {
             var offeredCachedKey = false
             var derivedKey: ExpressUnlockKey?
             do {
-                let parsed = try KDBXParser.parseKDBX4WithMetaAndHeader(data: data, sessionKey: sessionKey) { kdfParameters in
+                let parsed = try KDBXParser.parseWithMetaAndHeader(data: data, sessionKey: sessionKey) { kdfParameters in
                     if cachedKey.matches(kdfParameters: kdfParameters, compositeKey: compositeKey) {
                         offeredCachedKey = true
                         return cachedKey.transformedKey.withUnsafeBytes { Data($0) }
@@ -180,7 +179,7 @@ enum ExpressUnlock {
         }
 
         var derivedKey: ExpressUnlockKey?
-        let parsed = try KDBXParser.parseKDBX4WithMetaAndHeader(data: data, sessionKey: sessionKey) { kdfParameters in
+        let parsed = try KDBXParser.parseWithMetaAndHeader(data: data, sessionKey: sessionKey) { kdfParameters in
             let derived = try derive(compositeKey, kdfParameters, kdfPolicy, deriveKey)
             derivedKey = derived.key
             return derived.bytes
@@ -196,8 +195,8 @@ enum ExpressUnlock {
 
     struct Written: Sendable {
         let data: Data
-        /// The key for the version just written. nil when its KDF parameters
-        /// hold a value the binding cannot encode.
+        /// The key for the version just written. nil when the KDF output is
+        /// not a 32-byte key.
         let expressKey: ExpressUnlockKey?
     }
 
@@ -209,7 +208,7 @@ enum ExpressUnlock {
         compositeKey: SymmetricKey,
         header: KDBXContainer.Header,
         kdfPolicy: KDFExecutionPolicy,
-        deriveKey: KeyDerivation = { try KDBXContainer.deriveKey(compositeKey: $0, kdfParams: $1, kdfPolicy: $2) }
+        deriveKey: KeyDerivation = { try KDBXKeyDerivation.deriveKey(compositeKey: $0, parameters: $1, policy: $2) }
     ) throws -> Written {
         var expressKey: ExpressUnlockKey?
         let data = try draft.write(header: header) { kdfParameters in
@@ -222,7 +221,7 @@ enum ExpressUnlock {
 
     private static func derive(
         _ compositeKey: SymmetricKey,
-        _ kdfParameters: [String: Any],
+        _ kdfParameters: KDBXVariantMap,
         _ kdfPolicy: KDFExecutionPolicy,
         _ deriveKey: KeyDerivation
     ) throws -> (bytes: Data, key: ExpressUnlockKey?) {

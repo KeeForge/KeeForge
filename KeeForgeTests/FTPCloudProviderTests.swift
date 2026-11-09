@@ -264,7 +264,7 @@ final class FTPCloudProviderTests: XCTestCase {
         let first = FTPCloudProvider.rev(of: Data("same bytes".utf8))
 
         XCTAssertEqual(first, FTPCloudProvider.rev(of: Data("same bytes".utf8)))
-        XCTAssertEqual(first, "sha256:" + KDBXCrypto.sha256(Data("same bytes".utf8)).map { String(format: "%02x", $0) }.joined())
+        XCTAssertEqual(first, "sha256:" + FileDigest.sha256(Data("same bytes".utf8)).map { String(format: "%02x", $0) }.joined())
         XCTAssertNotEqual(first, FTPCloudProvider.rev(of: Data("same bytez".utf8)))
     }
 
