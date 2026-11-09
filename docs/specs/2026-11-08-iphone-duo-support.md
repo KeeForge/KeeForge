@@ -2,7 +2,9 @@
 
 Date: 2026-11-08.
 Baseline reviewed: `236f7bef`.
-Status: proposal for review. Nothing here is implemented.
+Status: implemented on 2026-11-08 (slices 1–4). The current rules live in
+`KeeForge/App/AGENTS.md` ("Layout changes"); this document is not maintained.
+See "What implementation found" at the end for where it differs.
 
 ## Summary
 
@@ -289,3 +291,33 @@ Each slice ships on its own and leaves the app working.
 5. **Unlock text across a swap.** Is dropping typed master-password text on
    a swap acceptable UX? The alternative holds it in workspace state until
    unlock or lock.
+
+## What implementation found
+
+- **Display sizes.** The Xcode 27.2 iPhone Duo simulator has an outer display
+  of 466×678pt and an inner one of 669×951pt (both at 3×). The UI tests' 700pt
+  regular-width gate would have skipped on the open Duo, so it is now 600pt
+  (`usesRegularWidthLayout`).
+- **Simulating open/close.** Neither `simctl` nor XCTest can open or close the
+  simulator, and it boots closed. `LayoutSwitchUITests` switches layouts
+  through an in-app control (`-ui-testing-layout-switch`) instead, and runs
+  on the iPad and Duo CI lanes.
+- **Render widths.** No new render column: the outer display is 26pt wider
+  than the existing 440pt column, and the inner display uses the iPad
+  workspace, which the render tests do not compose.
+- **Unlock.** Nothing moved. The database being unlocked already lives on the
+  root, and the automatic Face ID attempt is claimed once per lock cycle on
+  `DatabaseViewModel`, so a switch neither loses the unlock nor prompts again.
+  Typed password and key-file choice reset, as section 3 intended.
+- **Editors.** Duplicate from search results and the tag browser now opens
+  the workspace's editor too. On iPhone it is pushed rather than shown as a
+  sheet, and on iPad it is hosted in the detail column, like every other
+  editor.
+- **Vertical bars.** On the outer display iOS 27 puts navigation bars
+  vertically down the right edge, for every screen, not only sheets. The app
+  works there, but the shared UI-test helpers for Back and search look for a
+  horizontal top bar, so ten tests in five classes fail on the closed Duo
+  simulator. The Duo CI lane runs `LayoutSwitchUITests` only until the
+  helpers handle the vertical bar.
+- **Still open.** Questions 1 (scene phase on a real device), 4 (App Store
+  screenshots) and 5 need a physical iPhone Duo or an owner decision.

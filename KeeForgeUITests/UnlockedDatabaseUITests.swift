@@ -156,7 +156,7 @@ final class UnlockedDatabaseBrowseAndDetailUITests: UnlockedDatabaseUITestCase {
     func testEntryDetailOffersLockBesideEdit() throws {
         unlockSuccessfully()
         try XCTSkipIf(
-            app.windows.firstMatch.frame.width >= 700,
+            usesRegularWidthLayout,
             "At regular width the sidebar's Lock sits beside the entry"
         )
 

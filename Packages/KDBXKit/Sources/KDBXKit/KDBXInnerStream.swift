@@ -6,6 +6,15 @@ import Foundation
 /// reader or writer keeps one instance and feeds it values in that order.
 /// XOR-based: the same call encodes and decodes.
 public struct KDBXInnerStream {
+    /// Stream IDs as stored in the header. `unprotected` (KeePass's "None"),
+    /// `salsa20`, and `chaCha20` can be read; KeePass 2 never wrote ArcFour.
+    public enum Algorithm: UInt32, Sendable, CaseIterable {
+        case unprotected = 0
+        case arcFourVariant = 1
+        case salsa20 = 2
+        case chaCha20 = 3
+    }
+
     private enum Mode {
         case none
         case salsa20(initialState: [UInt32])
@@ -18,14 +27,14 @@ public struct KDBXInnerStream {
     private var keystreamBlock: [UInt8] = []
     private var offset = 0
 
-    /// Throws `ParseError.unsupportedProtectedFieldStream` for stream IDs other
-    /// than none, Salsa20, and ChaCha20.
+    /// Throws `ParseError.unsupportedProtectedFieldStream` for a stream this
+    /// library cannot read.
     public init(streamID: UInt32, key: Data) throws {
-        switch streamID {
-        case KDBXContainer.innerStreamNone:
+        switch Algorithm(rawValue: streamID) {
+        case .unprotected?:
             mode = .none
 
-        case KDBXContainer.innerStreamSalsa20:
+        case .salsa20?:
             let hashedKey = KDBXCrypto.sha256(key)
             let nonce = Data([0xE8, 0x30, 0x09, 0x4B, 0x97, 0x20, 0x5D, 0x2A])
             var state = [UInt32](repeating: 0, count: 16)
@@ -48,19 +57,20 @@ public struct KDBXInnerStream {
 
             mode = .salsa20(initialState: state)
 
-        case KDBXContainer.innerStreamChaCha20:
+        case .chaCha20?:
             let keyHash = KDBXCrypto.sha512(key)
-            guard let keystream = KDBXCrypto.ChaCha20Keystream(
+            mode = .chacha20(KDBXCrypto.ChaCha20Keystream(
                 key: Data(keyHash.prefix(32)),
                 nonce: Data(keyHash[32..<44])
-            ) else {
-                throw KDBXContainer.ParseError.innerHeaderInvalid
-            }
-            mode = .chacha20(keystream)
+            ))
 
-        default:
+        case .arcFourVariant?, nil:
             throw KDBXContainer.ParseError.unsupportedProtectedFieldStream(streamID)
         }
+    }
+
+    public init(algorithm: Algorithm, key: Data) throws {
+        try self.init(streamID: algorithm.rawValue, key: key)
     }
 
     public mutating func apply(_ data: Data) -> Data {

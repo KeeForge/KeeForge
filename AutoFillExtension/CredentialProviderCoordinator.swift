@@ -1460,7 +1460,7 @@ final class CredentialProviderCoordinator {
 
         self.sessionKey = key
         self.compositeKey = compositeKey
-        self.openTimeSHA512 = KDBXCrypto.sha512(data)
+        self.openTimeSHA512 = FileDigest.sha512(data)
         self.sharedCopyDate = loaded.sharedCopyDate
         self.parsedRootGroup = parsed.rootGroup
         self.parsedMeta = parsed.meta
@@ -1489,7 +1489,7 @@ final class CredentialProviderCoordinator {
             return keyDerivationOverride
         }
         #endif
-        return { try KDBXContainer.deriveKey(compositeKey: $0, kdfParams: $1, kdfPolicy: $2) }
+        return { try KDBXKeyDerivation.deriveKey(compositeKey: $0, parameters: $1, policy: $2) }
     }
 
     private var remainingMemoryBytes: UInt64 {

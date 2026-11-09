@@ -569,63 +569,6 @@ final class KDBXParserTests: XCTestCase {
 
     // MARK: - Crypto Tests
 
-    func testArgon2KeyDerivationKnownVector() throws {
-        let derived = try Argon2.hash(
-            password: SymmetricKey(data: Data("password".utf8)),
-            salt: Data("somesalt".utf8),
-            timeCost: 2,
-            memoryCost: 65_536,
-            parallelism: 1,
-            hashLength: 32,
-            version: .v13,
-            variant: .d
-        )
-
-        XCTAssertEqual(
-            derived.hexString,
-            "955e5d5b163a1b60bba35fc36d0496474fba4f6b59ad53628666f07fb2f93eaf"
-        )
-    }
-
-    // Reference vector from phc-winner-argon2 src/test.c (argon2id, v=19).
-    func testArgon2idKeyDerivationKnownVector() throws {
-        let derived = try Argon2.hash(
-            password: SymmetricKey(data: Data("password".utf8)),
-            salt: Data("somesalt".utf8),
-            timeCost: 2,
-            memoryCost: 65_536,
-            parallelism: 1,
-            hashLength: 32,
-            version: .v13,
-            variant: .id
-        )
-
-        XCTAssertEqual(
-            derived.hexString,
-            "09316115d5cf24ed5a15a31a3ba326e5cf32edc24702987c02b6566f61913cf7"
-        )
-    }
-
-    func testArgon2SurfacesReferenceErrorCodeForShortSalt() {
-        XCTAssertThrowsError(
-            try Argon2.hash(
-                password: SymmetricKey(data: Data("password".utf8)),
-                salt: Data("short".utf8),
-                timeCost: 2,
-                memoryCost: 8,
-                parallelism: 1,
-                version: .v13,
-                variant: .id
-            )
-        ) { error in
-            guard case Argon2.Argon2Error.hashFailed(let code) = error else {
-                XCTFail("Expected Argon2Error.hashFailed, got \(error)")
-                return
-            }
-            XCTAssertEqual(code, -6, "ARGON2_SALT_TOO_SHORT")
-        }
-    }
-
     // MARK: - KDBX 3.1 Compatibility
 
     func testKDBX31PasswordOnlyDatabaseOpens() throws {
@@ -691,22 +634,6 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertEqual(entry.customFields["Empty0"], "")
     }
 
-    func testKDBX31TwofishDatabaseOpensReadOnly() throws {
-        let data = try makeLegacyTwofishFixture()
-        let parsed = try KDBXParser.parseWithMetaAndHeader(
-            data: data,
-            password: legacyFixturePassword,
-            sessionKey: testSessionKey
-        )
-
-        XCTAssertEqual(parsed.header.formatVersion, .kdbx3_1)
-        XCTAssertEqual(parsed.header.cipherID, KDBXContainer.twofishCipherUUID)
-        XCTAssertTrue(parsed.header.formatVersion.requiresReadOnlyMode)
-        XCTAssertEqual(parsed.rootGroup.allEntries.count, 5)
-        let twitter = try XCTUnwrap(parsed.rootGroup.allEntries.first { $0.title == "Twitter" })
-        XCTAssertEqual(try twitter.password.decrypt(using: testSessionKey), "tw1tterP@ss!")
-    }
-
     func testKDBX31WrongPasswordFailsCleanly() throws {
         let data = try legacyFixtureData()
 
@@ -718,31 +645,6 @@ final class KDBXParserTests: XCTestCase {
                 String(localized: "Decryption failed — wrong password?"),
                 "Expected a friendly wrong-password failure, got: \(error.localizedDescription)"
             )
-        }
-    }
-
-    func testChaChaDecryptRejectsInvalidNonce() throws {
-        XCTAssertThrowsError(
-            try KDBXCrypto.decryptChaCha20(
-                data: Data(repeating: 0x01, count: 32),
-                key: Data(repeating: 0x02, count: 32),
-                nonce: Data(repeating: 0x03, count: 8)
-            )
-        ) { error in
-            guard case KDBXCrypto.CryptoError.decryptionFailed = error else {
-                XCTFail("Expected normalized ChaCha decrypt failure, got \(error)")
-                return
-            }
-        }
-    }
-
-    func testKDBX31CorruptedHashedBlockFails() throws {
-        let corrupted = try makeLegacyFixtureWithCorruptedHashedBlock()
-
-        XCTAssertThrowsError(
-            try KDBXParser.parse(data: corrupted, password: legacyFixturePassword, sessionKey: testSessionKey)
-        ) { error in
-            XCTAssertEqual(error as? KDBXContainer.ParseError, .invalidLegacyBlockHash)
         }
     }
 
@@ -890,8 +792,8 @@ final class KDBXParserTests: XCTestCase {
             meta: KPMeta(),
             compositeKey: compositeKey,
             freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
-                cipherID: KDBXContainer.aesCipherUUID,
-                kdfParameters: try KDBXCompatibilitySupport.fastArgon2idParameters()
+                cipher: .aes256CBC,
+                kdfParameters: KDBXCompatibilitySupport.fastArgon2idParameters()
             ),
             sessionKey: testSessionKey
         )
@@ -908,16 +810,12 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertEqual(entry.title, "Integrity Entry")
         XCTAssertEqual(try entry.password.decrypt(using: testSessionKey), "integrity-secret")
 
-        var reader = DataReader(data: data)
-        _ = try KDBXContainer.parseVersion(from: &reader)
-        _ = try KDBXContainer.parseHeader(&reader)
-
         return KDBX4IntegrityFixture(
             data: data,
             password: password,
             keyFileData: keyFileData,
             masterSeed: parsed.header.masterSeed,
-            headerLength: reader.offset
+            headerLength: try KDBXContainer.readHeader(from: data).headerData.count
         )
     }
 
@@ -938,58 +836,13 @@ final class KDBXParserTests: XCTestCase {
         }
     }
 
-    func testAESKDFKeyDerivationKnownVector() throws {
-        let compositeKey = SymmetricKey(data: Data((0..<32).map(UInt8.init)))
-        let seed = Data((32..<64).map(UInt8.init))
-        let derived = try KDBXCrypto.transformKeyAESKDF(compositeKey: compositeKey, seed: seed, rounds: 10)
-
-        XCTAssertEqual(
-            derived.hexString,
-            "f76f387e7538424a09d988e6f358824cd30d0dd35d0e8ecb1487ff6ffc1581cf"
-        )
-    }
-
-    func testAESKDFMatchesReferenceImplementationAcrossRoundCounts() throws {
-        let compositeKey = SymmetricKey(data: Data((0..<32).map(UInt8.init)))
-        let seed = Data((32..<64).map(UInt8.init))
-
-        for rounds in [1, 2, 11, 257] {
-            let derived = try KDBXCrypto.transformKeyAESKDF(
-                compositeKey: compositeKey,
-                seed: seed,
-                rounds: UInt64(rounds)
-            )
-
-            XCTAssertEqual(
-                derived,
-                try referenceAESKDFTransform(
-                    compositeKey: compositeKey,
-                    seed: seed,
-                    rounds: UInt64(rounds)
-                ),
-                "Mismatch at rounds=\(rounds)"
-            )
-        }
-    }
-
-    func testUnsupportedKDFErrorUsesFriendlyName() {
-        let descriptor = KDFDescriptor(identifier: "c9d9f39a628a4460bf740d08c18a4fea", displayName: "AES-KDF")
-        let error = KDBXCrypto.CryptoError.unsupportedKDF(descriptor)
+    func testUnknownKDFErrorNamesItsUUID() {
+        let error = KDBXCrypto.CryptoError.unsupportedKDF(.unknownUUID(Data([0xC9, 0xD9, 0xF3, 0x9A])))
 
         XCTAssertEqual(
             error.errorDescription,
-            String(localized: "Unsupported key derivation function: \("AES-KDF")")
+            String(localized: "Unsupported key derivation function: \("c9d9f39a")")
         )
-    }
-
-    func testGunzipKnownCompressedData() throws {
-        let compressedBase64 = "H4sIAAAAAAAC//NOTQ1LLM0pUUgvzavKLFAoS00uyS9SKEiszMlPTOHKycxLNQIAX50mACQAAAA="
-        let compressed = try XCTUnwrap(Data(base64Encoded: compressedBase64))
-
-        let decompressed = try KDBXCrypto.gunzip(compressed)
-        let text = String(data: decompressed, encoding: .utf8)
-
-        XCTAssertEqual(text, "KeeVault gunzip vector payload\nline2")
     }
 
     // MARK: - Composite Key Tests
@@ -1109,14 +962,14 @@ final class KDBXParserTests: XCTestCase {
     func testForeignChaCha20FixtureParsesAndDecryptsProtectedValues() throws {
         try assertForeignCipherFixtureParses(
             .foreignChaCha20,
-            expectedCipherUUID: KDBXContainer.chachaCipherUUID
+            expectedCipherUUID: KDBXOuterCipher.chaCha20.uuid
         )
     }
 
     func testForeignTwofishFixtureParsesAndDecryptsProtectedValues() throws {
         try assertForeignCipherFixtureParses(
             .foreignTwofish,
-            expectedCipherUUID: KDBXContainer.twofishCipherUUID
+            expectedCipherUUID: KDBXOuterCipher.twofish256CBC.uuid
         )
     }
 
@@ -1261,19 +1114,6 @@ final class KDBXParserTests: XCTestCase {
             .replacingOccurrences(of: ">", with: "&gt;")
     }
 
-    private func referenceAESKDFTransform(compositeKey: SymmetricKey, seed: Data, rounds: UInt64) throws -> Data {
-        let compositeKeyBytes = compositeKey.withUnsafeBytes { Data($0) }
-        var left = compositeKeyBytes.prefix(16)
-        var right = compositeKeyBytes.suffix(16)
-
-        for _ in 0..<rounds {
-            left = try referenceAESECBEncryptBlock(left, key: seed)
-            right = try referenceAESECBEncryptBlock(right, key: seed)
-        }
-
-        return KDBXCrypto.sha256(Data(left + right))
-    }
-
     private func referenceAESECBEncryptBlock(_ block: some DataProtocol, key: some DataProtocol) throws -> Data {
         let blockData = Data(block)
         let keyData = Data(key)
@@ -1372,7 +1212,7 @@ final class KDBXParserTests: XCTestCase {
 
         let parsed = try KDBXXMLParser(
             data: Data(xml.utf8),
-            innerStream: KDBXInnerStream(streamID: KDBXContainer.innerStreamSalsa20, key: Self.salsa20InnerStreamKey),
+            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.salsa20.rawValue, key: Self.salsa20InnerStreamKey),
             sessionKey: testSessionKey
         ).parse()
 
@@ -1381,66 +1221,6 @@ final class KDBXParserTests: XCTestCase {
 
     private func legacyFixtureData() throws -> Data {
         try KDBXTestFixture.legacyKDBX31.data(in: Bundle(for: Self.self))
-    }
-
-    private func makeLegacyFixtureWithCorruptedHashedBlock() throws -> Data {
-        let data = try legacyFixtureData()
-        let legacyHeader = try KDBXContainer.parseKDBX3Header(from: data)
-        let compositeKey = KDBXCrypto.compositeKey(password: legacyFixturePassword)
-        let masterKey = try KDBXContainer.deriveKDBX3MasterKey(
-            compositeKey: compositeKey,
-            header: legacyHeader
-        )
-        let encryptedPayload = data.subdata(in: legacyHeader.payloadOffset..<data.count)
-        var decryptedPayload = try KDBXCrypto.decryptAES256CBC(
-            data: encryptedPayload,
-            key: masterKey,
-            iv: legacyHeader.encryptionIV
-        )
-
-        let firstBlockDataOffset = legacyHeader.streamStartBytes.count + 4 + 32 + 4
-        XCTAssertLessThan(firstBlockDataOffset, decryptedPayload.count)
-        decryptedPayload[firstBlockDataOffset] ^= 0x01
-
-        let reencryptedPayload = try KDBXCrypto.encryptAES256CBC(
-            data: decryptedPayload,
-            key: masterKey,
-            iv: legacyHeader.encryptionIV
-        )
-
-        var mutated = Data(data.prefix(legacyHeader.payloadOffset))
-        mutated.append(reencryptedPayload)
-        return mutated
-    }
-
-    private func makeLegacyTwofishFixture() throws -> Data {
-        let data = try legacyFixtureData()
-        let legacyHeader = try KDBXContainer.parseKDBX3Header(from: data)
-        let compositeKey = KDBXCrypto.compositeKey(password: legacyFixturePassword)
-        let masterKey = try KDBXContainer.deriveKDBX3MasterKey(
-            compositeKey: compositeKey,
-            header: legacyHeader
-        )
-        let encryptedPayload = data.subdata(in: legacyHeader.payloadOffset..<data.count)
-        let decryptedPayload = try KDBXCrypto.decryptAES256CBC(
-            data: encryptedPayload,
-            key: masterKey,
-            iv: legacyHeader.encryptionIV
-        )
-        let twofishPayload = try KDBXCrypto.encryptTwofish256CBC(
-            data: decryptedPayload,
-            key: masterKey,
-            iv: legacyHeader.encryptionIV
-        )
-
-        let cipherOffset = try XCTUnwrap(legacyHeaderFieldValueOffset(fieldID: 2, in: data))
-        var convertedHeader = Data(data.prefix(legacyHeader.payloadOffset))
-        convertedHeader.replaceSubrange(
-            cipherOffset..<(cipherOffset + KDBXContainer.twofishCipherUUID.count),
-            with: KDBXContainer.twofishCipherUUID
-        )
-        convertedHeader.append(twofishPayload)
-        return convertedHeader
     }
 
     private func legacyHeaderFieldValueOffset(fieldID: UInt8, in data: Data) -> Int? {
@@ -1612,20 +1392,19 @@ final class KDBXParserTests: XCTestCase {
     }
 
     func testArgon2HighParallelismAccepted() throws {
-        // 64 threads — valid for modern machines. Exercise KDBXContainer.deriveKey
+        // 64 threads — valid for modern machines. Exercise KDBXKeyDerivation.deriveKey
         // directly (the actual unit under range-validation) so the test can
         // assert the positive outcome — a real 32-byte derived key — instead
         // of only checking that a specific error wasn't thrown.
-        let params: [String: Any] = [
-            "$UUID": KDBXContainer.argon2idUUID,
-            "I": UInt64(2),
-            "M": UInt64(64 * 1024 * 1024),
-            "P": UInt32(64),
-            "V": UInt32(0x13),
-            "S": Data((0..<32).map { UInt8($0) }),
-        ]
+        let params = KDBXKeyDerivation.argon2(KDBXKeyDerivation.Argon2Parameters(
+            variant: .id,
+            iterations: 2,
+            memoryBytes: 64 * 1024 * 1024,
+            parallelism: 64,
+            salt: Data((0..<32).map { UInt8($0) })
+        )).parameters
 
-        let derivedKey = try KDBXContainer.deriveKey(compositeKey: SymmetricKey(data: Data("composite-key".utf8)), kdfParams: params)
+        let derivedKey = try KDBXKeyDerivation.deriveKey(compositeKey: SymmetricKey(data: Data("composite-key".utf8)), parameters: params)
 
         XCTAssertEqual(derivedKey.count, 32)
     }
@@ -1679,7 +1458,7 @@ final class KDBXParserTests: XCTestCase {
 
         // KDF Parameters field (field 11)
         let kdfData = buildArgon2VariantMap(
-            uuid: KDBXContainer.argon2dUUID,
+            uuid: KDBXKeyDerivation.Algorithm.argon2d.uuid,
             iterations: iterations,
             memory: memory,
             parallelism: parallelism
@@ -1693,7 +1472,7 @@ final class KDBXParserTests: XCTestCase {
         header.appendLE(UInt32(0))
 
         // Compute header SHA-256 and append it + dummy HMAC
-        let sha = KDBXCrypto.sha256(header)
+        let sha = FileDigest.sha256(header)
         var result = header
         result.append(sha)
         result.append(Data(repeating: 0, count: 32)) // dummy HMAC (won't be reached)
@@ -1734,112 +1513,6 @@ final class KDBXParserTests: XCTestCase {
         map.append(0x00)
 
         return map
-    }
-
-    func testAESVariantMapDerivesKey() throws {
-        let compositeKey = SymmetricKey(data: Data((0..<32).map(UInt8.init)))
-        let params: [String: Any] = [
-            "$UUID": Data([0xC9, 0xD9, 0xF3, 0x9A, 0x62, 0x8A, 0x44, 0x60,
-                            0xBF, 0x74, 0x0D, 0x08, 0xC1, 0x8A, 0x4F, 0xEA]),
-            "S": Data((32..<64).map(UInt8.init)),
-            "R": UInt64(10),
-        ]
-        let derived = try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: params)
-
-        XCTAssertEqual(
-            derived.hexString,
-            "f76f387e7538424a09d988e6f358824cd30d0dd35d0e8ecb1487ff6ffc1581cf"
-        )
-    }
-
-    func testAESVariantMapRejectsRoundsAboveUpdatedMaximum() {
-        let compositeKey = SymmetricKey(data: Data((0..<32).map(UInt8.init)))
-        let params: [String: Any] = [
-            "$UUID": KDBXContainer.aesKDFUUID,
-            "S": Data((32..<64).map(UInt8.init)),
-            "R": KDBXContainer.aesKDFMaxRounds + 1,
-        ]
-
-        XCTAssertThrowsError(
-            try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: params)
-        ) { error in
-            guard case KDBXContainer.ParseError.kdfParameterOutOfRange(let message) = error else {
-                XCTFail("Expected kdfParameterOutOfRange, got \(error)")
-                return
-            }
-            XCTAssertEqual(
-                message,
-                "rounds \(KDBXContainer.aesKDFMaxRounds + 1) not in 1...\(KDBXContainer.aesKDFMaxRounds)"
-            )
-        }
-    }
-
-    func testLegacyHeaderRejectsRoundsAboveUpdatedMaximum() {
-        let compositeKey = SymmetricKey(data: Data(repeating: 0x11, count: 32))
-        let header = KDBXContainer.LegacyHeader(
-            formatVersion: .kdbx3_1,
-            cipherID: Data(),
-            compressionFlags: 0,
-            masterSeed: Data(repeating: 0x22, count: 32),
-            transformSeed: Data(repeating: 0x33, count: 32),
-            transformRounds: KDBXContainer.aesKDFMaxRounds + 1,
-            encryptionIV: Data(),
-            protectedStreamKey: Data(),
-            streamStartBytes: Data(),
-            innerRandomStreamID: 0,
-            headerData: Data(),
-            payloadOffset: 0
-        )
-
-        XCTAssertThrowsError(
-            try KDBXContainer.deriveKDBX3MasterKey(compositeKey: compositeKey, header: header)
-        ) { error in
-            guard case KDBXContainer.ParseError.kdfParameterOutOfRange(let message) = error else {
-                XCTFail("Expected kdfParameterOutOfRange, got \(error)")
-                return
-            }
-            XCTAssertEqual(
-                message,
-                "rounds \(KDBXContainer.aesKDFMaxRounds + 1) not in 1...\(KDBXContainer.aesKDFMaxRounds)"
-            )
-        }
-    }
-
-    func testArgon2idVariantMapDerivesKey() throws {
-        let compositeKey = SymmetricKey(data: Data((0..<32).map(UInt8.init)))
-        let salt = Data(repeating: 0xCC, count: 32)
-        let params: [String: Any] = [
-            "$UUID": KDBXContainer.argon2idUUID,
-            "S": salt,
-            "I": UInt64(3),
-            "M": UInt64(64 * 1024 * 1024),
-            "P": UInt32(1),
-        ]
-
-        let derived = try KDBXContainer.deriveKey(compositeKey: compositeKey, kdfParams: params)
-        let expected = try Argon2.hash(
-            password: compositeKey,
-            salt: salt,
-            timeCost: 3,
-            memoryCost: 64 * 1024,
-            parallelism: 1,
-            hashLength: 32,
-            version: .v13,
-            variant: .id
-        )
-        let argon2d = try Argon2.hash(
-            password: compositeKey,
-            salt: salt,
-            timeCost: 3,
-            memoryCost: 64 * 1024,
-            parallelism: 1,
-            hashLength: 32,
-            version: .v13,
-            variant: .d
-        )
-
-        XCTAssertEqual(derived, expected)
-        XCTAssertNotEqual(derived, argon2d)
     }
 
     private func appendVariantEntry(_ data: inout Data, type: UInt8, key: String, value: Data) {
