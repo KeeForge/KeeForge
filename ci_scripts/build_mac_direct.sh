@@ -974,19 +974,4 @@ echo "Version/build:                ${SHORT_VERSION}/${BUILD_NUMBER}"
 echo "Archive:                      ${ARCHIVE_PATH}"
 echo "Symbols:                      ${ARCHIVE_PATH}/dSYMs"
 echo
-echo "Appcast entry for ${BUILT_FEED_URL} — paste into <channel>, newest first:"
-echo
-cat <<APPCAST_ITEM
-        <item>
-            <title>${SHORT_VERSION}</title>
-            <sparkle:version>${BUILD_NUMBER}</sparkle:version>
-            <sparkle:shortVersionString>${SHORT_VERSION}</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>${MIN_SYSTEM}</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://github.com/KeeForge/KeeForge/releases/tag/v${SHORT_VERSION}</sparkle:releaseNotesLink>
-            <enclosure url="https://github.com/KeeForge/KeeForge/releases/download/v${SHORT_VERSION}/${ZIP_FILENAME}"
-                       ${SIGNATURE_ATTRS}
-                       type="application/octet-stream" />
-        </item>
-APPCAST_ITEM
-echo
 echo "Stage the appcast and hand off the draft GitHub Release with ci_scripts/release_direct_artifact.sh."

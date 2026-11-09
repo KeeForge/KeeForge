@@ -2,7 +2,9 @@
 """Build a staged Sparkle appcast without publishing it.
 
 The input item is the non-secret JSON emitted by build_mac_direct.sh. Existing
-items are retained and the new item is inserted first. This intentionally uses
+items are retained and the new item is inserted first. The new item's release
+notes are the version's CHANGELOG.md section, embedded as Markdown so Sparkle
+renders them natively instead of loading a web page. This intentionally uses
 the standard library so fixture runs never need the Sparkle toolchain or a
 network connection.
 """
@@ -43,6 +45,19 @@ def parse_attrs(raw: str) -> dict[str, str]:
     return attrs
 
 
+def release_notes(changelog: str, version: str) -> str:
+    heading = re.compile(rf"^## v{re.escape(version)}(?: \(.*\))?$")
+    lines = changelog.splitlines()
+    start = next((index for index, line in enumerate(lines) if heading.match(line)), None)
+    if start is None:
+        raise ValueError(f"changelog has no '## v{version}' section")
+    end = next((index for index in range(start + 1, len(lines)) if lines[index].startswith("## ")), len(lines))
+    notes = "\n".join(lines[start + 1 : end]).strip()
+    if not notes:
+        raise ValueError(f"changelog section for v{version} is empty")
+    return notes + "\n"
+
+
 def load_root(path: Path) -> ET.Element:
     if not path.exists():
         rss = ET.Element("rss", {"version": "2.0"})
@@ -58,6 +73,7 @@ def main() -> int:
     parser.add_argument("--artifact-json", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--input", type=Path, help="Existing appcast; omitted means a new feed")
+    parser.add_argument("--changelog", required=True, type=Path, help="CHANGELOG.md at the release commit")
     args = parser.parse_args()
 
     artifact = json.loads(args.artifact_json.read_text(encoding="utf-8"))
@@ -94,6 +110,7 @@ def main() -> int:
     expected_filename = f"KeeForge-{version}-b{build}.zip"
     if filename != expected_filename:
         raise ValueError(f"zipFilename must be {expected_filename}")
+    notes = release_notes(args.changelog.read_text(encoding="utf-8"), version)
     root = load_root(args.input) if args.input else load_root(Path("/nonexistent"))
     channel = root.find("channel")
     if channel is None:
@@ -114,7 +131,8 @@ def main() -> int:
     minimum = str(artifact["minimumSystemVersion"])
     if minimum:
         text(item, "minimumSystemVersion", minimum)
-    text(item, "releaseNotesLink", f"https://github.com/KeeForge/KeeForge/releases/tag/v{version}")
+    description = ET.SubElement(item, "description", {qname(SPARKLE_NS, "format"): "markdown"})
+    description.text = notes
     enclosure = ET.SubElement(
         item,
         "enclosure",

@@ -12,6 +12,7 @@
 - On iPhone and iPad, cancelling the Face ID or Touch ID prompt that opens a database by itself now shows the unlock page, so you can enter the password or try again. Before, KeeForge kept showing the opening screen until you swiped it away (#268).
 - On iPhone and iPad, KeeForge stays covered during a screen recording, mirroring, or AirPlay after you close Control Center or return to the app. Before, coming back to the app removed the cover while the recording kept running, and a recording started before opening KeeForge was never covered.
 - In AutoFill, a search that matches none of the possible matches no longer leaves an empty "Possible matches" heading.
+- In the Mac app downloaded from the website, the update window shows the release notes instead of a GitHub page.
 
 ### Changes
 
