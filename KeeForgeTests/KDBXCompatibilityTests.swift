@@ -314,8 +314,8 @@ final class KDBXCompatibilityTests: XCTestCase {
         try KDBXCompatibilitySupport.assertLegacyFixtureIsReadOnly(bundle: bundle)
     }
 
-    /// The three master-key-change scenarios: change the password, add a key
-    /// file, and remove a key file. `Scenario.apply` already pins that the old
+    /// The master-key-change scenarios: change the password, add an existing
+    /// or a newly created key file, and remove a key file. `Scenario.apply` already pins that the old
     /// composite key fails the header HMAC and that the tree survives
     /// unchanged; this method adds the header hygiene — cipher, KDF identity,
     /// and cost parameters preserved, master seed and KDF salt rotated.
@@ -339,6 +339,17 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertNotNil(
             addKeyfileResult.rekey?.keyFileData,
             "The add-keyfile scenario must record key-file bytes for the external gate"
+        )
+
+        let addGeneratedKeyfile = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: bundle)
+        let addGeneratedKeyfileResult = try collector.run(
+            KDBXCompatibilitySupport.rekeyAddGeneratedKeyfileScenario(),
+            on: addGeneratedKeyfile
+        )
+        try assertRekeyHeaderHygiene(addGeneratedKeyfileResult, loaded: addGeneratedKeyfile)
+        XCTAssertNotNil(
+            addGeneratedKeyfileResult.rekey?.keyFileData,
+            "The add-generated-keyfile scenario must record key-file bytes for the external gate"
         )
 
         let removeKeyfile = try KDBXCompatibilitySupport.load(.passwordKeyfile, bundle: bundle)
@@ -834,6 +845,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             "\(richID)-merge-remote-divergence",
             "aes-baseline-rekey-password-only",
             "aes-baseline-rekey-add-keyfile",
+            "aes-baseline-rekey-add-generated-keyfile",
             "password-keyfile-rekey-remove-keyfile",
             "\(richID)-custom-field-edits",
             "\(richID)-rename-custom-icon",
@@ -861,7 +873,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 49)
+        XCTAssertEqual(descriptors.count, 50)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

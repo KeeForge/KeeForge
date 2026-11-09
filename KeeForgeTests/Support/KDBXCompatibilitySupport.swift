@@ -607,6 +607,7 @@ enum KDBXCompatibilitySupport {
         "merge-remote-divergence",
         "rekey-password-only",
         "rekey-add-keyfile",
+        "rekey-add-generated-keyfile",
         "rekey-remove-keyfile",
         "encryption-settings-chacha20-argon2id",
         "encryption-settings-aes256-keep-kdf",
@@ -708,6 +709,7 @@ enum KDBXCompatibilitySupport {
         // including its protected-value stream — was re-encrypted intact.
         table["rekey-password-only"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["rekey-add-keyfile"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
+        table["rekey-add-generated-keyfile"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["rekey-remove-keyfile"] = [fixtureEntryPasswords[Fixture.passwordKeyfile.id]!]
         // Re-encrypted under a new cipher and KDF, a pre-existing protected
         // value read back externally proves the payload survived intact.
@@ -843,6 +845,7 @@ enum KDBXCompatibilitySupport {
             "merge-remote-divergence",
             "rekey-password-only",
             "rekey-add-keyfile",
+            "rekey-add-generated-keyfile",
             "rekey-remove-keyfile",
             "encryption-settings-chacha20-argon2id",
             "encryption-settings-aes256-keep-kdf",
@@ -2154,6 +2157,34 @@ enum KDBXCompatibilitySupport {
         )
     }
 
+    /// `.aesBaseline` rekeyed to its existing password plus a key file from
+    /// `KeyFileGenerator`, so the gate proves KeePassXC accepts the key files
+    /// KeeForge creates.
+    static func rekeyAddGeneratedKeyfileScenario() -> Scenario {
+        Scenario(
+            id: "rekey-add-generated-keyfile",
+            title: "Add a newly created key file to the master key",
+            artifactFileName: "aes-baseline-rekey-add-generated-keyfile.kdbx",
+            expectedSearchTerms: ["Twitter"],
+            expectedGroupPaths: ["Social"],
+            rekey: { loaded in
+                let keyFileData = try KeyFileGenerator.makeKeyFile()
+                return RekeyTarget(
+                    compositeKey: try KDBXCrypto.compositeKey(
+                        password: loaded.fixture.password,
+                        keyFileData: keyFileData
+                    ),
+                    password: loaded.fixture.password,
+                    keyFileName: "aes-baseline-generated.\(KeyFileGenerator.fileExtension)",
+                    keyFileData: keyFileData
+                )
+            },
+            assertChange: { before, after, _ in
+                try assertWholeTreeUnchanged(before: before, after: after)
+            }
+        )
+    }
+
     /// `.passwordKeyfile` (password + key file) rekeyed to password only.
     static func rekeyRemoveKeyfileScenario() -> Scenario {
         Scenario(
@@ -2321,6 +2352,9 @@ enum KDBXCompatibilitySupport {
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .aesBaseline, scenario: rekeyAddKeyfileScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .aesBaseline, scenario: rekeyAddGeneratedKeyfileScenario())
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .passwordKeyfile, scenario: rekeyRemoveKeyfileScenario())

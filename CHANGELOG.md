@@ -5,6 +5,7 @@
 ### New Features
 
 - KeeForge for Mac can be installed with Homebrew: `brew install --cask keeforge/tap/keeforge` installs the direct-download build, which then updates itself (#254). See [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) for the one-time `brew trust` step.
+- Create Key File makes a new key file while you create a database or change its master key, so you no longer need another KeePass app for it. KeeForge saves it where you choose as a KeePass `.keyx` file, which KeePass and KeePassXC also open. Keep a copy somewhere safe: without the key file, the database can't be opened (#273).
 
 ### Fixes
 

@@ -13,6 +13,6 @@
 
 ## Tests
 
-- The app's test targets cover the package: `KDBXParserTests` (container read, KDF, Salsa20 and Argon2 known answers), `KDBXWriterTests` (container write), `ChaCha20Tests`, `TwofishTests`, `KeyFileProcessorTests`, `KDFExecutionPolicyTests`, `SecureWipeTests`, and the KeePassXC gate in `KDBXCompatibilityTests`.
+- The app's test targets cover the package: `KDBXParserTests` (container read, KDF, Salsa20 and Argon2 known answers), `KDBXWriterTests` (container write), `ChaCha20Tests`, `TwofishTests`, `KeyFileProcessorTests`, `KeyFileGeneratorTests`, `KDFExecutionPolicyTests`, `SecureWipeTests`, and the KeePassXC gate in `KDBXCompatibilityTests`.
 - Test targets import `KDBXKit` without linking it; the symbols come from the host app. Linking the package into a test bundle as well would load a second copy, and errors thrown by one copy would not match the other's types.
 - `swift build` in this folder checks that the package builds on its own.
