@@ -46,6 +46,24 @@ final class PasswordGeneratorTests: XCTestCase {
         XCTAssertEqual(password.count, 20)
     }
 
+    func testGenerateReachesMaximumSliderLengthWithEveryCharacterClass() {
+        XCTAssertEqual(PasswordGenerator.lengthRange, 8...128)
+        var generator = SeededGenerator(seed: 128)
+        let options = PasswordGenerator.Options(length: PasswordGenerator.lengthRange.upperBound)
+        let password = PasswordGenerator.generate(options: options, using: &generator)
+
+        XCTAssertEqual(password.count, 128)
+        XCTAssertTrue(password.contains(where: \.isUppercase))
+        XCTAssertTrue(password.contains(where: \.isLowercase))
+        XCTAssertTrue(password.contains(where: \.isNumber))
+        XCTAssertTrue(password.contains(where: { $0.isLetter == false && $0.isNumber == false }))
+        XCTAssertEqual(
+            PasswordGenerator.minimumEntropyBits(options: options),
+            128 * PasswordGenerator.minimumEntropyBits() / 20,
+            accuracy: 0.0001
+        )
+    }
+
     func testGenerateCharsetIncludesAppliesAllCharacterClasses() {
         var generator = SeededGenerator(seed: 42)
         let password = PasswordGenerator.generate(

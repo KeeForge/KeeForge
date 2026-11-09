@@ -5,6 +5,7 @@
 ### New Features
 
 - KeeForge for Mac can be installed with Homebrew: `brew install --cask keeforge/tap/keeforge` installs the direct-download build, which then updates itself (#254). See [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) for the one-time `brew trust` step.
+- The password generator creates passwords up to 128 characters long; before, the length slider stopped at 64 (#272).
 
 ### Fixes
 

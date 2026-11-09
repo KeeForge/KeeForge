@@ -106,6 +106,8 @@ final class ViewRenderTests: XCTestCase {
         var states: [(String, AnyView)] = []
         SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(length: 24)
         states.append(("Password, 24 characters", AnyView(PasswordGeneratorSheet(onUse: { _ in }))))
+        SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(length: PasswordGenerator.lengthRange.upperBound)
+        states.append(("Password, maximum length", AnyView(PasswordGeneratorSheet(onUse: { _ in }))))
         try renderScreens(states, named: "password-generator")
 
         SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(mode: .passphrase)
