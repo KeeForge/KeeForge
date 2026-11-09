@@ -1628,24 +1628,40 @@ final class EntryEditViewModelTests: XCTestCase {
     }
 
     /// KeePassXC stores a date on every entry and only `Expires` says whether
-    /// it counts, so a disabled date must not seed the picker: switching
-    /// expiration on would otherwise expire the entry on the spot.
-    func testEditingAnEntryWithADisabledDateStartsOffWithAFutureDate() {
+    /// it counts, so a disabled date must not seed the picker; the picker
+    /// starts at today's midnight instead, as in KeePass 2.x.
+    func testEditingAnEntryWithADisabledDateStartsAtTodaysMidnight() {
         let staleDate = Date(timeIntervalSince1970: 1_000)
+        let midnightBefore = Calendar.current.startOfDay(for: .now)
         let viewModel = EntryEditViewModel(
             editing: KPEntry(title: "Bank", expires: false, expiryTime: staleDate),
             sessionKey: sessionKey
         )
+        let midnightAfter = Calendar.current.startOfDay(for: .now)
 
         XCTAssertFalse(viewModel.expires)
-        XCTAssertGreaterThan(viewModel.expiryDate, .now)
+        XCTAssertTrue([midnightBefore, midnightAfter].contains(viewModel.expiryDate), "\(viewModel.expiryDate)")
         XCTAssertFalse(viewModel.isDirty)
         XCTAssertEqual(viewModel.entryDraftPayload.expiry, .never)
 
         viewModel.expires = true
 
         XCTAssertTrue(viewModel.isDirty)
-        XCTAssertFalse(viewModel.isExpiryDateInPast)
+        XCTAssertTrue(viewModel.isExpiryDateInPast, "Saved unchanged, the entry is expired")
+        XCTAssertEqual(viewModel.entryDraftPayload.expiry, .at(viewModel.expiryDate))
+    }
+
+    func testNewEntryExpiryStartsAtTodaysMidnight() {
+        let midnightBefore = Calendar.current.startOfDay(for: .now)
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        let midnightAfter = Calendar.current.startOfDay(for: .now)
+        XCTAssertEqual(viewModel.entryDraftPayload.expiry, .never)
+
+        viewModel.expires = true
+
+        XCTAssertTrue([midnightBefore, midnightAfter].contains(viewModel.expiryDate), "\(viewModel.expiryDate)")
+        XCTAssertTrue(viewModel.isExpiryDateInPast)
+        XCTAssertEqual(viewModel.entryDraftPayload.expiry, .at(viewModel.expiryDate))
     }
 
     func testTurningExpiryOffAndBackOnReturnsToTheSavedState() {
