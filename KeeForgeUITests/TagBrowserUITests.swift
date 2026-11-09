@@ -85,7 +85,7 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
     func testTaggedEntryCanReturnToManualLock() throws {
         unlockSuccessfully()
         try XCTSkipIf(
-            app.windows.firstMatch.frame.width >= 700,
+            usesRegularWidthLayout,
             "At regular width the workspace keeps Lock beside the entry"
         )
         openTaggedEntryFromTheTagBrowser()

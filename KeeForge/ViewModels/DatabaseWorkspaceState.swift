@@ -6,6 +6,9 @@ enum DatabaseRoute: Hashable, Sendable {
     case entry(UUID)
     case tag(String)
     case collection(DatabaseCollection)
+    /// The compact layout's `openEditor`, pushed like any other screen. A
+    /// destination outside the path would replace the path when it pops.
+    case editor
 }
 
 /// The database-wide lists the vault root's tiles open, in tile order.
@@ -82,11 +85,22 @@ final class DatabaseWorkspaceState {
         case deleteSelection
     }
 
+    /// An editor open over the vault on iPhone and iPad.
+    enum OpenEditor {
+        case entry(EntryEditViewModel)
+        case group(GroupEditViewModel)
+    }
+
     @ObservationIgnored var onInteraction: (() -> Void)?
 
+    /// The compact stack, or the regular sidebar's. The regular layout shows
+    /// entries in its detail column instead (`adaptNavigation`).
     var navigationPath: [DatabaseRoute] = [] {
         didSet { onInteraction?() }
     }
+    /// Owned here, not by the presenting view, so its unsaved changes survive
+    /// a layout change, which rebuilds every view.
+    private(set) var openEditor: OpenEditor?
     var selectedGroupID: UUID? {
         didSet {
             if oldValue != selectedGroupID {
@@ -185,11 +199,83 @@ final class DatabaseWorkspaceState {
     func resetNavigation() {
         navigationPath.removeAll()
         clearSelection()
+        closeEditor()
     }
 
     func resetForLock() {
         resetNavigation()
         isSearchActive = false
+    }
+
+    // MARK: - Editors
+
+    var entryEditor: EntryEditViewModel? {
+        if case .entry(let editor) = openEditor { editor } else { nil }
+    }
+
+    /// An editor already open keeps its unsaved work: the regular sidebar's
+    /// New and row menus stay reachable while it is up.
+    func present(_ editor: OpenEditor) {
+        guard openEditor == nil else { return }
+        openEditor = editor
+    }
+
+    func closeEditor() {
+        openEditor = nil
+        if navigationPath.contains(.editor) {
+            navigationPath.removeAll { $0 == .editor }
+        }
+    }
+
+    /// Ends the compact editor in one change to the path: a created entry
+    /// replaces it, and a delete pops the deleted entry's screen with it. Two
+    /// separate navigation changes in a row get dropped on iOS 26.
+    func finishCompactEntryEditor(_ completion: EntryEditCompletion) {
+        let editor = entryEditor
+        openEditor = nil
+        var path = navigationPath
+        guard path.last == .editor else {
+            closeEditor()
+            return
+        }
+        path.removeLast()
+        switch completion {
+        case .created(let entryID):
+            path.append(.entry(entryID))
+        case .deleted:
+            if case .edit(let entryID) = editor?.mode, path.last == .entry(entryID) {
+                path.removeLast()
+            }
+        case .saved, .cancelled:
+            break
+        }
+        navigationPath = path
+    }
+
+    // MARK: - Layout changes
+
+    /// Carries navigation across a compact ↔ regular switch (iPhone Duo
+    /// opening or closing, an iPad window resizing). The regular layout shows
+    /// the entry and the editor in its detail column, so its sidebar path
+    /// holds neither.
+    func adaptNavigation(toRegularLayout regular: Bool) {
+        if regular {
+            navigationPath.removeAll { $0 == .editor }
+            if case .entry(let entryID) = navigationPath.last {
+                selectedEntryID = entryID
+            } else {
+                selectedEntryID = nil
+            }
+            navigationPath.removeAll { if case .entry = $0 { true } else { false } }
+        } else {
+            if let entryID = selectedEntryID {
+                navigationPath.append(.entry(entryID))
+                selectedEntryID = nil
+            }
+            if openEditor != nil {
+                navigationPath.append(.editor)
+            }
+        }
     }
 
     func reconcileSelection(
