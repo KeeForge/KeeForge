@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 final class AttachmentTests: XCTestCase {
@@ -105,8 +106,8 @@ final class AttachmentTests: XCTestCase {
             rootGroup: root,
             meta: meta,
             compositeKey: compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: KDBXParser.aesCipherUUID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipher: .aes256CBC,
                 kdfParameters: KDBXCompatibilitySupport.fastArgon2idParameters(),
                 innerHeaderBinaryFields: [protectedBinary, plainBinary]
             ),
@@ -431,7 +432,7 @@ final class AttachmentTests: XCTestCase {
             XCTAssertEqual(error as? DatabaseDraft.DraftError, .attachmentsTooLarge)
         }
         let filled = try XCTUnwrap(adding(byteCount: room).binaryPoolFields)
-        XCTAssertEqual(Self.innerHeaderByteCount(of: filled), KDBXCrypto.maxDecompressedSize)
+        XCTAssertEqual(Self.innerHeaderByteCount(of: filled), KDBXContainer.maxDecompressedPayloadSize)
     }
 
     func test_addingFiles_countsThePoolEntriesOfAttachmentsAlreadyRemoved() throws {
@@ -463,7 +464,7 @@ final class AttachmentTests: XCTestCase {
         }
         let filled = try XCTUnwrap(addingSecond(byteCount: room).binaryPoolFields)
         XCTAssertEqual(filled.count, 3)
-        XCTAssertEqual(Self.innerHeaderByteCount(of: filled), KDBXCrypto.maxDecompressedSize)
+        XCTAssertEqual(Self.innerHeaderByteCount(of: filled), KDBXContainer.maxDecompressedPayloadSize)
     }
 
     /// The bytes `pool` occupies in the inner header: each field's one-byte
@@ -475,13 +476,13 @@ final class AttachmentTests: XCTestCase {
     /// The largest file `pool` can still take; a pool entry is the file's
     /// bytes behind one flag byte.
     private static func roomForOneMoreFile(in pool: [Data]) -> Int {
-        KDBXCrypto.maxDecompressedSize - innerHeaderByteCount(of: pool) - 5 - 1
+        KDBXContainer.maxDecompressedPayloadSize - innerHeaderByteCount(of: pool) - 5 - 1
     }
 
     private struct EditableFixture {
         let rootGroup: KPGroup
         let meta: KPMeta
-        let header: KDBXParser.Header
+        let header: KDBXContainer.Header
         let compositeKey: SymmetricKey
         let sessionKey: SymmetricKey
 
@@ -498,7 +499,7 @@ final class AttachmentTests: XCTestCase {
             )
         }
 
-        func writeAndReparse(_ draft: DatabaseDraft) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header) {
+        func writeAndReparse(_ draft: DatabaseDraft) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header) {
             let data = try draft.write(compositeKey: compositeKey, header: header, kdfPolicy: .mainApp)
             return try KDBXParser.parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
         }
@@ -551,8 +552,8 @@ final class AttachmentTests: XCTestCase {
             rootGroup: root,
             meta: meta,
             compositeKey: compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: KDBXParser.aesCipherUUID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipher: .aes256CBC,
                 kdfParameters: KDBXCompatibilitySupport.fastArgon2idParameters(),
                 innerHeaderBinaryFields: [Data([0x00]) + Data("alpha-bytes".utf8)]
             ),
@@ -590,8 +591,8 @@ final class AttachmentTests: XCTestCase {
             rootGroup: root,
             meta: meta,
             compositeKey: compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: KDBXParser.aesCipherUUID,
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(
+                cipher: .aes256CBC,
                 kdfParameters: KDBXCompatibilitySupport.fastArgon2idParameters()
             ),
             sessionKey: sessionKey

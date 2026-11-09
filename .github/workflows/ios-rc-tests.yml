@@ -11,7 +11,11 @@ name: iOS RC tests
 # gets a latest-runtime verdict once the allowance is spent. The schemes
 # select their own tests (ci_scripts/AGENTS.md, "Xcode Cloud test
 # partition"). The extra iPad lane runs the two regular-width UI classes,
-# which XCTSkip on every compact-width device.
+# which XCTSkip on every compact-width device. The iPhone Duo lane boots
+# closed, on its 466pt outer display; no simulator can open it from a test,
+# so LayoutSwitchUITests switches layouts in-app on both extra lanes. The
+# outer display puts navigation bars down the side, which the shared helpers
+# (Back, search) do not find yet, so the Duo lane runs that class alone.
 
 on:
   workflow_call:
@@ -38,7 +42,10 @@ jobs:
         include:
           - scheme: KeeForge
             device: { name: 'iPad (A16)', slug: ipad-a16 }
-            only-testing: KeeForgeUITests/DatabaseCreationRegularWidthUITests KeeForgeUITests/RegularWidthWorkspaceUITests
+            only-testing: KeeForgeUITests/DatabaseCreationRegularWidthUITests KeeForgeUITests/RegularWidthWorkspaceUITests KeeForgeUITests/LayoutSwitchUITests
+          - scheme: KeeForge
+            device: { name: 'iPhone Duo', slug: iphone-duo }
+            only-testing: KeeForgeUITests/LayoutSwitchUITests
     name: ${{ matrix.scheme }} (${{ matrix.device.name }})
     env:
       SCHEME: ${{ matrix.scheme }}

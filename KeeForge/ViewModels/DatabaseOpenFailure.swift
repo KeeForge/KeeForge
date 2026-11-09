@@ -1,5 +1,6 @@
 import Foundation
 import LocalAuthentication
+import KDBXKit
 #if os(iOS)
 import UIKit
 #endif
@@ -54,7 +55,7 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
 
         if let encryptedData {
             lines.append("Encrypted File Bytes: \(encryptedData.count)")
-            lines.append("Encrypted File SHA-256 Prefix: \(String(KDBXCrypto.sha256(encryptedData).hexString.prefix(16)))")
+            lines.append("Encrypted File SHA-256 Prefix: \(String(FileDigest.sha256(encryptedData).hexString.prefix(16)))")
             lines.append("KDBX Header: \(headerSummary(for: encryptedData))")
         } else {
             lines.append("Encrypted File Bytes: unavailable")
@@ -114,35 +115,24 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
 
     private static func headerSummary(for data: Data) -> String {
         do {
-            let version = try KDBXParser.parseFileVersion(from: data)
-            switch version {
-            case .kdbx3_1:
-                let header = try KDBXParser.parseKDBX3Header(from: data)
-                return [
-                    "version=\(formatVersionDescription(header.formatVersion))",
-                    "cipher=\(cipherDescription(header.cipherID))",
-                    "compression=\(compressionDescription(header.compressionFlags))",
-                    "kdf=AES-KDF rounds=\(header.transformRounds)",
-                    "protectedStream=\(protectedStreamDescription(header.innerRandomStreamID))",
-                ].joined(separator: ", ")
-            case .kdbx4:
-                var reader = DataReader(data: data)
-                let parsedVersion = try KDBXParser.parseVersion(from: &reader)
-                let header = try KDBXParser.parseHeader(&reader)
-                return [
-                    "version=\(formatVersionDescription(parsedVersion))",
-                    "cipher=\(cipherDescription(header.cipherID))",
-                    "compression=\(compressionDescription(header.compressionFlags))",
-                    "kdf=\(kdfDescription(header.kdfParameters))",
-                    "protectedStream=unavailable",
-                ].joined(separator: ", ")
-            }
+            let header = try KDBXContainer.readHeader(from: data)
+            // KDBX 4 keeps the protected stream in the encrypted inner header.
+            let protectedStream = header.formatVersion == .kdbx3_1
+                ? protectedStreamDescription(header.innerStreamID)
+                : "unavailable"
+            return [
+                "version=\(formatVersionDescription(header.formatVersion))",
+                "cipher=\(cipherDescription(header.cipherID))",
+                "compression=\(compressionDescription(header.compressionFlags))",
+                "kdf=\(kdfDescription(header.keyDerivation))",
+                "protectedStream=\(protectedStream)",
+            ].joined(separator: ", ")
         } catch {
             return "unavailable (\(DatabaseOpenFailure.sanitized(error.localizedDescription)))"
         }
     }
 
-    private static func formatVersionDescription(_ version: KDBXParser.FileVersion) -> String {
+    private static func formatVersionDescription(_ version: KDBXContainer.FileVersion) -> String {
         switch version {
         case .kdbx3_1:
             return "KDBX 3.1"
@@ -166,37 +156,26 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
         }
     }
 
-    private static func kdfDescription(_ parameters: [String: Any]) -> String {
-        guard let uuidData = parameters["$UUID"] as? Data else {
-            return "unknown"
+    private static func kdfDescription(_ keyDerivation: KDBXKeyDerivation?) -> String {
+        switch keyDerivation {
+        case .aesKDF(let rounds, _)?:
+            "AES-KDF rounds=\(rounds)"
+        case .argon2(let parameters)?:
+            "\(parameters.variant == .id ? "Argon2id" : "Argon2d") iterations=\(parameters.iterations) memoryBytes=\(parameters.memoryBytes) parallelism=\(parameters.parallelism) version=\(parameters.version)"
+        case nil:
+            "unknown"
         }
-
-        if uuidData == KDBXParser.aesKDFUUID {
-            let rounds = (parameters["R"] as? UInt64) ?? 0
-            return "AES-KDF rounds=\(rounds)"
-        }
-
-        if uuidData == KDBXParser.argon2dUUID || uuidData == KDBXParser.argon2idUUID {
-            let name = uuidData == KDBXParser.argon2idUUID ? "Argon2id" : "Argon2d"
-            let iterations = (parameters["I"] as? UInt64) ?? 3
-            let memoryBytes = (parameters["M"] as? UInt64) ?? (64 * 1024 * 1024)
-            let parallelism = (parameters["P"] as? UInt32) ?? 1
-            let version = (parameters["V"] as? UInt32).map { " version=\($0)" } ?? ""
-            return "\(name) iterations=\(iterations) memoryBytes=\(memoryBytes) parallelism=\(parallelism)\(version)"
-        }
-
-        return "unknown"
     }
 
     private static func protectedStreamDescription(_ streamID: UInt32) -> String {
         switch streamID {
-        case KDBXParser.innerStreamNone:
+        case KDBXInnerStream.Algorithm.unprotected.rawValue:
             return "none(0)"
-        case KDBXParser.innerStreamArcFourVariant:
+        case KDBXInnerStream.Algorithm.arcFourVariant.rawValue:
             return "ArcFourVariant(1)"
-        case KDBXParser.innerStreamSalsa20:
+        case KDBXInnerStream.Algorithm.salsa20.rawValue:
             return "Salsa20(2)"
-        case KDBXParser.innerStreamChaCha20:
+        case KDBXInnerStream.Algorithm.chaCha20.rawValue:
             return "ChaCha20(3)"
         default:
             return "unknown(\(streamID))"
@@ -356,7 +335,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             return fromCloudError(cloudError).attaching(diagnostics)
         }
 
-        if let keyFileError = error as? KeyFileProcessor.KeyFileError {
+        if let keyFileError = error as? KDBXKeyFile.KeyFileError {
             return fromKeyFileError(keyFileError).attaching(diagnostics)
         }
 
@@ -368,8 +347,12 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             return fromCryptoError(cryptoError, hardwareKeyContext: hardwareKeyContext).attaching(diagnostics)
         }
 
-        if let parseError = error as? KDBXParser.ParseError {
+        if let parseError = error as? KDBXContainer.ParseError {
             return fromParseError(parseError, hardwareKeyContext: hardwareKeyContext).attaching(diagnostics)
+        }
+
+        if error is KDBXXMLParseError {
+            return parseFailed(error).attaching(diagnostics)
         }
 
         if let biometricFailure = fromBiometricError(error) {
@@ -402,7 +385,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         return copy
     }
 
-    private static func fromKeyFileError(_ error: KeyFileProcessor.KeyFileError) -> DatabaseOpenFailure {
+    private static func fromKeyFileError(_ error: KDBXKeyFile.KeyFileError) -> DatabaseOpenFailure {
         let errorCode: String
         switch error {
         case .emptyKeyFile:
@@ -533,7 +516,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
     }
 
     private static func fromParseError(
-        _ error: KDBXParser.ParseError,
+        _ error: KDBXContainer.ParseError,
         hardwareKeyContext: HardwareKeyContext
     ) -> DatabaseOpenFailure {
         switch error {
@@ -580,16 +563,20 @@ struct DatabaseOpenFailure: Equatable, Sendable {
                 canChooseDifferentFile: true
             )
         default:
-            return DatabaseOpenFailure(
-                title: String(localized: "Couldn't Open Database"),
-                summary: String(localized: "KeeForge couldn't finish reading this database file."),
-                technicalDetails: technicalDetails(for: error),
-                errorCode: "open.parse_failed",
-                category: .unexpected,
-                countsTowardFailedAttempts: false,
-                canChooseDifferentFile: true
-            )
+            return parseFailed(error)
         }
+    }
+
+    private static func parseFailed(_ error: Error) -> DatabaseOpenFailure {
+        DatabaseOpenFailure(
+            title: String(localized: "Couldn't Open Database"),
+            summary: String(localized: "KeeForge couldn't finish reading this database file."),
+            technicalDetails: technicalDetails(for: error),
+            errorCode: "open.parse_failed",
+            category: .unexpected,
+            countsTowardFailedAttempts: false,
+            canChooseDifferentFile: true
+        )
     }
 
     private static func fromCloudError(_ error: CloudProviderError) -> DatabaseOpenFailure {

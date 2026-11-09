@@ -1,4 +1,5 @@
 import Foundation
+import KDBXKit
 
 struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
     let id: UUID

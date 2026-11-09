@@ -2,6 +2,7 @@ import AuthenticationServices
 import CryptoKit
 import LocalAuthentication
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// The manual cloud sync policy as the unlocked session sees it: the skipped
@@ -129,7 +130,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         )
         await fulfillment(of: [republished], timeout: 10)
         XCTAssertFalse(vm.isCloudRefreshPending)
-        XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(newerData))
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(newerData))
         XCTAssertNotEqual(entryTitles(in: vm), titlesBefore)
         XCTAssertNil(vm.workspace.selectedEntryID, "Selection must not point into the replaced tree")
         XCTAssertEqual(vm.state, .unlocked)
@@ -237,7 +238,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
 
         XCTAssertEqual(vm.cloudSyncOutcome, .updateWaitsForSave)
         XCTAssertTrue(vm.rootGroup === rootBefore)
-        XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(openedData), "The save must compare against what was opened")
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(openedData), "The save must compare against what was opened")
         XCTAssertFalse(vm.isCloudRefreshPending)
         XCTAssertFalse(vm.isSyncingCloud)
     }
@@ -274,7 +275,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
     func testSyncNowDoesNotRollBackASaveThatFinishedMidSync() async throws {
         let openedData = try fixtureData()
         let savedData = try fixtureData(named: "kitchen-sink")
-        let savedSHA512 = KDBXCrypto.sha512(savedData)
+        let savedSHA512 = FileDigest.sha512(savedData)
         let gate = SaveGate()
         let refreshRecorder = RefreshRecorder()
         let vm = makeViewModel(
@@ -342,13 +343,13 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         try await vm.save()
         XCTAssertNil(vm.saveConflict)
         let savedData = remote.currentBytes
-        XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(savedData))
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(savedData))
         await gate.open()
         await syncTask.value
 
         XCTAssertEqual(vm.cloudSyncOutcome, .upToDate)
         XCTAssertTrue(entryTitles(in: vm).contains("Saved Mid-Sync"))
-        XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(savedData))
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(savedData))
         XCTAssertEqual(try Data(contentsOf: cacheURL), savedData, "The stale download must not replace the saved cache")
         XCTAssertEqual(vm.state, .unlocked)
 
@@ -368,7 +369,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
     func testSyncNowWaitsOutASaveStillInFlightWhenItsResponseArrives() async throws {
         let openedData = try fixtureData()
         let savedData = try fixtureData(named: "kitchen-sink")
-        let savedSHA512 = KDBXCrypto.sha512(savedData)
+        let savedSHA512 = FileDigest.sha512(savedData)
         let refreshGate = SaveGate()
         let saveGate = SaveGate()
         let refreshRecorder = RefreshRecorder()
@@ -523,7 +524,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
 
         XCTAssertEqual(vm.cloudSyncOutcome, .updateWaitsForUnlock)
         XCTAssertTrue(vm.rootGroup === rootBefore)
-        XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(openedData))
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(openedData))
         XCTAssertEqual(vm.state, .unlocked)
         XCTAssertFalse(vm.isCloudRefreshPending)
     }

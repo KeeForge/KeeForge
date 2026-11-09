@@ -2,6 +2,7 @@ import CryptoKit
 import LocalAuthentication
 import Security
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// `ExpressUnlock` must open exactly what the KDF path opens, and only offer a
@@ -86,9 +87,7 @@ final class ExpressUnlockTests: XCTestCase {
             data: data, compositeKey: compositeKey, cachedKey: nil, sessionKey: sessionKey, kdfPolicy: .mainApp
         )
 
-        let expected = try KDBXParser.deriveKey(
-            compositeKey: compositeKey, kdfParams: header.kdfParameters, kdfPolicy: .mainApp
-        )
+        let expected = try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: header.kdfParameters, policy: .mainApp)
         let stored = try XCTUnwrap(opened.keyToStore)
         XCTAssertEqual(stored.transformedKey.withUnsafeBytes { Data($0) }, expected)
     }
@@ -216,13 +215,13 @@ final class ExpressUnlockTests: XCTestCase {
         ))
         XCTAssertTrue(key.matches(kdfParameters: parameters, compositeKey: compositeKey))
 
-        let variants: [String: Any] = [
-            "S": Data(repeating: 8, count: 32),
-            "I": UInt64(11),
-            "M": UInt64(32 << 20),
-            "P": UInt32(1),
-            "V": UInt32(0x10),
-            "$UUID": KDBXParser.argon2dUUID,
+        let variants: [String: KDBXVariantMap.Value] = [
+            "S": .bytes(Data(repeating: 8, count: 32)),
+            "I": .uint64(11),
+            "M": .uint64(32 << 20),
+            "P": .uint32(1),
+            "V": .uint32(0x10),
+            "$UUID": .bytes(KDBXKeyDerivation.Algorithm.argon2d.uuid),
         ]
         for (name, value) in variants {
             var changed = parameters
@@ -231,24 +230,28 @@ final class ExpressUnlockTests: XCTestCase {
         }
 
         var extra = parameters
-        extra["K"] = Data([1])
+        extra["K"] = .bytes(Data([1]))
         XCTAssertFalse(key.matches(kdfParameters: extra, compositeKey: compositeKey), "An added parameter must invalidate")
 
         var retyped = parameters
-        retyped["I"] = UInt32(10)
+        retyped["I"] = .uint32(10)
         XCTAssertFalse(key.matches(kdfParameters: retyped, compositeKey: compositeKey), "The value type is bound too")
     }
 
-    func testParametersTheBindingCannotEncodeAreNeverCached() {
+    func testUnknownParameterTypesAreBoundByTypeAndBytes() throws {
         let compositeKey = KDBXCrypto.compositeKey(password: "binding")
-        let parameters: [String: Any] = ["$UUID": KDBXParser.argon2idUUID, "X": Double(1)]
-
-        XCTAssertNil(ExpressUnlockKey.binding(kdfParameters: parameters, compositeKey: compositeKey))
-        XCTAssertNil(ExpressUnlockKey(
+        var parameters = try DatabaseCreationDefaults.argon2idKDFParameters(salt: Data(repeating: 7, count: 32))
+        parameters["X"] = .unknown(type: 0x99, data: Data([1, 2]))
+        let key = try XCTUnwrap(ExpressUnlockKey(
             transformedKey: Data(repeating: 1, count: 32), kdfParameters: parameters, compositeKey: compositeKey
         ))
-        let key = ExpressUnlockKey(binding: Data(count: 32), transformedKey: SymmetricKey(size: .bits256))
-        XCTAssertFalse(key.matches(kdfParameters: parameters, compositeKey: compositeKey))
+        XCTAssertTrue(key.matches(kdfParameters: parameters, compositeKey: compositeKey))
+
+        for changed: KDBXVariantMap.Value in [.unknown(type: 0x98, data: Data([1, 2])), .unknown(type: 0x99, data: Data([1, 3]))] {
+            var variant = parameters
+            variant["X"] = changed
+            XCTAssertFalse(key.matches(kdfParameters: variant, compositeKey: compositeKey))
+        }
     }
 
     func testOnlyAFullLengthKeyIsCached() throws {
@@ -300,13 +303,13 @@ final class ExpressUnlockTests: XCTestCase {
 
         XCTAssertEqual(derivations.count, 1, "The save's own KDF run is the key; no second run")
         let savedHeader = try header(of: written.data)
-        XCTAssertNotEqual(savedHeader.kdfParameters["S"] as? Data, parsed.header.kdfParameters["S"] as? Data)
+        XCTAssertNotEqual(savedHeader.kdfParameters.bytes("S"), parsed.header.kdfParameters.bytes("S"))
         let expressKey = try XCTUnwrap(written.expressKey)
         XCTAssertTrue(expressKey.matches(kdfParameters: savedHeader.kdfParameters, compositeKey: compositeKey))
         XCTAssertFalse(expressKey.matches(kdfParameters: parsed.header.kdfParameters, compositeKey: compositeKey))
         XCTAssertEqual(
             expressKey.transformedKey.withUnsafeBytes { Data($0) },
-            try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: savedHeader.kdfParameters, kdfPolicy: .mainApp)
+            try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: savedHeader.kdfParameters, policy: .mainApp)
         )
 
         let reopened = try ExpressUnlock.parse(
@@ -424,16 +427,14 @@ final class ExpressUnlockTests: XCTestCase {
         try KDBXCrypto.compositeKey(password: fixture.password, keyFileData: nil)
     }
 
-    private func header(of data: Data) throws -> KDBXParser.Header {
-        var reader = DataReader(data: data)
-        _ = try KDBXParser.parseVersion(from: &reader)
-        return try KDBXParser.parseHeader(&reader)
+    private func header(of data: Data) throws -> KDBXContainer.Header {
+        try KDBXContainer.readHeader(from: data)
     }
 
     private func resave(
         _ data: Data,
         compositeKey: SymmetricKey,
-        kdfParameters: [String: Any]? = nil
+        kdfParameters: KDBXVariantMap? = nil
     ) throws -> Data {
         let parsed = try KDBXParser.parseWithMetaAndHeader(
             data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: .mainApp
@@ -446,7 +447,7 @@ final class ExpressUnlockTests: XCTestCase {
         }
         return try KDBXWriter.write(
             rootGroup: parsed.rootGroup, meta: parsed.meta, compositeKey: compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(cipherID: parsed.header.cipherID, kdfParameters: kdfParameters),
+            freshHeader: KDBXContainerWriter.FreshHeaderConfiguration(cipher: XCTUnwrap(parsed.header.cipher), kdfParameters: kdfParameters),
             sessionKey: sessionKey, kdfPolicy: .mainApp
         )
     }
@@ -478,7 +479,7 @@ final class ExpressUnlockTests: XCTestCase {
                 draft: EntryDraftPayload(title: "Saved", password: "saved-secret")
             )
         )
-        return (draft, compositeKey, KDBXCrypto.sha512(data))
+        return (draft, compositeKey, FileDigest.sha512(data))
     }
 
     private func makeScratchCopy(of fixture: KDBXTestFixture) throws -> URL {
@@ -563,7 +564,7 @@ final class DerivationCounter: @unchecked Sendable {
     var derive: ExpressUnlock.KeyDerivation {
         { [self] compositeKey, kdfParameters, kdfPolicy in
             lock.withLock { runs += 1 }
-            return try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: kdfParameters, kdfPolicy: kdfPolicy)
+            return try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: kdfParameters, policy: kdfPolicy)
         }
     }
 }
@@ -976,10 +977,8 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
         ).keyToStore)
     }
 
-    private func header(of data: Data) throws -> KDBXParser.Header {
-        var reader = DataReader(data: data)
-        _ = try KDBXParser.parseVersion(from: &reader)
-        return try KDBXParser.parseHeader(&reader)
+    private func header(of data: Data) throws -> KDBXContainer.Header {
+        try KDBXContainer.readHeader(from: data)
     }
 
     private func resave(_ data: Data, compositeKey: SymmetricKey) throws -> Data {

@@ -16,7 +16,10 @@
 
 <p align="center">
   <a href="https://apps.apple.com/us/app/keeforge/id6759309295">
-    <img alt="Im App Store laden" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
+    <img alt="Für iPhone, iPad oder Mac im App Store laden" src="https://img.shields.io/badge/App%20Store-iPhone%2C%20iPad%20%26%20Mac-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
+  </a>
+  <a href="https://github.com/KeeForge/KeeForge/releases/latest">
+    <img alt="KeeForge direkt für Mac laden" src="https://img.shields.io/badge/Mac-Direct%20Download-24292F?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
     <img alt="Der Beta für iPhone, iPad und Mac über TestFlight beitreten" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
@@ -111,7 +114,9 @@ Außer dieser README und [`CONTRIBUTING.de.md`](CONTRIBUTING.de.md) wird die Ent
 
 ## Support
 
-- App Store: [KeeForge im App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
+- App Store (iPhone, iPad und Mac): [KeeForge im App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
+- Direkter Download für Mac: [neueste Version auf GitHub](https://github.com/KeeForge/KeeForge/releases/latest)
+- Homebrew (Mac): [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) installiert die Version zum direkten Download
 - E-Mail: [support@keeforge.com](mailto:support@keeforge.com)
 - Issues: [GitHub Issues](https://github.com/KeeForge/KeeForge/issues)
 

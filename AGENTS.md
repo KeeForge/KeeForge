@@ -30,7 +30,7 @@ Before changing a folder, read its `AGENTS.md` and each parent's up to this file
 - Use `@Observable`, not `ObservableObject` / `@Published`.
 - Use `NavigationStack` with typed routes, not `NavigationView`. Keep SwiftUI navigation objects out of shared view models.
 - Keep crypto, parsing, and secret handling off the main thread.
-- Treat these `KeeForge/Models/` files as stable core: `KDBXParser.swift`, `KDBX3Parser.swift`, `KDBXWriter.swift`, `KDBXXMLSerializer.swift`, `KDBXCrypto.swift`, `KDBXOuterCipher.swift`, `OpaqueXMLNodes.swift`, `DatabaseDraft.swift`, `EntryEdit.swift`, `Entry.swift`, `Group.swift`, `EncryptedValue.swift`, `TOTPGenerator.swift`. Change them only for real bugs or intentional format/security work, and add focused tests.
+- Treat the `Packages/KDBXKit` package (the KDBX container, crypto, and key files) and these `KeeForge/Models/` files as stable core: `KDBXParser.swift`, `KDBXWriter.swift`, `KDBXXMLSerializer.swift`, `OpaqueXMLNodes.swift`, `DatabaseDraft.swift`, `EntryEdit.swift`, `Entry.swift`, `Group.swift`, `EncryptedValue.swift`, `TOTPGenerator.swift`. Change them only for real bugs or intentional format/security work, and add focused tests.
 - No force unwraps outside tests.
 - Comment only what the code cannot say: a non-obvious constraint, a format or platform quirk, or the reason for a surprising choice. One short line, never a restatement, control-flow narration, or change history ("was X, now Y"); that belongs in the commit message.
 
@@ -49,12 +49,14 @@ Before changing a folder, read its `AGENTS.md` and each parent's up to this file
 
 - UI text uses Xcode String Catalogs (`.xcstrings`), source language `en`. Shipped locales: `en`, `de`, `fr`, `es`, `zh-Hans`, `zh-Hant`, `ja`, `it`, `ru`.
 - Reach user-facing strings via `String(localized:)` (or SwiftUI's automatic catalog lookup) — never hardcode display text. This includes `String` values a view renders, such as labels and captions returned by view models.
+- Translate recurring terms as [docs/i18n/glossary.md](docs/i18n/glossary.md) lists them, and follow its per-locale conventions (address form, quotes, punctuation). Add a term there when you introduce one that will recur.
 - Every English key needs a translation in each shipped locale. Run `LocalizationTests` after touching any catalog.
 - Xcode reserializes catalogs in its own canonical style, so after any programmatic edit run `swift scripts/normalize-xcstrings.swift` (no args = all catalogs; `--check` verifies) to avoid a large reordering diff.
 - The catalog file map is in `KeeForge/Resources/README.md`.
 - A new locale spans this repo and the website, and ships only when all of these are done:
   - All four catalogs are translated, with AutoFill keys matching the app's. `xcodegen generate` adds the locale to `knownRegions` from the catalogs.
   - `shippedTranslationLocales` in `LocalizationTests.swift` and every shipped-locale list in the docs name it (`git grep zh-Hant` finds them).
+  - `docs/i18n/glossary.md` has a column and a conventions row for it.
   - `docs/i18n/` has `README.<locale>.md` and `CONTRIBUTING.<locale>.md`, and the language switcher row in the root files and every translation links them.
   - The separate `keeforge.com` repo ships the locale in the same release, following the "Adding a locale" checklist in its README. That covers the pages, routing, Feedback Worker, and tests.
   - `CHANGELOG.md` notes the locale. App Store listing locales are a separate owner decision (`publish-app-store-version`).

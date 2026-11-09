@@ -6,7 +6,7 @@
 
 | When | Where | What runs |
 | --- | --- | --- |
-| Every pull request, any base branch | `workflows/tests.yml` | Jobs `unit-tests` (`KeeForgeTests`, iOS simulator) and `macos-unit-tests` (`KeeForgeMacTests`). Both are required status checks. No UI tests. |
+| Every pull request, any base branch | `workflows/tests.yml` | Jobs `unit-tests` (`KeeForgeTests`, iOS simulator) and `macos-unit-tests` (the KDBXKit package suite with its coverage floors, then `KeeForgeMacTests`). Both are required status checks. No UI tests. |
 | `rc/*` tag push | `workflows/tests.yml` | `macos-unit-tests` (full `KeeForgeMacTests`), plus `ios-rc-tests` (a call to `workflows/ios-rc-tests.yml`): the three Cloud test schemes on GitHub's `xcode-27` runner on iPhone 18 Pro and iPhone SE (3rd generation) at the newest usable iOS runtime, and the two regular-width UI classes on an iPad (A16). Seven jobs. No archives. `macos-unit-tests` and the iPad job are release gates (`githubMac`, `githubIPad` in the candidate manifest); the iPhone jobs are not. |
 | `rc/*` tag push | Xcode Cloud **Tests (RC)** | `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, `KeeForgeCloudUIB` on the latest runtime, plus the iOS and Mac App Store archives. |
 | Manual dispatch | `workflows/tests.yml` | The `rc/*` set against the `ref` input. |
@@ -26,7 +26,7 @@
 
 ## Verdict rule
 
-Every `tests.yml` job judges on `ci_scripts/validate_xcresult_summary.py`, not the `xcodebuild` exit code: the fresh `.xcresult` summary must report `result=Passed`, zero failures, and at least one executed test. Exit 65 is tolerated only after that check, because runners return it intermittently during teardown; any other nonzero exit fails.
+Every `tests.yml` Xcode run judges on `ci_scripts/validate_xcresult_summary.py`, not the `xcodebuild` exit code (the KDBXKit step, a plain `swift test`, judges on its exit status): the fresh `.xcresult` summary must report `result=Passed`, zero failures, and at least one executed test. Exit 65 is tolerated only after that check, because runners return it intermittently during teardown; any other nonzero exit fails.
 
 ## Branch rulesets
 

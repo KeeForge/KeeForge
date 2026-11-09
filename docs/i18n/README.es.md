@@ -16,7 +16,10 @@
 
 <p align="center">
   <a href="https://apps.apple.com/us/app/keeforge/id6759309295">
-    <img alt="Descargar en App Store" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
+    <img alt="Descargar para iPhone, iPad o Mac en la App Store" src="https://img.shields.io/badge/App%20Store-iPhone%2C%20iPad%20%26%20Mac-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
+  </a>
+  <a href="https://github.com/KeeForge/KeeForge/releases/latest">
+    <img alt="Descargar KeeForge directamente para Mac" src="https://img.shields.io/badge/Mac-Direct%20Download-24292F?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
     <img alt="Unirse a la beta para iPhone, iPad y Mac en TestFlight" src="https://img.shields.io/badge/TestFlight-iPhone%2C%20iPad%20%26%20Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
@@ -31,11 +34,11 @@
 
 ## ¿Por qué KeeForge?
 
-KeeForge es un cliente nativo de KeePass para iPhone, iPad y Mac. Los archivos locales y WebDAV funcionan en todas las plataformas; iCloud Drive, Dropbox, OneDrive y otros proveedores de Archivos están disponibles en iPhone y iPad. Desbloquee con contraseña maestra, archivo de clave o datos biométricos y gestione su bóveda sin confiarla a un servicio alojado.
+KeeForge es un cliente nativo de KeePass para iPhone, iPad y Mac. Los archivos locales y WebDAV funcionan en todas las plataformas; iCloud Drive, Dropbox, OneDrive y otros proveedores de Archivos están disponibles en iPhone y iPad. Desbloquea con contraseña maestra, archivo de clave o datos biométricos y gestiona tu bóveda sin confiarla a un servicio alojado.
 
 ## Beta pública
 
-**[Únase a la beta de KeeForge para iPhone, iPad y Mac en TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
+**[Únete a la beta de KeeForge para iPhone, iPad y Mac en TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
 
 La disponibilidad de la beta puede variar entre iPhone, iPad y Mac mientras Apple revisa la compilación de cada plataforma.
 
@@ -44,34 +47,34 @@ La disponibilidad de la beta puede variar entre iPhone, iPad y Mac mientras Appl
 | Área | Qué hace KeeForge |
 | --- | --- |
 | **Compatibilidad con KeePass** | Lee y escribe bases de datos KDBX 4.x con cifrado AES-256, ChaCha20 o Twofish, y AES-KDF, Argon2d o Argon2id. También abre bases de datos KDBX 3.1 en modo de solo lectura. |
-| **Edición local** | Cree, edite, mueva y elimine entradas y grupos; y guarde con comprobación de conflictos, copias de seguridad con marca de tiempo, y conservación del historial de entradas y del XML desconocido. |
-| **Nuevas bases de datos** | Cree bases KDBX 4.x localmente o por WebDAV en todas las plataformas; Dropbox y OneDrive están disponibles en iPhone y iPad. |
-| **Claves compuestas** | Desbloquee con contraseña, archivo de clave o ambos, incluidos archivos de clave binarios, hexadecimales, XML v1/v2 (`.key`/`.keyx`) y arbitrarios. |
+| **Edición local** | Crea, edita, mueve y elimina entradas y grupos; y guarda con comprobación de conflictos, copias de seguridad con marca de tiempo, y conservación del historial de entradas y del XML desconocido. |
+| **Nuevas bases de datos** | Crea bases KDBX 4.x localmente o por WebDAV en todas las plataformas; Dropbox y OneDrive están disponibles en iPhone y iPad. |
+| **Claves compuestas** | Desbloquea con contraseña, archivo de clave o ambos, incluidos archivos de clave binarios, hexadecimales, XML v1/v2 (`.key`/`.keyx`) y arbitrarios. |
 | **Autorrelleno** | Autorrelleno nativo en apps y navegadores con desbloqueo biométrico, más registro de passkeys en todas las plataformas; QuickType y la creación de entradas de contraseña desde la extensión también están disponibles en iPhone y iPad. |
 | **Llaves de acceso** | Detecta y autentica llaves de acceso FIDO2/WebAuthn almacenadas en campos personalizados compatibles con KeePassXC. |
 | **TOTP** | Visualización, copia y cuenta regresiva en todas las plataformas, además del autorrelleno de códigos de verificación en iOS 18+ y Mac. |
-| **Sincronización en la nube** | WebDAV en todas las plataformas. Dropbox y OneDrive están disponibles actualmente en iPhone y iPad; en Mac puede abrir sus carpetas sincronizadas como archivos locales. |
-| **Archivos adjuntos** | Vea los archivos adjuntos de las entradas de KeePass, obtenga una vista previa de los archivos compatibles con QuickLook, y compártalos desde archivos temporales protegidos de corta duración. Añada y elimine archivos adjuntos en el editor de entradas. |
+| **Sincronización en la nube** | WebDAV en todas las plataformas. Dropbox y OneDrive están disponibles actualmente en iPhone y iPad; en Mac puedes abrir tus carpetas sincronizadas como archivos locales. |
+| **Archivos adjuntos** | Consulta los archivos adjuntos de las entradas de KeePass, obtén una vista previa de los archivos compatibles con QuickLook, y compártelos desde archivos temporales protegidos de corta duración. Añade y elimina archivos adjuntos en el editor de entradas. |
 | **Nativo en cada pantalla** | Navegación enfocada en iPhone, espacio de trabajo dividido en iPad y una app nativa para Mac optimizada para el escritorio, con menús, comandos y Touch ID. |
 | **Seguridad** | Cifrado AES-GCM de secretos en memoria, retardo tras desbloqueos fallidos, límites contra bombas de descompresión, y comparación HMAC en tiempo constante. |
 
 ## Privacidad
 
-KeeForge no tiene analítica, ni telemetría en segundo plano, ni SDK de informes de fallos. Los datos de la bóveda permanecen en el dispositivo y en las ubicaciones de almacenamiento que usted elija. El acceso a la red se limita a los proveedores de nube conectados, la obtención opcional de favicones a través de DuckDuckGo, las compras opcionales en la App Store para la propina, las comprobaciones de actualización de la app de Mac descargada directamente y el formulario de comentarios integrado en la app cuando usted envía explícitamente un mensaje.
+KeeForge no tiene analítica, ni telemetría en segundo plano, ni SDK de informes de fallos. Los datos de la bóveda permanecen en el dispositivo y en las ubicaciones de almacenamiento que elijas. El acceso a la red se limita a los proveedores de nube conectados, la obtención opcional de favicones a través de DuckDuckGo, las compras opcionales en la App Store para la propina, las comprobaciones de actualización de la app de Mac descargada directamente y el formulario de comentarios integrado en la app cuando envías explícitamente un mensaje.
 
-En iPhone y iPad, los secretos copiados se marcan como locales y no viajan por el Portapapeles universal. macOS no ofrece esa exclusión, por lo que en Mac pueden seguir su ajuste del sistema; KeeForge los marca como confidenciales y borra su entrada al poco tiempo o al bloquear. KeeForge también protege las vistas del selector de apps en iPhone y iPad. El bloqueo de capturas en Mac es una protección sin garantía y puede no impedir todas las capturas o grabaciones de pantalla.
+En iPhone y iPad, los secretos copiados se marcan como locales y no viajan por el Portapapeles universal. macOS no ofrece esa exclusión, por lo que en Mac pueden seguir tu ajuste del sistema; KeeForge los marca como confidenciales y borra su entrada al poco tiempo o al bloquear. KeeForge también protege las vistas del selector de apps en iPhone y iPad. El bloqueo de capturas en Mac es una protección sin garantía y puede no impedir todas las capturas o grabaciones de pantalla.
 
-Lea la [política de privacidad](https://keeforge.com/es/privacy) ([original en inglés](https://keeforge.com/privacy)).
+Lee la [política de privacidad](https://keeforge.com/es/privacy) ([original en inglés](https://keeforge.com/privacy)).
 
 ## Seguridad de los datos
 
-KeeForge se toma muy en serio la seguridad de los datos: un gestor de contraseñas nunca debe corromper su bóveda ni perder silenciosamente ninguna parte de ella. Antes de publicar cualquier cambio, pruebas automatizadas verifican que:
+KeeForge se toma muy en serio la seguridad de los datos: un gestor de contraseñas nunca debe corromper tu bóveda ni perder silenciosamente ninguna parte de ella. Antes de publicar cualquier cambio, pruebas automatizadas verifican que:
 
 - **No se pierde nada al guardar.** Cada tipo de edición se guarda y se vuelve a leer pieza por pieza — contraseñas, notas, archivos adjuntos, historial de entradas e incluso datos de otras apps de KeePass que KeeForge no reconoce deben volver exactamente como se introdujeron.
-- **Su archivo está protegido antes de tocarlo.** KeeForge comprueba si el archivo cambió en otro lugar mientras estaba abierto y rechaza el guardado cuando detecta un conflicto, escribe una copia de seguridad con marca de tiempo antes de cada guardado, y rechaza directamente las bases de datos dañadas en lugar de cargar datos parciales.
+- **Tu archivo está protegido antes de tocarlo.** KeeForge comprueba si el archivo cambió en otro lugar mientras estaba abierto y rechaza el guardado cuando detecta un conflicto, escribe una copia de seguridad con marca de tiempo antes de cada guardado, y rechaza directamente las bases de datos dañadas en lugar de cargar datos parciales.
 - **Un programa independiente lo confirma.** Cada versión debe superar una prueba de control en la que KeePassXC — una app de KeePass muy usada que no comparte código con KeeForge — abre las bases de datos escritas por KeeForge, descifra las contraseñas y confirma que los archivos adjuntos coinciden bit a bit. Las bases de datos creadas por otro software de KeePass deben, a su vez, abrirse en KeeForge y seguir siendo legibles en otros programas después de que KeeForge las guarde.
 
-Con FTP, la última comprobación de conflictos y la sustitución del archivo no pueden realizarse como una sola operación. Un guardado simultáneo desde otra app u otro dispositivo puede sobrescribirse; evite editar una base de datos FTP en dos lugares a la vez.
+Con FTP, la última comprobación de conflictos y la sustitución del archivo no pueden realizarse como una sola operación. Un guardado simultáneo desde otra app u otro dispositivo puede sobrescribirse; evita editar una base de datos FTP en dos lugares a la vez.
 
 Para quien tenga curiosidad técnica, la batería de pruebas está descrita en [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) y la prueba de control previa a cada versión en [`ci_scripts/AGENTS.md`](../../ci_scripts/AGENTS.md) (ambas en inglés).
 
@@ -111,14 +114,16 @@ Aparte de este README y [`CONTRIBUTING.es.md`](CONTRIBUTING.es.md), la documenta
 
 ## Soporte
 
-- App Store: [KeeForge en la App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
+- App Store (iPhone, iPad y Mac): [KeeForge en la App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
+- Descarga directa para Mac: [última versión en GitHub](https://github.com/KeeForge/KeeForge/releases/latest)
+- Homebrew (Mac): [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) instala la versión de descarga directa
 - Correo: [support@keeforge.com](mailto:support@keeforge.com)
 - Incidencias: [GitHub Issues](https://github.com/KeeForge/KeeForge/issues)
 
 ## Contribuir
 
-Consulte [`CONTRIBUTING.es.md`](CONTRIBUTING.es.md) para conocer los requisitos de compilación, cómo compilar desde el código fuente, el flujo de trabajo de pull requests, el requisito de firma del Developer Certificate of Origin, y los términos de licencia. Empiece por [`AGENTS.md`](../../AGENTS.md) y luego abra el `README.md` local de la carpeta más cercana al código que vaya a modificar.
+Consulta [`CONTRIBUTING.es.md`](CONTRIBUTING.es.md) para conocer los requisitos de compilación, cómo compilar desde el código fuente, el flujo de trabajo de pull requests, el requisito de firma del Developer Certificate of Origin, y los términos de licencia. Empieza por [`AGENTS.md`](../../AGENTS.md) y luego abre el `README.md` local de la carpeta más cercana al código que vayas a modificar.
 
 ## Licencia
 
-KeeForge tiene licencia GPLv3. Consulte [`LICENSE`](../../LICENSE) para más información.
+KeeForge tiene licencia GPLv3. Consulta [`LICENSE`](../../LICENSE) para más información.

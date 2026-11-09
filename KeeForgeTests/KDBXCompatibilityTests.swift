@@ -1,6 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// The authoritative KDBX edit-semantics matrix.
@@ -127,7 +128,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         let untouched = try XCTUnwrap(rich.rootGroup.allEntries.first { $0.title == "Compat Untouched Entry" })
         XCTAssertFalse(untouched.expires, "Fixture precondition: a stored date need not enable expiry")
         XCTAssertEqual(untouched.expiryTime, Date(timeIntervalSince1970: 1_577_934_245))
-        var writtenVersions: [String: KDBXParser.FileVersion] = [:]
+        var writtenVersions: [String: KDBXContainer.FileVersion] = [:]
         for scenario in KDBXCompatibilitySupport.fullEditScenarios() {
             let result = try collector.run(scenario, on: rich)
             assertHeaderPreserved(result, loaded: rich, scenario: scenario)
@@ -280,12 +281,12 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(
             loaded.header.unknownInnerHeaderFields,
             [
-                KDBXParser.UnknownHeaderField(id: 0x21, data: Data("mid-pool-unknown-field".utf8)),
-                KDBXParser.UnknownHeaderField(
+                KDBXContainer.UnknownHeaderField(id: 0x21, data: Data("mid-pool-unknown-field".utf8)),
+                KDBXContainer.UnknownHeaderField(
                     id: 0x7F,
                     data: Data("kdbx-format-hardening-fixture:unknown-field-0x7f-marker".utf8)
                 ),
-                KDBXParser.UnknownHeaderField(id: 0x10, data: Data()),
+                KDBXContainer.UnknownHeaderField(id: 0x10, data: Data()),
             ],
             "Fixture precondition: the parser must retain all three unknown fields in on-disk order"
         )
@@ -368,15 +369,15 @@ final class KDBXCompatibilityTests: XCTestCase {
             on: aesBaseline
         )
         XCTAssertNil(chacha.rekey)
-        XCTAssertEqual(chacha.afterHeader.cipherID, KDBXParser.chachaCipherUUID)
+        XCTAssertEqual(chacha.afterHeader.cipherID, KDBXOuterCipher.chaCha20.uuid)
         XCTAssertEqual(chacha.afterHeader.compressionFlags, aesBaseline.header.compressionFlags == 1 ? 0 : 1)
-        XCTAssertEqual(chacha.afterHeader.kdfParameters["$UUID"] as? Data, KDBXParser.argon2idUUID)
+        XCTAssertEqual(chacha.afterHeader.kdfParameters.bytes("$UUID"), KDBXKeyDerivation.Algorithm.argon2id.uuid)
         XCTAssertEqual(
-            chacha.afterHeader.kdfParameters["I"] as? UInt64,
+            chacha.afterHeader.kdfParameters.uint64("I"),
             DatabaseCreationKDFPreset.balanced.iterations
         )
         XCTAssertEqual(
-            chacha.afterHeader.kdfParameters["M"] as? UInt64,
+            chacha.afterHeader.kdfParameters.uint64("M"),
             DatabaseCreationKDFPreset.balanced.memoryBytes
         )
         XCTAssertEqual(chacha.afterHeader.formatVersion, aesBaseline.header.formatVersion)
@@ -388,7 +389,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             on: twofish
         )
         XCTAssertNil(aes.rekey)
-        XCTAssertEqual(aes.afterHeader.cipherID, KDBXParser.aesCipherUUID)
+        XCTAssertEqual(aes.afterHeader.cipherID, KDBXOuterCipher.aes256CBC.uuid)
         XCTAssertEqual(aes.afterHeader.encryptionIV.count, 16)
         XCTAssertEqual(aes.afterHeader.compressionFlags, twofish.header.compressionFlags == 1 ? 0 : 1)
         for key in ["$UUID", "I", "M", "P", "V"] {
@@ -399,20 +400,20 @@ final class KDBXCompatibilityTests: XCTestCase {
             )
         }
         XCTAssertNotEqual(
-            aes.afterHeader.kdfParameters["S"] as? Data,
-            twofish.header.kdfParameters["S"] as? Data,
+            aes.afterHeader.kdfParameters.bytes("S"),
+            twofish.header.kdfParameters.bytes("S"),
             "The KDF salt still rotates"
         )
 
-        XCTAssertNotEqual(aesBaseline.header.kdfParameters["$UUID"] as? Data, KDBXParser.aesKDFUUID, "Fixture precondition")
+        XCTAssertNotEqual(aesBaseline.header.kdfParameters.bytes("$UUID"), KDBXKeyDerivation.Algorithm.aesKDF.uuid, "Fixture precondition")
         let aesKDF = try collector.run(
             KDBXCompatibilitySupport.encryptionSettingsAESKDFScenario(),
             on: aesBaseline
         )
         XCTAssertNil(aesKDF.rekey)
-        XCTAssertEqual(aesKDF.afterHeader.kdfParameters["$UUID"] as? Data, KDBXParser.aesKDFUUID)
-        XCTAssertEqual(aesKDF.afterHeader.kdfParameters["R"] as? UInt64, DatabaseCreationDefaults.aesKDFRounds)
-        XCTAssertEqual((aesKDF.afterHeader.kdfParameters["S"] as? Data)?.count, 32)
+        XCTAssertEqual(aesKDF.afterHeader.kdfParameters.bytes("$UUID"), KDBXKeyDerivation.Algorithm.aesKDF.uuid)
+        XCTAssertEqual(aesKDF.afterHeader.kdfParameters.uint64("R"), DatabaseCreationDefaults.aesKDFRounds)
+        XCTAssertEqual((aesKDF.afterHeader.kdfParameters.bytes("S"))?.count, 32)
         XCTAssertEqual(aesKDF.afterHeader.cipherID, aesBaseline.header.cipherID, "AES-KDF leaves the cipher alone")
         XCTAssertEqual(aesKDF.afterHeader.compressionFlags, aesBaseline.header.compressionFlags)
         XCTAssertEqual(aesKDF.afterHeader.formatVersion, aesBaseline.header.formatVersion)
@@ -435,36 +436,36 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(result.afterHeader.cipherID, loaded.header.cipherID, label, file: file, line: line)
         XCTAssertEqual(result.afterHeader.formatVersion, loaded.header.formatVersion, label, file: file, line: line)
         XCTAssertEqual(
-            result.afterHeader.kdfParameters["$UUID"] as? Data,
-            loaded.header.kdfParameters["$UUID"] as? Data,
+            result.afterHeader.kdfParameters.bytes("$UUID"),
+            loaded.header.kdfParameters.bytes("$UUID"),
             label,
             file: file,
             line: line
         )
         // Cost parameters for both KDF families; absent keys compare nil == nil.
         XCTAssertEqual(
-            result.afterHeader.kdfParameters["I"] as? UInt64,
-            loaded.header.kdfParameters["I"] as? UInt64,
+            result.afterHeader.kdfParameters.uint64("I"),
+            loaded.header.kdfParameters.uint64("I"),
             label, file: file, line: line
         )
         XCTAssertEqual(
-            result.afterHeader.kdfParameters["M"] as? UInt64,
-            loaded.header.kdfParameters["M"] as? UInt64,
+            result.afterHeader.kdfParameters.uint64("M"),
+            loaded.header.kdfParameters.uint64("M"),
             label, file: file, line: line
         )
         XCTAssertEqual(
-            result.afterHeader.kdfParameters["P"] as? UInt32,
-            loaded.header.kdfParameters["P"] as? UInt32,
+            result.afterHeader.kdfParameters.uint32("P"),
+            loaded.header.kdfParameters.uint32("P"),
             label, file: file, line: line
         )
         XCTAssertEqual(
-            result.afterHeader.kdfParameters["R"] as? UInt64,
-            loaded.header.kdfParameters["R"] as? UInt64,
+            result.afterHeader.kdfParameters.uint64("R"),
+            loaded.header.kdfParameters.uint64("R"),
             label, file: file, line: line
         )
 
-        let sourceSalt = try XCTUnwrap(loaded.header.kdfParameters["S"] as? Data, label, file: file, line: line)
-        let writtenSalt = try XCTUnwrap(result.afterHeader.kdfParameters["S"] as? Data, label, file: file, line: line)
+        let sourceSalt = try XCTUnwrap(loaded.header.kdfParameters.bytes("S"), label, file: file, line: line)
+        let writtenSalt = try XCTUnwrap(result.afterHeader.kdfParameters.bytes("S"), label, file: file, line: line)
         XCTAssertNotEqual(writtenSalt, sourceSalt, "\(label): KDF salt must rotate", file: file, line: line)
         XCTAssertEqual(writtenSalt.count, sourceSalt.count, label, file: file, line: line)
         XCTAssertNotEqual(
@@ -1491,8 +1492,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         let reparsed = try KDBXXMLParser(
             data: firstXML,
-            innerStreamKey: innerStreamKey,
-            innerStreamID: KDBXParser.innerStreamChaCha20,
+            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: innerStreamKey),
             sessionKey: entrySessionKey
         ).parse()
         let reparsedEntry = try XCTUnwrap(firstEntry(titled: "Passkey Byte Identity", in: reparsed.rootGroup))
@@ -1551,7 +1551,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         coordinator.parsedEntries = parsed.rootGroup.allEntries
         coordinator.sessionKey = sessionKey
         coordinator.compositeKey = parsed.compositeKey
-        coordinator.openTimeSHA512 = KDBXCrypto.sha512(sourceBytes)
+        coordinator.openTimeSHA512 = FileDigest.sha512(sourceBytes)
         let gate = AutoFillSaveCompletionGate()
         let saveCommitted = expectation(description: "passkey bytes committed")
         var environment = AutoFillSaveCoordinator.Environment.live
@@ -1725,8 +1725,8 @@ final class KDBXCompatibilityTests: XCTestCase {
         let label = "\(loaded.fixture.id)/\(scenario.id)"
         XCTAssertEqual(result.afterHeader.cipherID, loaded.header.cipherID, label, file: file, line: line)
         XCTAssertEqual(
-            result.afterHeader.kdfParameters["$UUID"] as? Data,
-            loaded.header.kdfParameters["$UUID"] as? Data,
+            result.afterHeader.kdfParameters.bytes("$UUID"),
+            loaded.header.kdfParameters.bytes("$UUID"),
             label,
             file: file,
             line: line

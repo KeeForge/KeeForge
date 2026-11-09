@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import LocalAuthentication
 import Security
+import KDBXKit
 
 enum KeychainService {
     private static let service = "com.keevault.app"

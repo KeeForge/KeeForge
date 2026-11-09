@@ -23,4 +23,5 @@ Static app resources live here.
 ## Catalog Mechanics
 
 - Four catalogs: `Localizable.xcstrings` + `InfoPlist.xcstrings` here, mirrored under `../../AutoFillExtension/`; the same four also serve the macOS targets.
+- Term translations and per-locale style live in `../../docs/i18n/glossary.md`.
 - Adding a locale follows the checklist in `../../AGENTS.md` (Localization). Translated docs link back to root paths with `../../`; folder-local READMEs and the rest of the developer docs stay English-only.

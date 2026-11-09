@@ -1,4 +1,5 @@
 import Foundation
+import KDBXKit
 #if os(iOS)
 import os
 #endif
@@ -55,7 +56,7 @@ enum AutoFillMemoryLimit {
     }
 
     /// AES-KDF is bounded by rounds, not memory, so it contributes nothing.
-    /// The header's memory parameter is unvalidated until `KDBXParser.deriveKey`;
+    /// The header's memory parameter is unvalidated until `KDBXContainer.deriveKey`;
     /// it is compared, never summed, so even `UInt64.max` cannot trap.
     private static func kdfMemoryBytes(for keyDerivation: KDBXFileSummary.KeyDerivation) -> UInt64 {
         switch keyDerivation {

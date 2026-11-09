@@ -61,13 +61,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "„%@“ ist bereits in Ihrer Datenbankliste enthalten."
+            "value" : "„%@“ ist bereits in deiner Datenbankliste enthalten."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "«%@» ya está en su lista de bases de datos."
+            "value" : "«%@» ya está en tu lista de bases de datos."
           }
         },
         "fr" : {
@@ -1004,6 +1004,58 @@
         }
       }
     },
+    "AutoFill couldn't read the key file saved for this database. Open the database in the KeeForge app and check that its key file is still available." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill konnte die für diese Datenbank gespeicherte Schlüsseldatei nicht lesen. Öffne die Datenbank in der KeeForge-App und prüfe, ob ihre Schlüsseldatei noch verfügbar ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorrelleno no ha podido leer el archivo de clave guardado para esta base de datos. Abre la base de datos en la app KeeForge y comprueba que su archivo de clave sigue disponible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le remplissage automatique n'a pas pu lire le fichier de clé enregistré pour cette base de données. Ouvrez la base de données dans l'app KeeForge et vérifiez que son fichier de clé est toujours disponible."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'inserimento automatico non è riuscito a leggere il file chiave salvato per questo database. Apri il database nell'app KeeForge e verifica che il suo file chiave sia ancora disponibile."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で、このデータベース用に保存されたキーファイルを読み取れませんでした。KeeForge App でデータベースを開き、キーファイルが引き続き利用可能か確認してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автозаполнению не удалось прочитать файл ключа, сохранённый для этой базы данных. Откройте базу данных в приложении KeeForge и проверьте, что её файл ключа по-прежнему доступен."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动填充无法读取为此数据库保存的密钥文件。请在 KeeForge App 中打开数据库，并检查其密钥文件是否仍然可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動填寫無法讀取為此資料庫儲存的金鑰檔案。請在 KeeForge App 中開啟資料庫，並檢查其金鑰檔案是否仍可使用。"
+          }
+        }
+      }
+    },
     "AutoFill with KeeForge" : {
       "localizations" : {
         "de" : {
@@ -1327,7 +1379,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La sincronización en la nube no está configurada para este build."
+            "value" : "La sincronización en la nube no está configurada para esta compilación."
           }
         },
         "fr" : {
@@ -1957,7 +2009,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Base de datos modificada — abra KeeForge para guardar"
+            "value" : "Base de datos modificada — abre KeeForge para guardar"
           }
         },
         "fr" : {
@@ -2211,13 +2263,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie ein Passwort für diese Zugangsdaten ein."
+            "value" : "Gib ein Passwort für diese Zugangsdaten ein."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca una contraseña para esta credencial."
+            "value" : "Introduce una contraseña para esta credencial."
           }
         },
         "fr" : {
@@ -2263,13 +2315,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie einen Titel oder Benutzernamen für diese Zugangsdaten ein."
+            "value" : "Gib einen Titel oder Benutzernamen für diese Zugangsdaten ein."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca un título o nombre de usuario para esta credencial."
+            "value" : "Introduce un título o nombre de usuario para esta credencial."
           }
         },
         "fr" : {
@@ -2315,13 +2367,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie Ihr Master-Passwort ein oder verwenden Sie biometrisches Entsperren."
+            "value" : "Gib dein Master-Passwort ein oder verwende biometrisches Entsperren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Introduzca su contraseña maestra o utilice datos biométricos."
+            "value" : "Introduce tu contraseña maestra o utiliza datos biométricos."
           }
         },
         "fr" : {
@@ -3402,58 +3454,6 @@
         }
       }
     },
-    "Invalid inner header" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ungültiger innerer Header"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Encabezado interno no válido"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "En-tête interne invalide"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Header interno non valido"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "内部ヘッダが無効です"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Недопустимый внутренний заголовок"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无效的内部标头"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無效的內部標頭"
-          }
-        }
-      }
-    },
     "Invalid master key" : {
       "localizations" : {
         "de" : {
@@ -3615,13 +3615,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge fügt diesen Passkey der Datenbankdatei hinzu, sobald Sie die Datenbank das nächste Mal in der App entsperren."
+            "value" : "KeeForge fügt diesen Passkey der Datenbankdatei hinzu, sobald du die Datenbank das nächste Mal in der App entsperrst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge añadirá esta llave de acceso al archivo de la base de datos la próxima vez que desbloquee la base de datos en la app."
+            "value" : "KeeForge añadirá esta llave de acceso al archivo de la base de datos la próxima vez que desbloquees la base de datos en la app."
           }
         },
         "fr" : {
@@ -4230,58 +4230,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "符合項目"
-          }
-        }
-      }
-    },
-    "Missing header field: %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fehlendes Header-Feld: %@"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Falta el campo de encabezado: %@"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Champ d'en-tête manquant : %@"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Campo dell'header mancante: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ヘッダフィールドがありません：%@"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Отсутствует поле заголовка: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "缺少标头字段：%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "缺少標頭欄位：%@"
           }
         }
       }
@@ -5227,13 +5175,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bitte verbinden Sie dieses Cloud-Konto erneut."
+            "value" : "Bitte verbinde dieses Cloud-Konto erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vuelva a conectar esta cuenta en la nube."
+            "value" : "Vuelve a conectar esta cuenta en la nube."
           }
         },
         "fr" : {
@@ -5279,13 +5227,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bitte wählen Sie eine KeePass-Datenbank im .kdbx-Format aus."
+            "value" : "Bitte wähle eine KeePass-Datenbank im .kdbx-Format aus."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Seleccione una base de datos de KeePass con extensión .kdbx."
+            "value" : "Selecciona una base de datos de KeePass con extensión .kdbx."
           }
         },
         "fr" : {
@@ -5435,13 +5383,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verbinden Sie dieses Cloud-Konto erneut, um Änderungen zu sichern."
+            "value" : "Verbinde dieses Cloud-Konto erneut, um Änderungen zu sichern."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vuelva a conectar esta cuenta en la nube para guardar los cambios."
+            "value" : "Vuelve a conectar esta cuenta en la nube para guardar los cambios."
           }
         },
         "fr" : {
@@ -5851,13 +5799,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Durchsucht wurde die Kopie dieser Datenbank in KeeForge vom %@. Entsperren Sie diese Datenbank in KeeForge, um neuere Zugangsdaten zu finden. Wählen Sie bei Cloud-Datenbanken „Jetzt synchronisieren“ in den Datenbankdetails."
+            "value" : "Durchsucht wurde die Kopie dieser Datenbank in KeeForge vom %@. Entsperre diese Datenbank in KeeForge, um neuere Zugangsdaten zu finden. Wähle bei Cloud-Datenbanken „Jetzt synchronisieren“ in den Datenbankdetails."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se buscó en la copia de esta base de datos de KeeForge del %@. Para encontrar credenciales más recientes, desbloquee esta base de datos en KeeForge. Para las bases de datos en la nube, use «Sincronizar ahora» en «Detalles de la base de datos»."
+            "value" : "Se buscó en la copia de esta base de datos de KeeForge del %@. Para encontrar credenciales más recientes, desbloquea esta base de datos en KeeForge. Para las bases de datos en la nube, usa «Sincronizar ahora» en «Detalles de la base de datos»."
           }
         },
         "fr" : {
@@ -5903,13 +5851,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Durchsucht wurde die Kopie vom %@. Entsperren Sie diese Datenbank in KeeForge, um sie zu aktualisieren."
+            "value" : "Durchsucht wurde die Kopie vom %@. Entsperre diese Datenbank in KeeForge, um sie zu aktualisieren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se buscó en la copia del %@. Desbloquee esta base de datos en KeeForge para actualizarla."
+            "value" : "Se buscó en la copia del %@. Desbloquea esta base de datos en KeeForge para actualizarla."
           }
         },
         "fr" : {
@@ -6371,13 +6319,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der Cloud-Dienst ist gerade ausgelastet. Versuchen Sie es gleich noch einmal."
+            "value" : "Der Cloud-Dienst ist gerade ausgelastet. Versuche es gleich noch einmal."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El servicio en la nube está ocupado en este momento. Inténtelo de nuevo en un momento."
+            "value" : "El servicio en la nube está ocupado en este momento. Inténtalo de nuevo en un momento."
           }
         },
         "fr" : {
@@ -6423,13 +6371,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der Cloud-Dienst ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut."
+            "value" : "Der Cloud-Dienst ist vorübergehend nicht verfügbar. Versuche es später erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El servicio en la nube no está disponible temporalmente. Inténtelo de nuevo más tarde."
+            "value" : "El servicio en la nube no está disponible temporalmente. Inténtalo de nuevo más tarde."
           }
         },
         "fr" : {
@@ -6689,13 +6637,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbankdatei hat nicht rechtzeitig geantwortet. Prüfen Sie, ob der Server oder die Netzwerkverbindung verfügbar ist."
+            "value" : "Die Datenbankdatei hat nicht rechtzeitig geantwortet. Prüfe, ob der Server oder die Netzwerkverbindung verfügbar ist."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos no respondió a tiempo. Compruebe que su servidor o conexión de red esté disponible."
+            "value" : "El archivo de la base de datos no respondió a tiempo. Comprueba que su servidor o conexión de red esté disponible."
           }
         },
         "fr" : {
@@ -6741,13 +6689,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbankdatei befindet sich in „Zuletzt gelöscht“ in der Dateien-App. Stellen Sie sie in der Dateien-App wieder her, oder wählen Sie in KeeForge mit „Datenbankdatei suchen“ die aktuelle Datei aus."
+            "value" : "Die Datenbankdatei befindet sich in „Zuletzt gelöscht“ in der Dateien-App. Stelle sie in der Dateien-App wieder her, oder wähle in KeeForge mit „Datenbankdatei suchen“ die aktuelle Datei aus."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos está en «Eliminados recientemente» en la app Archivos. Restáurelo en Archivos o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
+            "value" : "El archivo de la base de datos está en «Eliminados recientemente» en la app Archivos. Restáuralo en Archivos o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
           }
         },
         "fr" : {
@@ -6793,13 +6741,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbankdatei befindet sich im Papierkorb. Stellen Sie sie im Finder aus dem Papierkorb wieder her, oder wählen Sie in KeeForge mit „Datenbankdatei suchen“ die aktuelle Datei aus."
+            "value" : "Die Datenbankdatei befindet sich im Papierkorb. Stelle sie im Finder aus dem Papierkorb wieder her, oder wähle in KeeForge mit „Datenbankdatei suchen“ die aktuelle Datei aus."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos está en la Papelera. Restáurelo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
+            "value" : "El archivo de la base de datos está en la Papelera. Restáuralo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
           }
         },
         "fr" : {
@@ -7165,7 +7113,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La nueva clave maestra se subió, pero la copia local no se pudo actualizar. El archivo en la nube ahora requiere la nueva clave maestra."
+            "value" : "La nueva clave maestra se cargó, pero la copia local no se pudo actualizar. El archivo en la nube ahora requiere la nueva clave maestra."
           }
         },
         "fr" : {
@@ -7367,7 +7315,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dadurch wird „%1$@“ zu „%2$@“ hinzugefügt, damit AutoFill den Eintrag künftig auf dieser Website vorschlägt. Prüfen Sie die Adresse, bevor Sie sie hinzufügen."
+            "value" : "Dadurch wird „%1$@“ zu „%2$@“ hinzugefügt, damit AutoFill den Eintrag künftig auf dieser Website vorschlägt. Prüfe die Adresse, bevor du sie hinzufügst."
           }
         },
         "en" : {
@@ -7379,7 +7327,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esto añade «%1$@» a «%2$@» para que Autorrelleno sugiera la entrada en ese sitio web la próxima vez. Compruebe la dirección antes de añadirla."
+            "value" : "Esto añade «%1$@» a «%2$@» para que Autorrelleno sugiera la entrada en ese sitio web la próxima vez. Comprueba la dirección antes de añadirla."
           }
         },
         "fr" : {
@@ -7425,13 +7373,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Datenbank wurde in der Cloud geändert. Laden Sie sie vor dem erneuten Sichern neu."
+            "value" : "Diese Datenbank wurde in der Cloud geändert. Lade sie vor dem erneuten Sichern neu."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta base de datos cambió en la nube. Vuelva a cargarla antes de guardar de nuevo."
+            "value" : "Esta base de datos cambió en la nube. Vuelve a cargarla antes de guardar de nuevo."
           }
         },
         "fr" : {
@@ -7581,13 +7529,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Datenbank ist schreibgeschützt. Öffnen Sie KeeForge, um die Bearbeitung zu aktivieren."
+            "value" : "Diese Datenbank ist schreibgeschützt. Öffne KeeForge, um die Bearbeitung zu aktivieren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta base de datos es de solo lectura. Abra KeeForge para activar la edición."
+            "value" : "Esta base de datos es de solo lectura. Abre KeeForge para activar la edición."
           }
         },
         "fr" : {
@@ -7685,7 +7633,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Datenbank benötigt zum Entsperren etwa %1$@ Arbeitsspeicher — mehr als die %2$@, die AutoFill verwenden darf. Öffnen Sie den Eintrag in der KeeForge-App oder verringern Sie die Argon2-Speichereinstellung der Datenbank in einer KeePass-App für den Computer."
+            "value" : "Diese Datenbank benötigt zum Entsperren etwa %1$@ Arbeitsspeicher — mehr als die %2$@, die AutoFill verwenden darf. Öffne den Eintrag in der KeeForge-App oder verringere die Argon2-Speichereinstellung der Datenbank in einer KeePass-App für den Computer."
           }
         },
         "en" : {
@@ -7697,7 +7645,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta base de datos necesita unos %1$@ de memoria para desbloquearse, más de los %2$@ que AutoFill puede usar. Abra la entrada en la app KeeForge, o reduzca el ajuste de memoria Argon2 de la base de datos en una app KeePass de escritorio."
+            "value" : "Esta base de datos necesita unos %1$@ de memoria para desbloquearse, más de los %2$@ que el autorrelleno puede usar. Abre la entrada en la app KeeForge, o reduce el ajuste de memoria Argon2 de la base de datos en una app KeePass de escritorio."
           }
         },
         "fr" : {
@@ -7957,13 +7905,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Schlüsselableitungs-Einstellungen dieser Datenbank (%@ Arbeitsspeicher × %@ Iterationen, %@ Threads) überschreiten das, was diese App sicher ausführen kann. Verringern Sie die Argon2-Einstellungen der Datenbank in einer Desktop-KeePass-App, speichern Sie sie und versuchen Sie es dann erneut."
+            "value" : "Die Schlüsselableitungs-Einstellungen dieser Datenbank (%@ Arbeitsspeicher × %@ Iterationen, %@ Threads) überschreiten das, was diese App sicher ausführen kann. Verringere die Argon2-Einstellungen der Datenbank in einer Desktop-KeePass-App, speichere sie und versuche es dann erneut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los ajustes de derivación de clave de esta base de datos (%@ de memoria × %@ iteraciones, %@ hilos) superan lo que esta app puede ejecutar de forma segura. Reduzca los ajustes de Argon2 de la base de datos en una app de KeePass de escritorio, guárdela y vuelva a intentarlo."
+            "value" : "Los ajustes de derivación de clave de esta base de datos (%@ de memoria × %@ iteraciones, %@ hilos) superan lo que esta app puede ejecutar de forma segura. Reduce los ajustes de Argon2 de la base de datos en una app de KeePass de escritorio, guárdala y vuelve a intentarlo."
           }
         },
         "fr" : {
@@ -8593,7 +8541,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Inténtelo de nuevo"
+            "value" : "Inténtalo de nuevo"
           }
         },
         "fr" : {
@@ -8639,13 +8587,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aktivieren Sie AutoFill für eine Datenbank in den KeeForge-Einstellungen, um sie hier zu verwenden."
+            "value" : "Aktiviere AutoFill für eine Datenbank in den KeeForge-Einstellungen, um sie hier zu verwenden."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Active Autorrelleno para una base de datos en los ajustes de KeeForge para usarlo aquí."
+            "value" : "Activa Autorrelleno para una base de datos en los ajustes de KeeForge para usarlo aquí."
           }
         },
         "fr" : {
@@ -9150,58 +9098,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不支援的金鑰衍生函數：%@"
-          }
-        }
-      }
-    },
-    "Unsupported variant map value for key: %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nicht unterstützter Wert der Varianten-Map für Schlüssel: %@"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Valor de mapa de variantes no compatible para la clave: %@"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Valeur de mappage de variante non prise en charge pour la clé : %@"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Valore della variant map non supportato per la chiave: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "バリアントマップの値がサポートされていません。キー：%@"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Неподдерживаемое значение словаря вариантов для ключа: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不支持的变体映射值，键：%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不支援的變體對應值，鍵：%@"
           }
         }
       }
@@ -9835,13 +9731,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sie haben keine Berechtigung, diese Datei zu ändern."
+            "value" : "Du hast keine Berechtigung, diese Datei zu ändern."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No tiene permiso para cambiar este archivo."
+            "value" : "No tienes permiso para cambiar este archivo."
           }
         },
         "fr" : {

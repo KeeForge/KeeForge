@@ -1,118 +1,14 @@
 import CryptoKit
 import Foundation
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
-/// Known-answer tests for the hand-rolled inner-stream ChaCha20 in `KDBXCrypto`.
-///
-/// The existing suite exercises ChaCha20 only through round-trip and synthetic
-/// fixtures, which cannot detect a subtly-wrong keystream (encrypt/decrypt cancel
-/// out even when the state setup or quarter-rounds are off). These vectors pin the
-/// output to the ChaCha20 reference in RFC 8439, independent of this codebase.
+/// Known-answer tests for KDBX 4 protected values. A round trip cannot detect a
+/// wrong keystream, since encrypt and decrypt cancel out; these vectors pin the
+/// serializer and parser to ciphertexts produced outside this codebase. The
+/// ChaCha20 primitive itself is tested in `Packages/KDBXKit`.
 final class ChaCha20Tests: XCTestCase {
-
-    /// RFC 8439, Appendix A.1, Test Vector #1: all-zero key and nonce, block
-    /// counter 0 (which is where `KDBXCrypto` starts its counter). ChaCha20 is
-    /// XOR-based, so encrypting 64 zero bytes yields the raw keystream block.
-    func test_chacha20_matchesRFC8439_appendixA1_vector1() throws {
-        let key = Data(repeating: 0, count: 32)
-        let nonce = Data(repeating: 0, count: 12)
-        let zeros = Data(repeating: 0, count: 64)
-
-
-        let keystream = try KDBXCrypto.encryptChaCha20(data: zeros, key: key, nonce: nonce)
-        XCTAssertEqual(keystream, Self.rfc8439Vector1)
-    }
-
-    /// The decrypt entry point must reproduce the same keystream (it is XOR-based),
-    /// so decrypting the reference keystream recovers the original zero bytes.
-    func test_chacha20_decryptRecoversPlaintext_forRFC8439Vector1() throws {
-        let key = Data(repeating: 0, count: 32)
-        let nonce = Data(repeating: 0, count: 12)
-        let zeros = Data(repeating: 0, count: 64)
-
-        let recovered = try KDBXCrypto.decryptChaCha20(data: Self.rfc8439Vector1, key: key, nonce: nonce)
-        XCTAssertEqual(recovered, zeros)
-    }
-
-    /// A multi-block payload must advance the block counter correctly, so the
-    /// first 64 bytes still match the Test Vector #1 keystream when a longer
-    /// buffer is encrypted in one call.
-    func test_chacha20_firstBlockMatches_whenEncryptingMultipleBlocks() throws {
-        let key = Data(repeating: 0, count: 32)
-        let nonce = Data(repeating: 0, count: 12)
-        let zeros = Data(repeating: 0, count: 160) // 2.5 blocks
-
-        let keystream = try KDBXCrypto.encryptChaCha20(data: zeros, key: key, nonce: nonce)
-
-
-        XCTAssertEqual(Data(keystream.prefix(64)), Self.rfc8439Vector1)
-        XCTAssertEqual(keystream.count, 160)
-    }
-
-    // MARK: - Shared keystream primitive
-
-    /// RFC 8439, Appendix A.1, Test Vectors #1 and #2 concatenated: same all-zero
-    /// key and nonce, block counters 0 and 1. `ChaCha20Keystream` starts at
-    /// counter 0 and must advance exactly once per 64-byte block, so 128 zero
-    /// bytes have to reproduce both reference blocks back to back.
-    func test_chacha20Keystream_matchesRFC8439AppendixA1_vectors1And2() throws {
-        var keystream = try XCTUnwrap(
-            KDBXCrypto.ChaCha20Keystream(key: Data(repeating: 0, count: 32), nonce: Data(repeating: 0, count: 12))
-        )
-
-        let expected = try XCTUnwrap(Data(hex:
-            "76b8e0ada0f13d90405d6ae55386bd28bdd219b8a08ded1aa836efcc8b770dc7" +
-            "da41597c5157488d7724e03fb8d84a376a43b8f41518a11cc387b669b2ee6586" +
-            "9f07e7be5551387a98ba977c732d080dcb0f29a048e3656912c6533e32ee7aed" +
-            "29b721769ce64e43d57133b074d839d531ed1f28510afb45ace10a1f4b794d6f"
-        ))
-
-        XCTAssertEqual(keystream.xor(Data(repeating: 0, count: 128)), expected)
-    }
-
-    /// The keystream is continuous across calls, so feeding it in arbitrary
-    /// chunks must equal one single-shot call over the concatenation.
-    func test_chacha20Keystream_isContinuousAcrossCalls() throws {
-        let key = Data((0..<32).map { UInt8($0) })
-        let nonce = Data((0..<12).map { UInt8(0xA0 + $0) })
-        let plaintext = Data((0..<300).map { UInt8($0 % 251) })
-
-        var chunked = try XCTUnwrap(KDBXCrypto.ChaCha20Keystream(key: key, nonce: nonce))
-        var incremental = Data()
-        var start = 0
-        for length in [63, 1, 64, 65, 107] {
-            incremental += chunked.xor(plaintext.subdata(in: start..<(start + length)))
-            start += length
-        }
-
-        XCTAssertEqual(start, plaintext.count)
-        XCTAssertEqual(incremental, KDBXCrypto.chacha20Stream(key: key, nonce: nonce, data: plaintext))
-    }
-
-    /// An empty protected value must not consume keystream — the parser and the
-    /// serializer both skip empty values, so a stream that advanced here would
-    /// desynchronize read from write.
-    func test_chacha20Keystream_emptyInputDoesNotConsumeKeystream() throws {
-        let key = Data(repeating: 0x5A, count: 32)
-        let nonce = Data(repeating: 0x17, count: 12)
-
-        var withEmpties = try XCTUnwrap(KDBXCrypto.ChaCha20Keystream(key: key, nonce: nonce))
-        XCTAssertEqual(withEmpties.xor(Data()), Data())
-        let first = withEmpties.xor(Data(repeating: 0, count: 32))
-        XCTAssertEqual(withEmpties.xor(Data()), Data())
-        let second = withEmpties.xor(Data(repeating: 0, count: 32))
-
-        var reference = try XCTUnwrap(KDBXCrypto.ChaCha20Keystream(key: key, nonce: nonce))
-        XCTAssertEqual(first + second, reference.xor(Data(repeating: 0, count: 64)))
-    }
-
-    func test_chacha20Keystream_rejectsWrongSizedKeyOrNonce() {
-        XCTAssertNil(KDBXCrypto.ChaCha20Keystream(key: Data(repeating: 0, count: 31), nonce: Data(repeating: 0, count: 12)))
-        XCTAssertNil(KDBXCrypto.ChaCha20Keystream(key: Data(repeating: 0, count: 32), nonce: Data(repeating: 0, count: 8)))
-    }
-
-    // MARK: - KDBX4 protected stream
 
     /// Known-answer vectors for the shared primitive driven through the KDBX4
     /// protected-stream convention: ChaCha20 key = SHA-512(inner stream key)
@@ -122,12 +18,12 @@ final class ChaCha20Tests: XCTestCase {
     /// Ciphertexts were produced independently of this codebase with Python's
     /// `cryptography` ChaCha20 (validated against RFC 8439 Appendix A.1 first).
     func test_innerStreamChaCha20_matchesKnownAnswerVectors_acrossBlockBoundaries() throws {
-        var keystream = try XCTUnwrap(Self.makeInnerStreamKeystream())
+        var keystream = try Self.makeInnerStreamKeystream()
 
         for value in Self.protectedValues {
             let expected = try XCTUnwrap(Data(hex: value.chachaCiphertextHex))
             XCTAssertEqual(
-                keystream.xor(Data(value.plaintext.utf8)),
+                keystream.apply(Data(value.plaintext.utf8)),
                 expected,
                 "protected value \(value.key) (\(value.plaintext.count) bytes)"
             )
@@ -155,8 +51,7 @@ final class ChaCha20Tests: XCTestCase {
         let xml = try Self.serializeProtectedValueEntry(sessionKey: sessionKey)
         let parsed = try KDBXXMLParser(
             data: xml,
-            innerStreamKey: Self.innerStreamKey,
-            innerStreamID: KDBXParser.innerStreamChaCha20,
+            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: Self.innerStreamKey),
             sessionKey: sessionKey
         ).parse()
 
@@ -185,8 +80,7 @@ final class ChaCha20Tests: XCTestCase {
         )
         let parsed = try KDBXXMLParser(
             data: try serializer.serialize(),
-            innerStreamKey: Self.innerStreamKey,
-            innerStreamID: KDBXParser.innerStreamChaCha20,
+            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: Self.innerStreamKey),
             sessionKey: sessionKey
         ).parse()
 
@@ -198,16 +92,6 @@ final class ChaCha20Tests: XCTestCase {
 
     // MARK: - Fixtures
 
-    private static let rfc8439Vector1 = Data([
-        0x76, 0xb8, 0xe0, 0xad, 0xa0, 0xf1, 0x3d, 0x90,
-        0x40, 0x5d, 0x6a, 0xe5, 0x53, 0x86, 0xbd, 0x28,
-        0xbd, 0xd2, 0x19, 0xb8, 0xa0, 0x8d, 0xed, 0x1a,
-        0xa8, 0x36, 0xef, 0xcc, 0x8b, 0x77, 0x0d, 0xc7,
-        0xda, 0x41, 0x59, 0x7c, 0x51, 0x57, 0x48, 0x8d,
-        0x77, 0x24, 0xe0, 0x3f, 0xb8, 0xd8, 0x4a, 0x37,
-        0x6a, 0x43, 0xb8, 0xf4, 0x15, 0x18, 0xa1, 0x1c,
-        0xc3, 0x87, 0xb6, 0x69, 0xb2, 0xee, 0x65, 0x86,
-    ])
 
     private let sessionKey = SymmetricKey(size: .bits256)
 
@@ -262,9 +146,8 @@ final class ChaCha20Tests: XCTestCase {
         ),
     ]
 
-    private static func makeInnerStreamKeystream() -> KDBXCrypto.ChaCha20Keystream? {
-        let keyHash = KDBXCrypto.sha512(innerStreamKey)
-        return KDBXCrypto.ChaCha20Keystream(key: Data(keyHash.prefix(32)), nonce: Data(keyHash[32..<44]))
+    private static func makeInnerStreamKeystream() throws -> KDBXInnerStream {
+        try KDBXInnerStream(algorithm: .chaCha20, key: innerStreamKey)
     }
 
     private static func serializeProtectedValueEntry(sessionKey: SymmetricKey) throws -> Data {

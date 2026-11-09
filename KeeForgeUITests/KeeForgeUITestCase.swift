@@ -742,9 +742,16 @@ class KeeForgeUITestCase: XCTestCase {
     func requireRegularWidthLayout(file: StaticString = #filePath, line: UInt = #line) throws {
         let window = app.windows.firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 5), "App window did not appear", file: file, line: line)
-        guard window.frame.width >= 700 else {
+        guard usesRegularWidthLayout else {
             throw XCTSkip("Requires a regular-width simulator destination")
         }
+    }
+
+    /// The app picks its layout by size class, never by device: an open
+    /// iPhone Duo (669pt) is a phone with the iPad workspace, and the widest
+    /// compact window, the closed Duo, is 466pt.
+    var usesRegularWidthLayout: Bool {
+        app.windows.firstMatch.frame.width >= 600
     }
 
     /// iPadOS can start an adaptive split view with its sidebar collapsed even

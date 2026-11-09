@@ -1,5 +1,6 @@
 import CoreFoundation
 import Foundation
+import KDBXKit
 
 @MainActor
 final class PendingUploadDrainer {
@@ -61,7 +62,7 @@ final class PendingUploadDrainer {
                 try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: relativePath))
             },
             sha512: { data in
-                KDBXCrypto.sha512(data)
+                FileDigest.sha512(data)
             },
             pushPendingUpload: { reference, data, expectedRev in
                 try await CloudDatabaseSaver.pushPendingUpload(

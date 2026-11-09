@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXKit
 @testable import KeeForge
 
 /// `KDBXMerger` against real KeePassXC output.
@@ -150,7 +151,7 @@ final class KDBXMergerOracleTests: XCTestCase {
         let sessionKey = SymmetricKey(size: .bits256)
         let directory = try mergeFixtureDirectory().appendingPathComponent(scenario.id, isDirectory: true)
 
-        func parse(_ name: String) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header) {
+        func parse(_ name: String) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header) {
             try KDBXParser.parseWithMetaAndHeader(
                 data: try Data(contentsOf: directory.appendingPathComponent("\(name).kdbx")),
                 password: manifest.password,

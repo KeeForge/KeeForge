@@ -24,10 +24,10 @@ struct EntryDetailView: View {
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
+    #if os(macOS)
+    /// iOS opens the editor as the workspace's instead.
     @State private var activeEditor: EntryEditViewModel?
-    /// Set when the editor completes a delete; the close then finishes in
-    /// `onAppear`, a separate transaction from the editor pop (see `body`).
-    @State private var closesAfterEditorDismissal = false
+    #endif
     /// Both `onAppear`s in `body` can fire on the same reveal, and each
     /// `dismiss()` would pop one navigation level.
     @State private var hasFinishedClosing = false
@@ -318,12 +318,17 @@ struct EntryDetailView: View {
                                 Button("Edit") {
                                     guard let currentEntry = viewModel.entry(withID: entryID),
                                           let currentSessionKey = viewModel.sessionKey else { return }
-                                    activeEditor = EntryEditViewModel(
+                                    let editor = EntryEditViewModel(
                                         editing: currentEntry,
                                         sessionKey: currentSessionKey,
                                         knownTags: viewModel.tagsInDisplayOrder,
                                         inheritedTags: viewModel.inheritedTags(forEntryID: entryID)
                                     )
+                                    #if os(macOS)
+                                    activeEditor = editor
+                                    #else
+                                    viewModel.workspace.present(.entry(editor))
+                                    #endif
                                 }
                                 .accessibilityIdentifier("entry-detail.edit")
                             } else if showsReadOnlyIndicator {
@@ -365,26 +370,31 @@ struct EntryDetailView: View {
                     // the editor pops cleanly after the save instead of being
                     // torn down mid-flight. On the iPad detail root this
                     // onAppear fires even while the editor covers it.
-                    guard activeEditor == nil else { return }
+                    guard isEditorOpen == false else { return }
                     finishClose()
                 }
             }
         }
+        #if os(macOS)
         // Outside the entry branch: a permanent delete removes the entry while
-        // the editor is the topmost pushed view, and a branch-scoped
-        // `navigationDestination` would be torn down with no way to pop it.
+        // the editor is up, and a branch-scoped host would be torn down.
         .modifier(EntryEditorPresentation(view: self))
-        // Re-fires when the pushed editor pops back. The close must wait for
-        // this later transaction — popping the editor and this screen together
-        // drops the second pop on iOS 26. `entry == nil` catches an editor
-        // dismissed any other way (e.g. cancelled) over a vanished entry.
+        #endif
+        // An editor dismissed over a vanished entry (e.g. cancelled after a
+        // sync removed it). A compact delete pops this screen with its editor.
         .onAppear {
-            let editorJustPopped = closesAfterEditorDismissal
-            closesAfterEditorDismissal = false
-            if editorJustPopped || (activeEditor == nil && entry == nil) {
+            if isEditorOpen == false && entry == nil {
                 finishClose()
             }
         }
+    }
+
+    private var isEditorOpen: Bool {
+        #if os(macOS)
+        activeEditor != nil
+        #else
+        viewModel.workspace.openEditor != nil
+        #endif
     }
 
     /// iOS: the icon with its title below it, on the screen's ground. macOS: a
@@ -684,48 +694,32 @@ struct EntryDetailView: View {
         )
     }
 
-    /// Presents the entry editor. iOS pushes onto the navigation stack;
-    /// macOS presents a sheet (navigation-stack pushes inside the split-view
-    /// columns misrender on macOS).
+    #if os(macOS)
+    /// Presents the entry editor as a sheet: navigation-stack pushes inside
+    /// the split-view columns misrender on macOS.
     private struct EntryEditorPresentation: ViewModifier {
         let view: EntryDetailView
 
         func body(content: Content) -> some View {
-            #if os(macOS)
             content
                 .sheet(item: view.$activeEditor) { formViewModel in
                     NavigationStack {
-                        editor(formViewModel)
+                        EntryEditView(
+                            formViewModel: formViewModel,
+                            databaseViewModel: view.viewModel
+                        ) { completion in
+                            view.activeEditor = nil
+                            // Sheets never re-fire the presenter's `onAppear`.
+                            if completion == .deleted {
+                                view.finishClose()
+                            }
+                        }
                     }
                     .macSheetFrame()
                 }
-            #else
-            content
-                .navigationDestination(item: view.$activeEditor) { formViewModel in
-                    editor(formViewModel)
-                }
-            #endif
-        }
-
-        private func editor(_ formViewModel: EntryEditViewModel) -> some View {
-            EntryEditView(
-                formViewModel: formViewModel,
-                databaseViewModel: view.viewModel
-            ) { completion in
-                view.activeEditor = nil
-                if completion == .deleted {
-                    // iOS pops only the editor here; `onAppear` in `body`
-                    // finishes the close once the pop lands. macOS sheets never
-                    // re-fire the presenter's `onAppear`, so close directly.
-                    #if os(macOS)
-                    view.finishClose()
-                    #else
-                    view.closesAfterEditorDismissal = true
-                    #endif
-                }
-            }
         }
     }
+    #endif
 }
 
 /// Titles the entry screen per shell: iOS pushes it, so the entry's title is the

@@ -1,4 +1,5 @@
 import Foundation
+import KDBXKit
 
 /// Answers a YubiKey HMAC-SHA1 challenge over the transport a database is
 /// configured for. Backed by YubiKit, which the iOS app target alone links:

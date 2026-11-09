@@ -1,4 +1,5 @@
 #if os(iOS)
+import KDBXKit
 import SwiftUI
 import XCTest
 @testable import KeeForge
@@ -62,7 +63,7 @@ final class ViewRenderTests: XCTestCase {
             ("Wrong password", .classify(KDBXCrypto.CryptoError.hmacMismatch, isCloudBacked: false)),
             ("Wrong password, YubiKey possible", .classify(KDBXCrypto.CryptoError.hmacMismatch, isCloudBacked: false, hardwareKeyContext: .available)),
             ("Wrong password, YubiKey configured", .classify(KDBXCrypto.CryptoError.hmacMismatch, isCloudBacked: false, hardwareKeyContext: .configured)),
-            ("Key file hash mismatch", .classify(KeyFileProcessor.KeyFileError.xmlHashMismatch, isCloudBacked: false)),
+            ("Key file hash mismatch", .classify(KDBXKeyFile.KeyFileError.xmlHashMismatch, isCloudBacked: false)),
         ]
         let cards = states.map { caption, failure in
             RenderedState(caption: caption, card: false) {
@@ -105,6 +106,8 @@ final class ViewRenderTests: XCTestCase {
         var states: [(String, AnyView)] = []
         SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(length: 24)
         states.append(("Password, 24 characters", AnyView(PasswordGeneratorSheet(onUse: { _ in }))))
+        SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(length: PasswordGenerator.lengthRange.upperBound)
+        states.append(("Password, maximum length", AnyView(PasswordGeneratorSheet(onUse: { _ in }))))
         try renderScreens(states, named: "password-generator")
 
         SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(mode: .passphrase)
