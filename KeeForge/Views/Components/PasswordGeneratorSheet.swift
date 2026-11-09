@@ -67,7 +67,7 @@ struct PasswordGeneratorSheet: View {
                                 Text("\(options.length) characters")
                                     .font(.headline)
                                 Spacer(minLength: 8)
-                                Text(verbatim: "\(Self.lengthRange.lowerBound) – \(Self.lengthRange.upperBound)")
+                                Text(verbatim: "\(PasswordGenerator.lengthRange.lowerBound) – \(PasswordGenerator.lengthRange.upperBound)")
                                     .font(.footnote.monospacedDigit())
                                     .foregroundStyle(Theme.labelSecondary)
                                     .accessibilityHidden(true)
@@ -78,7 +78,7 @@ struct PasswordGeneratorSheet: View {
                                     get: { Double(options.length) },
                                     set: { options.length = Int($0.rounded()) }
                                 ),
-                                in: Double(Self.lengthRange.lowerBound)...Double(Self.lengthRange.upperBound),
+                                in: Double(PasswordGenerator.lengthRange.lowerBound)...Double(PasswordGenerator.lengthRange.upperBound),
                                 step: 1
                             )
                             .accessibilityLabel(Text("Length"))
@@ -134,8 +134,6 @@ struct PasswordGeneratorSheet: View {
             }
         }
     }
-
-    private static let lengthRange = 8...64
 
     private var strengthIndicator: some View {
         PasswordStrengthIndicator(
