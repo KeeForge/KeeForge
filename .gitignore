@@ -73,6 +73,7 @@ playground.xcworkspace
 *.key
 !TestFixtures/*.key
 !TestFixtures/**/*.key
+!Packages/KDBXKit/Tests/KDBXKitTests/Fixtures/*.key
 BuildConfig.local.xcconfig
 Configs/ExportOptions-DeveloperID.local.plist
 BuildMetadata.xcconfig
