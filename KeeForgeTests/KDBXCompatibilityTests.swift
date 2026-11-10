@@ -73,62 +73,78 @@ final class KDBXCompatibilityTests: XCTestCase {
 
     func test_offlineCloudCommitRetainsReopenableCiphertextAndFullKDBXSnapshot() async throws {
         for fixture in [KDBXCompatibilitySupport.Fixture.syntheticRich, .syntheticTwofish] {
-            let loaded = try KDBXCompatibilitySupport.load(fixture, bundle: bundle)
-            let file = CloudFile(id: UUID().uuidString, name: "Compatibility.kdbx", path: "/Compatibility.kdbx", isFolder: false, modifiedDate: nil, size: nil)
-            let reference = DatabaseListStore.addCloud(provider: "webdav", accountId: "compatibility", file: file)
-            defer { DatabaseListStore.remove(id: reference.id) }
-            try DatabaseListStore.cacheDatabaseCopy(loaded.sourceData, for: reference)
-            let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
-                binaryPoolFields: loaded.header.innerHeaderBinaryFields)
-            let before = try CompatibilitySnapshot(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
-                binaryPool: BinaryPool(rawFields: loaded.header.innerHeaderBinaryFields))
-            var environment = CloudDatabaseSaver.Environment.live
-            environment.getMetadata = { _ in throw CloudProviderError.networkUnavailable }
-            environment.queue.postDarwinNotification = { }
-            environment.replaceFile = { bytes, url, sha in
-                try LocalDatabaseSaver.replaceFileAtomically(bytes, at: url, expectedSHA512: sha,
-                    synchronizeDirectory: { _ in throw POSIXError(.EACCES) })
+            for restoreDescendant in [false, true] {
+                let loaded = try KDBXCompatibilitySupport.load(fixture, bundle: bundle)
+                let file = CloudFile(id: UUID().uuidString, name: "Compatibility.kdbx", path: "/Compatibility.kdbx", isFolder: false, modifiedDate: nil, size: nil)
+                let reference = DatabaseListStore.addCloud(provider: "webdav", accountId: "compatibility", file: file)
+                defer { DatabaseListStore.remove(id: reference.id) }
+                try DatabaseListStore.cacheDatabaseCopy(loaded.sourceData, for: reference)
+                let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
+                    binaryPoolFields: loaded.header.innerHeaderBinaryFields)
+                let before = try CompatibilitySnapshot(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
+                    binaryPool: BinaryPool(rawFields: loaded.header.innerHeaderBinaryFields))
+                var environment = CloudDatabaseSaver.Environment.live
+                environment.getMetadata = { _ in throw CloudProviderError.networkUnavailable }
+                environment.queue.postDarwinNotification = { }
+                environment.replaceFile = { bytes, url, sha in
+                    try LocalDatabaseSaver.replaceFileAtomically(bytes, at: url, expectedSHA512: sha,
+                        synchronizeDirectory: { _ in throw POSIXError(.EACCES) })
+                }
+                let result = try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: loaded.compositeKey,
+                    openTimeSHA512: FileDigest.sha512(loaded.sourceData), expectedRev: nil, kdfPolicy: .mainApp, environment: environment)
+                guard case .saved(let sha, _) = result else { return XCTFail("Offline local commit must succeed") }
+                let marker = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
+                let payload = try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: XCTUnwrap(marker.marker.intendedPayloadPath)))
+                XCTAssertEqual(FileDigest.sha512(payload), sha)
+                XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), payload)
+                XCTAssertNotNil(marker.marker.localCommitBaseline)
+                XCTAssertNil(marker.marker.localCommitBaseline?.headOperationID)
+                // Replay the pre-publication list snapshot while keeping the committed ciphertext and journal.
+                DatabaseListStore.update(reference)
+                try PendingUploadQueue.withCommitLock(for: reference.id) {
+                    try PendingUploadQueue.recoverLocalCommits(for: reference.id)
+                }
+                XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata?.localHeadOperationID, marker.id)
+                let repaired = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+                try PendingUploadQueue.withCommitLock(for: reference.id) {
+                    try PendingUploadQueue.recoverLocalCommits(for: reference.id)
+                }
+                XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }, repaired)
+                XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), payload)
+                var confirmed = marker
+                confirmed.marker.confirmedAt = .now
+                confirmed.marker.confirmedRemoteRev = "confirmed"
+                confirmed = try PendingUploadQueue.update(confirmed)
+                var expectedBytes = payload
+                var expectedPending: [UUID] = []
+                var expectedHead = marker.id
+                if restoreDescendant {
+                    let childResult = try await CloudDatabaseSaver.save(draft: draft, reference: repaired, compositeKey: loaded.compositeKey,
+                        openTimeSHA512: sha, expectedRev: nil, kdfPolicy: .mainApp, environment: environment)
+                    guard case .saved(let childSHA, _) = childResult else { return XCTFail("Descendant must commit offline") }
+                    let child = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first { $0.id != marker.id })
+                    expectedBytes = try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: XCTUnwrap(child.marker.intendedPayloadPath)))
+                    XCTAssertEqual(FileDigest.sha512(expectedBytes), childSHA)
+                    expectedPending = [child.id]
+                    expectedHead = child.id
+                }
+                try writeAtomicallyAndDurably(restoreDescendant ? payload : loaded.sourceData, to: DatabaseListStore.cacheLocation(for: reference))
+                let recovered = try CloudDatabaseSaver.recoverConfirmed(confirmed, reference: reference, environment: environment)
+                guard case .saved = recovered else { return XCTFail("Confirmed recovery must durably restore the exact ciphertext") }
+                let recoveredBytes = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+                XCTAssertEqual(recoveredBytes, expectedBytes)
+                XCTAssertEqual(PendingUploadQueue.listMarkers(for: reference.id).map(\.id), expectedPending)
+                XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata?.localHeadOperationID, expectedHead)
+                let reopened = try KDBXParser.parseWithMetaAndHeader(data: recoveredBytes, compositeKey: loaded.compositeKey,
+                    sessionKey: loaded.sessionKey, kdfPolicy: .mainApp)
+                let after = try CompatibilitySnapshot(rootGroup: reopened.rootGroup, meta: reopened.meta, sessionKey: loaded.sessionKey,
+                    binaryPool: BinaryPool(rawFields: reopened.header.innerHeaderBinaryFields))
+                XCTAssertEqual(after.entries, before.entries)
+                XCTAssertEqual(after.groups, before.groups)
+                XCTAssertEqual(after.meta, before.meta)
+                XCTAssertEqual(after.binaryPoolDigest, before.binaryPoolDigest)
+                XCTAssertEqual(reopened.header.cipherID, loaded.header.cipherID)
             }
-            let result = try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: loaded.compositeKey,
-                openTimeSHA512: FileDigest.sha512(loaded.sourceData), expectedRev: nil, kdfPolicy: .mainApp, environment: environment)
-            guard case .saved(let sha, _) = result else { return XCTFail("Offline local commit must succeed") }
-            let marker = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
-            let payload = try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: XCTUnwrap(marker.marker.intendedPayloadPath)))
-            XCTAssertEqual(FileDigest.sha512(payload), sha)
-            XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), payload)
-            XCTAssertNotNil(marker.marker.localCommitBaseline)
-            XCTAssertNil(marker.marker.localCommitBaseline?.headOperationID)
-            // Replay the pre-publication list snapshot while keeping the committed ciphertext and journal.
-            DatabaseListStore.update(reference)
-            try PendingUploadQueue.withCommitLock(for: reference.id) {
-                try PendingUploadQueue.recoverLocalCommits(for: reference.id)
-            }
-            XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata?.localHeadOperationID, marker.id)
-            let repaired = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
-            try PendingUploadQueue.withCommitLock(for: reference.id) {
-                try PendingUploadQueue.recoverLocalCommits(for: reference.id)
-            }
-            XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }, repaired)
-            XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), payload)
-            var confirmed = marker
-            confirmed.marker.confirmedAt = .now
-            confirmed.marker.confirmedRemoteRev = "confirmed"
-            confirmed = try PendingUploadQueue.update(confirmed)
-            try writeAtomicallyAndDurably(loaded.sourceData, to: DatabaseListStore.cacheLocation(for: reference))
-            let recovered = try CloudDatabaseSaver.recoverConfirmed(confirmed, reference: reference, environment: environment)
-            guard case .saved = recovered else { return XCTFail("Confirmed recovery must durably restore the exact ciphertext") }
-            let recoveredBytes = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
-            XCTAssertEqual(recoveredBytes, payload)
-            XCTAssertTrue(PendingUploadQueue.listMarkers(for: reference.id).isEmpty)
-            let reopened = try KDBXParser.parseWithMetaAndHeader(data: recoveredBytes, compositeKey: loaded.compositeKey,
-                sessionKey: loaded.sessionKey, kdfPolicy: .mainApp)
-            let after = try CompatibilitySnapshot(rootGroup: reopened.rootGroup, meta: reopened.meta, sessionKey: loaded.sessionKey,
-                binaryPool: BinaryPool(rawFields: reopened.header.innerHeaderBinaryFields))
-            XCTAssertEqual(after.entries, before.entries)
-            XCTAssertEqual(after.groups, before.groups)
-            XCTAssertEqual(after.meta, before.meta)
-            XCTAssertEqual(after.binaryPoolDigest, before.binaryPoolDigest)
-            XCTAssertEqual(reopened.header.cipherID, loaded.header.cipherID)
         }
     }
 

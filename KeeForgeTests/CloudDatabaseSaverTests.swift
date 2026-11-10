@@ -515,8 +515,12 @@ final class CloudDatabaseSaverTests: XCTestCase {
             openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", createdAt: .distantPast, isConflicted: true)
         let legacy = try PendingUploadQueue.enqueue(marker, notifying: false)
         var env = environment(Remote(context.source))
+        env.pruneBackups = { _, _ in XCTFail("Failed preservation must not rotate backups") }
         env.queue.writeMarkerAtomically = { _, url in
-            if url == legacy.fileURL.deletingPathExtension().appendingPathExtension("kdbx") { throw POSIXError(.ENOSPC) }
+            let payloadURL = legacy.fileURL.deletingPathExtension().appendingPathExtension("kdbx")
+            if url.standardizedFileURL.resolvingSymlinksInPath() == payloadURL.standardizedFileURL.resolvingSymlinksInPath() {
+                throw POSIXError(.ENOSPC)
+            }
             XCTFail("No new operation may be prepared after failed legacy preservation")
         }
         do {
@@ -877,6 +881,35 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(remaining.first?.marker.predecessorOperationID, journal.id)
         let uploads = await remote.uploadCount()
         XCTAssertEqual(uploads, 1)
+    }
+
+    func testConfirmedAncestorRetainsJournalsWhenDescendantPayloadOrLineageIsInvalid() async throws {
+        for corruptPayload in [false, true] {
+            let (context, remote, parent, parentBytes) = try await confirmedOrdinaryJournal()
+            defer { DatabaseListStore.remove(id: context.reference.id) }
+            let draft = try edit(parentBytes, key: context.key, sessionKey: context.sessionKey, title: "Descendant")
+            _ = try await CloudDatabaseSaver.save(draft: draft, reference: current(context.reference), compositeKey: context.key,
+                openTimeSHA512: FileDigest.sha512(parentBytes), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
+            var child = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first { $0.id != parent.id })
+            if corruptPayload {
+                let url = PendingUploadQueue.resolveAppGroupURL(for: try XCTUnwrap(child.marker.intendedPayloadPath))
+                try writeAtomicallyAndDurably(Data("corrupt immutable ciphertext".utf8), to: url)
+            } else {
+                child.marker.predecessorSHA512 = FileDigest.sha512(Data("unrelated predecessor".utf8))
+                child = try PendingUploadQueue.update(child)
+            }
+            try writeAtomicallyAndDurably(parentBytes, to: DatabaseListStore.cacheLocation(for: context.reference))
+            do {
+                _ = try await CloudDatabaseSaver.deliver(parent, reference: current(context.reference), environment: environment(remote))
+                XCTFail("Unproven descendant ownership must not authorize restore or cleanup")
+            } catch { XCTAssertEqual(error as? SaveError, .saveContextUnavailable) }
+            XCTAssertEqual(try cache(context.reference), parentBytes)
+            XCTAssertEqual(current(context.reference).cloudSyncMetadata?.localHeadOperationID, child.id)
+            XCTAssertEqual(Set(PendingUploadQueue.listMarkers(for: context.reference.id).map(\.id)), [parent.id, child.id])
+            XCTAssertEqual(try immutableBytes(parent), parentBytes)
+            let count = await remote.uploadCount()
+            XCTAssertEqual(count, 1)
+        }
     }
 
     func testConfirmedAncestrySurvivesParentDropFailureOrCASAndFreshManualOpen() async throws {
@@ -1253,12 +1286,20 @@ final class CloudDatabaseSaverTests: XCTestCase {
             }
             return result
         }
-        await gate.waitUntilHeld()
-        let first = try cache(context.reference)
-        let secondDraft = try edit(first, key: context.key, sessionKey: context.sessionKey, title: "AutoFill successor")
-        _ = try await LocalDatabaseSaver.save(draft: secondDraft, reference: current(context.reference), compositeKey: context.key,
-            openTimeSHA512: FileDigest.sha512(first), kdfPolicy: .autoFillExtension)
-        let newest = try cache(context.reference)
+        await fulfillment(of: [gate.entered], timeout: 30)
+        let newest: Data
+        let first: Data
+        do {
+            first = try cache(context.reference)
+            let secondDraft = try edit(first, key: context.key, sessionKey: context.sessionKey, title: "AutoFill successor")
+            _ = try await LocalDatabaseSaver.save(draft: secondDraft, reference: current(context.reference), compositeKey: context.key,
+                openTimeSHA512: FileDigest.sha512(first), kdfPolicy: .autoFillExtension)
+            newest = try cache(context.reference)
+        } catch {
+            await gate.release()
+            _ = try? await task.value
+            throw error
+        }
         await gate.release()
         _ = try await task.value
         XCTAssertEqual(try cache(context.reference), newest)
@@ -2090,20 +2131,17 @@ final class CloudDatabaseSaverTests: XCTestCase {
     }
 
     private actor Gate {
-        private var held = false
-        private var entered: CheckedContinuation<Void, Never>?
+        nonisolated let entered = XCTestExpectation(description: "Upload reached the injected suspension")
+        private var released = false
         private var exit: CheckedContinuation<Void, Never>?
-        func waitUntilHeld() async {
-            if held { return }
-            await withCheckedContinuation { entered = $0 }
-        }
         func hold() async {
-            held = true
-            entered?.resume(); entered = nil
+            entered.fulfill()
+            if released { return }
             await withCheckedContinuation { exit = $0 }
         }
-        func release() { exit?.resume(); exit = nil }
+        func release() { released = true; exit?.resume(); exit = nil }
     }
+
 }
 
 private final class JournalWriteCounter: @unchecked Sendable {

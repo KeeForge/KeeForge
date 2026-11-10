@@ -475,24 +475,6 @@ enum CloudDatabaseSaver {
         return current
     }
 
-    private static func confirmedCacheOwner(
-        of stored: PendingUploadQueue.StoredMarker, reference: DatabaseReference, environment: Environment
-    ) -> PendingUploadQueue.StoredMarker? {
-        let markers = PendingUploadQueue.listMarkers(for: reference.id, environment: environment.queue)
-        guard let head = markers.first(where: { $0.id == reference.cloudSyncMetadata?.localHeadOperationID }),
-              head.marker.isPayloadFinalized == true, head.marker.intendedPayloadPath != nil,
-              head.marker.keyEpoch == reference.cloudSyncMetadata?.keyEpoch else { return nil }
-        var remaining = [head.id]
-        var visited = Set<UUID>()
-        while let id = remaining.popLast() {
-            if id == stored.id { return head }
-            guard visited.insert(id).inserted, let marker = markers.first(where: { $0.id == id })?.marker else { continue }
-            if let predecessor = marker.predecessorOperationID { remaining.append(predecessor) }
-            remaining.append(contentsOf: marker.absorbedOperationIDs ?? [])
-        }
-        return nil
-    }
-
     private static func finishDelivery(
         _ stored: PendingUploadQueue.StoredMarker, reference: DatabaseReference,
         bytes: Data, environment: Environment
@@ -549,7 +531,7 @@ enum CloudDatabaseSaver {
                     if current.cloudSyncMetadata?.localHeadOperationID == stored.id {
                         owner = stored
                     } else {
-                        guard let descendant = confirmedCacheOwner(of: stored, reference: current, environment: environment) else {
+                        guard let descendant = PendingUploadQueue.localDescendantOwner(of: stored, reference: current, environment: environment.queue) else {
                             throw SaveError.saveContextUnavailable
                         }
                         owner = descendant

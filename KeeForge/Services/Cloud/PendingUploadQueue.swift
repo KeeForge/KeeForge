@@ -676,6 +676,15 @@ enum PendingUploadQueue {
               FileDigest.sha512(payload) == intendedSHA else { return nil }
         let cache = try? environment.readData(resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment))
         if cache.map(FileDigest.sha512) == intendedSHA {
+            if let current = DatabaseListStore.databases.first(where: { $0.id == stored.marker.databaseId }),
+               baseline.hasCompatibleEpoch(current),
+               current.cloudSyncMetadata?.localHeadOperationID != stored.id,
+               current.cloudSyncMetadata?.localHeadOperationID != baseline.headOperationID,
+               let descendant = localDescendantOwner(of: stored, reference: current, environment: environment) {
+                // Replaying an ancestor must prove the existing head durable, never roll it back.
+                return DatabaseListStore.publishCloudLocalCommit(for: current.id, operationID: descendant.id,
+                    baseline: LocalCommitBaseline(reference: current))
+            }
             return DatabaseListStore.publishCloudLocalCommit(for: stored.marker.databaseId, operationID: stored.id, baseline: baseline)
         }
         guard let current = DatabaseListStore.databases.first(where: { $0.id == stored.marker.databaseId }),
@@ -684,6 +693,36 @@ enum PendingUploadQueue {
         // Reconfirm only this already-visible head; cache restoration still needs confirmed-owner proof.
         return DatabaseListStore.publishCloudLocalCommit(for: current.id, operationID: stored.id,
             baseline: LocalCommitBaseline(reference: current))
+    }
+
+    /// Caller holds the commit lock. Every hop must still own its exact immutable ciphertext.
+    static func localDescendantOwner(
+        of ancestor: StoredMarker, reference: DatabaseReference, environment: Environment = .live
+    ) -> StoredMarker? {
+        let markers = listMarkers(for: reference.id, environment: environment)
+        func verified(_ stored: StoredMarker) -> Bool {
+            guard stored.marker.databaseId == reference.id, stored.marker.isPayloadFinalized == true,
+                  stored.marker.rekeyContext == nil, stored.marker.keyEpoch == reference.cloudSyncMetadata?.keyEpoch,
+                  let sha = stored.marker.intendedPayloadSHA512, stored.marker.openTimeSHA512 == sha,
+                  let path = stored.marker.intendedPayloadPath,
+                  let bytes = try? environment.readData(resolveAppGroupURL(for: path, environment: environment)) else { return false }
+            return FileDigest.sha512(bytes) == sha
+        }
+        guard let head = markers.first(where: { $0.id == reference.cloudSyncMetadata?.localHeadOperationID }),
+              verified(head) else { return nil }
+        var remaining = [head]
+        var visited = Set<UUID>()
+        while let child = remaining.popLast() {
+            guard visited.insert(child.id).inserted else { continue }
+            if child.id == ancestor.id { return child.marker == ancestor.marker ? head : nil }
+            for parent in markers {
+                let predecessor = child.marker.predecessorOperationID == parent.id
+                    && child.marker.predecessorSHA512 == parent.marker.intendedPayloadSHA512
+                let absorbed = child.marker.absorbedOperationIDs?.contains(parent.id) == true
+                if (predecessor || absorbed), verified(parent) { remaining.append(parent) }
+            }
+        }
+        return nil
     }
 
     /// Caller holds the commit lock; marker and list locks are acquired only inside it.
