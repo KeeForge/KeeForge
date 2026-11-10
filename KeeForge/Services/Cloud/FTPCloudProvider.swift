@@ -240,6 +240,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
                 return await Self.metadata(of: data, at: path, in: session)
             }
         } catch {
+            if error is CancellationError { throw error }
             guard targetMutationStarted.withLock({ $0 }) else {
                 let mapped = Self.mapError(error, context: .write)
                 let underlying = (mapped as? CloudProviderError) ?? .unknown(CloudProviderError.message(for: mapped))
@@ -293,6 +294,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
                 return await Self.metadata(of: data, at: path, in: session)
             }
         } catch {
+            if error is CancellationError { throw error }
             guard targetMutationStarted.withLock({ $0 }) else {
                 let mapped = Self.mapError(error, context: .write)
                 let underlying = (mapped as? CloudProviderError) ?? .unknown(CloudProviderError.message(for: mapped))

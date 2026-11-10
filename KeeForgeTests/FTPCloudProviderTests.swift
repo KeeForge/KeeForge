@@ -332,7 +332,9 @@ final class FTPCloudProviderTests: XCTestCase {
     func testCancelledRevisionDownloadAbortsTheSave() async throws {
         let server = FakeFTPServer()
         server.setFile("personal.kdbx", data: Data("old".utf8))
-        let (provider, accountId) = try makeProvider(server: server)
+        let accountId = "cancellation-test"
+        let credential = FTPCredential(serverURL: "ftp://nas.local/", username: "alex", password: "secret")
+        let provider = FTPCloudProvider(client: server.makeClient(), credentialResolver: { _ in credential })
         let before = try await provider.getMetadata(accountId: accountId, fileId: "/personal.kdbx")
         let canceller = TaskCanceller()
         server.silentVerbs = ["RETR"]
@@ -355,6 +357,26 @@ final class FTPCloudProviderTests: XCTestCase {
             XCTAssertTrue(error is CancellationError, "\(error)")
         }
         XCTAssertEqual(server.file("personal.kdbx")?.data, Data("old".utf8))
+        XCTAssertFalse(server.commandLog.contains { $0.hasPrefix("RNTO") })
+    }
+
+    func testCancelledCreateScratchTransferNeverInstallsTheTarget() async throws {
+        let server = FakeFTPServer()
+        let credential = FTPCredential(serverURL: "ftp://nas.local/", username: "alex", password: "secret")
+        let provider = FTPCloudProvider(client: server.makeClient(), credentialResolver: { _ in credential })
+        let canceller = TaskCanceller()
+        server.silentVerbs = ["STOR"]
+        server.beforeNext("STOR") { canceller.cancel() }
+        let creation = Task {
+            let created = try await provider.createFile(accountId: "cancellation-test", path: "/new.kdbx", data: Data("encrypted".utf8)) { _ in }
+            return created.metadata
+        }
+        canceller.track(creation)
+        do {
+            _ = try await creation.value
+            XCTFail("Expected creation to be cancelled")
+        } catch { XCTAssertTrue(error is CancellationError, "\(error)") }
+        XCTAssertNil(server.file("new.kdbx"))
         XCTAssertFalse(server.commandLog.contains { $0.hasPrefix("RNTO") })
     }
 
