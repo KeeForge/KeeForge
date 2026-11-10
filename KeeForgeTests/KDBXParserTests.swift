@@ -693,7 +693,7 @@ final class KDBXParserTests: XCTestCase {
         // Flip a byte inside the master seed value: the header still parses,
         // so the failure has to come from the integrity check rather than the
         // TLV reader. The header SHA-256 is verified before the header HMAC,
-        // so a header bit flip surfaces as `.invalidSignature`.
+        // so a header bit flip surfaces as `.headerHashMismatch`.
         let seedRange = try XCTUnwrap(fixture.data.range(of: fixture.masterSeed))
         XCTAssertLessThan(seedRange.lowerBound, fixture.headerLength)
         var corrupted = fixture.data
@@ -707,7 +707,7 @@ final class KDBXParserTests: XCTestCase {
                 sessionKey: testSessionKey
             )
         ) { error in
-            XCTAssertEqual(error as? KDBXContainer.ParseError, .invalidSignature)
+            XCTAssertEqual(error as? KDBXContainer.ParseError, .headerHashMismatch)
         }
     }
 

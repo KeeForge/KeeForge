@@ -3523,6 +3523,24 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(failure.canRetryUnlock)
     }
 
+    func testUnsupportedKeyFileVersionNamesTheProblem() {
+        let failure = DatabaseOpenFailure.classify(KDBXKeyFile.KeyFileError.xmlVersionUnsupported, isCloudBacked: false)
+
+        XCTAssertEqual(failure.summary, "This key file uses a version KeeForge does not support.")
+        XCTAssertEqual(failure.errorCode, "key_file.unsupported_version")
+        XCTAssertFalse(failure.countsTowardFailedAttempts)
+    }
+
+    /// A damaged or oversized KDBX file is a KeePass database KeeForge could
+    /// not read, not "Not a KeePass Database".
+    func testDamagedHeaderAndOversizedPayloadAreReadFailuresNotWrongFormat() {
+        for error in [KDBXContainer.ParseError.headerHashMismatch, .decompressedPayloadTooLarge] {
+            let failure = DatabaseOpenFailure.classify(error, isCloudBacked: false)
+            XCTAssertEqual(failure.errorCode, "open.parse_failed", "\(error)")
+            XCTAssertFalse(failure.countsTowardFailedAttempts, "\(error)")
+        }
+    }
+
     func testTwofishHeaderDiagnosticsUseRecognizedCipherName() throws {
         let loaded = try KDBXCompatibilitySupport.load(
             .syntheticTwofish,

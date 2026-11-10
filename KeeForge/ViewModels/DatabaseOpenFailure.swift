@@ -394,6 +394,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             errorCode = "key_file.invalid_xml_data"
         case .xmlHashMismatch:
             errorCode = "key_file.hash_mismatch"
+        case .xmlVersionUnsupported:
+            errorCode = "key_file.unsupported_version"
         }
 
         return DatabaseOpenFailure(
