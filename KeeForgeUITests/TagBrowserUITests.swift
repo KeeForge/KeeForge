@@ -131,12 +131,7 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
 
         // One push, not several: a single back lands on the entry, not on
         // another tag screen stacked in between.
-        guard let backButton = app.navigationBars.buttons.allElementsBoundByIndex.first(where: {
-            $0.exists && $0.isHittable && $0.identifier != "lock.button"
-        }) else {
-            return XCTFail("Tag entries screen had no back button")
-        }
-        backButton.tap()
+        tapBackButton()
 
         let chipAfterBack = app.descendants(matching: .any)
             .matching(identifier: "entry-detail.tag.\(sharedTag)")
