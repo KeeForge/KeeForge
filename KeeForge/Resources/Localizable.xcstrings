@@ -29021,110 +29021,6 @@
         }
       }
     },
-    "Install KeeForge with `brew install --cask keeforge/tap/keeforge`. It then keeps itself up to date." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Installiere KeeForge mit `brew install --cask keeforge/tap/keeforge`. Danach hält es sich selbst auf dem neuesten Stand."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Instala KeeForge con `brew install --cask keeforge/tap/keeforge`. Después se mantiene actualizado por sí solo."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Installez KeeForge avec `brew install --cask keeforge/tap/keeforge`. L'app se met ensuite à jour toute seule."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Installa KeeForge con `brew install --cask keeforge/tap/keeforge`. In seguito si mantiene aggiornato da solo."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "`brew install --cask keeforge/tap/keeforge` で KeeForge をインストールできます。その後は自動的に最新の状態に保たれます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Установите KeeForge командой `brew install --cask keeforge/tap/keeforge`. Дальше приложение обновляется само."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用 `brew install --cask keeforge/tap/keeforge` 安装 KeeForge。之后它会自行保持更新。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用 `brew install --cask keeforge/tap/keeforge` 安裝 KeeForge。之後它會自行保持更新。"
-          }
-        }
-      }
-    },
-    "Install with Homebrew" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mit Homebrew installieren"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Instala con Homebrew"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Installez avec Homebrew"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Installa con Homebrew"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Homebrew でインストール"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Устанавливайте через Homebrew"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通过 Homebrew 安装"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "透過 Homebrew 安裝"
-          }
-        }
-      }
-    },
     "Invalid File" : {
       "localizations" : {
         "de" : {
@@ -30628,7 +30524,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 採用了全新設計。打開資料庫後會先顯示所有項目、驗證碼、標籤和群組的概覽，項目詳細資訊、編輯器和解鎖畫面也都更加清晰。"
+            "value" : "KeeForge 採用了全新設計。開啟資料庫後會先顯示所有項目、驗證碼、標籤和群組的概覽，項目詳細資訊、編輯器和解鎖畫面也都更加清晰。"
           }
         }
       }
@@ -34383,7 +34279,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Erstelle eine neue Schlüsseldatei, während du eine Datenbank anlegst oder ihren Master-Schlüssel änderst. Bewahre eine Kopie an einem sicheren Ort auf: Ohne sie lässt sich die Datenbank nicht öffnen."
+            "value" : "Erstelle eine neue Schlüsseldatei, während du eine Datenbank erstellst oder ihren Master-Schlüssel änderst. Bewahre eine Kopie an einem sicheren Ort auf: Ohne sie lässt sich die Datenbank nicht öffnen."
           }
         },
         "es" : {
@@ -34419,13 +34315,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在创建数据库或更改其主密钥时，可以新建密钥文件。请将副本保存在安全的地方：没有它，数据库将无法打开。"
+            "value" : "在创建数据库或更改其主密钥时，可以创建新的密钥文件。请将副本保存在安全的地方：没有它，数据库将无法打开。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在建立資料庫或更改其主金鑰時，可以新增金鑰檔案。請將副本保存在安全的地方：沒有它，資料庫將無法打開。"
+            "value" : "在建立資料庫或更改其主金鑰時，可以建立新的金鑰檔案。請將副本保存在安全的地方：沒有它，資料庫將無法開啟。"
           }
         }
       }
@@ -39498,13 +39394,13 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Abre el iPhone y KeeForge cambia a una disposición en paralelo; ciérralo y vuelve a la anterior. Tu posición, tu búsqueda y los cambios sin guardar se conservan."
+            "value" : "Despliega el iPhone y KeeForge cambia a una disposición en paralelo; pliégalo y vuelve a la anterior. Tu posición, tu búsqueda y los cambios sin guardar se conservan."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ouvrez l'iPhone et KeeForge passe à une présentation côte à côte ; refermez-le et l'app revient à la présentation précédente. Votre position, votre recherche et vos modifications non enregistrées sont conservées."
+            "value" : "Dépliez l'iPhone et KeeForge passe à une présentation côte à côte ; repliez-le et l'app revient à la présentation précédente. Votre position, votre recherche et vos modifications non enregistrées sont conservées."
           }
         },
         "it" : {
@@ -39522,13 +39418,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Откройте iPhone — и KeeForge перейдёт к двухпанельному виду; закройте — и он вернётся к прежнему. Ваше место, поиск и несохранённые изменения останутся как были."
+            "value" : "Разверните iPhone — и KeeForge перейдёт к двухпанельному виду; сложите — и он вернётся к прежнему. Ваше место, поиск и несохранённые изменения останутся как были."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "展开 iPhone 时，KeeForge 会切换为并排布局；合上后会切换回来。你所在的位置、搜索内容和未存储的编辑都会保持原样。"
+            "value" : "展开 iPhone 时，KeeForge 会切换为并排布局；合上后会切换回来。你所在的位置、搜索内容和未保存的编辑都会保持原样。"
           }
         },
         "zh-Hant" : {
@@ -42510,7 +42406,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Готово к iPhone Duo"
+            "value" : "Поддержка iPhone Duo"
           }
         },
         "zh-Hans" : {
@@ -48424,7 +48320,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在「編輯」中設定新的到期日或關閉到期。"
+            "value" : "在「編輯」中設定新的過期日期或關閉過期。"
           }
         }
       }
@@ -53340,7 +53236,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos está en «Eliminados recientemente» en la app Archivos. Restáuralo en Archivos o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
+            "value" : "El archivo de la base de datos está en «Eliminados recientemente» en la app Archivos. Restáuralo en Archivos o elige el archivo actual con «Localizar archivo de base de datos» en KeeForge."
           }
         },
         "fr" : {
@@ -53392,7 +53288,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos está en la Papelera; es posible que se haya eliminado o que se haya sustituido por una copia más reciente. Restáuralo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos»."
+            "value" : "El archivo de la base de datos está en la Papelera; es posible que se haya eliminado o que se haya sustituido por una copia más reciente. Restáuralo desde la Papelera en el Finder o elige el archivo actual con «Localizar archivo de base de datos»."
           }
         },
         "fr" : {
@@ -53444,7 +53340,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos está en la Papelera. Restáuralo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
+            "value" : "El archivo de la base de datos está en la Papelera. Restáuralo desde la Papelera en el Finder o elige el archivo actual con «Localizar archivo de base de datos» en KeeForge."
           }
         },
         "fr" : {
@@ -53496,7 +53392,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos se movió a «Eliminados recientemente» en la app Archivos; es posible que se haya eliminado o que se haya sustituido por una copia más reciente. Restáuralo en Archivos o elija el archivo actual con «Localizar archivo de base de datos»."
+            "value" : "El archivo de la base de datos se movió a «Eliminados recientemente» en la app Archivos; es posible que se haya eliminado o que se haya sustituido por una copia más reciente. Restáuralo en Archivos o elige el archivo actual con «Localizar archivo de base de datos»."
           }
         },
         "fr" : {
@@ -60924,7 +60820,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mantén pulsado para restaurar o eliminar definitivamente."
+            "value" : "Mantén pulsado para restaurar o eliminar permanentemente."
           }
         },
         "fr" : {
@@ -60960,7 +60856,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "按住可復原或永久刪除。"
+            "value" : "按住可回復或永久刪除。"
           }
         }
       }
@@ -66321,54 +66217,54 @@
         }
       }
     },
-    "When an app doesn't offer your verification code, tap the field, choose AutoFill, and pick the entry in KeeForge to insert its code." : {
+    "When an app doesn't offer your verification code, tap the field, choose AutoFill, then Passwords, and pick the entry in KeeForge to insert its code." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wenn eine App deinen Bestätigungscode nicht anbietet, tippe auf das Feld, wähle AutoFill und dann den Eintrag in KeeForge, um seinen Code einzufügen."
+            "value" : "Wenn eine App deinen Bestätigungscode nicht anbietet, tippe auf das Feld, wähle „Automatisch ausfüllen“ und dann „Passwörter“ und wähle den Eintrag in KeeForge, um seinen Code einzufügen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cuando una app no te ofrezca tu código de verificación, toca el campo, elige Autorrelleno y selecciona la entrada en KeeForge para insertar su código."
+            "value" : "Cuando una app no te ofrezca tu código de verificación, toca el campo, elige «Autorrelleno» y luego «Contraseñas», y selecciona la entrada en KeeForge para insertar su código."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lorsqu'une app ne propose pas votre code de vérification, touchez le champ, choisissez Remplissage automatique, puis sélectionnez l'entrée dans KeeForge pour insérer son code."
+            "value" : "Lorsqu'une app ne propose pas votre code de vérification, touchez le champ, choisissez « Remplissage automatique », puis « Mots de passe », et sélectionnez l'entrée dans KeeForge pour insérer son code."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Quando un'app non propone il tuo codice di verifica, tocca il campo, scegli Inserimento automatico e seleziona la voce in KeeForge per inserirne il codice."
+            "value" : "Quando un'app non propone il tuo codice di verifica, tocca il campo, scegli “Inserimento automatico”, poi “Password”, e seleziona la voce in KeeForge per inserirne il codice."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "App が確認コードを提示しないときは、フィールドをタップして「自動入力」を選び、KeeForge でエントリを選ぶとコードが挿入されます。"
+            "value" : "App が確認コードを提示しないときは、フィールドをタップして「自動入力」>「パスワード」を選び、KeeForge でエントリを選ぶとコードが挿入されます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Если приложение не предлагает ваш код проверки, коснитесь поля, выберите «Автозаполнение» и укажите запись в KeeForge, чтобы вставить её код."
+            "value" : "Если приложение не предлагает ваш код проверки, коснитесь поля, выберите «Автозаполнение», затем «Пароли» и укажите запись в KeeForge, чтобы вставить её код."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "当 App 没有提供你的验证码时，轻点输入框，选择“自动填充”，然后在 KeeForge 中选取条目即可插入其验证码。"
+            "value" : "当 App 没有提供你的验证码时，轻点输入框，选择“自动填充”，再选择“密码”，然后在 KeeForge 中选取条目即可插入其验证码。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "當 App 沒有提供你的驗證碼時，點一下輸入欄位，選擇「自動填寫」，然後在 KeeForge 中選取項目即可插入其驗證碼。"
+            "value" : "當 App 沒有提供你的驗證碼時，點一下輸入欄位，選擇「自動填寫」，再選擇「密碼」，然後在 KeeForge 中選取項目即可插入其驗證碼。"
           }
         }
       }

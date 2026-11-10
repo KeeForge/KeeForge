@@ -419,6 +419,11 @@ retains the direct-build updater and observes Sparkle's readiness on the main
 actor to control Check for Updates availability during startup and update checks.
 Sparkle owns appcast fetching, payload verification, and installation.
 
+The direct build sets `SUEnableAutomaticChecks`, so Sparkle fetches the appcast once
+a day from first launch without first asking; Settings → About → Updates turns
+that off. It does not download or install an update without the user's
+confirmation, and system profiling is not enabled.
+
 Direct updates use an HTTPS appcast, Sparkle EdDSA verification against the embedded
 `SUPublicEDKey`, and notarized, stapled app payloads. The signing private key lives
 outside the repository in the login Keychain. Its recovery backup is essential

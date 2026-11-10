@@ -40,7 +40,7 @@
 
 ### Egress and logging
 
-- Network egress is limited to cloud sync, opt-in favicon fetching, and the user-submitted feedback form (root `AGENTS.md`). The extensions make no network requests.
+- Network egress is limited to cloud sync, opt-in favicon fetching, the user-submitted feedback form, and the direct Mac build's update check (root `AGENTS.md`). The extensions make no network requests.
 - `AutoFill/AutoFillDiagnostics` (DEBUG builds only) logs event names, flags, and counts, never entry data, URLs, or secrets.
 
 ## Tests

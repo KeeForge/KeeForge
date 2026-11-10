@@ -114,13 +114,19 @@ struct DatabaseCreationView: View {
     private var formContent: some View {
         Form {
             Section {
-                LabeledContent("Database name") {
-                    TextField("Database name", text: $viewModel.databaseName, prompt: Text("Required"))
-                        .textInputAutocapitalization(.words)
-                        .multilineTextAlignment(.trailing)
-                        .foregroundStyle(Theme.labelSecondary)
-                        .macLabelsHidden()
-                        .accessibilityIdentifier("database-create.name-field")
+                if PlatformDesign.followsIOSDesign {
+                    LabeledContent("Database name") {
+                        TextField("Database name", text: $viewModel.databaseName, prompt: Text("Required"))
+                            .textInputAutocapitalization(.words)
+                            .multilineTextAlignment(.trailing)
+                            .foregroundStyle(Theme.labelSecondary)
+                            .accessibilityIdentifier("database-create.name-field")
+                    }
+                } else {
+                    macLabeledField(String(localized: "Database name")) {
+                        TextField("Database name", text: $viewModel.databaseName)
+                            .accessibilityIdentifier("database-create.name-field")
+                    }
                 }
 
                 // A menu, not segments: five destinations truncate as segments on iPhone.
@@ -148,27 +154,19 @@ struct DatabaseCreationView: View {
             }
 
             Section {
-                PasswordInputRow(
-                    title: String(localized: "Master password"),
+                passwordRow(
+                    String(localized: "Master password"),
                     text: $viewModel.password,
                     isVisible: $isMasterPasswordVisible,
-                    fieldAccessibilityIdentifier: "database-create.password-field",
-                    visibilityAccessibilityIdentifier: "database-create.password-visibility-button",
-                    usesPasswordAutoFill: false
+                    identifierPrefix: "database-create.password"
                 )
-                .tint(Theme.labelSecondary)
-                .macLabelsHidden()
 
-                PasswordInputRow(
-                    title: String(localized: "Confirm password"),
+                passwordRow(
+                    String(localized: "Confirm password"),
                     text: $viewModel.confirmPassword,
                     isVisible: $isConfirmPasswordVisible,
-                    fieldAccessibilityIdentifier: "database-create.confirm-password-field",
-                    visibilityAccessibilityIdentifier: "database-create.confirm-password-visibility-button",
-                    usesPasswordAutoFill: false
+                    identifierPrefix: "database-create.confirm-password"
                 )
-                .tint(Theme.labelSecondary)
-                .macLabelsHidden()
 
                 if viewModel.password.isEmpty == false {
                     VStack(alignment: .leading, spacing: 6) {
@@ -256,6 +254,46 @@ struct DatabaseCreationView: View {
             }
         }
         .macGroupedForm()
+    }
+
+    @ViewBuilder
+    private func passwordRow(
+        _ title: String,
+        text: Binding<String>,
+        isVisible: Binding<Bool>,
+        identifierPrefix: String
+    ) -> some View {
+        let row = PasswordInputRow(
+            title: title,
+            text: text,
+            isVisible: isVisible,
+            fieldAccessibilityIdentifier: "\(identifierPrefix)-field",
+            visibilityAccessibilityIdentifier: "\(identifierPrefix)-visibility-button",
+            usesPasswordAutoFill: false
+        )
+        if PlatformDesign.followsIOSDesign {
+            row.tint(Theme.labelSecondary)
+        } else {
+            macLabeledField(title) { row }
+        }
+    }
+
+    // A macOS grouped form hides a field's own label, so the title sits above a bordered field.
+    private func macLabeledField<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            content()
+                .macLabelsHidden()
+                .macFormFieldStyle()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 2)
     }
 
     private var advancedFooter: String {
