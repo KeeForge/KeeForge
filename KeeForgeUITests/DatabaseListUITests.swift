@@ -41,11 +41,11 @@ final class DatabaseListUITests: KeeForgeUITestCase {
         app.buttons["Read-only"].firstMatch.tap()
 
         XCTAssertTrue(
-            charlie.staticTexts["Read-only"].waitForExistence(timeout: 5),
+            charlie.staticTexts["database-row.read-only-badge"].waitForExistence(timeout: 5),
             "The pressed tile must turn read-only"
         )
         for other in ["alpha", "bravo"] {
-            XCTAssertFalse(databaseRow(containing: other).staticTexts["Read-only"].exists, "\(other) must stay writable")
+            XCTAssertFalse(databaseRow(containing: other).staticTexts["database-row.read-only-badge"].exists, "\(other) must stay writable")
         }
     }
 
