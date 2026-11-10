@@ -36,6 +36,8 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 
 ### Isolation from real user data
 
+- The injected host app leaves its root and automatic lifecycle idle, including Darwin enqueue observation. Tests explicitly await their own delivery/recovery tasks before clearing storage. Inject providers at the durable creation coordinator, keeping real journal/cache/registration effects; legacy `createCloudFile` injection does not intercept the live durable path. Suspensions use bounded start expectations and retain an early release so failure before the hook cannot leave a test waiting forever.
+
 - `PendingLocalSaveTests` covers the Mac AutoFill write-back, conflict, merge, retained backup, and rekey paths. Run it with the saver, registration, and compatibility suites when this flow changes.
 
 - Both targets are hosted by the real app. `AppGroupContainer.isRedirectedForTesting` sends App Group storage to a temporary container; without it a Mac run's `DatabaseListStore.clearAll()` deletes the developer's own database list and backups. `AppGroupIsolationTests` is the gate; never bypass the redirect.

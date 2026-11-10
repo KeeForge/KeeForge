@@ -1,3 +1,6 @@
+import AuthenticationServices
+import CryptoKit
+import KDBXKit
 import XCTest
 @testable import KeeForge
 
@@ -10,8 +13,8 @@ import XCTest
 /// The view model threads a constructor-injected
 /// `DatabaseCreationService.Environment` (default `.live`) into every service
 /// call. Most tests use the default and exercise the real (network-free)
-/// local creation/preparation path; the cloud-creation tests inject a fake
-/// `createCloudFile` to reach the upload success/failure branches — including
+/// local creation/preparation path; cloud tests inject a provider into the
+/// durable creation coordinator to reach success/failure branches — including
 /// `cloudCreationMessage(for:)`'s `.conflict` formatting — deterministically.
 @MainActor
 final class DatabaseCreationViewModelTests: XCTestCase {
@@ -231,6 +234,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertEqual(created.reference.filename, "Exported.kdbx")
         XCTAssertNil(viewModel.preparedDatabase)
         XCTAssertEqual(DatabaseListStore.databases.map(\.id), [created.reference.id])
+
     }
 
     func testCompleteExportWithoutAPreparedDatabaseThrowsDestinationUnavailable() throws {
@@ -324,6 +328,10 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         viewModel.databaseName = "Cloud Vault"
         viewModel.password = "cloud password"
         viewModel.confirmPassword = "cloud password"
+        let keyFileData = try KDBXKeyFile.generate()
+        let keyFileURL = try makeTemporaryFileURL(name: "Cloud.keyx", contents: keyFileData)
+        try viewModel.selectKeyFile(url: keyFileURL)
+        let keyFileBookmark = try XCTUnwrap(viewModel.keyFileBookmarkData)
 
         let result = await viewModel.createInCloud(
             provider: CloudProviderKind.dropbox.rawValue,
@@ -340,7 +348,22 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.confirmPassword, "")
         XCTAssertNil(viewModel.keyFileData)
         XCTAssertNil(viewModel.preparedDatabase)
+        XCTAssertEqual(created.reference.keyFileBookmarkData, keyFileBookmark)
+        XCTAssertEqual(created.reference.keyFileFilename, "Cloud.keyx")
         XCTAssertEqual(DatabaseListStore.databases.map(\.id), [created.reference.id])
+        let cached = try Data(contentsOf: XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: created.reference)))
+        XCTAssertEqual(FileDigest.sha512(cached), created.openTimeSHA512)
+        let parsed = try KDBXParser.parseWithMeta(data: cached, compositeKey: created.compositeKey, sessionKey: created.sessionKey)
+        XCTAssertEqual(parsed.rootGroup.groups.first?.name, "Cloud Vault")
+        let originalKey = try KDBXCrypto.compositeKey(password: "cloud password", keyFileData: keyFileData)
+        _ = try KDBXParser.parseWithMeta(data: cached, compositeKey: originalKey, sessionKey: created.sessionKey)
+        XCTAssertThrowsError(try KDBXParser.parseWithMeta(data: cached,
+            compositeKey: KDBXCrypto.compositeKey(password: "cloud password"), sessionKey: created.sessionKey))
+        let receipt = try XCTUnwrap(PendingUploadQueue.listCreations(includingCompleted: true).first)
+        XCTAssertEqual(receipt.phase, .completed)
+        XCTAssertEqual(receipt.receipt?.id, created.reference.id)
+        XCTAssertEqual(created.reference.cloudSyncMetadata?.localHeadOperationID, receipt.operationID)
+        XCTAssertEqual(receipt.payloadSHA512, FileDigest.sha512(cached))
     }
 
     func testCreateInCloudReturnsNilWithoutSurfacingACreationErrorWhenValidationFails() async throws {
@@ -411,7 +434,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         viewModel.password = "password"
         viewModel.confirmPassword = "password"
         let preparation = Task { await viewModel.prepareForExport() }
-        await suspension.waitUntilStarted()
+        await fulfillment(of: [suspension.started], timeout: 30)
 
         viewModel.cancelPendingCreation()
         await suspension.resolve(.success(prepared))
@@ -434,7 +457,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         viewModel.password = "password"
         viewModel.confirmPassword = "password"
         let preparation = Task { await viewModel.prepareForExport() }
-        await suspension.waitUntilStarted()
+        await fulfillment(of: [suspension.started], timeout: 30)
 
         viewModel.cancelPendingCreation()
         await suspension.resolve(.failure(DatabaseCreationService.CreationError.generatedFileFailedToReopen))
@@ -460,7 +483,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         let creation = Task {
             await viewModel.createInCloud(provider: "dropbox", accountID: "acct-1", folderPath: nil)
         }
-        await suspension.waitUntilStarted()
+        await fulfillment(of: [suspension.started], timeout: 30)
 
         viewModel.cancelPendingCreation()
         await suspension.resolve(.success(()))
@@ -489,7 +512,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         let creation = Task {
             await viewModel.createInCloud(provider: "dropbox", accountID: "acct-1", folderPath: nil)
         }
-        await suspension.waitUntilStarted()
+        await fulfillment(of: [suspension.started], timeout: 30)
 
         viewModel.cancelPendingCreation()
         await suspension.resolve(.failure(CloudProviderError.insufficientSpace))
@@ -564,7 +587,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         viewModel.password = "password"
         viewModel.confirmPassword = "password"
         let task = Task { await viewModel.createInCloud(provider: "googledrive", accountID: "A", folderPath: nil) }
-        await suspension.waitUntilStarted()
+        await fulfillment(of: [suspension.started], timeout: 30)
         viewModel.databaseName = "Different action"
         await suspension.resolve(.success(prepared))
         let result = await task.value
@@ -577,9 +600,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// A `.live` environment with only `createCloudFile` swapped for the given
-    /// fake (plus fixed clock/UUID and no-op background tasks), so cloud tests
-    /// still run the real DatabaseListStore validation/registration closures.
+    /// Exercises the production journal, cache and registration with only provider I/O replaced.
     private func cloudEnvironment(
         createCloudFile: @escaping @Sendable (
             String, String, String, Data, @escaping DatabaseCreationService.CloudProgressHandler
@@ -590,7 +611,24 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         environment.id = { UUID() }
         environment.beginBackgroundTask = { _ in .invalid }
         environment.endBackgroundTask = { _ in }
-        environment.createCloudFile = createCloudFile
+        environment.createCloudFile = { _, _, _, _, _ in
+            XCTFail("Durable creation must not use the legacy creation seam")
+            throw CloudProviderError.invalidConfiguration
+        }
+        environment.durableCreateCloud = { prepared, providerID, accountID, target in
+            let provider = ViewModelCreationProvider(id: providerID, accountID: accountID, create: createCloudFile)
+            var creation = CloudFileCreationCoordinator.Environment.live
+            creation.provider = { id in id == provider.id ? provider : nil }
+            creation.queue.postDarwinNotification = { }
+            var template = creationTemplate(id: prepared.id)
+            template.filename = prepared.filename
+            template.addedAt = prepared.addedAt
+            template.keyFileBookmarkData = prepared.keyFileBookmarkData
+            template.keyFileFilename = prepared.keyFileFilename
+            return try await CloudFileCreationCoordinator.create(operationID: prepared.id, ownerDatabaseID: prepared.id,
+                provider: providerID, accountID: accountID, target: target, bytes: prepared.encryptedBytes,
+                referenceTemplate: template, environment: creation)
+        }
         return environment
     }
 
@@ -623,27 +661,42 @@ final class DatabaseCreationViewModelTests: XCTestCase {
 }
 
 private actor CreationSuspension<Value: Sendable> {
+    nonisolated let started = XCTestExpectation(description: "Creation reached the injected suspension")
     private var continuation: CheckedContinuation<Value, Error>?
-    private var startedContinuation: CheckedContinuation<Void, Never>?
-    private var hasStarted = false
+    private var result: Result<Value, Error>?
 
     func wait() async throws -> Value {
-        try await withCheckedThrowingContinuation { continuation in
-            self.continuation = continuation
-            hasStarted = true
-            startedContinuation?.resume()
-            startedContinuation = nil
-        }
-    }
-
-    func waitUntilStarted() async {
-        if hasStarted { return }
-        await withCheckedContinuation { startedContinuation = $0 }
+        started.fulfill()
+        if let result { return try result.get() }
+        return try await withCheckedThrowingContinuation { continuation = $0 }
     }
 
     func resolve(_ result: Result<Value, Error>) {
+        self.result = result
         continuation?.resume(with: result)
         continuation = nil
+    }
+}
+
+private final class ViewModelCreationProvider: CloudProvider, Sendable {
+    let id: String
+    let accountID: String
+    let displayName = "Creation test"
+    let iconName = "cloud"
+    let create: @Sendable (String, String, String, Data, @escaping DatabaseCreationService.CloudProgressHandler) async throws -> CloudCreatedFile
+    init(id: String, accountID: String,
+         create: @escaping @Sendable (String, String, String, Data, @escaping DatabaseCreationService.CloudProgressHandler) async throws -> CloudCreatedFile) {
+        self.id = id; self.accountID = accountID; self.create = create
+    }
+    @MainActor func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount { throw CloudProviderError.authenticationCancelled }
+    func isAuthenticated(accountId: String) -> Bool { accountId == accountID }
+    func signOut(accountId: String) { }
+    func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] { [] }
+    func download(accountId: String, fileId: String, to localURL: URL, progress: @escaping @Sendable (Double) -> Void) async throws -> CloudFileMetadata? { throw CloudProviderError.fileNotFound }
+    func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata { throw CloudProviderError.fileNotFound }
+    func upload(accountId: String, fileId: String, data: Data, expectedRev: String?, progress: @escaping @Sendable (Double) -> Void) async throws -> CloudFileMetadata { throw CloudProviderError.invalidConfiguration }
+    func createFile(accountId: String, path: String, data: Data, progress: @escaping @Sendable (Double) -> Void) async throws -> CloudCreatedFile {
+        try await create(id, accountId, path, data, progress)
     }
 }
 

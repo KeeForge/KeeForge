@@ -114,7 +114,7 @@ final class CloudCreationRecoveryWorkflowTests: XCTestCase {
         model.confirmPassword = model.password
         await model.refreshPendingCreations()
         let task = Task { await model.resumeCreation(pending) }
-        await gate.waitUntilStarted()
+        await fulfillment(of: [gate.started], timeout: 30)
 
         model.databaseName = "New database"
         model.password = "new password"
@@ -168,7 +168,7 @@ final class CloudCreationRecoveryWorkflowTests: XCTestCase {
             ))
             await model.refreshPendingCreations()
             let task = Task { await model.resumeCreation(pending) }
-            await gate.waitUntilStarted()
+            await fulfillment(of: [gate.started], timeout: 30)
             XCTAssertTrue(model.isRecovering)
             model.cancelPendingCreation()
             await gate.finish(fail ? .failure(CloudProviderError.networkUnavailable) : .success(original))
@@ -191,7 +191,7 @@ final class CloudCreationRecoveryWorkflowTests: XCTestCase {
         let unknown = await model.resumeCreation(pending)
         XCTAssertNil(unknown)
         let load = Task { await model.refreshPendingCreations() }
-        await gate.waitUntilStarted()
+        await fulfillment(of: [gate.started], timeout: 30)
         model.cancelPendingCreation()
         await gate.finish(.success([pending]))
         await load.value
@@ -213,7 +213,7 @@ final class CloudCreationRecoveryWorkflowTests: XCTestCase {
         ))
         await model.refreshPendingCreations()
         let active = Task { await model.resumeCreation(pending) }
-        await gate.waitUntilStarted()
+        await fulfillment(of: [gate.started], timeout: 30)
         await model.cancelCreation(pending)
         XCTAssertTrue(model.pendingCreations[0].isPaused)
         await gate.finish(.success(original))
@@ -236,7 +236,7 @@ final class CloudCreationRecoveryWorkflowTests: XCTestCase {
         ))
         await model.refreshPendingCreations()
         let first = Task { await model.resumeCreation(pending) }
-        await gate.waitUntilStarted()
+        await fulfillment(of: [gate.started], timeout: 30)
         let duplicate = await model.resumeCreation(pending)
         XCTAssertNil(duplicate)
         await gate.finish(.failure(CloudProviderError.notAuthenticated))
@@ -259,18 +259,17 @@ private actor RecoveryWorkflowCalls {
 }
 
 private actor RecoveryWorkflowGate<Value: Sendable> {
-    private var started = false
-    private var startWaiter: CheckedContinuation<Void, Never>?
+    nonisolated let started = XCTestExpectation(description: "Recovery reached the injected suspension")
     private var waiter: CheckedContinuation<Value, Error>?
+    private var result: Result<Value, Error>?
     func wait() async throws -> Value {
-        started = true
-        startWaiter?.resume()
-        startWaiter = nil
+        started.fulfill()
+        if let result { return try result.get() }
         return try await withCheckedThrowingContinuation { waiter = $0 }
     }
-    func waitUntilStarted() async {
-        if started { return }
-        await withCheckedContinuation { startWaiter = $0 }
+    func finish(_ result: Result<Value, Error>) {
+        self.result = result
+        waiter?.resume(with: result)
+        waiter = nil
     }
-    func finish(_ result: Result<Value, Error>) { waiter?.resume(with: result); waiter = nil }
 }
