@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct PasswordGeneratorSheet: View {
+    private var secondaryLabel: Color { PlatformDesign.followsIOSDesign ? Theme.labelSecondary : .secondary }
+
     let onUse: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -56,7 +58,7 @@ struct PasswordGeneratorSheet: View {
                                 .textInputAutocapitalization(.never)
                                 .macFormFieldStyle()
                                 .macLabelsHidden()
-                                .multilineTextAlignment(.trailing)
+                                .multilineTextAlignment(PlatformDesign.followsIOSDesign ? .trailing : .leading)
                                 .accessibilityIdentifier("password-generator.separator")
                         }
                     }
@@ -69,7 +71,7 @@ struct PasswordGeneratorSheet: View {
                                 Spacer(minLength: 8)
                                 Text(verbatim: "\(PasswordGenerator.lengthRange.lowerBound) – \(PasswordGenerator.lengthRange.upperBound)")
                                     .font(.footnote.monospacedDigit())
-                                    .foregroundStyle(Theme.labelSecondary)
+                                    .foregroundStyle(secondaryLabel)
                                     .accessibilityHidden(true)
                             }
 
@@ -89,9 +91,9 @@ struct PasswordGeneratorSheet: View {
                     }
 
                     Section("Character Sets") {
-                        charsetToggle("Uppercase", sample: "A–Z", sampleColor: Theme.labelSecondary,
+                        charsetToggle("Uppercase", sample: "A–Z", sampleColor: secondaryLabel,
                                       isOn: charsetBinding(\.includeUppercase), id: "uppercase")
-                        charsetToggle("Lowercase", sample: "a–z", sampleColor: Theme.labelSecondary,
+                        charsetToggle("Lowercase", sample: "a–z", sampleColor: secondaryLabel,
                                       isOn: charsetBinding(\.includeLowercase), id: "lowercase")
                         charsetToggle("Digits", sample: "0–9", sampleColor: PlatformDesign.followsIOSDesign ? Theme.digit : .blue,
                                       isOn: charsetBinding(\.includeDigits), id: "digits")

@@ -7,7 +7,7 @@
 Name the owner before changing a workflow. Views render, collect input, and forward lifecycle events; they never repeat the policy owned below. Add a coordinator only for a distinct responsibility, composing `DatabaseViewModel` operations rather than bypassing them.
 
 - `DatabaseViewModel`: one database session. Authoritative for unlock/lock, save/conflict/merge, rekey, re-encryption, the authentication grace period (`secretAccess`), and the derived search/tag/AutoFill-exclusion indexes.
-- `DatabaseWorkspaceState` (`DatabaseViewModel.workspace`): selection, typed `DatabaseRoute` navigation, view mode, search activation, menu request counters. No tree or secret data, no navigation objects or view references.
+- `DatabaseWorkspaceState` (`DatabaseViewModel.workspace`): selection, typed `DatabaseRoute` navigation, the open iOS editor with its coordinator, search activation, menu request counters. No tree or secret data, no navigation objects or view references.
 - `DatabaseEditorCoordinator`: editor activation, dirty-editor registration, draft submission, save/delete completion, Save and Lock. `EntryEditViewModel` / `GroupEditViewModel` own only field state, validation, and the payload they emit.
 - `AppSettingsViewModel`: preference persistence and its live effects on open sessions.
 - `AppRoutingCoordinator`: launch order, queued database routes, incoming-URL classification, pending TOTP enrollment, Open/Close Database transitions.

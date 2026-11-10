@@ -14,6 +14,8 @@ struct GroupEditView: View {
     @State private var showDiscardConfirmation = false
     @State private var isShowingIconPicker = false
     @State private var coordinator: DatabaseEditorCoordinator
+    /// False for the workspace's coordinator, which outlives this view across a layout change.
+    private let ownsCoordinator: Bool
     @FocusState private var notesFocused: Bool
 
     private var isSavingInProgress: Bool {
@@ -23,10 +25,14 @@ struct GroupEditView: View {
     init(
         formViewModel: GroupEditViewModel,
         databaseViewModel: DatabaseViewModel,
+        coordinator: DatabaseEditorCoordinator? = nil,
         onComplete: @escaping () -> Void = {}
     ) {
         _formViewModel = State(initialValue: formViewModel)
-        _coordinator = State(initialValue: DatabaseEditorCoordinator(group: formViewModel, database: databaseViewModel))
+        ownsCoordinator = coordinator == nil
+        _coordinator = State(
+            initialValue: coordinator ?? DatabaseEditorCoordinator(group: formViewModel, database: databaseViewModel)
+        )
         self.databaseViewModel = databaseViewModel
         self.onComplete = onComplete
     }
@@ -155,7 +161,7 @@ struct GroupEditView: View {
             showDiscardConfirmation = false
         }
         .onDisappear {
-            coordinator.deactivate()
+            if ownsCoordinator { coordinator.deactivate() }
         }
         .alert(
             "Save your changes before locking?",
