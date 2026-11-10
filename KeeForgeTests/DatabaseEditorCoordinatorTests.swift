@@ -420,6 +420,66 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
         XCTAssertFalse(database.hasUnsavedEditor)
     }
 
+    func testWorkspaceCoordinatorKeepsAFailedCreationAcrossAViewRebuild() async throws {
+        let attempts = SaveAttempts()
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            try await attempts.save(draft: draft, hash: hash)
+        }
+        defer { database.lock() }
+        let root = try XCTUnwrap(database.rootGroup)
+        let form = EntryEditViewModel(createIn: root.id)
+        form.title = "Rebuilt creation"
+        database.workspace.present(.entry(form))
+        let editor = try XCTUnwrap(database.workspace.editorCoordinator(database: database))
+        editor.activate()
+        var completions: [EntryEditCompletion] = []
+        await editor.save { completions.append($0) }
+        let stagedID = try XCTUnwrap(database.currentRootGroup?.allEntries.first { $0.title == form.title }?.id)
+        XCTAssertTrue(completions.isEmpty)
+
+        // A layout change rebuilds the editor view, which asks the workspace again.
+        let rebuilt = try XCTUnwrap(database.workspace.editorCoordinator(database: database))
+        XCTAssertTrue(rebuilt === editor)
+        rebuilt.activate()
+        XCTAssertNotNil(rebuilt.errorMessage)
+        await rebuilt.save { completions.append($0) }
+
+        XCTAssertEqual(completions, [.created(stagedID)])
+        XCTAssertEqual(database.rootGroup?.allEntries.count, root.allEntries.count + 1)
+
+        form.title = "Edited after save"
+        rebuilt.synchronizeUnsavedChanges()
+        XCTAssertTrue(database.hasUnsavedEditor)
+        database.workspace.closeEditor()
+        XCTAssertFalse(database.hasUnsavedEditor)
+        XCTAssertNil(database.workspace.editorCoordinator(database: database))
+    }
+
+    func testWorkspaceCoordinatorCompletesASaveThatOutlivesAViewRebuild() async throws {
+        let action = SaveAction()
+        let database = try await makeDatabase { _, _, _, hash, _, _, _ in
+            await action.run()
+            return .saved(newSHA512: hash)
+        }
+        defer { database.lock() }
+        let root = try XCTUnwrap(database.rootGroup)
+        let form = EntryEditViewModel(createIn: root.id)
+        form.title = "Saved across a rebuild"
+        database.workspace.present(.entry(form))
+        let editor = try XCTUnwrap(database.workspace.editorCoordinator(database: database))
+        editor.activate()
+        action.operation = {
+            // The rebuilt view activates the same coordinator; the old view no longer deactivates it.
+            database.workspace.editorCoordinator(database: database)?.activate()
+        }
+        var completions: [EntryEditCompletion] = []
+        await editor.save { completions.append($0) }
+
+        let created = try XCTUnwrap(database.rootGroup?.allEntries.first { $0.title == form.title })
+        XCTAssertEqual(completions, [.created(created.id)])
+        XCTAssertEqual(database.rootGroup?.allEntries.count, root.allEntries.count + 1)
+    }
+
     func testReactivatedEditorRetriesTheSameCreationAndIgnoresPriorLifetimeCompletion() async throws {
         let action = SaveAction()
         let attempts = SaveAttempts()

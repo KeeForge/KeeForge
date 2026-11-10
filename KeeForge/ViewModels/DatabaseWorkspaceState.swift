@@ -100,7 +100,16 @@ final class DatabaseWorkspaceState {
     }
     /// Owned here, not by the presenting view, so its unsaved changes survive
     /// a layout change, which rebuilds every view.
-    private(set) var openEditor: OpenEditor?
+    private(set) var openEditor: OpenEditor? {
+        didSet {
+            guard openEditor == nil else { return }
+            openEditorCoordinator?.deactivate()
+            openEditorCoordinator = nil
+        }
+    }
+    /// Owned with the editor for the same reason: a rebuilt editor view must
+    /// keep the entry a failed save already staged and a save still in flight.
+    @ObservationIgnored private var openEditorCoordinator: DatabaseEditorCoordinator?
     var selectedGroupID: UUID? {
         didSet {
             if oldValue != selectedGroupID {
@@ -218,6 +227,17 @@ final class DatabaseWorkspaceState {
     func present(_ editor: OpenEditor) {
         guard openEditor == nil else { return }
         openEditor = editor
+    }
+
+    func editorCoordinator(database: DatabaseViewModel) -> DatabaseEditorCoordinator? {
+        if let openEditorCoordinator { return openEditorCoordinator }
+        guard let openEditor else { return nil }
+        let coordinator = switch openEditor {
+        case .entry(let form): DatabaseEditorCoordinator(entry: form, database: database)
+        case .group(let form): DatabaseEditorCoordinator(group: form, database: database)
+        }
+        openEditorCoordinator = coordinator
+        return coordinator
     }
 
     func closeEditor() {

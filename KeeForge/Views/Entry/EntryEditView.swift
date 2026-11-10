@@ -14,6 +14,8 @@ struct EntryEditView: View {
     @State private var isPasswordVisible: Bool
     @State private var secretAction = EntrySecretAction()
     @State private var coordinator: DatabaseEditorCoordinator
+    /// False for the workspace's coordinator, which outlives this view across a layout change.
+    private let ownsCoordinator: Bool
 
     @State private var isTOTPSecretVisible: Bool
     @State private var revealedCustomFieldIDs: Set<UUID> = []
@@ -49,10 +51,14 @@ struct EntryEditView: View {
     init(
         formViewModel: EntryEditViewModel,
         databaseViewModel: DatabaseViewModel,
+        coordinator: DatabaseEditorCoordinator? = nil,
         onComplete: @escaping (Completion) -> Void = { _ in }
     ) {
         _formViewModel = State(initialValue: formViewModel)
-        _coordinator = State(initialValue: DatabaseEditorCoordinator(entry: formViewModel, database: databaseViewModel))
+        ownsCoordinator = coordinator == nil
+        _coordinator = State(
+            initialValue: coordinator ?? DatabaseEditorCoordinator(entry: formViewModel, database: databaseViewModel)
+        )
         _isPasswordVisible = State(initialValue: formViewModel.isPasswordInitiallyVisible)
         _isTOTPSecretVisible = State(initialValue: formViewModel.isPasswordInitiallyVisible)
         _totpPeriodText = State(initialValue: String(formViewModel.totpPeriod))
@@ -290,7 +296,7 @@ struct EntryEditView: View {
             isPasswordVisible = false
             isTOTPSecretVisible = false
             revealedCustomFieldIDs = []
-            coordinator.deactivate()
+            if ownsCoordinator { coordinator.deactivate() }
         }
         .alert(
             "Save your changes before locking?",
