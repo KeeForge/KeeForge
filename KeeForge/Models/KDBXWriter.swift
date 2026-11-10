@@ -1,10 +1,11 @@
 import CryptoKit
 import Foundation
 import KDBXKit
+import KDBXXML
 
 /// Saves KeeForge's model as a KDBX 4 file: prepares the header with
-/// `KDBXContainerWriter`, serializes the XML against its inner stream key,
-/// and seals the result.
+/// `KDBXContainerWriter`, maps the model to a `KDBXDocument` serialized
+/// against the header's inner stream key, and seals the result.
 enum KDBXWriter {
     static func write(
         rootGroup: KPGroup,
@@ -67,14 +68,156 @@ enum KDBXWriter {
             headerSource,
             requiredMinorVersion: requiredMinorVersion(for: rootGroup, meta: meta)
         )
-        var serializer = KDBXXMLSerializer(
-            rootGroup: rootGroup,
-            meta: meta,
-            innerStreamKey: header.innerStreamKey,
-            sessionKey: sessionKey
-        )
-        let xml = try serializer.serialize()
+        let document = try document(rootGroup: rootGroup, meta: meta, sessionKey: sessionKey)
+        let xml: Data
+        do {
+            xml = try document.serialized(innerStream: .chaCha20, innerStreamKey: header.innerStreamKey)
+        } catch let error as KDBXDocument.WriteError {
+            throw DocumentWriteFailure(error, in: document)
+        }
         return try KDBXContainerWriter.seal(xml: xml, header: header, transformedKey: provideTransformedKey)
+    }
+
+    /// The document for a model, with sealed secrets decrypted for writing.
+    /// Throws when a secret no longer opens under `sessionKey`.
+    static func document(rootGroup: KPGroup, meta: KPMeta, sessionKey: SymmetricKey) throws -> KDBXDocument {
+        KDBXDocument(
+            meta: element(of: meta),
+            root: KDBXDocument.Root(
+                entries: try rootGroup.entries.map { try entry($0, sessionKey: sessionKey) },
+                groups: try rootGroup.groups.map { try group($0, sessionKey: sessionKey) },
+                deletedObjects: meta.deletedObjects.map { .init(uuid: $0.uuid, deletionTime: $0.deletionTime) },
+                unknownXML: rootGroup.unknownXML
+            ),
+            unknownXML: meta.documentUnknownXML
+        )
+    }
+
+    private static func group(_ group: KPGroup, sessionKey: SymmetricKey) throws -> KDBXDocument.Group {
+        var document = element(of: group)
+        document.entries = try group.entries.map { try entry($0, sessionKey: sessionKey) }
+        document.groups = try group.groups.map { try self.group($0, sessionKey: sessionKey) }
+        return document
+    }
+
+    private static func entry(_ entry: KPEntry, sessionKey: SymmetricKey) throws -> KDBXDocument.Entry {
+        var document = element(of: entry)
+        document.strings = try strings(of: entry, sessionKey: sessionKey)
+        document.history = try entry.history.map { try self.entry($0, sessionKey: sessionKey) }
+        return document
+    }
+
+    // The document elements without their secrets and nested children: what a
+    // splice of their preserved XML needs to find positions
+    // (`replaceOpaqueChildren`), and what a save fills in.
+
+    static func element(of meta: KPMeta) -> KDBXDocument.Meta {
+        KDBXDocument.Meta(
+            recycleBin: meta.recycleBin,
+            maintenanceHistoryDays: meta.maintenanceHistoryDays,
+            historyMaxItems: meta.historyMaxItems,
+            historyMaxSize: meta.historyMaxSize,
+            unknownXML: meta.unknownXML
+        )
+    }
+
+    /// The group without its entries and subgroups.
+    static func element(of group: KPGroup) -> KDBXDocument.Group {
+        KDBXDocument.Group(
+            uuid: group.id,
+            name: group.name,
+            notes: group.hasNotesElement || !group.notes.isEmpty ? group.notes : nil,
+            iconID: group.iconID,
+            isExpanded: group.isExpanded,
+            times: .init(
+                creationTime: group.creationTime,
+                lastModificationTime: group.lastModificationTime,
+                locationChanged: group.locationChanged
+            ),
+            enableSearching: group.searchingEnabled,
+            tags: group.hasTagsElement || !group.tags.isEmpty ? group.tags : nil,
+            unknownXML: group.unknownXML
+        )
+    }
+
+    /// The entry without its `<String>` fields and history.
+    static func element(of entry: KPEntry) -> KDBXDocument.Entry {
+        KDBXDocument.Entry(
+            uuid: entry.id,
+            iconID: entry.iconID,
+            tags: entry.hasTagsElement || !entry.tags.isEmpty ? entry.tags : nil,
+            times: .init(
+                creationTime: entry.creationTime,
+                lastModificationTime: entry.lastModificationTime,
+                locationChanged: entry.locationChanged
+            ),
+            binaries: entry.attachments.map { .init(key: $0.name, ref: $0.ref, insertionIndex: $0.insertionIndex) },
+            unknownXML: entry.unknownXML
+        )
+    }
+
+    /// The `KPAttachment.insertionIndex` that writes a new attachment right
+    /// after `<Notes>`, the last of the five standard fields `strings(of:)`
+    /// always writes first. Custom fields added or removed later, after it,
+    /// cannot move it.
+    static func attachmentInsertionIndexAfterNotes(for entry: KPEntry) -> Int {
+        element(of: entry).binaryInsertionIndex(afterStrings: 5)
+    }
+
+    /// The entry's `<String>` fields in the order KeeForge writes them, which
+    /// is also the position space of its preserved fragments.
+    private static func strings(of entry: KPEntry, sessionKey: SymmetricKey) throws -> [KDBXDocument.Field] {
+        func field(_ key: String, _ value: String, protected: Bool? = nil) -> KDBXDocument.Field {
+            KDBXDocument.Field(key: key, value: value, isProtected: protected ?? entry.protectedStringKeys.contains(key))
+        }
+        var fields = [
+            field("Title", entry.title),
+            field("UserName", entry.username),
+            field("Password", try entry.password.decrypt(using: sessionKey), protected: true),
+            field("URL", entry.url),
+            field("Notes", entry.notes),
+        ]
+
+        let keeOTPSource = entry.totpConfig?.keeOTPSource
+        if let source = keeOTPSource, source.fieldName == "otp" {
+            // The KeeOTP spelling and raw query stay unless the editor rewrote them.
+            fields.append(field("otp", source.rawQuery))
+        } else if let otpURL = entry.otpURL {
+            // The original otpauth:// URI keeps issuer, label, and any custom
+            // parameters that TimeOtp-* fields cannot hold.
+            fields.append(field("otp", otpURL))
+        }
+        if let source = keeOTPSource, source.fieldName != "otp" {
+            // Stripped from customFields at parse time; coexists with an
+            // unrelated value in the standard otp slot.
+            fields.append(field(source.fieldName, source.rawQuery))
+        }
+        if keeOTPSource == nil, entry.otpURL == nil, let totpConfig = entry.totpConfig {
+            fields += [
+                field(totpConfig.keePassSecretField.rawValue, try totpConfig.secret.decrypt(using: sessionKey), protected: true),
+                field("TimeOtp-Period", String(totpConfig.period), protected: false),
+                field("TimeOtp-Length", String(totpConfig.digits), protected: false),
+                field("TimeOtp-Algorithm", totpConfig.algorithm.keePassName, protected: false),
+            ]
+        }
+
+        // The diverted passkey PEM goes back under its key at its stored
+        // custom-field position. An entry still holding the PEM in
+        // customFields writes it through the plain path, to the same bytes.
+        let passkeyPEMKey = PasskeyCredential.privateKeyPEMKey
+        var customFieldKeys = Set(entry.customFields.keys)
+        let sealedPEM = entry.customFields[passkeyPEMKey] == nil ? entry.passkeyPrivateKey : nil
+        if sealedPEM != nil {
+            customFieldKeys.insert(passkeyPEMKey)
+        }
+        for key in entry.orderedCustomFieldKeys(in: customFieldKeys) {
+            if key == passkeyPEMKey, let sealedPEM {
+                fields.append(field(key, try sealedPEM.decrypt(using: sessionKey)))
+            } else {
+                fields.append(field(key, entry.customFields[key] ?? ""))
+            }
+        }
+        return fields
     }
 
     /// The lowest KDBX 4 minor version that can represent this tree.

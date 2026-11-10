@@ -73,12 +73,16 @@ enum DocumentPickerService {
     }
 
     static func pickerFailureAlert(for error: Error) -> SelectionAlert? {
-        let nsError = error as NSError
-        if nsError.domain == NSCocoaErrorDomain, nsError.code == NSUserCancelledError {
+        if isUserCancellation(error) {
             return nil
         }
 
         return fileAccessFailureAlert(for: error)
+    }
+
+    static func isUserCancellation(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError
     }
 
     static func fileAccessFailureAlert(for error: Error) -> SelectionAlert {

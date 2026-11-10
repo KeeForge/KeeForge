@@ -7,7 +7,7 @@
 - `AutoFillSaveCoordinator.saveNewEntry`: the only extension-safe write path, delegating durable cloud intents to `LocalDatabaseSaver` and `PendingUploadQueue` (`../Cloud/AGENTS.md`).
 - `AutoFillSaveCoordinator.destinationGroup(in:preferredGroupID:)`: the one decision of which group a new AutoFill entry goes into. Database Details and the creators display the same resolution; do not resolve it anywhere else.
 - `CredentialIdentityStoreManager`: every mutation of the system credential identity store. `CredentialRecordIdentifier` is the sole encoder and parser of the database-tagged record identifier.
-- `CredentialMatcher`: what a service identifier matches. Published identities and the pickers both read URLs through it.
+- `Packages/SiteMatching` (`../../../Packages/SiteMatching/AGENTS.md`): what a request matches, host normalization, registrable domains, and which hosts may be published. `CredentialMatcher` is the app's bridge to it: it builds `SiteRequest`s from service identifiers and `SiteCandidate`s from non-expired entries, and maps matched IDs back to entries. Published identities and the pickers both read URLs through it.
 - `KPGroup.autoFillEntries` (`../../Models/Group.swift`): which entries AutoFill may see at all.
 
 ## Invariants
@@ -38,10 +38,12 @@
 
 - `KPGroup.autoFillEntries` is the single filter for groups whose `<EnableSearching>` resolves to false. All three sources call it: `DatabaseViewModel.credentialStoreEntries`, `AutoFillSaveCoordinator.credentialStoreEntries`, and the extension's own parse. `DatabaseViewModel.autoFillExcludedGroupIDs` must resolve inheritance the same way (`../../ViewModels/AGENTS.md`).
 - An `.app` service identifier (an App ID such as `TEAMID.com.example.app`) is never parsed as a host: `searchTerm(for:)` returns nil. Reverse-DNS App IDs end in real TLDs and would strictly match an unrelated website.
+- An `.app` service identifier becomes `SiteRequest.app` only behind the iOS/macOS 26.2 availability check in `SiteRequest(_:)`.
 - Entries saved before that rule hold a raw App ID as a URL. Read entry URLs for AutoFill through `CredentialMatcher.webURLs(of:)`, which drops such a field without rewriting the entry.
+- Expired entries never become candidates: every `CredentialMatcher` entry point filters them before matching.
 - Strict matching decides silent fill; interactive matching decides picker sections (`../../../AutoFillExtension/AGENTS.md`).
 - Password and one-time-code pickers initially show only URLs whose normalized host equals the first web service identifier. If none match, related hosts appear only as possible matches; title/URL substring matches require an expanded search. Empty web context opens the full corpus. This does not change silent-fill candidates.
-- Registrable-domain boundaries come from the embedded Public Suffix List (`swift-psl`), not from string heuristics.
+- Registrable-domain boundaries come from the embedded Public Suffix List (`swift-psl`, through `SiteMatching`), not from string heuristics. Password identities publish `SiteHost.isPublishable` hosts, one-time-code identities `SiteHost(publishableWebURL:)`, and passkeys compare `SiteHost.relyingPartyKey`; where these rules disagree is listed in the package's `AGENTS.md`.
 
 ### Memory pre-flight and settings
 
@@ -53,7 +55,8 @@
 
 ## Tests
 
-- `CredentialIdentityStoreManagerTests` (fake store via the DEBUG `storeProviderOverride`), `CredentialMatcherTests`, `AutoFillMemoryLimitTests`, `PasswordGeneratorTests`, `PasswordStrengthEstimatorTests`.
+- `CredentialIdentityStoreManagerTests` (fake store via the DEBUG `storeProviderOverride`), `CredentialMatcherTests` (conversions and expiry only), `AutoFillMemoryLimitTests`, `PasswordGeneratorTests`, `PasswordStrengthEstimatorTests`.
+- Host, domain, and match-tier rules are tested in `../../../Packages/SiteMatching/Tests`, with Public Suffix List and WHATWG URL vectors.
 - A store change needs a case for each of the three shapes: incremental and readable, non-incremental (`supportsIncrementalUpdatesValue = false`), and incremental but unreadable (`enumerationError`).
 - In a unit-test host the manager mutates nothing unless a store override is installed: the host is the real signed app, and its system store is the developer's own.
 - `AutoFillSaveCoordinator` has no class of its own: `CredentialProviderSaveTests`, `CredentialProviderPickerCreationTests`, `CredentialProviderRegistrationTests`, and `KDBXCompatibilityTests` for the bytes it writes.

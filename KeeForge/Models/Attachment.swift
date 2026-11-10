@@ -1,4 +1,5 @@
 import Foundation
+import KDBXXML
 
 /// A reference to a binary attachment stored in the KDBX4 inner-header binary
 /// pool. Only the name and pool index are modeled here; the actual bytes are

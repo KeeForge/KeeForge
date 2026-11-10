@@ -167,10 +167,24 @@ jobs:
       - name: Generate project
         run: xcodegen generate
 
-      # The package's own suite, with its line, region, and function coverage
-      # floors. Its verdict is the script's exit status; there is no xcresult.
+      # Each package's own suite, with its line, region, and function coverage
+      # floors. The verdict is the script's exit status; there is no xcresult.
       - name: Run KDBXKit tests with coverage
         run: Packages/KDBXKit/scripts/coverage.sh
+
+      - name: Run KDBXXML tests with coverage
+        run: Packages/KDBXXML/scripts/coverage.sh
+
+      - name: Run SiteMatching tests with coverage
+        run: Packages/SiteMatching/scripts/coverage.sh
+
+      - name: Run OneTimeCodes tests with coverage
+        run: Packages/OneTimeCodes/scripts/coverage.sh
+
+      # Same for the WebDAV and FTP clients; their live URLSession and
+      # NWConnection paths run against loopback servers.
+      - name: Run RemoteFileTransports tests with coverage
+        run: Packages/RemoteFileTransports/scripts/coverage.sh
 
       # Runners have no signing account, so the app is ad-hoc signed with no
       # entitlements (unsandboxed). Local runs keep automatic signing with the

@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 /// The catalog of bundled KDBX fixtures: every database any unit-test suite
@@ -197,7 +198,7 @@ extension KDBXTestFixture {
 
 /// Canonical "did the tree survive a save/reload" comparators.
 ///
-/// `KDBXRoundTripTests` (parse → `KDBXXMLSerializer` → parse) and
+/// `KDBXRoundTripTests` (parse → `KDBXWriter.document` → parse) and
 /// `KDBXWriterTests` (parse file → `KDBXWriter.write` → parse file) used to keep
 /// private copies of these, which drifted: the writer copy silently stopped
 /// checking `searchingEnabled`, `expires`, and `expiryTime`. Both layers must

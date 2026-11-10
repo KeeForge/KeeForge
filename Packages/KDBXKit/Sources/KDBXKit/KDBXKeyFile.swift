@@ -6,13 +6,15 @@ import Foundation
 /// Formats, tried in KeePass's order:
 /// 1. Binary — exactly 32 bytes
 /// 2. Hex — exactly 64 ASCII hex characters
-/// 3. XML — version 1.0 (Base64) or 2.0 (hex, with an optional hash check)
+/// 3. XML — version 1.x (Base64) or 2.x (hex, with an optional hash check)
 /// 4. Anything else — SHA-256 of the whole file
 public enum KDBXKeyFile {
     public enum KeyFileError: Error, Equatable, Sendable {
         case emptyKeyFile
         case xmlKeyDataInvalid
         case xmlHashMismatch
+        /// An XML key file whose major version is neither 1 nor 2.
+        case xmlVersionUnsupported
     }
 
     public static func key(from data: Data) throws -> Data {
@@ -63,10 +65,12 @@ public enum KDBXKeyFile {
 
         guard parser.parse(), delegate.foundKeyData else { return nil }
 
-        if delegate.version == "2.0" {
-            return try processV2KeyFile(delegate)
-        } else {
-            return try processV1KeyFile(delegate)
+        // KeePass picks the format by major version and rejects any other.
+        // A missing version reads as 1.0, as older KeeForge did.
+        switch delegate.version.split(separator: ".", maxSplits: 1).first.map(String.init) ?? "" {
+        case "", "1": return try processV1KeyFile(delegate)
+        case "2": return try processV2KeyFile(delegate)
+        default: throw KeyFileError.xmlVersionUnsupported
         }
     }
 

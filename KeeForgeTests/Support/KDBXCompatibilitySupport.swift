@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 enum KDBXCompatibilitySupport {
@@ -607,6 +608,7 @@ enum KDBXCompatibilitySupport {
         "merge-remote-divergence",
         "rekey-password-only",
         "rekey-add-keyfile",
+        "rekey-add-generated-keyfile",
         "rekey-remove-keyfile",
         "encryption-settings-chacha20-argon2id",
         "encryption-settings-aes256-keep-kdf",
@@ -708,6 +710,7 @@ enum KDBXCompatibilitySupport {
         // including its protected-value stream — was re-encrypted intact.
         table["rekey-password-only"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["rekey-add-keyfile"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
+        table["rekey-add-generated-keyfile"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["rekey-remove-keyfile"] = [fixtureEntryPasswords[Fixture.passwordKeyfile.id]!]
         // Re-encrypted under a new cipher and KDF, a pre-existing protected
         // value read back externally proves the payload survived intact.
@@ -843,6 +846,7 @@ enum KDBXCompatibilitySupport {
             "merge-remote-divergence",
             "rekey-password-only",
             "rekey-add-keyfile",
+            "rekey-add-generated-keyfile",
             "rekey-remove-keyfile",
             "encryption-settings-chacha20-argon2id",
             "encryption-settings-aes256-keep-kdf",
@@ -991,7 +995,6 @@ enum KDBXCompatibilitySupport {
                 )
                 try assertSurvivingGroupsPreserveScalars(before: before, after: after, excluding: [rootGroupID])
                 XCTAssertNotNil(after.meta.recycleBinUUID)
-                XCTAssertTrue(after.meta.hasRecycleBinUUIDElement)
                 let recycleBinID = try XCTUnwrap(after.meta.recycleBinUUID)
                 let recycleBinGroup = try XCTUnwrap(after.groups[recycleBinID])
                 XCTAssertEqual(recycleBinGroup.name, DatabaseDraft.localizedRecycleBinName)
@@ -2154,6 +2157,34 @@ enum KDBXCompatibilitySupport {
         )
     }
 
+    /// `.aesBaseline` rekeyed to its existing password plus a key file from
+    /// `KDBXKeyFile.generate()`, so the gate proves KeePassXC accepts the key files
+    /// KeeForge creates.
+    static func rekeyAddGeneratedKeyfileScenario() -> Scenario {
+        Scenario(
+            id: "rekey-add-generated-keyfile",
+            title: "Add a newly created key file to the master key",
+            artifactFileName: "aes-baseline-rekey-add-generated-keyfile.kdbx",
+            expectedSearchTerms: ["Twitter"],
+            expectedGroupPaths: ["Social"],
+            rekey: { loaded in
+                let keyFileData = try KDBXKeyFile.generate()
+                return RekeyTarget(
+                    compositeKey: try KDBXCrypto.compositeKey(
+                        password: loaded.fixture.password,
+                        keyFileData: keyFileData
+                    ),
+                    password: loaded.fixture.password,
+                    keyFileName: "aes-baseline-generated.\(KDBXKeyFile.generatedFileExtension)",
+                    keyFileData: keyFileData
+                )
+            },
+            assertChange: { before, after, _ in
+                try assertWholeTreeUnchanged(before: before, after: after)
+            }
+        )
+    }
+
     /// `.passwordKeyfile` (password + key file) rekeyed to password only.
     static func rekeyRemoveKeyfileScenario() -> Scenario {
         Scenario(
@@ -2321,6 +2352,9 @@ enum KDBXCompatibilitySupport {
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .aesBaseline, scenario: rekeyAddKeyfileScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .aesBaseline, scenario: rekeyAddGeneratedKeyfileScenario())
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .passwordKeyfile, scenario: rekeyRemoveKeyfileScenario())
@@ -2660,7 +2694,7 @@ struct CompatibilitySnapshot {
         let tags: [String]
         let hasTagsElement: Bool
         let isExpanded: Bool
-        let searchingEnabled: KPInheritableBool?
+        let searchingEnabled: KDBXDocument.InheritableBool?
         let creationTime: Date?
         let lastModificationTime: Date?
         let locationChanged: Date?
@@ -2728,7 +2762,7 @@ struct CompatibilitySnapshot {
         let isExpanded: Bool
         /// Covered here so an unrelated edit cannot silently drop or flip a
         /// group's `<EnableSearching>` without a compatibility scenario failing.
-        let searchingEnabled: KPInheritableBool?
+        let searchingEnabled: KDBXDocument.InheritableBool?
         let creationTime: Date?
         let lastModificationTime: Date?
         /// Covered here so only an edit that actually reparents the group may
@@ -3809,8 +3843,7 @@ private extension KDBXCompatibilitySupport {
         )
 
         let meta = KPMeta(
-            recycleBinUUID: recycleBinID,
-            hasRecycleBinUUIDElement: recycleBinID != nil,
+            recycleBin: recycleBinID.map { .group($0) },
             maintenanceHistoryDays: KPMeta.defaultMaintenanceHistoryDays,
             historyMaxItems: KPMeta.defaultHistoryMaxItems,
             historyMaxSize: KPMeta.defaultHistoryMaxSize
@@ -3847,7 +3880,7 @@ private extension KDBXCompatibilitySupport {
     /// Mirrors a parsed group's `<EnableSearching>` state back into the draft
     /// payload, so a group edit that isn't about AutoFill visibility forwards
     /// the value verbatim instead of clearing it.
-    static func inheritableBoolPayload(for value: KPInheritableBool?) -> InheritableBoolPayload? {
+    static func inheritableBoolPayload(for value: KDBXDocument.InheritableBool?) -> InheritableBoolPayload? {
         switch value {
         case nil: return nil
         case .inherit: return .inherit

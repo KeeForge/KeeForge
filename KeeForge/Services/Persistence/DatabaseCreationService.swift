@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import KDBXKit
+import KDBXXML
 #if os(iOS)
 import UIKit
 #endif
@@ -390,7 +391,7 @@ enum DatabaseCreationService {
         // Verify under the stricter AutoFill KDF policy so creation never
         // writes a database that policy would reject (#57/#74). The extension's
         // runtime memory pre-flight remains the authoritative device-level gate.
-        let parsed = try KDBXParser.parseWithMetaAndHeader(
+        let parsed = try KDBXParser.parse(
             data: encryptedBytes,
             compositeKey: compositeKey,
             sessionKey: sessionKey,
@@ -504,8 +505,7 @@ enum DatabaseCreationService {
         )
         let root = KPGroup(name: "Root", groups: [visibleRoot], recycleBinUUID: recycleBinID)
         let meta = KPMeta(
-            recycleBinUUID: recycleBinID,
-            hasRecycleBinUUIDElement: true,
+            recycleBin: .group(recycleBinID),
             maintenanceHistoryDays: KPMeta.defaultMaintenanceHistoryDays,
             historyMaxItems: KPMeta.defaultHistoryMaxItems,
             historyMaxSize: KPMeta.defaultHistoryMaxSize

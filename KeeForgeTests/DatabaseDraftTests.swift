@@ -1,6 +1,7 @@
 import CryptoKit
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 final class DatabaseDraftTests: XCTestCase {
@@ -12,7 +13,7 @@ final class DatabaseDraftTests: XCTestCase {
         entry.history = [entry]
         let child = KPGroup(name: "Child", iconID: 12, customIconUUID: uuid, entries: [entry], unknownXML: unknown)
         let root = KPGroup(name: "Root", groups: [child])
-        let xml = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: .empty))
+        let xml = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: KPMeta()))
         let meta = KPMeta(unknownXML: xml, customIcons: [uuid: Data([1])])
         let draft = DatabaseDraft(rootGroup: root, meta: meta, sessionKey: SymmetricKey(size: .bits256))
         let renamed = try draft.apply(.renameCustomIcon(iconUUID: uuid, name: "Named"))
@@ -81,7 +82,7 @@ final class DatabaseDraftTests: XCTestCase {
             for edit in [EntryEdit.createEntry(parentGroupID: tree.parentGroupID, draft: payload),
                          .updateEntry(entryID: tree.parentEntry.id, draft: payload)] {
                 XCTAssertThrowsError(try draft.apply(edit)) { error in
-                    XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+                    XCTAssertEqual(error as? KDBXDocument.TextError, .invalidXMLCharacter("\u{0}"))
                 }
             }
             XCTAssertThrowsError(try draft.creatingEntries([EntryDraftPayload(title: "Valid Import"), payload], inGroup: tree.parentGroupID))
@@ -106,7 +107,7 @@ final class DatabaseDraftTests: XCTestCase {
         ]
         for edit in edits {
             XCTAssertThrowsError(try draft.apply(edit)) { error in
-                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+                XCTAssertEqual(error as? KDBXDocument.TextError, .invalidXMLCharacter("\u{0}"))
             }
         }
         XCTAssertFalse(draft.isDirty)
@@ -211,7 +212,7 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(created.protectedStringKeys, protectedKeys)
 
         let innerStreamKey = Data("KeeForge Draft Inner Stream Key".utf8)
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: updatedDraft.rootGroup,
             meta: updatedDraft.meta,
             innerStreamKey: innerStreamKey,
@@ -232,11 +233,7 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertFalse(xmlString.contains("3q2-7wEj"))
         XCTAssertFalse(xmlString.contains("AAEC-_z9"))
 
-        let reparsed = try KDBXXMLParser(
-            data: xml,
-            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: innerStreamKey),
-            sessionKey: sessionKey
-        ).parse()
+        let reparsed = try ModelXML.parse(xml, innerStream: .chaCha20, key: innerStreamKey, sessionKey: sessionKey)
         let reloaded = try XCTUnwrap(reparsed.rootGroup.allEntries.first { $0.title == "Registered Passkey" })
 
         XCTAssertEqual(reloaded.protectedStringKeys.intersection(PasskeyCredential.allFieldKeys), protectedKeys)
@@ -398,8 +395,7 @@ final class DatabaseDraftTests: XCTestCase {
             includeRecycleBin: true,
             parentEntryOverride: entryWithHistory,
             metaOverride: KPMeta(
-                recycleBinUUID: tree.recycleBinGroupID,
-                hasRecycleBinUUIDElement: true,
+                recycleBin: .group(try XCTUnwrap(tree.recycleBinGroupID)),
                 historyMaxItems: 1
             )
         )
@@ -798,7 +794,7 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertTrue(created.protectedStringKeys.contains("otp"))
 
         let innerStreamKey = Data("KeeForge Draft Inner Stream Key".utf8)
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: updatedDraft.rootGroup,
             meta: updatedDraft.meta,
             innerStreamKey: innerStreamKey,
@@ -886,7 +882,7 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(PreviousParentGroupXML.parentID(in: xml), parentID)
         xml.append(xml: "<PreviousParentGroup>invalid</PreviousParentGroup>", insertionIndex: 2)
         XCTAssertNil(PreviousParentGroupXML.parentID(in: xml))
-        let replaced = PreviousParentGroupXML.setting(parentID, in: xml, newInsertionIndex: 2)
+        let replaced = PreviousParentGroupXML.setting(parentID, on: KPEntry(unknownXML: xml))
         XCTAssertEqual(replaced.nodes.count, 1)
         XCTAssertEqual(PreviousParentGroupXML.parentID(in: replaced), parentID)
         for value in ["bad", "AAAA", "<Nested>\(parentID.kdbxBase64String)</Nested>"] {
@@ -918,7 +914,6 @@ final class DatabaseDraftTests: XCTestCase {
         let recycleBinGroup = try XCTUnwrap(findGroup(withID: recycleBinGroupID, in: updatedDraft.rootGroup))
 
         XCTAssertEqual(updatedDraft.rootGroup.recycleBinUUID, recycleBinGroupID)
-        XCTAssertTrue(updatedDraft.meta.hasRecycleBinUUIDElement)
         XCTAssertFalse(
             updatedDraft.rootGroup.groups.contains(where: { $0.id == recycleBinGroupID }),
             "Recycle Bin should not be a direct child of the synthetic root"
@@ -987,7 +982,6 @@ final class DatabaseDraftTests: XCTestCase {
         let recycleBinGroupID = try XCTUnwrap(updatedDraft.meta.recycleBinUUID)
         let recycleBinGroup = try XCTUnwrap(findGroup(withID: recycleBinGroupID, in: updatedDraft.rootGroup))
         XCTAssertEqual(updatedDraft.rootGroup.recycleBinUUID, recycleBinGroupID)
-        XCTAssertTrue(updatedDraft.meta.hasRecycleBinUUIDElement)
         XCTAssertTrue(recycleBinGroup.groups.contains(where: { $0.id == tree.parentGroupID }))
 
         let visibleRoot = try XCTUnwrap(updatedDraft.rootGroup.groups.first)
@@ -1008,7 +1002,7 @@ final class DatabaseDraftTests: XCTestCase {
             ]
         )
         let root = KPGroup(name: "Root", groups: [visibleRoot], recycleBinUUID: recycleBinID)
-        let meta = KPMeta(recycleBinUUID: recycleBinID, hasRecycleBinUUIDElement: true)
+        let meta = KPMeta(recycleBin: .group(recycleBinID))
         let draft = DatabaseDraft(rootGroup: root, meta: meta, sessionKey: sessionKey)
 
         let updatedDraft = try draft
@@ -1808,7 +1802,7 @@ final class DatabaseDraftTests: XCTestCase {
     }
 
     private func serializedXML(of draft: DatabaseDraft) throws -> String {
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: draft.rootGroup,
             meta: draft.meta,
             innerStreamKey: Data("KeeForge Draft Inner Stream Key".utf8),
@@ -2117,11 +2111,7 @@ final class DatabaseDraftTests: XCTestCase {
     }
 
     private func parseDraftXML(_ xml: String) throws -> (rootGroup: KPGroup, meta: KPMeta) {
-        try KDBXXMLParser(
-            data: Data(xml.utf8),
-            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: Data("KeeForge Draft Inner Stream Key".utf8)),
-            sessionKey: sessionKey
-        ).parse()
+        try ModelXML.parse(Data(xml.utf8), innerStream: .chaCha20, key: Data("KeeForge Draft Inner Stream Key".utf8), sessionKey: sessionKey)
     }
 
     private func applyingExpiry(
@@ -3130,8 +3120,7 @@ final class DatabaseDraftTests: XCTestCase {
             recycleBinUUID: recycleBinGroupID
         )
         let meta = metaOverride ?? KPMeta(
-            recycleBinUUID: recycleBinGroupID,
-            hasRecycleBinUUIDElement: includeRecycleBin
+            recycleBin: recycleBinGroupID.map { .group($0) }
         )
 
         return SyntheticTree(

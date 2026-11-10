@@ -89,6 +89,8 @@ final class AutoFillPickerUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["autofill.shared-copy-notice"].exists)
         let create = app.buttons["autofill.create-entry.empty-state"]
         XCTAssertTrue(create.exists)
+        // On the closed iPhone Duo the active search bar floats over this row.
+        app.searchFields["Search entries"].firstMatch.typeText("\n")
         create.tap()
         XCTAssertEqual(app.staticTexts["autofill-harness.result"].label, "create")
     }
@@ -113,6 +115,9 @@ final class AutoFillPickerUITests: XCTestCase {
 
     private func search(for query: String, file: StaticString = #filePath, line: UInt = #line) {
         let searchField = app.searchFields["Search entries"].firstMatch
+        if searchField.waitForExistence(timeout: 5) == false {
+            app.expandCollapsedSearch()
+        }
         XCTAssertTrue(searchField.waitForExistence(timeout: 15), "Search field was not visible", file: file, line: line)
         searchField.tap()
         searchField.typeText(query)

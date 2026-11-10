@@ -1,4 +1,5 @@
 import Foundation
+import KDBXXML
 import Observation
 
 /// Form state for the group editor, mirroring `EntryEditViewModel`: it owns the
@@ -196,7 +197,7 @@ final class GroupEditViewModel {
         return isHiddenFromAutoFill ? .disabled : .enabled
     }
 
-    private static func payload(for value: KPInheritableBool?) -> InheritableBoolPayload? {
+    private static func payload(for value: KDBXDocument.InheritableBool?) -> InheritableBoolPayload? {
         switch value {
         case .none: return nil
         case .inherit: return .inherit

@@ -120,8 +120,10 @@ public enum KDBXContainer {
     }
 
     public enum ParseError: Error, Hashable, Sendable {
-        /// Not a KDBX file, or a KDBX 4 header whose SHA-256 does not match.
+        /// Not a KDBX file.
         case invalidSignature
+        /// A KDBX 4 outer header whose stored SHA-256 does not match: a damaged file.
+        case headerHashMismatch
         case unsupportedVersion(UInt16)
         case truncatedFile
         /// A KDBX 4 payload block failed its HMAC: wrong key or a damaged file.
@@ -132,6 +134,8 @@ public enum KDBXContainer {
         case invalidStreamStartBytes
         case unsupportedProtectedFieldStream(UInt32)
         case malformedVariantMap
+        /// The payload decompresses to more than `maxDecompressedPayloadSize`.
+        case decompressedPayloadTooLarge
         case kdfParameterOutOfRange(String)
         case kdfResourceLimitExceeded(iterations: UInt64, memoryBytes: UInt64, parallelism: UInt32)
     }
@@ -204,7 +208,7 @@ public enum KDBXContainer {
         let storedHeaderSHA = try reader.readBytes(32)
         let storedHeaderHMAC = try reader.readBytes(32)
         guard constantTimeEqual(storedHeaderSHA, KDBXCrypto.sha256(headerBytes)) else {
-            throw ParseError.invalidSignature
+            throw ParseError.headerHashMismatch
         }
 
         var keys = try MasterKeys(masterSeed: header.masterSeed, transformedKey: provideTransformedKey(header.kdfParameters))
@@ -222,9 +226,7 @@ public enum KDBXContainer {
         // producers leave the inner header uncompressed and compress only the
         // XML, or write plain XML despite the flag; both still read.
         let isCompressed = header.compressionFlags == Compression.gzip.rawValue
-        let wholePayload = isCompressed
-            ? try? Gzip.decompress(decrypted, maxOutputSize: maxDecompressedPayloadSize)
-            : nil
+        let wholePayload = isCompressed ? try decompressIfPossible(decrypted) : nil
         let payload = wholePayload ?? decrypted
 
         var innerReader = DataReader(data: payload)
@@ -232,13 +234,25 @@ public enum KDBXContainer {
         var xml = payload.subdata(in: innerReader.offset..<payload.count)
 
         if isCompressed, wholePayload == nil {
-            if let decompressedXML = try? Gzip.decompress(xml, maxOutputSize: maxDecompressedPayloadSize) {
+            if let decompressedXML = try decompressIfPossible(xml) {
                 xml = decompressedXML
             } else if !looksLikeXML(xml) {
                 throw KDBXCrypto.CryptoError.decompressionFailed
             }
         }
         return Payload(header: header, xml: xml)
+    }
+
+    /// nil when `data` is not compressed. Exceeding the size limit still throws,
+    /// so an oversized payload is not mistaken for an uncompressed one.
+    private static func decompressIfPossible(_ data: Data) throws -> Data? {
+        do {
+            return try Gzip.decompress(data, maxOutputSize: maxDecompressedPayloadSize)
+        } catch ParseError.decompressedPayloadTooLarge {
+            throw ParseError.decompressedPayloadTooLarge
+        } catch {
+            return nil
+        }
     }
 
     /// Internal offsets assume a zero-based buffer; a slice is copied once.

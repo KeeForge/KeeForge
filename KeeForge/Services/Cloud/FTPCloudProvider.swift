@@ -2,6 +2,7 @@ import AuthenticationServices
 import Foundation
 import os
 import KDBXKit
+import RemoteFileTransports
 
 /// Plain-FTP provider. Stateless like `WebDAVCloudProvider`: the credential
 /// is read from `CloudTokenStore` on every call and every call opens its own
@@ -304,7 +305,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
 
         let file = CloudFile(
             id: normalizedId,
-            name: FTPListingParser.lastComponent(of: normalizedId),
+            name: FTPPath.lastComponent(of: normalizedId),
             path: normalizedId,
             isFolder: false,
             modifiedDate: metadata.modifiedDate,
@@ -441,7 +442,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     /// that from a backup whose deletion merely failed — least of all the
     /// name being occupied again, which any later database takes.
     private func sweepStaleUploads(beside path: String, in session: FTPSession) async {
-        guard let entries = try? await session.listDirectory(FTPListingParser.parentPath(of: path)) else {
+        guard let entries = try? await session.listDirectory(FTPPath.parentPath(of: path)) else {
             return
         }
         let cutoff = now().addingTimeInterval(-Self.staleUploadAge)
@@ -531,6 +532,8 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
             return CloudProviderError.permissionDenied
         case FTPClientError.illegalArgument:
             return CloudProviderError.invalidName
+        case FTPClientError.invalidPort:
+            return CloudProviderError.invalidConfiguration
         case FTPClientError.malformedReply(let text):
             return CloudProviderError.unknown(text)
         default:
@@ -607,7 +610,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     static let staleUploadAge: TimeInterval = 24 * 60 * 60
 
     private func scratchPath(beside path: String, kind: ScratchKind) -> String {
-        let name = Self.scratchName(for: FTPListingParser.lastComponent(of: path), kind: kind, createdAt: now(), token: makeScratchToken())
+        let name = Self.scratchName(for: FTPPath.lastComponent(of: path), kind: kind, createdAt: now(), token: makeScratchToken())
         return Self.sibling(of: path, named: name)
     }
 
@@ -645,7 +648,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
               parts[0].count == 14,
               parts[1].count == 8,
               parts[1].allSatisfy({ $0.isASCII && $0.isHexDigit }),
-              let createdAt = FTPListingParser.date(fromTimeVal: String(parts[0])) else {
+              let createdAt = FTPListEntry.date(fromTimeVal: String(parts[0])) else {
             return nil
         }
         return (kind, createdAt)

@@ -1,0 +1,864 @@
+{
+ "hosts": [
+  {
+   "input": "http://example\t.\norg",
+   "hostname": "example.org"
+  },
+  {
+   "input": "http://user:pass@foo:21/bar;par?b#c",
+   "hostname": "foo"
+  },
+  {
+   "input": "https://test:@test",
+   "hostname": "test"
+  },
+  {
+   "input": "https://:@test",
+   "hostname": "test"
+  },
+  {
+   "input": "http://f:21/ b ? d # e ",
+   "hostname": "f"
+  },
+  {
+   "input": "http://f:/c",
+   "hostname": "f"
+  },
+  {
+   "input": "http://f:0/c",
+   "hostname": "f"
+  },
+  {
+   "input": "http://f:00000000000000/c",
+   "hostname": "f"
+  },
+  {
+   "input": "http://f:00000000000000000000080/c",
+   "hostname": "f"
+  },
+  {
+   "input": "http://f:\n/c",
+   "hostname": "f"
+  },
+  {
+   "input": "http://a:b@c:29/d",
+   "hostname": "c"
+  },
+  {
+   "input": "http://\u00e9@\u00e9",
+   "hostname": "xn--9ca"
+  },
+  {
+   "input": "http://\u00e9@example.com",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://&a:foo(b]c@d:2/",
+   "hostname": "d"
+  },
+  {
+   "input": "http://::@c@d:2",
+   "hostname": "d"
+  },
+  {
+   "input": "http://foo.com:b@d/",
+   "hostname": "d"
+  },
+  {
+   "input": "http://foo.com/\\@",
+   "hostname": "foo.com"
+  },
+  {
+   "input": "http://a:b@c\\",
+   "hostname": "c"
+  },
+  {
+   "input": "http://foo/path;a??e#f#g",
+   "hostname": "foo"
+  },
+  {
+   "input": "http://foo/abcd?efgh?ijkl",
+   "hostname": "foo"
+  },
+  {
+   "input": "http://foo/abcd#foo?bar",
+   "hostname": "foo"
+  },
+  {
+   "input": "http://[2001::1]",
+   "hostname": "[2001::1]"
+  },
+  {
+   "input": "http://[::127.0.0.1]",
+   "hostname": "[::7f00:1]"
+  },
+  {
+   "input": "http://[0:0:0:0:0:0:13.1.68.3]",
+   "hostname": "[::d01:4403]"
+  },
+  {
+   "input": "http://[2001::1]:80",
+   "hostname": "[2001::1]"
+  },
+  {
+   "input": "http://example.com/././foo",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/./.foo",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/.",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/./",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/bar/..",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/bar/../",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/..bar",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/bar/../ton",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/bar/../ton/../../a",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/../../..",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/../../../ton",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/%2e",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/%2e%2",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/%2e./%2e%2e/.%2e/%2e.bar",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com////../..",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/bar//../..",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo/bar//..",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/%20foo",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo%",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo%2",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo%2zbar",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo%2\u00c2\u00a9zbar",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo%41%7a",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo\t\u0091%91",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo%00%51",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/(%28:%3A%29)",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/%3A%3a%3C%3c",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/foo\tbar",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com\\\\foo\\\\bar",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/%7Ffp3%3Eju%3Dduvgw%3Dd",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/@asdf%40",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/\u4f60\u597d\u4f60\u597d",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/\u2025/foo",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/\ufeff/foo",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://example.com/\u202e/foo/\u202d/bar",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://www.google.com/foo?bar=baz#",
+   "hostname": "www.google.com"
+  },
+  {
+   "input": "http://www.google.com/foo?bar=baz# \u00bb",
+   "hostname": "www.google.com"
+  },
+  {
+   "input": "http://www.google.com",
+   "hostname": "www.google.com"
+  },
+  {
+   "input": "http://192.0x00A80001",
+   "hostname": "192.168.0.1"
+  },
+  {
+   "input": "http://www/foo%2Ehtml",
+   "hostname": "www"
+  },
+  {
+   "input": "http://www/foo/%2E/html",
+   "hostname": "www"
+  },
+  {
+   "input": "http://%25DOMAIN:foobar@foodomain.com/",
+   "hostname": "foodomain.com"
+  },
+  {
+   "input": "http://foo:80/",
+   "hostname": "foo"
+  },
+  {
+   "input": "http://foo:81/",
+   "hostname": "foo"
+  },
+  {
+   "input": "https://foo:443/",
+   "hostname": "foo"
+  },
+  {
+   "input": "https://foo:80/",
+   "hostname": "foo"
+  },
+  {
+   "input": "https://example.com/aaa/bbb/%2e%2e?query",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://@www.example.com",
+   "hostname": "www.example.com"
+  },
+  {
+   "input": "http://a:b@www.example.com",
+   "hostname": "www.example.com"
+  },
+  {
+   "input": "http://@pple.com",
+   "hostname": "pple.com"
+  },
+  {
+   "input": "http://:b@www.example.com",
+   "hostname": "www.example.com"
+  },
+  {
+   "input": "http://a:@www.example.com",
+   "hostname": "www.example.com"
+  },
+  {
+   "input": "http://www.@pple.com",
+   "hostname": "pple.com"
+  },
+  {
+   "input": "http://:@www.example.com",
+   "hostname": "www.example.com"
+  },
+  {
+   "input": "http://www.example2.com",
+   "hostname": "www.example2.com"
+  },
+  {
+   "input": "http://ExAmPlE.CoM",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://GOO\u200b\u2060\ufeffgoo.com",
+   "hostname": "googoo.com"
+  },
+  {
+   "input": "http://example.com/\u007f",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://www.foo\u3002bar.com",
+   "hostname": "www.foo.bar.com"
+  },
+  {
+   "input": "https://x/\ufffd?\ufffd#\ufffd",
+   "hostname": "x"
+  },
+  {
+   "input": "http://a.b.c.xn--pokxncvks",
+   "hostname": "a.b.c.xn--pokxncvks"
+  },
+  {
+   "input": "http://10.0.0.xn--pokxncvks",
+   "hostname": "10.0.0.xn--pokxncvks"
+  },
+  {
+   "input": "http://a.b.c.XN--pokxncvks",
+   "hostname": "a.b.c.xn--pokxncvks"
+  },
+  {
+   "input": "http://a.b.c.Xn--pokxncvks",
+   "hostname": "a.b.c.xn--pokxncvks"
+  },
+  {
+   "input": "http://10.0.0.XN--pokxncvks",
+   "hostname": "10.0.0.xn--pokxncvks"
+  },
+  {
+   "input": "http://10.0.0.xN--pokxncvks",
+   "hostname": "10.0.0.xn--pokxncvks"
+  },
+  {
+   "input": "http://\uff27\uff4f.com",
+   "hostname": "go.com"
+  },
+  {
+   "input": "http://\u4f60\u597d\u4f60\u597d",
+   "hostname": "xn--6qqa088eba"
+  },
+  {
+   "input": "https://fa\u00df.ExAmPlE/",
+   "hostname": "xn--fa-hia.example"
+  },
+  {
+   "input": "http://%30%78%63%30%2e%30%32%35%30.01",
+   "hostname": "192.168.0.1"
+  },
+  {
+   "input": "http://%30%78%63%30%2e%30%32%35%30.01%2e",
+   "hostname": "192.168.0.1"
+  },
+  {
+   "input": "http://\uff10\uff38\uff43\uff10\uff0e\uff10\uff12\uff15\uff10\uff0e\uff10\uff11",
+   "hostname": "192.168.0.1"
+  },
+  {
+   "input": "http://./",
+   "hostname": "."
+  },
+  {
+   "input": "http://../",
+   "hostname": ".."
+  },
+  {
+   "input": "http://foo:\ud83d\udca9@example.com/bar",
+   "hostname": "example.com"
+  },
+  {
+   "input": "http://\ud83d\ude00x@host/",
+   "hostname": "host"
+  },
+  {
+   "input": "http://a:\ud83d\ude00x@host/",
+   "hostname": "host"
+  },
+  {
+   "input": "http://\ud83d\ude00@host/",
+   "hostname": "host"
+  },
+  {
+   "input": "https://localhost?q=\ud83d\udd25",
+   "hostname": "localhost"
+  },
+  {
+   "input": "https://localhost#\ud83d\udd25",
+   "hostname": "localhost"
+  },
+  {
+   "input": "https://@test@test@example:800/",
+   "hostname": "example"
+  },
+  {
+   "input": "https://@@@example",
+   "hostname": "example"
+  },
+  {
+   "input": "http://`{}:`{}@h/`{}?`{}",
+   "hostname": "h"
+  },
+  {
+   "input": "http://host/?'",
+   "hostname": "host"
+  },
+  {
+   "input": "http://ho\tst/",
+   "hostname": "host"
+  },
+  {
+   "input": "http://ho\nst/",
+   "hostname": "host"
+  },
+  {
+   "input": "http://ho\rst/",
+   "hostname": "host"
+  },
+  {
+   "input": "http://!\"$&'()*+,-.;=_`{}~/",
+   "hostname": "!\"$&'()*+,-.;=_`{}~"
+  },
+  {
+   "input": "https://%e2%98%83",
+   "hostname": "xn--n3h"
+  },
+  {
+   "input": "http://127.0.0.1:10100/relative_import.html",
+   "hostname": "127.0.0.1"
+  },
+  {
+   "input": "http://facebook.com/?foo=%7B%22abc%22",
+   "hostname": "facebook.com"
+  },
+  {
+   "input": "https://localhost:3000/jqueryui@1.2.3",
+   "hostname": "localhost"
+  },
+  {
+   "input": "http://foo.bar/baz?qux#foo\bbar",
+   "hostname": "foo.bar"
+  },
+  {
+   "input": "http://foo.bar/baz?qux#foo\"bar",
+   "hostname": "foo.bar"
+  },
+  {
+   "input": "http://foo.bar/baz?qux#foo<bar",
+   "hostname": "foo.bar"
+  },
+  {
+   "input": "http://foo.bar/baz?qux#foo>bar",
+   "hostname": "foo.bar"
+  },
+  {
+   "input": "http://foo.bar/baz?qux#foo`bar",
+   "hostname": "foo.bar"
+  },
+  {
+   "input": "http://1.2.3.4/",
+   "hostname": "1.2.3.4"
+  },
+  {
+   "input": "http://1.2.3.4./",
+   "hostname": "1.2.3.4"
+  },
+  {
+   "input": "http://192.168.257",
+   "hostname": "192.168.1.1"
+  },
+  {
+   "input": "http://192.168.257.",
+   "hostname": "192.168.1.1"
+  },
+  {
+   "input": "http://192.168.257.com",
+   "hostname": "192.168.257.com"
+  },
+  {
+   "input": "http://256",
+   "hostname": "0.0.1.0"
+  },
+  {
+   "input": "http://256.com",
+   "hostname": "256.com"
+  },
+  {
+   "input": "http://999999999",
+   "hostname": "59.154.201.255"
+  },
+  {
+   "input": "http://999999999.",
+   "hostname": "59.154.201.255"
+  },
+  {
+   "input": "http://999999999.com",
+   "hostname": "999999999.com"
+  },
+  {
+   "input": "http://10000000000.com",
+   "hostname": "10000000000.com"
+  },
+  {
+   "input": "http://4294967295",
+   "hostname": "255.255.255.255"
+  },
+  {
+   "input": "http://0xffffffff",
+   "hostname": "255.255.255.255"
+  },
+  {
+   "input": "https://0x.0x.0",
+   "hostname": "0.0.0.0"
+  },
+  {
+   "input": "https://0x.0x.0x.0x",
+   "hostname": "0.0.0.0"
+  },
+  {
+   "input": "https://00.00.00.00",
+   "hostname": "0.0.0.0"
+  },
+  {
+   "input": "https://0000000000000000000000000000000000000000177.0.0.1",
+   "hostname": "127.0.0.1"
+  },
+  {
+   "input": "http://[1:0::]",
+   "hostname": "[1::]"
+  },
+  {
+   "input": "http://0x7f.0.0.0x7g",
+   "hostname": "0x7f.0.0.0x7g"
+  },
+  {
+   "input": "http://0X7F.0.0.0X7G",
+   "hostname": "0x7f.0.0.0x7g"
+  },
+  {
+   "input": "http://[0:1:0:1:0:1:0:1]",
+   "hostname": "[0:1:0:1:0:1:0:1]"
+  },
+  {
+   "input": "http://[1:0:1:0:1:0:1:0]",
+   "hostname": "[1:0:1:0:1:0:1:0]"
+  },
+  {
+   "input": "http://example.org/test?\"",
+   "hostname": "example.org"
+  },
+  {
+   "input": "http://example.org/test?#",
+   "hostname": "example.org"
+  },
+  {
+   "input": "http://example.org/test?<",
+   "hostname": "example.org"
+  },
+  {
+   "input": "http://example.org/test?>",
+   "hostname": "example.org"
+  },
+  {
+   "input": "http://example.org/test?\u2323",
+   "hostname": "example.org"
+  },
+  {
+   "input": "http://example.org/test?%23%23",
+   "hostname": "example.org"
+  },
+  {
+   "input": "http://example.org/test?%GH",
+   "hostname": "example.org"
+  },
+  {
+   "input": "http://example.org/test?a#%EF",
+   "hostname": "example.org"
+  },
+  {
+   "input": "http://example.org/test?a#%GH",
+   "hostname": "example.org"
+  },
+  {
+   "input": "http://example.org/test?a#b\u0000c",
+   "hostname": "example.org"
+  },
+  {
+   "input": "https://www.example.com/path{\u007fpath.html?query'\u007f=query#fragment<\u007ffragment",
+   "hostname": "www.example.com"
+  },
+  {
+   "input": "https://user:pass[\u007f@foo/bar",
+   "hostname": "foo"
+  },
+  {
+   "input": "http://foo.09..",
+   "hostname": "foo.09.."
+  },
+  {
+   "input": "https://x/\u0000y",
+   "hostname": "x"
+  },
+  {
+   "input": "https://x/?\u0000y",
+   "hostname": "x"
+  },
+  {
+   "input": "https://x/?#\u0000y",
+   "hostname": "x"
+  },
+  {
+   "input": "https://x/\uffffy",
+   "hostname": "x"
+  },
+  {
+   "input": "https://x/?\uffffy",
+   "hostname": "x"
+  },
+  {
+   "input": "https://x/?#\uffffy",
+   "hostname": "x"
+  },
+  {
+   "input": "https://example.com/\"quoted\"",
+   "hostname": "example.com"
+  },
+  {
+   "input": "https://a%C2%ADb/",
+   "hostname": "ab"
+  },
+  {
+   "input": "https://xn--/",
+   "hostname": "xn--"
+  }
+ ],
+ "failures": [
+  "http://f:b/c",
+  "http://f: /c",
+  "http://f:fifty-two/c",
+  "http://f:999999/c",
+  "http://f: 21 / b ? d # e ",
+  "http://[1::2]:3:4",
+  "http://2001::1",
+  "http://2001::1]",
+  "http://2001::1]:80",
+  "http://[::127.0.0.1.]",
+  "http://user:pass@/",
+  "http://foo:-80/",
+  "http://user@/www.example.com",
+  "http://@/www.example.com",
+  "http://a:b@/www.example.com",
+  "http://@:www.example.com",
+  "http://example example.com",
+  "http://Goo%20 goo%7C|.com",
+  "http://[]",
+  "http://[:]",
+  "http://GOO\u00a0\u3000goo.com",
+  "http://\ufdd0zyx.com",
+  "http://%ef%b7%90zyx.com",
+  "https://\ufffd",
+  "https://%EF%BF%BD",
+  "http://\uff05\uff14\uff11.com",
+  "http://%ef%bc%85%ef%bc%94%ef%bc%91.com",
+  "http://\uff05\uff10\uff10.com",
+  "http://%ef%bc%85%ef%bc%90%ef%bc%90.com",
+  "http://%zz%66%a.com",
+  "http://%25",
+  "http://hello%00",
+  "http://192.168.0.257",
+  "http://%3g%78%63%30%2e%30%32%35%30%2E.01",
+  "http://192.168.0.1 hello",
+  "https://x x:12",
+  "http://[www.google.com]/",
+  "http://[google.com]",
+  "http://[::1.2.3.4x]",
+  "http://[::1.2.3.]",
+  "http://[::1.2.]",
+  "http://[::.1.2]",
+  "http://[::1.]",
+  "http://[::.1]",
+  "http://[::%31]",
+  "http://%5B::1]",
+  "http://a\u0000b/",
+  "http://a\u0001b/",
+  "http://a\u0002b/",
+  "http://a\u0003b/",
+  "http://a\u0004b/",
+  "http://a\u0005b/",
+  "http://a\u0006b/",
+  "http://a\u0007b/",
+  "http://a\bb/",
+  "http://a\u000bb/",
+  "http://a\fb/",
+  "http://a\u000eb/",
+  "http://a\u000fb/",
+  "http://a\u0010b/",
+  "http://a\u0011b/",
+  "http://a\u0012b/",
+  "http://a\u0013b/",
+  "http://a\u0014b/",
+  "http://a\u0015b/",
+  "http://a\u0016b/",
+  "http://a\u0017b/",
+  "http://a\u0018b/",
+  "http://a\u0019b/",
+  "http://a\u001ab/",
+  "http://a\u001bb/",
+  "http://a\u001cb/",
+  "http://a\u001db/",
+  "http://a\u001eb/",
+  "http://a\u001fb/",
+  "http://a b/",
+  "http://a%b/",
+  "http://a<b",
+  "http://a>b",
+  "http://a[b/",
+  "http://a]b/",
+  "http://a^b",
+  "http://a|b/",
+  "http://a\u007fb/",
+  "http://ho%00st/",
+  "http://ho%01st/",
+  "http://ho%02st/",
+  "http://ho%03st/",
+  "http://ho%04st/",
+  "http://ho%05st/",
+  "http://ho%06st/",
+  "http://ho%07st/",
+  "http://ho%08st/",
+  "http://ho%09st/",
+  "http://ho%0Ast/",
+  "http://ho%0Bst/",
+  "http://ho%0Cst/",
+  "http://ho%0Dst/",
+  "http://ho%0Est/",
+  "http://ho%0Fst/",
+  "http://ho%10st/",
+  "http://ho%11st/",
+  "http://ho%12st/",
+  "http://ho%13st/",
+  "http://ho%14st/",
+  "http://ho%15st/",
+  "http://ho%16st/",
+  "http://ho%17st/",
+  "http://ho%18st/",
+  "http://ho%19st/",
+  "http://ho%1Ast/",
+  "http://ho%1Bst/",
+  "http://ho%1Cst/",
+  "http://ho%1Dst/",
+  "http://ho%1Est/",
+  "http://ho%1Fst/",
+  "http://ho%20st/",
+  "http://ho%23st/",
+  "http://ho%25st/",
+  "http://ho%2Fst/",
+  "http://ho%3Ast/",
+  "http://ho%3Cst/",
+  "http://ho%3Est/",
+  "http://ho%3Fst/",
+  "http://ho%40st/",
+  "http://ho%5Bst/",
+  "http://ho%5Cst/",
+  "http://ho%5Dst/",
+  "http://ho%7Cst/",
+  "http://ho%7Fst/",
+  "https://example.com%80/",
+  "https://example.com%A0/",
+  "http://10000000000",
+  "http://4294967296",
+  "http://18446744073709551616",
+  "http://18446744075840258049",
+  "http://0xffffffff1",
+  "http://256.256.256.256",
+  "https://0x100000000/test",
+  "https://256.0.0.1/test",
+  "https://%43%7C/",
+  "https://[0:1:2:3:4:5:192.0.02.1]/",
+  "https://[192.0.2.1::]/",
+  "http://[0:1:2:3:4:5:6:7:8]",
+  "https://[0::0::0]",
+  "https://[0:.0]",
+  "https://[0:0:]",
+  "https://[0:1:2:3:4:5:6:7.0.0.0.1]",
+  "https://[0:1.00.0.0.0]",
+  "https://[0:1.290.0.0.0]",
+  "https://[0:1.23.23]",
+  "http://?",
+  "http://#",
+  "http://f:4294967377/c",
+  "http://f:18446744073709551697/c",
+  "http://f:340282366920938463463374607431768211537/c",
+  "http://[::127.0.0.0.1]",
+  "http://1.2.3.4.5",
+  "http://1.2.3.4.5.",
+  "http://0..0x300/",
+  "http://0..0x300./",
+  "http://256.256.256.256.256",
+  "http://256.256.256.256.256.",
+  "http://1.2.3.08",
+  "http://1.2.3.08.",
+  "http://1.2.3.09",
+  "http://09.2.3.4",
+  "http://09.2.3.4.",
+  "http://01.2.3.4.5",
+  "http://01.2.3.4.5.",
+  "http://0x100.2.3.4",
+  "http://0x100.2.3.4.",
+  "http://0x1.2.3.4.5",
+  "http://0x1.2.3.4.5.",
+  "http://foo.1.2.3.4",
+  "http://foo.1.2.3.4.",
+  "http://foo.2.3.4",
+  "http://foo.2.3.4.",
+  "http://foo.09",
+  "http://foo.09.",
+  "http://foo.0x4",
+  "http://foo.0x4.",
+  "http://0999999999999999999/",
+  "http://foo.0x",
+  "http://foo.0XFfFfFfFfFfFfFfFfFfAcE123",
+  "http://\ud83d\udca9.123/",
+  "https://\u0000y",
+  "https://\uffffy",
+  "https://\u00ad/",
+  "https://%C2%AD/"
+ ]
+}

@@ -1,6 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import Foundation
+import SiteMatching
 
 enum AutoFillSaveCoordinator {
     struct SaveOutcome: Sendable {
@@ -127,10 +128,13 @@ enum AutoFillSaveCoordinator {
         password: String? = nil,
         environment: Environment = .live
     ) -> EntryDraftPayload {
-        let isApp = CredentialMatcher.isAppIdentifier(serviceIdentifier)
-        let suppliedTitle = isApp
-            ? appDisplayName(for: serviceIdentifier)
-            : CredentialMatcher.searchTerm(for: serviceIdentifier) ?? serviceIdentifier.identifier
+        let request = SiteRequest(serviceIdentifier)
+        let suppliedTitle: String
+        if case .app = request {
+            suppliedTitle = appDisplayName(for: serviceIdentifier)
+        } else {
+            suppliedTitle = request.searchTerm ?? serviceIdentifier.identifier
+        }
         // A fill resolves `{REF:…}` in the title when the username is empty,
         // and the requesting app or website chose this value.
         let title = FieldReferenceResolver.containsReference(suppliedTitle) ? "" : suppliedTitle
@@ -140,7 +144,7 @@ enum AutoFillSaveCoordinator {
             password: password?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
                 ? password ?? ""
                 : environment.generatePassword(),
-            url: CredentialMatcher.website(for: serviceIdentifier)?.url ?? "",
+            url: request.website?.url ?? "",
             notes: ""
         )
     }

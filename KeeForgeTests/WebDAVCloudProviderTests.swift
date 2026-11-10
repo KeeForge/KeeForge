@@ -1,4 +1,5 @@
 import XCTest
+import RemoteFileTransports
 @testable import KeeForge
 
 /// Tests for `WebDAVCloudProvider` and its URL/rev helper statics, plus
@@ -31,57 +32,6 @@ final class WebDAVCloudProviderTests: XCTestCase {
         seededAccountIds = []
         CloudAccountStore.clearAll()
         super.tearDown()
-    }
-
-    // MARK: - URL normalization
-
-    func testNormalizedBaseURLAddsTrailingSlash() throws {
-        let url = try WebDAVURL.normalizedBaseURL(from: "https://cloud.example.com/remote.php/dav")
-        XCTAssertEqual(url.absoluteString, "https://cloud.example.com/remote.php/dav/")
-    }
-
-    func testNormalizedBaseURLLowercasesSchemeAndHostPreservesPathCase() throws {
-        let url = try WebDAVURL.normalizedBaseURL(from: "HTTPS://Cloud.EXAMPLE.com/Remote.PHP/DAV/Files/")
-        XCTAssertEqual(url.absoluteString, "https://cloud.example.com/Remote.PHP/DAV/Files/")
-    }
-
-    func testNormalizedBaseURLDropsDefault443KeepsCustomPort() throws {
-        let dropped = try WebDAVURL.normalizedBaseURL(from: "https://cloud.example.com:443/dav")
-        XCTAssertEqual(dropped.absoluteString, "https://cloud.example.com/dav/")
-
-        let kept = try WebDAVURL.normalizedBaseURL(from: "https://cloud.example.com:8443/dav")
-        XCTAssertEqual(kept.absoluteString, "https://cloud.example.com:8443/dav/")
-    }
-
-    func testNormalizedBaseURLRejectsHTTP() {
-        XCTAssertThrowsError(try WebDAVURL.normalizedBaseURL(from: "http://cloud.example.com/dav")) { error in
-            XCTAssertEqual(error as? WebDAVURLError, .insecureScheme)
-        }
-    }
-
-    func testNormalizedBaseURLAllowsHTTPOnlyWithExplicitOptIn() throws {
-        let url = try WebDAVURL.normalizedBaseURL(
-            from: "HTTP://Vault.Local:80/DAV",
-            allowsUnencryptedHTTP: true
-        )
-
-        XCTAssertEqual(url.absoluteString, "http://vault.local/DAV/")
-    }
-
-    func testNormalizedBaseURLRejectsEmpty() {
-        XCTAssertThrowsError(try WebDAVURL.normalizedBaseURL(from: "   ")) { error in
-            XCTAssertEqual(error as? WebDAVURLError, .empty)
-        }
-    }
-
-    func testNormalizedBaseURLRejectsGarbageAndMissingHost() {
-        XCTAssertThrowsError(try WebDAVURL.normalizedBaseURL(from: "not a url ::::")) { error in
-            XCTAssertEqual(error as? WebDAVURLError, .malformed)
-        }
-        // Scheme present but no host.
-        XCTAssertThrowsError(try WebDAVURL.normalizedBaseURL(from: "https:///dav")) { error in
-            XCTAssertEqual(error as? WebDAVURLError, .missingHost)
-        }
     }
 
     // MARK: - accountId

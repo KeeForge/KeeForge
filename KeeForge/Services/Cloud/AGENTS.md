@@ -4,7 +4,7 @@
 
 ## Ownership
 
-- `CloudProvider` is the only boundary the rest of the app talks to; SDK and protocol behavior stays behind it. `CloudProviderRegistry.provider(for:)` resolves one, including the UI-test doubles.
+- `CloudProvider` is the only boundary the rest of the app talks to; SDK and protocol behavior stays behind it. The WebDAV and FTP protocol clients are the `RemoteFileTransports` package (`../../../Packages/RemoteFileTransports/AGENTS.md`); the two providers own credentials, account ids, conflict handling, and every message. `WebDAVError+CloudProvider.swift` holds the WebDAV messages and must keep `.networkUnavailable` and `.serviceUnavailable` for the failures `isLikelyOffline` treats as offline. `CloudProviderRegistry.provider(for:)` resolves one, including the UI-test doubles.
 - `CloudSyncModels`: the persisted shapes. Concurrency uses one opaque `rev`; each provider maps its own validator onto it (Dropbox rev, OneDrive cTag/eTag, WebDAV ETag, FTP `sha256:` of the bytes).
 - `CloudDatabaseSaver`: local app commits and shared delivery/reconciliation, including online rekey. Exact remote-base bytes drive conflict checks; `remoteHasDiverged` supplies the metadata fallback for legacy markers.
 - `CloudSyncCoordinator`: open-time provider policy, confirmed-journal recovery before open, conditional sync-down cache publication, and explicit pending-change discard. Upload confirmation never rewrites a newer local cache.
@@ -75,6 +75,7 @@
 - WebDAV requires `https` unless the user set `allowsUnencryptedHTTP`; FTP always requires `allowsUnencryptedFTP`, because the password travels in the clear. Keep both opt-ins explicit. ATS allows arbitrary loads for user-entered hosts, so this code is the only enforcement.
 - WebDAV refuses cross-origin redirects and never forwards credentials.
 - FTP command arguments containing CR, LF, or NUL are rejected (checked per Unicode scalar), and passive data connections go to the control host, never an address the server advertises.
+- Both rules above, and the response size caps, are enforced inside `RemoteFileTransports`; keep them there.
 - WebDAV file ids and folder paths are decoded, server-relative strings. Never percent-decode them again; encode each segment once when building a URL. OneDrive's `graphURL(path:queryItems:)` takes an already-encoded path for the same reason.
 - FTP never writes the database in place or deletes it first: upload to a hidden temporary name, re-check the target's hash, rename over it. A server that refuses to rename onto an existing file gets the database set aside as `.keeforge-backup` and restored on any failure. The stale-upload sweep never touches those backups, since one may be a database's only copy.
 - `OAuth2Error.unknown` maps to `.networkUnavailable` on purpose: only the Dropbox refresh token is stored, so an offline call fails at the OAuth stage. Dropbox replacement dispatches once; the engine owns retry and uncertainty. Create-only retries retain `strictConflict`.
@@ -89,7 +90,7 @@
 - Markers: `PendingUploadQueueTests`, `PendingUploadDrainerTests` (also the rekey cutoff), `PendingUploadRecoveryTests`; the AutoFill side in `CredentialProviderSaveTests`.
 - `CloudDatabaseSaverTests` covers real list-write failure after app/AutoFill replacement, drained-head restart/offline recovery, subsequent-save baseline capture, committed finalization, conservative legacy handling, epoch/head/removal fences and confirmed metadata failure without reupload. `PendingUploadQueueTests` pins known-nil baseline versus absent legacy encoding.
 - `CloudDatabaseSaverTests` includes Keychain-free real WebDAV/FTP transport rejection recovery, cross-process local-head locking, conditional lineage merge and late uncertain-source confirmation. `OneDriveCloudProviderTests` also exercises queued large-upload session rejection with injected token/transport on iOS; no real account or network is used.
-- Providers: `WebDAVClientTests`, `WebDAVCloudProviderTests`, `FTPCloudProviderTests`, `FTPListingParserTests`. `DropboxCloudProviderTests` and `OneDriveCloudProviderTests` import the SDKs and are excluded from `KeeForgeMacTests`; run them on iOS.
+- Providers: `WebDAVCloudProviderTests`, `WebDAVErrorMessageTests`, `FTPCloudProviderTests`. The WebDAV and FTP clients, their parsers, and the address rules are tested in `../../../Packages/RemoteFileTransports`. `DropboxCloudProviderTests` and `OneDriveCloudProviderTests` import the SDKs and are excluded from `KeeForgeMacTests`; run them on iOS.
 - Session-side sync and merge: `DatabaseViewModelCloudSyncTests`.
 
 ## See also

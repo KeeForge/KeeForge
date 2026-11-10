@@ -88,9 +88,22 @@ final class KDBXKeyFileTests: XCTestCase {
         }
     }
 
-    /// Anything but version 2.0 is read as 1.0.
-    func testOtherVersionsReadAsVersion1() throws {
-        XCTAssertEqual(try KDBXKeyFile.key(from: keyFileXML(version: "", data: expectedKey.base64EncodedString())), expectedKey)
+    /// The major version picks the format, as in KeePass; a missing version reads as 1.0.
+    func testMajorVersionPicksTheFormat() throws {
+        for version in ["", "1.0", "1.00", "1.1"] {
+            XCTAssertEqual(try KDBXKeyFile.key(from: keyFileXML(version: version, data: expectedKey.base64EncodedString())), expectedKey, version)
+        }
+        for version in ["2.0", "2.1"] {
+            XCTAssertEqual(try KDBXKeyFile.key(from: keyFileXML(version: version, data: upperHex)), expectedKey, version)
+        }
+    }
+
+    func testUnknownMajorVersionsAreRejected() {
+        for version in ["3.0", "0.9", "x"] {
+            assertThrows(KDBXKeyFile.KeyFileError.xmlVersionUnsupported) {
+                try KDBXKeyFile.key(from: self.keyFileXML(version: version, data: self.upperHex))
+            }
+        }
     }
 
     func testOnlyMetaVersionAndKeyDataCount() throws {
@@ -176,5 +189,41 @@ final class KDBXKeyFileTests: XCTestCase {
                 try KDBXCrypto.compositeKey(password: password, keyFileData: self.keyFileXML(version: "2.0", data: self.upperHex, hash: "DEADBEEF"))
             }
         }
+    }
+
+    // MARK: - Generation
+
+    func testGeneratedKeyFileIsXMLv2WithGroupedHexKeyAndMatchingHash() throws {
+        let file = try KDBXKeyFile.generate()
+        let text = try XCTUnwrap(String(data: file, encoding: .utf8))
+        let lines = text.components(separatedBy: "\n")
+
+        XCTAssertEqual(lines.first, #"<?xml version="1.0" encoding="utf-8"?>"#)
+        XCTAssertTrue(text.contains("<Version>2.0</Version>"))
+        let keyLines = lines.filter {
+            $0.range(of: #"^\t\t\t[0-9A-F]{8}( [0-9A-F]{8}){3}$"#, options: .regularExpression) != nil
+        }
+        XCTAssertEqual(keyLines.count, 2)
+        let key = Data(hex: keyLines.joined().filter(\.isHexDigit))
+        XCTAssertEqual(key.count, 32)
+        XCTAssertEqual(try KDBXKeyFile.tryXMLFormat(file), key)
+        XCTAssertEqual(try KDBXKeyFile.key(from: file), key)
+
+        let hashRange = try XCTUnwrap(text.range(of: #"(?<=Hash=")[0-9A-F]{8}(?=")"#, options: .regularExpression))
+        let expectedHash = SHA256.hash(data: key).prefix(4).map { String(format: "%02X", $0) }.joined()
+        XCTAssertEqual(String(text[hashRange]), expectedHash)
+        XCTAssertEqual(KDBXKeyFile.generatedFileExtension, "keyx")
+    }
+
+    func testGenerationFailsWhenNoRandomBytesAreAvailable() {
+        assertThrows(KDBXContainerWriter.WriteError.randomGenerationFailed(errSecParam)) {
+            try KDBXKeyFile.generate { _ in errSecParam }
+        }
+    }
+
+    func testEachGeneratedKeyFileHasADifferentKey() throws {
+        let keys = try (0..<3).map { _ in try KDBXKeyFile.key(from: KDBXKeyFile.generate()) }
+
+        XCTAssertEqual(Set(keys).count, 3)
     }
 }

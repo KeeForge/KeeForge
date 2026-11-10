@@ -246,7 +246,6 @@ final class DatabaseCreationServiceTests: XCTestCase {
         XCTAssertEqual(visibleRoot.name, "Structure")
         XCTAssertEqual(recycleBin.name, DatabaseDraft.localizedRecycleBinName)
         XCTAssertEqual(created.meta.recycleBinUUID, recycleBin.id)
-        XCTAssertTrue(created.meta.hasRecycleBinUUIDElement)
     }
 
     func testCreateDatabaseUsesExpectedKDFDefaults() throws {

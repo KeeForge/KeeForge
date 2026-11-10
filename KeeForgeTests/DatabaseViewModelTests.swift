@@ -5,6 +5,7 @@ import Security
 import SwiftUI
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 @MainActor
@@ -3521,6 +3522,24 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(failure.countsTowardFailedAttempts)
         XCTAssertFalse(failure.canChooseDifferentFile)
         XCTAssertTrue(failure.canRetryUnlock)
+    }
+
+    func testUnsupportedKeyFileVersionNamesTheProblem() {
+        let failure = DatabaseOpenFailure.classify(KDBXKeyFile.KeyFileError.xmlVersionUnsupported, isCloudBacked: false)
+
+        XCTAssertEqual(failure.summary, "This key file uses a version KeeForge does not support.")
+        XCTAssertEqual(failure.errorCode, "key_file.unsupported_version")
+        XCTAssertFalse(failure.countsTowardFailedAttempts)
+    }
+
+    /// A damaged or oversized KDBX file is a KeePass database KeeForge could
+    /// not read, not "Not a KeePass Database".
+    func testDamagedHeaderAndOversizedPayloadAreReadFailuresNotWrongFormat() {
+        for error in [KDBXContainer.ParseError.headerHashMismatch, .decompressedPayloadTooLarge] {
+            let failure = DatabaseOpenFailure.classify(error, isCloudBacked: false)
+            XCTAssertEqual(failure.errorCode, "open.parse_failed", "\(error)")
+            XCTAssertFalse(failure.countsTowardFailedAttempts, "\(error)")
+        }
     }
 
     func testTwofishHeaderDiagnosticsUseRecognizedCipherName() throws {
@@ -7847,8 +7866,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     reference: reference,
                     rootGroup: rootGroup,
                     meta: KPMeta(
-                        recycleBinUUID: rootGroup.recycleBinUUID,
-                        hasRecycleBinUUIDElement: rootGroup.recycleBinUUID != nil
+                        recycleBin: rootGroup.recycleBinUUID.map { .group($0) }
                     ),
                     formatVersion: .kdbx4(minor: 1),
                     sessionKey: SymmetricKey(size: .bits256),
@@ -7891,8 +7909,7 @@ final class DatabaseViewModelTests: XCTestCase {
         return DatabaseDraft(
             rootGroup: rootGroup,
             meta: KPMeta(
-                recycleBinUUID: rootGroup.recycleBinUUID,
-                hasRecycleBinUUIDElement: rootGroup.recycleBinUUID != nil
+                recycleBin: rootGroup.recycleBinUUID.map { .group($0) }
             ),
             sessionKey: sessionKey
         )

@@ -4,67 +4,68 @@ import Foundation
 import KDBXKit
 @testable import KeeForge
 
+// Password and key-file conveniences over `KDBXParser.parse(data:compositeKey:…)`.
 extension KDBXParser {
-    static func parse(data: Data, password: String, sessionKey: SymmetricKey) throws -> KPGroup {
-        try parse(data: data, password: password, sessionKey: sessionKey, kdfPolicy: .mainApp)
-    }
+    typealias OpenedTuple = (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header)
 
-    static func parse(data: Data, password: String?, keyFileData: Data?, sessionKey: SymmetricKey) throws -> KPGroup {
-        try parse(data: data, password: password, keyFileData: keyFileData, sessionKey: sessionKey, kdfPolicy: .mainApp)
+    static func parse(
+        data: Data,
+        password: String?,
+        keyFileData: Data? = nil,
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy = .mainApp
+    ) throws -> KPGroup {
+        try parseWithMetaAndHeader(
+            data: data, password: password, keyFileData: keyFileData, sessionKey: sessionKey, kdfPolicy: kdfPolicy
+        ).rootGroup
     }
 
     static func parse(data: Data, compositeKey: SymmetricKey, sessionKey: SymmetricKey) throws -> KPGroup {
-        try parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: .mainApp)
-    }
-
-    static func parseWithMeta(
-        data: Data,
-        password: String,
-        sessionKey: SymmetricKey
-    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
-        try parseWithMeta(data: data, password: password, sessionKey: sessionKey, kdfPolicy: .mainApp)
+        try parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: .mainApp).rootGroup
     }
 
     static func parseWithMeta(
         data: Data,
         password: String?,
-        keyFileData: Data?,
-        sessionKey: SymmetricKey
+        keyFileData: Data? = nil,
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy = .mainApp
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
-        try parseWithMeta(data: data, password: password, keyFileData: keyFileData, sessionKey: sessionKey, kdfPolicy: .mainApp)
+        let opened = try parseWithMetaAndHeader(
+            data: data, password: password, keyFileData: keyFileData, sessionKey: sessionKey, kdfPolicy: kdfPolicy
+        )
+        return (opened.rootGroup, opened.meta)
     }
 
     static func parseWithMeta(
         data: Data,
         compositeKey: SymmetricKey,
-        sessionKey: SymmetricKey
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy = .mainApp
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
-        try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: .mainApp)
-    }
-
-    static func parseWithMetaAndHeader(
-        data: Data,
-        password: String,
-        sessionKey: SymmetricKey
-    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header) {
-        try parseWithMetaAndHeader(data: data, password: password, sessionKey: sessionKey, kdfPolicy: .mainApp)
+        let opened = try parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: kdfPolicy)
+        return (opened.rootGroup, opened.meta)
     }
 
     static func parseWithMetaAndHeader(
         data: Data,
         password: String?,
-        keyFileData: Data?,
-        sessionKey: SymmetricKey
-    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header) {
-        try parseWithMetaAndHeader(data: data, password: password, keyFileData: keyFileData, sessionKey: sessionKey, kdfPolicy: .mainApp)
+        keyFileData: Data? = nil,
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy = .mainApp
+    ) throws -> OpenedTuple {
+        let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+        return try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: kdfPolicy)
     }
 
     static func parseWithMetaAndHeader(
         data: Data,
         compositeKey: SymmetricKey,
-        sessionKey: SymmetricKey
-    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header) {
-        try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: .mainApp)
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy = .mainApp
+    ) throws -> OpenedTuple {
+        let opened = try parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: kdfPolicy)
+        return (opened.rootGroup, opened.meta, opened.header)
     }
 }
 

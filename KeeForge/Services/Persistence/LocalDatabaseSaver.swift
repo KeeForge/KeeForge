@@ -166,7 +166,7 @@ enum LocalDatabaseSaver {
                 try CoordinatedFileReader.readData(from: url)
             },
             extractHeader: { data, compositeKey, kdfPolicy in
-                try KDBXParser.parseWithMetaAndHeader(
+                try KDBXParser.parse(
                     data: data,
                     compositeKey: compositeKey,
                     sessionKey: SymmetricKey(size: .bits256),
@@ -512,7 +512,7 @@ enum LocalDatabaseSaver {
         kdfPolicy: KDFExecutionPolicy
     ) throws -> Data {
         let sessionKey = SymmetricKey(size: .bits256)
-        let parsed = try KDBXParser.parseWithMetaAndHeader(
+        let parsed = try KDBXParser.parse(
             data: data,
             compositeKey: compositeKey,
             sessionKey: sessionKey,

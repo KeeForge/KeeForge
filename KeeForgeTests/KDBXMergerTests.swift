@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXXML
 @testable import KeeForge
 
 /// Synthetic, in-memory merge scenarios. The oracle fixtures produced by
@@ -542,7 +543,7 @@ final class KDBXMergerTests: XCTestCase {
                                                    locationChanged: time(remoteLocationWins ? 5 : 30))
                     var remoteEntry = try makeEntry(id: alphaID, title: "Remote", modified: time(remoteContentWins ? 20 : 10),
                                                     locationChanged: time(remoteLocationWins ? 30 : 5))
-                    let stale = PreviousParentGroupXML.setting(personalID, in: .empty, newInsertionIndex: 2)
+                    let stale = OpaqueXMLNodes(nodes: [.init(insertionIndex: 2, xml: PreviousParentGroupXML.fragment(personalID))])
                     localEntry.unknownXML = remoteLocationWins ? stale : reference
                     remoteEntry.unknownXML = remoteLocationWins ? reference : stale
                     localEntry.unknownXML.append(xml: "<ForegroundColor>local</ForegroundColor>", insertionIndex: 3)
@@ -580,8 +581,8 @@ final class KDBXMergerTests: XCTestCase {
                     remoteGroup.name = "Remote"
                     remoteGroup.lastModificationTime = time(remoteContentWins ? 20 : 10)
                     remoteGroup.locationChanged = time(remoteLocationWins ? 30 : 5)
-                    let reference = hasReference ? PreviousParentGroupXML.setting(workID, in: .empty, newInsertionIndex: 2) : .empty
-                    let stale = PreviousParentGroupXML.setting(personalID, in: .empty, newInsertionIndex: 2)
+                    let reference = hasReference ? OpaqueXMLNodes(nodes: [.init(insertionIndex: 2, xml: PreviousParentGroupXML.fragment(workID))]) : .empty
+                    let stale = OpaqueXMLNodes(nodes: [.init(insertionIndex: 2, xml: PreviousParentGroupXML.fragment(personalID))])
                     localGroup.unknownXML = remoteLocationWins ? stale : reference
                     remoteGroup.unknownXML = remoteLocationWins ? reference : stale
                     localGroup.unknownXML.append(xml: "<CustomData><Item>local</Item></CustomData>", insertionIndex: 3)
@@ -608,8 +609,8 @@ final class KDBXMergerTests: XCTestCase {
     func test_merge_recoveryReferenceAloneDoesNotCreateEntryHistory() throws {
         var localEntry = try makeEntry(id: alphaID, title: "Alpha", modified: time(20), locationChanged: time(5))
         var remoteEntry = localEntry
-        localEntry.unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty, newInsertionIndex: 2)
-        remoteEntry.unknownXML = PreviousParentGroupXML.setting(workID, in: .empty, newInsertionIndex: 2)
+        localEntry.unknownXML = OpaqueXMLNodes(nodes: [.init(insertionIndex: 2, xml: PreviousParentGroupXML.fragment(personalID))])
+        remoteEntry.unknownXML = OpaqueXMLNodes(nodes: [.init(insertionIndex: 2, xml: PreviousParentGroupXML.fragment(workID))])
         remoteEntry.locationChanged = time(30)
         remoteEntry.lastModificationTime = time(10)
         let merged = try mergedResult(local: makeSide(work: [localEntry]), remote: makeSide(work: [], personal: [remoteEntry]))
@@ -627,9 +628,9 @@ final class KDBXMergerTests: XCTestCase {
         let remoteWork = try XCTUnwrap(findGroup(workID, in: remote.rootGroup))
         localWork.groups.append(KPGroup(id: childID, name: "Child", lastModificationTime: time(10), locationChanged: time(5)))
         let remoteGroup = KPGroup(id: childID, name: "Child", lastModificationTime: time(10), locationChanged: time(30))
-        remoteGroup.unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty, newInsertionIndex: 2)
+        remoteGroup.unknownXML = OpaqueXMLNodes(nodes: [.init(insertionIndex: 2, xml: PreviousParentGroupXML.fragment(personalID))])
         remoteWork.groups.append(remoteGroup)
-        remoteWork.entries[0].unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty, newInsertionIndex: 2)
+        remoteWork.entries[0].unknownXML = OpaqueXMLNodes(nodes: [.init(insertionIndex: 2, xml: PreviousParentGroupXML.fragment(personalID))])
 
         let merged = try mergedResult(local: local, remote: remote)
         XCTAssertEqual(PreviousParentGroupXML.parentID(in: try XCTUnwrap(findEntry(alphaID, in: merged.rootGroup)).unknownXML), personalID)
@@ -644,8 +645,8 @@ final class KDBXMergerTests: XCTestCase {
         for location in [nil, time(30)] {
             var localEntry = try makeEntry(id: alphaID, title: "Local", modified: time(10), locationChanged: location)
             var remoteEntry = try makeEntry(id: alphaID, title: "Remote", modified: time(20), locationChanged: location)
-            localEntry.unknownXML = PreviousParentGroupXML.setting(personalID, in: .empty, newInsertionIndex: 2)
-            remoteEntry.unknownXML = PreviousParentGroupXML.setting(workID, in: .empty, newInsertionIndex: 2)
+            localEntry.unknownXML = OpaqueXMLNodes(nodes: [.init(insertionIndex: 2, xml: PreviousParentGroupXML.fragment(personalID))])
+            remoteEntry.unknownXML = OpaqueXMLNodes(nodes: [.init(insertionIndex: 2, xml: PreviousParentGroupXML.fragment(workID))])
             let local = try makeSide(work: [localEntry])
             let remote = try makeSide(work: [remoteEntry])
             let localGroup = KPGroup(id: childID, name: "Local", lastModificationTime: time(10), locationChanged: location,
@@ -682,8 +683,7 @@ final class KDBXMergerTests: XCTestCase {
             )
         ])
         var remoteMeta = KPMeta()
-        remoteMeta.recycleBinUUID = binID
-        remoteMeta.hasRecycleBinUUIDElement = true
+        remoteMeta.recycleBin = .group(binID)
 
         let merged = try mergedResult(
             local: local,
@@ -691,7 +691,6 @@ final class KDBXMergerTests: XCTestCase {
         )
 
         XCTAssertEqual(merged.meta.recycleBinUUID, binID)
-        XCTAssertTrue(merged.meta.hasRecycleBinUUIDElement)
         XCTAssertEqual(merged.rootGroup.recycleBinUUID, binID)
         let bin = try XCTUnwrap(findGroup(binID, in: merged.rootGroup))
         XCTAssertEqual(bin.entries.map(\.id), [alphaID])
@@ -700,11 +699,9 @@ final class KDBXMergerTests: XCTestCase {
     func test_merge_keepsLocalRecycleBinUUIDWhenBothSidesHaveOne() throws {
         let localBinID = UUID()
         var localMeta = KPMeta()
-        localMeta.recycleBinUUID = localBinID
-        localMeta.hasRecycleBinUUIDElement = true
+        localMeta.recycleBin = .group(localBinID)
         var remoteMeta = KPMeta()
-        remoteMeta.recycleBinUUID = UUID()
-        remoteMeta.hasRecycleBinUUIDElement = true
+        remoteMeta.recycleBin = .group(UUID())
 
         let merged = try mergedResult(
             local: KDBXMerger.Side(rootGroup: try makeTree(work: []), meta: localMeta),
@@ -723,7 +720,7 @@ final class KDBXMergerTests: XCTestCase {
         entry.history = [entry]
         let remoteRoot = try makeTree(work: [entry])
         var remoteMeta = KPMeta(customIcons: [uuid: Data([1])], customIconNames: [uuid: "Remote Name"])
-        remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: .empty))
+        remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: KPMeta()))
         remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.renaming(uuid: uuid, to: "Remote Name", at: time(20), in: remoteMeta.unknownXML))
         let remote = KDBXMerger.Side(rootGroup: remoteRoot, meta: remoteMeta)
         let localRoot = try makeTree(work: [])
@@ -742,7 +739,7 @@ final class KDBXMergerTests: XCTestCase {
 
     func testMergeTakesTheNewerRenameOfAnIconBothSidesHold() throws {
         let uuid = UUID()
-        let base = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: .empty))
+        let base = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: KPMeta()))
         func side(name: String?, at date: Date) throws -> KDBXMerger.Side {
             var meta = KPMeta(customIcons: [uuid: Data([1])])
             meta.unknownXML = base
@@ -777,7 +774,7 @@ final class KDBXMergerTests: XCTestCase {
         var entry = try makeEntry(id: betaID, title: "Remote", modified: time(40))
         entry.customIconUUID = uuid
         var renamedMeta = KPMeta(customIcons: [uuid: Data([1])], customIconNames: [uuid: "Renamed"])
-        renamedMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: .empty))
+        renamedMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: KPMeta()))
         renamedMeta.unknownXML = try XCTUnwrap(
             CustomIconXML.renaming(uuid: uuid, to: "Renamed", at: time(40), in: renamedMeta.unknownXML)
         )
@@ -813,7 +810,7 @@ final class KDBXMergerTests: XCTestCase {
         entry.customIconUUID = uuid
         entry.unknownXML.append(xml: "<CustomIconUUID>\(uuid.kdbxBase64String)</CustomIconUUID>", insertionIndex: 2)
         var remoteMeta = KPMeta(customIcons: [uuid: Data([1])])
-        remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: .empty))
+        remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: KPMeta()))
         let remote = KDBXMerger.Side(rootGroup: try makeTree(work: [entry]), meta: remoteMeta)
         let local = KDBXMerger.Side(rootGroup: try makeTree(work: []),
                                    meta: KPMeta(deletedObjects: [.init(uuid: uuid, deletionTime: time(30))]))
@@ -833,7 +830,7 @@ final class KDBXMergerTests: XCTestCase {
         remoteBeta.customIconUUID = iconID
         var remoteMeta = KPMeta()
         remoteMeta.customIcons = [iconID: iconData]
-        remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: iconID, imageData: iconData, to: .empty))
+        remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: iconID, imageData: iconData, to: KPMeta()))
 
         let merged = try mergedResult(
             local: try makeSide(work: [makeEntry(id: alphaID, title: "Alpha", modified: time(10))]),
@@ -1207,7 +1204,7 @@ final class KDBXMergerTests: XCTestCase {
         )
         var remoteMeta = KPMeta()
         remoteMeta.customIcons = [iconID: Data([0x89, 0x50, 0x4E, 0x47])]
-        remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: iconID, imageData: remoteMeta.customIcons[iconID]!, to: .empty))
+        remoteMeta.unknownXML = try XCTUnwrap(CustomIconXML.adding(uuid: iconID, imageData: remoteMeta.customIcons[iconID]!, to: KPMeta()))
         remoteMeta.deletedObjects = [KPDeletedObject(uuid: ghostID, deletionTime: time(50))]
 
         return (local, KDBXMerger.Side(rootGroup: remoteRoot, meta: remoteMeta))

@@ -200,7 +200,12 @@ final class KeychainServiceTests: XCTestCase {
     func testRemovingTheDatabaseOrTogglingItsHardwareKeyDropsTheExpressItem() throws {
         DatabaseListStore.clearAll()
         defer { DatabaseListStore.clearAll() }
-        let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        // Inside the container: the sandboxed Mac host cannot bookmark the bundle's fixture.
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("express.kdbx", isDirectory: false)
+        try Data("fixture".utf8).write(to: url)
         let reference = try DatabaseListStore.add(url: url)
         databaseIDsToClean.append(reference.id)
 

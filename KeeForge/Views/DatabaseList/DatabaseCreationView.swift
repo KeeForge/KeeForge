@@ -9,6 +9,7 @@ struct DatabaseCreationView: View {
     @State private var isDestinationExporterPresented = false
     @State private var isCloudFolderPickerPresented = false
     @State private var isKeyFileImporterPresented = false
+    @State private var newKeyFile: KeyFileExportDocument?
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
     @State private var exportDocument = KDBXExportDocument(data: Data())
     @State private var isMasterPasswordVisible = false
@@ -238,6 +239,13 @@ struct DatabaseCreationView: View {
                 }
                 .accessibilityIdentifier("database-create.keyfile.select")
 
+                Button {
+                    createKeyFile()
+                } label: {
+                    Label("Create Key File", systemImage: "doc.badge.plus")
+                }
+                .accessibilityIdentifier("database-create.keyfile.create")
+
                 if viewModel.keyFileFilename != nil {
                     Button("Clear Key File", role: .destructive) {
                         viewModel.clearKeyFile()
@@ -246,7 +254,19 @@ struct DatabaseCreationView: View {
                 }
             } header: {
                 Text("Key File")
+            } footer: {
+                Text("Create Key File saves a new key file where you choose. Keep a copy somewhere safe: without the key file, the database can’t be opened.")
             }
+            .fileExporter(
+                isPresented: Binding(
+                    get: { newKeyFile != nil },
+                    set: { if $0 == false { newKeyFile = nil } }
+                ),
+                document: newKeyFile,
+                contentType: KeyFileExportDocument.contentType,
+                defaultFilename: KeyFileExportDocument.defaultFilename(forDatabaseFilename: viewModel.suggestedFilename),
+                onCompletion: handleKeyFileCreation
+            )
 
             Section {
                 Picker("Encryption", selection: $viewModel.cipher) {
@@ -374,6 +394,24 @@ struct DatabaseCreationView: View {
 
     private var selectedCloudProvider: CloudProviderKind? {
         viewModel.destinationChoice.cloudProviderKind
+    }
+
+    private func createKeyFile() {
+        do {
+            newKeyFile = try KeyFileExportDocument.generate()
+        } catch {
+            selectionAlert = KeyFileExportDocument.creationFailureAlert(for: error)
+        }
+    }
+
+    private func handleKeyFileCreation(_ result: Result<URL, Error>) {
+        newKeyFile = nil
+        switch result {
+        case .success(let url):
+            handleKeyFileSelection(.success(url))
+        case .failure(let error):
+            selectionAlert = KeyFileExportDocument.creationFailureAlert(for: error)
+        }
     }
 
     private func handleKeyFileSelection(_ result: Result<URL, Error>) {

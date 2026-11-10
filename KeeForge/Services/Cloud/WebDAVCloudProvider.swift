@@ -1,5 +1,6 @@
 import AuthenticationServices
 import Foundation
+import RemoteFileTransports
 
 /// WebDAV cloud provider. Stateless: the per-account `WebDAVCredential` is
 /// fetched from `CloudTokenStore` on every call (off the main thread), so a
@@ -57,8 +58,8 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         )
 
         // Probe the collection root to validate credentials + WebDAV support.
-        let response = try await client.probe(url: baseURL, credential: credential)
-        if let error = WebDAVClient.mapHTTPStatus(response.statusCode, isPropfind: true, responseBody: response.data) {
+        let response = try await send { try await $0.probe(url: baseURL, credential: credential.basic) }
+        if let error = CloudProviderError.webDAVStatus(response.statusCode, isPropfind: true) {
             throw error
         }
 
@@ -84,8 +85,8 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         let context = try resolveContext(accountId: accountId)
         let listURL = Self.url(forFolderPath: path, base: context.baseURL)
 
-        let response = try await client.propfindList(url: listURL, credential: context.credential)
-        if let error = WebDAVClient.mapHTTPStatus(response.statusCode, isPropfind: true, responseBody: response.data) {
+        let response = try await send { try await $0.propfindList(url: listURL, credential: context.credential) }
+        if let error = CloudProviderError.webDAVStatus(response.statusCode, isPropfind: true) {
             throw error
         }
 
@@ -109,8 +110,8 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         let context = try resolveContext(accountId: accountId)
         let fileURL = Self.url(forFileId: fileId, base: context.baseURL)
 
-        let response = try await client.get(url: fileURL, credential: context.credential)
-        if let error = WebDAVClient.mapHTTPStatus(response.statusCode, responseBody: response.data) {
+        let response = try await send { try await $0.get(url: fileURL, credential: context.credential) }
+        if let error = CloudProviderError.webDAVStatus(response.statusCode) {
             throw error
         }
 
@@ -144,8 +145,8 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         // local HTTP WebDAV servers accept PROPFIND but leave HEAD requests
         // unanswered; on a first open that prevented KeeForge from ever
         // reaching the GET that creates the shared cached copy.
-        let probe = try await client.probe(url: fileURL, credential: context.credential)
-        if let error = WebDAVClient.mapHTTPStatus(probe.statusCode, isPropfind: true, responseBody: probe.data) {
+        let probe = try await send { try await $0.probe(url: fileURL, credential: context.credential) }
+        if let error = CloudProviderError.webDAVStatus(probe.statusCode, isPropfind: true) {
             throw error
         }
 
@@ -189,19 +190,21 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         // revs are unreliable conditionals, so we upload unconditionally.
         let ifMatch = Self.strongIfMatchValue(from: expectedRev)
 
-        let response = try await client.put(
-            url: fileURL,
-            credential: context.credential,
-            data: data,
-            ifMatch: ifMatch
-        )
+        let response = try await send {
+            try await $0.put(
+                url: fileURL,
+                credential: context.credential,
+                data: data,
+                ifMatch: ifMatch
+            )
+        }
 
         if response.statusCode == 412 {
             let freshRev = try? await freshRev(fileURL: fileURL, credential: context.credential)
             throw CloudUploadFailure(underlying: .conflict(remoteRev: freshRev), outcome: .rejected)
         }
 
-        if let error = WebDAVClient.mapHTTPStatus(response.statusCode, responseBody: response.data) {
+        if let error = CloudProviderError.webDAVStatus(response.statusCode) {
             if [401, 403, 507].contains(response.statusCode) {
                 throw CloudUploadFailure(underlying: error, outcome: .rejected)
             }
@@ -243,18 +246,20 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
         let fileURL = Self.url(forFileId: path, base: context.baseURL)
 
-        let response = try await client.put(
-            url: fileURL,
-            credential: context.credential,
-            data: data,
-            ifNoneMatch: "*"
-        )
+        let response = try await send {
+            try await $0.put(
+                url: fileURL,
+                credential: context.credential,
+                data: data,
+                ifNoneMatch: "*"
+            )
+        }
 
         if response.statusCode == 412 {
             throw CloudProviderError.conflict(remoteRev: nil)
         }
 
-        if let error = WebDAVClient.mapHTTPStatus(response.statusCode, responseBody: response.data) {
+        if let error = CloudProviderError.webDAVStatus(response.statusCode) {
             if [401, 403, 507].contains(response.statusCode) {
                 throw CloudUploadFailure(underlying: error, outcome: .rejected)
             }
@@ -292,11 +297,25 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         return CloudCreatedFile(file: file, metadata: metadata)
     }
 
+    // MARK: - Transport
+
+    /// Runs one client operation, turning what it throws into the provider
+    /// error the user sees. Status codes are mapped by the caller.
+    private func send(
+        _ operation: (WebDAVClient) async throws -> WebDAVClient.Response
+    ) async throws -> WebDAVClient.Response {
+        do {
+            return try await operation(client)
+        } catch {
+            throw CloudProviderError.webDAVTransport(error)
+        }
+    }
+
     // MARK: - Context resolution
 
     private struct AccountContext {
         let baseURL: URL
-        let credential: WebDAVCredential
+        let credential: WebDAVClient.Credential
     }
 
     private func resolveContext(accountId: String) throws -> AccountContext {
@@ -306,7 +325,7 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         guard let baseURL = URL(string: credential.serverURL) else {
             throw CloudProviderError.invalidConfiguration
         }
-        return AccountContext(baseURL: baseURL, credential: credential)
+        return AccountContext(baseURL: baseURL, credential: credential.basic)
     }
 
     private func credential(for accountId: String) -> WebDAVCredential? {
@@ -335,8 +354,8 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         }
     }
 
-    private func freshRev(fileURL: URL, credential: WebDAVCredential) async throws -> String? {
-        let head = try await client.head(url: fileURL, credential: credential)
+    private func freshRev(fileURL: URL, credential: WebDAVClient.Credential) async throws -> String? {
+        let head = try await send { try await $0.head(url: fileURL, credential: credential) }
         return Self.rev(from: head)
     }
 

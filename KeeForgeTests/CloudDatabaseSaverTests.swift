@@ -2,9 +2,39 @@ import AuthenticationServices
 import CryptoKit
 import XCTest
 import KDBXKit
+import KDBXXML
+import RemoteFileTransports
 @testable import KeeForge
 
 final class CloudDatabaseSaverTests: XCTestCase {
+    func testSaveRejectsInvalidXMLBeforeUploadBackupOrCacheReplacement() async throws {
+        let context = try makeContext()
+        let root = context.draft.rootGroup
+        let invalidEntry = KPEntry(title: "Pending Notes", notes: "Example heading\u{0}\r\nExample body")
+        root.entries.append(invalidEntry)
+        let invalidDraft = DatabaseDraft(rootGroup: root, meta: context.draft.meta, sessionKey: context.sessionKey)
+        let remote = Remote(context.source)
+        do {
+            _ = try await CloudDatabaseSaver.save(
+                draft: invalidDraft, reference: context.reference, compositeKey: context.key,
+                openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0",
+                kdfPolicy: .mainApp, environment: environment(remote)
+            )
+            XCTFail("Invalid XML must not be uploaded")
+        } catch {
+            XCTAssertEqual(error as? DocumentWriteFailure, DocumentWriteFailure(
+                error: .invalidXMLCharacter("\u{0}", at: .init(owner: .entry(invalidEntry.id), part: .field(key: "Notes"))),
+                ownerName: "Pending Notes"
+            ))
+        }
+        let uploadCount = await remote.uploadCount()
+        XCTAssertEqual(uploadCount, 0)
+        XCTAssertEqual(try cache(context.reference), context.source)
+        XCTAssertTrue(DatabaseListStore.recentBackups(for: context.reference).isEmpty)
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
+        XCTAssertEqual(current(context.reference).cloudSyncMetadata, context.reference.cloudSyncMetadata)
+    }
+
     override func setUpWithError() throws {
         XCTAssertTrue(AppGroupContainer.isRedirectedForTesting)
         DatabaseListStore.clearAll()
@@ -1520,14 +1550,18 @@ final class CloudDatabaseSaverTests: XCTestCase {
             XCTFail("Read-only database must reject")
         } catch { XCTAssertEqual(error as? SaveError, .databaseIsReadOnly) }
         let invalidRoot = context.draft.rootGroup
-        (invalidRoot.groups.first ?? invalidRoot).entries.append(KPEntry(title: "Invalid", notes: "nul\u{0}"))
+        let invalidEntry = KPEntry(title: "Invalid", notes: "nul\u{0}")
+        (invalidRoot.groups.first ?? invalidRoot).entries.append(invalidEntry)
         let invalidDraft = DatabaseDraft(rootGroup: invalidRoot, meta: context.draft.meta, sessionKey: context.sessionKey)
         do {
             _ = try await CloudDatabaseSaver.save(draft: invalidDraft, reference: context.reference, compositeKey: context.key,
                 openTimeSHA512: FileDigest.sha512(context.source), expectedRev: "r0", kdfPolicy: .mainApp, environment: environment(remote))
             XCTFail("Invalid XML must reject")
         }
-        catch { XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0)) }
+        catch { XCTAssertEqual(error as? DocumentWriteFailure, DocumentWriteFailure(
+            error: .invalidXMLCharacter("\u{0}", at: .init(owner: .entry(invalidEntry.id), part: .field(key: "Notes"))),
+            ownerName: "Invalid"
+        )) }
         XCTAssertEqual(try cache(context.reference), context.source)
         XCTAssertTrue(PendingUploadQueue.listMarkers(for: context.reference.id).isEmpty)
         let count = await remote.uploadCount()

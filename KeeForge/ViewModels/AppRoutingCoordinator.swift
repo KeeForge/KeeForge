@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OneTimeCodes
 
 struct PendingTOTPEnrollment: Identifiable {
     static let lifetime: TimeInterval = 5 * 60

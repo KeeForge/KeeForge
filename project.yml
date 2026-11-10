@@ -24,6 +24,12 @@ settings:
 packages:
   KDBXKit:
     path: Packages/KDBXKit
+  KDBXXML:
+    path: Packages/KDBXXML
+  OneTimeCodes:
+    path: Packages/OneTimeCodes
+  RemoteFileTransports:
+    path: Packages/RemoteFileTransports
   KeeForgeTwofish:
     path: Vendor/KeeForgeTwofish
   SwiftyDropbox:
@@ -35,9 +41,8 @@ packages:
   MSAL:
     url: https://github.com/AzureAD/microsoft-authentication-library-for-objc.git
     from: 1.7.0
-  swift-psl:
-    url: https://github.com/ameshkov/swift-psl.git
-    from: 1.1.161
+  SiteMatching:
+    path: Packages/SiteMatching
   YubiKit:
     url: https://github.com/Yubico/yubikit-ios.git
     from: 4.7.0
@@ -109,7 +114,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: KeeForge/KeeForge.entitlements
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
-        MARKETING_VERSION: "1.21.0"
+        MARKETING_VERSION: "1.22.0"
         CURRENT_PROJECT_VERSION: "82"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
@@ -134,10 +139,12 @@ targets:
         embed: true
         codeSign: true
       - package: KDBXKit
+      - package: KDBXXML
+      - package: OneTimeCodes
+      - package: RemoteFileTransports
       - package: SwiftyDropbox
       - package: MSAL
-      - package: swift-psl
-        product: PublicSuffixList
+      - package: SiteMatching
       - package: YubiKit
     sources:
       # KeeForgeCommands.swift (menu bar), MacLockMonitor.swift (lock
@@ -196,7 +203,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: KeeForgeMac/KeeForgeMac.entitlements
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
-        MARKETING_VERSION: "1.21.0"
+        MARKETING_VERSION: "1.22.0"
         CURRENT_PROJECT_VERSION: "82"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
@@ -228,8 +235,10 @@ targets:
         embed: true
         codeSign: true
       - package: KDBXKit
-      - package: swift-psl
-        product: PublicSuffixList
+      - package: KDBXXML
+      - package: SiteMatching
+      - package: OneTimeCodes
+      - package: RemoteFileTransports
     sources:
       - path: KeeForge/App
         excludes: ["README.md", "AGENTS.md"]
@@ -282,15 +291,16 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.autofill
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtension.entitlements
-        MARKETING_VERSION: "1.21.0"
+        MARKETING_VERSION: "1.22.0"
         CURRENT_PROJECT_VERSION: "82"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
       - package: KDBXKit
-      - package: swift-psl
-        product: PublicSuffixList
+      - package: KDBXXML
+      - package: SiteMatching
+      - package: OneTimeCodes
     sources:
       # Exclude the macOS-only Info.plist / entitlements so they are not bundled
       # as stray resources in the iOS extension.
@@ -357,15 +367,16 @@ targets:
         ENABLE_HARDENED_RUNTIME: "YES"
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtensionMac.entitlements
-        MARKETING_VERSION: "1.21.0"
+        MARKETING_VERSION: "1.22.0"
         CURRENT_PROJECT_VERSION: "82"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
       - package: KDBXKit
-      - package: swift-psl
-        product: PublicSuffixList
+      - package: KDBXXML
+      - package: SiteMatching
+      - package: OneTimeCodes
     sources:
       # Exclude the iOS-only Info.plist / entitlements so they are not bundled
       # as stray resources in the macOS extension. The macOS presentation shell
@@ -511,6 +522,9 @@ targets:
     sources:
       - path: KeeForgeTests
         excludes: ["README.md", "AGENTS.md", "**/README.md", "**/AGENTS.md"]
+      # The package's fake FTP server, compiled here so it uses the host app's
+      # copy of RemoteFileTransports instead of linking a second one.
+      - path: Packages/RemoteFileTransports/Sources/RemoteFileTransportsTestSupport
 
   KeeForgeMacUITests:
     type: bundle.ui-testing
@@ -599,6 +613,7 @@ targets:
           - "**/AGENTS.md"
           - "DropboxCloudProviderTests.swift"
           - "OneDriveCloudProviderTests.swift"
+      - path: Packages/RemoteFileTransports/Sources/RemoteFileTransportsTestSupport
 
 
 schemeTemplates:

@@ -302,15 +302,25 @@ final class MacSmokeUITests: MacUITestCase {
         openGroup(named: "Social")
         openEntry(named: "Discord")
         clickToolbarButton(identifier: "entry-detail.edit", overflowLabel: "Edit")
-        // The editor and the entry detail are different scroll views, and a
+        // Scroll the innermost scroll view holding the element: the editor sheet's
+        // sits over the entry detail's. A row below its visible area still reports
+        // isHittable, but a click there lands on the sheet's button bar, and a
         // control touching the window's bottom edge is not yet clickable.
         let window = app.windows.firstMatch
         func reach(_ element: XCUIElement) {
             for _ in 0..<18 {
-                if element.exists, element.isHittable, element.frame.maxY < window.frame.maxY - 60 { return }
-                let midX = element.exists ? element.frame.midX : window.frame.midX
+                guard element.exists else {
+                    RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+                    continue
+                }
+                let identifier = element.identifier
                 let scrollView = app.scrollViews.allElementsBoundByIndex
-                    .first { $0.frame.minX <= midX && midX <= $0.frame.maxX } ?? app.scrollViews.firstMatch
+                    .filter { $0.descendants(matching: .any).matching(identifier: identifier).firstMatch.exists }
+                    .min { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
+                    ?? app.scrollViews.firstMatch
+                let visible = scrollView.frame.intersection(window.frame)
+                if element.isHittable, element.frame.minY >= visible.minY,
+                   element.frame.maxY < visible.maxY - 60 { return }
                 scrollView.scroll(byDeltaX: 0, deltaY: -250)
                 RunLoop.current.run(until: Date().addingTimeInterval(0.5))
             }

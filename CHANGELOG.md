@@ -6,12 +6,26 @@
 
 - Recover interrupted cloud database creation and conflict copies from Pending Cloud Creations. KeeForge retains the original encrypted data and resumes the same operation; recovery opens the registered database from the list with its original password and key file.
 - Save edits to cloud databases while offline. KeeForge keeps an encrypted local copy and pending changes across restarts, then uploads them when the service is reachable. Changes remain marked as pending until confirmed; conflicting remote edits still need reconciliation. Changing a cloud database’s master key requires a connection.
+
+## v1.22.0 (2026-11-10)
+
+### New Features
+
+- On iPhone and iPad, insert a verification code through the system AutoFill text menu when an app does not recognize its code field.
 - KeeForge for Mac can be installed with Homebrew: `brew install --cask keeforge/tap/keeforge` installs the direct-download build, which then updates itself (#254). See [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) for the one-time `brew trust` step.
 - iPhone Duo support: opening the phone switches to the iPad layout, with the list beside the entry, and closing it switches back. The open group, the entry you were viewing, search, selected entries, and an unsaved new or edited entry or group all stay as they were. The same now holds when you resize KeeForge's window on iPad.
 - The password generator creates passwords up to 128 characters long; before, the length slider stopped at 64 (#272).
+- A protected custom field, once revealed in the entry editor, edits in a box that wraps and grows over several lines, like other custom fields. Before, it edited on a single line, which made long values such as secure notes hard to change (#284).
+- Create Key File makes a new key file while you create a database or change its master key, so you no longer need another KeePass app for it. KeeForge saves it where you choose as a KeePass `.keyx` file, which KeePass and KeePassXC also open. Keep a copy somewhere safe: without the key file, the database can't be opened (#273).
 
 ### Fixes
 
+- When a save stops because of a character a database cannot hold, the message names the entry or group and the field it is in, so you can find and remove it. Before, it named only the character.
+- Opening a database written by KeePassXC 4.1 with extension data on an entry or group (browser integration, for example) no longer replaces the entry's or group's modification time with that data's own timestamp, which also affected which side won a sync merge.
+- Saving keeps the protected values inside parts of a database KeeForge does not edit when there are two or more in one place. Before, they were scrambled and read back empty.
+- A protected value whose stored text is wrapped across lines no longer garbles every protected value after it. A database whose protected value cannot be decoded at all now reports that instead of opening with wrong values.
+- Saving no longer deletes a creation, modification, or move time, or a history or maintenance setting, that KeeForge cannot read; it is kept as written.
+- Saving keeps data another app stored at the top level of a database, beside its settings and groups. Before, KeeForge removed it.
 - On iPhone and iPad, the app switcher now shows KeeForge's cover instead of the screen you left. Before, the cover appeared too late to be in the app switcher's picture of the app, so an open database could be seen there.
 - On iPhone and iPad, KeeForge stays covered during a screen recording, mirroring, or AirPlay when Face ID, Control Center, Notification Center, or a system alert appears. Before, the cover could disappear behind them and show the open entry in the recording. While the cover is up, taps no longer reach the hidden app and the keyboard closes, so nothing typed shows in the recording.
 - Password and verification-code pickers show credentials for the exact requested host first, offer related hosts as possible matches when none match, and let you search all credentials, including entries without a URL. Rows show the associated hosts, and search includes additional URLs.
@@ -23,6 +37,8 @@
 - In the Mac app downloaded from the website, the update window shows the release notes instead of a GitHub page.
 - In AutoFill, entering the master password for a database whose saved key file can't be read now says that the key file is the problem. Before, AutoFill tried the password without the key file and reported a wrong password or a corrupted file, even when the password was correct (#274).
 - An XML key file with a non-ASCII character near its start now opens its database. Before, KeeForge could misread it as a plain file and derive the wrong key.
+- On iPhone and iPad with Touch ID, the Auto-Unlock setting now says Touch ID instead of Face ID.
+- Clearer messages when a database can't be opened: a damaged header and a database too large to open now say so, instead of "Not a KeePass Database" or a generic decompression error. Key files marked version 2.1 now open, and key files with a version KeePass doesn't define say that the version is unsupported.
 
 ### Changes
 

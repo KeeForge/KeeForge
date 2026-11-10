@@ -40,8 +40,8 @@ Watch all three feedback channels: screenshot feedback, Send Beta Feedback text,
 reports — all under **TestFlight → Feedback** in App Store Connect.
 
 Some candidates deserve a real hold regardless of the clock. Say so explicitly, and recommend
-against shipping short, when the build touches `Packages/KDBXKit`, `KDBXParser`, `KDBXWriter`,
-`KDBXXMLSerializer`, or the local/cloud save paths — a bad write reaches users' real vaults, and
+against shipping short, when the build touches `Packages/KDBXKit`, `Packages/KDBXXML`, `KDBXParser`, `KDBXWriter`,
+or the local/cloud save paths — a bad write reaches users' real vaults, and
 the App Store rollback story is "ship another version."
 
 When the user is satisfied, go to **[production shipping](../../ship-release/SKILL.md)**. Do not create `v{version}` until both platform
