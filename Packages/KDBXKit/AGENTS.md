@@ -13,7 +13,7 @@
 
 ## Public surface
 
-- `KDBXContainer` reads (`readHeader`, `read`) and `KDBXContainerWriter` writes (`prepareHeader`, `seal`). `KDBXKeyDerivation`, `KDBXVariantMap`, `KDBXOuterCipher`, `KDBXInnerStream`, `KDBXKeyFile`, `KDBXCrypto` (composite keys only), `KDFExecutionPolicy`, and `SecureWipe` are the supporting types. Hashing, ciphers, gzip, and byte reading stay internal; widen the surface only for a caller that needs it.
+- `KDBXContainer` reads (`readHeader`, `read`) and `KDBXContainerWriter` writes (`prepareHeader`, `seal`). `KDBXKeyDerivation`, `KDBXVariantMap`, `KDBXOuterCipher`, `KDBXInnerStream`, `KDBXKeyFile` (reading key files and generating new XML 2.0 ones), `KDBXCrypto` (composite keys only), `KDFExecutionPolicy`, and `SecureWipe` are the supporting types. Hashing, ciphers, gzip, and byte reading stay internal; widen the surface only for a caller that needs it.
 - The header keeps raw values (cipher UUID, compression flags, stream ID, the variant map with unknown types) so a foreign file round-trips and an unknown value can be reported. Typed views (`cipher`, `compression`, `keyDerivation`) are computed from them.
 - KDBX 3.1 is mapped onto the KDBX 4 header shape and read through the same calls; it is never written.
 

@@ -8,6 +8,7 @@
 - iPhone Duo support: opening the phone switches to the iPad layout, with the list beside the entry, and closing it switches back. The open group, the entry you were viewing, search, selected entries, and an unsaved new or edited entry or group all stay as they were. The same now holds when you resize KeeForge's window on iPad.
 - The password generator creates passwords up to 128 characters long; before, the length slider stopped at 64 (#272).
 - A protected custom field, once revealed in the entry editor, edits in a box that wraps and grows over several lines, like other custom fields. Before, it edited on a single line, which made long values such as secure notes hard to change (#284).
+- Create Key File makes a new key file while you create a database or change its master key, so you no longer need another KeePass app for it. KeeForge saves it where you choose as a KeePass `.keyx` file, which KeePass and KeePassXC also open. Keep a copy somewhere safe: without the key file, the database can't be opened (#273).
 
 ### Fixes
 

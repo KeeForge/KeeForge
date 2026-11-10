@@ -15449,6 +15449,58 @@
         }
       }
     },
+    "Couldn’t Create Key File" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüsseldatei konnte nicht erstellt werden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo crear el archivo de clave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de créer le fichier de clé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile creare il file chiave"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーファイルを作成できませんでした"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось создать файл ключа"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法创建密钥文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法建立金鑰檔案"
+          }
+        }
+      }
+    },
     "Couldn't Create Passkey" : {
       "localizations" : {
         "de" : {
@@ -16647,6 +16699,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在此建立"
+          }
+        }
+      }
+    },
+    "Create Key File" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüsseldatei erstellen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crear archivo de clave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créer un fichier de clé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crea file chiave"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーファイルを作成"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создать файл ключа"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建密钥文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建立金鑰檔案"
+          }
+        }
+      }
+    },
+    "Create Key File saves a new key file where you choose. Keep a copy somewhere safe: without the key file, the database can’t be opened." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Schlüsseldatei erstellen“ speichert eine neue Schlüsseldatei an einem Ort deiner Wahl. Bewahre eine Sicherungskopie an einem sicheren Ort auf: Ohne die Schlüsseldatei lässt sich die Datenbank nicht öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Crear archivo de clave» guarda un nuevo archivo de clave donde elijas. Conserva una copia de seguridad en un lugar seguro: sin el archivo de clave, no se puede abrir la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "« Créer un fichier de clé » enregistre un nouveau fichier de clé à l'emplacement de votre choix. Conservez-en une sauvegarde en lieu sûr : sans le fichier de clé, la base de données ne peut pas être ouverte."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Crea file chiave” salva un nuovo file chiave dove scegli tu. Conservane un backup in un luogo sicuro: senza il file chiave non è possibile aprire il database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「キーファイルを作成」は、新しいキーファイルを選択した場所に保存します。バックアップを安全な場所に保管してください。キーファイルがないとデータベースを開けません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Создать файл ключа» сохраняет новый файл ключа в выбранном вами месте. Храните его резервную копию в надёжном месте: без файла ключа базу данных не открыть."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“创建密钥文件”会将新的密钥文件保存到你选择的位置。请将其备份存放在安全的地方：没有密钥文件，将无法打开数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「建立金鑰檔案」會將新的金鑰檔案儲存到你選擇的位置。請將其備份存放在安全的地方：沒有金鑰檔案，將無法開啟資料庫。"
           }
         }
       }

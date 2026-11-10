@@ -190,4 +190,40 @@ final class KDBXKeyFileTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - Generation
+
+    func testGeneratedKeyFileIsXMLv2WithGroupedHexKeyAndMatchingHash() throws {
+        let file = try KDBXKeyFile.generate()
+        let text = try XCTUnwrap(String(data: file, encoding: .utf8))
+        let lines = text.components(separatedBy: "\n")
+
+        XCTAssertEqual(lines.first, #"<?xml version="1.0" encoding="utf-8"?>"#)
+        XCTAssertTrue(text.contains("<Version>2.0</Version>"))
+        let keyLines = lines.filter {
+            $0.range(of: #"^\t\t\t[0-9A-F]{8}( [0-9A-F]{8}){3}$"#, options: .regularExpression) != nil
+        }
+        XCTAssertEqual(keyLines.count, 2)
+        let key = Data(hex: keyLines.joined().filter(\.isHexDigit))
+        XCTAssertEqual(key.count, 32)
+        XCTAssertEqual(try KDBXKeyFile.tryXMLFormat(file), key)
+        XCTAssertEqual(try KDBXKeyFile.key(from: file), key)
+
+        let hashRange = try XCTUnwrap(text.range(of: #"(?<=Hash=")[0-9A-F]{8}(?=")"#, options: .regularExpression))
+        let expectedHash = SHA256.hash(data: key).prefix(4).map { String(format: "%02X", $0) }.joined()
+        XCTAssertEqual(String(text[hashRange]), expectedHash)
+        XCTAssertEqual(KDBXKeyFile.generatedFileExtension, "keyx")
+    }
+
+    func testGenerationFailsWhenNoRandomBytesAreAvailable() {
+        assertThrows(KDBXContainerWriter.WriteError.randomGenerationFailed(errSecParam)) {
+            try KDBXKeyFile.generate { _ in errSecParam }
+        }
+    }
+
+    func testEachGeneratedKeyFileHasADifferentKey() throws {
+        let keys = try (0..<3).map { _ in try KDBXKeyFile.key(from: KDBXKeyFile.generate()) }
+
+        XCTAssertEqual(Set(keys).count, 3)
+    }
 }

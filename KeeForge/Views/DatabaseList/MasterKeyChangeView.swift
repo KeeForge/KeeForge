@@ -15,6 +15,7 @@ struct MasterKeyChangeView: View {
     @State private var isNewPasswordVisible = false
     @State private var isConfirmPasswordVisible = false
     @State private var isKeyFileImporterPresented = false
+    @State private var newKeyFile: KeyFileExportDocument?
     @State private var isAuthenticating = false
     @State private var isChangeConfirmationPresented = false
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
@@ -92,6 +93,18 @@ struct MasterKeyChangeView: View {
             isPresented: $isKeyFileImporterPresented,
             allowedContentTypes: DocumentPickerService.keyFilePickerContentTypes,
             onCompletion: handleKeyFileSelection
+        )
+        .fileExporter(
+            isPresented: Binding(
+                get: { newKeyFile != nil },
+                set: { if $0 == false { newKeyFile = nil } }
+            ),
+            document: newKeyFile,
+            contentType: KeyFileExportDocument.contentType,
+            defaultFilename: KeyFileExportDocument.defaultFilename(
+                forDatabaseFilename: sessionViewModel.databaseReference.filename
+            ),
+            onCompletion: handleKeyFileCreation
         )
         .alert(item: $selectionAlert) { alert in
             Alert(
@@ -174,6 +187,13 @@ struct MasterKeyChangeView: View {
             }
             .accessibilityIdentifier("master-key.keyfile.select")
 
+            Button {
+                createKeyFile()
+            } label: {
+                Label("Create Key File", systemImage: "doc.badge.plus")
+            }
+            .accessibilityIdentifier("master-key.keyfile.create")
+
             if viewModel.hasEffectiveKeyFile {
                 Button("Clear Key File", role: .destructive) {
                     viewModel.clearKeyFile()
@@ -183,11 +203,11 @@ struct MasterKeyChangeView: View {
         } header: {
             Text("Key File")
         } footer: {
-            if viewModel.hasEffectiveKeyFile {
-                Text("The database requires this key file after the change. Clear it to unlock with the master password only.")
-            } else {
-                Text("No key file will be required after the change. The master password alone will unlock the database.")
-            }
+            (viewModel.hasEffectiveKeyFile
+                ? Text("The database requires this key file after the change. Clear it to unlock with the master password only.")
+                : Text("No key file will be required after the change. The master password alone will unlock the database."))
+                + Text(verbatim: " ")
+                + Text("Create Key File saves a new key file where you choose. Keep a copy somewhere safe: without the key file, the database can’t be opened.")
         }
     }
 
@@ -241,6 +261,24 @@ struct MasterKeyChangeView: View {
         if await viewModel.performChange() {
             HapticService.success()
             dismiss()
+        }
+    }
+
+    private func createKeyFile() {
+        do {
+            newKeyFile = try KeyFileExportDocument.generate()
+        } catch {
+            selectionAlert = KeyFileExportDocument.creationFailureAlert(for: error)
+        }
+    }
+
+    private func handleKeyFileCreation(_ result: Result<URL, Error>) {
+        newKeyFile = nil
+        switch result {
+        case .success(let url):
+            handleKeyFileSelection(.success(url))
+        case .failure(let error):
+            selectionAlert = KeyFileExportDocument.creationFailureAlert(for: error)
         }
     }
 
