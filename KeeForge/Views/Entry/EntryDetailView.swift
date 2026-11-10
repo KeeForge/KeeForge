@@ -1234,7 +1234,9 @@ struct PasswordFieldRow: View {
         }
         .frame(width: 44, height: 44)
         .contentShape(Rectangle())
+        #if os(iOS)
         .buttonStyle(.borderless)
+        #endif
         .disabled(secretAction.isAuthenticating)
         .accessibilityLabel(revealTooltip)
         .accessibilityIdentifier("\(accessibilityPrefix).password.reveal")

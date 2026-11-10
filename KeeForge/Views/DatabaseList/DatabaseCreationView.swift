@@ -136,7 +136,9 @@ struct DatabaseCreationView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                #if os(iOS)
                 .tint(Theme.labelSecondary)
+                #endif
                 .accessibilityIdentifier("database-create.destination-picker")
             } header: {
                 Text("Database")
@@ -233,7 +235,9 @@ struct DatabaseCreationView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                #if os(iOS)
                 .tint(Theme.labelSecondary)
+                #endif
                 .accessibilityIdentifier("database-create.cipher-picker")
 
                 Picker("Key Derivation", selection: $viewModel.kdfPreset) {
@@ -242,7 +246,9 @@ struct DatabaseCreationView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                #if os(iOS)
                 .tint(Theme.labelSecondary)
+                #endif
                 .accessibilityIdentifier("database-create.kdf-preset-picker")
             } header: {
                 Text("Advanced")
