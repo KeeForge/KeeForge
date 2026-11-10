@@ -1,194 +1,55 @@
 import AuthenticationServices
-import PublicSuffixList
+import SiteMatching
 
+extension SiteRequest {
+    init(_ identifier: ASCredentialServiceIdentifier) {
+        if #available(iOS 26.2, macOS 26.2, *), identifier.type == .app {
+            self = .app(identifier.identifier)
+        } else if identifier.type == .domain {
+            self = .domain(identifier.identifier)
+        } else {
+            self = .url(identifier.identifier)
+        }
+    }
+}
+
+/// AutoFill's bridge to `SiteMatching`: requests from service identifiers,
+/// candidates from entries. Expired entries never become candidates.
 enum CredentialMatcher {
     static func interactiveMatches(from entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> (exact: [KPEntry], possible: [KPEntry]) {
-        guard let host = firstWebHost(for: identifiers) else {
-            return ([], [])
-        }
-        let eligibleEntries = entries.filter { !$0.isExpired() }
-        let exact = eligibleEntries.filter { entry in
-            webURLs(of: entry).compactMap(hostFromURLString).contains(host)
-        }
-        guard exact.isEmpty else { return (exact, []) }
-
-        var seenIDs = Set<UUID>()
-        let possible = (strictMatchedEntries(from: eligibleEntries, for: identifiers)
-            + possibleMatchedEntries(from: eligibleEntries, for: identifiers))
-            .filter { seenIDs.insert($0.id).inserted }
-        return ([], prioritizingHosts(possible, for: identifiers))
+        let eligible = eligibleEntries(entries)
+        let matches = SiteMatcher.interactiveMatches(eligible.map(candidate), for: identifiers.map(SiteRequest.init))
+        return (orderedEntries(withIDs: matches.exact, in: eligible), orderedEntries(withIDs: matches.possible, in: eligible))
     }
 
-    static func firstWebHost(for identifiers: [ASCredentialServiceIdentifier]) -> String? {
-        identifiers.lazy.compactMap(searchTerm(for:)).compactMap(hostFromURLString).first { !$0.isEmpty }
-    }
-
-    static func prioritizingHosts(_ entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> [KPEntry] {
-        let hosts = identifiers.compactMap(searchTerm(for:)).compactMap(hostFromURLString)
-        func priority(_ entry: KPEntry) -> Int {
-            let stored = webURLs(of: entry).compactMap(hostFromURLString)
-            for (index, host) in hosts.enumerated() {
-                if stored.contains(host) { return index * 2 }
-                if stored.contains(where: { $0.hasSuffix(".\(host)") }) { return index * 2 + 1 }
-            }
-            return Int.max
-        }
-        return entries.enumerated().sorted {
-            let left = priority($0.element), right = priority($1.element)
-            return left == right ? $0.offset < $1.offset : left < right
-        }.map(\.element)
-    }
-    /// Host-based matches only: a stored URL's host equals the requested
-    /// domain or is a dotted subdomain of it (`login.paypal.com` matches
-    /// `paypal.com`, but `mybank.com` does NOT match `bank.com`). These are
-    /// the only matches safe to fill without an explicit user selection.
+    /// The only matches safe to fill without the user choosing.
     static func strictMatchedEntries(from entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> [KPEntry] {
-        matchedEntries(from: entries, for: identifiers, strict: true)
+        let eligible = eligibleEntries(entries)
+        let ids = Set(SiteMatcher.strictMatches(eligible.map(candidate), for: identifiers.map(SiteRequest.init)))
+        return eligible.filter { ids.contains($0.id) }
     }
 
-    /// Broad matches for interactive pickers: host matches plus URL and
-    /// title substring matches. Substring matches can surface wrong-origin
-    /// entries (`mybank.com` for a `bank.com` request), so results must
-    /// never be filled without the user explicitly choosing from a list —
-    /// use `strictMatchedEntries` to decide any auto-complete path.
-    static func matchedEntries(from entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> [KPEntry] {
-        matchedEntries(from: entries, for: identifiers, strict: false)
-    }
-
-    /// Interactive-only suggestions on a different subdomain of the same
-    /// normalized registrable domain. The registrable-domain boundary comes
-    /// from the embedded Mozilla Public Suffix List.
-    static func possibleMatchedEntries(from entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> [KPEntry] {
-        let requestedHosts = identifiers.compactMap(searchTerm(for:)).compactMap(hostFromURLString)
-        let requestedDomains = Set(requestedHosts.compactMap(registrableDomain(for:)))
-        guard !requestedDomains.isEmpty else { return [] }
-
-        return entries.filter { entry in
-            guard !entry.isExpired() else { return false }
-            let storedHosts = webURLs(of: entry).compactMap(hostFromURLString)
-            return storedHosts.contains { storedHost in
-                guard let storedDomain = registrableDomain(for: storedHost),
-                      requestedDomains.contains(storedDomain) else { return false }
-                return requestedHosts.contains { requestedHost in
-                    storedHost != requestedHost && storedHost.contains(".") && requestedHost.contains(".")
-                }
-            }
-        }
-    }
-
-    private static func matchedEntries(
-        from entries: [KPEntry],
-        for identifiers: [ASCredentialServiceIdentifier],
-        strict: Bool
-    ) -> [KPEntry] {
-        guard !identifiers.isEmpty else { return [] }
-
-        let searchTerms = Set(identifiers.compactMap { searchTerm(for: $0) }.map(normalizeHost))
-
-        return entries.filter { entry in
-            guard !entry.isExpired() else { return false }
-            let allURLs = webURLs(of: entry)
-            let matchesTitle = !strict && !hasStoredAppIDTitle(entry)
-
-            return searchTerms.contains { term in
-                for urlString in allURLs {
-                    let host = hostFromURLString(urlString)
-                    if let host, host == term || host.hasSuffix(".\(term)") {
-                        return true
-                    }
-                    if !strict, urlString.lowercased().contains(term) {
-                        return true
-                    }
-                }
-                return matchesTitle && entry.title.lowercased().contains(term)
-            }
-        }
-    }
-
-    static func searchTerm(for identifier: ASCredentialServiceIdentifier) -> String? {
-        if isAppIdentifier(identifier) {
-            return nil
-        }
-        if identifier.type == .domain {
-            return normalizeHost(identifier.identifier)
-        }
-
-        return hostFromURLString(identifier.identifier) ?? identifier.identifier
-    }
-
-    /// A web service identifier reduced to scheme, host, and port. The page's
-    /// path and query are the website's to choose, so they never reach an entry.
-    static func website(for identifier: ASCredentialServiceIdentifier) -> (host: String, url: String)? {
-        guard !isAppIdentifier(identifier) else { return nil }
-        let raw = identifier.identifier.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parsed = identifier.type == .URL ? URLComponents(string: raw) : nil
-        let components = parsed?.host?.isEmpty == false ? parsed : URLComponents(string: "https://\(raw)")
-        guard var host = components?.host?.lowercased() else { return nil }
-        while host.hasSuffix(".") { host.removeLast() }
-        guard !host.isEmpty else { return nil }
-
-        var website = URLComponents()
-        website.scheme = components?.scheme?.lowercased() == "http" ? "http" : "https"
-        website.host = host
-        website.port = components?.port
-        guard let url = website.string else { return nil }
-        let displayHost = components?.port.map { "\(host):\($0)" } ?? host
-        return (displayHost, url)
-    }
-
-    /// An App ID (`TEAMID.com.example.app`) is reverse-DNS, so parsing it as
-    /// a host would match the unrelated website `example.app`.
-    static func isAppIdentifier(_ identifier: ASCredentialServiceIdentifier) -> Bool {
-        if #available(iOS 26.2, macOS 26.2, *) {
-            return identifier.type == .app
-        }
-        return false
+    static func hasWebHost(_ identifiers: [ASCredentialServiceIdentifier]) -> Bool {
+        SiteMatcher.firstWebHost(for: identifiers.map(SiteRequest.init)) != nil
     }
 
     /// The entry's URL fields minus any that hold a raw App ID, which saves
     /// from `.app` requests stored before #137.
     static func webURLs(of entry: KPEntry) -> [String] {
-        ([entry.url] + entry.additionalURLs).filter { !isStoredAppIdentifier($0) }
+        ([entry.url] + entry.additionalURLs).filter { !SiteMatcher.isStoredAppIdentifier($0) }
     }
 
-    /// Those saves also titled the entry with the App ID parsed as a host.
-    private static func hasStoredAppIDTitle(_ entry: KPEntry) -> Bool {
-        let title = entry.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return ([entry.url] + entry.additionalURLs).contains { url in
-            isStoredAppIdentifier(url) && url.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == title
-        }
+    static func candidate(_ entry: KPEntry) -> SiteCandidate {
+        SiteCandidate(id: entry.id, urls: [entry.url] + entry.additionalURLs)
     }
 
-    /// `TEAMID.bundle.id` with no scheme or path. Matching on the uppercase
-    /// ten-character Team ID keeps ordinary lowercase hosts out.
-    static func isStoredAppIdentifier(_ value: String) -> Bool {
-        value.trimmingCharacters(in: .whitespacesAndNewlines)
-            .wholeMatch(of: /[A-Z0-9]{10}(\.[A-Za-z0-9-]+)+/) != nil
+    private static func eligibleEntries(_ entries: [KPEntry]) -> [KPEntry] {
+        entries.filter { !$0.isExpired() }
     }
 
-    static func hostFromURLString(_ value: String) -> String? {
-        let host: String?
-        if let h = URL(string: value)?.host {
-            host = h
-        } else {
-            host = URL(string: "https://\(value)")?.host
-        }
-
-        guard let host else { return nil }
-        return normalizeHost(host)
-    }
-
-    private static func normalizeHost(_ value: String) -> String {
-        var result = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        while result.hasSuffix(".") { result.removeLast() }
-        // On `www.co.uk`, `www` is the registrable label, not a prefix.
-        if result.hasPrefix("www."), PublicSuffixList.effectiveTLDPlusOne(String(result.dropFirst(4))) != nil {
-            result.removeFirst(4)
-        }
-        return result
-    }
-
-    static func registrableDomain(for host: String) -> String? {
-        PublicSuffixList.effectiveTLDPlusOne(normalizeHost(host))
+    /// Ordered as `ids`. Every entry sharing a matched ID is returned.
+    private static func orderedEntries(withIDs ids: [UUID], in entries: [KPEntry]) -> [KPEntry] {
+        let byID = Dictionary(grouping: entries, by: \.id)
+        return ids.flatMap { byID[$0] ?? [] }
     }
 }

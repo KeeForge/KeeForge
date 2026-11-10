@@ -1,44 +1,89 @@
 import AuthenticationServices
+import SiteMatching
 import XCTest
 @testable import KeeForge
 
+/// The bridge from service identifiers and entries to `SiteMatching`. The
+/// matching rules themselves are tested in `Packages/SiteMatching`.
 final class CredentialMatcherTests: XCTestCase {
 
-    func testInteractiveMatchesUseFirstWebHostAndAdditionalURLs() {
-        let entries = [
-            makeEntry(title: "Parent", url: "https://cvmd.com.ar", username: "u", password: "p"),
-            makeEntry(title: "Sibling", url: "https://other.cvmd.com.ar", username: "u", password: "p"),
-            makeEntry(title: "Child", url: "https://child.vt.cvmd.com.ar", username: "u", password: "p"),
-            makeEntry(title: "Exact", url: "https://vt.cvmd.com.ar", username: "u", password: "p"),
-            makeEntry(title: "Additional", url: "https://unrelated.example", username: "u", password: "p",
-                      customFields: ["KP2A_URL_1": "https://vt.cvmd.com.ar/login"]),
-        ]
-        let identifiers = ["vt.cvmd.com.ar", "cvmd.com.ar"].map {
-            ASCredentialServiceIdentifier(identifier: $0, type: .domain)
-        }
-        let matches = CredentialMatcher.interactiveMatches(from: entries, for: identifiers)
-        XCTAssertEqual(matches.exact.map(\.title), ["Exact", "Additional"])
-        XCTAssertTrue(matches.possible.isEmpty)
+    // MARK: - Conversions
+
+    func testServiceIdentifiersBecomeRequests() throws {
+        XCTAssertEqual(SiteRequest(ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)), .domain("github.com"))
+        XCTAssertEqual(SiteRequest(ASCredentialServiceIdentifier(identifier: "https://github.com/login", type: .URL)), .url("https://github.com/login"))
+        XCTAssertEqual(SiteRequest(try makeAppIdentifier()), .app("A1B2C3D4E5.com.mybank.app"))
     }
 
-    func testInteractiveMatchesExcludeExpiredExactAndDeduplicateFallback() {
-        var expired = makeEntry(title: "Expired", url: "https://vt.cvmd.com.ar", username: "u", password: "p")
-        expired.expires = true
-        expired.expiryTime = .distantPast
-        let sibling = makeEntry(title: "Sibling", url: "https://other.cvmd.com.ar", username: "u", password: "p")
-        let unrelated = makeEntry(title: "Unrelated", url: "https://cvmd.com.ar.evil.example", username: "u", password: "p")
-        let identifiers = ["vt.cvmd.com.ar", "cvmd.com.ar"].map {
-            ASCredentialServiceIdentifier(identifier: $0, type: .domain)
-        }
-        let matches = CredentialMatcher.interactiveMatches(from: [expired, sibling, unrelated], for: identifiers)
-        XCTAssertTrue(matches.exact.isEmpty)
-        XCTAssertEqual(matches.possible.map(\.id), [sibling.id])
+    func testCandidateCarriesEveryURLField() {
+        let entry = makeEntry(title: "Work", url: "https://example.com", customFields: [
+            "KP2A_URL_1": "https://intranet.example.com",
+            "KP2A_URL_2": "A1B2C3D4E5.com.example.app",
+        ])
+        let candidate = CredentialMatcher.candidate(entry)
+        XCTAssertEqual(candidate.id, entry.id)
+        XCTAssertEqual(Set(candidate.urls), ["https://example.com", "https://intranet.example.com", "A1B2C3D4E5.com.example.app"])
+        XCTAssertEqual(candidate.urls.first, "https://example.com")
+    }
+
+    func testWebURLsDropStoredAppIDs() {
+        let entry = makeEntry(title: "MyBank", url: "A1B2C3D4E5.com.mybank.app", customFields: ["KP2A_URL_1": "https://mybank.app"])
+        XCTAssertEqual(CredentialMatcher.webURLs(of: entry), ["https://mybank.app"])
+    }
+
+    func testMatchesMapBackToEntriesInOrder() {
+        let parent = makeEntry(title: "Parent", url: "https://cvmd.com.ar")
+        let sibling = makeEntry(title: "Sibling", url: "https://other.cvmd.com.ar")
+        let exact = makeEntry(title: "Exact", url: "https://vt.cvmd.com.ar")
+        let identifiers = ["vt.cvmd.com.ar", "cvmd.com.ar"].map { ASCredentialServiceIdentifier(identifier: $0, type: .domain) }
+
+        XCTAssertEqual(CredentialMatcher.interactiveMatches(from: [parent, sibling, exact], for: identifiers).exact.map(\.id), [exact.id])
+        let fallback = CredentialMatcher.interactiveMatches(from: [sibling, parent], for: identifiers)
+        XCTAssertTrue(fallback.exact.isEmpty)
+        XCTAssertEqual(fallback.possible.map(\.id), [parent.id, sibling.id])
+        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: [exact, parent, sibling], for: identifiers).map(\.id), [exact.id, parent.id, sibling.id])
+        XCTAssertTrue(CredentialMatcher.hasWebHost(identifiers))
+    }
+
+    func testAppIdentifierHasNoWebHost() throws {
+        let entries = [makeEntry(title: "Website", url: "https://mybank.app")]
+        let app = try makeAppIdentifier()
+        XCTAssertFalse(CredentialMatcher.hasWebHost([app]))
+        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: [app]).isEmpty)
+        XCTAssertTrue(CredentialMatcher.interactiveMatches(from: entries, for: [app]).possible.isEmpty)
+    }
+
+    func testAppSaveDraftDoesNotStrictlyMatchWebsiteOfSameSuffix() throws {
+        let draft = AutoFillSaveCoordinator.initialDraft(
+            for: try makeAppIdentifier(),
+            username: "alex",
+            password: "secret"
+        )
+        let saved = makeEntry(title: draft.title, url: draft.url)
+        let website = [ASCredentialServiceIdentifier(identifier: "mybank.app", type: .domain)]
+
+        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: [saved], for: website).isEmpty)
+        XCTAssertTrue(CredentialMatcher.interactiveMatches(from: [saved], for: website).possible.isEmpty)
+    }
+
+    // MARK: - Expiry
+
+    func testExpiredEntriesNeverMatch() {
+        let expired = makeEntry(title: "Expired", url: "https://vt.example.com", expired: true)
+        let expiredSibling = makeEntry(title: "Expired sibling", url: "https://other.example.com", expired: true)
+        let live = makeEntry(title: "Live", url: "https://mail.example.com")
+        let request = [ASCredentialServiceIdentifier(identifier: "vt.example.com", type: .domain)]
+
+        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: [expired], for: request).isEmpty)
+        let matches = CredentialMatcher.interactiveMatches(from: [expired, expiredSibling, live], for: request)
+        XCTAssertTrue(matches.exact.isEmpty, "An expired exact match does not hide the fallback")
+        XCTAssertEqual(matches.possible.map(\.id), [live.id])
     }
 
     #if os(macOS)
     func testExpandedSearchOffersHostlessEntriesWithoutRepeatingPossibleMatches() {
-        let sibling = makeEntry(title: "Sibling", url: "https://other.cvmd.com.ar", username: "u", password: "p")
-        let hostless = makeEntry(title: "No URL", url: "", username: "u", password: "p")
+        let sibling = makeEntry(title: "Sibling", url: "https://other.cvmd.com.ar")
+        let hostless = makeEntry(title: "No URL", url: "")
         let corpus = [sibling, hostless]
         let initial = AutoFillSearchResults(entries: [], searchEntries: corpus, possibleEntries: [sibling], query: "", hasExpandedSearch: false)
         XCTAssertTrue(initial.entries.isEmpty)
@@ -57,7 +102,7 @@ final class CredentialMatcherTests: XCTestCase {
     }
 
     func testNoMatchesStillOffersExpansionAndSearchIncludesAdditionalURLs() {
-        let entry = makeEntry(title: "Other", url: "https://unrelated.example", username: "u", password: "p",
+        let entry = makeEntry(title: "Other", url: "https://unrelated.example",
                               customFields: ["KP2A_URL_1": "https://vt.cvmd.com.ar/login"])
         let empty = AutoFillSearchResults(entries: [], searchEntries: [entry], possibleEntries: [], query: "", hasExpandedSearch: false)
         XCTAssertTrue(empty.entries.isEmpty)
@@ -66,433 +111,6 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertEqual(searched.entries.map(\.id), [entry.id])
     }
     #endif
-
-    func testPrioritizesExactHostAndIdentifierOrder() {
-        let entries = [
-            makeEntry(title: "Sibling", url: "https://other.example.com", username: "u", password: "p"),
-            makeEntry(title: "Child", url: "https://child.vt.example.com", username: "u", password: "p"),
-            makeEntry(title: "Exact", url: "https://vt.example.com", username: "u", password: "p"),
-        ]
-        let identifiers = ["vt.example.com", "example.com"].map {
-            ASCredentialServiceIdentifier(identifier: $0, type: .domain)
-        }
-        XCTAssertEqual(CredentialMatcher.prioritizingHosts(entries, for: identifiers).map(\.title), ["Exact", "Child", "Sibling"])
-    }
-
-    // MARK: - hostFromURLString
-
-    func testHostFromFullURL() {
-        XCTAssertEqual(CredentialMatcher.hostFromURLString("https://github.com/login"), "github.com")
-    }
-
-    func testHostFromURLWithPort() {
-        XCTAssertEqual(CredentialMatcher.hostFromURLString("https://example.com:8443/path"), "example.com")
-    }
-
-    func testHostFromBareDomain() {
-        XCTAssertEqual(CredentialMatcher.hostFromURLString("example.com"), "example.com")
-    }
-
-    func testHostFromSubdomain() {
-        XCTAssertEqual(CredentialMatcher.hostFromURLString("https://accounts.google.com"), "accounts.google.com")
-    }
-
-    func testHostFromEmptyStringProducesNoUsableHost() {
-        XCTAssertTrue(CredentialMatcher.hostFromURLString("")?.isEmpty ?? true)
-    }
-
-    func testHostFromHTTPURL() {
-        XCTAssertEqual(CredentialMatcher.hostFromURLString("http://example.org/page"), "example.org")
-    }
-
-    func testHostDropsWWWOnlyAboveARegistrableDomain() {
-        XCTAssertEqual(CredentialMatcher.hostFromURLString("https://www.example.co.uk/login"), "example.co.uk")
-        XCTAssertEqual(CredentialMatcher.hostFromURLString("https://www.co.uk/login"), "www.co.uk")
-        XCTAssertEqual(CredentialMatcher.hostFromURLString("WWW.com."), "www.com")
-    }
-
-    // MARK: - searchTerm
-
-    func testSearchTermDomainType() {
-        let id = ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)
-        XCTAssertEqual(CredentialMatcher.searchTerm(for: id), "github.com")
-    }
-
-    func testSearchTermURLType() {
-        let id = ASCredentialServiceIdentifier(identifier: "https://github.com/login", type: .URL)
-        XCTAssertEqual(CredentialMatcher.searchTerm(for: id), "github.com")
-    }
-
-    // MARK: - App identifiers (iOS 26.2+)
-
-    func testSearchTermAppTypeHasNoHost() throws {
-        let id = try makeAppIdentifier()
-        XCTAssertTrue(CredentialMatcher.isAppIdentifier(id))
-        XCTAssertNil(CredentialMatcher.searchTerm(for: id))
-    }
-
-    func testAppIdentifierIsNotMatchedAsHost() throws {
-        let id = try makeAppIdentifier()
-        let entries = [
-            makeEntry(title: "Website", url: "https://mybank.app", username: "u", password: "p"),
-            makeEntry(title: "Sibling", url: "https://login.mybank.app", username: "u", password: "p"),
-            makeEntry(title: "Saved App ID", url: "A1B2C3D4E5.com.mybank.app", username: "u", password: "p"),
-        ]
-
-        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: [id]).isEmpty)
-        XCTAssertTrue(CredentialMatcher.matchedEntries(from: entries, for: [id]).isEmpty)
-        XCTAssertTrue(CredentialMatcher.possibleMatchedEntries(from: entries, for: [id]).isEmpty)
-    }
-
-    func testAppSaveDraftDoesNotStrictlyMatchWebsiteOfSameSuffix() throws {
-        let draft = AutoFillSaveCoordinator.initialDraft(
-            for: try makeAppIdentifier(),
-            username: "alex",
-            password: "secret"
-        )
-        let saved = makeEntry(title: draft.title, url: draft.url, username: draft.username, password: draft.password)
-        let website = [ASCredentialServiceIdentifier(identifier: "mybank.app", type: .domain)]
-
-        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: [saved], for: website).isEmpty)
-        XCTAssertTrue(CredentialMatcher.possibleMatchedEntries(from: [saved], for: website).isEmpty)
-    }
-
-    func testAppIdentifierDoesNotHideDomainIdentifierInSameRequest() throws {
-        let entries = [makeEntry(title: "GitHub", url: "https://github.com", username: "u", password: "p")]
-        let ids = [try makeAppIdentifier(), ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
-        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).count, 1)
-    }
-
-    // MARK: - App IDs stored as URLs before #137
-
-    /// Before #137 a save from an `.app` request stored the raw App ID as the
-    /// entry's URL; such an entry must not count as the website it resembles.
-    func testStoredAppIDURLDoesNotMatchWebsiteOfSameSuffix() {
-        // The shape those saves left behind: App ID URL, title parsed as a host.
-        let entries = [makeEntry(title: "a1b2c3d4e5.com.mybank.app", url: "A1B2C3D4E5.com.mybank.app", username: "u", password: "p")]
-        let requests = [
-            [ASCredentialServiceIdentifier(identifier: "mybank.app", type: .domain)],
-            [ASCredentialServiceIdentifier(identifier: "https://mybank.app/login", type: .URL)],
-            [ASCredentialServiceIdentifier(identifier: "login.mybank.app", type: .domain)],
-        ]
-
-        for request in requests {
-            let label = request[0].identifier
-            XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: request).isEmpty, label)
-            XCTAssertTrue(CredentialMatcher.matchedEntries(from: entries, for: request).isEmpty, label)
-            XCTAssertTrue(CredentialMatcher.possibleMatchedEntries(from: entries, for: request).isEmpty, label)
-        }
-    }
-
-    func testStoredAppIDURLDoesNotHideTheEntrysOtherWebsiteURLs() {
-        let entry = makeEntry(
-            title: "MyBank",
-            url: "A1B2C3D4E5.com.mybank.app",
-            username: "u",
-            password: "p",
-            customFields: ["KP2A_URL_1": "https://mybank.app"]
-        )
-        let request = [ASCredentialServiceIdentifier(identifier: "mybank.app", type: .domain)]
-
-        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: [entry], for: request).count, 1)
-    }
-
-    func testTitleTheUserChoseStillMatchesBroadlyNextToAStoredAppID() {
-        let entry = makeEntry(title: "mybank.app login", url: "A1B2C3D4E5.com.mybank.app", username: "u", password: "p")
-        let request = [ASCredentialServiceIdentifier(identifier: "mybank.app", type: .domain)]
-
-        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: [entry], for: request).isEmpty)
-        XCTAssertEqual(CredentialMatcher.matchedEntries(from: [entry], for: request).count, 1)
-    }
-
-    func testHostsThatOnlyResembleAnAppIDStillMatch() {
-        let entries = [
-            makeEntry(title: "Lowercase", url: "a1b2c3d4e5.mybank.app", username: "u", password: "p"),
-            makeEntry(title: "Scheme", url: "https://A1B2C3D4E5.mybank.app", username: "u", password: "p"),
-            makeEntry(title: "Path", url: "A1B2C3D4E5.mybank.app/login", username: "u", password: "p"),
-        ]
-        let request = [ASCredentialServiceIdentifier(identifier: "mybank.app", type: .domain)]
-
-        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: entries, for: request).count, 3)
-    }
-
-    func testIsStoredAppIdentifier() {
-        XCTAssertTrue(CredentialMatcher.isStoredAppIdentifier("A1B2C3D4E5.com.mybank.app"))
-        XCTAssertTrue(CredentialMatcher.isStoredAppIdentifier(" ABCDE12345.com.example.my-app "))
-        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier("a1b2c3d4e5.com.mybank.app"))
-        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier("https://A1B2C3D4E5.com.mybank.app"))
-        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier("A1B2C3D4E5.com.mybank.app/login"))
-        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier("A1B2C3D4E.com.mybank.app"))
-        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier("A1B2C3D4E5"))
-        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier("mybank.app"))
-        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier(""))
-    }
-
-    // MARK: - matchedEntries
-
-    func testExactDomainMatch() {
-        let entries = [makeEntry(title: "GitHub", url: "https://github.com/login", username: "user", password: "pass")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        XCTAssertEqual(matches.count, 1)
-    }
-
-    func testParentDomainDoesNotMatchChildDomainRequest() {
-        let entries = [makeEntry(title: "Google", url: "https://google.com", username: "user", password: "pass")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "https://accounts.google.com/signin", type: .URL)]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        XCTAssertEqual(matches.count, 0) // google.com entry does NOT match accounts.google.com search
-    }
-
-    func testEntrySubdomainMatchesParentDomainSearch() {
-        // Entry with subdomain URL matches when searching for parent domain
-        let entries = [makeEntry(title: "Google Accounts", url: "https://accounts.google.com/signin", username: "user", password: "pass")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "google.com", type: .domain)]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        XCTAssertEqual(matches.count, 1)
-    }
-
-    func testURLTypeIdentifier() {
-        let entries = [makeEntry(title: "GH", url: "https://github.com/settings", username: "u", password: "p")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "https://github.com/login", type: .URL)]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        XCTAssertEqual(matches.count, 1)
-    }
-
-    func testNoMatches() {
-        let entries = [makeEntry(title: "GitHub", url: "https://github.com", username: "u", password: "p")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "gitlab.com", type: .domain)]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        XCTAssertTrue(matches.isEmpty)
-    }
-
-    func testMultipleMatches() {
-        let entries = [
-            makeEntry(title: "GH Work", url: "https://github.com/work", username: "work", password: "p1"),
-            makeEntry(title: "GH Personal", url: "https://github.com/personal", username: "me", password: "p2"),
-            makeEntry(title: "Other", url: "https://other.com", username: "x", password: "p3"),
-        ]
-        let ids = [ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        XCTAssertEqual(matches.count, 2)
-    }
-
-    func testEmptyURL() {
-        let entries = [makeEntry(title: "github.com", url: "", username: "u", password: "p")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        // Title contains "github.com" so it matches via title fallback
-        XCTAssertEqual(matches.count, 1)
-    }
-
-    func testEmptyTitle() {
-        let entries = [makeEntry(title: "", url: "https://github.com", username: "u", password: "p")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        XCTAssertEqual(matches.count, 1)
-    }
-
-    func testEmptyIdentifiersReturnsEmpty() {
-        let entries = [
-            makeEntry(title: "A", url: "https://a.com", username: "u", password: "p"),
-            makeEntry(title: "B", url: "https://b.com", username: "u", password: "p"),
-        ]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: [])
-        XCTAssertTrue(matches.isEmpty)
-    }
-
-    func testCaseInsensitiveMatch() {
-        let entries = [makeEntry(title: "GitHub", url: "https://GitHub.Com/login", username: "u", password: "p")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "GITHUB.COM", type: .domain)]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        XCTAssertEqual(matches.count, 1)
-    }
-
-    func testExpiredEntryDoesNotMatchAutomatically() {
-        let expiredEntry = KPEntry(
-            title: "GitHub",
-            username: "user",
-            password: EncryptedValue(sealedData: Data([0]), hasValue: true),
-            url: "https://github.com",
-            expires: true,
-            expiryTime: .distantPast
-        )
-        let ids = [ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
-
-        XCTAssertTrue(CredentialMatcher.matchedEntries(from: [expiredEntry], for: ids).isEmpty)
-    }
-
-    // MARK: - Strict vs fuzzy tiering
-
-    func testStrictDoesNotMatchHostSubstring() {
-        // Requesting bank.com must NOT surface a stored mybank.com entry as a
-        // strict (auto-fillable) match, even though "mybank.com" contains "bank.com".
-        let entries = [makeEntry(title: "My Bank", url: "https://mybank.com/login", username: "u", password: "p")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "bank.com", type: .domain)]
-        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).isEmpty)
-        // The fuzzy tier may still surface it for an interactive picker.
-        XCTAssertEqual(CredentialMatcher.matchedEntries(from: entries, for: ids).count, 1)
-    }
-
-    func testStrictDoesNotMatchPartialLabelSubstring() {
-        // Requesting pal.com must not strictly match a stored paypal.com entry.
-        let entries = [makeEntry(title: "PayPal", url: "https://paypal.com", username: "u", password: "p")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "pal.com", type: .domain)]
-        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).isEmpty)
-    }
-
-    func testStrictMatchesExactHost() {
-        let entries = [makeEntry(title: "PayPal", url: "https://paypal.com/signin", username: "u", password: "p")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "paypal.com", type: .domain)]
-        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).count, 1)
-    }
-
-    func testStrictMatchesDottedSubdomain() {
-        let entries = [makeEntry(title: "PayPal", url: "https://login.paypal.com", username: "u", password: "p")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "paypal.com", type: .domain)]
-        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).count, 1)
-    }
-
-    func testStrictDoesNotMatchTermInURLPath() {
-        // A term appearing in the path of an unrelated host must not strictly match.
-        let entries = [makeEntry(title: "Evil", url: "https://evil.example/bank.com/login", username: "u", password: "p")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "bank.com", type: .domain)]
-        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).isEmpty)
-        XCTAssertEqual(CredentialMatcher.matchedEntries(from: entries, for: ids).count, 1)
-    }
-
-    func testStrictDoesNotMatchTitleSubstring() {
-        // Title-only signal is too weak for auto-fill; only the picker may use it.
-        let entries = [makeEntry(title: "github.com backup codes", url: "", username: "u", password: "p")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
-        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).isEmpty)
-        XCTAssertEqual(CredentialMatcher.matchedEntries(from: entries, for: ids).count, 1)
-    }
-
-    /// Reading a `www.co.uk` request as `co.uk` would make every entry under
-    /// that public suffix a strict match.
-    func testWWWAsRegistrableLabelDoesNotMatchAcrossItsPublicSuffix() {
-        let own = makeEntry(title: "WWW", url: "https://www.co.uk/login", username: "u", password: "p")
-        let other = makeEntry(title: "Bank", url: "https://bank.co.uk", username: "u", password: "p")
-
-        for id in [
-            ASCredentialServiceIdentifier(identifier: "https://www.co.uk/login", type: .URL),
-            ASCredentialServiceIdentifier(identifier: "www.co.uk", type: .domain)
-        ] {
-            XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: [own, other], for: [id]).map(\.title), ["WWW"])
-            XCTAssertEqual(CredentialMatcher.matchedEntries(from: [own, other], for: [id]).map(\.title), ["WWW"])
-        }
-    }
-
-    func testStrictMatchesAdditionalURLHost() {
-        let entries = [makeEntry(title: "GitHub", url: "https://example.org", username: "u", password: "p",
-                                 customFields: ["KP2A_URL_1": "https://gist.github.com"])]
-        let ids = [ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
-        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).count, 1)
-    }
-
-    func testPossibleMatchesSiblingSubdomainOnly() {
-        let entries = [
-            makeEntry(title: "Sibling", url: "https://tro.sitio.com/login", username: "u", password: "p"),
-            makeEntry(title: "Boundary", url: "https://otro-sitio.com", username: "u", password: "p")
-        ]
-        let ids = [ASCredentialServiceIdentifier(identifier: "https://acs.sitio.com", type: .URL)]
-        let matches = CredentialMatcher.possibleMatchedEntries(from: entries, for: ids)
-        XCTAssertEqual(matches.map(\.title), ["Sibling"])
-    }
-
-    func testPossibleMatchesSupportMultipleEntriesAndURLNormalization() {
-        let entries = [
-            makeEntry(title: "One", url: "HTTPS://one.sitio.com.", username: "u", password: "p"),
-            makeEntry(title: "Two", url: "https://two.sitio.com/path", username: "u", password: "p")
-        ]
-        let ids = [ASCredentialServiceIdentifier(identifier: "https://acs.SITIO.com/path", type: .URL)]
-        XCTAssertEqual(CredentialMatcher.possibleMatchedEntries(from: entries, for: ids).count, 2)
-    }
-
-    func testPossibleMatchesDoNotSuggestRegistrableDomainBoundary() {
-        let entries = [makeEntry(title: "Other", url: "https://tro.otro-sitio.com", username: "u", password: "p")]
-        let ids = [ASCredentialServiceIdentifier(identifier: "acs.sitio.com", type: .domain)]
-        XCTAssertTrue(CredentialMatcher.possibleMatchedEntries(from: entries, for: ids).isEmpty)
-    }
-
-    func testPossibleMatchesUsePublicSuffixListForCoUK() {
-        let entries = [
-            makeEntry(title: "Sibling", url: "https://tro.example.co.uk", username: "u", password: "p"),
-            makeEntry(title: "Unrelated", url: "https://tro.other.co.uk", username: "u", password: "p"),
-            makeEntry(title: "BareSuffix", url: "https://tro.co.uk", username: "u", password: "p")
-        ]
-        let ids = [ASCredentialServiceIdentifier(identifier: "https://acs.example.co.uk", type: .URL)]
-        XCTAssertEqual(
-            CredentialMatcher.possibleMatchedEntries(from: entries, for: ids).map(\.title),
-            ["Sibling"]
-        )
-    }
-
-    func testStrictSkipsExpiredEntries() {
-        let expiredEntry = KPEntry(
-            title: "GitHub",
-            username: "user",
-            password: EncryptedValue(sealedData: Data([0]), hasValue: true),
-            url: "https://github.com",
-            expires: true,
-            expiryTime: .distantPast
-        )
-        let ids = [ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
-        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: [expiredEntry], for: ids).isEmpty)
-    }
-
-    func testStrictIsSubsetOfFuzzy() {
-        let entries = [
-            makeEntry(title: "PayPal", url: "https://paypal.com", username: "a", password: "p"),
-            makeEntry(title: "My Bank", url: "https://mybank.com", username: "b", password: "p"),
-            makeEntry(title: "paypal.com note", url: "", username: "c", password: "p"),
-        ]
-        let ids = [ASCredentialServiceIdentifier(identifier: "paypal.com", type: .domain)]
-        let strict = CredentialMatcher.strictMatchedEntries(from: entries, for: ids)
-        let fuzzy = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        XCTAssertEqual(strict.count, 1)
-        XCTAssertEqual(strict.first?.username, "a")
-        XCTAssertEqual(fuzzy.count, 2)
-        for entry in strict {
-            XCTAssertTrue(fuzzy.contains { $0.id == entry.id })
-        }
-    }
-
-    // MARK: - Additional URL Matching
-
-    func testMatchesOnAdditionalURL() {
-        let entries = [makeEntry(title: "GitHub", url: "https://github.com", username: "u", password: "p",
-                                 customFields: ["KP2A_URL_1": "https://gist.github.com"])]
-        let ids = [ASCredentialServiceIdentifier(identifier: "gist.github.com", type: .domain)]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        XCTAssertEqual(matches.count, 1)
-    }
-
-    func testNoMatchWhenAdditionalURLDoesNotMatch() {
-        let entries = [makeEntry(title: "GitHub", url: "https://github.com", username: "u", password: "p",
-                                 customFields: ["KP2A_URL_1": "https://gist.github.com"])]
-        let ids = [ASCredentialServiceIdentifier(identifier: "gitlab.com", type: .domain)]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        XCTAssertTrue(matches.isEmpty)
-    }
-
-    func testMatchesOnSecondAdditionalURL() {
-        let entries = [makeEntry(title: "Work", url: "https://example.com", username: "u", password: "p",
-                                 customFields: ["KP2A_URL_1": "https://intranet.example.com",
-                                                "KP2A_URL_2": "https://vpn.example.com"])]
-        let ids = [ASCredentialServiceIdentifier(identifier: "vpn.example.com", type: .domain)]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        XCTAssertEqual(matches.count, 1)
-    }
-
-    func testEmptyKP2AURLsAreFiltered() {
-        let entries = [makeEntry(title: "Test", url: "https://example.com", username: "u", password: "p",
-                                 customFields: ["KP2A_URL_1": ""])]
-        let ids = [ASCredentialServiceIdentifier(identifier: "somethingelse.com", type: .domain)]
-        let matches = CredentialMatcher.matchedEntries(from: entries, for: ids)
-        XCTAssertTrue(matches.isEmpty)
-    }
 
     // MARK: - Helpers
 
@@ -503,9 +121,16 @@ final class CredentialMatcherTests: XCTestCase {
         return ASCredentialServiceIdentifier(identifier: "A1B2C3D4E5.com.mybank.app", type: .app, displayName: "MyBank")
     }
 
-    private func makeEntry(title: String, url: String, username: String, password: String, customFields: [String: String] = [:]) -> KPEntry {
-        // Use a non-empty sentinel for hasPassword checks; actual decryption is not tested here
-        let encrypted: EncryptedValue = password.isEmpty ? .empty : EncryptedValue(sealedData: Data([0]), hasValue: true)
-        return KPEntry(title: title, username: username, password: encrypted, url: url, customFields: customFields)
+    private func makeEntry(title: String, url: String, customFields: [String: String] = [:], expired: Bool = false) -> KPEntry {
+        // A non-empty sentinel for hasPassword checks; nothing is decrypted here.
+        KPEntry(
+            title: title,
+            username: "u",
+            password: EncryptedValue(sealedData: Data([0]), hasValue: true),
+            url: url,
+            customFields: customFields,
+            expires: expired,
+            expiryTime: expired ? .distantPast : nil
+        )
     }
 }

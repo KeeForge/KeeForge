@@ -175,6 +175,9 @@ jobs:
       - name: Run KDBXXML tests with coverage
         run: Packages/KDBXXML/scripts/coverage.sh
 
+      - name: Run SiteMatching tests with coverage
+        run: Packages/SiteMatching/scripts/coverage.sh
+
       # Runners have no signing account, so the app is ad-hoc signed with no
       # entitlements (unsandboxed). Local runs keep automatic signing with the
       # full sandbox entitlements — see project.yml.

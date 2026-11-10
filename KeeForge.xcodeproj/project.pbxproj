@@ -162,7 +162,7 @@
 		27F56844AAA14A1BA0009462 /* KDBXParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB771146F2B327CB67076403 /* KDBXParser.swift */; };
 		286D4685FD25C275588F3AA2 /* FileDigest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AF0307ABDC2EF9F25DF159C /* FileDigest.swift */; };
 		28AF2A12D0919AF90405797E /* EntryIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A7D8322CFC539B9ECE560B4 /* EntryIconView.swift */; };
-		28E386FA18015056C4B4B670 /* PublicSuffixList in Frameworks */ = {isa = PBXBuildFile; productRef = 80BD433FCE467939D48BA9AE /* PublicSuffixList */; };
+		28E386FA18015056C4B4B670 /* SiteMatching in Frameworks */ = {isa = PBXBuildFile; productRef = AA0F5747B82973D15CE247EF /* SiteMatching */; };
 		291593DDF088E24885B96297 /* KDBXParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 012690B5F23A7226C211D172 /* KDBXParserTests.swift */; };
 		299736A638AF5ABDE9195C59 /* DatabaseCreationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7553437A0E9B7EDCD010211A /* DatabaseCreationServiceTests.swift */; };
 		29C3665F41091FFFC19A87B7 /* KeeForgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EA0111DE46F6C0B6D89B6B4 /* KeeForgeApp.swift */; };
@@ -188,7 +188,7 @@
 		2FB690AA87853493C7E13651 /* LocalDatabaseSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */; };
 		30654F910DE3D6AD103BC613 /* StandardIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6C4374097541AB7852E249 /* StandardIconView.swift */; };
 		306FB3EBBC61ED1F83716A39 /* TOTPQRScannerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F715792780CA7205B5924EE /* TOTPQRScannerSheet.swift */; };
-		30BE98BCBB2C8D6352147FFF /* PublicSuffixList in Frameworks */ = {isa = PBXBuildFile; productRef = 2ED91D82079164C87B68A814 /* PublicSuffixList */; };
+		30BE98BCBB2C8D6352147FFF /* SiteMatching in Frameworks */ = {isa = PBXBuildFile; productRef = CAF94C81C0EA622E6A9E60AF /* SiteMatching */; };
 		310F8939E17928B0959017BC /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB106882B5AF908E0B1ED82C /* ClipboardService.swift */; };
 		311CB4B89676FC78D7FD48F6 /* AttachmentLoadCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C2DB820A9B925DD55086586 /* AttachmentLoadCoordinatorTests.swift */; };
 		316E7940CB908BAD581E150F /* CloudDatabaseSaverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD06FD75C4769929A64951F0 /* CloudDatabaseSaverTests.swift */; };
@@ -273,7 +273,7 @@
 		46C37BDFE49BF3B27E7C60FE /* SaveConflictMergeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48B7208FC9199C3B6A619B18 /* SaveConflictMergeUITests.swift */; };
 		477A54CF5DF6848DEF0ED405 /* KDBXXML+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21AFC0F97F6F78A5A424CE57 /* KDBXXML+Localization.swift */; };
 		48B0A0C5F0E4370AB8C8AEFF /* AttachmentLoadCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6821EA86AB6E62B2908759 /* AttachmentLoadCoordinator.swift */; };
-		48B196D18783A6205792621A /* PublicSuffixList in Frameworks */ = {isa = PBXBuildFile; productRef = 821C8659E5022EA9F87A8E5A /* PublicSuffixList */; };
+		48B196D18783A6205792621A /* SiteMatching in Frameworks */ = {isa = PBXBuildFile; productRef = C0D2ECB37C663D0B86FA869E /* SiteMatching */; };
 		492B3890EF152B160A560423 /* WhatsNewPresentationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DDEBC96D0673E928CD9681C /* WhatsNewPresentationServiceTests.swift */; };
 		4994CC6E9C1FB4ABBDC4F0B0 /* AppGroupGuardrailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784030A42906B5F3F8E2076B /* AppGroupGuardrailTests.swift */; };
 		499FB1A86178CDFBDC46124D /* AppSettingsCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761192478C291FBAE7135E0A /* AppSettingsCommands.swift */; };
@@ -436,7 +436,7 @@
 		738CF85337FA515142B389E8 /* KDBXRoundTripTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D4331340574F2A0595CAA0E /* KDBXRoundTripTests.swift */; };
 		73E2B128704714D6C8207791 /* AutoFillTipUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBA690A30702948674112D9A /* AutoFillTipUITests.swift */; };
 		7434081615E237B2921495F7 /* DistributionChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7BDDC833C91950F7F121A37 /* DistributionChannel.swift */; };
-		744743CA398D53D08FE77A2E /* PublicSuffixList in Frameworks */ = {isa = PBXBuildFile; productRef = 431E8A28D3FD594C5C160789 /* PublicSuffixList */; };
+		744743CA398D53D08FE77A2E /* SiteMatching in Frameworks */ = {isa = PBXBuildFile; productRef = 21FDFE18023F81056C7E2A44 /* SiteMatching */; };
 		745F136463A1B94004C35A53 /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280C8E252110A0DEC3BE5283 /* CredentialIdentityStoreManager.swift */; };
 		74CA40949E7A2D7E600CE69F /* SSHAgentTestKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793BC599E7FC93B720927040 /* SSHAgentTestKeys.swift */; };
 		75E02750D94DC6A0080903CF /* MasterKeyChangeViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0F40D4E33161DBEEAB3C6C /* MasterKeyChangeViewModelTests.swift */; };
@@ -1358,6 +1358,7 @@
 		B459F34FCD09A4A573B6F3DD /* MacBiometricAutoUnlockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacBiometricAutoUnlockTests.swift; sourceTree = "<group>"; };
 		B4817DCDBE10FCB59D878033 /* KDBXWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXWriterTests.swift; sourceTree = "<group>"; };
 		B484939EF6D6E1366A7A9C34 /* ScreenProtectionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenProtectionServiceTests.swift; sourceTree = "<group>"; };
+		B4C6DC34C11BE183A73D61CD /* SiteMatching */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SiteMatching; path = Packages/SiteMatching; sourceTree = SOURCE_ROOT; };
 		B4E518BDB36211236976691A /* PendingUploadRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUploadRecoveryTests.swift; sourceTree = "<group>"; };
 		B514D9E533F3FF2EB1978959 /* LocalDatabaseSaverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDatabaseSaverTests.swift; sourceTree = "<group>"; };
 		B531885B533C74F391440B2B /* LocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationTests.swift; sourceTree = "<group>"; };
@@ -1495,7 +1496,7 @@
 			files = (
 				1B5B7053224BC626A3AE3D0D /* KDBXKit in Frameworks */,
 				DF799AD406B024CAAD8B743D /* KDBXXML in Frameworks */,
-				28E386FA18015056C4B4B670 /* PublicSuffixList in Frameworks */,
+				28E386FA18015056C4B4B670 /* SiteMatching in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1515,7 +1516,7 @@
 				40513FE7EBB0EC663F345EEC /* KDBXXML in Frameworks */,
 				8B033D10ABCF3C4C54E2B52C /* SwiftyDropbox in Frameworks */,
 				1FA80A53C3A5B065151DDDC3 /* MSAL in Frameworks */,
-				48B196D18783A6205792621A /* PublicSuffixList in Frameworks */,
+				48B196D18783A6205792621A /* SiteMatching in Frameworks */,
 				7AD08FFA02A073BFB1965785 /* YubiKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1526,7 +1527,7 @@
 			files = (
 				087594118C4C8877C032E574 /* KDBXKit in Frameworks */,
 				33FF1C898FE8415F9A08A7C4 /* KDBXXML in Frameworks */,
-				744743CA398D53D08FE77A2E /* PublicSuffixList in Frameworks */,
+				744743CA398D53D08FE77A2E /* SiteMatching in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1536,7 +1537,7 @@
 			files = (
 				101FE00A9F3480ABB883BD76 /* KDBXKit in Frameworks */,
 				5DDCA6E6F91D54EEE081851C /* KDBXXML in Frameworks */,
-				30BE98BCBB2C8D6352147FFF /* PublicSuffixList in Frameworks */,
+				30BE98BCBB2C8D6352147FFF /* SiteMatching in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1818,6 +1819,7 @@
 				D98D6139B7B177BDBE40A132 /* KDBXKit */,
 				810E712F10F07D53EBDCF945 /* KDBXXML */,
 				CF69E315CB01DC6C5A568375 /* KeeForgeTwofish */,
+				B4C6DC34C11BE183A73D61CD /* SiteMatching */,
 			);
 			path = Packages;
 			sourceTree = "<group>";
@@ -2284,7 +2286,7 @@
 			packageProductDependencies = (
 				98B7C939F108741E630D08A8 /* KDBXKit */,
 				7557480337D8D573300FE3D3 /* KDBXXML */,
-				431E8A28D3FD594C5C160789 /* PublicSuffixList */,
+				21FDFE18023F81056C7E2A44 /* SiteMatching */,
 			);
 			productName = KeeForgeMacAutoFill;
 			productReference = F132E57F847216618151EAF4 /* KeeForgeMacAutoFill.appex */;
@@ -2368,7 +2370,7 @@
 			packageProductDependencies = (
 				7839FE73F589EABBA347F15D /* KDBXKit */,
 				6B0486B1E31959FE4B2A7825 /* KDBXXML */,
-				80BD433FCE467939D48BA9AE /* PublicSuffixList */,
+				AA0F5747B82973D15CE247EF /* SiteMatching */,
 			);
 			productName = KeeForgeMac;
 			productReference = 189BE6C37F1E15048700B583 /* KeeForge.app */;
@@ -2416,7 +2418,7 @@
 				F6B488156617224AF7765D6B /* KDBXXML */,
 				51EBD2A917385D3E88CA0277 /* SwiftyDropbox */,
 				64B6830B629BBAC2E266834E /* MSAL */,
-				821C8659E5022EA9F87A8E5A /* PublicSuffixList */,
+				C0D2ECB37C663D0B86FA869E /* SiteMatching */,
 				679304F71B3D2E8B3188AC97 /* YubiKit */,
 			);
 			productName = KeeForge;
@@ -2439,7 +2441,7 @@
 			packageProductDependencies = (
 				AECC8EA1598A33B8C03F0A97 /* KDBXKit */,
 				5F9764ED7BDA0C4BAA0B8854 /* KDBXXML */,
-				2ED91D82079164C87B68A814 /* PublicSuffixList */,
+				CAF94C81C0EA622E6A9E60AF /* SiteMatching */,
 			);
 			productName = KeeForgeAutoFill;
 			productReference = 379C9421555E6C13A8335404 /* KeeForgeAutoFill.appex */;
@@ -2505,10 +2507,10 @@
 				1406D2AE51BB5512501439B4 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
 				0DE6D7E1C06867E37CE51E7D /* XCRemoteSwiftPackageReference "SwiftyDropbox" */,
 				BB87B9FEC7CAAA5EB2725924 /* XCRemoteSwiftPackageReference "yubikit-ios" */,
-				E12C3C5C44397DF4D37FA514 /* XCRemoteSwiftPackageReference "swift-psl" */,
 				3B460786E0DCB50BFD7F4924 /* XCLocalSwiftPackageReference "Packages/KDBXKit" */,
 				1B43F08EA50B696A2B8022B0 /* XCLocalSwiftPackageReference "Packages/KDBXXML" */,
 				D57ED7FFF6E11FFD4F30B8A1 /* XCLocalSwiftPackageReference "Vendor/KeeForgeTwofish" */,
+				E466F1EE5DFC124EA053E713 /* XCLocalSwiftPackageReference "Packages/SiteMatching" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = ACD0829002867CB7844115FB /* Products */;
@@ -4273,6 +4275,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Vendor/KeeForgeTwofish;
 		};
+		E466F1EE5DFC124EA053E713 /* XCLocalSwiftPackageReference "Packages/SiteMatching" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/SiteMatching;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -4300,26 +4306,12 @@
 				minimumVersion = 4.7.0;
 			};
 		};
-		E12C3C5C44397DF4D37FA514 /* XCRemoteSwiftPackageReference "swift-psl" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ameshkov/swift-psl.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.1.161;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		2ED91D82079164C87B68A814 /* PublicSuffixList */ = {
+		21FDFE18023F81056C7E2A44 /* SiteMatching */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = E12C3C5C44397DF4D37FA514 /* XCRemoteSwiftPackageReference "swift-psl" */;
-			productName = PublicSuffixList;
-		};
-		431E8A28D3FD594C5C160789 /* PublicSuffixList */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E12C3C5C44397DF4D37FA514 /* XCRemoteSwiftPackageReference "swift-psl" */;
-			productName = PublicSuffixList;
+			productName = SiteMatching;
 		};
 		51EBD2A917385D3E88CA0277 /* SwiftyDropbox */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -4352,16 +4344,6 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = KDBXKit;
 		};
-		80BD433FCE467939D48BA9AE /* PublicSuffixList */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E12C3C5C44397DF4D37FA514 /* XCRemoteSwiftPackageReference "swift-psl" */;
-			productName = PublicSuffixList;
-		};
-		821C8659E5022EA9F87A8E5A /* PublicSuffixList */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E12C3C5C44397DF4D37FA514 /* XCRemoteSwiftPackageReference "swift-psl" */;
-			productName = PublicSuffixList;
-		};
 		864AF4F1B6915B3F8B6E44D9 /* KeeForgeTwofish */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = KeeForgeTwofish;
@@ -4378,9 +4360,21 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = KDBXKit;
 		};
+		AA0F5747B82973D15CE247EF /* SiteMatching */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SiteMatching;
+		};
 		AECC8EA1598A33B8C03F0A97 /* KDBXKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = KDBXKit;
+		};
+		C0D2ECB37C663D0B86FA869E /* SiteMatching */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SiteMatching;
+		};
+		CAF94C81C0EA622E6A9E60AF /* SiteMatching */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SiteMatching;
 		};
 		F6B488156617224AF7765D6B /* KDBXXML */ = {
 			isa = XCSwiftPackageProductDependency;

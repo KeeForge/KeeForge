@@ -34,9 +34,8 @@ packages:
   MSAL:
     url: https://github.com/AzureAD/microsoft-authentication-library-for-objc.git
     from: 1.7.0
-  swift-psl:
-    url: https://github.com/ameshkov/swift-psl.git
-    from: 1.1.161
+  SiteMatching:
+    path: Packages/SiteMatching
   YubiKit:
     url: https://github.com/Yubico/yubikit-ios.git
     from: 4.7.0
@@ -124,8 +123,7 @@ targets:
       - package: KDBXXML
       - package: SwiftyDropbox
       - package: MSAL
-      - package: swift-psl
-        product: PublicSuffixList
+      - package: SiteMatching
       - package: YubiKit
     sources:
       # KeeForgeCommands.swift (menu bar), MacLockMonitor.swift (lock
@@ -205,8 +203,7 @@ targets:
         codeSign: true
       - package: KDBXKit
       - package: KDBXXML
-      - package: swift-psl
-        product: PublicSuffixList
+      - package: SiteMatching
     sources:
       - path: KeeForge/App
         excludes: ["README.md", "AGENTS.md"]
@@ -267,8 +264,7 @@ targets:
     dependencies:
       - package: KDBXKit
       - package: KDBXXML
-      - package: swift-psl
-        product: PublicSuffixList
+      - package: SiteMatching
     sources:
       # Exclude the macOS-only Info.plist / entitlements so they are not bundled
       # as stray resources in the iOS extension.
@@ -343,8 +339,7 @@ targets:
     dependencies:
       - package: KDBXKit
       - package: KDBXXML
-      - package: swift-psl
-        product: PublicSuffixList
+      - package: SiteMatching
     sources:
       # Exclude the iOS-only Info.plist / entitlements so they are not bundled
       # as stray resources in the macOS extension. The macOS presentation shell

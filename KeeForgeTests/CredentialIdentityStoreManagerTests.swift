@@ -24,48 +24,6 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         try await super.tearDown()
     }
 
-    // MARK: - domainFromURLString
-
-    func testDomainFromFullHTTPSURL() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://github.com/login"), "github.com")
-    }
-
-    func testDomainFromHTTPURL() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("http://example.org/path"), "example.org")
-    }
-
-    func testDomainFromURLWithPort() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://example.com:8443/path"), "example.com")
-    }
-
-    func testDomainFromSubdomainURL() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://accounts.google.com/signin"), "accounts.google.com")
-    }
-
-    func testDomainFromBareDomainPrependsHTTPS() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("example.com"), "example.com")
-    }
-
-    func testDomainFromBareDomainWithPath() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("example.com/login"), "example.com")
-    }
-
-    func testDomainFromEmptyStringReturnsNil() {
-        XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString(""))
-    }
-
-    func testDomainFromWhitespaceOnlyReturnsNil() {
-        // URL(string:) returns nil for whitespace-only strings
-        XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("   "))
-    }
-
-    func testDomainFromURLWithQueryAndFragment() {
-        XCTAssertEqual(
-            CredentialIdentityStoreManager.domainFromURLString("https://example.com/path?q=1#section"),
-            "example.com"
-        )
-    }
-
     // MARK: - passwordIdentities: basic identity creation
 
     func testIdentityWithUsernameAndURL() {
@@ -199,6 +157,21 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertTrue(CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID).isEmpty)
     }
 
+    /// The host rules themselves are tested in `Packages/SiteMatching`.
+    func testIdentitiesSkipHostsThatAreNotPublishable() {
+        let entry = makeEntry(
+            title: "Mixed",
+            url: "https://192.168.1.1/admin",
+            username: "user",
+            hasPassword: true,
+            customFields: ["KP2A_URL_1": "http://localhost:8080", "KP2A_URL_2": "https://co.uk", "KP2A_URL_3": "https://www.bbc.co.uk"]
+        )
+        XCTAssertEqual(
+            CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID).map(\.serviceIdentifier.identifier),
+            ["https://bbc.co.uk"]
+        )
+    }
+
     func testAdditionalURLsSkipsEmptyValues() {
         // KP2A_URL_1 is empty, KP2A_URL_2 has a valid domain — should use KP2A_URL_2
         let entry = makeEntry(
@@ -313,73 +286,6 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
         XCTAssertEqual(identities.count, 1)
         XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "https://example.com")
-    }
-
-    // MARK: - domainFromURLString: www stripping and subdomains
-
-    func testDomainStripsWWWPrefix() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://www.facebook.com"), "facebook.com")
-    }
-
-    func testDomainStripsWWWFromBareDomain() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("www.facebook.com"), "facebook.com")
-    }
-
-    func testDomainKeepsSubdomain() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://login.facebook.com/path"), "login.facebook.com")
-    }
-
-    func testDomainFromBareFacebookDomain() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("facebook.com"), "facebook.com")
-    }
-
-    func testDomainReturnsNilForIPv4Address() {
-        XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("https://192.168.1.1/path"))
-    }
-
-    func testDomainReturnsNilForLocalhost() {
-        XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("http://localhost:8080"))
-    }
-
-    func testDomainHandlesMultiPartTLD() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://www.bbc.co.uk"), "bbc.co.uk")
-    }
-
-    func testDomainKeepsSubdomainOfMultiPartTLD() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://news.bbc.co.uk"), "news.bbc.co.uk")
-    }
-
-    func testDomainReturnsNilForBareMultiPartTLD() {
-        // "co.uk" alone is a TLD, not a registrable domain
-        XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("https://co.uk"))
-    }
-
-    func testDomainKeepsSubdomainOfCountryCodeSuffix() {
-        XCTAssertEqual(
-            CredentialIdentityStoreManager.domainFromURLString("https://login.mybank.com.pl"),
-            "login.mybank.com.pl"
-        )
-    }
-
-    func testDomainKeepsSubdomainOfPrivateSuffixTenant() {
-        XCTAssertEqual(
-            CredentialIdentityStoreManager.domainFromURLString("https://account.example.github.io"),
-            "account.example.github.io"
-        )
-    }
-
-    func testDomainReturnsNilForPublicSuffix() {
-        XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("https://github.io"))
-    }
-
-    /// `www` is the registrable label on these hosts, so dropping it would
-    /// leave a bare public suffix and the entry would publish nothing.
-    func testDomainKeepsWWWWhenItIsTheRegistrableLabel() {
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://www.co.uk/login"), "www.co.uk")
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://www.com"), "www.com")
-        // `!www.ck` is an exception to the `*.ck` wildcard rule.
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://www.ck"), "www.ck")
-        XCTAssertEqual(CredentialIdentityStoreManager.domainFromURLString("https://www.www.co.uk"), "www.co.uk")
     }
 
     // MARK: - oneTimeCodeIdentities (iOS 18+)

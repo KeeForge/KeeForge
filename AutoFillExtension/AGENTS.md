@@ -24,7 +24,7 @@
 
 - An interactive list request is never answered with an automatic fill. The key icon (`prepareCredentialList`) means "let me choose", so `presentPasswordMatchesOrFinish` completes outright only for a record identifier it resolves; everything else, even a lone strict match, presents the picker. That includes a gone entry, a `.stale` target, and the passkey list falling back to passwords.
 - Likewise `presentPasskeyList` offers a lone passkey and `presentOTCMatchesOrFinish` a lone code instead of asserting or generating. The by-identity routes (`completeInteractivePasskeyRequest`, `completeOTCRequestFromPending`) name the tapped credential and complete directly.
-- Only the silent no-UI path turns a match into a credential on its own, and only via `strictMatchedEntries`. Password and code pickers use `interactiveMatches`: exact first-host matches, otherwise a separate possible-host section, with the complete corpus accessible through search or Show All Credentials. Rows show normalized hosts. Expanded searches replace the initial sections instead of repeating possible matches. Code pickers never offer URL addition.
+- Only the silent no-UI path turns a match into a credential on its own, and only via `strictMatchedEntries` (`SiteMatcher.strictMatches`). Password and code pickers use `interactiveMatches`: exact first-host matches, otherwise a separate possible-host section, with the complete corpus accessible through search or Show All Credentials. Rows show normalized hosts. Expanded searches replace the initial sections instead of repeating possible matches. Code pickers never offer URL addition.
 - Expired entries are excluded from proactive identities and automatic fulfilment; the picker lists them with a warning and requires a tap.
 - `completeRequest(with:)` resolves `{REF:...}` in the filled username and password over `parsedRootGroup.allEntries` (the target may be password-less or in a non-searchable group). Picker rows, identities, and every write path never resolve. Because a fill resolves, no value a website or relying party supplies may be saved with a reference in it: save-password refuses one in the username or password, and passkey registration refuses one in the user name.
 - With `SettingsService.autoFillCopyTOTP` on, `completeRequest(with:)` copies the code before `cleanup()` drops the session key. A no-UI extension cannot reliably write the pasteboard, so the silent path escalates to `.userInteractionRequired` when the setting is on and the entry has a code.
@@ -77,7 +77,7 @@ In `../KeeForgeTests/` (run on iOS, and on macOS through `KeeForgeMacTests`, whi
 - `AutoFillMemoryLimitTests`, `KDFExecutionPolicyTests`: the memory and time guards.
 - `CredentialProviderCoordinatorTests` first for any coordinator change, then `CredentialProviderSaveTests`, `CredentialProviderPickerCreationTests`, `CredentialProviderRegistrationTests`.
 - `CredentialProviderShellMacTests` (`KeeForgeMacTests` only): Mac shell routing and cleanup.
-- `CredentialIdentityStoreManagerTests`, `CredentialMatcherTests`, `PasskeyCryptoTests` (in `PasskeyTests.swift`), `SharedVaultStoreTests`.
+- `CredentialIdentityStoreManagerTests`, `CredentialMatcherTests`, `PasskeyCryptoTests` (in `PasskeyTests.swift`), `SharedVaultStoreTests`. The matching rules themselves are tested in `../Packages/SiteMatching/Tests`.
 
 ## See also
 
