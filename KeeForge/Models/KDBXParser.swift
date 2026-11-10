@@ -58,7 +58,8 @@ enum KDBXParser {
             unknownXML: source.unknownXML,
             deletedObjects: document.root.deletedObjects.map { KPDeletedObject(uuid: $0.uuid, deletionTime: $0.deletionTime) },
             customIcons: icons.mapValues(\.data),
-            customIconNames: icons.compactMapValues(\.name)
+            customIconNames: icons.compactMapValues(\.name),
+            documentUnknownXML: document.unknownXML
         )
         let root = KPGroup(
             id: nullUUID,

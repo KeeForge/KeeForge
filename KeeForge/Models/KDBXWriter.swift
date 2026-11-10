@@ -94,7 +94,8 @@ enum KDBXWriter {
                 groups: try rootGroup.groups.map { try group($0, sessionKey: sessionKey) },
                 deletedObjects: meta.deletedObjects.map { .init(uuid: $0.uuid, deletionTime: $0.deletionTime) },
                 unknownXML: rootGroup.unknownXML
-            )
+            ),
+            unknownXML: meta.documentUnknownXML
         )
     }
 

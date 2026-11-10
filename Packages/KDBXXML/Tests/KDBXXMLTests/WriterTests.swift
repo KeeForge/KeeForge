@@ -224,6 +224,29 @@ final class WriterTests: XCTestCase {
         XCTAssertEqual(reread.root, root)
     }
 
+    func test_documentFragmentsSurroundMetaAndRootWithProtectedValuesInOrder() throws {
+        let document = KDBXDocument(
+            meta: .init(unknownXML: OpaqueXMLNodes(nodes: [.init(insertionIndex: 0, xml: #"<V><Value Protected="True">meta</Value></V>"#)])),
+            root: .init(entries: [KDBXDocument.Entry(uuid: TestID.entry, strings: [.init(key: "P", value: "entry", isProtected: true)])]),
+            unknownXML: OpaqueXMLNodes(nodes: [
+                .init(insertionIndex: 2, xml: #"<Tail><Value Protected="True">after</Value></Tail>"#),
+                .init(insertionIndex: 0, xml: #"<Lead><Value Protected="True">before</Value></Lead>"#),
+                .init(insertionIndex: 1, xml: #"<Mid><Value Protected="True">between</Value></Mid>"#),
+                .init(insertionIndex: 0, xml: "<Meta></Meta>"),
+                .init(insertionIndex: 2, xml: "<Root></Root>"),
+            ])
+        )
+        let masked = TestStream.masked(["before", "meta", "between", "entry", "after"])
+        XCTAssertEqual(try write(document), """
+        <KeePassFile><Lead><Value Protected="True">\(masked[0])</Value></Lead>\
+        <Meta><V><Value Protected="True">\(masked[1])</Value></V></Meta>\
+        <Mid><Value Protected="True">\(masked[2])</Value></Mid>\
+        <Root><Entry><UUID>\(uuid)</UUID><IconID>0</IconID>\
+        <String><Key>P</Key><Value Protected="True">\(masked[3])</Value></String></Entry></Root>\
+        <Tail><Value Protected="True">\(masked[4])</Value></Tail></KeePassFile>
+        """, "a typed Meta or Root replaces a fragment of that name")
+    }
+
     func test_valuesThatAreNotProtectedAreCopiedVerbatim() throws {
         let fragments = [
             #"<Value Protected="False">plain</Value>"#,
@@ -272,6 +295,7 @@ final class WriterTests: XCTestCase {
         let group = TestID.group
         let entry = TestID.entry
         let cases: [(KDBXDocument, Location)] = [
+            (KDBXDocument(unknownXML: nodes("<Lead>\(nul)</Lead>")), Location(owner: .document, part: .element("Lead"))),
             (KDBXDocument(meta: .init(unknownXML: nodes("<V>\(nul)</V>"))), Location(owner: .meta, part: .element("V"))),
             (KDBXDocument(root: .init(unknownXML: nodes(nul))), Location(owner: .root, part: .element(nil))),
             (inGroup(.init(uuid: group, name: nul)), Location(owner: .group(group), part: .element("Name"))),

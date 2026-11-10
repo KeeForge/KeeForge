@@ -9,6 +9,7 @@ extension KDBXDocument {
     /// one a typed child supersedes: `OpaqueXMLNodes` is public, so a caller
     /// can splice any text into it.
     func validateForWriting() throws {
+        try Self.check(unknownXML, owner: .document)
         try Self.check(meta.unknownXML, owner: .meta)
         try Self.check(root.unknownXML, owner: .root)
         for entry in root.entries {

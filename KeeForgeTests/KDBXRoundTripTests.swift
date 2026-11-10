@@ -724,6 +724,34 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(originalEntryCustomData, reparsedEntryCustomData)
     }
 
+    /// Another app's children of `<KeePassFile>` survive an open and a save
+    /// through the model, in place, with their protected values in keystream
+    /// order around the entry's.
+    func test_documentLevelUnknownElements_surviveOpenAndSaveInPlace() throws {
+        var stream = try KDBXInnerStream(algorithm: .chaCha20, key: roundTripInnerStreamKey)
+        let masked = ["before", "password", "after"].map { stream.apply(Data($0.utf8)).base64EncodedString() }
+        let xml = Data("""
+        <KeePassFile><Lead><Value Protected="True">\(masked[0])</Value></Lead><Meta></Meta><Mid></Mid>\
+        <Root><Group><Name>Root</Name><Entry><String><Key>Password</Key>\
+        <Value Protected="True">\(masked[1])</Value></String></Entry></Group></Root>\
+        <Tail><Value Protected="True">\(masked[2])</Value></Tail></KeePassFile>
+        """.utf8)
+
+        let parsed = try parseXML(xml)
+        XCTAssertEqual(parsed.meta.documentUnknownXML.nodes, [
+            .init(insertionIndex: 0, xml: #"<Lead><Value Protected="True">before</Value></Lead>"#),
+            .init(insertionIndex: 1, xml: "<Mid></Mid>"),
+            .init(insertionIndex: 2, xml: #"<Tail><Value Protected="True">after</Value></Tail>"#),
+        ])
+
+        let reparsed = try serializeAndParse(parsed)
+        XCTAssertEqual(reparsed.meta.documentUnknownXML, parsed.meta.documentUnknownXML)
+        let entry = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+        XCTAssertEqual(try entry.password.decrypt(using: roundTripSessionKey), "password")
+        let written = String(decoding: try serializedXML(of: parsed), as: UTF8.self)
+        XCTAssertTrue(written.hasSuffix("</Root>\(#"<Tail><Value Protected="True">"#)\(masked[2])</Value></Tail></KeePassFile>"), written)
+    }
+
     func test_protectedValues_reEncryptedDeterministically_roundTrip() throws {
         let parsed = try parseFixture(.test)
 

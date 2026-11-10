@@ -21,6 +21,9 @@ struct KPMeta: Sendable, Hashable {
     var customIcons: [UUID: Data]
 
     var customIconNames: [UUID: String]
+    /// Children of `<KeePassFile>` other than `<Meta>` and `<Root>`, kept for
+    /// the writer.
+    var documentUnknownXML: OpaqueXMLNodes
 
     static let defaultMaintenanceHistoryDays = 365
     static let defaultHistoryMaxItems = 10
@@ -34,7 +37,8 @@ struct KPMeta: Sendable, Hashable {
         unknownXML: OpaqueXMLNodes = .empty,
         deletedObjects: [KPDeletedObject] = [],
         customIcons: [UUID: Data] = [:],
-        customIconNames: [UUID: String] = [:]
+        customIconNames: [UUID: String] = [:],
+        documentUnknownXML: OpaqueXMLNodes = .empty
     ) {
         self.recycleBin = recycleBin
         self.maintenanceHistoryDays = maintenanceHistoryDays
@@ -44,6 +48,7 @@ struct KPMeta: Sendable, Hashable {
         self.deletedObjects = deletedObjects
         self.customIcons = customIcons
         self.customIconNames = customIconNames
+        self.documentUnknownXML = documentUnknownXML
     }
 
     /// The recycle bin group, if the database names one.

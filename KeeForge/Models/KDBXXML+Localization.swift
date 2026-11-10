@@ -73,7 +73,7 @@ extension DocumentWriteFailure {
         case .invalidXMLCharacter(_, let location): location
         }
         let name: String? = switch location.owner {
-        case .meta, .root: nil
+        case .document, .meta, .root: nil
         case .group(let uuid): document.root.allGroups.last { $0.uuid == uuid }?.name
         case .entry(let uuid), .historyEntry(let uuid):
             document.root.allEntries.last { $0.uuid == uuid }?.strings.last { $0.key == "Title" }?.value

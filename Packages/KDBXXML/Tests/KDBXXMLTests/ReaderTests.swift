@@ -291,9 +291,33 @@ final class ReaderTests: XCTestCase {
         ])
     }
 
-    func test_unknownDocumentLevelElementsAreNotKept() throws {
-        let parsed = try read("<KeePassFile><Header/><Root/></KeePassFile>")
-        XCTAssertEqual(parsed, KDBXDocument())
+    func test_document_keepsUnknownChildrenInTheirSlotAroundMetaAndRoot() throws {
+        let masked = TestStream.masked(["before", "meta", "between", "entry", "after"])
+        let parsed = try read("""
+        <KeePassFile><Lead><Value Protected="True">\(masked[0])</Value></Lead>\
+        <Meta><V><Value Protected="True">\(masked[1])</Value></V></Meta>\
+        <Mid><Value Protected="True">\(masked[2])</Value></Mid>\
+        <Root>\(entry("<String><Key>P</Key><Value Protected=\"True\">\(masked[3])</Value></String>"))</Root>\
+        <Tail><Value Protected="True">\(masked[4])</Value></Tail><Tail2/></KeePassFile>
+        """)
+        XCTAssertEqual(parsed.unknownXML.nodes, [
+            .init(insertionIndex: 0, xml: #"<Lead><Value Protected="True">before</Value></Lead>"#),
+            .init(insertionIndex: 1, xml: #"<Mid><Value Protected="True">between</Value></Mid>"#),
+            .init(insertionIndex: 2, xml: #"<Tail><Value Protected="True">after</Value></Tail>"#),
+            .init(insertionIndex: 2, xml: "<Tail2></Tail2>"),
+        ])
+        XCTAssertEqual(parsed.meta.unknownXML.nodes.first?.xml, #"<V><Value Protected="True">meta</Value></V>"#)
+        XCTAssertEqual(parsed.root.entries.first?.strings.first?.value, "entry")
+    }
+
+    /// The writer always emits `<Meta>` then `<Root>`, so a fragment's slot is
+    /// where it sat relative to each, whether the source had one, both, or
+    /// them reversed.
+    func test_document_slotsFollowMetaAndRootWhateverTheSourceOrder() throws {
+        let slots = { (xml: String) in try read(xml).unknownXML.nodes.map(\.insertionIndex) }
+        XCTAssertEqual(try slots("<KeePassFile><A/><Root/><B/></KeePassFile>"), [0, 2])
+        XCTAssertEqual(try slots("<KeePassFile><Root/><A/><Meta/><B/></KeePassFile>"), [2, 2])
+        XCTAssertEqual(try slots("<KeePassFile><Meta/><A/><Meta/><B/><Root/></KeePassFile>"), [1, 1])
     }
 
     // MARK: - Canonical fragments

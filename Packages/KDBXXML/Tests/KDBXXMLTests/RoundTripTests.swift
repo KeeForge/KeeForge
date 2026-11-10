@@ -49,6 +49,15 @@ final class RoundTripTests: XCTestCase {
         XCTAssertEqual(try write(read(body)), reordered.replacingOccurrences(of: "<History></History>", with: ""))
     }
 
+    func test_documentLevelFragmentsSurviveByteForByte() throws {
+        let masked = TestStream.masked(["before", "after"])
+        let body = """
+        <KeePassFile><Lead><Value Protected="True">\(masked[0])</Value></Lead><Meta></Meta><Mid a="1"></Mid>\
+        <Root></Root><Tail><Value Protected="True">\(masked[1])</Value></Tail></KeePassFile>
+        """
+        XCTAssertEqual(try write(read(body)), body)
+    }
+
     func test_documentsBuiltInMemorySurviveAWriteAndRead() throws {
         let date = Date(unix: 1_700_000_000)
         let built = KDBXDocument(

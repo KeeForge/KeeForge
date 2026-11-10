@@ -17,6 +17,10 @@ final class DocumentReader: NSObject, XMLParserDelegate {
     private var stack: [Frame] = []
     private let root = RootBuilder()
     private var meta = MetaBuilder()
+    private var unknownXML = OpaqueXMLNodes.empty
+    /// 0 before `<Meta>`, 1 after it, 2 after `<Root>`: the writer emits both
+    /// once, in that order, whatever the source had.
+    private var documentSlot = 0
     private var failure: KDBXDocument.ReadError?
 
     init(innerStream: KDBXInnerStream) {
@@ -31,7 +35,7 @@ final class DocumentReader: NSObject, XMLParserDelegate {
         guard succeeded else {
             throw KDBXDocument.ReadError.malformedXML(line: parser.lineNumber, column: parser.columnNumber)
         }
-        return KDBXDocument(meta: meta.build(), root: root.build())
+        return KDBXDocument(meta: meta.build(), root: root.build(), unknownXML: unknownXML)
     }
 
     // MARK: - XMLParserDelegate
@@ -123,8 +127,15 @@ final class DocumentReader: NSObject, XMLParserDelegate {
     private func take(_ child: Frame, xml: String, into parent: Role) {
         let text = child.text
         switch parent {
-        case .document, .leaf:
+        case .leaf:
             break
+
+        case .document:
+            switch child.role {
+            case .meta: documentSlot = max(documentSlot, 1)
+            case .root: documentSlot = 2
+            default: unknownXML.append(xml: xml, insertionIndex: documentSlot)
+            }
 
         case .meta(let meta):
             let accepted: Bool

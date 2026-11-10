@@ -20,9 +20,12 @@ final class DocumentWriter {
 
     func write(_ document: KDBXDocument) throws -> Data {
         try document.validateForWriting()
+        var children = Children(unknownXML: document.unknownXML, path: [])
+        children.supersede(["Meta": true, "Root": true])
         var xml = "<KeePassFile>"
-        xml += meta(document.meta)
-        xml += root(document.root)
+        xml += typed(&children) { meta(document.meta) }
+        xml += typed(&children) { root(document.root) }
+        xml += trailing(children)
         xml += "</KeePassFile>"
         return Self.prolog + Data(xml.utf8)
     }

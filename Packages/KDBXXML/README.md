@@ -25,7 +25,7 @@ for group in document.root.groups {
 }
 ```
 
-Typed: `Meta` settings (recycle bin, history limits), groups (UUID, name, notes, icon, times, expansion, `EnableSearching`, tags), entries (UUID, icon, tags, times, `<String>` fields in order, `<Binary>` references, history), and tombstones. Everything else is in each element's `unknownXML`. Custom icons, entry expiry, and custom icon references are read-only views of those fragments.
+Typed: `Meta` settings (recycle bin, history limits), groups (UUID, name, notes, icon, times, expansion, `EnableSearching`, tags), entries (UUID, icon, tags, times, `<String>` fields in order, `<Binary>` references, history), and tombstones. Everything else is in each element's `unknownXML`, and children of `<KeePassFile>` other than `<Meta>` and `<Root>` are in the document's. Custom icons, entry expiry, and custom icon references are read-only views of those fragments.
 
 Optional elements are three-state: `notes == nil` means the source had no `<Notes>`, `""` an empty one. `meta.recycleBin` is `nil` without a `<RecycleBinUUID>`, `.unset` for the all-zero UUID KeePass writes when there is no recycle bin, and `.group(uuid)` otherwise; each writes back as it was read.
 
@@ -43,7 +43,7 @@ A typed property replaces a preserved element of the same name, so setting `enab
 
 ## Errors
 
-Plain enums with no user-facing text: `KDBXDocument.ReadError` (`malformedXML(line:column:)`, `unexpectedRootElement`, `invalidProtectedValue`) `KDBXDocument.TextError` (`invalidXMLCharacter`, from `validate(text:)`), and `KDBXDocument.WriteError` (`invalidXMLCharacter(_:at:)`, whose `Location` names the owner (`meta`, `root`, a group, an entry, or a history version, by UUID) and the part (an element name, a field key, or an attachment key)).
+Plain enums with no user-facing text: `KDBXDocument.ReadError` (`malformedXML(line:column:)`, `unexpectedRootElement`, `invalidProtectedValue`) `KDBXDocument.TextError` (`invalidXMLCharacter`, from `validate(text:)`), and `KDBXDocument.WriteError` (`invalidXMLCharacter(_:at:)`, whose `Location` names the owner (`document` for top-level fragments, `meta`, `root`, a group, an entry, or a history version, by UUID) and the part (an element name, a field key, or an attachment key)).
 
 ## Tests and coverage
 

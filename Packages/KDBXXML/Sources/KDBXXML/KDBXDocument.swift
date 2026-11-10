@@ -14,10 +14,14 @@ import KDBXKit
 public struct KDBXDocument: Sendable, Hashable {
     public var meta: Meta
     public var root: Root
+    /// Children of `<KeePassFile>` other than `<Meta>` and `<Root>`. Position 0
+    /// is before `<Meta>`, 1 between the two, 2 after `<Root>`.
+    public var unknownXML: OpaqueXMLNodes
 
-    public init(meta: Meta = Meta(), root: Root = Root()) {
+    public init(meta: Meta = Meta(), root: Root = Root(), unknownXML: OpaqueXMLNodes = .empty) {
         self.meta = meta
         self.root = root
+        self.unknownXML = unknownXML
     }
 
     /// Reads decrypted, decompressed payload XML whose protected values are
@@ -66,6 +70,8 @@ public struct KDBXDocument: Sendable, Hashable {
         /// belongs to.
         public struct Location: Sendable, Hashable {
             public enum Owner: Sendable, Hashable {
+                /// `KDBXDocument.unknownXML`, beside `<Meta>` and `<Root>`.
+                case document
                 case meta
                 case root
                 case group(UUID)
