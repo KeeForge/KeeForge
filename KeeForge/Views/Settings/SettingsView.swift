@@ -194,7 +194,8 @@ struct SettingsView: View {
                     clipboardTimeout: $settings.clipboardTimeout,
                     authenticationGracePeriod: $settings.authenticationGracePeriod,
                     quickUnlockPasswordInterval: $settings.quickUnlockPasswordInterval,
-                    autoUnlockWithFaceID: $settings.autoUnlockWithFaceID
+                    autoUnlockWithFaceID: $settings.autoUnlockWithFaceID,
+                    biometricType: biometricType
                 )
             } label: {
                 SettingsSummaryRow(
@@ -310,12 +311,19 @@ private struct SecuritySettingsView: View {
     @Binding var authenticationGracePeriod: SettingsService.AuthenticationGracePeriod
     @Binding var quickUnlockPasswordInterval: SettingsService.QuickUnlockPasswordInterval
     @Binding var autoUnlockWithFaceID: Bool
+    let biometricType: BiometricService.BiometricType
 
     var body: some View {
         Form {
             Section {
                 if BiometricAutoUnlockPolicy.allowsAutomaticUnlock {
-                    Toggle("Auto-Unlock with Face ID", isOn: $autoUnlockWithFaceID)
+                    Toggle(isOn: $autoUnlockWithFaceID) {
+                        if biometricType == .touchID {
+                            Text("Auto-Unlock with Touch ID")
+                        } else {
+                            Text("Auto-Unlock with Face ID")
+                        }
+                    }
                 }
                 Toggle("Lock When App Goes to Background", isOn: $lockOnBackground)
                     .accessibilityIdentifier("settings.security.lock-on-background-toggle")
@@ -333,7 +341,11 @@ private struct SecuritySettingsView: View {
                 }
             } footer: {
                 if BiometricAutoUnlockPolicy.allowsAutomaticUnlock {
-                    Text("Auto-Unlock with Face ID prompts after a database is opened. When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed.")
+                    if biometricType == .touchID {
+                        Text("Auto-Unlock with Touch ID prompts after a database is opened. When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed.")
+                    } else {
+                        Text("Auto-Unlock with Face ID prompts after a database is opened. When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed.")
+                    }
                 } else {
                     Text("When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed.")
                 }

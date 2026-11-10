@@ -225,7 +225,7 @@ final class KDBXContainerReadTests: XCTestCase {
 
         var badHash = file
         badHash[headerLength] ^= 1
-        assertThrows(KDBXContainer.ParseError.invalidSignature) { try B.read(badHash) }
+        assertThrows(KDBXContainer.ParseError.headerHashMismatch) { try B.read(badHash) }
 
         var badHMAC = file
         badHMAC[headerLength + 32] ^= 1
@@ -234,7 +234,7 @@ final class KDBXContainerReadTests: XCTestCase {
         // A header edited without updating its hash.
         var edited = file
         edited[20] ^= 1
-        assertThrows(KDBXContainer.ParseError.invalidSignature) { try B.read(edited) }
+        assertThrows(KDBXContainer.ParseError.headerHashMismatch) { try B.read(edited) }
     }
 
     /// Every truncation fails cleanly, whatever structure it cuts.
@@ -382,6 +382,17 @@ final class KDBXContainerReadTests: XCTestCase {
         for tail in [Data("garbage".utf8), Data([0xEF, 0xBB, 0xBF]) + Data("garbage".utf8), Data()] {
             assertThrows(KDBXCrypto.CryptoError.decompressionFailed) {
                 try B.read(B.file(plaintextPayload: B.innerHeader() + tail))
+            }
+        }
+    }
+
+    /// Over the limit is its own error in every compressed layout, never
+    /// read as plain or damaged data.
+    func testPayloadOverTheDecompressionLimitIsReportedAsTooLarge() throws {
+        let oversized = Data(count: KDBXContainer.maxDecompressedPayloadSize + 1)
+        for plaintext in [try Gzip.compress(B.innerHeader() + oversized), B.innerHeader() + (try Gzip.compress(oversized))] {
+            assertThrows(KDBXContainer.ParseError.decompressedPayloadTooLarge) {
+                try B.read(B.file(plaintextPayload: plaintext))
             }
         }
     }

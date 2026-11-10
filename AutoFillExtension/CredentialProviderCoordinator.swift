@@ -3,6 +3,7 @@ import CryptoKit
 import Foundation
 import LocalAuthentication
 import KDBXKit
+import SiteMatching
 
 // Must stay free of UIKit and AppKit: presentation and extension-context calls
 // go through the `CredentialProviderPresenting` seam so both the iOS and macOS
@@ -44,9 +45,12 @@ struct AutoFillURLAddition {
     let onAdd: (KPEntry) -> Void
 
     /// The first web service identifier, reduced to scheme, host, and port.
-    static func requestedWebsite(in identifiers: [ASCredentialServiceIdentifier]) -> (host: String, url: String)? {
-        guard let identifier = identifiers.first(where: { !CredentialMatcher.isAppIdentifier($0) }) else { return nil }
-        return CredentialMatcher.website(for: identifier)
+    static func requestedWebsite(in identifiers: [ASCredentialServiceIdentifier]) -> SiteRequest.Website? {
+        let firstWeb = identifiers.map(SiteRequest.init).first { request in
+            if case .app = request { return false }
+            return true
+        }
+        return firstWeb?.website
     }
 
     /// The entry's website URLs, as the confirmation lists them.
@@ -57,20 +61,17 @@ struct AutoFillURLAddition {
     /// Whether the entry already stores this host, by the same host rule
     /// matching uses, so adding it again would change nothing.
     func isStored(on entry: KPEntry) -> Bool {
-        guard let requested = CredentialMatcher.hostFromURLString(url) else { return false }
-        return savedURLs(of: entry).contains { CredentialMatcher.hostFromURLString($0) == requested }
+        guard let requested = SiteHost(url) else { return false }
+        return savedURLs(of: entry).contains { SiteHost($0) == requested }
     }
 
     /// Whether the host shares a registrable domain with any URL already on
     /// the entry. A phishing page that tricks the user into this action
     /// produces exactly the case where it does not.
     func sharesRegistrableDomain(with entry: KPEntry) -> Bool {
-        guard let requested = CredentialMatcher.hostFromURLString(url) else { return false }
-        let requestedDomain = CredentialMatcher.registrableDomain(for: requested)
+        guard let requested = SiteHost(url) else { return false }
         return savedURLs(of: entry).contains { storedURL in
-            guard let stored = CredentialMatcher.hostFromURLString(storedURL) else { return false }
-            guard let requestedDomain else { return stored == requested }
-            return CredentialMatcher.registrableDomain(for: stored) == requestedDomain
+            SiteHost(storedURL).map(requested.sharesRegistrableDomain(with:)) ?? false
         }
     }
 }
@@ -1650,7 +1651,7 @@ final class CredentialProviderCoordinator {
         }
 
         let matches = CredentialMatcher.interactiveMatches(from: passwordEntries, for: serviceIdentifiers)
-        let hasHost = CredentialMatcher.firstWebHost(for: serviceIdentifiers) != nil
+        let hasHost = CredentialMatcher.hasWebHost(serviceIdentifiers)
         AutoFillDiagnostics.log("passwordMatches all=\(allPasswordEntries.count) exact=\(matches.exact.count) possible=\(matches.possible.count)")
 
         // Nothing that reaches this point names a credential the user chose,
@@ -1785,12 +1786,8 @@ final class CredentialProviderCoordinator {
         requestURL: String,
         sessionKey: SymmetricKey
     ) throws -> EntryDraftPayload? {
-        let requestHost = CredentialMatcher.hostFromURLString(requestURL)
-        let alreadyStored = requestHost.map { requestHost in
-            ([entry.url] + entry.additionalURLs).contains { storedURL in
-                guard let storedHost = CredentialMatcher.hostFromURLString(storedURL) else { return false }
-                return storedHost == requestHost
-            }
+        let alreadyStored = SiteHost(requestURL).map { requestHost in
+            ([entry.url] + entry.additionalURLs).contains { SiteHost($0) == requestHost }
         } ?? false
         guard !alreadyStored else { return nil }
 
@@ -1841,7 +1838,7 @@ final class CredentialProviderCoordinator {
         for identity: ASPasskeyCredentialIdentity,
         includeExpired: Bool = false
     ) -> KPEntry? {
-        let normalizedRelyingParty = CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(identity.relyingPartyIdentifier)
+        let normalizedRelyingParty = SiteHost.relyingPartyKey(identity.relyingPartyIdentifier)
 
         let matchesIdentity: (KPEntry) -> Bool = { entry in
             guard includeExpired || !entry.isExpired() else { return false }
@@ -1851,7 +1848,7 @@ final class CredentialProviderCoordinator {
                 return false
             }
 
-            return CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(passkey.relyingParty) == normalizedRelyingParty &&
+            return SiteHost.relyingPartyKey(passkey.relyingParty) == normalizedRelyingParty &&
                 credentialIDData == identity.credentialID
         }
 
@@ -1868,7 +1865,7 @@ final class CredentialProviderCoordinator {
         for requestParameters: ASPasskeyCredentialRequestParameters,
         includeExpired: Bool = false
     ) -> [KPEntry] {
-        let normalizedRelyingParty = CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(
+        let normalizedRelyingParty = SiteHost.relyingPartyKey(
             requestParameters.relyingPartyIdentifier
         )
         let allowedCredentialIDs = Set(requestParameters.allowedCredentials)
@@ -1881,7 +1878,7 @@ final class CredentialProviderCoordinator {
                 return false
             }
 
-            guard CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(passkey.relyingParty) == normalizedRelyingParty else {
+            guard SiteHost.relyingPartyKey(passkey.relyingParty) == normalizedRelyingParty else {
                 return false
             }
 
@@ -2243,13 +2240,13 @@ final class CredentialProviderCoordinator {
     ) -> Bool {
         let excluded = Set(excludedCredentialIDs(request))
         guard !excluded.isEmpty else { return false }
-        let normalizedRelyingParty = CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(
+        let normalizedRelyingParty = SiteHost.relyingPartyKey(
             identity.relyingPartyIdentifier
         )
         return parsedEntries.contains { entry in
             guard let passkey = entry.passkeyCredential,
                   let credentialIDData = passkey.credentialIDData else { return false }
-            return CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(passkey.relyingParty) == normalizedRelyingParty
+            return SiteHost.relyingPartyKey(passkey.relyingParty) == normalizedRelyingParty
                 && excluded.contains(credentialIDData)
         }
     }
@@ -2568,7 +2565,7 @@ final class CredentialProviderCoordinator {
         }
 
         let matches = CredentialMatcher.interactiveMatches(from: totpEntries, for: serviceIdentifiers)
-        let hasHost = CredentialMatcher.firstWebHost(for: serviceIdentifiers) != nil
+        let hasHost = CredentialMatcher.hasWebHost(serviceIdentifiers)
         presentSearchView(
             entries: hasHost ? matches.exact : allTOTPEntries,
             searchEntries: allTOTPEntries,
@@ -2763,8 +2760,8 @@ final class CredentialProviderCoordinator {
         // Callers filter by relying party already; this keeps a future caller
         // from sending one site's credential ID and user handle to another.
         guard let passkey = entry.passkeyCredential,
-              CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(passkey.relyingParty)
-                == CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(relyingPartyID),
+              SiteHost.relyingPartyKey(passkey.relyingParty)
+                == SiteHost.relyingPartyKey(relyingPartyID),
               let credentialIDData = passkey.credentialIDData,
               let userHandleData = passkey.userHandleData,
               let sessionKey

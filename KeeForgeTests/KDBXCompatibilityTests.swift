@@ -1,7 +1,9 @@
 import AuthenticationServices
 import CryptoKit
+import OneTimeCodes
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 /// The authoritative KDBX edit-semantics matrix.
@@ -70,16 +72,20 @@ final class KDBXCompatibilityTests: XCTestCase {
             let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey)
             let invalid = EntryDraftPayload(title: "Invalid Notes", notes: "Example heading\u{0}\r\nExample body")
             XCTAssertThrowsError(try draft.apply(.createEntry(parentGroupID: loaded.rootGroup.id, draft: invalid))) { error in
-                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+                XCTAssertEqual(error as? KDBXDocument.TextError, .invalidXMLCharacter("\u{0}"))
             }
             XCTAssertTrue(draft.pendingEdits.isEmpty)
             let root = loaded.rootGroup.deepCopy()
-            root.entries.append(KPEntry(title: invalid.title, notes: invalid.notes))
+            let entry = KPEntry(title: invalid.title, notes: invalid.notes)
+            root.entries.append(entry)
             XCTAssertThrowsError(try KDBXWriter.write(
                 rootGroup: root, meta: loaded.meta, compositeKey: loaded.compositeKey,
                 header: loaded.header, sessionKey: loaded.sessionKey
             )) { error in
-                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+                XCTAssertEqual(error as? DocumentWriteFailure, DocumentWriteFailure(
+                    error: .invalidXMLCharacter("\u{0}", at: .init(owner: .entry(entry.id), part: .field(key: "Notes"))),
+                    ownerName: "Invalid Notes"
+                ))
             }
         }
     }
@@ -224,8 +230,6 @@ final class KDBXCompatibilityTests: XCTestCase {
         // Omit RecycleBinUUID but keep a modeled element (MaintenanceHistoryDays)
         // so the mid-list emission site is exercised, not only trailingOpaqueXML.
         let meta = KPMeta(
-            recycleBinUUID: nil,
-            hasRecycleBinUUIDElement: false,
             maintenanceHistoryDays: KPMeta.defaultMaintenanceHistoryDays,
             unknownXML: unknownXML
         )
@@ -246,8 +250,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         }
 
         func assertNoDuplication(_ reparsed: KPMeta, _ label: String) {
-            XCTAssertNil(reparsed.recycleBinUUID, label)
-            XCTAssertFalse(reparsed.hasRecycleBinUUIDElement, label)
+            XCTAssertNil(reparsed.recycleBin, label)
             XCTAssertEqual(reparsed.maintenanceHistoryDays, KPMeta.defaultMaintenanceHistoryDays, label)
             for marker in ["<Generator>", "<DatabaseName>", "<CustomData>", "SweepMetaValue"] {
                 let count = reparsed.unknownXML.nodes.filter { $0.xml.contains(marker) }.count
@@ -314,8 +317,8 @@ final class KDBXCompatibilityTests: XCTestCase {
         try KDBXCompatibilitySupport.assertLegacyFixtureIsReadOnly(bundle: bundle)
     }
 
-    /// The three master-key-change scenarios: change the password, add a key
-    /// file, and remove a key file. `Scenario.apply` already pins that the old
+    /// The master-key-change scenarios: change the password, add an existing
+    /// or a newly created key file, and remove a key file. `Scenario.apply` already pins that the old
     /// composite key fails the header HMAC and that the tree survives
     /// unchanged; this method adds the header hygiene — cipher, KDF identity,
     /// and cost parameters preserved, master seed and KDF salt rotated.
@@ -339,6 +342,17 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertNotNil(
             addKeyfileResult.rekey?.keyFileData,
             "The add-keyfile scenario must record key-file bytes for the external gate"
+        )
+
+        let addGeneratedKeyfile = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: bundle)
+        let addGeneratedKeyfileResult = try collector.run(
+            KDBXCompatibilitySupport.rekeyAddGeneratedKeyfileScenario(),
+            on: addGeneratedKeyfile
+        )
+        try assertRekeyHeaderHygiene(addGeneratedKeyfileResult, loaded: addGeneratedKeyfile)
+        XCTAssertNotNil(
+            addGeneratedKeyfileResult.rekey?.keyFileData,
+            "The add-generated-keyfile scenario must record key-file bytes for the external gate"
         )
 
         let removeKeyfile = try KDBXCompatibilitySupport.load(.passwordKeyfile, bundle: bundle)
@@ -834,6 +848,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             "\(richID)-merge-remote-divergence",
             "aes-baseline-rekey-password-only",
             "aes-baseline-rekey-add-keyfile",
+            "aes-baseline-rekey-add-generated-keyfile",
             "password-keyfile-rekey-remove-keyfile",
             "\(richID)-custom-field-edits",
             "\(richID)-rename-custom-icon",
@@ -861,7 +876,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 49)
+        XCTAssertEqual(descriptors.count, 50)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {
@@ -1147,8 +1162,8 @@ final class KDBXCompatibilityTests: XCTestCase {
             + "<String><Key>Title</Key><Value>KeePass Hex</Value></String>"
             + "<String><Key>TimeOtp-Secret-Hex</Key><Value>3132333435363738393031323334353637383930</Value></String>"
             + "</Entry></Group></Root></KeePassFile>"
-        let parsed = try KDBXParser.parseXML(
-            xmlData: Data(xml.utf8), innerStreamKey: Data(), innerStreamID: 0, sessionKey: entrySessionKey
+        let parsed = try ModelXML.parse(
+            Data(xml.utf8), innerStream: .unprotected, key: Data(), sessionKey: entrySessionKey
         )
         let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
         let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
@@ -1171,7 +1186,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         reloaded = try writeAndReload(updated)
         config = try XCTUnwrap(reloaded.totpConfig)
         XCTAssertEqual(config.keePassSecretField, .base32)
-        XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
+        XCTAssertEqual(resolvedSecret(config), Base32.decode("JBSWY3DPEHPK3PXP"))
         XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
     }
 
@@ -1194,7 +1209,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(config.period, 45)
         XCTAssertEqual(config.digits, 8)
         XCTAssertEqual(config.algorithm, .sha256)
-        XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
+        XCTAssertEqual(resolvedSecret(config), Base32.decode("JBSWY3DPEHPK3PXP"))
         XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
 
         // A later field edit makes the stored URI stale: it must be dropped,
@@ -1207,7 +1222,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         config = try XCTUnwrap(reloaded.totpConfig)
         XCTAssertNil(reloaded.otpURL)
         XCTAssertEqual(config.period, 60)
-        XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
+        XCTAssertEqual(resolvedSecret(config), Base32.decode("JBSWY3DPEHPK3PXP"))
     }
 
     @MainActor
@@ -1474,7 +1489,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         let rootGroup = KPGroup(name: "Root", entries: [entry])
         let meta = KPMeta()
 
-        var firstSerializer = KDBXXMLSerializer(
+        let firstSerializer = ModelXML.Serializer(
             rootGroup: rootGroup,
             meta: meta,
             innerStreamKey: innerStreamKey,
@@ -1490,11 +1505,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         )
         XCTAssertFalse(firstXMLString.contains("COMPAT-BYTE-IDENTITY"))
 
-        let reparsed = try KDBXXMLParser(
-            data: firstXML,
-            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: innerStreamKey),
-            sessionKey: entrySessionKey
-        ).parse()
+        let reparsed = try ModelXML.parse(firstXML, innerStream: .chaCha20, key: innerStreamKey, sessionKey: entrySessionKey)
         let reparsedEntry = try XCTUnwrap(firstEntry(titled: "Passkey Byte Identity", in: reparsed.rootGroup))
 
         XCTAssertNil(reparsedEntry.customFields[PasskeyCredential.privateKeyPEMKey])
@@ -1505,7 +1516,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(reparsedEntry.customFields["AAA Leading"], "before-pem")
         XCTAssertEqual(reparsedEntry.customFields["ZZZ Trailing"], "after-pem")
 
-        var secondSerializer = KDBXXMLSerializer(
+        let secondSerializer = ModelXML.Serializer(
             rootGroup: reparsed.rootGroup,
             meta: reparsed.meta,
             innerStreamKey: innerStreamKey,
@@ -1801,6 +1812,6 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     private func resolvedSecret(_ config: TOTPConfig) -> Data? {
-        TOTPGenerator.resolveSecret(config: config, sessionKey: entrySessionKey)?.data
+        TOTPGenerator.decryptedSecret(config: config, sessionKey: entrySessionKey)
     }
 }

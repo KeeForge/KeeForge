@@ -1,4 +1,5 @@
 import Foundation
+import KDBXXML
 
 struct EntryDraftPayload: Codable, Sendable, Equatable {
     struct TOTPConfiguration: Codable, Sendable, Equatable {
@@ -101,14 +102,14 @@ enum EntryAttachmentPayload: Codable, Sendable, Equatable {
     case new(name: String, data: Data)
 }
 
-/// Codable mirror of `KPInheritableBool`, kept separate so the KDBX model type
+/// Codable mirror of `KDBXDocument.InheritableBool`, so the package type
 /// doesn't have to carry a serialization format for the pending-edit log.
 enum InheritableBoolPayload: String, Codable, Sendable, Equatable {
     case inherit
     case enabled
     case disabled
 
-    var modelValue: KPInheritableBool {
+    var modelValue: KDBXDocument.InheritableBool {
         switch self {
         case .inherit: return .inherit
         case .enabled: return .enabled

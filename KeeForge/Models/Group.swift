@@ -1,13 +1,7 @@
 import Foundation
+import KDBXXML
 
-/// A KDBX tri-state group flag, as used by `<EnableSearching>` and
-/// `<EnableAutoType>`: an explicit yes/no, or `inherit` (serialized as `null`)
-/// meaning "take the parent's answer".
-enum KPInheritableBool: Sendable, Hashable {
-    case inherit
-    case enabled
-    case disabled
-
+extension KDBXDocument.InheritableBool {
     /// `nil` for `inherit`, so callers can fall back to the parent value with
     /// a single `??`.
     var boolValue: Bool? {
@@ -15,27 +9,6 @@ enum KPInheritableBool: Sendable, Hashable {
         case .inherit: return nil
         case .enabled: return true
         case .disabled: return false
-        }
-    }
-
-    /// Parses a KDBX element body. Returns `nil` for anything unrecognized so
-    /// the caller can leave the source element in `unknownXML` untouched
-    /// instead of rewriting it into something the original app didn't write.
-    static func parse(_ rawValue: String) -> KPInheritableBool? {
-        switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "null": return .inherit
-        case "true": return .enabled
-        case "false": return .disabled
-        default: return nil
-        }
-    }
-
-    /// KeePass casing: `True`/`False` for the booleans, lowercase `null` for inherit.
-    var xmlValue: String {
-        switch self {
-        case .inherit: return "null"
-        case .enabled: return "True"
-        case .disabled: return "False"
         }
     }
 }
@@ -71,7 +44,7 @@ final class KPGroup: Identifiable, @unchecked Sendable {
     /// KDBX `<EnableSearching>`. `nil` means the source group had no such
     /// element at all, which behaves like `.inherit` but is kept distinct so
     /// the writer doesn't add an element the original app never wrote.
-    var searchingEnabled: KPInheritableBool?
+    var searchingEnabled: KDBXDocument.InheritableBool?
     var creationTime: Date?
     var lastModificationTime: Date?
     /// KDBX `<Times>/<LocationChanged>`: when this group last changed parent.
@@ -95,7 +68,7 @@ final class KPGroup: Identifiable, @unchecked Sendable {
         entries: [KPEntry] = [],
         groups: [KPGroup] = [],
         isExpanded: Bool = true,
-        searchingEnabled: KPInheritableBool? = nil,
+        searchingEnabled: KDBXDocument.InheritableBool? = nil,
         creationTime: Date? = nil,
         lastModificationTime: Date? = nil,
         locationChanged: Date? = nil,

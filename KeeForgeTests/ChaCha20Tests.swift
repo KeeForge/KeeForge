@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 /// Known-answer tests for KDBX 4 protected values. A round trip cannot detect a
@@ -49,11 +50,7 @@ final class ChaCha20Tests: XCTestCase {
     /// values that straddle 64-byte block boundaries.
     func test_serializerProtectedValues_decryptBackThroughParser() throws {
         let xml = try Self.serializeProtectedValueEntry(sessionKey: sessionKey)
-        let parsed = try KDBXXMLParser(
-            data: xml,
-            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: Self.innerStreamKey),
-            sessionKey: sessionKey
-        ).parse()
+        let parsed = try ModelXML.parse(xml, innerStream: .chaCha20, key: Self.innerStreamKey, sessionKey: sessionKey)
 
         let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
         for value in Self.protectedValues {
@@ -72,17 +69,13 @@ final class ChaCha20Tests: XCTestCase {
         entry.customFields = Dictionary(uniqueKeysWithValues: fields.map { ($0.key, $0.value) })
         entry.protectedStringKeys = Set(fields.map(\.key))
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: KPGroup(id: UUID(), name: "Root", entries: [entry]),
             meta: KPMeta(),
             innerStreamKey: Self.innerStreamKey,
             sessionKey: sessionKey
         )
-        let parsed = try KDBXXMLParser(
-            data: try serializer.serialize(),
-            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: Self.innerStreamKey),
-            sessionKey: sessionKey
-        ).parse()
+        let parsed = try ModelXML.parse(try serializer.serialize(), innerStream: .chaCha20, key: Self.innerStreamKey, sessionKey: sessionKey)
 
         let reparsed = try XCTUnwrap(parsed.rootGroup.allEntries.first)
         for field in fields {
@@ -155,7 +148,7 @@ final class ChaCha20Tests: XCTestCase {
         entry.customFields = Dictionary(uniqueKeysWithValues: protectedValues.map { ($0.key, $0.plaintext) })
         entry.protectedStringKeys = Set(protectedValues.map(\.key))
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: KPGroup(id: UUID(), name: "Root", entries: [entry]),
             meta: KPMeta(),
             innerStreamKey: innerStreamKey,

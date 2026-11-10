@@ -3,7 +3,7 @@ import XCTest
 // Enrollment coverage for the entry editor's One-Time Password section and
 // the incoming `otpauth://` destination sheet. Camera scanning cannot be
 // driven by XCUITest (no simulator camera), and URI parsing is unit-tested
-// (`OTPAuthURITests`, `EntryEditViewModelTests`,
+// (`OneTimeCodes` package `OTPAuthURITests`, `EntryEditViewModelTests`,
 // `TOTPEnrollmentViewModelTests`); these classes prove the UI wiring only.
 @MainActor
 class TOTPEnrollmentUITestCase: UnlockedDatabaseUITestCase {

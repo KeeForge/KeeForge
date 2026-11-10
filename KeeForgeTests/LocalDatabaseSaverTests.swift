@@ -1,6 +1,7 @@
 import CryptoKit
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 final class LocalDatabaseSaverTests: XCTestCase {
@@ -13,7 +14,8 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let original = try Data(contentsOf: databaseURL)
         try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
         let root = context.draft.rootGroup
-        root.entries.append(KPEntry(notes: "Example heading\u{0}\r\nExample body"))
+        let invalidEntry = KPEntry(title: "Pending Notes", notes: "Example heading\u{0}\r\nExample body")
+        root.entries.append(invalidEntry)
         let invalidDraft = DatabaseDraft(rootGroup: root, meta: context.draft.meta, sessionKey: context.draft.writerSessionKey)
 
         do {
@@ -23,7 +25,10 @@ final class LocalDatabaseSaverTests: XCTestCase {
             )
             XCTFail("Invalid XML must not reach storage")
         } catch {
-            XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+            XCTAssertEqual(error as? DocumentWriteFailure, DocumentWriteFailure(
+                error: .invalidXMLCharacter("\u{0}", at: .init(owner: .entry(invalidEntry.id), part: .field(key: "Notes"))),
+                ownerName: "Pending Notes"
+            ))
         }
 
         XCTAssertEqual(try Data(contentsOf: databaseURL), original)

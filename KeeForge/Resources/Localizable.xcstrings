@@ -6446,6 +6446,64 @@
         }
       }
     },
+    "An earlier version of the entry “%1$@” contains an unsupported character (%2$@) in “%3$@”, so the database can’t be saved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine frühere Version des Eintrags „%1$@“ enthält in „%3$@“ ein nicht unterstütztes Zeichen (%2$@), daher kann die Datenbank nicht gespeichert werden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An earlier version of the entry “%1$@” contains an unsupported character (%2$@) in “%3$@”, so the database can’t be saved."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una versión anterior de la entrada «%1$@» contiene un carácter no compatible (%2$@) en «%3$@», por lo que no se puede guardar la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une version précédente de l'entrée « %1$@ » contient un caractère non pris en charge (%2$@) dans « %3$@ » : la base de données ne peut donc pas être enregistrée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una versione precedente della voce “%1$@” contiene un carattere non supportato (%2$@) in “%3$@”, quindi non è possibile salvare il database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリ「%1$@」の以前のバージョンの「%3$@」にサポートされていない文字（%2$@）が含まれているため、データベースを保存できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Предыдущая версия записи «%1$@» содержит неподдерживаемый символ (%2$@) в «%3$@», поэтому базу данных нельзя сохранить."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条目“%1$@”的较早的版本在“%3$@”中包含不支持的字符（%2$@），因此无法保存数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目「%1$@」的較早的版本在「%3$@」中包含不支援的字元（%2$@），因此無法儲存資料庫。"
+          }
+        }
+      }
+    },
     "Another app is already using this shortcut. Choose a different one." : {
       "localizations" : {
         "de" : {
@@ -8054,6 +8112,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 Touch ID 自動解鎖"
+          }
+        }
+      }
+    },
+    "Auto-Unlock with Touch ID prompts after a database is opened. When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach dem Öffnen einer Datenbank fordert KeeForge zur Entsperrung mit Touch ID auf. Wenn das Sperren im Hintergrund deaktiviert ist, verwendet KeeForge weiterhin die Zeit bis zur automatischen Sperre und sperrt die Datenbank, sobald die App nach Ablauf dieser Frist wieder aktiv wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tras abrir una base de datos, KeeForge solicita el desbloqueo con Touch ID. Si el bloqueo en segundo plano está desactivado, KeeForge sigue utilizando el tiempo hasta el bloqueo automático y bloquea la base de datos la próxima vez que la app vuelva a estar activa después de que ese plazo haya vencido."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après l'ouverture d'une base de données, KeeForge propose de la déverrouiller avec Touch ID. Lorsque le verrouillage en arrière-plan est désactivé, KeeForge continue d'utiliser le délai de verrouillage automatique et verrouille la base de données dès que l'app redevient active après l'expiration de ce délai."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo sblocco automatico con Touch ID viene richiesto dopo l'apertura di un database. Quando il blocco in background è disattivato, KeeForge usa comunque il tempo di blocco automatico e si blocca la prossima volta che l'app diventa attiva dopo la scadenza di quel termine."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「Touch ID で自動ロック解除」は、データベースを開いたあとに確認を求めます。バックグラウンドでのロックをオフにしている場合も、KeeForge は自動ロックまでの時間を使用し、その時間が過ぎたあとに App が次にアクティブになった時点でロックします。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автоматическая разблокировка с Touch ID запрашивается после открытия базы данных. Если блокировка в фоне выключена, KeeForge всё равно учитывает тайм-аут автоблокировки и блокирует базу данных при следующей активации приложения после истечения этого срока."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开数据库后，“使用 Touch ID 自动解锁”会弹出提示。关闭后台锁定时，KeeForge 仍会使用自动锁定时限，并在超过该期限后 App 下次变为活跃时锁定。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟資料庫後，「使用 Touch ID 自動解鎖」會顯示提示。關閉背景鎖定時，KeeForge 仍會採用自動鎖定時限，並在超過該期限後，App 下次變為使用中時鎖定。"
           }
         }
       }
@@ -15339,6 +15449,58 @@
         }
       }
     },
+    "Couldn’t Create Key File" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüsseldatei konnte nicht erstellt werden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo crear el archivo de clave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de créer le fichier de clé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile creare il file chiave"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーファイルを作成できませんでした"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось создать файл ключа"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法创建密钥文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法建立金鑰檔案"
+          }
+        }
+      }
+    },
     "Couldn't Create Passkey" : {
       "localizations" : {
         "de" : {
@@ -16537,6 +16699,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在此建立"
+          }
+        }
+      }
+    },
+    "Create Key File" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüsseldatei erstellen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crear archivo de clave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créer un fichier de clé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crea file chiave"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーファイルを作成"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создать файл ключа"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建密钥文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建立金鑰檔案"
+          }
+        }
+      }
+    },
+    "Create Key File saves a new key file where you choose. Keep a copy somewhere safe: without the key file, the database can’t be opened." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Schlüsseldatei erstellen“ speichert eine neue Schlüsseldatei an einem Ort deiner Wahl. Bewahre eine Sicherungskopie an einem sicheren Ort auf: Ohne die Schlüsseldatei lässt sich die Datenbank nicht öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Crear archivo de clave» guarda un nuevo archivo de clave donde elijas. Conserva una copia de seguridad en un lugar seguro: sin el archivo de clave, no se puede abrir la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "« Créer un fichier de clé » enregistre un nouveau fichier de clé à l'emplacement de votre choix. Conservez-en une sauvegarde en lieu sûr : sans le fichier de clé, la base de données ne peut pas être ouverte."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Crea file chiave” salva un nuovo file chiave dove scegli tu. Conservane un backup in un luogo sicuro: senza il file chiave non è possibile aprire il database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「キーファイルを作成」は、新しいキーファイルを選択した場所に保存します。バックアップを安全な場所に保管してください。キーファイルがないとデータベースを開けません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Создать файл ключа» сохраняет новый файл ключа в выбранном вами месте. Храните его резервную копию в надёжном месте: без файла ключа базу данных не открыть."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“创建密钥文件”会将新的密钥文件保存到你选择的位置。请将其备份存放在安全的地方：没有密钥文件，将无法打开数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「建立金鑰檔案」會將新的金鑰檔案儲存到你選擇的位置。請將其備份存放在安全的地方：沒有金鑰檔案，將無法開啟資料庫。"
           }
         }
       }
@@ -52115,6 +52381,58 @@
         }
       }
     },
+    "The database contains a protected value that could not be decoded." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbank enthält einen geschützten Wert, der nicht dekodiert werden konnte."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos contiene un valor protegido que no se pudo descodificar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données contient une valeur protégée qui n'a pas pu être décodée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database contiene un valore protetto che non è stato possibile decodificare."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースに、デコードできない保護された値が含まれています。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных содержит защищённое значение, которое не удалось декодировать."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库包含无法解码的受保护值。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫包含無法解碼的受保護值。"
+          }
+        }
+      }
+    },
     "The database contains an unsupported character (%@). Remove it from your text before saving." : {
       "localizations" : {
         "de" : {
@@ -52169,6 +52487,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資料庫包含不支援的字元（%@）。請在儲存前從文字中刪除該字元。"
+          }
+        }
+      }
+    },
+    "The database contains an unsupported character (%1$@) in “%2$@”, so it can’t be saved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbank enthält in „%2$@“ ein nicht unterstütztes Zeichen (%1$@) und kann daher nicht gespeichert werden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The database contains an unsupported character (%1$@) in “%2$@”, so it can’t be saved."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos contiene un carácter no compatible (%1$@) en «%2$@», por lo que no se puede guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données contient un caractère non pris en charge (%1$@) dans « %2$@ » et ne peut donc pas être enregistrée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database contiene un carattere non supportato (%1$@) in “%2$@”, quindi non può essere salvato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースの「%2$@」にサポートされていない文字（%1$@）が含まれているため、保存できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных содержит неподдерживаемый символ (%1$@) в «%2$@», поэтому её нельзя сохранить."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库的“%2$@”中包含不支持的字符（%1$@），因此无法保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫的「%2$@」中包含不支援的字元（%1$@），因此無法儲存。"
           }
         }
       }
@@ -52693,6 +53069,58 @@
         }
       }
     },
+    "The database header is damaged." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Datenbank-Header ist beschädigt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El encabezado de la base de datos está dañado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'en-tête de la base de données est endommagé."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'intestazione del database è danneggiata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースのヘッダーが破損しています。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заголовок базы данных повреждён."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库头部已损坏。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫標頭已損毀。"
+          }
+        }
+      }
+    },
     "The database is locked. Unlock it and try again." : {
       "localizations" : {
         "de" : {
@@ -53110,6 +53538,64 @@
         }
       }
     },
+    "The entry “%1$@” contains an unsupported character (%2$@) in “%3$@”. Remove it before saving." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Eintrag „%1$@“ enthält in „%3$@“ ein nicht unterstütztes Zeichen (%2$@). Entferne es vor dem Speichern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The entry “%1$@” contains an unsupported character (%2$@) in “%3$@”. Remove it before saving."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La entrada «%1$@» contiene un carácter no compatible (%2$@) en «%3$@». Elimínalo antes de guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'entrée « %1$@ » contient un caractère non pris en charge (%2$@) dans « %3$@ ». Supprimez-le avant d'enregistrer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La voce “%1$@” contiene un carattere non supportato (%2$@) in “%3$@”. Rimuovilo prima di salvare."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリ「%1$@」の「%3$@」にサポートされていない文字（%2$@）が含まれています。保存する前に削除してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись «%1$@» содержит неподдерживаемый символ (%2$@) в «%3$@». Удалите его перед сохранением."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条目“%1$@”的“%3$@”中包含不支持的字符（%2$@）。请在保存前删除该字符。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目「%1$@」的「%3$@」中包含不支援的字元（%2$@）。請在儲存前刪除該字元。"
+          }
+        }
+      }
+    },
     "The entry will be moved to the recycle bin." : {
       "localizations" : {
         "de" : {
@@ -53366,6 +53852,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "FTP 使用者名稱或密碼遭拒。"
+          }
+        }
+      }
+    },
+    "The group “%1$@” contains an unsupported character (%2$@) in “%3$@”. Remove it before saving." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Gruppe „%1$@“ enthält in „%3$@“ ein nicht unterstütztes Zeichen (%2$@). Entferne es vor dem Speichern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The group “%1$@” contains an unsupported character (%2$@) in “%3$@”. Remove it before saving."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El grupo «%1$@» contiene un carácter no compatible (%2$@) en «%3$@». Elimínalo antes de guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le groupe « %1$@ » contient un caractère non pris en charge (%2$@) dans « %3$@ ». Supprimez-le avant d'enregistrer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il gruppo “%1$@” contiene un carattere non supportato (%2$@) in “%3$@”. Rimuovilo prima di salvare."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グループ「%1$@」の「%3$@」にサポートされていない文字（%2$@）が含まれています。保存する前に削除してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Группа «%1$@» содержит неподдерживаемый символ (%2$@) в «%3$@». Удалите его перед сохранением."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "群组“%1$@”的“%3$@”中包含不支持的字符（%2$@）。请在保存前删除该字符。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "群組「%1$@」的「%3$@」中包含不支援的字元（%2$@）。請在儲存前刪除該字元。"
           }
         }
       }
@@ -56393,6 +56937,58 @@
         }
       }
     },
+    "This database is too large for KeeForge to open." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank ist zu groß, als dass KeeForge sie öffnen könnte."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos es demasiado grande para que KeeForge la abra."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données est trop volumineuse pour que KeeForge puisse l'ouvrir."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database è troppo grande perché KeeForge possa aprirlo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースは大きすぎるため、KeeForge で開けません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта база данных слишком большая, чтобы KeeForge смог её открыть."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库过大，KeeForge 无法打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫過大，KeeForge 無法開啟。"
+          }
+        }
+      }
+    },
     "This database is unavailable. Return to the database list to remove it or refresh its bookmark." : {
       "localizations" : {
         "de" : {
@@ -58441,6 +59037,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法將此項目回復至該群組。請選擇其他目的地。"
+          }
+        }
+      }
+    },
+    "This key file uses a version KeeForge does not support." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Schlüsseldatei hat eine Version, die KeeForge nicht unterstützt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo de clave usa una versión que KeeForge no admite."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier de clé utilise une version que KeeForge ne prend pas en charge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo file chiave usa una versione che KeeForge non supporta."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このキーファイルは KeeForge が対応していないバージョンです。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот файл ключа использует версию, которую KeeForge не поддерживает."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此密钥文件使用的版本 KeeForge 不支持。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此金鑰檔案使用的版本 KeeForge 不支援。"
           }
         }
       }

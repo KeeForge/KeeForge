@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import Observation
+import OneTimeCodes
 
 @MainActor @Observable
 final class EntryEditViewModel {
@@ -359,8 +360,8 @@ final class EntryEditViewModel {
         guard config.decodedSecret != nil else {
             return (try? config.secret.decrypt(using: sessionKey)) ?? ""
         }
-        return TOTPGenerator.resolveSecret(config: config, sessionKey: sessionKey)
-            .map { TOTPGenerator.base32Encode($0.data) } ?? ""
+        return TOTPGenerator.parameters(for: config, sessionKey: sessionKey)
+            .map { Base32.encode($0.secret) } ?? ""
     }
 
     private static func editableCustomFields(of entry: KPEntry) -> [CustomField] {
@@ -455,17 +456,16 @@ final class EntryEditViewModel {
     }
 
     struct TOTPPreview {
-        let config: TOTPConfig
-        let resolvedSecret: TOTPGenerator.ResolvedSecret
+        let parameters: TOTPParameters
 
-        var period: Int { max(1, config.period) }
+        var period: Int { parameters.period }
 
         func code(at date: Date) -> String {
-            TOTPGenerator.generateCode(config: config, resolvedSecret: resolvedSecret, date: date)
+            TOTP.code(for: parameters, at: date)
         }
 
         func secondsRemaining(at date: Date) -> Int {
-            TOTPGenerator.secondsRemaining(period: config.period, date: date)
+            TOTP.secondsRemaining(period: parameters.period, at: date)
         }
     }
 
@@ -477,7 +477,7 @@ final class EntryEditViewModel {
     var totpPreview: TOTPPreview? {
         guard unsupportedTOTPDigitsMessage == nil,
               let configuration = normalizedTOTPConfiguration() else { return nil }
-        // `TOTPGenerator` resolves secrets only out of `EncryptedValue`s; a
+        // `TOTPGenerator` decrypts secrets only out of `EncryptedValue`s; a
         // throwaway key keeps the preview on the exact path a saved entry takes.
         let key = SymmetricKey(size: .bits256)
         guard let config = try? TOTPConfig(
@@ -488,8 +488,8 @@ final class EntryEditViewModel {
                   digits: configuration.digits,
                   algorithm: configuration.algorithm
               ),
-              let resolvedSecret = TOTPGenerator.resolveSecret(config: config, sessionKey: key) else { return nil }
-        return TOTPPreview(config: config, resolvedSecret: resolvedSecret)
+              let parameters = TOTPGenerator.parameters(for: config, sessionKey: key) else { return nil }
+        return TOTPPreview(parameters: parameters)
     }
 
     /// A password the user is about to type is shown; one that came out of
@@ -872,7 +872,7 @@ final class EntryEditViewModel {
         // secret, or a size outside its {6, 8} whitelist) must never be
         // written: revert to the original snapshot instead.
         if keeOTPSource != nil,
-           (secretChanged && TOTPGenerator.canonicalBase32Secret(trimmedSecret) == nil)
+           (secretChanged && Base32.canonicalSecret(trimmedSecret) == nil)
                || [6, 8].contains(totpDigits) == false {
             return EntryDraftPayload.TOTPConfiguration(
                 secret: originalSnapshot.totpSecret,
@@ -889,7 +889,7 @@ final class EntryEditViewModel {
             || totpAlgorithm != originalSnapshot.totpAlgorithm
         let rewrittenSource = secretChanged || settingsChanged
             ? keeOTPSource?.rewriting(
-                secret: secretChanged ? TOTPGenerator.canonicalBase32Secret(trimmedSecret) : nil,
+                secret: secretChanged ? Base32.canonicalSecret(trimmedSecret) : nil,
                 period: totpPeriod,
                 digits: totpDigits,
                 algorithm: totpAlgorithm
@@ -911,8 +911,8 @@ final class EntryEditViewModel {
         guard keeOTPSource == nil,
               let enrolledOTPAuthURI,
               let uri = try? OTPAuthURI(string: enrolledOTPAuthURI),
-              let decoded = TOTPGenerator.base32Decode(currentSecret), !decoded.isEmpty,
-              TOTPGenerator.base32Encode(decoded) == uri.secret else { return false }
+              let decoded = Base32.decode(currentSecret), !decoded.isEmpty,
+              Base32.encode(decoded) == uri.secret else { return false }
         return true
     }
 

@@ -1,3 +1,4 @@
+import SiteMatching
 import SwiftUI
 
 struct AutoFillSearchResults {
@@ -493,7 +494,7 @@ struct AutoFillSearchView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                let hosts = Set(CredentialMatcher.webURLs(of: entry).compactMap(CredentialMatcher.hostFromURLString)).sorted()
+                let hosts = Set(CredentialMatcher.webURLs(of: entry).compactMap { SiteHost($0)?.name }).sorted()
                 if !hosts.isEmpty {
                     Text(hosts.joined(separator: ", "))
                         .font(.caption)

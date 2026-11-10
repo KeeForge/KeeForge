@@ -30,6 +30,8 @@ struct PasswordInputRow<Actions: View>: View {
     /// Off for a row that holds something other than a password, so the
     /// QuickType bar cannot offer to overwrite it with a generated one.
     private let usesPasswordAutoFill: Bool
+    /// `.vertical` lets a revealed value wrap and grow; the masked field stays one line.
+    private let axis: Axis
     private let actions: Actions
 
     init(
@@ -40,6 +42,7 @@ struct PasswordInputRow<Actions: View>: View {
         visibilityAccessibilityIdentifier: String,
         onVisibilityToggle: (() -> Void)? = nil,
         usesPasswordAutoFill: Bool = true,
+        axis: Axis = .horizontal,
         @ViewBuilder actions: () -> Actions = { EmptyView() }
     ) {
         self.title = title
@@ -49,6 +52,7 @@ struct PasswordInputRow<Actions: View>: View {
         self.visibilityAccessibilityIdentifier = visibilityAccessibilityIdentifier
         self.onVisibilityToggle = onVisibilityToggle
         self.usesPasswordAutoFill = usesPasswordAutoFill
+        self.axis = axis
         self.actions = actions()
     }
 
@@ -56,7 +60,7 @@ struct PasswordInputRow<Actions: View>: View {
         HStack(spacing: 12) {
             Group {
                 if isVisible {
-                    TextField(title, text: $text)
+                    TextField(title, text: $text, axis: axis)
                 } else {
                     SecureField(title, text: $text)
                 }

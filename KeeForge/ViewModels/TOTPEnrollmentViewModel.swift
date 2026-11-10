@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OneTimeCodes
 
 /// Decision logic for the incoming `otpauth://` enrollment flow: which live
 /// entries can receive the code, which groups can host a new entry, and how

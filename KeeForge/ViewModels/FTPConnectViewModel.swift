@@ -1,4 +1,5 @@
 import Foundation
+import RemoteFileTransports
 
 /// Drives the manual FTP connect form. Plain FTP carries the password in the
 /// clear, so connecting requires the explicit unencrypted opt-in.

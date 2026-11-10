@@ -1,5 +1,7 @@
 import CryptoKit
+import OneTimeCodes
 import XCTest
+import KDBXXML
 @testable import KeeForge
 
 @MainActor
@@ -944,7 +946,7 @@ final class EntryEditViewModelTests: XCTestCase {
         )
     }
 
-    // MARK: - TOTP secret canonicalization (base32Encode / canonicalBase32Secret)
+    // MARK: - TOTP secret canonicalization (Base32.encode / Base32.canonicalSecret)
     //
     // The helpers live on TOTPGenerator, but the KeeOTP revert-vs-rewrite
     // policy is this view model's, so it is exercised through
@@ -965,8 +967,8 @@ final class EntryEditViewModelTests: XCTestCase {
             )
         )
         let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
-        // Lowercase, RFC 4648-valid input; canonicalBase32Secret uppercases it
-        // before round-tripping through TOTPGenerator.base32Decode/base32Encode.
+        // Lowercase, RFC 4648-valid input; Base32.canonicalSecret uppercases it
+        // before round-tripping through Base32.decode/encode.
         viewModel.totpSecret = "jbswy3dpehpk3pxp"
 
         let payload = viewModel.entryDraftPayload
@@ -975,13 +977,13 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertEqual(payload.totpConfig?.secret, "jbswy3dpehpk3pxp")
         // ...while the rewritten legacy otp query embeds the canonical
         // uppercase form. Both decode to the same bytes via the public
-        // decoder either way, since TOTPGenerator.base32Decode is
+        // decoder either way, since Base32.decode is
         // case-insensitive, so this asymmetry is cosmetic, not functional.
         let rewrittenQuery = try XCTUnwrap(payload.totpConfig?.keeOTPSource?.rawQuery)
         XCTAssertTrue(rewrittenQuery.contains("key=JBSWY3DPEHPK3PXP"))
         XCTAssertEqual(
-            TOTPGenerator.base32Decode("jbswy3dpehpk3pxp"),
-            TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"),
+            Base32.decode("jbswy3dpehpk3pxp"),
+            Base32.decode("JBSWY3DPEHPK3PXP"),
             "Sanity check: the two secret representations must decode identically"
         )
     }
@@ -1000,7 +1002,7 @@ final class EntryEditViewModelTests: XCTestCase {
         )
         let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
         // '1' is not a valid base32 character (only 2-7 and A-Z), so
-        // canonicalBase32Secret must reject this outright.
+        // Base32.canonicalSecret must reject this outright.
         viewModel.totpSecret = "1NVALID1"
         // Also attempt a settings change alongside the bad secret; the revert
         // branch must discard both, not just the secret.
@@ -1028,7 +1030,7 @@ final class EntryEditViewModelTests: XCTestCase {
         let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
         // "MFRGG===" is a textbook RFC 4648 padded encoding, and differs from
         // the original secret so this counts as a real change. TOTPGenerator's
-        // decoder tolerates '=' (it just skips it), but canonicalBase32Secret
+        // decoder tolerates '=' (it just skips it), but Base32.canonicalSecret
         // requires every character to be in the unpadded A-Z/2-7 alphabet, so
         // this must fail the character-range check and trigger the same
         // whole-snapshot revert as any other invalid secret.

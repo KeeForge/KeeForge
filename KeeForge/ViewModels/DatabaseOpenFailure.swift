@@ -1,6 +1,7 @@
 import Foundation
 import LocalAuthentication
 import KDBXKit
+import KDBXXML
 #if os(iOS)
 import UIKit
 #endif
@@ -351,7 +352,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             return fromParseError(parseError, hardwareKeyContext: hardwareKeyContext).attaching(diagnostics)
         }
 
-        if error is KDBXXMLParseError {
+        if error is KDBXDocument.ReadError {
             return parseFailed(error).attaching(diagnostics)
         }
 
@@ -394,6 +395,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             errorCode = "key_file.invalid_xml_data"
         case .xmlHashMismatch:
             errorCode = "key_file.hash_mismatch"
+        case .xmlVersionUnsupported:
+            errorCode = "key_file.unsupported_version"
         }
 
         return DatabaseOpenFailure(

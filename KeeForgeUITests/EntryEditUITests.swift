@@ -402,39 +402,6 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         )
     }
 
-    func tapBackButton(file: StaticString = #filePath, line: UInt = #line) {
-        let excludedIdentifiers = Set([
-            "entry-list.add-entry",
-            "lock.button",
-            "sort.menu",
-            "settings.button",
-            "vault.more",
-            "entry-detail.edit",
-            "entry-edit.cancel",
-            "entry-edit.save",
-        ])
-        let excludedLabels = Set(["Edit", "Cancel", "Save"])
-
-        let deadline = Date().addingTimeInterval(5)
-        repeat {
-            for navigationBar in app.navigationBars.allElementsBoundByIndex
-            where navigationBar.exists && navigationBar.isHittable {
-                if let backButton = navigationBar.buttons.allElementsBoundByIndex.first(where: {
-                    $0.exists
-                        && $0.isHittable
-                        && excludedIdentifiers.contains($0.identifier) == false
-                        && excludedLabels.contains($0.label) == false
-                }) {
-                    backButton.tap()
-                    return
-                }
-            }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
-        } while Date() < deadline
-
-        XCTFail("Back button was not found", file: file, line: line)
-    }
-
     func firstRowMatching(name: String, preferredIdentifier: String) -> XCUIElement {
         let predicate = NSPredicate(format: "label CONTAINS[c] %@", name)
         let preferredQuery = app.descendants(matching: .any).matching(

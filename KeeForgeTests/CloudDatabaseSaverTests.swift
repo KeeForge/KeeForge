@@ -1,6 +1,7 @@
 import CryptoKit
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 final class CloudDatabaseSaverTests: XCTestCase {
@@ -11,7 +12,8 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Pending Valid Entry")
         let root = context.draft.rootGroup
-        root.entries.append(KPEntry(notes: "Example heading\u{0}\r\nExample body"))
+        let invalidEntry = KPEntry(title: "Pending Notes", notes: "Example heading\u{0}\r\nExample body")
+        root.entries.append(invalidEntry)
         let invalidDraft = DatabaseDraft(rootGroup: root, meta: context.draft.meta, sessionKey: context.draft.writerSessionKey)
         let recorder = UploadRecorder()
         let environment = makeEnvironment(
@@ -30,7 +32,10 @@ final class CloudDatabaseSaverTests: XCTestCase {
             )
             XCTFail("Invalid XML must not be uploaded")
         } catch {
-            XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+            XCTAssertEqual(error as? DocumentWriteFailure, DocumentWriteFailure(
+                error: .invalidXMLCharacter("\u{0}", at: .init(owner: .entry(invalidEntry.id), part: .field(key: "Notes"))),
+                ownerName: "Pending Notes"
+            ))
         }
         let uploadCount = await recorder.callCount()
         XCTAssertEqual(uploadCount, 0)

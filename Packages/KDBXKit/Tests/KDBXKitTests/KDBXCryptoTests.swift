@@ -170,13 +170,14 @@ final class KDBXCryptoTests: XCTestCase {
         XCTAssertEqual(incremental, single.xor(plaintext))
     }
 
-    func testWipeDiscardsTheKey() {
-        let key = Data(repeating: 0x5A, count: 32), nonce = Data(repeating: 0x17, count: 12)
-        var reference = KDBXCrypto.ChaCha20Keystream(key: key, nonce: nonce)
-        var wiped = KDBXCrypto.ChaCha20Keystream(key: key, nonce: nonce)
-        _ = wiped.xor(Data(count: 10))
-        wiped.wipe()
-        _ = reference.xor(Data(count: 10))
-        XCTAssertNotEqual(wiped.xor(Data(count: 64)), reference.xor(Data(count: 64)))
+    /// After `wipe()` the key words are zero and `xor` traps, so a wiped
+    /// stream can never emit a keystream from an all-zero state.
+    func testWipeDiscardsTheKeyAndRetiresTheStream() {
+        var stream = KDBXCrypto.ChaCha20Keystream(key: Data(repeating: 0x5A, count: 32), nonce: Data(repeating: 0x17, count: 12))
+        _ = stream.xor(Data(count: 10))
+        XCTAssertFalse(stream.isWiped)
+        stream.wipe()
+        XCTAssertTrue(stream.isWiped)
+        XCTAssertTrue(stream.initialState.allSatisfy { $0 == 0 })
     }
 }

@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXXML
 @testable import KeeForge
 
 /// `Meta/CustomIcons` is round-tripped verbatim, so adding an icon is a splice
@@ -76,7 +77,7 @@ final class CustomIconXMLTests: XCTestCase {
         unknownXML.append(xml: existing, insertionIndex: 3)
         let uuid = iconUUID
 
-        let updated = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: imageData, to: unknownXML))
+        let updated = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: imageData, to: KPMeta(unknownXML: unknownXML)))
 
         let fragment = try XCTUnwrap(customIconsFragment(in: updated))
         XCTAssertTrue(
@@ -96,7 +97,7 @@ final class CustomIconXMLTests: XCTestCase {
         unknownXML.append(xml: "<CustomIcons></CustomIcons>", insertionIndex: 0)
         let uuid = iconUUID
 
-        let updated = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: imageData, to: unknownXML))
+        let updated = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: imageData, to: KPMeta(unknownXML: unknownXML)))
 
         XCTAssertEqual(
             customIconsFragment(in: updated),
@@ -113,24 +114,23 @@ final class CustomIconXMLTests: XCTestCase {
         var unknownXML = OpaqueXMLNodes()
         unknownXML.append(xml: "<CustomIcons/>", insertionIndex: 0)
 
-        XCTAssertNil(CustomIconXML.adding(uuid: UUID(), imageData: imageData, to: unknownXML))
+        XCTAssertNil(CustomIconXML.adding(uuid: UUID(), imageData: imageData, to: KPMeta(unknownXML: unknownXML)))
     }
 
     func test_createsTheElementWhenTheDatabaseHasNone() throws {
         var unknownXML = OpaqueXMLNodes()
         unknownXML.append(xml: "<Generator>KeePassXC</Generator>", insertionIndex: 0)
-        let uuid = iconUUID
+        unknownXML.append(xml: "<RecycleBinEnabled>True</RecycleBinEnabled>", insertionIndex: 1)
+        let meta = KPMeta(maintenanceHistoryDays: 365, historyMaxItems: 10, unknownXML: unknownXML)
 
-        let updated = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: imageData, to: unknownXML))
+        let updated = try XCTUnwrap(CustomIconXML.adding(uuid: iconUUID, imageData: imageData, to: meta))
 
-        XCTAssertEqual(
-            customIconsFragment(in: updated),
-            "<CustomIcons>\(expectedIconElement)</CustomIcons>"
-        )
-        XCTAssertTrue(
-            updated.nodes.contains { $0.xml == "<Generator>KeePassXC</Generator>" },
-            "the Meta children that were already preserved stay preserved"
-        )
+        // KeePass writes it after <MaintenanceHistoryDays> and before <RecycleBinEnabled>.
+        XCTAssertEqual(updated.nodes, [
+            .init(insertionIndex: 0, xml: "<Generator>KeePassXC</Generator>"),
+            .init(insertionIndex: 1, xml: "<CustomIcons>\(expectedIconElement)</CustomIcons>"),
+            .init(insertionIndex: 1, xml: "<RecycleBinEnabled>True</RecycleBinEnabled>"),
+        ])
     }
 
     /// Writing `<Name>` or `<LastModificationTime>` would oblige the writer to
@@ -159,7 +159,7 @@ final class CustomIconXMLTests: XCTestCase {
             "xsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="
         var unknownXML = OpaqueXMLNodes()
         unknownXML.append(xml: "<CustomIcons></CustomIcons>", insertionIndex: 0)
-        let updated = try XCTUnwrap(CustomIconXML.adding(uuid: iconUUID, imageData: everyByte, to: unknownXML))
+        let updated = try XCTUnwrap(CustomIconXML.adding(uuid: iconUUID, imageData: everyByte, to: KPMeta(unknownXML: unknownXML)))
         let fragment = try XCTUnwrap(customIconsFragment(in: updated))
         XCTAssertEqual(
             fragment,

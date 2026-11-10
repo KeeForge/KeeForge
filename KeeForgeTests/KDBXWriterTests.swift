@@ -1,6 +1,7 @@
 import CryptoKit
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 final class KDBXWriterTests: XCTestCase {
@@ -375,8 +376,7 @@ final class KDBXWriterTests: XCTestCase {
             recycleBinUUID: recycleBinID
         )
         let meta = KPMeta(
-            recycleBinUUID: recycleBinID,
-            hasRecycleBinUUIDElement: true,
+            recycleBin: .group(recycleBinID),
             maintenanceHistoryDays: KPMeta.defaultMaintenanceHistoryDays,
             historyMaxItems: KPMeta.defaultHistoryMaxItems,
             historyMaxSize: KPMeta.defaultHistoryMaxSize
@@ -446,6 +446,42 @@ final class KDBXWriterTests: XCTestCase {
             }
             XCTAssertTrue(message.contains("iterations"))
         }
+    }
+
+    func test_invalidCharacterFailureNamesTheEntryOrGroupAndField() {
+        typealias Location = KDBXDocument.WriteError.Location
+        let groupID = UUID()
+        let entryID = UUID()
+        let untitledID = UUID()
+        let document = KDBXDocument(root: .init(groups: [KDBXDocument.Group(name: "Root", groups: [
+            KDBXDocument.Group(uuid: groupID, name: "Bank\u{0}s", entries: [
+                KDBXDocument.Entry(uuid: entryID, strings: [.init(key: "Title", value: "Checking")]),
+                KDBXDocument.Entry(uuid: untitledID),
+            ]),
+        ])]))
+        let cases: [(Location, String?, String)] = [
+            (Location(owner: .entry(entryID), part: .field(key: "UserName")), "Checking",
+             "The entry “Checking” contains an unsupported character (U+0000) in “Username”. Remove it before saving."),
+            (Location(owner: .historyEntry(entryID), part: .field(key: "PIN\u{0}")), "Checking",
+             "An earlier version of the entry “Checking” contains an unsupported character (U+0000) in “PIN”, so the database can’t be saved."),
+            (Location(owner: .group(groupID), part: .element("Name")), "Banks",
+             "The group “Banks” contains an unsupported character (U+0000) in “Name”. Remove it before saving."),
+            (Location(owner: .entry(untitledID), part: .attachment(key: "scan.pdf")), nil,
+             "The database contains an unsupported character (U+0000) in “scan.pdf”, so it can’t be saved."),
+            (Location(owner: .meta, part: .element("CustomData")), nil,
+             "The database contains an unsupported character (U+0000) in “CustomData”, so it can’t be saved."),
+            (Location(owner: .root, part: .element(nil)), nil,
+             "The database contains an unsupported character (U+0000). Remove it from your text before saving."),
+        ]
+        for (location, ownerName, message) in cases {
+            let failure = DocumentWriteFailure(.invalidXMLCharacter("\u{0}", at: location), in: document)
+            XCTAssertEqual(failure.ownerName, ownerName)
+            XCTAssertEqual(failure.errorDescription, message)
+        }
+        XCTAssertEqual(
+            KDBXDocument.WriteError.invalidXMLCharacter("\u{0}", at: Location(owner: .group(groupID), part: .element("Tags"))).errorDescription,
+            "The database contains an unsupported character (U+0000) in “Tags”, so it can’t be saved."
+        )
     }
 
     func test_writeReusedHeaderTwice_rotatesMasterSeedIVInnerStreamKeyAndKDFSalt() throws {

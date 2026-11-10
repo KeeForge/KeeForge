@@ -1,6 +1,7 @@
 #if os(iOS)
 import AVFoundation
 import CryptoKit
+import OneTimeCodes
 import SwiftUI
 import VisionKit
 
