@@ -1,6 +1,7 @@
 import CryptoKit
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 final class CloudDatabaseSaverTests: XCTestCase {
@@ -30,7 +31,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             )
             XCTFail("Invalid XML must not be uploaded")
         } catch {
-            XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+            XCTAssertEqual(error as? KDBXDocument.WriteError, .invalidXMLCharacter("\u{0}"))
         }
         let uploadCount = await recorder.callCount()
         XCTAssertEqual(uploadCount, 0)

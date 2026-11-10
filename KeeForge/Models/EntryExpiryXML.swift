@@ -1,4 +1,5 @@
 import Foundation
+import KDBXXML
 
 /// Writes an entry's expiration into its preserved `<Times>` XML.
 ///

@@ -137,7 +137,7 @@ enum ExpressUnlock {
         deriveKey: KeyDerivation = { try KDBXKeyDerivation.deriveKey(compositeKey: $0, parameters: $1, policy: $2) }
     ) throws -> Outcome {
         guard case .kdbx4 = try KDBXContainer.parseFileVersion(from: data) else {
-            let parsed = try KDBXParser.parseWithMetaAndHeader(
+            let parsed = try KDBXParser.parse(
                 data: data,
                 compositeKey: compositeKey,
                 sessionKey: sessionKey,
@@ -156,7 +156,7 @@ enum ExpressUnlock {
             var offeredCachedKey = false
             var derivedKey: ExpressUnlockKey?
             do {
-                let parsed = try KDBXParser.parseWithMetaAndHeader(data: data, sessionKey: sessionKey) { kdfParameters in
+                let parsed = try KDBXParser.parse(data: data, sessionKey: sessionKey) { kdfParameters in
                     if cachedKey.matches(kdfParameters: kdfParameters, compositeKey: compositeKey) {
                         offeredCachedKey = true
                         return cachedKey.transformedKey.withUnsafeBytes { Data($0) }
@@ -179,7 +179,7 @@ enum ExpressUnlock {
         }
 
         var derivedKey: ExpressUnlockKey?
-        let parsed = try KDBXParser.parseWithMetaAndHeader(data: data, sessionKey: sessionKey) { kdfParameters in
+        let parsed = try KDBXParser.parse(data: data, sessionKey: sessionKey) { kdfParameters in
             let derived = try derive(compositeKey, kdfParameters, kdfPolicy, deriveKey)
             derivedKey = derived.key
             return derived.bytes

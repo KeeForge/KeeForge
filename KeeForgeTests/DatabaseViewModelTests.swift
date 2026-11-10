@@ -5,6 +5,7 @@ import Security
 import SwiftUI
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 @MainActor

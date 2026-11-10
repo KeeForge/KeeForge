@@ -1,6 +1,7 @@
 import CryptoKit
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 final class KDBXRoundTripTests: XCTestCase {
@@ -25,17 +26,6 @@ final class KDBXRoundTripTests: XCTestCase {
                        try serializedXML(of: (reloaded.rootGroup, reloaded.meta)))
     }
 
-    func test_serializerRejectsEveryXMLInvalidUnicodeScalar() throws {
-        let invalid: [UInt32] = Array(0...8) + [11, 12] + Array(14...31) + [0xFFFE, 0xFFFF]
-        for codepoint in invalid {
-            let text = "Before" + String(try XCTUnwrap(Unicode.Scalar(codepoint))) + "After"
-            let root = KPGroup(name: "Root", entries: [KPEntry(notes: text)])
-            XCTAssertThrowsError(try serializedXML(of: (root, KPMeta()))) { error in
-                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(codepoint))
-            }
-        }
-    }
-
     func test_serializerRejectsNULInEveryUnprotectedTextPath() throws {
         let text = "Before\u{0}After"
         let entries = [
@@ -54,7 +44,7 @@ final class KDBXRoundTripTests: XCTestCase {
         unknownXML.append(xml: "<CustomData>\(text)</CustomData>", insertionIndex: 0)
         for root in roots {
             XCTAssertThrowsError(try serializedXML(of: (root, KPMeta()))) { error in
-                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+                XCTAssertEqual(error as? KDBXDocument.WriteError, .invalidXMLCharacter("\u{0}"))
             }
         }
         XCTAssertThrowsError(try serializedXML(of: (KPGroup(name: "Root"), KPMeta(unknownXML: unknownXML))))
@@ -75,43 +65,6 @@ final class KDBXRoundTripTests: XCTestCase {
         let xml = try serializedXML(of: (root, KPMeta()))
         XCTAssertTrue(String(decoding: xml, as: UTF8.self).contains("First&#xD;\nSecond&#xD;Third"))
         XCTAssertEqual(try parseXML(xml).rootGroup.allEntries.first?.notes, text)
-    }
-
-    func test_opaqueProtectedValueWithLowercaseTrueStaysEncryptedAcrossSave() throws {
-        var opaque = OpaqueXMLNodes()
-        opaque.append(xml: "<Vendor><Value Protected=\"True\">secret</Value></Vendor>", insertionIndex: 0)
-        let first = try serializedXML(of: (KPGroup(name: "Root"), KPMeta(unknownXML: opaque)))
-        for spelling in ["true", "TRUE", "TrUe"] {
-            let foreignXML = String(decoding: first, as: UTF8.self)
-                .replacingOccurrences(of: "Protected=\"True\"", with: "Protected=\"\(spelling)\"")
-            let parsed = try parseXML(Data(foreignXML.utf8))
-            let original = try XCTUnwrap(parsed.meta.unknownXML.nodes.first?.xml)
-            XCTAssertTrue(original.contains(">secret</Value>"))
-
-            let written = try serializedXML(of: parsed)
-            XCTAssertFalse(String(decoding: written, as: UTF8.self).contains(">secret</Value>"))
-            let reparsed = try parseXML(written)
-            XCTAssertEqual(reparsed.meta.unknownXML.nodes.first?.xml, original)
-        }
-    }
-
-    func test_opaqueTextPreservesCarriageReturnEntityAcrossSave() throws {
-        let xml = "<KeePassFile><Meta><Vendor>A&#xD;B</Vendor></Meta><Root/></KeePassFile>"
-        let parsed = try parseXML(Data(xml.utf8))
-        XCTAssertEqual(parsed.meta.unknownXML.nodes.first?.xml, "<Vendor>A&#xD;B</Vendor>")
-        let written = try serializedXML(of: parsed)
-        XCTAssertEqual(try parseXML(written).meta.unknownXML.nodes.first?.xml, "<Vendor>A&#xD;B</Vendor>")
-    }
-
-    func test_opaqueProtectedValuePreservesCarriageReturnAcrossSave() throws {
-        var opaque = OpaqueXMLNodes()
-        opaque.append(xml: "<Vendor><Value Protected=\"True\">A\rB</Value></Vendor>", insertionIndex: 0)
-        let first = try serializedXML(of: (KPGroup(name: "Root"), KPMeta(unknownXML: opaque)))
-        let parsed = try parseXML(first)
-        let original = try XCTUnwrap(parsed.meta.unknownXML.nodes.first?.xml)
-        XCTAssertTrue(original.contains(">A&#xD;B</Value>"))
-        let written = try serializedXML(of: parsed)
-        XCTAssertEqual(try parseXML(written).meta.unknownXML.nodes.first?.xml, original)
     }
 
     func test_parserPreservesWhitespaceInImportedGroupNamesAndKeys() throws {
@@ -771,7 +724,7 @@ final class KDBXRoundTripTests: XCTestCase {
     func test_protectedValues_reEncryptedDeterministically_roundTrip() throws {
         let parsed = try parseFixture(.test)
 
-        var serializerA = KDBXXMLSerializer(
+        let serializerA = ModelXML.Serializer(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -779,7 +732,7 @@ final class KDBXRoundTripTests: XCTestCase {
         )
         let xmlA = try serializerA.serialize()
 
-        var serializerB = KDBXXMLSerializer(
+        let serializerB = ModelXML.Serializer(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -802,7 +755,7 @@ final class KDBXRoundTripTests: XCTestCase {
     func test_serializerEmitsValidXML_isUTF8WithBOM() throws {
         let parsed = try parseFixture(.test)
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -843,7 +796,7 @@ final class KDBXRoundTripTests: XCTestCase {
     private func serializeAndParse(
         _ parsed: (rootGroup: KPGroup, meta: KPMeta)
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -854,12 +807,11 @@ final class KDBXRoundTripTests: XCTestCase {
     }
 
     private func parseXML(_ xmlData: Data) throws -> (rootGroup: KPGroup, meta: KPMeta) {
-        let parser = try KDBXXMLParser(
-            data: xmlData,
-            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: roundTripInnerStreamKey),
+        try ModelXML.parse(
+            xmlData,
+            innerStream: .chaCha20, key: roundTripInnerStreamKey,
             sessionKey: roundTripSessionKey
         )
-        return try parser.parse()
     }
 
     private func controlledUnknownsEntry(in rootGroup: KPGroup) throws -> KPEntry {
@@ -881,74 +833,7 @@ final class KDBXRoundTripTests: XCTestCase {
             }
     }
 
-    // MARK: - Regression: base64 dates containing 'T' must parse
-
-    func test_parseKPDate_base64WithLetterT_roundTrips() throws {
-        // "9eT23g4AAAA=" is a valid KDBX4 base64 timestamp whose encoding
-        // contains the letter 'T'. A naive "contains T → ISO-8601" heuristic
-        // would misroute this string and silently lose the date.
-        let entry = KPEntry(
-            title: "Date-T",
-            creationTime: Date(timeIntervalSinceReferenceDate: 0)
-        )
-        let root = KPGroup(name: "Root", entries: [entry])
-        let parsed = (rootGroup: root, meta: KPMeta())
-        let reparsed = try serializeAndParse(parsed)
-        let reparsedEntry = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
-        XCTAssertNotNil(reparsedEntry.creationTime, "CreationTime should survive round-trip")
-        XCTAssertEqual(
-            entry.creationTime!.timeIntervalSinceReferenceDate,
-            reparsedEntry.creationTime!.timeIntervalSinceReferenceDate,
-            accuracy: 1.0
-        )
-    }
-
-    func test_extremeBinaryTimestampsSerializeWithoutTrappingAndSaturate() throws {
-        let maximumTimestamp = binaryTimestamp(Int64.max)
-        let minimumTimestamp = binaryTimestamp(Int64.min)
-        let xml = """
-        <KeePassFile><Root><Group><Name>Root</Name><Entry>
-        <Times><CreationTime>\(maximumTimestamp)</CreationTime><LastModificationTime>\(minimumTimestamp)</LastModificationTime></Times>
-        <String><Key>Title</Key><Value>Extreme Dates</Value></String>
-        </Entry></Group></Root></KeePassFile>
-        """
-
-        let parsed = try parseXML(Data(xml.utf8))
-        var serializer = KDBXXMLSerializer(
-            rootGroup: parsed.rootGroup,
-            meta: parsed.meta,
-            innerStreamKey: roundTripInnerStreamKey,
-            sessionKey: roundTripSessionKey
-        )
-
-        let serialized = try serializer.serialize()
-        let serializedXML = String(decoding: serialized, as: UTF8.self)
-
-        XCTAssertTrue(serializedXML.contains("<CreationTime>\(maximumTimestamp)</CreationTime>"))
-        XCTAssertTrue(serializedXML.contains("<LastModificationTime>\(minimumTimestamp)</LastModificationTime>"))
-        XCTAssertNoThrow(try parseXML(serialized))
-    }
-
-    func test_ordinaryBinaryTimestampStillRoundTripsExactly() throws {
-        let timestamp = binaryTimestamp(63_113_904_000)
-        let xml = """
-        <KeePassFile><Root><Group><Name>Root</Name><Entry>
-        <Times><CreationTime>\(timestamp)</CreationTime></Times>
-        <String><Key>Title</Key><Value>Ordinary Date</Value></String>
-        </Entry></Group></Root></KeePassFile>
-        """
-
-        let parsed = try parseXML(Data(xml.utf8))
-        var serializer = KDBXXMLSerializer(
-            rootGroup: parsed.rootGroup,
-            meta: parsed.meta,
-            innerStreamKey: roundTripInnerStreamKey,
-            sessionKey: roundTripSessionKey
-        )
-        let serializedXML = String(decoding: try serializer.serialize(), as: UTF8.self)
-
-        XCTAssertTrue(serializedXML.contains("<CreationTime>\(timestamp)</CreationTime>"))
-    }
+    // MARK: - Expiry
 
     func test_entryExpiry_parsesAndSurvivesRoundTrip() throws {
         let xml = """
@@ -1094,7 +979,7 @@ final class KDBXRoundTripTests: XCTestCase {
         )
         let root = KPGroup(name: "Root", entries: [entry])
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: root,
             meta: KPMeta(),
             innerStreamKey: roundTripInnerStreamKey,
@@ -1146,7 +1031,7 @@ final class KDBXRoundTripTests: XCTestCase {
     func test_enableSearching_absentElement_isNotAddedOnWrite() throws {
         let root = KPGroup(name: "Root", groups: [KPGroup(name: "Plain")])
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: root,
             meta: KPMeta(),
             innerStreamKey: roundTripInnerStreamKey,
@@ -1168,7 +1053,7 @@ final class KDBXRoundTripTests: XCTestCase {
             groups: [KPGroup(name: "Hidden", searchingEnabled: .disabled)]
         )
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: root,
             meta: KPMeta(),
             innerStreamKey: roundTripInnerStreamKey,
@@ -1193,7 +1078,7 @@ final class KDBXRoundTripTests: XCTestCase {
         let weird = try XCTUnwrap(container.groups.first)
         XCTAssertNil(weird.searchingEnabled, "\"maybe\" is not a tri-state value")
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -1223,7 +1108,7 @@ final class KDBXRoundTripTests: XCTestCase {
         """
 
         let parsed = try parseXML(Data(xml.utf8))
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -1271,7 +1156,7 @@ final class KDBXRoundTripTests: XCTestCase {
             .setGroupSearchingEnabled(groupID: weird.id, value: .disabled)
         )
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: updated.rootGroup,
             meta: updated.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -1321,7 +1206,7 @@ final class KDBXRoundTripTests: XCTestCase {
             .setGroupSearchingEnabled(groupID: other.id, value: .disabled)
         )
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: updated.rootGroup,
             meta: updated.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -1374,7 +1259,7 @@ final class KDBXRoundTripTests: XCTestCase {
     func test_groupTags_absentElement_isNotAddedOnWrite() throws {
         let root = KPGroup(name: "Root", groups: [KPGroup(name: "Plain")])
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: root,
             meta: KPMeta(),
             innerStreamKey: roundTripInnerStreamKey,
@@ -1398,7 +1283,7 @@ final class KDBXRoundTripTests: XCTestCase {
             groups: [KPGroup(name: "Tagged", tags: ["team", "shared"], hasTagsElement: true)]
         )
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: root,
             meta: KPMeta(),
             innerStreamKey: roundTripInnerStreamKey,
@@ -1415,7 +1300,7 @@ final class KDBXRoundTripTests: XCTestCase {
             groups: [KPGroup(name: "Empty", hasTagsElement: true)]
         )
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: root,
             meta: KPMeta(),
             innerStreamKey: roundTripInnerStreamKey,
@@ -1474,7 +1359,7 @@ final class KDBXRoundTripTests: XCTestCase {
         let originalContainer = try XCTUnwrap(parsed.rootGroup.groups.first)
         let originalNested = try XCTUnwrap(originalContainer.groups.first)
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -1672,7 +1557,7 @@ final class KDBXRoundTripTests: XCTestCase {
     func test_groupNotes_absentElement_isNotAddedOnWrite() throws {
         let root = KPGroup(name: "Root", groups: [KPGroup(name: "Plain")])
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: root,
             meta: KPMeta(),
             innerStreamKey: roundTripInnerStreamKey,
@@ -1695,7 +1580,7 @@ final class KDBXRoundTripTests: XCTestCase {
             groups: [KPGroup(name: "Ordered", notes: "a note", hasNotesElement: true)]
         )
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: root,
             meta: KPMeta(),
             innerStreamKey: roundTripInnerStreamKey,
@@ -1733,7 +1618,7 @@ final class KDBXRoundTripTests: XCTestCase {
         let originalNested = try XCTUnwrap(originalContainer.groups.first)
         XCTAssertEqual(originalNested.notes, "first line\nsecond line")
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -1827,7 +1712,7 @@ final class KDBXRoundTripTests: XCTestCase {
         )
         XCTAssertEqual(try KDBXContainer.parseFileVersion(from: written), .kdbx4(minor: 1))
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: updated.rootGroup,
             meta: updated.meta,
             innerStreamKey: Data("Restore Reference Inner Stream Key".utf8),
@@ -1979,7 +1864,7 @@ final class KDBXRoundTripTests: XCTestCase {
         )
         XCTAssertFalse(entry.unknownXML.nodes.contains { $0.xml.hasPrefix("<LocationChanged>") })
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -2008,7 +1893,7 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertNil(group.locationChanged)
         XCTAssertNil(try XCTUnwrap(group.entries.first).locationChanged)
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -2044,7 +1929,7 @@ final class KDBXRoundTripTests: XCTestCase {
         """
 
         let parsed = try parseXML(Data(xml.utf8))
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -2074,7 +1959,7 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(preserved.path, ["Times"])
         XCTAssertEqual(preserved.xml, "<LocationChanged>not-a-timestamp</LocationChanged>")
 
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             innerStreamKey: roundTripInnerStreamKey,
@@ -2121,7 +2006,7 @@ final class KDBXRoundTripTests: XCTestCase {
         for fixture in Self.timesOrderFixtures {
             let sourceXML = String(decoding: try decryptedXML(of: fixture), as: UTF8.self)
             let parsed = try parseFixture(fixture)
-            var serializer = KDBXXMLSerializer(
+            let serializer = ModelXML.Serializer(
                 rootGroup: parsed.rootGroup,
                 meta: parsed.meta,
                 innerStreamKey: roundTripInnerStreamKey,
@@ -2239,7 +2124,7 @@ final class KDBXRoundTripTests: XCTestCase {
     }
 
     private func serializedXML(of parsed: (rootGroup: KPGroup, meta: KPMeta)) throws -> Data {
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             innerStreamKey: roundTripInnerStreamKey,

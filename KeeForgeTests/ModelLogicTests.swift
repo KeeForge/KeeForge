@@ -1,4 +1,5 @@
 import XCTest
+import KDBXXML
 @testable import KeeForge
 
 final class ModelLogicTests: XCTestCase {
@@ -209,58 +210,6 @@ final class ModelLogicTests: XCTestCase {
         )
 
         XCTAssertEqual(titles(root.autoFillEntries(excludingGroupID: nil)), ["top", "nested"])
-    }
-
-    func testInheritableBoolParsingIsCaseInsensitiveAndRejectsGarbage() {
-        XCTAssertEqual(KPInheritableBool.parse("True"), .enabled)
-        XCTAssertEqual(KPInheritableBool.parse("true"), .enabled)
-        XCTAssertEqual(KPInheritableBool.parse("FALSE"), .disabled)
-        XCTAssertEqual(KPInheritableBool.parse(" null \n"), .inherit)
-        XCTAssertNil(KPInheritableBool.parse(""))
-        XCTAssertNil(KPInheritableBool.parse("0"))
-        XCTAssertNil(KPInheritableBool.parse("yes"))
-    }
-
-    // MARK: - OpaqueXMLNodes element-name handling
-
-    func testOpaqueNodeElementNameReadsTheOutermostStartTag() {
-        func name(_ xml: String) -> String? {
-            OpaqueXMLNodes.Node(insertionIndex: 0, xml: xml).elementName
-        }
-
-        XCTAssertEqual(name("<EnableSearching>maybe</EnableSearching>"), "EnableSearching")
-        XCTAssertEqual(name("<EnableSearching/>"), "EnableSearching")
-        XCTAssertEqual(name("<EnableSearching />"), "EnableSearching")
-        XCTAssertEqual(name("<Value Protected=\"True\">x</Value>"), "Value")
-        XCTAssertNil(name("<!-- a comment -->"))
-        XCTAssertNil(name("<?xml version=\"1.0\"?>"))
-        XCTAssertNil(name("stray text"))
-        XCTAssertNil(name(""))
-    }
-
-    func testRemoveDirectChildrenDropsOnlyMatchingTopLevelNodes() {
-        var nodes = OpaqueXMLNodes()
-        nodes.append(xml: "<Notes>keep</Notes>", insertionIndex: 1)
-        nodes.append(xml: "<EnableSearching>maybe</EnableSearching>", insertionIndex: 1)
-        nodes.append(xml: "<EnableSearchingExtra>keep</EnableSearchingExtra>", insertionIndex: 2)
-        nodes.append(xml: "<EnableSearching>nested</EnableSearching>", path: ["Times"], insertionIndex: 0)
-
-        nodes.removeDirectChildren(named: "EnableSearching")
-
-        XCTAssertEqual(
-            nodes.nodes.map(\.xml),
-            [
-                "<Notes>keep</Notes>",
-                "<EnableSearchingExtra>keep</EnableSearchingExtra>",
-                "<EnableSearching>nested</EnableSearching>",
-            ],
-            "Only direct children with an exact name match are dropped"
-        )
-        XCTAssertEqual(
-            nodes.xmlFragments(insertionIndex: 1),
-            ["<Notes>keep</Notes>"],
-            "Surviving siblings keep their insertion index"
-        )
     }
 
     // MARK: - KeeOTPSource.rewriting

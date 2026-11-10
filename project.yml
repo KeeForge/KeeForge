@@ -24,6 +24,8 @@ settings:
 packages:
   KDBXKit:
     path: Packages/KDBXKit
+  KDBXXML:
+    path: Packages/KDBXXML
   KeeForgeTwofish:
     path: Vendor/KeeForgeTwofish
   SwiftyDropbox:
@@ -119,6 +121,7 @@ targets:
         embed: true
         codeSign: true
       - package: KDBXKit
+      - package: KDBXXML
       - package: SwiftyDropbox
       - package: MSAL
       - package: swift-psl
@@ -201,6 +204,7 @@ targets:
         embed: true
         codeSign: true
       - package: KDBXKit
+      - package: KDBXXML
       - package: swift-psl
         product: PublicSuffixList
     sources:
@@ -262,6 +266,7 @@ targets:
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
       - package: KDBXKit
+      - package: KDBXXML
       - package: swift-psl
         product: PublicSuffixList
     sources:
@@ -337,6 +342,7 @@ targets:
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
       - package: KDBXKit
+      - package: KDBXXML
       - package: swift-psl
         product: PublicSuffixList
     sources:

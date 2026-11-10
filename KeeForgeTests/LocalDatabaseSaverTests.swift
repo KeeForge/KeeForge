@@ -1,6 +1,7 @@
 import CryptoKit
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 final class LocalDatabaseSaverTests: XCTestCase {
@@ -23,7 +24,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             )
             XCTFail("Invalid XML must not reach storage")
         } catch {
-            XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+            XCTAssertEqual(error as? KDBXDocument.WriteError, .invalidXMLCharacter("\u{0}"))
         }
 
         XCTAssertEqual(try Data(contentsOf: databaseURL), original)

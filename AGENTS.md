@@ -30,7 +30,7 @@ Before changing a folder, read its `AGENTS.md` and each parent's up to this file
 - Use `@Observable`, not `ObservableObject` / `@Published`.
 - Use `NavigationStack` with typed routes, not `NavigationView`. Keep SwiftUI navigation objects out of shared view models.
 - Keep crypto, parsing, and secret handling off the main thread.
-- Treat the `Packages/KDBXKit` package (the KDBX container, crypto, and key files) and these `KeeForge/Models/` files as stable core: `KDBXParser.swift`, `KDBXWriter.swift`, `KDBXXMLSerializer.swift`, `OpaqueXMLNodes.swift`, `DatabaseDraft.swift`, `EntryEdit.swift`, `Entry.swift`, `Group.swift`, `EncryptedValue.swift`, `TOTPGenerator.swift`. Change them only for real bugs or intentional format/security work, and add focused tests.
+- Treat the `Packages/KDBXKit` package (the KDBX container, crypto, and key files), the `Packages/KDBXXML` package (the database XML), and these `KeeForge/Models/` files as stable core: `KDBXParser.swift`, `KDBXWriter.swift`, `DatabaseDraft.swift`, `EntryEdit.swift`, `Entry.swift`, `Group.swift`, `EncryptedValue.swift`, `TOTPGenerator.swift`. Change them only for real bugs or intentional format/security work, and add focused tests.
 - No force unwraps outside tests.
 - Comment only what the code cannot say: a non-obvious constraint, a format or platform quirk, or the reason for a surprising choice. One short line, never a restatement, control-flow narration, or change history ("was X, now Y"); that belongs in the commit message.
 

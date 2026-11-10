@@ -1,4 +1,5 @@
 import Foundation
+import KDBXXML
 
 /// Edits individual icons inside the preserved `Meta/CustomIcons` fragment.
 /// Neighboring icons, image bytes, and vendor fields stay byte-identical.

@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXXML
 @testable import KeeForge
 
 @MainActor

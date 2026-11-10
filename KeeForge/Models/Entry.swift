@@ -1,4 +1,5 @@
 import Foundation
+import KDBXXML
 
 /// Represents a single KeePass entry (password record)
 struct KPEntry: Identifiable, Sendable {

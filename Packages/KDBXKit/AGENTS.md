@@ -1,6 +1,6 @@
 # KDBXKit
 
-**Scope:** the KDBX container as a standalone Swift package: outer and inner headers, key derivation (AES-KDF, Argon2), composite keys and key files, HMAC block framing, outer ciphers, compression, and the inner random stream for protected values. Reading yields `KDBXContainer.Payload` (header plus XML); writing seals XML the caller serialized. The XML's meaning, KeeForge's model, and everything above it live in `KeeForge/Models/`.
+**Scope:** the KDBX container as a standalone Swift package: outer and inner headers, key derivation (AES-KDF, Argon2), composite keys and key files, HMAC block framing, outer ciphers, compression, and the inner random stream for protected values. Reading yields `KDBXContainer.Payload` (header plus XML); writing seals XML the caller serialized. The XML itself is `../KDBXXML`; KeeForge's model and everything above it live in `KeeForge/Models/`.
 
 ## Invariants
 
