@@ -339,5 +339,7 @@ Each slice ships on its own and leaves the app working.
     the iOS 27.1 SDK; until then the iPhone screenshots are used.
 - **Still open.** Whether a Touch ID prompt or an AutoFill sheet survives an
   open or close mid-prompt has no public answer and needs a device; both
-  fail safe (the prompt cancels and the unlock page shows). Question 5 is an
-  owner decision.
+  fail safe (the prompt cancels and the unlock page shows).
+- **Unlock text (question 5).** Decided: dropping a half-typed master password
+  and key-file choice on a switch is acceptable. They stay out of workspace
+  state, so the secret lives no longer than the unlock screen that holds it.
