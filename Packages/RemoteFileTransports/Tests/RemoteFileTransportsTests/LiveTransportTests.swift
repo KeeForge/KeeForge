@@ -137,7 +137,9 @@ final class WebDAVLiveTransportTests: XCTestCase {
             _ = try await client.head(url: url(port, "/"), credential: credential)
             XCTFail("expected a throw")
         } catch {
-            XCTAssertEqual(error as? WebDAVError, .offline(.cannotConnectToHost))
+            // A listener still closing drops the connection instead of refusing it.
+            let offline: [WebDAVError] = [.offline(.cannotConnectToHost), .offline(.networkConnectionLost)]
+            XCTAssertTrue((error as? WebDAVError).map(offline.contains) ?? false, "\(error)")
         }
     }
 
