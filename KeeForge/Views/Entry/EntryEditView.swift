@@ -469,7 +469,8 @@ struct EntryEditView: View {
                         fieldAccessibilityIdentifier: "entry-edit.custom-field.value-field.\(index)",
                         visibilityAccessibilityIdentifier: "entry-edit.custom-field.value-visibility-button.\(index)",
                         onVisibilityToggle: { toggleCustomFieldVisibility(id) },
-                        usesPasswordAutoFill: false
+                        usesPasswordAutoFill: false,
+                        axis: .vertical
                     )
                 } else {
                     TextField(String(localized: "Field Value"), text: field.value, axis: .vertical)

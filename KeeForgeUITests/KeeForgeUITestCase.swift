@@ -664,6 +664,51 @@ class KeeForgeUITestCase: XCTestCase {
         XCTAssertFalse(isDatabaseDetailsHubShowing(), "The '\(page.rawValue)' page did not open", file: file, line: line)
     }
 
+    /// The system back button that can take a tap. The closed iPhone Duo's
+    /// outer display moves it out of the navigation bar into a toolbar rail
+    /// down the right edge, so it is found by identifier anywhere.
+    func visibleBackButton() -> XCUIElement? {
+        app.buttons.matching(identifier: "BackButton").allElementsBoundByIndex
+            .first { isSafeToHitTest($0) }
+    }
+
+    func tapBackButton(file: StaticString = #filePath, line: UInt = #line) {
+        let excludedIdentifiers = Set([
+            "entry-list.add-entry",
+            "lock.button",
+            "sort.menu",
+            "settings.button",
+            "vault.more",
+            "entry-detail.edit",
+            "entry-edit.cancel",
+            "entry-edit.save",
+        ])
+        let excludedLabels = Set(["Edit", "Cancel", "Save"])
+
+        let deadline = Date().addingTimeInterval(5)
+        repeat {
+            if let backButton = visibleBackButton() {
+                backButton.tap()
+                return
+            }
+            for navigationBar in app.navigationBars.allElementsBoundByIndex
+            where navigationBar.exists && navigationBar.isHittable {
+                if let backButton = navigationBar.buttons.allElementsBoundByIndex.first(where: {
+                    $0.exists
+                        && $0.isHittable
+                        && excludedIdentifiers.contains($0.identifier) == false
+                        && excludedLabels.contains($0.label) == false
+                }) {
+                    backButton.tap()
+                    return
+                }
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        } while Date() < deadline
+
+        XCTFail("Back button was not found", file: file, line: line)
+    }
+
     /// iOS 27.0 keeps the hub's Close button in the tree under a pushed page,
     /// so only a hittable one means the hub is on screen.
     func isDatabaseDetailsHubShowing() -> Bool {
@@ -676,7 +721,7 @@ class KeeForgeUITestCase: XCTestCase {
     func returnToDatabaseDetailsHub(file: StaticString = #filePath, line: UInt = #line) {
         let deadline = Date().addingTimeInterval(10)
         while isDatabaseDetailsHubShowing() == false, Date() < deadline {
-            let backButton = app.navigationBars.allElementsBoundByIndex
+            let backButton = visibleBackButton() ?? app.navigationBars.allElementsBoundByIndex
                 .filter { $0.exists && $0.isHittable }
                 .flatMap { $0.buttons.allElementsBoundByIndex }
                 .first { $0.exists && $0.identifier != "database-details.close" && $0.isHittable }
@@ -971,7 +1016,9 @@ class KeeForgeUITestCase: XCTestCase {
     /// scrolled needs a swipe back down before the field exists at all.
     func activateSearchField(file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
         let searchField = app.searchFields["Search entries"].firstMatch
-        if searchField.waitForExistence(timeout: 1) == false, let container = scrollableContainer() {
+        if searchField.waitForExistence(timeout: 1) == false,
+           app.expandCollapsedSearch() == false || searchField.waitForExistence(timeout: 2) == false,
+           let container = scrollableContainer() {
             container.swipeDown()
         }
 
@@ -1208,12 +1255,11 @@ class KeeForgeUITestCase: XCTestCase {
             endSearchButton.tap()
         }
 
-        let backButton = app.navigationBars.buttons["BackButton"].firstMatch
         for _ in 0..<6 {
             if waitForDatabaseView(.groups, timeout: 1) {
                 return
             }
-            guard isSafeToHitTest(backButton) else { break }
+            guard let backButton = visibleBackButton() else { break }
             backButton.tap()
         }
         XCTAssertTrue(
@@ -1381,5 +1427,18 @@ class KeeForgeUITestCase: XCTestCase {
             return title
         }
         return rawLabel
+    }
+}
+
+extension XCUIApplication {
+    /// The closed iPhone Duo's outer display collapses `.searchable` into a
+    /// Search button in the toolbar rail; the field exists only once it is
+    /// tapped. Returns whether there was such a button to tap.
+    @discardableResult
+    func expandCollapsedSearch() -> Bool {
+        let searchButton = toolbars.buttons["Search"].firstMatch
+        guard searchButton.exists, searchButton.isHittable else { return false }
+        searchButton.tap()
+        return true
     }
 }

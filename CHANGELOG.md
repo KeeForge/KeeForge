@@ -7,6 +7,7 @@
 - KeeForge for Mac can be installed with Homebrew: `brew install --cask keeforge/tap/keeforge` installs the direct-download build, which then updates itself (#254). See [KeeForge/homebrew-tap](https://github.com/KeeForge/homebrew-tap) for the one-time `brew trust` step.
 - iPhone Duo support: opening the phone switches to the iPad layout, with the list beside the entry, and closing it switches back. The open group, the entry you were viewing, search, selected entries, and an unsaved new or edited entry or group all stay as they were. The same now holds when you resize KeeForge's window on iPad.
 - The password generator creates passwords up to 128 characters long; before, the length slider stopped at 64 (#272).
+- A protected custom field, once revealed in the entry editor, edits in a box that wraps and grows over several lines, like other custom fields. Before, it edited on a single line, which made long values such as secure notes hard to change (#284).
 - Create Key File makes a new key file while you create a database or change its master key, so you no longer need another KeePass app for it. KeeForge saves it where you choose as a KeePass `.keyx` file, which KeePass and KeePassXC also open. Keep a copy somewhere safe: without the key file, the database can't be opened (#273).
 
 ### Fixes
@@ -22,6 +23,7 @@
 - In the Mac app downloaded from the website, the update window shows the release notes instead of a GitHub page.
 - In AutoFill, entering the master password for a database whose saved key file can't be read now says that the key file is the problem. Before, AutoFill tried the password without the key file and reported a wrong password or a corrupted file, even when the password was correct (#274).
 - An XML key file with a non-ASCII character near its start now opens its database. Before, KeeForge could misread it as a plain file and derive the wrong key.
+- On iPhone and iPad with Touch ID, the Auto-Unlock setting now says Touch ID instead of Face ID.
 
 ### Changes
 

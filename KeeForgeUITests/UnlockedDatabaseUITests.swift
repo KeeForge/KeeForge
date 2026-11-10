@@ -1171,6 +1171,10 @@ final class ProtectedCustomFieldUITests: UnlockedDatabaseUITestCase {
         let revealed = app.textFields["entry-edit.custom-field.value-field.0"]
         XCTAssertTrue(revealed.waitForExistence(timeout: 5), "Protected value did not appear after reveal")
         XCTAssertEqual(revealed.value as? String, "custom-secret")
+
+        // A single-line field ends editing on Return instead of inserting a line break.
+        replaceText(in: revealed, with: "line one\nline two")
+        XCTAssertEqual(revealed.value as? String, "line one\nline two", "Revealed protected value did not accept a line break")
     }
 }
 

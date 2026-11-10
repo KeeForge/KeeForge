@@ -316,8 +316,30 @@ Each slice ships on its own and leaves the app working.
 - **Vertical bars.** On the outer display iOS 27 puts navigation bars
   vertically down the right edge, for every screen, not only sheets. The app
   works there, but the shared UI-test helpers for Back and search look for a
-  horizontal top bar, so ten tests in five classes fail on the closed Duo
-  simulator. The Duo CI lane runs `LayoutSwitchUITests` only until the
-  helpers handle the vertical bar.
-- **Still open.** Questions 1 (scene phase on a real device), 4 (App Store
-  screenshots) and 5 need a physical iPhone Duo or an owner decision.
+  horizontal top bar, so ten tests in five classes failed on the closed Duo
+  simulator. The helpers now also look in the right-edge bar, and the Duo CI
+  lane runs the layout, AutoFill picker, creation, entry and tag classes.
+- **Device Hub poses.** Driving Device Hub by hand on the iOS 27.1 simulator:
+  an entry editor with an unsaved title stayed open, with its text, through
+  Open → Closed → Open → Partially Open. Partially Open keeps the regular
+  layout. The database stayed unlocked throughout.
+- **Answered by research (no device).**
+  - *Scene phase (question 1).* Apple's developer-forum answers describe
+    open and close as a window resize on the same scene, not a trip to the
+    background, and no setting that backgrounds the app on close turned up. Lock-on-background therefore does not fire on a switch; the
+    auto-lock timer and screen lock still apply. A brief `.inactive` during
+    the animation is undocumented. The app's covers already handle
+    `.inactive` without locking, so either answer is safe.
+  - *Biometrics.* The iPhone Duo has Touch ID in the side button and no Face
+    ID. Unlock buttons and error copy already follow the device's biometry
+    type; the iOS Settings toggle and its footer said "Face ID" on every
+    device and now say "Touch ID" on Touch ID devices.
+  - *App Store screenshots (question 4).* App Store Connect has an iPhone Duo
+    screenshot class. It is optional until April 2027 for apps built with
+    the iOS 27.1 SDK; until then the iPhone screenshots are used.
+- **Still open.** Whether a Touch ID prompt or an AutoFill sheet survives an
+  open or close mid-prompt has no public answer and needs a device; both
+  fail safe (the prompt cancels and the unlock page shows).
+- **Unlock text (question 5).** Decided: dropping a half-typed master password
+  and key-file choice on a switch is acceptable. They stay out of workspace
+  state, so the secret lives no longer than the unlock screen that holds it.
