@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.22.0 (2026-11-10)
+
 ### New Features
 
 - On iPhone and iPad, insert a verification code through the system AutoFill text menu when an app does not recognize its code field.

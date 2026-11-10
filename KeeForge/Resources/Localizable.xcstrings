@@ -4054,6 +4054,58 @@
         }
       }
     },
+    "A new look for iPhone and iPad" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein neuer Look für iPhone und iPad"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un nuevo aspecto para iPhone y iPad"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un nouveau look pour iPhone et iPad"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un nuovo look per iPhone e iPad"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone と iPad の新しいデザイン"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новый облик для iPhone и iPad"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone 和 iPad 的全新外观"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone 和 iPad 的全新外觀"
+          }
+        }
+      }
+    },
     "A newer copy was downloaded. Lock the database and unlock it again with your YubiKey to open it." : {
       "localizations" : {
         "de" : {
@@ -16547,6 +16599,58 @@
         }
       }
     },
+    "Create a key file in KeeForge" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüsseldatei in KeeForge erstellen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crea un archivo de clave en KeeForge"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créez un fichier de clé dans KeeForge"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crea un file chiave in KeeForge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge でキーファイルを作成"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создавайте файл ключа в KeeForge"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中创建密钥文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 中建立金鑰檔案"
+          }
+        }
+      }
+    },
     "Create a new KeePass database or import an existing .kdbx file." : {
       "localizations" : {
         "de" : {
@@ -28865,6 +28969,162 @@
         }
       }
     },
+    "Insert verification codes anywhere" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestätigungscodes überall einfügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserta códigos de verificación en cualquier lugar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insérez des codes de vérification partout"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci i codici di verifica ovunque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認コードをどこにでも挿入"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вставляйте коды проверки где угодно"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "随处插入验证码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隨處插入驗證碼"
+          }
+        }
+      }
+    },
+    "Install KeeForge with `brew install --cask keeforge/tap/keeforge`. It then keeps itself up to date." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installiere KeeForge mit `brew install --cask keeforge/tap/keeforge`. Danach hält es sich selbst auf dem neuesten Stand."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instala KeeForge con `brew install --cask keeforge/tap/keeforge`. Después se mantiene actualizado por sí solo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installez KeeForge avec `brew install --cask keeforge/tap/keeforge`. L'app se met ensuite à jour toute seule."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installa KeeForge con `brew install --cask keeforge/tap/keeforge`. In seguito si mantiene aggiornato da solo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "`brew install --cask keeforge/tap/keeforge` で KeeForge をインストールできます。その後は自動的に最新の状態に保たれます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установите KeeForge командой `brew install --cask keeforge/tap/keeforge`. Дальше приложение обновляется само."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 `brew install --cask keeforge/tap/keeforge` 安装 KeeForge。之后它会自行保持更新。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 `brew install --cask keeforge/tap/keeforge` 安裝 KeeForge。之後它會自行保持更新。"
+          }
+        }
+      }
+    },
+    "Install with Homebrew" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Homebrew installieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instala con Homebrew"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installez avec Homebrew"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installa con Homebrew"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Homebrew でインストール"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Устанавливайте через Homebrew"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 Homebrew 安装"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 Homebrew 安裝"
+          }
+        }
+      }
+    },
     "Invalid File" : {
       "localizations" : {
         "de" : {
@@ -30317,6 +30577,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 只能產生以時間為基礎的驗證碼。其他驗證碼設定會保存在名為 OTPAuth 的受保護欄位中。"
+          }
+        }
+      }
+    },
+    "KeeForge has a refreshed design. A database opens on an overview of all entries, verification codes, tags, and groups, and entry details, the editor, and unlocking are cleaner throughout." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge hat ein überarbeitetes Design. Eine Datenbank öffnet sich mit einer Übersicht über alle Einträge, Bestätigungscodes, Tags und Gruppen, und Eintragsdetails, Editor und Entsperren sind durchgehend übersichtlicher."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge tiene un diseño renovado. Una base de datos se abre con un resumen de todas las entradas, los códigos de verificación, las etiquetas y los grupos, y los detalles de las entradas, el editor y el desbloqueo son más claros en todas partes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge adopte un design repensé. Une base de données s'ouvre sur une vue d'ensemble de toutes les entrées, des codes de vérification, des tags et des groupes, et les détails des entrées, l'éditeur et le déverrouillage sont plus clairs partout."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ha un design rinnovato. Un database si apre su una panoramica di tutte le voci, dei codici di verifica, dei tag e dei gruppi, e i dettagli delle voci, l'editor e lo sblocco sono più chiari ovunque."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge のデザインが新しくなりました。データベースを開くと、すべてのエントリ、確認コード、タグ、グループの概要が表示されます。エントリの詳細、編集画面、ロック解除も全体的に見やすくなりました。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дизайн KeeForge обновлён. База данных открывается на обзоре всех записей, кодов проверки, тегов и групп, а сведения о записи, редактор и разблокировка стали нагляднее."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 采用了全新设计。打开数据库后会先显示所有条目、验证码、标签和群组的概览，条目详情、编辑器和解锁界面也都更加清晰。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 採用了全新設計。打開資料庫後會先顯示所有項目、驗證碼、標籤和群組的概覽，項目詳細資訊、編輯器和解鎖畫面也都更加清晰。"
           }
         }
       }
@@ -34062,6 +34374,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "macOS 一次只顯示一個資料庫的建議，即最近解鎖的那個。解鎖另一個已選取的資料庫，即可切換出現的條目。"
+          }
+        }
+      }
+    },
+    "Make a new key file while you create a database or change its master key. Keep a copy somewhere safe: without it, the database can't be opened." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erstelle eine neue Schlüsseldatei, während du eine Datenbank anlegst oder ihren Master-Schlüssel änderst. Bewahre eine Kopie an einem sicheren Ort auf: Ohne sie lässt sich die Datenbank nicht öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crea un nuevo archivo de clave al crear una base de datos o al cambiar su clave maestra. Guarda una copia en un lugar seguro: sin él, la base de datos no se puede abrir."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créez un nouveau fichier de clé lorsque vous créez une base de données ou modifiez sa clé principale. Conservez-en une copie en lieu sûr : sans lui, la base de données ne peut pas être ouverte."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crea un nuovo file chiave mentre crei un database o ne cambi la chiave principale. Conservane una copia in un luogo sicuro: senza di esso, il database non può essere aperto."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースの作成時やマスターキーの変更時に、新しいキーファイルを作成できます。コピーを安全な場所に保管してください。キーファイルがないとデータベースを開けません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создавайте новый файл ключа при создании базы данных или смене её мастер-ключа. Храните копию в надёжном месте: без него базу данных не открыть."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在创建数据库或更改其主密钥时，可以新建密钥文件。请将副本保存在安全的地方：没有它，数据库将无法打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在建立資料庫或更改其主金鑰時，可以新增金鑰檔案。請將副本保存在安全的地方：沒有它，資料庫將無法打開。"
           }
         }
       }
@@ -39123,6 +39487,58 @@
         }
       }
     },
+    "Open the phone and KeeForge switches to a side-by-side layout; close it and it switches back. Your place, your search, and any unsaved edits stay as they were." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klappst du das iPhone auf, wechselt KeeForge zu einem Layout mit zwei Bereichen nebeneinander; klappst du es zu, wechselt es zurück. Deine Position, deine Suche und ungesicherte Änderungen bleiben erhalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre el iPhone y KeeForge cambia a una disposición en paralelo; ciérralo y vuelve a la anterior. Tu posición, tu búsqueda y los cambios sin guardar se conservan."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez l'iPhone et KeeForge passe à une présentation côte à côte ; refermez-le et l'app revient à la présentation précédente. Votre position, votre recherche et vos modifications non enregistrées sont conservées."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri l'iPhone e KeeForge passa a un layout affiancato; chiudilo e torna a quello precedente. La tua posizione, la ricerca e le modifiche non salvate restano come erano."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone を開くと KeeForge は左右に並んだレイアウトに切り替わり、閉じると元に戻ります。表示中の場所、検索、未保存の編集内容はそのまま保たれます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Откройте iPhone — и KeeForge перейдёт к двухпанельному виду; закройте — и он вернётся к прежнему. Ваше место, поиск и несохранённые изменения останутся как были."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开 iPhone 时，KeeForge 会切换为并排布局；合上后会切换回来。你所在的位置、搜索内容和未存储的编辑都会保持原样。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開 iPhone 時，KeeForge 會切換為並排版面；合上後會切換回來。你所在的位置、搜尋內容和未儲存的編輯都會保持原樣。"
+          }
+        }
+      }
+    },
     "Open URL" : {
       "localizations" : {
         "de" : {
@@ -42055,6 +42471,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在讀取檔案"
+          }
+        }
+      }
+    },
+    "Ready for iPhone Duo" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bereit für das iPhone Duo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listo para el iPhone Duo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prêt pour l'iPhone Duo"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pronto per iPhone Duo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone Duo に対応"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готово к iPhone Duo"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持 iPhone Duo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支援 iPhone Duo"
           }
         }
       }
@@ -65849,6 +66317,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "如果資料庫自上次開啟後沒有變更，使用 Touch ID 和 Apple Watch 解鎖會快得多，在 App 和自動填寫中皆是如此。"
+          }
+        }
+      }
+    },
+    "When an app doesn't offer your verification code, tap the field, choose AutoFill, and pick the entry in KeeForge to insert its code." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn eine App deinen Bestätigungscode nicht anbietet, tippe auf das Feld, wähle AutoFill und dann den Eintrag in KeeForge, um seinen Code einzufügen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuando una app no te ofrezca tu código de verificación, toca el campo, elige Autorrelleno y selecciona la entrada en KeeForge para insertar su código."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lorsqu'une app ne propose pas votre code de vérification, touchez le champ, choisissez Remplissage automatique, puis sélectionnez l'entrée dans KeeForge pour insérer son code."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quando un'app non propone il tuo codice di verifica, tocca il campo, scegli Inserimento automatico e seleziona la voce in KeeForge per inserirne il codice."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App が確認コードを提示しないときは、フィールドをタップして「自動入力」を選び、KeeForge でエントリを選ぶとコードが挿入されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если приложение не предлагает ваш код проверки, коснитесь поля, выберите «Автозаполнение» и укажите запись в KeeForge, чтобы вставить её код."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当 App 没有提供你的验证码时，轻点输入框，选择“自动填充”，然后在 KeeForge 中选取条目即可插入其验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當 App 沒有提供你的驗證碼時，點一下輸入欄位，選擇「自動填寫」，然後在 KeeForge 中選取項目即可插入其驗證碼。"
           }
         }
       }

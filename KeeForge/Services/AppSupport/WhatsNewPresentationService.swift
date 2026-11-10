@@ -56,6 +56,43 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.22.0":
+            features = [
+                WhatsNewFeature(
+                    id: "ios-new-look",
+                    title: "A new look for iPhone and iPad",
+                    detail: "KeeForge has a refreshed design. A database opens on an overview of all entries, verification codes, tags, and groups, and entry details, the editor, and unlocking are cleaner throughout.",
+                    systemImage: "sparkles",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "totp-text-menu",
+                    title: "Insert verification codes anywhere",
+                    detail: "When an app doesn't offer your verification code, tap the field, choose AutoFill, and pick the entry in KeeForge to insert its code.",
+                    systemImage: "text.cursor",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "iphone-duo",
+                    title: "Ready for iPhone Duo",
+                    detail: "Open the phone and KeeForge switches to a side-by-side layout; close it and it switches back. Your place, your search, and any unsaved edits stay as they were.",
+                    systemImage: "rectangle.split.2x1",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "create-key-file",
+                    title: "Create a key file in KeeForge",
+                    detail: "Make a new key file while you create a database or change its master key. Keep a copy somewhere safe: without it, the database can't be opened.",
+                    systemImage: "key"
+                ),
+                WhatsNewFeature(
+                    id: "mac-homebrew",
+                    title: "Install with Homebrew",
+                    detail: "Install KeeForge with `brew install --cask keeforge/tap/keeforge`. It then keeps itself up to date.",
+                    systemImage: "shippingbox",
+                    platforms: [.macOS]
+                ),
+            ]
         case "1.21.0":
             features = [
                 WhatsNewFeature(
