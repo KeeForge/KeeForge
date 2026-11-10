@@ -68,8 +68,13 @@ enum KDBXWriter {
             headerSource,
             requiredMinorVersion: requiredMinorVersion(for: rootGroup, meta: meta)
         )
-        let xml = try document(rootGroup: rootGroup, meta: meta, sessionKey: sessionKey)
-            .serialized(innerStream: .chaCha20, innerStreamKey: header.innerStreamKey)
+        let document = try document(rootGroup: rootGroup, meta: meta, sessionKey: sessionKey)
+        let xml: Data
+        do {
+            xml = try document.serialized(innerStream: .chaCha20, innerStreamKey: header.innerStreamKey)
+        } catch let error as KDBXDocument.WriteError {
+            throw DocumentWriteFailure(error, in: document)
+        }
         return try KDBXContainerWriter.seal(xml: xml, header: header, transformedKey: provideTransformedKey)
     }
 

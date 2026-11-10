@@ -900,6 +900,64 @@
         }
       }
     },
+    "An earlier version of the entry “%1$@” contains an unsupported character (%2$@) in “%3$@”, so the database can’t be saved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine frühere Version des Eintrags „%1$@“ enthält in „%3$@“ ein nicht unterstütztes Zeichen (%2$@), daher kann die Datenbank nicht gespeichert werden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An earlier version of the entry “%1$@” contains an unsupported character (%2$@) in “%3$@”, so the database can’t be saved."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una versión anterior de la entrada «%1$@» contiene un carácter no compatible (%2$@) en «%3$@», por lo que no se puede guardar la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une version précédente de l'entrée « %1$@ » contient un caractère non pris en charge (%2$@) dans « %3$@ » : la base de données ne peut donc pas être enregistrée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una versione precedente della voce “%1$@” contiene un carattere non supportato (%2$@) in “%3$@”, quindi non è possibile salvare il database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリ「%1$@」の以前のバージョンの「%3$@」にサポートされていない文字（%2$@）が含まれているため、データベースを保存できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Предыдущая версия записи «%1$@» содержит неподдерживаемый символ (%2$@) в «%3$@», поэтому базу данных нельзя сохранить."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条目“%1$@”的较早的版本在“%3$@”中包含不支持的字符（%2$@），因此无法保存数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目「%1$@」的較早的版本在「%3$@」中包含不支援的字元（%2$@），因此無法儲存資料庫。"
+          }
+        }
+      }
+    },
     "Attachments can't be added here." : {
       "localizations" : {
         "de" : {
@@ -4234,6 +4292,58 @@
         }
       }
     },
+    "Name" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nombre"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nome"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имя"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名稱"
+          }
+        }
+      }
+    },
     "Never" : {
       "localizations" : {
         "de" : {
@@ -6210,6 +6320,58 @@
         }
       }
     },
+    "Tags" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etiquetas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Теги"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标签"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標籤"
+          }
+        }
+      }
+    },
     "That earlier version is no longer available." : {
       "localizations" : {
         "de" : {
@@ -6628,6 +6790,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資料庫包含不支援的字元（%@）。請在儲存前從文字中刪除該字元。"
+          }
+        }
+      }
+    },
+    "The database contains an unsupported character (%1$@) in “%2$@”, so it can’t be saved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbank enthält in „%2$@“ ein nicht unterstütztes Zeichen (%1$@) und kann daher nicht gespeichert werden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The database contains an unsupported character (%1$@) in “%2$@”, so it can’t be saved."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos contiene un carácter no compatible (%1$@) en «%2$@», por lo que no se puede guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données contient un caractère non pris en charge (%1$@) dans « %2$@ » et ne peut donc pas être enregistrée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database contiene un carattere non supportato (%1$@) in “%2$@”, quindi non può essere salvato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースの「%2$@」にサポートされていない文字（%1$@）が含まれているため、保存できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных содержит неподдерживаемый символ (%1$@) в «%2$@», поэтому её нельзя сохранить."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库的“%2$@”中包含不支持的字符（%1$@），因此无法保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫的「%2$@」中包含不支援的字元（%1$@），因此無法儲存。"
           }
         }
       }
@@ -7100,6 +7320,64 @@
         }
       }
     },
+    "The entry “%1$@” contains an unsupported character (%2$@) in “%3$@”. Remove it before saving." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Eintrag „%1$@“ enthält in „%3$@“ ein nicht unterstütztes Zeichen (%2$@). Entferne es vor dem Speichern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The entry “%1$@” contains an unsupported character (%2$@) in “%3$@”. Remove it before saving."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La entrada «%1$@» contiene un carácter no compatible (%2$@) en «%3$@». Elimínalo antes de guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'entrée « %1$@ » contient un caractère non pris en charge (%2$@) dans « %3$@ ». Supprimez-le avant d'enregistrer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La voce “%1$@” contiene un carattere non supportato (%2$@) in “%3$@”. Rimuovilo prima di salvare."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリ「%1$@」の「%3$@」にサポートされていない文字（%2$@）が含まれています。保存する前に削除してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись «%1$@» содержит неподдерживаемый символ (%2$@) в «%3$@». Удалите его перед сохранением."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条目“%1$@”的“%3$@”中包含不支持的字符（%2$@）。请在保存前删除该字符。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目「%1$@」的「%3$@」中包含不支援的字元（%2$@）。請在儲存前刪除該字元。"
+          }
+        }
+      }
+    },
     "The file is damaged: a quoted value that starts in row %lld never ends. Export your passwords again and retry." : {
       "localizations" : {
         "de" : {
@@ -7148,6 +7426,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檔案已損毀：從第 %lld 列開始的帶引號值沒有結束。請重新匯出密碼後再試一次。"
+          }
+        }
+      }
+    },
+    "The group “%1$@” contains an unsupported character (%2$@) in “%3$@”. Remove it before saving." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Gruppe „%1$@“ enthält in „%3$@“ ein nicht unterstütztes Zeichen (%2$@). Entferne es vor dem Speichern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The group “%1$@” contains an unsupported character (%2$@) in “%3$@”. Remove it before saving."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El grupo «%1$@» contiene un carácter no compatible (%2$@) en «%3$@». Elimínalo antes de guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le groupe « %1$@ » contient un caractère non pris en charge (%2$@) dans « %3$@ ». Supprimez-le avant d'enregistrer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il gruppo “%1$@” contiene un carattere non supportato (%2$@) in “%3$@”. Rimuovilo prima di salvare."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グループ「%1$@」の「%3$@」にサポートされていない文字（%2$@）が含まれています。保存する前に削除してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Группа «%1$@» содержит неподдерживаемый символ (%2$@) в «%3$@». Удалите его перед сохранением."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "群组“%1$@”的“%3$@”中包含不支持的字符（%2$@）。请在保存前删除该字符。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "群組「%1$@」的「%3$@」中包含不支援的字元（%2$@）。請在儲存前刪除該字元。"
           }
         }
       }

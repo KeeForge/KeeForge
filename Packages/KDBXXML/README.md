@@ -39,11 +39,11 @@ let file = try KDBXContainerWriter.seal(xml: xml, header: header) { parameters i
 }
 ```
 
-A typed property replaces a preserved element of the same name, so setting `enableSearching` on a group whose source value was unreadable writes one element, not two. `KDBXDocument.validate(text:)` checks text against XML 1.0 before you accept it from a user; `serialized` checks everything it writes.
+A typed property replaces a preserved element of the same name, so setting `enableSearching` on a group whose source value was unreadable writes one element, not two. `KDBXDocument.validate(text:)` checks text against XML 1.0 before you accept it from a user; `serialized` checks the whole document before it writes anything and reports where the first bad character is.
 
 ## Errors
 
-Plain enums with no user-facing text: `KDBXDocument.ReadError` (`malformedXML(line:column:)`, `unexpectedRootElement`, `invalidProtectedValue`) and `KDBXDocument.WriteError` (`invalidXMLCharacter`).
+Plain enums with no user-facing text: `KDBXDocument.ReadError` (`malformedXML(line:column:)`, `unexpectedRootElement`, `invalidProtectedValue`) `KDBXDocument.TextError` (`invalidXMLCharacter`, from `validate(text:)`), and `KDBXDocument.WriteError` (`invalidXMLCharacter(_:at:)`, whose `Location` names the owner (`meta`, `root`, a group, an entry, or a history version, by UUID) and the part (an element name, a field key, or an attachment key)).
 
 ## Tests and coverage
 

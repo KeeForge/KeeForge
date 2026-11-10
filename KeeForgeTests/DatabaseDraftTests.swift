@@ -82,7 +82,7 @@ final class DatabaseDraftTests: XCTestCase {
             for edit in [EntryEdit.createEntry(parentGroupID: tree.parentGroupID, draft: payload),
                          .updateEntry(entryID: tree.parentEntry.id, draft: payload)] {
                 XCTAssertThrowsError(try draft.apply(edit)) { error in
-                    XCTAssertEqual(error as? KDBXDocument.WriteError, .invalidXMLCharacter("\u{0}"))
+                    XCTAssertEqual(error as? KDBXDocument.TextError, .invalidXMLCharacter("\u{0}"))
                 }
             }
             XCTAssertThrowsError(try draft.creatingEntries([EntryDraftPayload(title: "Valid Import"), payload], inGroup: tree.parentGroupID))
@@ -107,7 +107,7 @@ final class DatabaseDraftTests: XCTestCase {
         ]
         for edit in edits {
             XCTAssertThrowsError(try draft.apply(edit)) { error in
-                XCTAssertEqual(error as? KDBXDocument.WriteError, .invalidXMLCharacter("\u{0}"))
+                XCTAssertEqual(error as? KDBXDocument.TextError, .invalidXMLCharacter("\u{0}"))
             }
         }
         XCTAssertFalse(draft.isDirty)

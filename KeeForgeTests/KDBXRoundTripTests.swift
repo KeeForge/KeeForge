@@ -45,7 +45,9 @@ final class KDBXRoundTripTests: XCTestCase {
         unknownXML.append(xml: "<CustomData>\(text)</CustomData>", insertionIndex: 0)
         for root in roots {
             XCTAssertThrowsError(try serializedXML(of: (root, KPMeta()))) { error in
-                XCTAssertEqual(error as? KDBXDocument.WriteError, .invalidXMLCharacter("\u{0}"))
+                guard case .invalidXMLCharacter("\u{0}", _)? = error as? KDBXDocument.WriteError else {
+                    return XCTFail("got \(error)")
+                }
             }
         }
         XCTAssertThrowsError(try serializedXML(of: (KPGroup(name: "Root"), KPMeta(unknownXML: unknownXML))))

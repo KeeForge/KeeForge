@@ -12,7 +12,7 @@
 - Protected values are one keystream in document order, opaque ones included. The reader unmasks every `Protected="True"` value as it closes; the writer masks each typed field and each fragment value only when it emits it, never while building a child ahead of the fragments before it. An unreadable protected value fails the read (`invalidProtectedValue`) rather than desync every later value. Plaintext that is not UTF-8 reads with replacement characters, as in KeePassXC.
 - Fragments are canonical (see `OpaqueXMLNodes`): paired tags, sorted double-quoted attributes, `& < > CR` escaped. The writer's protected-value scan and the typed views rely on it; code that splices fragments must produce it. Comments are dropped and CDATA becomes text.
 - `Group.customIconUUID`, `Entry.customIconUUID`, `expiryTime`, `expires`, and `Meta.customIcons` are views computed from fragments. They are never stored, so they cannot disagree with what is written.
-- The writer validates everything it emits against XML 1.0 `Char` (`validate(text:)`), protected values excepted because they are base64 on disk.
+- The writer checks every string it emits against XML 1.0 `Char` before it builds any output (`validateForWriting`), protected values excepted because they are base64 on disk. The error carries a typed location (owner UUID plus element, field key, or attachment key). Fragments are checked too: the parser never yields an invalid scalar outside a protected value, but `OpaqueXMLNodes` is public and callers splice it. A new typed string needs a check there.
 
 ## Protected plaintext
 
@@ -21,7 +21,7 @@
 
 ## Public surface
 
-- `KDBXDocument` with `read(xml:innerStreamID:innerStreamKey:)`, `serialized(innerStream:innerStreamKey:)`, and `validate(text:)`; its nested value types `Meta`, `Root`, `Group`, `Entry`, `Times`, `Field`, `BinaryReference`, `DeletedObject`, `InheritableBool`, `CustomIcon`; `ReadError` and `WriteError`.
+- `KDBXDocument` with `read(xml:innerStreamID:innerStreamKey:)`, `serialized(innerStream:innerStreamKey:)`, and `validate(text:)`; its nested value types `Meta`, `Root`, `Group`, `Entry`, `Times`, `Field`, `BinaryReference`, `DeletedObject`, `InheritableBool`, `CustomIcon`; `ReadError`, `TextError`, and `WriteError` with its `Location`.
 - `OpaqueXMLNodes` and its `Node`, which the app edits to splice preserved elements.
 - `UUID.kdbxBase64String`, `Date.kdbxBase64String`, `Date(kdbxBase64String:)`, `Date.kdbxStoredDate`: the single encoders for the writer and the app's spliced fragments.
 - The reader, writer, text escaping, and the text forms of `InheritableBool`, dates (ISO 8601 included), and UUIDs stay internal. Widen the surface only for a caller that needs it.

@@ -72,16 +72,20 @@ final class KDBXCompatibilityTests: XCTestCase {
             let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey)
             let invalid = EntryDraftPayload(title: "Invalid Notes", notes: "Example heading\u{0}\r\nExample body")
             XCTAssertThrowsError(try draft.apply(.createEntry(parentGroupID: loaded.rootGroup.id, draft: invalid))) { error in
-                XCTAssertEqual(error as? KDBXDocument.WriteError, .invalidXMLCharacter("\u{0}"))
+                XCTAssertEqual(error as? KDBXDocument.TextError, .invalidXMLCharacter("\u{0}"))
             }
             XCTAssertTrue(draft.pendingEdits.isEmpty)
             let root = loaded.rootGroup.deepCopy()
-            root.entries.append(KPEntry(title: invalid.title, notes: invalid.notes))
+            let entry = KPEntry(title: invalid.title, notes: invalid.notes)
+            root.entries.append(entry)
             XCTAssertThrowsError(try KDBXWriter.write(
                 rootGroup: root, meta: loaded.meta, compositeKey: loaded.compositeKey,
                 header: loaded.header, sessionKey: loaded.sessionKey
             )) { error in
-                XCTAssertEqual(error as? KDBXDocument.WriteError, .invalidXMLCharacter("\u{0}"))
+                XCTAssertEqual(error as? DocumentWriteFailure, DocumentWriteFailure(
+                    error: .invalidXMLCharacter("\u{0}", at: .init(owner: .entry(entry.id), part: .field(key: "Notes"))),
+                    ownerName: "Invalid Notes"
+                ))
             }
         }
     }

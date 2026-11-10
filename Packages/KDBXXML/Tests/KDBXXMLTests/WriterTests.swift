@@ -240,27 +240,54 @@ final class WriterTests: XCTestCase {
         XCTAssertNoThrow(try KDBXDocument.validate(text: "tab\t lf\n cr\r \u{20} \u{D7FF} \u{E000} \u{FFFD} \u{10000} \u{10FFFF}"))
         for value: UInt32 in [0x00, 0x08, 0x0B, 0x0C, 0x0E, 0x1F, 0xFFFE, 0xFFFF] {
             let scalar = try XCTUnwrap(Unicode.Scalar(value))
-            assertThrows(KDBXDocument.WriteError.invalidXMLCharacter(scalar)) {
+            assertThrows(KDBXDocument.TextError.invalidXMLCharacter(scalar)) {
                 try KDBXDocument.validate(text: "ok\(Character(scalar))")
             }
         }
     }
 
-    func test_serializeRejectsInvalidCharactersInEveryTextPath() {
+    func test_serializeNamesWhereEachInvalidCharacterIs() {
+        typealias Location = KDBXDocument.WriteError.Location
         let nul = "a\u{0}b"
-        let documents: [KDBXDocument] = [
-            KDBXDocument(root: .init(groups: [KDBXDocument.Group(name: nul)])),
-            KDBXDocument(root: .init(groups: [KDBXDocument.Group(notes: nul)])),
-            KDBXDocument(root: .init(groups: [KDBXDocument.Group(tags: [nul])])),
-            KDBXDocument(root: .init(entries: [KDBXDocument.Entry(tags: [nul])])),
-            KDBXDocument(root: .init(entries: [KDBXDocument.Entry(strings: [.init(key: nul, value: "")])])),
-            KDBXDocument(root: .init(entries: [KDBXDocument.Entry(strings: [.init(key: "k", value: nul)])])),
-            KDBXDocument(root: .init(entries: [KDBXDocument.Entry(binaries: [.init(key: nul, ref: 0)])])),
-            KDBXDocument(meta: .init(unknownXML: OpaqueXMLNodes(nodes: [.init(insertionIndex: 0, xml: "<V>\(nul)</V>")]))),
-        ]
-        for value in documents {
-            assertThrows(KDBXDocument.WriteError.invalidXMLCharacter("\u{0}")) { try write(value) }
+        func nodes(_ xml: String, path: [String] = []) -> OpaqueXMLNodes {
+            OpaqueXMLNodes(nodes: [.init(path: path, insertionIndex: 0, xml: xml)])
         }
+        func inGroup(_ group: KDBXDocument.Group) -> KDBXDocument {
+            KDBXDocument(root: .init(groups: [KDBXDocument.Group(groups: [group])]))
+        }
+        func inEntry(_ entry: KDBXDocument.Entry) -> KDBXDocument {
+            KDBXDocument(root: .init(groups: [KDBXDocument.Group(entries: [entry])]))
+        }
+        let group = TestID.group
+        let entry = TestID.entry
+        let cases: [(KDBXDocument, Location)] = [
+            (KDBXDocument(meta: .init(unknownXML: nodes("<V>\(nul)</V>"))), Location(owner: .meta, part: .element("V"))),
+            (KDBXDocument(root: .init(unknownXML: nodes(nul))), Location(owner: .root, part: .element(nil))),
+            (inGroup(.init(uuid: group, name: nul)), Location(owner: .group(group), part: .element("Name"))),
+            (inGroup(.init(uuid: group, notes: nul)), Location(owner: .group(group), part: .element("Notes"))),
+            (inGroup(.init(uuid: group, tags: ["ok", nul])), Location(owner: .group(group), part: .element("Tags"))),
+            (inGroup(.init(uuid: group, unknownXML: nodes("<ExpiryTime>\(nul)</ExpiryTime>", path: ["Times"]))),
+             Location(owner: .group(group), part: .element("ExpiryTime"))),
+            (KDBXDocument(root: .init(entries: [.init(uuid: entry, tags: [nul])])),
+             Location(owner: .entry(entry), part: .element("Tags"))),
+            (inEntry(.init(uuid: entry, strings: [.init(key: nul, value: "")])), Location(owner: .entry(entry), part: .field(key: nul))),
+            (inEntry(.init(uuid: entry, strings: [.init(key: "Notes", value: nul)])), Location(owner: .entry(entry), part: .field(key: "Notes"))),
+            (inEntry(.init(uuid: entry, binaries: [.init(key: nul, ref: 0)])), Location(owner: .entry(entry), part: .attachment(key: nul))),
+            (inEntry(.init(uuid: entry, unknownXML: nodes("<CustomData>\(nul)</CustomData>"))),
+             Location(owner: .entry(entry), part: .element("CustomData"))),
+            (inEntry(.init(uuid: entry, history: [.init(uuid: entry, strings: [.init(key: "Title", value: nul)])])),
+             Location(owner: .historyEntry(entry), part: .field(key: "Title"))),
+        ]
+        for (document, location) in cases {
+            assertThrows(KDBXDocument.WriteError.invalidXMLCharacter("\u{0}", at: location)) { try write(document) }
+        }
+    }
+
+    func test_protectedFragmentValuesMayHoldAnyScalar() throws {
+        let fragment = "<Item><Value Protected=\"True\">a\u{0}b</Value></Item>"
+        let meta = KDBXDocument.Meta(unknownXML: OpaqueXMLNodes(nodes: [.init(insertionIndex: 0, xml: fragment)]))
+        let written = try write(KDBXDocument(meta: meta))
+        XCTAssertEqual(try read(written).meta.unknownXML.nodes.first?.xml, fragment)
     }
 
     func test_protectedValuesMayHoldAnyScalar() throws {

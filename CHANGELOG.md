@@ -11,6 +11,7 @@
 
 ### Fixes
 
+- When a save stops because of a character a database cannot hold, the message names the entry or group and the field it is in, so you can find and remove it. Before, it named only the character.
 - Opening a database written by KeePassXC 4.1 with extension data on an entry or group (browser integration, for example) no longer replaces the entry's or group's modification time with that data's own timestamp, which also affected which side won a sync merge.
 - Saving keeps the protected values inside parts of a database KeeForge does not edit when there are two or more in one place. Before, they were scrambled and read back empty.
 - A protected value whose stored text is wrapped across lines no longer garbles every protected value after it. A database whose protected value cannot be decoded at all now reports that instead of opening with wrong values.

@@ -29,17 +29,18 @@ public struct KDBXDocument: Sendable, Hashable {
 
     /// The document as UTF-8 XML with a byte order mark, protected values
     /// masked with a new stream of `innerStream` under `innerStreamKey`.
-    /// KDBX 4 saves use `.chaCha20`. Throws `WriteError`.
+    /// KDBX 4 saves use `.chaCha20`. Throws `WriteError` before building any
+    /// output.
     public func serialized(innerStream: KDBXInnerStream.Algorithm, innerStreamKey: Data) throws -> Data {
         try DocumentWriter(innerStream: KDBXInnerStream(algorithm: innerStream, key: innerStreamKey)).write(self)
     }
 
-    /// Throws `WriteError.invalidXMLCharacter` for the first scalar XML 1.0
-    /// cannot carry, even as a character reference. `serialized` runs the same
-    /// check over everything it writes; editors run it before accepting text.
+    /// Throws `TextError.invalidXMLCharacter` for the first scalar XML 1.0
+    /// cannot carry, even as a character reference. Editors run it before
+    /// accepting text; `serialized` checks the whole document the same way.
     public static func validate(text: String) throws {
-        if let scalar = text.unicodeScalars.first(where: { !XMLText.isAllowed($0) }) {
-            throw WriteError.invalidXMLCharacter(scalar)
+        if let scalar = XMLText.firstInvalidScalar(in: text) {
+            throw TextError.invalidXMLCharacter(scalar)
         }
     }
 
@@ -53,8 +54,46 @@ public struct KDBXDocument: Sendable, Hashable {
         case invalidProtectedValue
     }
 
-    public enum WriteError: Error, Equatable, Sendable {
+    public enum TextError: Error, Equatable, Sendable {
         case invalidXMLCharacter(Unicode.Scalar)
+    }
+
+    public enum WriteError: Error, Equatable, Sendable {
+        /// Text XML 1.0 cannot carry, found before any output was built.
+        case invalidXMLCharacter(Unicode.Scalar, at: Location)
+
+        /// The element that holds the character, and the group or entry it
+        /// belongs to.
+        public struct Location: Sendable, Hashable {
+            public enum Owner: Sendable, Hashable {
+                case meta
+                case root
+                case group(UUID)
+                case entry(UUID)
+                /// A version in an entry's `<History>`, by its own UUID, which
+                /// is normally the entry's.
+                case historyEntry(UUID)
+            }
+
+            public enum Part: Sendable, Hashable {
+                /// A child element by name, typed (`Name`, `Notes`, `Tags`) or
+                /// preserved in `unknownXML` at any depth. `nil` for a
+                /// preserved node that is not an element.
+                case element(String?)
+                /// An entry `<String>`, its key or unprotected value.
+                case field(key: String)
+                /// An entry `<Binary>` name.
+                case attachment(key: String)
+            }
+
+            public var owner: Owner
+            public var part: Part
+
+            public init(owner: Owner, part: Part) {
+                self.owner = owner
+                self.part = part
+            }
+        }
     }
 }
 

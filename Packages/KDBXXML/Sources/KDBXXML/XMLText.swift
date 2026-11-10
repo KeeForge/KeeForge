@@ -37,6 +37,41 @@ enum XMLText {
         }
     }
 
+    static func firstInvalidScalar(in text: String) -> Unicode.Scalar? {
+        text.unicodeScalars.first { !isAllowed($0) }
+    }
+
+    /// `xml` with the content of every protected value replaced, in order.
+    /// Canonical fragments escape `<` and `>` in text and attributes, so the
+    /// next `>` ends a tag and the next `</Value>` ends its value.
+    static func replacingProtectedValues(in xml: String, _ transform: (Substring) -> String) -> String {
+        var output = ""
+        var rest = Substring(xml)
+        while let open = rest.range(of: "<Value"),
+              let close = rest[open.upperBound...].firstIndex(of: ">"),
+              let end = rest[close...].range(of: "</Value>") {
+            let tag = rest[open.lowerBound...close]
+            let content = rest.index(after: close)..<end.lowerBound
+            guard isProtectedValueTag(tag) else {
+                output += rest[..<content.lowerBound]
+                rest = rest[content.lowerBound...]
+                continue
+            }
+            output += rest[..<content.lowerBound] + transform(rest[content])
+            rest = rest[content.upperBound...]
+        }
+        return output + rest
+    }
+
+    /// `<Value …>` (not `<ValueX>` or self-closing) whose `Protected` attribute
+    /// is `true` in any case.
+    private static func isProtectedValueTag(_ tag: Substring) -> Bool {
+        let afterName = tag.dropFirst("<Value".count)
+        guard let next = afterName.first, next == " " || next == ">", !tag.hasSuffix("/>"),
+              let attribute = afterName.range(of: " Protected=\"") else { return false }
+        return afterName[attribute.upperBound...].prefix { $0 != "\"" }.lowercased() == "true"
+    }
+
     /// `<name attributes>content</name>`, attributes sorted by name.
     static func element(_ name: String, attributes: [String: String] = [:], content: String) -> String {
         let rendered = attributes
