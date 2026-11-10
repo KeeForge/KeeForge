@@ -177,6 +177,8 @@ jobs:
 
       - name: Run SiteMatching tests with coverage
         run: Packages/SiteMatching/scripts/coverage.sh
+      - name: Run OneTimeCodes tests with coverage
+        run: Packages/OneTimeCodes/scripts/coverage.sh
 
       # Runners have no signing account, so the app is ad-hoc signed with no
       # entitlements (unsandboxed). Local runs keep automatic signing with the

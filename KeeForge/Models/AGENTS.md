@@ -1,6 +1,6 @@
 # Models
 
-**Scope:** the KDBX model layer (mapping the database XML to the model, merge, draft edits) over `Packages/KDBXKit`, which owns the container and crypto, and `Packages/KDBXXML`, which owns the XML document, and the value types the app and both AutoFill extensions share. The most security-sensitive folder in the repo. Foundation/CryptoKit only: no UIKit/AppKit, no `@MainActor`; callers run parsing, KDF, and merge off the main actor.
+**Scope:** the KDBX model layer (mapping the database XML to the model, merge, draft edits) over `Packages/KDBXKit`, which owns the container and crypto, `Packages/KDBXXML`, which owns the XML document, and `Packages/OneTimeCodes`, which owns TOTP, Base32, and `otpauth` parsing, and the value types the app and both AutoFill extensions share. The most security-sensitive folder in the repo. Foundation/CryptoKit only: no UIKit/AppKit, no `@MainActor`; callers run parsing, KDF, and merge off the main actor.
 
 ## Ownership
 
@@ -42,6 +42,8 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 
 - Native KeePass TOTP uses `TimeOtp-Secret`, `-Hex`, `-Base32`, or `-Base64` in that precedence order. `TOTPConfig.keePassSecretField` keeps the active field and `decodedSecret` keeps the effective bytes for non-Base32 secrets. An unchanged draft preserves that field; a new secret is written as Base32.
 - `TimeOtp-Algorithm` uses KeePass's `HMAC-SHA-*` names. `TOTPAlgorithm.rawValue` remains the short `otpauth` and KeeOTP token. `KDBXWriter` writes `keePassName`; `KDBXParser` also accepts the short names that earlier KeeForge versions wrote.
+- One-time codes are split at the session key. `OneTimeCodes` works on plain bytes; `TOTPGenerator` is the app's one entry point for a `TOTPConfig`: it decrypts (`decodedSecret` before the Base32 `secret`), wipes its decrypted buffer, and owns the `"------"` placeholder for a secret that does not resolve. `TOTPAlgorithm` is a typealias for the package's enum, and `TOTPGenerator.base32Decode` forwards to it, so `KDBXParser` builds without importing the package.
+- The parser's stored-TOTP readers (lenient stored `otpauth`, KeeOTP query, `TimeOtp-*` precedence and per-encoding decode, legacy `TOTP Seed`) and the writer's TOTP fields still live in `KDBXParser` and `KDBXWriter`, not the package. `OTPAuthURI` is the strict enrollment parser only.
 - Secrets stay sealed as `EncryptedValue` under the session key until the point of use. `EncryptedValue` re-seals with a fresh nonce, so equal secrets never have equal ciphertext: compare plaintext.
 - The passkey private key PEM is diverted out of `customFields` into `KPEntry.passkeyPrivateKey` at parse time and re-emitted by `KDBXWriter` at its stored custom-field position. It is decrypted only at signing time.
 - `EntryDraftPayload.protectedCustomFieldKeys` is the complete protection set for supplied custom fields when present; nil preserves existing protection for callers that do not edit it. Non-custom and diverted passkey protection survives. AutoFill passkey registration supplies its `KPEX_PASSKEY_*` keys.
@@ -80,7 +82,7 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 
 - YubiKey challenge-response follows KeePassXC: the challenge is the KDF salt PKCS#7-padded to 64 bytes and the key is `SHA256(preKey || SHA256(response))`. KDBX 4 only (3.1 folds the response in after the KDF); a KDBX 4 file with the legacy AES-KDF UUID is accepted because KeePassXC writes it.
 - `PasskeyCredential` reads KeePassXC `KPEX_PASSKEY_*` fields with ordered fallback to the legacy Strongbox / older KeePassXC names.
-- `OTPAuthURI` keeps the trimmed input verbatim in `rawURI` for the protected `otp` field KeePassXC reads.
+- `OTPAuthURI` (in `OneTimeCodes`) keeps the trimmed input verbatim in `rawURI` for the protected `otp` field KeePassXC reads.
 - `ApplePasswordsCSVImporter` rejects a CSV with any column it does not know, so no column is dropped unseen.
 
 ## Tests
@@ -90,6 +92,7 @@ Classes in `../../KeeForgeTests/` are named `<Type>Tests`. Non-obvious mappings:
 - Any change to parse/write behaviour, draft edits, protected fields, or unknown XML also updates `KDBXCompatibilityTests` and `Support/KDBXCompatibilitySupport.swift`; see `../AGENTS.md`. Those tests emit the artifacts the external `keepassxc-cli` gate consumes.
 - Model saves: `KDBXWriterTests`. The document ↔ model mapping through XML: `KDBXRoundTripTests`, `KDBXParserTests`, `ChaCha20Tests`; the XML document itself is tested in `../../Packages/KDBXXML/Tests`. Merge: `KDBXMergerTests` plus `KDBXMergerOracleTests` (KeePassXC reference fixtures).
 - `ExpressUnlockTests` covers `ExpressUnlockKey.swift`, including every bundled fixture opened through the cached key.
+- `TOTPGeneratorTests` covers the adapter only; algorithm, Base32, `otpauth`, and KeeOTP query known answers are in `../../Packages/OneTimeCodes/Tests`.
 - `ChallengeResponseKeyTests` covers `HardwareKey.swift`; `AttachmentTests` covers `BinaryPool` and the draft's attachment edits; `PasskeyCredentialTests` and `PasskeyCryptoTests` are in `PasskeyTests.swift`.
 - Fixtures that pin format behaviour are described in `../../TestFixtures/README.md`.
 

@@ -2,78 +2,40 @@ import CryptoKit
 import XCTest
 @testable import KeeForge
 
+/// The app adapter over `OneTimeCodes`: decryption under the session key, the
+/// `decodedSecret` precedence, and the placeholder. The algorithm's known
+/// answers are in the package's own tests.
 final class TOTPGeneratorTests: XCTestCase {
     private let testKey = SymmetricKey(size: .bits256)
+    /// RFC 6238 Appendix B's SHA-1 seed, "12345678901234567890", in Base32.
+    private static let rfc6238Seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+    private static let t59 = Date(timeIntervalSince1970: 59)
 
-    private func encryptSecret(_ secret: String) -> EncryptedValue {
+    private func seal(_ secret: String) -> EncryptedValue {
         try! EncryptedValue.encrypt(secret, using: testKey)
     }
 
-    func testGenerateCodeSHA1RFC6238Vector() {
-        let config = TOTPConfig(
-            secret: encryptSecret("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"),
-            period: 30,
-            digits: 8,
-            algorithm: .sha1
+    func testGeneratesFromTheDecryptedBase32Secret() {
+        let config = TOTPConfig(secret: seal(Self.rfc6238Seed), digits: 8)
+
+        XCTAssertEqual(TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Self.t59), "94287082")
+        XCTAssertEqual(
+            TOTPGenerator.decryptedSecret(config: config, sessionKey: testKey),
+            Data("12345678901234567890".utf8)
         )
-
-        let code = TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Date(timeIntervalSince1970: 59))
-
-        XCTAssertEqual(code, "94287082")
     }
 
-    /// RFC 6238 Appendix B uses a different seed length per algorithm: 20 bytes
-    /// for SHA-1, 32 for SHA-256 and 64 for SHA-512, each the ASCII string
-    /// "12345678901234567890" repeated and truncated. These are their Base32
-    /// encodings.
-    private static let rfc6238Seed256 = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA===="
-    private static let rfc6238Seed512 =
-        "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" +
-        "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA="
+    func testCarriesTheConfigTimingIntoTheParameters() throws {
+        let config = TOTPConfig(secret: seal(Self.rfc6238Seed), period: 0, digits: 20, algorithm: .sha256)
 
-    func testGenerateCodeSHA256RFC6238Vectors() {
-        let config = TOTPConfig(
-            secret: encryptSecret(Self.rfc6238Seed256),
-            period: 30,
-            digits: 8,
-            algorithm: .sha256
-        )
+        let parameters = try XCTUnwrap(TOTPGenerator.parameters(for: config, sessionKey: testKey))
 
-        for (time, expected) in [(59, "46119246"), (1_111_111_109, "68084774"), (1_234_567_890, "91819424")] {
-            XCTAssertEqual(
-                TOTPGenerator.generateCode(
-                    config: config,
-                    sessionKey: testKey,
-                    date: Date(timeIntervalSince1970: TimeInterval(time))
-                ),
-                expected,
-                "RFC 6238 SHA-256 vector at T=\(time)"
-            )
-        }
+        XCTAssertEqual(parameters.period, 1, "clamped by the package")
+        XCTAssertEqual(parameters.digits, 9, "clamped by the package")
+        XCTAssertEqual(parameters.algorithm, .sha256)
     }
 
-    func testGenerateCodeSHA512RFC6238Vectors() {
-        let config = TOTPConfig(
-            secret: encryptSecret(Self.rfc6238Seed512),
-            period: 30,
-            digits: 8,
-            algorithm: .sha512
-        )
-
-        for (time, expected) in [(59, "90693936"), (1_111_111_109, "25091201"), (1_234_567_890, "93441116")] {
-            XCTAssertEqual(
-                TOTPGenerator.generateCode(
-                    config: config,
-                    sessionKey: testKey,
-                    date: Date(timeIntervalSince1970: TimeInterval(time))
-                ),
-                expected,
-                "RFC 6238 SHA-512 vector at T=\(time)"
-            )
-        }
-    }
-
-    func testGenerateCodeUsesPredecodedBinarySecret() throws {
+    func testPredecodedSecretTakesPrecedenceOverTheBase32Field() throws {
         // Python hmac/hashlib SHA-1 reference and the RFC 6238 SHA-1 seed at counter 1.
         let vectors: [(secret: Data, code: String)] = [
             (Data([0x00, 0x01, 0x02, 0xFE, 0xFF]), "388061"),
@@ -81,131 +43,43 @@ final class TOTPGeneratorTests: XCTestCase {
         ]
         for vector in vectors {
             let config = TOTPConfig(
-                secret: encryptSecret("preserved-source"),
-                decodedSecret: try EncryptedValue.encrypt(vector.secret, using: testKey),
-                period: 30,
-                digits: 6,
-                algorithm: .sha1
+                secret: seal("preserved-source"),
+                decodedSecret: try EncryptedValue.encrypt(vector.secret, using: testKey)
             )
 
-            let resolved = try XCTUnwrap(TOTPGenerator.resolveSecret(config: config, sessionKey: testKey))
-            XCTAssertEqual(resolved.data, vector.secret)
-            XCTAssertEqual(
-                TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Date(timeIntervalSince1970: 59)),
-                vector.code
-            )
+            XCTAssertEqual(TOTPGenerator.decryptedSecret(config: config, sessionKey: testKey), vector.secret)
+            XCTAssertEqual(TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Self.t59), vector.code)
         }
     }
 
-    func testGenerateCodeReturnsPlaceholderForEmptyPredecodedSecret() {
-        let config = TOTPConfig(
-            secret: encryptSecret("ignored"), decodedSecret: .empty, period: 30, digits: 6, algorithm: .sha1
-        )
+    func testEmptyPredecodedSecretDoesNotFallBackToTheBase32Field() {
+        let config = TOTPConfig(secret: seal(Self.rfc6238Seed), decodedSecret: .empty)
 
-        XCTAssertEqual(
-            TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Date(timeIntervalSince1970: 59)),
-            "------"
-        )
+        XCTAssertNil(TOTPGenerator.parameters(for: config, sessionKey: testKey))
+        XCTAssertEqual(TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Self.t59), "------")
     }
 
-    func testGenerateCodeReturnsPlaceholderForInvalidBase32Secret() {
-        let config = TOTPConfig(secret: encryptSecret("not_base32***"), period: 30, digits: 6, algorithm: .sha1)
-
-        let code = TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Date(timeIntervalSince1970: 1_700_000_000))
-
-        XCTAssertEqual(code, "------")
-    }
-
-    func testGenerateCodeClampsRoguePeriodAndDigits() {
-        // Configs normally arrive sanitized from the parser, but edit drafts
-        // construct them too: a non-positive period must not divide by zero
-        // (or trap converting to UInt64), and oversized digit counts must not
-        // overflow the 10^digits modulus.
-        let secret = encryptSecret("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")
-        for period in [0, -5] {
-            let config = TOTPConfig(secret: secret, period: period, digits: 8, algorithm: .sha1)
-            XCTAssertEqual(
-                TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Date(timeIntervalSince1970: 1)),
-                "94287082"
-            )
-        }
-
-        let oversizedDigits = TOTPConfig(secret: secret, period: 30, digits: 20, algorithm: .sha1)
-        let code = TOTPGenerator.generateCode(
-            config: oversizedDigits, sessionKey: testKey, date: Date(timeIntervalSince1970: 59)
-        )
-        XCTAssertEqual(code, "094287082")
-
-        XCTAssertEqual(TOTPGenerator.secondsRemaining(period: 0, date: Date(timeIntervalSince1970: 74)), 1)
-    }
-
-    func testSecondsRemainingAtBoundaryReturnsFullPeriod() {
-        let date = Date(timeIntervalSince1970: 60)
-
-        let remaining = TOTPGenerator.secondsRemaining(period: 30, date: date)
-
-        XCTAssertEqual(remaining, 30)
-    }
-
-    func testSecondsRemainingMidPeriodReturnsExpectedValue() {
-        let date = Date(timeIntervalSince1970: 74)
-
-        let remaining = TOTPGenerator.secondsRemaining(period: 30, date: date)
-
-        XCTAssertEqual(remaining, 16)
-    }
-
-    func testBase32DecodeAcceptsLowercaseWhitespaceAndPadding() throws {
-        let canonical = try XCTUnwrap(TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
-        let normalized = try XCTUnwrap(TOTPGenerator.base32Decode("jbsw y3dp ehpk3pxp===="))
-
-        XCTAssertEqual(normalized, canonical)
-    }
-
-    func testBase32DecodeRejectsInvalidCharacters() {
-        XCTAssertNil(TOTPGenerator.base32Decode("ABC$DEF"))
-    }
-
-    func testBase32EncodeProducesUnpaddedUppercaseRFC4648Vectors() {
-        // RFC 4648 §10 test vectors, minus the padding this encoder omits.
-        let vectors: [(data: Data, expected: String)] = [
-            (Data(), ""),
-            (Data("f".utf8), "MY"),
-            (Data("fo".utf8), "MZXQ"),
-            (Data("foo".utf8), "MZXW6"),
-            (Data("foob".utf8), "MZXW6YQ"),
-            (Data("fooba".utf8), "MZXW6YTB"),
-            (Data("foobar".utf8), "MZXW6YTBOI"),
+    func testUnresolvableSecretsShowThePlaceholder() throws {
+        let foreignKey = SymmetricKey(size: .bits256)
+        let configs = [
+            TOTPConfig(secret: seal("not_base32***")),
+            TOTPConfig(secret: seal("")),
+            TOTPConfig(secret: seal("===")),
+            TOTPConfig(secret: try EncryptedValue.encrypt(Self.rfc6238Seed, using: foreignKey)),
+            TOTPConfig(secret: seal(Self.rfc6238Seed), decodedSecret: try EncryptedValue.encrypt(Data([1]), using: foreignKey)),
         ]
 
-        for (data, expected) in vectors {
-            XCTAssertEqual(TOTPGenerator.base32Encode(data), expected)
+        for config in configs {
+            XCTAssertNil(TOTPGenerator.parameters(for: config, sessionKey: testKey))
+            XCTAssertEqual(TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Self.t59), "------")
         }
+        XCTAssertEqual(TOTPGenerator.code(for: nil, at: Self.t59), TOTPGenerator.placeholderCode)
+        XCTAssertEqual(TOTPGenerator.placeholderCode, "------")
     }
 
-    func testBase32EncodeRoundTripsThroughDecodeIncludingPartialFinalQuantum() throws {
-        // "MFRGG" and "MY" end mid-quantum (25 and 10 bits); canonical
-        // encodings must survive decode → encode unchanged.
-        for encoded in ["MFRGG", "MY", "JBSWY3DPEHPK3PXP", "GEZDGNBVGY3TQOJQ"] {
-            let decoded = try XCTUnwrap(TOTPGenerator.base32Decode(encoded))
-            XCTAssertEqual(TOTPGenerator.base32Encode(decoded), encoded)
-        }
-    }
-
-    func testCanonicalBase32SecretUppercasesAndRejectsNonCanonicalForms() {
-        // Lowercase input is accepted and uppercased; already-canonical input
-        // passes through unchanged.
-        XCTAssertEqual(TOTPGenerator.canonicalBase32Secret("mfrgg"), "MFRGG")
-        XCTAssertEqual(TOTPGenerator.canonicalBase32Secret("JBSWY3DPEHPK3PXP"), "JBSWY3DPEHPK3PXP")
-
-        // Padding, whitespace, out-of-alphabet characters, empties, and
-        // set trailing bits ("MFRGH" re-encodes as "MFRGG") are rejected even
-        // where base32Decode alone would tolerate them: the value is destined
-        // for a KeeOTP `key=` slot that other apps parse strictly.
-        XCTAssertNil(TOTPGenerator.canonicalBase32Secret("MFRGG==="))
-        XCTAssertNil(TOTPGenerator.canonicalBase32Secret("MFRG G"))
-        XCTAssertNil(TOTPGenerator.canonicalBase32Secret("MFRGH"))
-        XCTAssertNil(TOTPGenerator.canonicalBase32Secret("1NVALID1"))
-        XCTAssertNil(TOTPGenerator.canonicalBase32Secret(""))
+    func testBase32DecodeForwarderMatchesThePackage() {
+        // `KDBXParser` decodes stored secrets through this name.
+        XCTAssertEqual(TOTPGenerator.base32Decode("jbsw y3dp="), Data("Hello".utf8))
+        XCTAssertNil(TOTPGenerator.base32Decode("1NVALID"))
     }
 }

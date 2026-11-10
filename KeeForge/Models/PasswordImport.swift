@@ -1,4 +1,5 @@
 import Foundation
+import OneTimeCodes
 
 /// A password export file read into entries, before anything touches the
 /// database. Holds plaintext passwords: keep it only as long as the import

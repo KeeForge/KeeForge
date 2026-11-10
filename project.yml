@@ -26,6 +26,8 @@ packages:
     path: Packages/KDBXKit
   KDBXXML:
     path: Packages/KDBXXML
+  OneTimeCodes:
+    path: Packages/OneTimeCodes
   KeeForgeTwofish:
     path: Vendor/KeeForgeTwofish
   SwiftyDropbox:
@@ -121,6 +123,7 @@ targets:
         codeSign: true
       - package: KDBXKit
       - package: KDBXXML
+      - package: OneTimeCodes
       - package: SwiftyDropbox
       - package: MSAL
       - package: SiteMatching
@@ -204,6 +207,7 @@ targets:
       - package: KDBXKit
       - package: KDBXXML
       - package: SiteMatching
+      - package: OneTimeCodes
     sources:
       - path: KeeForge/App
         excludes: ["README.md", "AGENTS.md"]
@@ -265,6 +269,7 @@ targets:
       - package: KDBXKit
       - package: KDBXXML
       - package: SiteMatching
+      - package: OneTimeCodes
     sources:
       # Exclude the macOS-only Info.plist / entitlements so they are not bundled
       # as stray resources in the iOS extension.
@@ -340,6 +345,7 @@ targets:
       - package: KDBXKit
       - package: KDBXXML
       - package: SiteMatching
+      - package: OneTimeCodes
     sources:
       # Exclude the iOS-only Info.plist / entitlements so they are not bundled
       # as stray resources in the macOS extension. The macOS presentation shell

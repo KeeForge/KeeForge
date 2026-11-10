@@ -1,5 +1,6 @@
 import AuthenticationServices
 import CryptoKit
+import OneTimeCodes
 import XCTest
 import KDBXKit
 import KDBXXML
@@ -1172,7 +1173,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         reloaded = try writeAndReload(updated)
         config = try XCTUnwrap(reloaded.totpConfig)
         XCTAssertEqual(config.keePassSecretField, .base32)
-        XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
+        XCTAssertEqual(resolvedSecret(config), Base32.decode("JBSWY3DPEHPK3PXP"))
         XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
     }
 
@@ -1195,7 +1196,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(config.period, 45)
         XCTAssertEqual(config.digits, 8)
         XCTAssertEqual(config.algorithm, .sha256)
-        XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
+        XCTAssertEqual(resolvedSecret(config), Base32.decode("JBSWY3DPEHPK3PXP"))
         XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
 
         // A later field edit makes the stored URI stale: it must be dropped,
@@ -1208,7 +1209,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         config = try XCTUnwrap(reloaded.totpConfig)
         XCTAssertNil(reloaded.otpURL)
         XCTAssertEqual(config.period, 60)
-        XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
+        XCTAssertEqual(resolvedSecret(config), Base32.decode("JBSWY3DPEHPK3PXP"))
     }
 
     @MainActor
@@ -1798,6 +1799,6 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     private func resolvedSecret(_ config: TOTPConfig) -> Data? {
-        TOTPGenerator.resolveSecret(config: config, sessionKey: entrySessionKey)?.data
+        TOTPGenerator.decryptedSecret(config: config, sessionKey: entrySessionKey)
     }
 }

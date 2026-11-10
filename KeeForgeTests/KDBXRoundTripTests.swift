@@ -1,4 +1,5 @@
 import CryptoKit
+import OneTimeCodes
 import XCTest
 import KDBXKit
 import KDBXXML
@@ -141,7 +142,7 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertNil(reloaded.customFields["OTP"])
         XCTAssertNil(reloaded.customFields["TimeOtp-Secret-Base32"])
         XCTAssertEqual(
-            TOTPGenerator.resolveSecret(config: reloadedTOTP, sessionKey: roundTripSessionKey)?.data,
+            TOTPGenerator.decryptedSecret(config: reloadedTOTP, sessionKey: roundTripSessionKey),
             Data([0x00, 0x01, 0x02, 0xFF])
         )
     }
@@ -172,7 +173,7 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(reloaded.otpURL, entry.otpURL)
         XCTAssertNil(reloaded.customFields["TimeOtp-Secret-Base32"])
         XCTAssertEqual(
-            TOTPGenerator.resolveSecret(config: reloadedTOTP, sessionKey: roundTripSessionKey)?.data,
+            TOTPGenerator.decryptedSecret(config: reloadedTOTP, sessionKey: roundTripSessionKey),
             Data([0x00, 0x01, 0x02, 0xFF])
         )
     }
@@ -204,7 +205,7 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(reloaded.otpURL, entry.otpURL)
         XCTAssertNil(reloaded.customFields["TimeOtp-Secret-Base32"])
         XCTAssertEqual(
-            TOTPGenerator.resolveSecret(config: reloadedTOTP, sessionKey: roundTripSessionKey)?.data,
+            TOTPGenerator.decryptedSecret(config: reloadedTOTP, sessionKey: roundTripSessionKey),
             Data(secret.utf8)
         )
     }
@@ -367,15 +368,15 @@ final class KDBXRoundTripTests: XCTestCase {
         let config = try XCTUnwrap(reloaded.totpConfig)
         XCTAssertEqual(try config.secret.decrypt(using: roundTripSessionKey), "JBSWY3DPEHPK3PXP")
         XCTAssertEqual(
-            TOTPGenerator.resolveSecret(config: config, sessionKey: roundTripSessionKey)?.data,
-            TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP")
+            TOTPGenerator.decryptedSecret(config: config, sessionKey: roundTripSessionKey),
+            Base32.decode("JBSWY3DPEHPK3PXP")
         )
         let previous = try XCTUnwrap(reloaded.history.first?.totpConfig, "The replaced secret stays in history")
         XCTAssertEqual(
             try previous.secret.decrypt(using: roundTripSessionKey), "3132333435363738393031323334353637383930"
         )
         XCTAssertEqual(
-            TOTPGenerator.resolveSecret(config: previous, sessionKey: roundTripSessionKey)?.data,
+            TOTPGenerator.decryptedSecret(config: previous, sessionKey: roundTripSessionKey),
             Data("12345678901234567890".utf8)
         )
     }
@@ -592,7 +593,7 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(reloadedTOTP.period, 45, "A period edit must survive even when the source omitted the step parameter")
         XCTAssertTrue(reloadedTOTP.keeOTPSource?.rawQuery.contains("step=45") == true)
         XCTAssertEqual(
-            TOTPGenerator.resolveSecret(config: reloadedTOTP, sessionKey: roundTripSessionKey)?.data,
+            TOTPGenerator.decryptedSecret(config: reloadedTOTP, sessionKey: roundTripSessionKey),
             Data("Hello".utf8)
         )
     }

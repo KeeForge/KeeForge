@@ -205,7 +205,7 @@ final class KDBXParserTests: XCTestCase {
             XCTAssertEqual(config.period, 30)
             XCTAssertEqual(config.digits, 6)
             XCTAssertEqual(config.algorithm, .sha1)
-            XCTAssertEqual(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey)?.data, Data("hello world".utf8))
+            XCTAssertEqual(TOTPGenerator.decryptedSecret(config: config, sessionKey: testSessionKey), Data("hello world".utf8))
             XCTAssertEqual(config.keeOTPSource, KeeOTPSource(fieldName: fieldName, rawQuery: "key=hello%20world&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1"))
             XCTAssertNil(entry.displayCustomFields[fieldName])
         }
@@ -225,7 +225,7 @@ final class KDBXParserTests: XCTestCase {
                 "otp": "key=\(key)&type=TOTP&step=30&size=8&encoding=\(encoding)&otpHashMode=SHA256",
             ])
             let config = try XCTUnwrap(entry.totpConfig, "Expected \(encoding) config")
-            XCTAssertEqual(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey)?.data, expected)
+            XCTAssertEqual(TOTPGenerator.decryptedSecret(config: config, sessionKey: testSessionKey), expected)
         }
 
         XCTAssertNil(try parseSingleEntry(fields: [
@@ -289,7 +289,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertEqual(config.period, 30)
         XCTAssertEqual(config.digits, 6)
         XCTAssertEqual(config.algorithm, .sha1)
-        XCTAssertEqual(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey)?.data, Data("Hello".utf8))
+        XCTAssertEqual(TOTPGenerator.decryptedSecret(config: config, sessionKey: testSessionKey), Data("Hello".utf8))
         XCTAssertEqual(config.keeOTPSource, KeeOTPSource(fieldName: "otp", rawQuery: "key=JBSWY3DP"))
 
         let partial = try parseSingleEntry(fields: ["OTP": "key=JBSWY3DP&step=45"])
@@ -412,7 +412,7 @@ final class KDBXParserTests: XCTestCase {
         ] {
             let config = try XCTUnwrap(parseSingleEntry(fields: [field: value]).totpConfig, value)
             XCTAssertEqual(try config.secret.decrypt(using: testSessionKey), value)
-            XCTAssertNil(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey), value)
+            XCTAssertNil(TOTPGenerator.parameters(for: config, sessionKey: testSessionKey), value)
         }
     }
 

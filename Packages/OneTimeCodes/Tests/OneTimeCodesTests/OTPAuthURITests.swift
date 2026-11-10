@@ -1,5 +1,6 @@
+import Foundation
 import XCTest
-@testable import KeeForge
+import OneTimeCodes
 
 final class OTPAuthURITests: XCTestCase {
     func test_fullURI_parsesIssuerParamLabelAndAllParameters() throws {
@@ -102,6 +103,7 @@ final class OTPAuthURITests: XCTestCase {
             ("otpauth://hotp/Example:x?secret=JBSWY3DPEHPK3PXP&counter=0", .unsupportedType),
             ("otpauth://totp/Steam:x?secret=JBSWY3DPEHPK3PXP&encoder=steam", .unsupportedType),
             ("otpauth://totp/Example:x?period=30", .missingOrInvalidSecret),
+            ("otpauth://totp/Example:x", .missingOrInvalidSecret),
             ("otpauth://totp/Example:x?secret=", .missingOrInvalidSecret),
             ("otpauth://totp/Example:x?secret=1NVALID1", .missingOrInvalidSecret),
             ("otpauth://totp/Example:x?secret=JBSWY3DPEHPK3PXP&algorithm=MD5", .invalidParameter),
@@ -118,5 +120,73 @@ final class OTPAuthURITests: XCTestCase {
                 XCTAssertEqual(error as? OTPAuthURIError, expected, uri)
             }
         }
+    }
+
+    // MARK: - Google Authenticator Key URI Format examples
+
+    func test_googleKeyURIFormat_basicExample() throws {
+        let uri = try OTPAuthURI(string: "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example")
+
+        XCTAssertEqual(uri.issuer, "Example")
+        XCTAssertEqual(uri.accountName, "alice@google.com")
+        XCTAssertEqual(uri.secret, "JBSWY3DPEHPK3PXP")
+        XCTAssertEqual(uri.period, 30)
+        XCTAssertEqual(uri.digits, 6)
+        XCTAssertEqual(uri.algorithm, .sha1)
+    }
+
+    func test_googleKeyURIFormat_allParametersExample() throws {
+        let uri = try OTPAuthURI(
+            string: "otpauth://totp/ACME%20Co:john.doe@email.com?secret=HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ&issuer=ACME%20Co&algorithm=SHA1&digits=6&period=30"
+        )
+
+        XCTAssertEqual(uri.issuer, "ACME Co")
+        XCTAssertEqual(uri.accountName, "john.doe@email.com")
+        XCTAssertEqual(uri.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
+        XCTAssertEqual(uri.period, 30)
+        XCTAssertEqual(uri.digits, 6)
+        XCTAssertEqual(uri.algorithm, .sha1)
+    }
+
+    func test_googleKeyURIFormat_labelExamples() throws {
+        // The format's label examples, including optional spaces after the
+        // colon and an encoded colon.
+        let labels: [(label: String, issuer: String?, account: String)] = [
+            ("Example:alice@gmail.com", "Example", "alice@gmail.com"),
+            ("Provider1:Alice%20Smith", "Provider1", "Alice Smith"),
+            ("Big%20Corporation%3A%20alice%40bigco.com", "Big Corporation", "alice@bigco.com"),
+        ]
+
+        for (label, issuer, account) in labels {
+            let uri = try OTPAuthURI(string: "otpauth://totp/\(label)?secret=JBSWY3DPEHPK3PXP")
+            XCTAssertEqual(uri.issuer, issuer, label)
+            XCTAssertEqual(uri.accountName, account, label)
+        }
+    }
+
+    func test_googleKeyURIFormat_hotpIsUnsupported() {
+        XCTAssertThrowsError(try OTPAuthURI(string: "otpauth://hotp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&counter=0")) {
+            XCTAssertEqual($0 as? OTPAuthURIError, .unsupportedType)
+        }
+    }
+
+    func test_isOTPAuthURL_checksOnlyTheScheme() throws {
+        XCTAssertTrue(OTPAuthURI.isOTPAuthURL(try XCTUnwrap(URL(string: "otpauth://totp/a?secret=JBSWY3DP"))))
+        XCTAssertTrue(OTPAuthURI.isOTPAuthURL(try XCTUnwrap(URL(string: "OTPAUTH://hotp/a"))))
+        XCTAssertFalse(OTPAuthURI.isOTPAuthURL(try XCTUnwrap(URL(string: "https://example.com/otpauth"))))
+    }
+
+    func test_uriWithoutSlashBeforeQuery_hasNoLabel() throws {
+        let uri = try OTPAuthURI(string: "otpauth://totp?secret=JBSWY3DPEHPK3PXP&issuer=%20%20")
+
+        XCTAssertNil(uri.issuer)
+        XCTAssertNil(uri.accountName)
+        XCTAssertEqual(uri.rawURI, "otpauth://totp?secret=JBSWY3DPEHPK3PXP&issuer=%20%20")
+    }
+
+    func test_rawURI_lowercasesTheWholeAuthorityAndKeepsTheFragment() throws {
+        let uri = try OTPAuthURI(string: "OtpAuth://ToTp/A:B?secret=JBSWY3DPEHPK3PXP#Frag")
+
+        XCTAssertEqual(uri.rawURI, "otpauth://totp/A:B?secret=JBSWY3DPEHPK3PXP#Frag")
     }
 }

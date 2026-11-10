@@ -1,5 +1,6 @@
 import Foundation
 import KDBXXML
+import OneTimeCodes
 
 /// Represents a single KeePass entry (password record)
 struct KPEntry: Identifiable, Sendable {
@@ -290,57 +291,9 @@ struct KeeOTPSource: Codable, Equatable, Sendable {
     let rawQuery: String
 
     func rewriting(secret: String? = nil, period: Int, digits: Int, algorithm: TOTPAlgorithm) -> KeeOTPSource {
-        let replacements: [String: String?] = [
-            "key": secret,
-            "encoding": secret == nil ? nil : "Base32",
-            "step": String(period),
-            "size": String(digits),
-            "otphashmode": algorithm.rawValue,
-        ]
-        var pendingNames = Set(replacements.keys)
-        var components = rawQuery.split(separator: "&", omittingEmptySubsequences: false).map { component -> String in
-            let parts = component.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-            guard let decodedName = String(parts[0]).removingPercentEncoding else {
-                return String(component)
-            }
-            let name = decodedName.lowercased()
-            guard pendingNames.contains(name) else { return String(component) }
-            pendingNames.remove(name)
-            guard let replacement = replacements[name] ?? nil else { return String(component) }
-            return "\(parts[0])=\(replacement)"
-        }
-        // KeeOtp2 omits default-valued parameters, so a rewritten value may
-        // have no component to replace; append it under its canonical name.
-        for name in ["key", "encoding", "step", "size", "otphashmode"] where pendingNames.contains(name) {
-            guard let value = replacements[name] ?? nil else { continue }
-            components.append("\(name == "otphashmode" ? "otpHashMode" : name)=\(value)")
-        }
-        return KeeOTPSource(fieldName: fieldName, rawQuery: components.joined(separator: "&"))
-    }
-}
-
-enum TOTPAlgorithm: String, Codable, Sendable {
-    case sha1 = "SHA1"
-    case sha256 = "SHA256"
-    case sha512 = "SHA512"
-
-    /// KeePass 2.x's `TimeOtp-Algorithm` value. KeePass matches these names
-    /// exactly and generates no code for anything else.
-    var keePassName: String {
-        switch self {
-        case .sha1: "HMAC-SHA-1"
-        case .sha256: "HMAC-SHA-256"
-        case .sha512: "HMAC-SHA-512"
-        }
-    }
-
-    /// Also reads the `otpauth` tokens earlier versions wrote to that field.
-    init?(keePassName: String) {
-        switch keePassName {
-        case "HMAC-SHA-1", "SHA1": self = .sha1
-        case "HMAC-SHA-256", "SHA256": self = .sha256
-        case "HMAC-SHA-512", "SHA512": self = .sha512
-        default: return nil
-        }
+        KeeOTPSource(
+            fieldName: fieldName,
+            rawQuery: KeeOTPQuery.rewriting(rawQuery, secret: secret, period: period, digits: digits, algorithm: algorithm)
+        )
     }
 }

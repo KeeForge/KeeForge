@@ -82,7 +82,7 @@ Convention: `<Type>Tests.swift` declares `<Type>Tests` and covers `<Type>`. The 
 - `SettingsSummaryTests.swift`: `SettingsSummaryRowTests`, `AppSettingsSummaryTests`, `DatabaseSettingsSummaryTests`.
 - `FTPListingParserTests.swift` also declares `FTPURLTests`; `FaviconServiceTests.swift` also declares `FaviconLoadModelTests`.
 - `CloudFileBrowserViewModelTests` covers `CloudFileBrowserSession` and `CloudFolderBrowserViewModel`.
-- `ModelLogicTests` holds pure model helpers with no suite of their own (icon tables, entry traversal, `OpaqueXMLNodes`, `KeeOTPSource` rewriting).
+- `ModelLogicTests` holds pure model helpers with no suite of their own (icon tables, entry traversal, `OpaqueXMLNodes`, the `KeeOTPSource` forwarding).
 
 Designated gates:
 
@@ -91,6 +91,7 @@ Designated gates:
 - Rekey and re-encryption: the write is in the saver suites, the session guards in `DatabaseViewModelTests`.
 - Editor completion across a save conflict: `EntryEditCompletionGateTests` is the only non-UI coverage. Editor save and reopen against the real saver is in `KDBXCompatibilityTests`.
 - Argon2, AES-KDF, ChaCha20, and Salsa20 primitive vectors are in the KDBXKit package tests.
+- TOTP, HOTP, Base32, `otpauth` parsing, and the KeeOTP query rewrite are tested in `../Packages/OneTimeCodes/Tests`; `TOTPGeneratorTests` covers only the app adapter (decryption, `decodedSecret` precedence, placeholder).
 - Not unit-testable here: the live `FTPNetworkStream` (needs a server), live StoreKit purchases, and typed key events in an inactive Mac app (covered in `KeeForgeMacUITests`).
 
 ## See also
