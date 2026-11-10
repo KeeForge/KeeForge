@@ -4,13 +4,13 @@ import Foundation
 ///
 /// `path` is the decoded, server-relative path with the request's base prefix
 /// stripped (e.g. `/Vaults/personal.kdbx`). `name` is the last path component.
-struct WebDAVResource: Hashable, Sendable {
-    let path: String
-    let name: String
-    let isFolder: Bool
-    let eTag: String?
-    let lastModified: Date?
-    let contentLength: Int64?
+public struct WebDAVResource: Hashable, Sendable {
+    public let path: String
+    public let name: String
+    public let isFolder: Bool
+    public let eTag: String?
+    public let lastModified: Date?
+    public let contentLength: Int64?
 }
 
 /// Pure, dependency-free parser for WebDAV `PROPFIND` multistatus XML.
@@ -21,7 +21,7 @@ struct WebDAVResource: Hashable, Sendable {
 /// - Resolves and percent-decodes each `href` (relative or absolute), strips the
 ///   request base prefix, and skips the collection's own self entry.
 /// - A resource is a folder iff its resourcetype contains `<D:collection/>`.
-enum WebDAVPropfindParser {
+public enum WebDAVPropfindParser {
     /// Parses the multistatus body.
     ///
     /// - Parameters:
@@ -32,7 +32,8 @@ enum WebDAVPropfindParser {
     ///   - includeSelf: Include the requested resource's own entry (needed for
     ///     Depth 0 probes of a single file, where the self entry IS the result).
     /// - Returns: The resources described by the response.
-    static func parse(data: Data, requestURL: URL, includeSelf: Bool = false) throws -> [WebDAVResource] {
+    /// - Throws: the `XMLParser` error, or `WebDAVPropfindParseError`.
+    public static func parse(data: Data, requestURL: URL, includeSelf: Bool = false) throws -> [WebDAVResource] {
         let delegate = MultistatusDelegate(requestURL: requestURL, includeSelf: includeSelf)
         let parser = XMLParser(data: data)
         parser.shouldProcessNamespaces = true
@@ -46,7 +47,7 @@ enum WebDAVPropfindParser {
     }
 
     /// The last path component of a decoded, possibly trailing-slashed path.
-    static func lastComponent(of path: String) -> String {
+    public static func lastComponent(of path: String) -> String {
         let stripped = stripTrailingSlash(path)
         guard let slashIndex = stripped.lastIndex(of: "/") else {
             return stripped
@@ -71,13 +72,13 @@ enum WebDAVPropfindParser {
     }()
 
     /// Parses an RFC 1123 `getlastmodified` / `Last-Modified` value.
-    static func parseRFC1123(_ value: String?) -> Date? {
+    public static func parseRFC1123(_ value: String?) -> Date? {
         guard let value, !value.isEmpty else { return nil }
         return rfc1123Formatter.date(from: value)
     }
 }
 
-enum WebDAVPropfindParseError: Error, Equatable {
+public enum WebDAVPropfindParseError: Error, Equatable, Sendable {
     case malformed
 }
 

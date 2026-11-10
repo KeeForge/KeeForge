@@ -1,15 +1,43 @@
 import Foundation
 
-struct FTPListEntry: Equatable, Sendable {
-    let name: String
-    let isFolder: Bool
-    let size: Int64?
+/// One file or folder from MLSD, MLST, LIST, or SIZE/MDTM.
+public struct FTPListEntry: Equatable, Sendable {
+    public let name: String
+    public let isFolder: Bool
+    public let size: Int64?
     /// The server's `YYYYMMDDHHMMSS[.sss]` UTC stamp exactly as sent. Kept
     /// verbatim so revs compare at whatever precision the server offers.
-    let modifiedStamp: String?
+    public let modifiedStamp: String?
 
-    var modifiedDate: Date? {
+    public init(name: String, isFolder: Bool, size: Int64?, modifiedStamp: String?) {
+        self.name = name
+        self.isFolder = isFolder
+        self.size = size
+        self.modifiedStamp = modifiedStamp
+    }
+
+    public var modifiedDate: Date? {
         modifiedStamp.flatMap(FTPListingParser.date(fromTimeVal:))
+    }
+
+    /// An RFC 3659 `time-val` (`YYYYMMDDHHMMSS[.fraction]`, UTC) as a date.
+    public static func date(fromTimeVal value: String) -> Date? {
+        FTPListingParser.date(fromTimeVal: value)
+    }
+}
+
+/// Path rules shared by the client and its callers. FTP paths are `/`
+/// separated; one without a leading slash is relative to the login directory.
+public enum FTPPath {
+    /// The last non-empty component, or the path itself when it has none.
+    public static func lastComponent(of path: String) -> String {
+        FTPListingParser.lastComponent(of: path)
+    }
+
+    /// Everything before the last component: `""` for a bare name (the login
+    /// directory) and `"/"` for a name at the root.
+    public static func parentPath(of path: String) -> String {
+        FTPListingParser.parentPath(of: path)
     }
 }
 

@@ -1,6 +1,7 @@
 import AuthenticationServices
 import XCTest
 import KDBXKit
+import RemoteFileTransports
 @testable import KeeForge
 
 /// Drives `FTPCloudProvider` end to end against `FakeFTPServer`, so the real
@@ -91,7 +92,7 @@ final class FTPCloudProviderTests: XCTestCase {
         XCTAssertEqual(files.map(\.id), ["/Archive", "/Alpha.KDBX", "/zeta.kdbx"])
         XCTAssertEqual(files.map(\.isFolder), [true, false, false])
         XCTAssertEqual(files[1].size, 2)
-        XCTAssertEqual(files[1].modifiedDate, FTPListingParser.date(fromTimeVal: "20260918120001"))
+        XCTAssertEqual(files[1].modifiedDate, FTPListEntry.date(fromTimeVal: "20260918120001"))
         XCTAssertTrue(server.commandLog.contains("MLSD"))
     }
 
@@ -132,7 +133,7 @@ final class FTPCloudProviderTests: XCTestCase {
 
     func testShowingAllFilesStillHidesTheProvidersOwnScratchFiles() async throws {
         let server = FakeFTPServer()
-        let created = FTPListingParser.date(fromTimeVal: "20260918120000") ?? .distantPast
+        let created = FTPListEntry.date(fromTimeVal: "20260918120000") ?? .distantPast
         let upload = FTPCloudProvider.scratchName(for: "vault.kdbx", kind: .upload, createdAt: created, token: "0A1B2C3D")
         let backup = FTPCloudProvider.scratchName(for: "vault.kdbx", kind: .backup, createdAt: created, token: "0A1B2C3D")
         server.setFile("vault.kdbx", data: Data("v".utf8))
@@ -213,7 +214,7 @@ final class FTPCloudProviderTests: XCTestCase {
 
         XCTAssertEqual(metadata.rev, rev("database"))
         XCTAssertEqual(metadata.size, 8)
-        XCTAssertEqual(metadata.modifiedDate, FTPListingParser.date(fromTimeVal: "20260918120001"))
+        XCTAssertEqual(metadata.modifiedDate, FTPListEntry.date(fromTimeVal: "20260918120001"))
         XCTAssertTrue(server.commandLog.contains("RETR personal.kdbx"))
     }
 
@@ -226,7 +227,7 @@ final class FTPCloudProviderTests: XCTestCase {
         let metadata = try await provider.getMetadata(accountId: accountId, fileId: "/personal.kdbx")
 
         XCTAssertEqual(metadata.rev, rev("database"))
-        XCTAssertEqual(metadata.modifiedDate, FTPListingParser.date(fromTimeVal: "20260918120001"))
+        XCTAssertEqual(metadata.modifiedDate, FTPListEntry.date(fromTimeVal: "20260918120001"))
         XCTAssertTrue(server.commandLog.contains("SIZE personal.kdbx"))
         XCTAssertTrue(server.commandLog.contains("MDTM personal.kdbx"))
     }
@@ -923,7 +924,7 @@ final class FTPCloudProviderTests: XCTestCase {
     }
 
     func testScratchNamesRoundTripAndOnlyUploadsAreRecognized() throws {
-        let created = try XCTUnwrap(FTPListingParser.date(fromTimeVal: "20260918120000"))
+        let created = try XCTUnwrap(FTPListEntry.date(fromTimeVal: "20260918120000"))
         let upload = FTPCloudProvider.scratchName(for: "a.b.kdbx", kind: .upload, createdAt: created, token: "0A1B2C3D")
         let backup = FTPCloudProvider.scratchName(for: "a.b.kdbx", kind: .backup, createdAt: created, token: "0A1B2C3D")
 
@@ -1130,7 +1131,7 @@ final class FTPCloudProviderTests: XCTestCase {
         }
         seededAccountIds.append(accountId)
 
-        let now = try XCTUnwrap(FTPListingParser.date(fromTimeVal: "20260918120000"))
+        let now = try XCTUnwrap(FTPListEntry.date(fromTimeVal: "20260918120000"))
         let provider = FTPCloudProvider(
             client: server.makeClient(timeout: timeout),
             now: { now },
@@ -1192,5 +1193,27 @@ private final class TaskCanceller: @unchecked Sendable {
             return self.task
         }
         task?.cancel()
+    }
+}
+
+/// The app-side FTP account rules: the persisted account id and how a file id
+/// joins the account's base folder.
+final class FTPAccountTests: XCTestCase {
+    func testRemotePathJoinsBaseAndFileId() {
+        XCTAssertEqual(FTPCloudProvider.remotePath(base: "", fileId: "/"), "")
+        XCTAssertEqual(FTPCloudProvider.remotePath(base: "", fileId: "/a.kdbx"), "a.kdbx")
+        XCTAssertEqual(FTPCloudProvider.remotePath(base: "vaults", fileId: "/"), "vaults")
+        XCTAssertEqual(FTPCloudProvider.remotePath(base: "vaults", fileId: "/sub/a.kdbx"), "vaults/sub/a.kdbx")
+        XCTAssertEqual(FTPCloudProvider.remotePath(base: "/", fileId: "/a.kdbx"), "/a.kdbx")
+    }
+
+    func testAccountIdIsStableSecretFreeAndDistinctPerUser() throws {
+        let base = try XCTUnwrap(URL(string: "ftp://nas.local/"))
+        let first = FTPURL.accountId(normalizedBaseURL: base, username: "alex")
+
+        XCTAssertTrue(first.hasPrefix("ftp-"))
+        XCTAssertEqual(first.count, 36)
+        XCTAssertEqual(first, FTPURL.accountId(normalizedBaseURL: base, username: "alex"))
+        XCTAssertNotEqual(first, FTPURL.accountId(normalizedBaseURL: base, username: "sam"))
     }
 }

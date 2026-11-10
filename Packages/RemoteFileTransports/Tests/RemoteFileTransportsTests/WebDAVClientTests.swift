@@ -1,16 +1,12 @@
 import XCTest
-@testable import KeeForge
+@testable import RemoteFileTransports
 
 /// Tests for the thin WebDAV transport client, its PROPFIND multistatus parser,
-/// request construction, response-header extraction, and error-mapping tables.
+/// request construction, response-header extraction, and error classification.
 ///
 /// Every transport is a stub closure — these tests never touch the network.
 final class WebDAVClientTests: XCTestCase {
-    private let credential = WebDAVCredential(
-        serverURL: "https://cloud.example.com/remote.php/dav/files/alice/",
-        username: "alice",
-        password: "s3cr3t"
-    )
+    private let credential = WebDAVClient.Credential(username: "alice", password: "s3cr3t")
 
     // MARK: - PROPFIND parsing fixtures
 
@@ -464,134 +460,116 @@ final class WebDAVClientTests: XCTestCase {
         XCTAssertEqual(response.contentLength, 12345)
     }
 
-    // MARK: - HTTP status mapping
+    // MARK: - HTTP status classification
 
-    func testMapHTTPStatusTable() {
-        XCTAssertEqual(WebDAVClient.mapHTTPStatus(401), .notAuthenticated)
-
-        // 403 maps to .unknown (access denied), NOT .writeScopeRequired.
-        guard case .unknown(let denied)? = WebDAVClient.mapHTTPStatus(403) else {
-            return XCTFail("403 should map to .unknown")
-        }
-        XCTAssertTrue(denied.lowercased().contains("denied"))
-        XCTAssertNotEqual(WebDAVClient.mapHTTPStatus(403), .writeScopeRequired)
-
-        XCTAssertEqual(WebDAVClient.mapHTTPStatus(404), .fileNotFound)
-        XCTAssertEqual(WebDAVClient.mapHTTPStatus(410), .fileNotFound)
-
-        // 405 on PROPFIND: "not a WebDAV server".
-        guard case .unknown(let propfind405)? = WebDAVClient.mapHTTPStatus(405, isPropfind: true) else {
-            return XCTFail("405 PROPFIND should map to .unknown")
-        }
-        XCTAssertTrue(propfind405.lowercased().contains("webdav"))
-
-        // 405 generic: different message, no WebDAV mention.
-        guard case .unknown(let generic405)? = WebDAVClient.mapHTTPStatus(405, isPropfind: false) else {
-            return XCTFail("405 generic should map to .unknown")
-        }
-        XCTAssertFalse(generic405.lowercased().contains("webdav server"))
-
-        XCTAssertEqual(WebDAVClient.mapHTTPStatus(412), .conflict(remoteRev: nil))
-
-        for storageCode in [413, 507] {
-            guard case .unknown? = WebDAVClient.mapHTTPStatus(storageCode) else {
-                return XCTFail("\(storageCode) should map to .unknown")
-            }
-        }
-
-        guard case .unknown(let locked)? = WebDAVClient.mapHTTPStatus(423) else {
-            return XCTFail("423 should map to .unknown")
-        }
-        XCTAssertTrue(locked.lowercased().contains("locked"))
-
-        // Gateway / maintenance statuses read as "server unreachable" so an
-        // open takes the calm cached-copy path.
-        for unreachableCode in [502, 503, 504] {
-            let mapped = WebDAVClient.mapHTTPStatus(unreachableCode)
-            XCTAssertEqual(mapped, .serviceUnavailable)
-            if let mapped {
-                XCTAssertTrue(
-                    CloudProviderError.isLikelyOffline(mapped),
-                    "\(unreachableCode) must count as offline for the cache fallback"
-                )
-            }
-        }
-
-        for serverCode in [500, 501, 508] {
-            guard case .unknown? = WebDAVClient.mapHTTPStatus(serverCode) else {
-                return XCTFail("\(serverCode) should map to .unknown")
-            }
-        }
-
-        // 2xx → nil (no error).
-        XCTAssertNil(WebDAVClient.mapHTTPStatus(200))
-        XCTAssertNil(WebDAVClient.mapHTTPStatus(207))
-        XCTAssertNil(WebDAVClient.mapHTTPStatus(204))
-    }
-
-    // MARK: - URLError mapping
-
-    func testMapURLErrorOfflineFamily() {
-        let offlineCodes: [URLError.Code] = [
-            .notConnectedToInternet,
-            .networkConnectionLost,
-            .timedOut,
-            .cannotConnectToHost,
-            .cannotFindHost,
-            .dnsLookupFailed,
-            .internationalRoamingOff,
-            .dataNotAllowed,
+    func testStatusClassificationTable() {
+        let cases: [(Int, Bool, WebDAVError?)] = [
+            (200, false, nil),
+            (204, false, nil),
+            (207, true, nil),
+            (299, false, nil),
+            (401, false, .unauthorized),
+            (403, false, .forbidden),
+            (404, false, .notFound(statusCode: 404)),
+            (410, false, .notFound(statusCode: 410)),
+            (405, true, .notWebDAVServer(statusCode: 405)),
+            (501, true, .notWebDAVServer(statusCode: 501)),
+            (405, false, .methodRejected(statusCode: 405)),
+            (501, false, .methodRejected(statusCode: 501)),
+            (412, false, .preconditionFailed),
+            (413, false, .payloadTooLarge),
+            (423, false, .locked),
+            (507, false, .insufficientStorage),
+            (502, false, .serverUnavailable(statusCode: 502)),
+            (503, true, .serverUnavailable(statusCode: 503)),
+            (504, false, .serverUnavailable(statusCode: 504)),
+            (500, false, .serverError(statusCode: 500)),
+            (508, false, .serverError(statusCode: 508)),
+            (599, false, .serverError(statusCode: 599)),
+            (301, false, .unexpectedStatus(statusCode: 301)),
+            (400, true, .unexpectedStatus(statusCode: 400)),
+            (409, false, .unexpectedStatus(statusCode: 409)),
+            (100, false, .unexpectedStatus(statusCode: 100)),
         ]
-        for code in offlineCodes {
+        for (status, isPropfind, expected) in cases {
             XCTAssertEqual(
-                WebDAVClient.mapURLError(URLError(code)),
-                .networkUnavailable,
-                "Expected \(code) → .networkUnavailable"
+                WebDAVError(statusCode: status, isPropfind: isPropfind),
+                expected,
+                "HTTP \(status), PROPFIND \(isPropfind)"
             )
         }
     }
 
-    func testMapURLErrorTLSAndATSMapToSecureConnectionNotOffline() {
-        // (code, required message fragment). Each TLS/ATS family gets its own
-        // actionable message: a handshake failure must point at the server's
-        // TLS configuration — NOT the certificate, which may be valid (e.g. a
-        // server offering only cipher suites this device does not implement).
-        let tlsCases: [(Int, String)] = [
-            (NSURLErrorSecureConnectionFailed, "tls settings"),            // -1200
-            (NSURLErrorServerCertificateHasBadDate, "certificate"),        // -1201
-            (NSURLErrorServerCertificateUntrusted, "certificate"),         // -1202
-            (NSURLErrorServerCertificateHasUnknownRoot, "certificate"),    // -1203
-            (NSURLErrorServerCertificateNotYetValid, "certificate"),       // -1204
-            (NSURLErrorClientCertificateRejected, "client certificate"),   // -1205
-            (NSURLErrorClientCertificateRequired, "client certificate"),   // -1206
-            (NSURLErrorAppTransportSecurityRequiresSecureConnection, "https://"), // -1022
+    // MARK: - URLError classification
+
+    func testURLErrorClassificationTable() {
+        let cases: [(URLError.Code, WebDAVError)] = [
+            (.notConnectedToInternet, .offline(.notConnectedToInternet)),
+            (.networkConnectionLost, .offline(.networkConnectionLost)),
+            (.timedOut, .offline(.timedOut)),
+            (.cannotConnectToHost, .offline(.cannotConnectToHost)),
+            (.cannotFindHost, .offline(.cannotFindHost)),
+            (.dnsLookupFailed, .offline(.dnsLookupFailed)),
+            (.internationalRoamingOff, .offline(.internationalRoamingOff)),
+            (.dataNotAllowed, .offline(.dataNotAllowed)),
+            (.secureConnectionFailed, .tlsHandshakeFailed(.secureConnectionFailed)),
+            (.serverCertificateHasBadDate, .serverCertificateInvalid(.serverCertificateHasBadDate)),
+            (.serverCertificateUntrusted, .serverCertificateInvalid(.serverCertificateUntrusted)),
+            (.serverCertificateHasUnknownRoot, .serverCertificateInvalid(.serverCertificateHasUnknownRoot)),
+            (.serverCertificateNotYetValid, .serverCertificateInvalid(.serverCertificateNotYetValid)),
+            (.clientCertificateRejected, .clientCertificateRequired(.clientCertificateRejected)),
+            (.clientCertificateRequired, .clientCertificateRequired(.clientCertificateRequired)),
+            (
+                .appTransportSecurityRequiresSecureConnection,
+                .secureConnectionRequired(.appTransportSecurityRequiresSecureConnection)
+            ),
+            (.userCancelledAuthentication, .authenticationRejected(.userCancelledAuthentication)),
         ]
-        for (raw, fragment) in tlsCases {
-            let error = URLError(URLError.Code(rawValue: raw))
-            let mapped = WebDAVClient.mapURLError(error)
-            guard case .unknown(let message) = mapped else {
-                XCTFail("Expected \(raw) → .unknown secure-connection message, got \(mapped)")
-                continue
-            }
-            XCTAssertTrue(message.lowercased().contains("secure"), "Code \(raw) message must mention the secure connection")
-            XCTAssertTrue(
-                message.lowercased().contains(fragment),
-                "Code \(raw) message must contain \"\(fragment)\", got: \(message)"
-            )
-            XCTAssertNotEqual(mapped, .networkUnavailable, "TLS code \(raw) must NOT be .networkUnavailable")
-        }
-
-        // A handshake failure must not blame the certificate.
-        if case .unknown(let handshakeMessage) = WebDAVClient.mapURLError(
-            URLError(URLError.Code(rawValue: NSURLErrorSecureConnectionFailed))
-        ) {
-            XCTAssertFalse(handshakeMessage.lowercased().contains("certificate"))
+        for (code, expected) in cases {
+            XCTAssertEqual(WebDAVError(URLError(code)), expected, "\(code)")
         }
     }
 
-    func testMapURLErrorUserCancelledAuthentication() {
-        let error = URLError(URLError.Code(rawValue: NSURLErrorUserCancelledAuthentication))
-        XCTAssertEqual(WebDAVClient.mapURLError(error), .notAuthenticated)
+    func testUnclassifiedURLErrorIsKeptWhole() {
+        // CallIsActive counts as offline app-wide, but WebDAV never classified
+        // it so; it keeps its own description.
+        for code: URLError.Code in [.badURL, .cancelled, .callIsActive, .badServerResponse] {
+            XCTAssertEqual(WebDAVError(URLError(code)), .transport(URLError(code)))
+        }
+    }
+
+    func testSendClassifiesURLErrorAndPassesOtherErrorsThrough() async throws {
+        let url = try XCTUnwrap(URL(string: "https://cloud.example.com/dav/"))
+        let offline = WebDAVClient { _ in throw URLError(.notConnectedToInternet) }
+        do {
+            _ = try await offline.get(url: url, credential: credential)
+            XCTFail("expected a throw")
+        } catch {
+            XCTAssertEqual(error as? WebDAVError, .offline(.notConnectedToInternet))
+        }
+
+        let refused = WebDAVClient { _ in throw WebDAVError.responseTooLarge }
+        do {
+            _ = try await refused.get(url: url, credential: credential)
+            XCTFail("expected a throw")
+        } catch {
+            XCTAssertEqual(error as? WebDAVError, .responseTooLarge)
+        }
+
+        let other = WebDAVClient { _ in throw CancellationError() }
+        do {
+            _ = try await other.get(url: url, credential: credential)
+            XCTFail("expected a throw")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+    }
+
+    func testNonSuccessStatusIsReturnedNotThrown() async throws {
+        let client = WebDAVClient(transport: RequestRecorder().transport(status: 423))
+        let url = try XCTUnwrap(URL(string: "https://cloud.example.com/dav/vault.kdbx"))
+        let response = try await client.put(url: url, credential: credential, data: Data([1]))
+        XCTAssertEqual(response.statusCode, 423)
     }
 
     // MARK: - URL normalization

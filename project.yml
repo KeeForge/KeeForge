@@ -28,6 +28,8 @@ packages:
     path: Packages/KDBXXML
   OneTimeCodes:
     path: Packages/OneTimeCodes
+  RemoteFileTransports:
+    path: Packages/RemoteFileTransports
   KeeForgeTwofish:
     path: Vendor/KeeForgeTwofish
   SwiftyDropbox:
@@ -124,6 +126,7 @@ targets:
       - package: KDBXKit
       - package: KDBXXML
       - package: OneTimeCodes
+      - package: RemoteFileTransports
       - package: SwiftyDropbox
       - package: MSAL
       - package: SiteMatching
@@ -208,6 +211,7 @@ targets:
       - package: KDBXXML
       - package: SiteMatching
       - package: OneTimeCodes
+      - package: RemoteFileTransports
     sources:
       - path: KeeForge/App
         excludes: ["README.md", "AGENTS.md"]
@@ -491,6 +495,9 @@ targets:
     sources:
       - path: KeeForgeTests
         excludes: ["README.md", "AGENTS.md", "**/README.md", "**/AGENTS.md"]
+      # The package's fake FTP server, compiled here so it uses the host app's
+      # copy of RemoteFileTransports instead of linking a second one.
+      - path: Packages/RemoteFileTransports/Sources/RemoteFileTransportsTestSupport
 
   KeeForgeMacUITests:
     type: bundle.ui-testing
@@ -579,6 +586,7 @@ targets:
           - "**/AGENTS.md"
           - "DropboxCloudProviderTests.swift"
           - "OneDriveCloudProviderTests.swift"
+      - path: Packages/RemoteFileTransports/Sources/RemoteFileTransportsTestSupport
 
 
 schemeTemplates:

@@ -99,6 +99,7 @@
 		168CC74285D5A4DE4043056F /* CredentialIdentityStoreManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF40C9649E6870C49081C9C0 /* CredentialIdentityStoreManagerTests.swift */; };
 		16A9D6A7C4CAA92D6491803D /* CredentialProviderPickerCreationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F97E4DEBF17DC23B5695A4A /* CredentialProviderPickerCreationTests.swift */; };
 		175271DB3D4B017FD4044CB2 /* EntryHistoryTrimmer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B23EE0FFF365E0E5F1E571E /* EntryHistoryTrimmer.swift */; };
+		177C5EEBA0126F6ECA7F409A /* FakeFTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 289CDB8B6F95F2A6B0C698A9 /* FakeFTPServer.swift */; };
 		17D1F06AF2FE6680C75D8957 /* DistributionChannelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F95571BBCA58EA386C4C081C /* DistributionChannelTests.swift */; };
 		186B0BF0473B22258603AFB1 /* DatabaseCreationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FFC8C91D571F07AF7531393 /* DatabaseCreationService.swift */; };
 		189CF311FE69CAF394787AF8 /* KDBXKit+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FB1BFFB08291B7AA0415E5F /* KDBXKit+Localization.swift */; };
@@ -122,7 +123,7 @@
 		1E9386AAE54BC4C0D33B1F5B /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280C8E252110A0DEC3BE5283 /* CredentialIdentityStoreManager.swift */; };
 		1EB127A40EC72860DEDFB09D /* DatabaseListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FD587DA907DD8FCBAB204FE /* DatabaseListView.swift */; };
 		1FA75E9BF4CCDE4BB34A5EE1 /* MacSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AA6343D62E6D446EC5AD832 /* MacSmokeUITests.swift */; };
-		1FA80A53C3A5B065151DDDC3 /* SwiftyDropbox in Frameworks */ = {isa = PBXBuildFile; productRef = 51EBD2A917385D3E88CA0277 /* SwiftyDropbox */; };
+		1FA80A53C3A5B065151DDDC3 /* RemoteFileTransports in Frameworks */ = {isa = PBXBuildFile; productRef = B56AFA26FA319F92B1156748 /* RemoteFileTransports */; };
 		1FC2BE613C35E9359707D14E /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = FC41BE38D387242D08AB7810 /* Localizable.xcstrings */; };
 		1FCBB8C3824701B8F88FD9B1 /* AttachmentQuickLookPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D3E9B8959F15FD248A61FE /* AttachmentQuickLookPreview.swift */; };
 		1FD95A9367D4970F53C16E30 /* KDFExecutionPolicy+App.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE01D3158FFF4E30C0F02250 /* KDFExecutionPolicy+App.swift */; };
@@ -149,6 +150,7 @@
 		24FDB7F5CE246BFDC0F694A4 /* MacQuickSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E903CDBD7364BF86811E15 /* MacQuickSearchViewModel.swift */; };
 		250A3D5CA72C0917CA7BD711 /* KeeForgeAutoFill.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 379C9421555E6C13A8335404 /* KeeForgeAutoFill.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		254A238588C1AE321DD0FAF9 /* KDBXFileSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A733BA9590643828A645C9D /* KDBXFileSummary.swift */; };
+		257333D2D8F0BBB6DF6F882D /* WebDAVErrorMessageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED3D15F8CDCD177F2DA00D22 /* WebDAVErrorMessageTests.swift */; };
 		259148A788E9ADCD6DB573A1 /* AutoFillStoreInspectorGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149DB5F58CEC322A5B078635 /* AutoFillStoreInspectorGroupingTests.swift */; };
 		25B5BD192FB3670E0DB7AB91 /* PendingLocalSaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 978E88C90DA5775B8C332AE7 /* PendingLocalSaveTests.swift */; };
 		25BFA955FFF79E54F6F98E89 /* EntryEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAB9CB7D5F3120A16D3D7D7E /* EntryEditView.swift */; };
@@ -157,6 +159,7 @@
 		26C6C8F1FBF4C3CFBD4165AD /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E0A599916DAE57D4D11320 /* SettingsService.swift */; };
 		26CEC156DFC11E3AD7C8C7D7 /* DatabaseFileAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CABCF3E768742B25CA802D /* DatabaseFileAccess.swift */; };
 		26ED95A02E755974DEE1976A /* KDBXFileSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A733BA9590643828A645C9D /* KDBXFileSummary.swift */; };
+		271CE03D9450B84FC43091B6 /* WebDAVErrorMessageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED3D15F8CDCD177F2DA00D22 /* WebDAVErrorMessageTests.swift */; };
 		2797D56A9F6B023AF7BC384E /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDAC3B4189F67A87429C1363 /* StatusBadge.swift */; };
 		27E5C3FE7A91B1BE0625ABD3 /* DatabaseDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBA8C05ADEAD4DD8BFE6152 /* DatabaseDraft.swift */; };
 		27F56844AAA14A1BA0009462 /* KDBXParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB771146F2B327CB67076403 /* KDBXParser.swift */; };
@@ -251,6 +254,7 @@
 		40269CADC8C8314AA32BB1D6 /* TagNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC4E044FDBDD9171C7DC509 /* TagNormalizer.swift */; };
 		40317D349277C702F89988EB /* AttachmentPreviewFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDA78854986EA7182C73B73 /* AttachmentPreviewFileStore.swift */; };
 		40513FE7EBB0EC663F345EEC /* KDBXXML in Frameworks */ = {isa = PBXBuildFile; productRef = F6B488156617224AF7765D6B /* KDBXXML */; };
+		405BB7E00382B59A2001D207 /* RemoteFileTransports in Frameworks */ = {isa = PBXBuildFile; productRef = 02636CD8EC0C7C10D04F7BA2 /* RemoteFileTransports */; };
 		40D9BA930E63C126D6B96ECA /* EncryptionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73293357D30932DF886D469A /* EncryptionSettingsView.swift */; };
 		41162494DE9804B24B6029A8 /* SecretAccessGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB544D0D840063C593A3CB55 /* SecretAccessGate.swift */; };
 		419C64150CA42C2652C21FAF /* PasswordInputRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A81C906DE4BC0FFCA1CC754 /* PasswordInputRow.swift */; };
@@ -274,7 +278,7 @@
 		46C37BDFE49BF3B27E7C60FE /* SaveConflictMergeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48B7208FC9199C3B6A619B18 /* SaveConflictMergeUITests.swift */; };
 		477A54CF5DF6848DEF0ED405 /* KDBXXML+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21AFC0F97F6F78A5A424CE57 /* KDBXXML+Localization.swift */; };
 		48B0A0C5F0E4370AB8C8AEFF /* AttachmentLoadCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6821EA86AB6E62B2908759 /* AttachmentLoadCoordinator.swift */; };
-		48B196D18783A6205792621A /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 64B6830B629BBAC2E266834E /* MSAL */; };
+		48B196D18783A6205792621A /* SwiftyDropbox in Frameworks */ = {isa = PBXBuildFile; productRef = 51EBD2A917385D3E88CA0277 /* SwiftyDropbox */; };
 		492B3890EF152B160A560423 /* WhatsNewPresentationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DDEBC96D0673E928CD9681C /* WhatsNewPresentationServiceTests.swift */; };
 		4994CC6E9C1FB4ABBDC4F0B0 /* AppGroupGuardrailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784030A42906B5F3F8E2076B /* AppGroupGuardrailTests.swift */; };
 		499FB1A86178CDFBDC46124D /* AppSettingsCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761192478C291FBAE7135E0A /* AppSettingsCommands.swift */; };
@@ -292,7 +296,6 @@
 		4E0405CB1AC24ED88DE8B3D1 /* AppStoreScreenshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B393A7DB556210E94C0F3A2 /* AppStoreScreenshots.swift */; };
 		4E4FE2E39C56991A0024DF37 /* CoordinatedFileReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A57CF2CAD52FAEB0047900 /* CoordinatedFileReader.swift */; };
 		4EA00C81DA5EF3183834121C /* VaultHomeTiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB6D576F504959A97711836 /* VaultHomeTiles.swift */; };
-		4F89BA03F74E928F9521B733 /* FTPListingParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEAE356ABE815CE10D767927 /* FTPListingParserTests.swift */; };
 		4FAE9E7B4734B4691A07F74A /* PreviousParentGroupXML.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08499FD7D360D2D492C2F787 /* PreviousParentGroupXML.swift */; };
 		501B38FD078785AFEBFC0125 /* KeeForgeUITestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A15836C142BB997DA70F8FE /* KeeForgeUITestCase.swift */; };
 		507E33E7CDB3854E6C05C76A /* DatabaseReferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B09CBBB037C50562422C91B /* DatabaseReferenceTests.swift */; };
@@ -348,7 +351,6 @@
 		5B2C70C57069BAE039AAD884 /* kitchen-sink.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 320AC2496F42E61F67071683 /* kitchen-sink.kdbx */; };
 		5B3CC5EEB17BB75498B8FE22 /* PasswordImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 291BEEEAB56D130A36D9E9BA /* PasswordImportTests.swift */; };
 		5B9503870CDB4FDA5011E8D9 /* FieldReferenceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5262DAD579E97D03F4BBD00C /* FieldReferenceResolver.swift */; };
-		5BD730EFB541A3245E67BA3C /* FTPListingParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF514DB674DAD987C03929D4 /* FTPListingParser.swift */; };
 		5BEEA3D4302FCFF4346D6AF7 /* TOTPQRScannerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F715792780CA7205B5924EE /* TOTPQRScannerSheet.swift */; };
 		5C06127D64C6675A64D3CA38 /* EntryIconPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5188612D8251D8EEAA729F2 /* EntryIconPickerView.swift */; };
 		5C5AB8CD40A0998297BE4BEE /* PasswordImportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E33F4F8664FD57973FE3A5 /* PasswordImportViewModel.swift */; };
@@ -368,6 +370,7 @@
 		5E1E376FC35BF2DB8D73A60B /* SortOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFF14B46CC89D1B7A9138E80 /* SortOrderTests.swift */; };
 		5E217AE7428BEFEC142CF5A7 /* SSHAgentKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60685C16D954487296526454 /* SSHAgentKey.swift */; };
 		5E8004BCD066767C8044CD94 /* DatabaseDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBA8C05ADEAD4DD8BFE6152 /* DatabaseDraft.swift */; };
+		5EEEF6EDCED72B316D81FBC4 /* WebDAVError+CloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4B9D469C077735051E042E0 /* WebDAVError+CloudProvider.swift */; };
 		5F11ABD01AD686A560AFA115 /* DatabaseRowStatusSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5639283339EAE5046C580778 /* DatabaseRowStatusSummary.swift */; };
 		5F1F1CBD1E0BD3BAF9131F60 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27FF7FFB8B5AE5E9335216FD /* Theme.swift */; };
 		5F7AC216028E5CA91AAB3651 /* MacTransitionNoticeServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D98A5017BAC07F0E89FDAB7 /* MacTransitionNoticeServiceTests.swift */; };
@@ -388,7 +391,6 @@
 		64F844C2F66BA3F61A7FE55B /* AutoFillCreatorSaveBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E02399604E8057E7BC84FF8 /* AutoFillCreatorSaveBar.swift */; };
 		65150CEF897121752B259164 /* FaviconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D07D803277E1C8581E2FB51 /* FaviconView.swift */; };
 		653F8DDF8ABAA18262605EFC /* SoftwareUpdateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0409DC837ACE58EA7530139 /* SoftwareUpdateService.swift */; };
-		6560E50E8DAC0256CE4FD7D6 /* WebDAVClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16B7DC25FE8C1CEE117E7FD /* WebDAVClientTests.swift */; };
 		66088311A2FA978204A5A943 /* LocalDatabaseSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */; };
 		664A0B0C848B0867E1705FE8 /* AutoFillSaveCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 553C63DEBDFFD48E4FC4646E /* AutoFillSaveCoordinator.swift */; };
 		66DF626BAC87ED327A3BD798 /* DatabaseCreationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07DCAC6B2242F7FC28617138 /* DatabaseCreationViewModel.swift */; };
@@ -416,7 +418,6 @@
 		6D4482B31E02010875FAE807 /* Attachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17350EF5DF6C5C2E97B61A34 /* Attachment.swift */; };
 		6D695D7D15B77AB28050F3EC /* QuickUnlockKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADD43CDD7ADC77CB4A4D2B6 /* QuickUnlockKeychain.swift */; };
 		6D7B0F0F5E4A1157EE41A4F3 /* EntryEditViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42780494357246F25C55F3FD /* EntryEditViewModelTests.swift */; };
-		6DC8F7919FA17DEAC31B5B2F /* FTPListingParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF514DB674DAD987C03929D4 /* FTPListingParser.swift */; };
 		6DE387340081F5DE5068B4CD /* FTPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C84F58EE09F0725331BDBA /* FTPModels.swift */; };
 		6E24EADA8CFB48F5F806A4D5 /* MacAutoFillPickerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08207C2D0BAFA8C5AE3CB2C5 /* MacAutoFillPickerUITests.swift */; };
 		6F6C9C0529AD4D0154E1E799 /* EntryRowMoveAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C71D4D96F2A13F178F7A8B2 /* EntryRowMoveAction.swift */; };
@@ -424,7 +425,6 @@
 		7088E67D3FBF351954CD70F2 /* AutoFillPasskeyCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C412174AA21900D65A646A54 /* AutoFillPasskeyCreatorView.swift */; };
 		70B5DFF94CC20D6BD049C9AB /* ChaCha20Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B37308F603CF890C96ED80 /* ChaCha20Tests.swift */; };
 		70E7466775747FC4F8295174 /* MacBiometricAutoUnlockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B459F34FCD09A4A573B6F3DD /* MacBiometricAutoUnlockTests.swift */; };
-		711E28602252C35A2481E769 /* WebDAVClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16B7DC25FE8C1CEE117E7FD /* WebDAVClientTests.swift */; };
 		7144C6048A793ACF7AD5E2B5 /* MacLockMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 266DACD09B3263F9CCEDE2A6 /* MacLockMonitorTests.swift */; };
 		715289CA9B37F2D1C8DFBC2E /* GroupEditViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ECEDBFE3791A3AF8121C4DD /* GroupEditViewModelTests.swift */; };
 		717E690E242EE769B2D6A811 /* QuickUnlockKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADD43CDD7ADC77CB4A4D2B6 /* QuickUnlockKeychain.swift */; };
@@ -456,7 +456,7 @@
 		7AA65543BE3ED502FF8BEA55 /* EntryDuplicateUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A225E7C96451506F1DE532D2 /* EntryDuplicateUITests.swift */; };
 		7AAE386C5AFB6378217DF869 /* QuickUnlockKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADD43CDD7ADC77CB4A4D2B6 /* QuickUnlockKeychain.swift */; };
 		7AC14CDFA944ADF7EDFF78EA /* eff_large_wordlist.txt in Resources */ = {isa = PBXBuildFile; fileRef = 811DB03990C74732FD046CBE /* eff_large_wordlist.txt */; };
-		7AD08FFA02A073BFB1965785 /* SiteMatching in Frameworks */ = {isa = PBXBuildFile; productRef = C0D2ECB37C663D0B86FA869E /* SiteMatching */; };
+		7AD08FFA02A073BFB1965785 /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 64B6830B629BBAC2E266834E /* MSAL */; };
 		7AF427B2C82399DFAFDA2068 /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C303F1BB7603F55869127E7A /* StoreKitManager.swift */; };
 		7B120DDC4A089AEAC9C1947B /* PendingUploadRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0144D383D6F598C1B89725B0 /* PendingUploadRecovery.swift */; };
 		7B3AFEA44D4790C252059BE3 /* KDFExecutionPolicy+App.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE01D3158FFF4E30C0F02250 /* KDFExecutionPolicy+App.swift */; };
@@ -532,12 +532,12 @@
 		8C5ACB271A41992F21839369 /* GroupIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A2EF26D9C48D155A6700D4 /* GroupIconView.swift */; };
 		8C73A708D9508C4931C50779 /* KDBXWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C243B2746CDA396F76E052B6 /* KDBXWriter.swift */; };
 		8C7848AC6BED7B981DABB30D /* ViewRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B68782805C5052F4BAE7FBD /* ViewRenderTests.swift */; };
-		8CBE8DF70368FAE59565D6D2 /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F265178D41B43F55813C70AD /* WebDAVClient.swift */; };
 		8D451C0FF02C60504FE778CC /* foreign-chacha20.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = EF6FBD0976DB77F511EDBFFA /* foreign-chacha20.kdbx */; };
 		8D665EF38B9AB910835950AD /* PasswordInputRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A81C906DE4BC0FFCA1CC754 /* PasswordInputRow.swift */; };
 		8DBA5DD43302AD63DCCE2E6C /* FieldReferenceResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BF0F834B82C15D0578505A6 /* FieldReferenceResolverTests.swift */; };
 		8DF985F86524598EAF42C4C9 /* PasswordImportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E33F4F8664FD57973FE3A5 /* PasswordImportViewModel.swift */; };
 		8E07A098775D3B3801012403 /* DatabaseExportPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070BD45C43AB658FAE6C8225 /* DatabaseExportPresenter.swift */; };
+		8E2665CEC7D0AF4BC2C0DDD8 /* YubiKit in Frameworks */ = {isa = PBXBuildFile; productRef = 679304F71B3D2E8B3188AC97 /* YubiKit */; };
 		8E54AEF7D995D0778431B77D /* AutoFillMemoryLimit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CCBDF8ED23DD32B45AD2C3 /* AutoFillMemoryLimit.swift */; };
 		8EAB80EF201B8AE0EA7F865F /* EntryEdit.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E36B86BDCAAD4E3C120428 /* EntryEdit.swift */; };
 		8F836FF1ADD89318676CEEEB /* SSHAgentSocketServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E97F6278EBFCEC98C3BB7175 /* SSHAgentSocketServer.swift */; };
@@ -580,14 +580,14 @@
 		999D3468D72F73F21E731CEA /* AttachmentQuickLookPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D3E9B8959F15FD248A61FE /* AttachmentQuickLookPreview.swift */; };
 		99A6971FCFE93B6B8970F0E5 /* PendingLocalSaveStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C82F63D180F4F7F9204E3B /* PendingLocalSaveStore.swift */; };
 		99C6C59D179E34E31881A196 /* KDFExecutionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41BA947FA87C1C257A39A001 /* KDFExecutionPolicyTests.swift */; };
-		9B0C0D6CECBCE0251BDA19BF /* FTPListingParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEAE356ABE815CE10D767927 /* FTPListingParserTests.swift */; };
 		9B1939BCDA3D7C1CE39BF57F /* ViewRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B68782805C5052F4BAE7FBD /* ViewRenderTests.swift */; };
 		9B3870766B755B0EC44241BC /* EncryptedValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6594B5A580C44B4042FE110 /* EncryptedValue.swift */; };
 		9B397688BBF29D200548E898 /* VaultHomeTiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB6D576F504959A97711836 /* VaultHomeTiles.swift */; };
+		9BFA43874EA88C63646DE152 /* FakeFTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 289CDB8B6F95F2A6B0C698A9 /* FakeFTPServer.swift */; };
 		9C36CE737F98C0D6D44AE500 /* Group.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA5A20BA0FFA29C1067EB5EE /* Group.swift */; };
 		9C52BA1EC8FF38191ADF78D9 /* PendingUploadRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0144D383D6F598C1B89725B0 /* PendingUploadRecovery.swift */; };
 		9C79590F954BF1DEAD2EDBA0 /* WebDAVSyncUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707D0691762DF0F7082224A2 /* WebDAVSyncUITests.swift */; };
-		9D1A1327DB1549DFCA1A93B3 /* YubiKit in Frameworks */ = {isa = PBXBuildFile; productRef = 679304F71B3D2E8B3188AC97 /* YubiKit */; };
+		9D1A1327DB1549DFCA1A93B3 /* SiteMatching in Frameworks */ = {isa = PBXBuildFile; productRef = C0D2ECB37C663D0B86FA869E /* SiteMatching */; };
 		9D4573ED84B3C93122BFD4BA /* Attachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17350EF5DF6C5C2E97B61A34 /* Attachment.swift */; };
 		9D6529EFA34001C636C6C22F /* AppSettingsCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761192478C291FBAE7135E0A /* AppSettingsCommands.swift */; };
 		9D72ADA8DA6AD1C51A5C953F /* EntryAttachmentFileLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98171453C578E034D7883CF3 /* EntryAttachmentFileLoaderTests.swift */; };
@@ -613,7 +613,6 @@
 		A2CDD7392EFE6D1A2B4D0F27 /* CloudTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 859C701D22CBF7ABEF51E825 /* CloudTokenStore.swift */; };
 		A32BD51E42F88269A430E504 /* EntryExpiryXML.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD17A3C9E631C14E1FF5A5F /* EntryExpiryXML.swift */; };
 		A3AC7E194113260808392F81 /* MacAppSuggestionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01D25A56B28CDD3A9675203 /* MacAppSuggestionServiceTests.swift */; };
-		A3DAF354BB96EB5A179CFFBC /* FTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC11153DD6293E8BFE1679AD /* FTPClient.swift */; };
 		A3FB120A5FB52424A9EC9BD9 /* MacWebDAVSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B69F172792BCB6806380021 /* MacWebDAVSmokeUITests.swift */; };
 		A41B683E166EFC655E37B44E /* FaviconIconEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 021DE9F44EFF3D719BCE76DB /* FaviconIconEncoder.swift */; };
 		A445682890689C1BF6B4346F /* TOTPGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51105ADF7C41EB47401418D9 /* TOTPGenerator.swift */; };
@@ -626,7 +625,6 @@
 		A744EE21ECE7EE2131A2EE04 /* AutoFillMacChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE594C96C5ABCA153E8A179 /* AutoFillMacChrome.swift */; };
 		A7518E68FF7ABA8361B7208A /* AutoFillSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADAA5D103A016B02FDB65F56 /* AutoFillSearchView.swift */; };
 		A794C57B84F41EE9F0556A7C /* SSHAgentRequestHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6F8CD9FB0D482D62371BA1 /* SSHAgentRequestHandlerTests.swift */; };
-		A802EF2A8BAEBB48BEFF71C7 /* FakeFTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC423EA352CF0CC13552A212 /* FakeFTPServer.swift */; };
 		A8C0C2410A1450B0C670BD73 /* AutoFillMemoryLimit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CCBDF8ED23DD32B45AD2C3 /* AutoFillMemoryLimit.swift */; };
 		A90E88B4CAED889517A11A1A /* eff_large_wordlist.txt in Resources */ = {isa = PBXBuildFile; fileRef = 811DB03990C74732FD046CBE /* eff_large_wordlist.txt */; };
 		A95E8EA50206CEA68549188D /* KDBXXML+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21AFC0F97F6F78A5A424CE57 /* KDBXXML+Localization.swift */; };
@@ -695,6 +693,7 @@
 		B9985CFC1B303D5AE619A299 /* TOTPViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6681D2B1E9D865434D606B7 /* TOTPViewModel.swift */; };
 		B9A65CF0038B9D619D5A2670 /* SSHAgentRequestHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9EC18281E9507D6C04DC621 /* SSHAgentRequestHandler.swift */; };
 		BA604F83D5FCE06F038E5875 /* CloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70041C9E76CC7196DFCB5AE1 /* CloudProviderTests.swift */; };
+		BA834013243B6151BADD45FA /* WebDAVError+CloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4B9D469C077735051E042E0 /* WebDAVError+CloudProvider.swift */; };
 		BAD538FD3B169A39330E023F /* GroupIconViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEFC4B470F2EA79C7D8950A7 /* GroupIconViewTests.swift */; };
 		BAFA1FC716503B16F6C8BBA7 /* ReviewPromptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F440A311BC64D32980E78A /* ReviewPromptService.swift */; };
 		BB58C02E20D4E74B56A233FC /* PreviousParentGroupXML.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08499FD7D360D2D492C2F787 /* PreviousParentGroupXML.swift */; };
@@ -747,7 +746,6 @@
 		C8C4A4DA9D8EEB1A479CAF54 /* UITestWebDAVCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CB86A3375C87F5074F1AB7D /* UITestWebDAVCloudProvider.swift */; };
 		C91E054FAE81DB428C2C6AE4 /* EntryIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A7D8322CFC539B9ECE560B4 /* EntryIconView.swift */; };
 		C9236BDC30BEAC14BC57865C /* CredentialProviderSaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0987977B0D41FBB5C1456C5 /* CredentialProviderSaveTests.swift */; };
-		C96DA87ACFF111A934447885 /* FTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC11153DD6293E8BFE1679AD /* FTPClient.swift */; };
 		CA1666C766F8232364BDE1D3 /* PasswordGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD42E436B84E873D08B91ACA /* PasswordGenerator.swift */; };
 		CADA85848D7284D9C9804FCD /* GroupEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 949A21E632A57DDE3E8BDF5A /* GroupEditView.swift */; };
 		CAF34116D0BCF06265E918E8 /* EntryExpiryXML.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD17A3C9E631C14E1FF5A5F /* EntryExpiryXML.swift */; };
@@ -774,7 +772,6 @@
 		D1CCF2F101297F3F9CE03DF5 /* PasswordGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 613225A0024C030E19B2F7E1 /* PasswordGeneratorTests.swift */; };
 		D1F496D2E0859A9310C28826 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EF8AB5C04C7CCC28C03F51B /* SettingsView.swift */; };
 		D21CA341BBBF3D31E7A9605B /* HardwareKeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB544840B1E5A0F71FCB6E6 /* HardwareKeyService.swift */; };
-		D25353C72A55A267A01983E5 /* FakeFTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC423EA352CF0CC13552A212 /* FakeFTPServer.swift */; };
 		D2ACB8FC0A5B75F3D41837FD /* FTPCloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 695FD416F0002BB9CAE9F2C8 /* FTPCloudProviderTests.swift */; };
 		D3447A0ACAD09A6446CFBC59 /* DatabaseSettingsSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757B2A2645F632F8803B7868 /* DatabaseSettingsSummary.swift */; };
 		D35163EA0AB065790419CDA6 /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3FF6C98ADE49FE6BDB7B6D /* SecurityScopedBookmarkManager.swift */; };
@@ -921,7 +918,6 @@
 		F603A396AD8DE85C78839E5A /* BiometricService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C17D7E75C6066F4A179AB5F /* BiometricService.swift */; };
 		F62ADAF79CB7D9C57A4DAB15 /* CredentialProviderPresentingSpy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549786F507C78652231994C1 /* CredentialProviderPresentingSpy.swift */; };
 		F6735B75EC3543EFEC977190 /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDAC3B4189F67A87429C1363 /* StatusBadge.swift */; };
-		F699E6A14BD9C97BAFF19A14 /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F265178D41B43F55813C70AD /* WebDAVClient.swift */; };
 		F6D6CA9E9A0BB073703AAA9E /* SSHAgentTestKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793BC599E7FC93B720927040 /* SSHAgentTestKeys.swift */; };
 		F73B54C1572F840DDD7889DF /* EntryEditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0298F6EF01194050F3D35F5A /* EntryEditUITests.swift */; };
 		F7454D412EB3C5CE90249E01 /* DatabaseFileInfoLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 843FD93201393B6BA39234E5 /* DatabaseFileInfoLoaderTests.swift */; };
@@ -944,7 +940,6 @@
 		FA7D85FA459054A81D955408 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E0A599916DAE57D4D11320 /* SettingsService.swift */; };
 		FAAB1B02D30635B3168A6953 /* TestDatabaseSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5ACBC2E82EEFC396C2C39E6 /* TestDatabaseSupport.swift */; };
 		FB38D1BBBDE8F5D443FB0FEC /* CloudAccountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFB9EC163DF66E977BC27389 /* CloudAccountStore.swift */; };
-		FB4F24165ABC3A7B8783A822 /* WebDAVPropfindParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FDAFFC6E708ACC5B215525 /* WebDAVPropfindParser.swift */; };
 		FBB0F6A1CE0987E2EC695E1C /* DistributionChannelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F95571BBCA58EA386C4C081C /* DistributionChannelTests.swift */; };
 		FBB66D54E8F7BE1F791192BE /* autofill-store-alpha.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = DA15B4ED585B95FF075F18A3 /* autofill-store-alpha.kdbx */; };
 		FC415A984D1EF5ECE0B2A66F /* SaveConflictAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 242F49367AA90167905CEF0E /* SaveConflictAlert.swift */; };
@@ -967,7 +962,6 @@
 		FEAFD5FEB5DF3B17AF70F9F9 /* CustomIconXMLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B8777AF29F684C087EE1C71 /* CustomIconXMLTests.swift */; };
 		FEC0FF43A49FF8C94CB3F1E5 /* demo-keyfile.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */; };
 		FECA9E7292CD2D9525E38C4C /* DatabaseEditorCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B385ACB450479808986B203B /* DatabaseEditorCoordinatorTests.swift */; };
-		FF59DF6830F65782916EC576 /* WebDAVPropfindParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FDAFFC6E708ACC5B215525 /* WebDAVPropfindParser.swift */; };
 		FFE942BFD92B9EDA8FFAC22F /* MacUnlockPasswordField.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19F375C8B87A48E090237BE /* MacUnlockPasswordField.swift */; };
 /* End PBXBuildFile section */
 
@@ -1121,6 +1115,7 @@
 		268A6ED5FD7C908116437C5E /* CredentialProviderCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderCoordinator.swift; sourceTree = "<group>"; };
 		27FF7FFB8B5AE5E9335216FD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		280C8E252110A0DEC3BE5283 /* CredentialIdentityStoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialIdentityStoreManager.swift; sourceTree = "<group>"; };
+		289CDB8B6F95F2A6B0C698A9 /* FakeFTPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeFTPServer.swift; sourceTree = "<group>"; };
 		28FEA49976804F3FF18A0352 /* KDBXCompatibilitySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXCompatibilitySupport.swift; sourceTree = "<group>"; };
 		291BEEEAB56D130A36D9E9BA /* PasswordImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordImportTests.swift; sourceTree = "<group>"; };
 		2AA6343D62E6D446EC5AD832 /* MacSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSmokeUITests.swift; sourceTree = "<group>"; };
@@ -1263,7 +1258,6 @@
 		7880A73BB1E19B7B6DD79344 /* MacWindowCloseGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWindowCloseGuard.swift; sourceTree = "<group>"; };
 		78F02B60D6E7C4712F4D4769 /* HardwareKeyUnlockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareKeyUnlockTests.swift; sourceTree = "<group>"; };
 		793BC599E7FC93B720927040 /* SSHAgentTestKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHAgentTestKeys.swift; sourceTree = "<group>"; };
-		79FDAFFC6E708ACC5B215525 /* WebDAVPropfindParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVPropfindParser.swift; sourceTree = "<group>"; };
 		7AB5EEF311A401337289C014 /* demo-keyfile.key */ = {isa = PBXFileReference; path = "demo-keyfile.key"; sourceTree = "<group>"; };
 		7AEBF3F7022FCACFF7195DB7 /* PasskeyCredential.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyCredential.swift; sourceTree = "<group>"; };
 		7B69F172792BCB6806380021 /* MacWebDAVSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWebDAVSmokeUITests.swift; sourceTree = "<group>"; };
@@ -1346,7 +1340,6 @@
 		AEF7A2480DF3853AFF0AF02B /* Entry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entry.swift; sourceTree = "<group>"; };
 		AFB9EC163DF66E977BC27389 /* CloudAccountStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountStore.swift; sourceTree = "<group>"; };
 		B0BB465F403FF88189ACE559 /* KeychainMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainMigrationTests.swift; sourceTree = "<group>"; };
-		B16B7DC25FE8C1CEE117E7FD /* WebDAVClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVClientTests.swift; sourceTree = "<group>"; };
 		B19F375C8B87A48E090237BE /* MacUnlockPasswordField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacUnlockPasswordField.swift; sourceTree = "<group>"; };
 		B2C82F63D180F4F7F9204E3B /* PendingLocalSaveStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingLocalSaveStore.swift; sourceTree = "<group>"; };
 		B2EA9E070C7F4ED132A66DB7 /* DatabaseDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseDetailsView.swift; sourceTree = "<group>"; };
@@ -1410,6 +1403,7 @@
 		D15DBC84769C820D86294442 /* KeyFileUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyFileUITests.swift; sourceTree = "<group>"; };
 		D265572977E75D10885314BB /* IOSUserActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSUserActivityTests.swift; sourceTree = "<group>"; };
 		D3E1425327264227236C2B67 /* FTPConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FTPConnectView.swift; sourceTree = "<group>"; };
+		D4B9D469C077735051E042E0 /* WebDAVError+CloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WebDAVError+CloudProvider.swift"; sourceTree = "<group>"; };
 		D4E7D480B1AAABFDCE5A3839 /* DatabaseWorkspaceStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseWorkspaceStateTests.swift; sourceTree = "<group>"; };
 		D6C99B38ABC76F14EEC9ECE5 /* StoreKitManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManagerTests.swift; sourceTree = "<group>"; };
 		D763140F783B299E5E1BD920 /* KDBXMergerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXMergerTests.swift; sourceTree = "<group>"; };
@@ -1422,13 +1416,13 @@
 		DB2A4FFD19CB42ECEDDAA7B9 /* SecurityScopedBookmarkManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityScopedBookmarkManagerTests.swift; sourceTree = "<group>"; };
 		DB6EEB0E46A9536FD3663EFB /* ExpressUnlockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpressUnlockTests.swift; sourceTree = "<group>"; };
 		DBA690A30702948674112D9A /* AutoFillTipUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillTipUITests.swift; sourceTree = "<group>"; };
-		DC11153DD6293E8BFE1679AD /* FTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FTPClient.swift; sourceTree = "<group>"; };
 		DCB1A8E988C494C7E2A4E3B0 /* SecretAccessGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretAccessGateTests.swift; sourceTree = "<group>"; };
 		DDEA3048149FA6E823621EA0 /* PasskeyCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyCrypto.swift; sourceTree = "<group>"; };
 		DE329B5193927500F922C84C /* EntryRowCopyActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryRowCopyActions.swift; sourceTree = "<group>"; };
 		DFF14B46CC89D1B7A9138E80 /* SortOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortOrderTests.swift; sourceTree = "<group>"; };
 		E01D25A56B28CDD3A9675203 /* MacAppSuggestionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAppSuggestionServiceTests.swift; sourceTree = "<group>"; };
 		E0409DC837ACE58EA7530139 /* SoftwareUpdateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftwareUpdateService.swift; sourceTree = "<group>"; };
+		E08CDCBB137B272E4EED6C97 /* RemoteFileTransports */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RemoteFileTransports; path = Packages/RemoteFileTransports; sourceTree = SOURCE_ROOT; };
 		E0E5E0B52692F925F8CAB5A1 /* LockUnlockUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockUnlockUITests.swift; sourceTree = "<group>"; };
 		E1F996FD4C85163E8005264E /* KDBXCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXCompatibilityTests.swift; sourceTree = "<group>"; };
 		E25AD0AC71F427EE339A13EC /* GroupIconPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupIconPickerView.swift; sourceTree = "<group>"; };
@@ -1449,8 +1443,8 @@
 		EA6878B6041AE23174ADDCE6 /* AutoFillEntryCreatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillEntryCreatorView.swift; sourceTree = "<group>"; };
 		EBE598EE72ABE3EAD3DEED34 /* FaviconIconEncoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconIconEncoderTests.swift; sourceTree = "<group>"; };
 		EBF4936791DF8FD3F2E5B144 /* FaviconService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconService.swift; sourceTree = "<group>"; };
-		EC423EA352CF0CC13552A212 /* FakeFTPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeFTPServer.swift; sourceTree = "<group>"; };
 		ECCFEAA0C574981A7B48A938 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		ED3D15F8CDCD177F2DA00D22 /* WebDAVErrorMessageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVErrorMessageTests.swift; sourceTree = "<group>"; };
 		EDAC3B4189F67A87429C1363 /* StatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadge.swift; sourceTree = "<group>"; };
 		EE01D3158FFF4E30C0F02250 /* KDFExecutionPolicy+App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KDFExecutionPolicy+App.swift"; sourceTree = "<group>"; };
 		EEE77955BBD928FFC22F1048 /* CloudProviderRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudProviderRegistryTests.swift; sourceTree = "<group>"; };
@@ -1465,7 +1459,6 @@
 		F132E57F847216618151EAF4 /* KeeForgeMacAutoFill.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KeeForgeMacAutoFill.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		F178F4027D7DB837D823C54C /* DatabaseListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseListViewModel.swift; sourceTree = "<group>"; };
 		F17ECD151BDCFAC6C487788B /* KPMeta.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KPMeta.swift; sourceTree = "<group>"; };
-		F265178D41B43F55813C70AD /* WebDAVClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVClient.swift; sourceTree = "<group>"; };
 		F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */ = {isa = PBXFileReference; path = demo.kdbx; sourceTree = "<group>"; };
 		F4848101D8507FA92F1BC8E8 /* RegularDatabaseWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegularDatabaseWorkspaceView.swift; sourceTree = "<group>"; };
 		F715BA635B9236867617D7B7 /* UnlockKeyFileSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockKeyFileSelectionTests.swift; sourceTree = "<group>"; };
@@ -1481,11 +1474,9 @@
 		FD42E436B84E873D08B91ACA /* PasswordGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordGenerator.swift; sourceTree = "<group>"; };
 		FD7891343E62D744890CF243 /* KDBXFileSummaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXFileSummaryTests.swift; sourceTree = "<group>"; };
 		FE8A26125D7268C217C403DD /* DatabaseListStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseListStoreTests.swift; sourceTree = "<group>"; };
-		FEAE356ABE815CE10D767927 /* FTPListingParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FTPListingParserTests.swift; sourceTree = "<group>"; };
 		FED7A7090DB2824091A0352C /* CustomIconXML.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomIconXML.swift; sourceTree = "<group>"; };
 		FED8CAC6F5E34BB1CB405728 /* legacy-kdbx31.kdbx */ = {isa = PBXFileReference; path = "legacy-kdbx31.kdbx"; sourceTree = "<group>"; };
 		FEDEBBDC91EBD1B2FBB3716B /* EncryptedValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptedValueTests.swift; sourceTree = "<group>"; };
-		FF514DB674DAD987C03929D4 /* FTPListingParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FTPListingParser.swift; sourceTree = "<group>"; };
 		FFB6EEC55FC21C0E0612931E /* PlatformCompat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformCompat.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -1498,6 +1489,7 @@
 				DF799AD406B024CAAD8B743D /* KDBXXML in Frameworks */,
 				28E386FA18015056C4B4B670 /* SiteMatching in Frameworks */,
 				9F769ED21EFC32D49541FA67 /* OneTimeCodes in Frameworks */,
+				405BB7E00382B59A2001D207 /* RemoteFileTransports in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1516,10 +1508,11 @@
 				96CBA1155C402004E60A33E3 /* KDBXKit in Frameworks */,
 				40513FE7EBB0EC663F345EEC /* KDBXXML in Frameworks */,
 				8B033D10ABCF3C4C54E2B52C /* OneTimeCodes in Frameworks */,
-				1FA80A53C3A5B065151DDDC3 /* SwiftyDropbox in Frameworks */,
-				48B196D18783A6205792621A /* MSAL in Frameworks */,
-				7AD08FFA02A073BFB1965785 /* SiteMatching in Frameworks */,
-				9D1A1327DB1549DFCA1A93B3 /* YubiKit in Frameworks */,
+				1FA80A53C3A5B065151DDDC3 /* RemoteFileTransports in Frameworks */,
+				48B196D18783A6205792621A /* SwiftyDropbox in Frameworks */,
+				7AD08FFA02A073BFB1965785 /* MSAL in Frameworks */,
+				9D1A1327DB1549DFCA1A93B3 /* SiteMatching in Frameworks */,
+				8E2665CEC7D0AF4BC2C0DDD8 /* YubiKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1824,6 +1817,7 @@
 				810E712F10F07D53EBDCF945 /* KDBXXML */,
 				CF69E315CB01DC6C5A568375 /* KeeForgeTwofish */,
 				C2020950910176F8D961999A /* OneTimeCodes */,
+				E08CDCBB137B272E4EED6C97 /* RemoteFileTransports */,
 				B4C6DC34C11BE183A73D61CD /* SiteMatching */,
 			);
 			path = Packages;
@@ -1864,6 +1858,15 @@
 			);
 			name = Extensions;
 			path = KeeForge/Extensions;
+			sourceTree = "<group>";
+		};
+		A0D38EBAEC42A3EEA08AC258 /* RemoteFileTransportsTestSupport */ = {
+			isa = PBXGroup;
+			children = (
+				289CDB8B6F95F2A6B0C698A9 /* FakeFTPServer.swift */,
+			);
+			name = RemoteFileTransportsTestSupport;
+			path = Packages/RemoteFileTransports/Sources/RemoteFileTransportsTestSupport;
 			sourceTree = "<group>";
 		};
 		A376BB645DDF43A121708494 /* AutoFillExtension */ = {
@@ -1943,7 +1946,6 @@
 				954FD9102A68A39D0AA7D09F /* BundledFixtureGuard.swift */,
 				549786F507C78652231994C1 /* CredentialProviderPresentingSpy.swift */,
 				1F0EC1409DCECBCCE582C30A /* FakeCredentialIdentityStore.swift */,
-				EC423EA352CF0CC13552A212 /* FakeFTPServer.swift */,
 				642B69C687C595952996C536 /* FilePathAssertions.swift */,
 				28FEA49976804F3FF18A0352 /* KDBXCompatibilitySupport.swift */,
 				F0F65B45F45792580B0A8707 /* KDBXTreeAssertions.swift */,
@@ -2055,6 +2057,7 @@
 				0DF923CE254AEEBCB0B054B1 /* KeeForgeUITests */,
 				F3F9AA8A28D02AE11AD6854E /* Models */,
 				7D300A2D174014A53DD4DCE3 /* Packages */,
+				A0D38EBAEC42A3EEA08AC258 /* RemoteFileTransportsTestSupport */,
 				65E3F4C6ED83A516F2D23EB6 /* Resources */,
 				0F643F928D1B442EDCF4379B /* Services */,
 				71F778658A17A600FECAC9C6 /* TestFixtures */,
@@ -2136,7 +2139,6 @@
 				9BF0F834B82C15D0578505A6 /* FieldReferenceResolverTests.swift */,
 				695FD416F0002BB9CAE9F2C8 /* FTPCloudProviderTests.swift */,
 				EA44C9DED7389761B585E671 /* FTPConnectViewModelTests.swift */,
-				FEAE356ABE815CE10D767927 /* FTPListingParserTests.swift */,
 				3ECEDBFE3791A3AF8121C4DD /* GroupEditViewModelTests.swift */,
 				BEFC4B470F2EA79C7D8950A7 /* GroupIconViewTests.swift */,
 				78F02B60D6E7C4712F4D4769 /* HardwareKeyUnlockTests.swift */,
@@ -2195,9 +2197,9 @@
 				F715BA635B9236867617D7B7 /* UnlockKeyFileSelectionTests.swift */,
 				81B2FABC051E0E4F1B4BCFBE /* URLSchemeFormatTests.swift */,
 				2B68782805C5052F4BAE7FBD /* ViewRenderTests.swift */,
-				B16B7DC25FE8C1CEE117E7FD /* WebDAVClientTests.swift */,
 				D9B34D490C64CC4D568F1384 /* WebDAVCloudProviderTests.swift */,
 				5CF73F233BAC9141F9575CEC /* WebDAVConnectViewModelTests.swift */,
+				ED3D15F8CDCD177F2DA00D22 /* WebDAVErrorMessageTests.swift */,
 				5DDEBC96D0673E928CD9681C /* WhatsNewPresentationServiceTests.swift */,
 				B4F570F62D2573CE7218C152 /* Support */,
 			);
@@ -2253,9 +2255,7 @@
 				08702F9E96C5B224C101B058 /* CloudSyncModels.swift */,
 				859C701D22CBF7ABEF51E825 /* CloudTokenStore.swift */,
 				6AFBBC10051B412E85947EB5 /* DropboxCloudProvider.swift */,
-				DC11153DD6293E8BFE1679AD /* FTPClient.swift */,
 				B3C7CE4528F3ACC4647DE8A6 /* FTPCloudProvider.swift */,
-				FF514DB674DAD987C03929D4 /* FTPListingParser.swift */,
 				F0C84F58EE09F0725331BDBA /* FTPModels.swift */,
 				B942B75B67043A4CB397BE27 /* OneDriveCloudProvider.swift */,
 				0B85CAF10E8CFC72802590A3 /* PendingUploadDrainer.swift */,
@@ -2263,10 +2263,9 @@
 				0144D383D6F598C1B89725B0 /* PendingUploadRecovery.swift */,
 				F010A269DB2C2D6FD2B162EF /* UITestDropboxCloudProvider.swift */,
 				6CB86A3375C87F5074F1AB7D /* UITestWebDAVCloudProvider.swift */,
-				F265178D41B43F55813C70AD /* WebDAVClient.swift */,
 				C0766AA20A206C0DEE4B732D /* WebDAVCloudProvider.swift */,
+				D4B9D469C077735051E042E0 /* WebDAVError+CloudProvider.swift */,
 				A588089AE7F905EFA86465F5 /* WebDAVModels.swift */,
-				79FDAFFC6E708ACC5B215525 /* WebDAVPropfindParser.swift */,
 			);
 			path = Cloud;
 			sourceTree = "<group>";
@@ -2377,6 +2376,7 @@
 				6B0486B1E31959FE4B2A7825 /* KDBXXML */,
 				AA0F5747B82973D15CE247EF /* SiteMatching */,
 				48D1E380E94F67678FE525CE /* OneTimeCodes */,
+				02636CD8EC0C7C10D04F7BA2 /* RemoteFileTransports */,
 			);
 			productName = KeeForgeMac;
 			productReference = 189BE6C37F1E15048700B583 /* KeeForge.app */;
@@ -2423,6 +2423,7 @@
 				A81616642D4C40BEFBBFAFB3 /* KDBXKit */,
 				F6B488156617224AF7765D6B /* KDBXXML */,
 				242EA0A9FD21699F8C545AB5 /* OneTimeCodes */,
+				B56AFA26FA319F92B1156748 /* RemoteFileTransports */,
 				51EBD2A917385D3E88CA0277 /* SwiftyDropbox */,
 				64B6830B629BBAC2E266834E /* MSAL */,
 				C0D2ECB37C663D0B86FA869E /* SiteMatching */,
@@ -2519,6 +2520,7 @@
 				1B43F08EA50B696A2B8022B0 /* XCLocalSwiftPackageReference "Packages/KDBXXML" */,
 				D57ED7FFF6E11FFD4F30B8A1 /* XCLocalSwiftPackageReference "Vendor/KeeForgeTwofish" */,
 				DCC6C2C99674F1C243E35003 /* XCLocalSwiftPackageReference "Packages/OneTimeCodes" */,
+				A1C83520EF4F263F83310642 /* XCLocalSwiftPackageReference "Packages/RemoteFileTransports" */,
 				E466F1EE5DFC124EA053E713 /* XCLocalSwiftPackageReference "Packages/SiteMatching" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -2862,9 +2864,8 @@
 				623B07AA3498A61053A7F05E /* ExpressUnlockTests.swift in Sources */,
 				D989F3E41DB9770D696C92E0 /* FTPCloudProviderTests.swift in Sources */,
 				000960C46F5958BDFD034AA0 /* FTPConnectViewModelTests.swift in Sources */,
-				9B0C0D6CECBCE0251BDA19BF /* FTPListingParserTests.swift in Sources */,
 				DF11E418851D49D50006D4AC /* FakeCredentialIdentityStore.swift in Sources */,
-				D25353C72A55A267A01983E5 /* FakeFTPServer.swift in Sources */,
+				9BFA43874EA88C63646DE152 /* FakeFTPServer.swift in Sources */,
 				244D45F76F6F05F4532BFF0E /* FaviconIconEncoderTests.swift in Sources */,
 				1344E56D5FE0305764940D0B /* FaviconServiceTests.swift in Sources */,
 				8BB6422DAD2503E2052570CC /* FeedbackSubmissionServiceTests.swift in Sources */,
@@ -2935,9 +2936,9 @@
 				598299941927D52B73BA73BE /* URLSchemeFormatTests.swift in Sources */,
 				5AF9ADE29B060A8896200120 /* UnlockKeyFileSelectionTests.swift in Sources */,
 				9B1939BCDA3D7C1CE39BF57F /* ViewRenderTests.swift in Sources */,
-				711E28602252C35A2481E769 /* WebDAVClientTests.swift in Sources */,
 				0DFF7C87E66AB78D968C59C0 /* WebDAVCloudProviderTests.swift in Sources */,
 				D3F732A288B7441798FBDE6B /* WebDAVConnectViewModelTests.swift in Sources */,
+				257333D2D8F0BBB6DF6F882D /* WebDAVErrorMessageTests.swift in Sources */,
 				492B3890EF152B160A560423 /* WhatsNewPresentationServiceTests.swift in Sources */,
 				3F41D9EEBA593883AE15932A /* YubiKeyEmulator.swift in Sources */,
 			);
@@ -3037,11 +3038,9 @@
 				11A0F8EA9BA54CF6CA48ABBB /* EntrySecretAction.swift in Sources */,
 				31D32E350824A881A5C27AAE /* EntrySelection.swift in Sources */,
 				2F59A5C0ED03F2207691A32C /* ExpressUnlockKey.swift in Sources */,
-				C96DA87ACFF111A934447885 /* FTPClient.swift in Sources */,
 				E60165789713375DA6CBEC01 /* FTPCloudProvider.swift in Sources */,
 				6C77A20A55DB978C47E6FF96 /* FTPConnectView.swift in Sources */,
 				2C55CC7581FAACDDD10EE294 /* FTPConnectViewModel.swift in Sources */,
-				6DC8F7919FA17DEAC31B5B2F /* FTPListingParser.swift in Sources */,
 				99864090A0243095DEFD0846 /* FTPModels.swift in Sources */,
 				A41B683E166EFC655E37B44E /* FaviconIconEncoder.swift in Sources */,
 				4D396A9321B96E0F08BAAAE3 /* FaviconService.swift in Sources */,
@@ -3151,12 +3150,11 @@
 				A708A76DFE6E483112E9ABBE /* VaultCloseTransition.swift in Sources */,
 				4EA00C81DA5EF3183834121C /* VaultHomeTiles.swift in Sources */,
 				5CA06C32722B7E8566FBF7D5 /* VerificationCodeRow.swift in Sources */,
-				8CBE8DF70368FAE59565D6D2 /* WebDAVClient.swift in Sources */,
 				DB44CDDAE5897ABAFD93CDB2 /* WebDAVCloudProvider.swift in Sources */,
 				15B3381D0284F9A9CD052094 /* WebDAVConnectView.swift in Sources */,
 				C1D505978EEA111EDC76C642 /* WebDAVConnectViewModel.swift in Sources */,
+				BA834013243B6151BADD45FA /* WebDAVError+CloudProvider.swift in Sources */,
 				3F0D915CF2A60F26910A6096 /* WebDAVModels.swift in Sources */,
-				FF59DF6830F65782916EC576 /* WebDAVPropfindParser.swift in Sources */,
 				348F1041E47BBB8A1375B649 /* WhatsNewPresentationService.swift in Sources */,
 				EC45F184AB465775C886305B /* WhatsNewView.swift in Sources */,
 			);
@@ -3254,11 +3252,9 @@
 				5320DB6ACFA8F926F26567B5 /* EntrySecretAction.swift in Sources */,
 				59085F03BBFD6149C900AF6E /* EntrySelection.swift in Sources */,
 				3DDE9F64B838A08DE6721F10 /* ExpressUnlockKey.swift in Sources */,
-				A3DAF354BB96EB5A179CFFBC /* FTPClient.swift in Sources */,
 				DA2B6F83E90095061ADE571C /* FTPCloudProvider.swift in Sources */,
 				12094A9BD865507A7489DE56 /* FTPConnectView.swift in Sources */,
 				E9A4F7C665F46181FB41FBED /* FTPConnectViewModel.swift in Sources */,
-				5BD730EFB541A3245E67BA3C /* FTPListingParser.swift in Sources */,
 				6DE387340081F5DE5068B4CD /* FTPModels.swift in Sources */,
 				0DB261D955659EE3DFF1505A /* FaviconIconEncoder.swift in Sources */,
 				81AF01EE09EF23EEDE28DB5F /* FaviconService.swift in Sources */,
@@ -3360,12 +3356,11 @@
 				319A9F3F07104A112CF7E4F1 /* VaultCloseTransition.swift in Sources */,
 				9B397688BBF29D200548E898 /* VaultHomeTiles.swift in Sources */,
 				F2A7CA045D8428F2EE079953 /* VerificationCodeRow.swift in Sources */,
-				F699E6A14BD9C97BAFF19A14 /* WebDAVClient.swift in Sources */,
 				B084A4061505EB5604BD33AD /* WebDAVCloudProvider.swift in Sources */,
 				429AECFE25E7644FB34F4D23 /* WebDAVConnectView.swift in Sources */,
 				5A3B73AAFDDD6021EFD05A80 /* WebDAVConnectViewModel.swift in Sources */,
+				5EEEF6EDCED72B316D81FBC4 /* WebDAVError+CloudProvider.swift in Sources */,
 				8760E46C60E30BA00E6928B3 /* WebDAVModels.swift in Sources */,
-				FB4F24165ABC3A7B8783A822 /* WebDAVPropfindParser.swift in Sources */,
 				3FCD7A79DC4A5F81BB7CB6CC /* WhatsNewPresentationService.swift in Sources */,
 				20E7BE575B6C6448AA324DCB /* WhatsNewView.swift in Sources */,
 			);
@@ -3475,9 +3470,8 @@
 				7EA66D473A81F369D3CEDACF /* ExpressUnlockTests.swift in Sources */,
 				D2ACB8FC0A5B75F3D41837FD /* FTPCloudProviderTests.swift in Sources */,
 				D93D4937D19F55097450280D /* FTPConnectViewModelTests.swift in Sources */,
-				4F89BA03F74E928F9521B733 /* FTPListingParserTests.swift in Sources */,
 				98F74DB5729B48B1FAC165FD /* FakeCredentialIdentityStore.swift in Sources */,
-				A802EF2A8BAEBB48BEFF71C7 /* FakeFTPServer.swift in Sources */,
+				177C5EEBA0126F6ECA7F409A /* FakeFTPServer.swift in Sources */,
 				1BAD5B9322E4488D73DFB70D /* FaviconIconEncoderTests.swift in Sources */,
 				B253A58297B36B63A5838DCB /* FaviconServiceTests.swift in Sources */,
 				5276D337E44553DACFDCD0B9 /* FeedbackSubmissionServiceTests.swift in Sources */,
@@ -3549,9 +3543,9 @@
 				62CA3AEDAB00085F6AE84636 /* URLSchemeFormatTests.swift in Sources */,
 				7CF90C24F7268C81A32BEA9C /* UnlockKeyFileSelectionTests.swift in Sources */,
 				8C7848AC6BED7B981DABB30D /* ViewRenderTests.swift in Sources */,
-				6560E50E8DAC0256CE4FD7D6 /* WebDAVClientTests.swift in Sources */,
 				AB2EDD795CFABEA25AE6EE4A /* WebDAVCloudProviderTests.swift in Sources */,
 				76EB9BDA9AF89F24E235667F /* WebDAVConnectViewModelTests.swift in Sources */,
+				271CE03D9450B84FC43091B6 /* WebDAVErrorMessageTests.swift in Sources */,
 				1D266E029D8E4A10E45641F2 /* WhatsNewPresentationServiceTests.swift in Sources */,
 				4CCAE450D559610ADB561271 /* YubiKeyEmulator.swift in Sources */,
 			);
@@ -4276,6 +4270,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/KDBXKit;
 		};
+		A1C83520EF4F263F83310642 /* XCLocalSwiftPackageReference "Packages/RemoteFileTransports" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/RemoteFileTransports;
+		};
 		D57ED7FFF6E11FFD4F30B8A1 /* XCLocalSwiftPackageReference "Vendor/KeeForgeTwofish" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Vendor/KeeForgeTwofish;
@@ -4318,6 +4316,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		02636CD8EC0C7C10D04F7BA2 /* RemoteFileTransports */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RemoteFileTransports;
+		};
 		06C637A622CAA684E39015EC /* OneTimeCodes */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = OneTimeCodes;
@@ -4388,6 +4390,10 @@
 		AECC8EA1598A33B8C03F0A97 /* KDBXKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = KDBXKit;
+		};
+		B56AFA26FA319F92B1156748 /* RemoteFileTransports */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RemoteFileTransports;
 		};
 		C0D2ECB37C663D0B86FA869E /* SiteMatching */ = {
 			isa = XCSwiftPackageProductDependency;

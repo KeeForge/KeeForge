@@ -1,5 +1,5 @@
 import XCTest
-@testable import KeeForge
+@testable import RemoteFileTransports
 
 final class FTPListingParserTests: XCTestCase {
     // MARK: - MLSD / MLST
@@ -151,24 +151,6 @@ final class FTPURLTests: XCTestCase {
 
         let ipv6 = try XCTUnwrap(FTPURL.location(fromNormalizedBaseURL: FTPURL.normalizedBaseURL(from: "ftp://[FE80::1]:2121/", allowsUnencryptedFTP: true)))
         XCTAssertEqual(ipv6, FTPServerLocation(host: "fe80::1", port: 2121, basePath: ""))
-    }
-
-    func testRemotePathJoinsBaseAndFileId() {
-        XCTAssertEqual(FTPCloudProvider.remotePath(base: "", fileId: "/"), "")
-        XCTAssertEqual(FTPCloudProvider.remotePath(base: "", fileId: "/a.kdbx"), "a.kdbx")
-        XCTAssertEqual(FTPCloudProvider.remotePath(base: "vaults", fileId: "/"), "vaults")
-        XCTAssertEqual(FTPCloudProvider.remotePath(base: "vaults", fileId: "/sub/a.kdbx"), "vaults/sub/a.kdbx")
-        XCTAssertEqual(FTPCloudProvider.remotePath(base: "/", fileId: "/a.kdbx"), "/a.kdbx")
-    }
-
-    func testAccountIdIsStableSecretFreeAndDistinctPerUser() throws {
-        let base = try XCTUnwrap(URL(string: "ftp://nas.local/"))
-        let first = FTPURL.accountId(normalizedBaseURL: base, username: "alex")
-
-        XCTAssertTrue(first.hasPrefix("ftp-"))
-        XCTAssertEqual(first.count, 36)
-        XCTAssertEqual(first, FTPURL.accountId(normalizedBaseURL: base, username: "alex"))
-        XCTAssertNotEqual(first, FTPURL.accountId(normalizedBaseURL: base, username: "sam"))
     }
 
     func testDisplayNameShowsNonDefaultPortAndPath() throws {

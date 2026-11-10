@@ -3,7 +3,7 @@ import Network
 import os
 
 /// One TCP connection as the FTP engine sees it.
-protocol FTPByteStream: Sendable {
+public protocol FTPByteStream: Sendable {
     func send(_ data: Data) async throws
     /// The next chunk, or nil once the peer has closed its side.
     func receive() async throws -> Data?
@@ -12,15 +12,22 @@ protocol FTPByteStream: Sendable {
     func close()
 }
 
-struct FTPReply: Equatable, Sendable {
-    let code: Int
-    let lines: [String]
+/// A complete control-channel reply. `lines` holds the text after the code,
+/// one element per line of a multi-line reply.
+public struct FTPReply: Equatable, Sendable {
+    public let code: Int
+    public let lines: [String]
 
-    var message: String {
+    public init(code: Int, lines: [String]) {
+        self.code = code
+        self.lines = lines
+    }
+
+    public var message: String {
         lines.joined(separator: "\n")
     }
 
-    var isPositiveCompletion: Bool {
+    public var isPositiveCompletion: Bool {
         (200..<300).contains(code)
     }
 }
@@ -28,7 +35,7 @@ struct FTPReply: Equatable, Sendable {
 /// A failure the engine can describe better than the transport: a reply the
 /// provider has to interpret in context, or a transport that stopped
 /// answering.
-enum FTPClientError: Error, Equatable {
+public enum FTPClientError: Error, Equatable, Sendable {
     case unexpectedReply(FTPReply)
     /// RNTO refused: the server will not create or replace the destination.
     case renameRefused(FTPReply)
@@ -38,23 +45,39 @@ enum FTPClientError: Error, Equatable {
     case malformedReply(String)
     case connectionClosed
     case timedOut
+    /// A command argument contained CR, LF, or NUL.
     case illegalArgument
+    /// The live connector cannot address this port (port 0).
+    case invalidPort
 }
 
 /// Opens authenticated FTP sessions. Each operation gets its own session, so
 /// there is no connection state to share or invalidate between accounts.
-struct FTPClient: Sendable {
-    typealias Connector = @Sendable (_ host: String, _ port: UInt16) async throws -> any FTPByteStream
+public struct FTPClient: Sendable {
+    /// Opens one TCP connection. Used for the control connection and for each
+    /// passive data connection, which always goes to the control host.
+    public typealias Connector = @Sendable (_ host: String, _ port: UInt16) async throws -> any FTPByteStream
 
-    let connector: Connector
-    let timeout: Duration
+    public let connector: Connector
+    /// Bounds every connect, send, and receive.
+    public let timeout: Duration
 
-    init(connector: @escaping Connector = FTPNetworkStream.connect, timeout: Duration = .seconds(30)) {
+    /// A client over live TCP connections (Network.framework).
+    public init(timeout: Duration = .seconds(30)) {
+        self.init(connector: FTPNetworkStream.connect, timeout: timeout)
+    }
+
+    public init(connector: @escaping Connector, timeout: Duration = .seconds(30)) {
         self.connector = connector
         self.timeout = timeout
     }
 
-    func withSession<T: Sendable>(
+    /// Connects, logs in, switches to binary, runs `body`, and sends QUIT. On
+    /// any failure the control connection is closed and the error rethrown:
+    /// `FTPClientError` for a reply or timeout, or the connector's own error.
+    ///
+    /// The session must not escape `body` or cross into another task.
+    public func withSession<T: Sendable>(
         host: String,
         port: UInt16,
         username: String,
@@ -76,9 +99,12 @@ struct FTPClient: Sendable {
     }
 }
 
-/// A logged-in control connection. Not shared across tasks: one operation
-/// drives it from start to finish.
-final class FTPSession {
+/// A logged-in control connection, valid only inside `FTPClient.withSession`.
+///
+/// Deliberately not `Sendable`: it holds the reply buffer of one control
+/// connection, and one task drives it from start to finish. Call its methods
+/// one at a time from the `withSession` closure and never keep a reference.
+public final class FTPSession {
     private let host: String
     private let control: any FTPByteStream
     private let client: FTPClient
@@ -124,7 +150,7 @@ final class FTPSession {
 
     /// Changes into `path` (relative to the login directory unless it starts
     /// with a slash). An empty path stays in the login directory.
-    func changeDirectory(_ path: String) async throws {
+    public func changeDirectory(_ path: String) async throws {
         guard !path.isEmpty else { return }
         let reply = try await command("CWD", path)
         guard reply.isPositiveCompletion else { throw FTPClientError.unexpectedReply(reply) }
@@ -132,13 +158,13 @@ final class FTPSession {
 
     /// Lists the current directory, preferring MLSD and falling back to LIST
     /// on servers that do not implement it (vsftpd, for one).
-    func listCurrentDirectory() async throws -> [FTPListEntry] {
+    public func listCurrentDirectory() async throws -> [FTPListEntry] {
         try await list(nil, strict: false).entries
     }
 
     /// Lists `path` (the login directory when empty), for sweeping scratch
     /// files. Some LIST implementations leave hidden names out.
-    func listDirectory(_ path: String) async throws -> [FTPListEntry] {
+    public func listDirectory(_ path: String) async throws -> [FTPListEntry] {
         try await list(path, strict: true).entries
     }
 
@@ -146,7 +172,7 @@ final class FTPSession {
     /// shown it is not there. RFC 3659 and RFC 959 both allow 550 for "not
     /// found" and "not allowed to look", so a 550 is checked against SIZE and
     /// then a listing of the parent; if neither settles it, `accessDenied`.
-    func stat(_ path: String) async throws -> FTPListEntry? {
+    public func stat(_ path: String) async throws -> FTPListEntry? {
         let mlst = try await command("MLST", path)
         if mlst.code == 250 {
             let entries = mlst.lines.dropFirst().compactMap(FTPListingParser.parseMachineEntry)
@@ -207,7 +233,7 @@ final class FTPSession {
         return nil
     }
 
-    func retrieve(_ path: String) async throws -> Data {
+    public func retrieve(_ path: String) async throws -> Data {
         let dataConnection = try await openDataConnection()
         defer { dataConnection.close() }
 
@@ -227,7 +253,7 @@ final class FTPSession {
         return bytes
     }
 
-    func store(_ path: String, data: Data) async throws {
+    public func store(_ path: String, data: Data) async throws {
         let dataConnection = try await openDataConnection()
         defer { dataConnection.close() }
 
@@ -254,14 +280,14 @@ final class FTPSession {
     /// Renames `source` to `destination`. Whether an existing destination is
     /// replaced is up to the server: Unix servers replace it atomically, IIS
     /// refuses.
-    func rename(_ source: String, to destination: String) async throws {
+    public func rename(_ source: String, to destination: String) async throws {
         let from = try await command("RNFR", source)
         guard from.code == 350 else { throw FTPClientError.unexpectedReply(from) }
         let to = try await command("RNTO", destination)
         guard to.isPositiveCompletion else { throw FTPClientError.renameRefused(to) }
     }
 
-    func delete(_ path: String) async throws {
+    public func delete(_ path: String) async throws {
         let reply = try await command("DELE", path)
         guard reply.isPositiveCompletion else { throw FTPClientError.unexpectedReply(reply) }
     }
@@ -461,7 +487,7 @@ final class FTPNetworkStream: FTPByteStream {
 
     static func connect(host: String, port: UInt16) async throws -> any FTPByteStream {
         guard let endpointPort = NWEndpoint.Port(rawValue: port) else {
-            throw CloudProviderError.invalidConfiguration
+            throw FTPClientError.invalidPort
         }
         let connection = NWConnection(host: NWEndpoint.Host(host), port: endpointPort, using: .tcp)
         let resumed = OSAllocatedUnfairLock(initialState: false)

@@ -18,7 +18,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 - **Edits and compatibility:** `DatabaseDraftTests` (in-memory edit semantics), `KDBXCompatibilityTests` (every supported edit written, reparsed, and handed to KeePassXC by the external gate).
 - **Merge:** `KDBXMergerTests` (synthetic scenarios pinning the specified behavior, including recovery references following location independently of content), `KDBXMergerOracleTests` (the same engine compared with `keepassxc-cli merge` output under `../TestFixtures/Merge/`). The compatibility merge artifact also preserves remote recycling references through write/reopen.
 - **Persistence and save paths:** `LocalDatabaseSaverTests`, `CloudDatabaseSaverTests`, `DatabaseListStoreTests`, `SharedVaultStoreTests`, `PendingUploadQueueTests`, `PendingUploadDrainerTests`, `PendingUploadRecoveryTests`, `KeychainServiceTests`, `AppGroupGuardrailTests`.
-- **Cloud:** `CloudSyncCoordinatorTests` (open-time sync resolution and the cache swap), `DatabaseViewModelCloudSyncTests` (Sync Now in a session), one `<Provider>CloudProviderTests` per provider, `WebDAVClientTests`, `FTPListingParserTests`.
+- **Cloud:** `CloudSyncCoordinatorTests` (open-time sync resolution and the cache swap), `DatabaseViewModelCloudSyncTests` (Sync Now in a session), one `<Provider>CloudProviderTests` per provider, `WebDAVErrorMessageTests` (the message for each `WebDAVError`). The WebDAV and FTP clients are tested in `../Packages/RemoteFileTransports`.
 - **Session and workflow:** `DatabaseViewModelTests`, `AutoLockTests`, `HardwareKeyUnlockTests`, `DatabaseEditorCoordinatorTests`, `AppRoutingCoordinatorTests`.
 - **AutoFill and passkeys:** `CredentialProviderCoordinatorTests` and its `CredentialProvider*Tests` siblings (save, registration, picker creation), `CredentialMatcherTests` (service-identifier and entry conversions and expiry; also covers the hosted picker's expanded search on macOS; the matching rules are tested in `../Packages/SiteMatching/Tests`), `CredentialIdentityStoreManagerTests`, `AutoFillMemoryLimitTests`, `PasskeyCredentialTests`, `PasskeyCryptoTests`.
 - **Localization and bundle:** `LocalizationTests` (translation completeness and format-specifier parity for every shipped locale), `URLSchemeFormatTests` (declared URL schemes are legal after build-setting substitution).
@@ -80,7 +80,7 @@ Convention: `<Type>Tests.swift` declares `<Type>Tests` and covers `<Type>`. The 
 - `PasswordImportTests.swift`: `CSVReaderTests`, `ApplePasswordsCSVImporterTests`, `PasswordImportViewModelTests`.
 - `SecretAccessGateTests.swift`: `SecretAccessGateTests` (the gate alone) and `SecretAccessSessionTests` (the grace period across a `DatabaseViewModel` session).
 - `SettingsSummaryTests.swift`: `SettingsSummaryRowTests`, `AppSettingsSummaryTests`, `DatabaseSettingsSummaryTests`.
-- `FTPListingParserTests.swift` also declares `FTPURLTests`; `FaviconServiceTests.swift` also declares `FaviconLoadModelTests`.
+- `FTPCloudProviderTests.swift` also declares `FTPAccountTests`; `FaviconServiceTests.swift` also declares `FaviconLoadModelTests`.
 - `CloudFileBrowserViewModelTests` covers `CloudFileBrowserSession` and `CloudFolderBrowserViewModel`.
 - `ModelLogicTests` holds pure model helpers with no suite of their own (icon tables, entry traversal, `OpaqueXMLNodes`, the `KeeOTPSource` forwarding).
 

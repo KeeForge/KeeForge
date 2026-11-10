@@ -1,34 +1,39 @@
 import Foundation
-@testable import KeeForge
+import RemoteFileTransports
 
 /// An in-memory FTP server that speaks the control protocol over fake byte
 /// streams, so `FTPClient` runs its real command/reply/data-connection logic
 /// without sockets. Paths are relative to the login directory; a leading
 /// slash means the same thing.
-final class FakeFTPServer: @unchecked Sendable {
-    struct File: Equatable {
-        var data: Data
-        var modified: String
+///
+/// Compiled into the package's tests and, from this file, into the app's test
+/// targets, where it uses the host app's copy of the package.
+public final class FakeFTPServer: @unchecked Sendable {
+    public struct File: Equatable {
+        public var data: Data
+        public var modified: String
     }
 
-    static let controlPort: UInt16 = 21
+    public static let controlPort: UInt16 = 21
+
+    public init() {}
 
     private let lock = NSLock()
 
     // MARK: Server behavior (set before use)
 
-    var username = "alex"
-    var password = "secret"
-    var supportsMachineListing = true
-    var supportsExtendedPassive = true
-    var supportsModificationTime = true
-    var renameReplacesExisting = true
-    var refusesConnections = false
+    public var username = "alex"
+    public var password = "secret"
+    public var supportsMachineListing = true
+    public var supportsExtendedPassive = true
+    public var supportsModificationTime = true
+    public var renameReplacesExisting = true
+    public var refusesConnections = false
     /// Advertised in PASV replies; the client must ignore it and reuse the
     /// control host.
-    var passiveAddress = "10,9,8,7"
+    public var passiveAddress = "10,9,8,7"
     /// Verbs that never get an answer, to exercise the client timeout.
-    var silentVerbs: Set<String> = []
+    public var silentVerbs: Set<String> = []
 
     // MARK: State
 
@@ -45,12 +50,12 @@ final class FakeFTPServer: @unchecked Sendable {
 
     // MARK: Test surface
 
-    func addDirectory(_ path: String) {
+    public func addDirectory(_ path: String) {
         lock.withLock { _ = directories.insert(Self.normalize(path)) }
     }
 
     /// Stores `path`, creating its parent folders.
-    func setFile(_ path: String, data: Data, modified: String? = nil) {
+    public func setFile(_ path: String, data: Data, modified: String? = nil) {
         lock.withLock {
             let key = Self.normalize(path)
             var parent = key.split(separator: "/").dropLast()
@@ -62,27 +67,27 @@ final class FakeFTPServer: @unchecked Sendable {
         }
     }
 
-    func file(_ path: String) -> File? {
+    public func file(_ path: String) -> File? {
         lock.withLock { files[Self.normalize(path)] }
     }
 
-    var filePaths: [String] {
+    public var filePaths: [String] {
         lock.withLock { files.keys.sorted() }
     }
 
     /// The commands received, in order, with PASS arguments redacted.
-    var commandLog: [String] {
+    public var commandLog: [String] {
         lock.withLock { log }
     }
 
-    var connectionLog: [String] {
+    public var connectionLog: [String] {
         lock.withLock { connectedEndpoints }
     }
 
     /// Answers the next `verb` with `reply` instead of handling it. With an
     /// `argument` (exactly as the client sends it), only a command carrying
     /// that argument is answered; argument-specific overrides go first.
-    func overrideNextReply(to verb: String, argument: String? = nil, with reply: String) {
+    public func overrideNextReply(to verb: String, argument: String? = nil, with reply: String) {
         let key = [verb, argument].compactMap { $0 }.joined(separator: " ")
         lock.withLock { replyOverrides[key, default: []].append(reply) }
     }
@@ -90,19 +95,19 @@ final class FakeFTPServer: @unchecked Sendable {
     /// Closes the control connection when the next `verb` arrives: before
     /// handling it, or after handling it without sending the reply (a reply
     /// lost with the connection).
-    func dropConnection(onNext verb: String, afterHandling: Bool = false) {
+    public func dropConnection(onNext verb: String, afterHandling: Bool = false) {
         lock.withLock { connectionDrops[verb, default: []].append(afterHandling) }
     }
 
     /// Runs `hook` just before the next `verb` is handled — the moment another
     /// client could have changed the server. `argument` narrows it the same
     /// way as for `overrideNextReply`.
-    func beforeNext(_ verb: String, argument: String? = nil, _ hook: @escaping @Sendable () -> Void) {
+    public func beforeNext(_ verb: String, argument: String? = nil, _ hook: @escaping @Sendable () -> Void) {
         let key = [verb, argument].compactMap { $0 }.joined(separator: " ")
         lock.withLock { commandHooks[key, default: []].append(hook) }
     }
 
-    func makeClient(timeout: Duration = .seconds(5)) -> FTPClient {
+    public func makeClient(timeout: Duration = .seconds(5)) -> FTPClient {
         FTPClient(connector: { [self] host, port in try self.connect(host: host, port: port) }, timeout: timeout)
     }
 
