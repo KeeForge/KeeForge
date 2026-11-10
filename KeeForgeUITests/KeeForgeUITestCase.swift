@@ -220,6 +220,12 @@ class KeeForgeUITestCase: XCTestCase {
             if element.elementType == .textField {
                 element.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
             }
+            if element.elementType == .textField {
+                // A tap can leave the caret in front of trailing-aligned text,
+                // where backspaces delete nothing; selecting all does not
+                // depend on where the caret landed.
+                element.typeKey("a", modifierFlags: .command)
+            }
             element.typeText(deleteSequence(for: element))
             element.typeText(text)
 
