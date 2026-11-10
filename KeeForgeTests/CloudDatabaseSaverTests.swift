@@ -516,12 +516,17 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let legacy = try PendingUploadQueue.enqueue(marker, notifying: false)
         var env = environment(Remote(context.source))
         env.pruneBackups = { _, _ in XCTFail("Failed preservation must not rotate backups") }
-        env.queue.writeMarkerAtomically = { _, url in
-            let payloadURL = legacy.fileURL.deletingPathExtension().appendingPathExtension("kdbx")
-            if url.standardizedFileURL.resolvingSymlinksInPath() == payloadURL.standardizedFileURL.resolvingSymlinksInPath() {
-                throw POSIXError(.ENOSPC)
+        let payloadPath = legacy.fileURL.deletingPathExtension().appendingPathExtension("kdbx")
+            .standardizedFileURL.resolvingSymlinksInPath().path
+        let legacyBytes = context.source
+        env.queue.writeMarkerAtomically = { bytes, url in
+            let actualPath = url.standardizedFileURL.resolvingSymlinksInPath().path
+            guard actualPath == payloadPath else {
+                XCTFail("Unexpected queue write before legacy preservation: \(actualPath); expected \(payloadPath)")
+                throw POSIXError(.EINVAL)
             }
-            XCTFail("No new operation may be prepared after failed legacy preservation")
+            XCTAssertEqual(bytes, legacyBytes)
+            throw POSIXError(.ENOSPC)
         }
         do {
             _ = try await CloudDatabaseSaver.save(draft: context.draft, reference: context.reference,
@@ -530,7 +535,10 @@ final class CloudDatabaseSaverTests: XCTestCase {
             XCTFail("Legacy ciphertext must be preserved before replacing its cache")
         } catch { XCTAssertEqual((error as? POSIXError)?.code, .ENOSPC) }
         XCTAssertEqual(try cache(context.reference), context.source)
-        let remaining = try XCTUnwrap(PendingUploadQueue.listMarkers(for: context.reference.id).first)
+        let markers = PendingUploadQueue.listMarkers(for: context.reference.id)
+        XCTAssertEqual(markers.count, 1)
+        let remaining = try XCTUnwrap(markers.first)
+        XCTAssertEqual(remaining.id, legacy.id)
         XCTAssertEqual(remaining.marker, legacy.marker)
     }
 
