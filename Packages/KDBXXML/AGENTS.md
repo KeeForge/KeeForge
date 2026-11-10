@@ -14,6 +14,11 @@
 - `Group.customIconUUID`, `Entry.customIconUUID`, `expiryTime`, `expires`, and `Meta.customIcons` are views computed from fragments. They are never stored, so they cannot disagree with what is written.
 - The writer validates everything it emits against XML 1.0 `Char` (`validate(text:)`), protected values excepted because they are base64 on disk.
 
+## Protected plaintext
+
+- `Field.value` and fragment text hold protected values as plaintext `String`s on purpose. Reading makes several short-lived unwiped copies per value (the XOR output, its `String`, the escaped and rendered leaf) and the document keeps one until it is released; writing makes a few more. A wiping byte type or caller-supplied seal/unseal closures would remove these copies but not the exposure: the decrypted payload `KDBXContainer.read` returns, and its decompression copies, hold the inner-stream key next to every masked value and are freed unwiped; the app keeps protected custom fields and `otp` as plaintext `String`s for the whole session; and open and save run while the session is unlocked, where the threat model already assumes memory inspection wins.
+- Change this only as one step with the rest: KDBXKit wipes its payload buffers and inner-stream state, and the app seals every protected field. The package's part is then an opaque protected value backed by wiping bytes (raw bytes, so non-UTF-8 plaintext round-trips too), not closures: it keeps `KDBXDocument` a plain `Hashable`, `Sendable` value with no generic sealed type, and a closure only narrows the window while unlocked, which buys nothing. KeePassium and Strongbox both unmask into plaintext strings and keep them while the database is open; KeePassium wipes its decrypted XML and unmask buffers, which buys little once each value is an unwipeable `String`.
+
 ## Public surface
 
 - `KDBXDocument` with `read(xml:innerStreamID:innerStreamKey:)`, `serialized(innerStream:innerStreamKey:)`, and `validate(text:)`; its nested value types `Meta`, `Root`, `Group`, `Entry`, `Times`, `Field`, `BinaryReference`, `DeletedObject`, `InheritableBool`, `CustomIcon`; `ReadError` and `WriteError`.
