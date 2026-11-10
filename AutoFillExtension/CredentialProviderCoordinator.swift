@@ -214,6 +214,7 @@ protocol CredentialProviderPresenting: AnyObject {
     /// Only reachable on iOS 18+ (one-time-code requests); the shell wraps the
     /// code in `ASOneTimeCodeCredential` under its own availability check.
     func completeOneTimeCodeRequest(code: String)
+    func completeTextInsertion(_ text: String)
     /// Only reachable on iOS 26.2+ (save-password requests).
     func completeSavePasswordRequest()
     /// Only reachable on iOS 26.2+ (generate-password requests); the shell wraps
@@ -270,6 +271,7 @@ final class CredentialProviderCoordinator {
     var pendingPasskeyRegistrationFailureMessage: String?
     var hasPendingOTCRequest = false
     var hasPendingOTCListRequest = false
+    var hasPendingTextInsertion = false
     var pendingGeneratePasswordPresentation = false
     /// Deferred presentation of the zero-enabled-databases empty state, used
     /// by request entry points that run before the shell is on screen (the
@@ -400,6 +402,22 @@ final class CredentialProviderCoordinator {
         isUnlockInProgress = false
         didFinishRequest = false
         pendingPresentation = nil
+        hasPendingTextInsertion = false
+    }
+
+    func prepareTextInsertion() {
+        beginRequest()
+        serviceIdentifiers = []
+        targetRecordIdentifier = nil
+        pendingPasskeyRequest = nil
+        pendingPasskeyRequestParameters = nil
+        hasPendingOTCRequest = false
+        hasPendingOTCListRequest = false
+        clearPendingCreationRequests()
+        hasPendingTextInsertion = true
+        didAttemptAutoBiometricUnlock = false
+        pendingUnlock = true
+        activatePresentationIfPossible()
     }
 
     private func isRequestActive(_ generation: Int) -> Bool {
@@ -1301,6 +1319,8 @@ final class CredentialProviderCoordinator {
             // Handled by the iOS-only save-password flow.
         } else if let requestParameters = pendingPasskeyRequestParameters {
             presentPasskeyMatchesOrFinish(using: requestParameters)
+        } else if hasPendingTextInsertion {
+            presentTextInsertionPicker()
         } else if hasPendingOTCRequest {
             if #available(iOS 18.0, macOS 15.0, *) {
                 completeOTCRequestFromPending()
@@ -1313,6 +1333,17 @@ final class CredentialProviderCoordinator {
             }
         } else {
             presentPasswordMatchesOrFinish()
+        }
+    }
+
+    func presentTextInsertionPicker() {
+        let entries = parsedEntries.filter(\.hasTOTP)
+        presentSearchView(entries: entries, includesDatabaseSwitcher: true) { [weak self] entry in
+            guard let self else { return }
+            guard let config = entry.totpConfig, let key = self.sessionKey else { self.cancelRequest(code: .failed); return }
+            let code = TOTPGenerator.generateCode(config: config, sessionKey: key)
+            guard code != "------" else { self.cancelRequest(code: .failed); return }
+            self.finishFill { $0.completeTextInsertion(code) }
         }
     }
 
@@ -2589,6 +2620,7 @@ final class CredentialProviderCoordinator {
         pendingPasskeyRequestParameters = nil
         hasPendingOTCRequest = false
         hasPendingOTCListRequest = false
+        hasPendingTextInsertion = false
         pendingSwitchPreviousDatabaseReference = nil
         pendingSwitchSearchText = nil
         pendingPresentation = nil

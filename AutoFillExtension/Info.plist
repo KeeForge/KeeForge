@@ -30,6 +30,8 @@
 				<true/>
 				<key>ProvidesOneTimeCodes</key>
 				<true/>
+				<key>ProvidesTextToInsert</key>
+				<true/>
 				<key>ProvidesPasswords</key>
 				<true/>
 				<key>SupportsGeneratePasswordCredentials</key>

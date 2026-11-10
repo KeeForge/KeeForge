@@ -113,7 +113,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     }
 
     func test_oldPickerCancellationDoesNotCancelReplacementRequest() throws {
-        for kind in ["password", "code"] {
+        for kind in ["password", "code", "text"] {
             let (coordinator, presenter) = makeCoordinator()
             presenter.isPresentationActive = false
             let key = SymmetricKey(size: .bits256)
@@ -125,13 +125,15 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             )
             switch kind {
             case "password": coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
-            default: coordinator.prepareOneTimeCodeCredentialList(for: [githubServiceIdentifier()])
+            case "code": coordinator.prepareOneTimeCodeCredentialList(for: [githubServiceIdentifier()])
+            default: coordinator.prepareTextInsertion()
             }
             seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: key)
             presenter.isPresentationActive = true
             switch kind {
             case "password": coordinator.presentPasswordMatchesOrFinish()
-            default: coordinator.presentOTCMatchesOrFinish()
+            case "code": coordinator.presentOTCMatchesOrFinish()
+            default: coordinator.presentTextInsertionPicker()
             }
             let oldPicker = try XCTUnwrap(presenter.searchView)
 
@@ -147,6 +149,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             XCTAssertTrue(presenter.cancelledErrorCodes.isEmpty, kind)
             XCTAssertNotNil(coordinator.sessionKey, kind)
             XCTAssertTrue(coordinator.pendingUnlock, kind)
+            XCTAssertFalse(coordinator.hasPendingTextInsertion, kind)
+            XCTAssertNil(presenter.insertedText, kind)
             coordinator.cancelRequest(code: .userCanceled)
             XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
             assertCleanedUp(coordinator)
@@ -1166,6 +1170,192 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         searchView.onSelect(specific)
 
         XCTAssertNotNil(presenter.completedOneTimeCode)
+        assertCleanedUp(coordinator)
+    }
+
+    func testTextInsertionOffersCodesAfterRealUnlockAndCleansUpAfterSelection() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let picker = try await unlockTextInsertionFixture(coordinator, presenter)
+
+        XCTAssertTrue(coordinator.hasPendingTextInsertion)
+        XCTAssertTrue(coordinator.serviceIdentifiers.isEmpty)
+        XCTAssertEqual(picker.entries.map(\.title), ["TOTP Login"])
+        XCTAssertNil(picker.onCreateEntry)
+        XCTAssertNil(picker.urlAddition)
+        XCTAssertNil(presenter.completedCredential)
+        XCTAssertNil(presenter.completedOneTimeCode)
+        XCTAssertEqual(SettingsService.successfulAutoFillCount, 0)
+        picker.onSelect(try XCTUnwrap(picker.entries.first))
+        XCTAssertNil(presenter.completedOneTimeCode)
+        XCTAssertEqual(presenter.insertedText?.count, 6)
+        XCTAssertNotEqual(presenter.insertedText, "------")
+        XCTAssertEqual(SettingsService.successfulAutoFillCount, 1)
+        picker.onSelect(try XCTUnwrap(picker.entries.first))
+        XCTAssertEqual(SettingsService.successfulAutoFillCount, 1)
+        assertCleanedUp(coordinator)
+    }
+
+    func testTextInsertionCancelAfterUnlockCleansUpWithoutReturningCode() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let picker = try await unlockTextInsertionFixture(coordinator, presenter)
+        picker.onCancel()
+        XCTAssertNil(presenter.completedCredential)
+        XCTAssertNil(presenter.completedOneTimeCode)
+        XCTAssertNil(presenter.insertedText)
+        XCTAssertEqual(presenter.cancelledError?.code, .userCanceled)
+        XCTAssertEqual(SettingsService.successfulAutoFillCount, 0)
+        assertCleanedUp(coordinator)
+    }
+
+    func testTextInsertionWithoutCodesKeepsDatabaseSwitchingAvailable() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseA = try seedResolvableDefaultDatabase()
+        let databaseB = try makeRegisteredDatabase(named: "text-insertion-codes.kdbx")
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try KDBXTestFixture.test.parse(in: Bundle(for: Self.self), sessionKey: sessionKey)
+        let passwordEntry = KPEntry(
+            title: "Password Only",
+            password: try EncryptedValue.encrypt("password", using: sessionKey)
+        )
+        let dataWithoutCodes = try KDBXWriter.write(
+            rootGroup: KPGroup(name: "Passwords", entries: [passwordEntry]),
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            header: parsed.header,
+            sessionKey: sessionKey
+        )
+        try seedDatabaseBytes(dataWithoutCodes, for: databaseA)
+        try seedDatabaseBytes(KDBXTestFixture.kitchenSink.data(in: Bundle(for: Self.self)), for: databaseB)
+        coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+        coordinator.persistQuickUnlockKeys = { _, _, _ in true }
+        coordinator.prepareTextInsertion()
+        let emptyPicker = try await unlockPreparedRequestAndPresentSearch(coordinator, presenter)
+
+        XCTAssertEqual(coordinator.parsedEntries.map(\.title), ["Password Only"])
+        XCTAssertTrue(emptyPicker.entries.isEmpty)
+        XCTAssertNil(presenter.cancelledError)
+        XCTAssertNil(presenter.insertedText)
+        XCTAssertTrue(coordinator.hasPendingTextInsertion)
+        let switcher = try XCTUnwrap(emptyPicker.databaseSwitcher)
+        switcher.onSwitch(databaseB, "")
+        let prompt = try XCTUnwrap(presenter.unlockPrompt)
+        presenter.searchView = nil
+        let represented = expectation(description: "code picker presented after switching from a database without codes")
+        presenter.onSearchViewPresented = { represented.fulfill() }
+        prompt.onSubmitPassword("testpassword123")
+        await fulfillment(of: [represented], timeout: 60)
+
+        let picker = try XCTUnwrap(presenter.searchView)
+        XCTAssertEqual(coordinator.activeDatabaseReference?.id, databaseB.id)
+        XCTAssertEqual(picker.entries.map(\.title), ["TOTP Login"])
+        picker.onSelect(try XCTUnwrap(picker.entries.first))
+        XCTAssertEqual(presenter.insertedText?.count, 6)
+        XCTAssertNil(presenter.completedOneTimeCode)
+        XCTAssertEqual(SettingsService.successfulAutoFillCount, 1)
+        assertCleanedUp(coordinator)
+    }
+
+    func testTextInsertionDefersAnOffScreenPickerUntilReactivation() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let oldPicker = try await unlockTextInsertionFixture(coordinator, presenter)
+        presenter.searchView = nil
+        presenter.isPresentationActive = false
+
+        coordinator.presentTextInsertionPicker()
+        oldPicker.onSelect(try XCTUnwrap(oldPicker.entries.first))
+        oldPicker.onCancel()
+
+        XCTAssertNil(presenter.searchView)
+        XCTAssertNil(presenter.insertedText)
+        XCTAssertNil(presenter.cancelledError)
+        XCTAssertTrue(coordinator.hasPendingTextInsertion)
+        XCTAssertNotNil(coordinator.sessionKey)
+
+        presenter.isPresentationActive = true
+        coordinator.presentationDidBecomeActive()
+        let picker = try XCTUnwrap(presenter.searchView)
+        picker.onSelect(try XCTUnwrap(picker.entries.first))
+
+        XCTAssertEqual(presenter.insertedText?.count, 6)
+        XCTAssertNil(presenter.completedOneTimeCode)
+        assertCleanedUp(coordinator)
+    }
+
+    func testRepeatedTextInsertionIgnoresThePreviousRequestsPicker() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let oldPicker = try await unlockTextInsertionFixture(coordinator, presenter)
+        presenter.searchView = nil
+        presenter.isPresentationActive = false
+        coordinator.prepareTextInsertion()
+
+        oldPicker.onSelect(try XCTUnwrap(oldPicker.entries.first))
+        oldPicker.onCancel()
+        XCTAssertNil(presenter.insertedText)
+        XCTAssertNil(presenter.cancelledError)
+        XCTAssertTrue(coordinator.hasPendingTextInsertion)
+
+        let picker = try await unlockPreparedRequestAndPresentSearch(coordinator, presenter)
+        picker.onSelect(try XCTUnwrap(picker.entries.first))
+
+        XCTAssertEqual(presenter.insertedText?.count, 6)
+        XCTAssertNil(presenter.completedOneTimeCode)
+        assertCleanedUp(coordinator)
+    }
+
+    func testTextInsertionSurvivesSuccessfulAndCancelledDatabaseSwitches() async throws {
+        for switchSucceeds in [false, true] {
+            let (coordinator, presenter) = makeCoordinator()
+            let databaseB = try makeRegisteredDatabase(named: "text-insertion-b.kdbx")
+            try seedDatabaseBytes(KDBXTestFixture.kitchenSink.data(in: Bundle(for: Self.self)), for: databaseB)
+            let oldPicker = try await unlockTextInsertionFixture(coordinator, presenter)
+            let databaseA = try XCTUnwrap(coordinator.activeDatabaseReference)
+            let switcher = try XCTUnwrap(oldPicker.databaseSwitcher)
+            switcher.onSwitch(databaseB, "TOTP")
+            oldPicker.onSelect(try XCTUnwrap(oldPicker.entries.first))
+            oldPicker.onCancel()
+            XCTAssertNil(presenter.insertedText)
+            XCTAssertNil(presenter.cancelledError)
+            let prompt = try XCTUnwrap(presenter.unlockPrompt)
+            presenter.searchView = nil
+
+            if switchSucceeds {
+                let represented = expectation(description: "text insertion re-presented after database unlock")
+                presenter.onSearchViewPresented = { represented.fulfill() }
+                prompt.onSubmitPassword("testpassword123")
+                await fulfillment(of: [represented], timeout: 60)
+            } else {
+                prompt.onCancel()
+            }
+
+            let picker = try XCTUnwrap(presenter.searchView)
+            XCTAssertTrue(coordinator.hasPendingTextInsertion)
+            XCTAssertEqual(coordinator.activeDatabaseReference?.id, switchSucceeds ? databaseB.id : databaseA.id)
+            XCTAssertEqual(picker.initialSearchText, "TOTP")
+            XCTAssertEqual(picker.entries.map(\.title), ["TOTP Login"])
+            XCTAssertNil(presenter.cancelledError)
+            XCTAssertNil(presenter.completedCredential)
+            XCTAssertNil(presenter.completedOneTimeCode)
+            oldPicker.onSelect(try XCTUnwrap(oldPicker.entries.first))
+            oldPicker.onCancel()
+            XCTAssertNil(presenter.insertedText, "A callback from the previous presentation must not fill")
+            XCTAssertNil(presenter.cancelledError)
+            XCTAssertNotNil(coordinator.sessionKey)
+            picker.onSelect(try XCTUnwrap(picker.entries.first))
+            XCTAssertEqual(presenter.insertedText?.count, 6)
+            XCTAssertNil(presenter.completedOneTimeCode)
+            assertCleanedUp(coordinator)
+        }
+    }
+
+    func testTextInsertionWithoutEnabledDatabaseCanBeCancelled() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        coordinator.prepareTextInsertion()
+        coordinator.presentationDidBecomeActive()
+        XCTAssertNil(presenter.unlockPrompt)
+        XCTAssertNil(presenter.searchView)
+        try XCTUnwrap(presenter.noEnabledDatabasesState).onDismiss()
+        XCTAssertNil(presenter.insertedText)
+        XCTAssertEqual(presenter.cancelledError?.code, .userCanceled)
         assertCleanedUp(coordinator)
     }
 
@@ -3696,6 +3886,26 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     ) async throws -> CredentialProviderPresentingSpy.SearchView {
         coordinator.memoryBudgetOverride = 512 * 1024 * 1024
         coordinator.prepareCredentialList(for: [serviceIdentifier])
+        return try await unlockPreparedRequestAndPresentSearch(coordinator, presenter, password: password)
+    }
+
+    private func unlockTextInsertionFixture(
+        _ coordinator: CredentialProviderCoordinator,
+        _ presenter: CredentialProviderPresentingSpy
+    ) async throws -> CredentialProviderPresentingSpy.SearchView {
+        let database = try seedResolvableDefaultDatabase()
+        try seedDatabaseBytes(KDBXTestFixture.kitchenSink.data(in: Bundle(for: Self.self)), for: database)
+        coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+        coordinator.persistQuickUnlockKeys = { _, _, _ in true }
+        coordinator.prepareTextInsertion()
+        return try await unlockPreparedRequestAndPresentSearch(coordinator, presenter)
+    }
+
+    private func unlockPreparedRequestAndPresentSearch(
+        _ coordinator: CredentialProviderCoordinator,
+        _ presenter: CredentialProviderPresentingSpy,
+        password: String = "testpassword123"
+    ) async throws -> CredentialProviderPresentingSpy.SearchView {
         presenter.isPresentationActive = true
         coordinator.presentationDidBecomeActive()
         let prompt = try XCTUnwrap(presenter.unlockPrompt)
@@ -3708,6 +3918,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         prompt.onSubmitPassword(password)
         await fulfillment(of: [searchPresented], timeout: 60)
+        presenter.onSearchViewPresented = nil
         return try XCTUnwrap(presenter.searchView)
     }
 
@@ -3895,6 +4106,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.pendingPasskeyRegistrationFailureMessage, "pending passkey registration failure must be cleared", file: file, line: line)
         XCTAssertFalse(coordinator.hasPendingOTCRequest, "pending OTC flag must be cleared", file: file, line: line)
         XCTAssertFalse(coordinator.hasPendingOTCListRequest, "pending OTC list flag must be cleared", file: file, line: line)
+        XCTAssertFalse(coordinator.hasPendingTextInsertion, "pending text insertion must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingReadOnlyCancellationMessage, "pending read-only message must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingSavePasswordRequestStorage, "pending save request must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingGeneratePasswordsRequestStorage, "pending generate request must be cleared", file: file, line: line)
