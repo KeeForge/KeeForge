@@ -24,6 +24,7 @@
 - In AutoFill, entering the master password for a database whose saved key file can't be read now says that the key file is the problem. Before, AutoFill tried the password without the key file and reported a wrong password or a corrupted file, even when the password was correct (#274).
 - An XML key file with a non-ASCII character near its start now opens its database. Before, KeeForge could misread it as a plain file and derive the wrong key.
 - On iPhone and iPad with Touch ID, the Auto-Unlock setting now says Touch ID instead of Face ID.
+- Clearer messages when a database can't be opened: a damaged header and a database too large to open now say so, instead of "Not a KeePass Database" or a generic decompression error. Key files marked version 2.1 now open, and key files with a version KeePass doesn't define say that the version is unsupported.
 
 ### Changes
 

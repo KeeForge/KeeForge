@@ -52901,6 +52901,58 @@
         }
       }
     },
+    "The database header is damaged." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Datenbank-Header ist beschädigt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El encabezado de la base de datos está dañado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'en-tête de la base de données est endommagé."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'intestazione del database è danneggiata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースのヘッダーが破損しています。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заголовок базы данных повреждён."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库头部已损坏。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫標頭已損毀。"
+          }
+        }
+      }
+    },
     "The database is locked. Unlock it and try again." : {
       "localizations" : {
         "de" : {
@@ -56601,6 +56653,58 @@
         }
       }
     },
+    "This database is too large for KeeForge to open." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank ist zu groß, als dass KeeForge sie öffnen könnte."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos es demasiado grande para que KeeForge la abra."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données est trop volumineuse pour que KeeForge puisse l'ouvrir."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database è troppo grande perché KeeForge possa aprirlo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースは大きすぎるため、KeeForge で開けません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта база данных слишком большая, чтобы KeeForge смог её открыть."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库过大，KeeForge 无法打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫過大，KeeForge 無法開啟。"
+          }
+        }
+      }
+    },
     "This database is unavailable. Return to the database list to remove it or refresh its bookmark." : {
       "localizations" : {
         "de" : {
@@ -58649,6 +58753,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法將此項目回復至該群組。請選擇其他目的地。"
+          }
+        }
+      }
+    },
+    "This key file uses a version KeeForge does not support." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Schlüsseldatei hat eine Version, die KeeForge nicht unterstützt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo de clave usa una versión que KeeForge no admite."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier de clé utilise une version que KeeForge ne prend pas en charge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo file chiave usa una versione che KeeForge non supporta."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このキーファイルは KeeForge が対応していないバージョンです。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот файл ключа использует версию, которую KeeForge не поддерживает."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此密钥文件使用的版本 KeeForge 不支持。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此金鑰檔案使用的版本 KeeForge 不支援。"
           }
         }
       }

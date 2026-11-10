@@ -88,9 +88,22 @@ final class KDBXKeyFileTests: XCTestCase {
         }
     }
 
-    /// Anything but version 2.0 is read as 1.0.
-    func testOtherVersionsReadAsVersion1() throws {
-        XCTAssertEqual(try KDBXKeyFile.key(from: keyFileXML(version: "", data: expectedKey.base64EncodedString())), expectedKey)
+    /// The major version picks the format, as in KeePass; a missing version reads as 1.0.
+    func testMajorVersionPicksTheFormat() throws {
+        for version in ["", "1.0", "1.00", "1.1"] {
+            XCTAssertEqual(try KDBXKeyFile.key(from: keyFileXML(version: version, data: expectedKey.base64EncodedString())), expectedKey, version)
+        }
+        for version in ["2.0", "2.1"] {
+            XCTAssertEqual(try KDBXKeyFile.key(from: keyFileXML(version: version, data: upperHex)), expectedKey, version)
+        }
+    }
+
+    func testUnknownMajorVersionsAreRejected() {
+        for version in ["3.0", "0.9", "x"] {
+            assertThrows(KDBXKeyFile.KeyFileError.xmlVersionUnsupported) {
+                try KDBXKeyFile.key(from: self.keyFileXML(version: version, data: self.upperHex))
+            }
+        }
     }
 
     func testOnlyMetaVersionAndKeyDataCount() throws {

@@ -173,10 +173,11 @@ public enum KDBXCrypto {
         static let keyLength = 32
         static let nonceLength = 12
 
-        private var initialState: [UInt32]
+        private(set) var initialState: [UInt32]
         private var counter: UInt32 = 0
         private var block: [UInt8] = []
         private var blockOffset = 0
+        private(set) var isWiped = false
 
         /// `key` and `nonce` must be 32 and 12 bytes.
         init(key: Data, nonce: Data) {
@@ -200,14 +201,17 @@ public enum KDBXCrypto {
             initialState = state
         }
 
-        /// Zeroes the key words and the buffered keystream block; the stream is unusable afterwards.
+        /// Zeroes the key words and the buffered keystream block. Using the
+        /// stream afterwards is a programming error and traps.
         mutating func wipe() {
             SecureWipe.wipe(&initialState)
             SecureWipe.wipe(&block)
             blockOffset = block.count
+            isWiped = true
         }
 
         mutating func xor(_ data: Data) -> Data {
+            precondition(!isWiped)
             var output = [UInt8](repeating: 0, count: data.count)
             data.withUnsafeBytes { (input: UnsafeRawBufferPointer) in
                 var readOffset = 0

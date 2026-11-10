@@ -4,11 +4,19 @@ import zlib
 /// The payload compression KDBX calls GZip.
 enum Gzip {
     /// Decompresses gzip, falling back to zlib and raw deflate, which some
-    /// producers write despite the flag. Refuses output over `maxOutputSize`.
+    /// producers write despite the flag. Output over `maxOutputSize` throws
+    /// `decompressedPayloadTooLarge`.
     static func decompress(_ data: Data, maxOutputSize: Int) throws -> Data {
         for windowBits in [MAX_WBITS + 16, MAX_WBITS, -MAX_WBITS] {
-            if let output = try? inflate(data, windowBits: windowBits, maxOutputSize: maxOutputSize), !output.isEmpty {
-                return output
+            do {
+                let output = try inflate(data, windowBits: windowBits, maxOutputSize: maxOutputSize)
+                if !output.isEmpty {
+                    return output
+                }
+            } catch KDBXContainer.ParseError.decompressedPayloadTooLarge {
+                throw KDBXContainer.ParseError.decompressedPayloadTooLarge
+            } catch {
+                continue
             }
         }
         throw KDBXCrypto.CryptoError.decompressionFailed
@@ -71,7 +79,7 @@ enum Gzip {
             }
             output.append(contentsOf: buffer.prefix(buffer.count - Int(stream.avail_out)))
 
-            guard output.count <= maxOutputSize else { throw failure }
+            guard output.count <= maxOutputSize else { throw KDBXContainer.ParseError.decompressedPayloadTooLarge }
             if status == Z_STREAM_END {
                 return output
             }

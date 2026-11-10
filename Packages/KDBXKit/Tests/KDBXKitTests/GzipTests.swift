@@ -42,7 +42,7 @@ final class GzipTests: XCTestCase {
     func testRejectsOutputAboveTheLimit() throws {
         let compressed = try Gzip.compress(Data(count: 200_000))
         XCTAssertEqual(try Gzip.decompress(compressed, maxOutputSize: 200_000).count, 200_000)
-        assertThrows(KDBXCrypto.CryptoError.decompressionFailed) {
+        assertThrows(KDBXContainer.ParseError.decompressedPayloadTooLarge) {
             try Gzip.decompress(compressed, maxOutputSize: 199_999)
         }
     }

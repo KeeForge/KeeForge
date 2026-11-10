@@ -7,6 +7,8 @@ extension KDBXContainer.ParseError: @retroactive LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidSignature: String(localized: "Not a valid KDBX file")
+        case .headerHashMismatch: String(localized: "The database header is damaged.")
+        case .decompressedPayloadTooLarge: String(localized: "This database is too large for KeeForge to open.")
         case .unsupportedVersion:
             String(localized: "This database uses an older KeePass format that KeeForge does not support yet.")
         case .truncatedFile: String(localized: "File is truncated")
@@ -64,6 +66,7 @@ extension KDBXKeyFile.KeyFileError: @retroactive LocalizedError {
         case .emptyKeyFile: String(localized: "Key file is empty")
         case .xmlKeyDataInvalid: String(localized: "Key file XML contains invalid key data")
         case .xmlHashMismatch: String(localized: "Key file hash verification failed — file may be corrupted")
+        case .xmlVersionUnsupported: String(localized: "This key file uses a version KeeForge does not support.")
         }
     }
 }
