@@ -12,15 +12,15 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 
 ## What the suite covers
 
-- **Parser, writer, crypto:** `KDBXParserTests` (decrypt, integrity rejection, foreign-authored cipher fixtures, Salsa20 known answers through the parser), `KDBXWriterTests` (saving the model: header reuse, ciphers, KDF, pool), `KDBXRoundTripTests` (XML serializer and opaque-XML preservation), `KDFExecutionPolicyTests` (app versus AutoFill resource budgets), `ChaCha20Tests` (protected-value known answers through the serializer and parser), `TwofishTests`, `ChallengeResponseKeyTests`, `EncryptedValueTests`. The container itself (framing, HMACs, KDFs, ciphers, key files, inner-header order) is tested in `../Packages/KDBXKit/Tests` (`../Packages/KDBXKit/AGENTS.md`).
+- **Parser, writer, crypto:** `KDBXParserTests` (decrypt, integrity rejection, foreign-authored cipher fixtures, Salsa20 known answers through the parser), `KDBXWriterTests` (saving the model: header reuse, ciphers, KDF, pool), `KDBXRoundTripTests` (the model through XML: mapping, three-state fields, and opaque XML the model carries), `KDFExecutionPolicyTests` (app versus AutoFill resource budgets), `ChaCha20Tests` (protected-value known answers through the model's XML), `TwofishTests`, `ChallengeResponseKeyTests`, `EncryptedValueTests`. The container itself (framing, HMACs, KDFs, ciphers, key files, inner-header order) is tested in `../Packages/KDBXKit/Tests` (`../Packages/KDBXKit/AGENTS.md`), and the XML document (element positions, protected-value order, value encodings, foreign payloads) in `../Packages/KDBXXML/Tests` (`../Packages/KDBXXML/AGENTS.md`). `Support/ModelXMLSupport.swift` serializes and parses the model's XML without the container.
 - Recycle Bin recovery: `DatabaseDraftTests` covers format references and boundary refusals; `DatabaseViewModelTests` covers save/reopen, destination visibility, nested recovery, read-only/stale requests, cancellation, and failed-write retry. Restore artifacts are in `KDBXCompatibilityTests`.
 - Custom-icon management: `CustomIconXMLTests` pins surgical XML edits; `DatabaseDraftTests` covers entry/group/history fallback; `DatabaseViewModelTests` covers session guards and save/reopen; `KDBXMergerTests` covers icon tombstones and imported names. Rename/delete artifacts live in `KDBXCompatibilityTests`.
 - **Edits and compatibility:** `DatabaseDraftTests` (in-memory edit semantics), `KDBXCompatibilityTests` (every supported edit written, reparsed, and handed to KeePassXC by the external gate).
 - **Merge:** `KDBXMergerTests` (synthetic scenarios pinning the specified behavior, including recovery references following location independently of content), `KDBXMergerOracleTests` (the same engine compared with `keepassxc-cli merge` output under `../TestFixtures/Merge/`). The compatibility merge artifact also preserves remote recycling references through write/reopen.
 - **Persistence and save paths:** `LocalDatabaseSaverTests`, `CloudDatabaseSaverTests`, `DatabaseListStoreTests`, `SharedVaultStoreTests`, `PendingUploadQueueTests`, `PendingUploadDrainerTests`, `PendingUploadRecoveryTests`, `KeychainServiceTests`, `AppGroupGuardrailTests`.
-- **Cloud:** `CloudSyncCoordinatorTests` (open-time sync resolution and the cache swap), `DatabaseViewModelCloudSyncTests` (Sync Now in a session), one `<Provider>CloudProviderTests` per provider, `WebDAVClientTests`, `FTPListingParserTests`.
+- **Cloud:** `CloudSyncCoordinatorTests` (open-time sync resolution and the cache swap), `DatabaseViewModelCloudSyncTests` (Sync Now in a session), one `<Provider>CloudProviderTests` per provider, `WebDAVErrorMessageTests` (the message for each `WebDAVError`). The WebDAV and FTP clients are tested in `../Packages/RemoteFileTransports`.
 - **Session and workflow:** `DatabaseViewModelTests`, `AutoLockTests`, `HardwareKeyUnlockTests`, `DatabaseEditorCoordinatorTests`, `AppRoutingCoordinatorTests`.
-- **AutoFill and passkeys:** `CredentialProviderCoordinatorTests` and its `CredentialProvider*Tests` siblings (save, registration, picker creation), `CredentialMatcherTests` (also covers the hosted picker's expanded search on macOS), `CredentialIdentityStoreManagerTests`, `AutoFillMemoryLimitTests`, `PasskeyCredentialTests`, `PasskeyCryptoTests`.
+- **AutoFill and passkeys:** `CredentialProviderCoordinatorTests` and its `CredentialProvider*Tests` siblings (save, registration, picker creation), `CredentialMatcherTests` (service-identifier and entry conversions and expiry; also covers the hosted picker's expanded search on macOS; the matching rules are tested in `../Packages/SiteMatching/Tests`), `CredentialIdentityStoreManagerTests`, `AutoFillMemoryLimitTests`, `PasskeyCredentialTests`, `PasskeyCryptoTests`.
 - **Localization and bundle:** `LocalizationTests` (translation completeness and format-specifier parity for every shipped locale), `URLSchemeFormatTests` (declared URL schemes are legal after build-setting substitution).
 - **macOS only:** `MacBiometricAutoUnlockTests`, `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `MacQuickSearchViewModelTests`, `MacQuickAccessControllerTests`, `MacUnlockPasswordFieldTests`, `MacTransitionNoticeServiceTests`, `CredentialProviderShellMacTests`, and the SSH agent's `SSHAgentKeyTests`, `SSHAgentRequestHandlerTests`, `MacSSHAgentControllerTests`.
 
@@ -49,7 +49,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 
 ### KDBX layering
 
-- Each layer has one home: XML serializer in `KDBXRoundTripTests`, encrypted container in the KDBXKit package tests, model saves in `KDBXWriterTests`, in-memory edits in `DatabaseDraftTests`, save-path safety (conflict, backup, verification, rekey, re-encryption) in the two saver suites and `CredentialProviderSaveTests` with representative edits only.
+- Each layer has one home: the XML document in the KDBXXML package tests, the model's mapping onto it in `KDBXRoundTripTests`, encrypted container in the KDBXKit package tests, model saves in `KDBXWriterTests`, in-memory edits in `DatabaseDraftTests`, save-path safety (conflict, backup, verification, rekey, re-encryption) in the two saver suites and `CredentialProviderSaveTests` with representative edits only.
 - The all-edit matrix lives only in `KDBXCompatibilityTests` and `Support/KDBXCompatibilitySupport.swift`. Do not copy it into writer, draft, or saver tests.
 - Merge semantics belong to the two merger suites. The merge write path is the single compatibility scenario `merge-remote-divergence`.
 - `KDBXMergerOracleTests` enumerates `../TestFixtures/Merge/manifest.json`. A scenario flagged `oracleMatchesSpec: false` must declare a `SpecOutcome` in the test, because `keepassxc-cli` does not apply `DeletedObjects`, adopt `Meta/RecycleBinUUID`, or update a moved entry's `LocationChanged`.
@@ -80,9 +80,9 @@ Convention: `<Type>Tests.swift` declares `<Type>Tests` and covers `<Type>`. The 
 - `PasswordImportTests.swift`: `CSVReaderTests`, `ApplePasswordsCSVImporterTests`, `PasswordImportViewModelTests`.
 - `SecretAccessGateTests.swift`: `SecretAccessGateTests` (the gate alone) and `SecretAccessSessionTests` (the grace period across a `DatabaseViewModel` session).
 - `SettingsSummaryTests.swift`: `SettingsSummaryRowTests`, `AppSettingsSummaryTests`, `DatabaseSettingsSummaryTests`.
-- `FTPListingParserTests.swift` also declares `FTPURLTests`; `FaviconServiceTests.swift` also declares `FaviconLoadModelTests`.
+- `FTPCloudProviderTests.swift` also declares `FTPAccountTests`; `FaviconServiceTests.swift` also declares `FaviconLoadModelTests`.
 - `CloudFileBrowserViewModelTests` covers `CloudFileBrowserSession` and `CloudFolderBrowserViewModel`.
-- `ModelLogicTests` holds pure model helpers with no suite of their own (icon tables, entry traversal, `OpaqueXMLNodes`, `KeeOTPSource` rewriting).
+- `ModelLogicTests` holds pure model helpers with no suite of their own (icon tables, entry traversal, `OpaqueXMLNodes`, the `KeeOTPSource` forwarding).
 
 Designated gates:
 
@@ -91,6 +91,7 @@ Designated gates:
 - Rekey and re-encryption: the write is in the saver suites, the session guards in `DatabaseViewModelTests`.
 - Editor completion across a save conflict: `EntryEditCompletionGateTests` is the only non-UI coverage. Editor save and reopen against the real saver is in `KDBXCompatibilityTests`.
 - Argon2, AES-KDF, ChaCha20, and Salsa20 primitive vectors are in the KDBXKit package tests.
+- TOTP, HOTP, Base32, `otpauth` parsing, and the KeeOTP query rewrite are tested in `../Packages/OneTimeCodes/Tests`; `TOTPGeneratorTests` covers only the app adapter (decryption, `decodedSecret` precedence, placeholder).
 - Not unit-testable here: the live `FTPNetworkStream` (needs a server), live StoreKit purchases, and typed key events in an inactive Mac app (covered in `KeeForgeMacUITests`).
 
 ## See also

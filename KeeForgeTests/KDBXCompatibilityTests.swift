@@ -1,7 +1,9 @@
 import AuthenticationServices
 import CryptoKit
+import OneTimeCodes
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 /// The authoritative KDBX edit-semantics matrix.
@@ -70,7 +72,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey)
             let invalid = EntryDraftPayload(title: "Invalid Notes", notes: "Example heading\u{0}\r\nExample body")
             XCTAssertThrowsError(try draft.apply(.createEntry(parentGroupID: loaded.rootGroup.id, draft: invalid))) { error in
-                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+                XCTAssertEqual(error as? KDBXDocument.WriteError, .invalidXMLCharacter("\u{0}"))
             }
             XCTAssertTrue(draft.pendingEdits.isEmpty)
             let root = loaded.rootGroup.deepCopy()
@@ -79,7 +81,7 @@ final class KDBXCompatibilityTests: XCTestCase {
                 rootGroup: root, meta: loaded.meta, compositeKey: loaded.compositeKey,
                 header: loaded.header, sessionKey: loaded.sessionKey
             )) { error in
-                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+                XCTAssertEqual(error as? KDBXDocument.WriteError, .invalidXMLCharacter("\u{0}"))
             }
         }
     }
@@ -1159,8 +1161,8 @@ final class KDBXCompatibilityTests: XCTestCase {
             + "<String><Key>Title</Key><Value>KeePass Hex</Value></String>"
             + "<String><Key>TimeOtp-Secret-Hex</Key><Value>3132333435363738393031323334353637383930</Value></String>"
             + "</Entry></Group></Root></KeePassFile>"
-        let parsed = try KDBXParser.parseXML(
-            xmlData: Data(xml.utf8), innerStreamKey: Data(), innerStreamID: 0, sessionKey: entrySessionKey
+        let parsed = try ModelXML.parse(
+            Data(xml.utf8), innerStream: .unprotected, key: Data(), sessionKey: entrySessionKey
         )
         let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
         let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
@@ -1183,7 +1185,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         reloaded = try writeAndReload(updated)
         config = try XCTUnwrap(reloaded.totpConfig)
         XCTAssertEqual(config.keePassSecretField, .base32)
-        XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
+        XCTAssertEqual(resolvedSecret(config), Base32.decode("JBSWY3DPEHPK3PXP"))
         XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
     }
 
@@ -1206,7 +1208,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(config.period, 45)
         XCTAssertEqual(config.digits, 8)
         XCTAssertEqual(config.algorithm, .sha256)
-        XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
+        XCTAssertEqual(resolvedSecret(config), Base32.decode("JBSWY3DPEHPK3PXP"))
         XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
 
         // A later field edit makes the stored URI stale: it must be dropped,
@@ -1219,7 +1221,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         config = try XCTUnwrap(reloaded.totpConfig)
         XCTAssertNil(reloaded.otpURL)
         XCTAssertEqual(config.period, 60)
-        XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
+        XCTAssertEqual(resolvedSecret(config), Base32.decode("JBSWY3DPEHPK3PXP"))
     }
 
     @MainActor
@@ -1486,7 +1488,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         let rootGroup = KPGroup(name: "Root", entries: [entry])
         let meta = KPMeta()
 
-        var firstSerializer = KDBXXMLSerializer(
+        let firstSerializer = ModelXML.Serializer(
             rootGroup: rootGroup,
             meta: meta,
             innerStreamKey: innerStreamKey,
@@ -1502,11 +1504,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         )
         XCTAssertFalse(firstXMLString.contains("COMPAT-BYTE-IDENTITY"))
 
-        let reparsed = try KDBXXMLParser(
-            data: firstXML,
-            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: innerStreamKey),
-            sessionKey: entrySessionKey
-        ).parse()
+        let reparsed = try ModelXML.parse(firstXML, innerStream: .chaCha20, key: innerStreamKey, sessionKey: entrySessionKey)
         let reparsedEntry = try XCTUnwrap(firstEntry(titled: "Passkey Byte Identity", in: reparsed.rootGroup))
 
         XCTAssertNil(reparsedEntry.customFields[PasskeyCredential.privateKeyPEMKey])
@@ -1517,7 +1515,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(reparsedEntry.customFields["AAA Leading"], "before-pem")
         XCTAssertEqual(reparsedEntry.customFields["ZZZ Trailing"], "after-pem")
 
-        var secondSerializer = KDBXXMLSerializer(
+        let secondSerializer = ModelXML.Serializer(
             rootGroup: reparsed.rootGroup,
             meta: reparsed.meta,
             innerStreamKey: innerStreamKey,
@@ -1813,6 +1811,6 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     private func resolvedSecret(_ config: TOTPConfig) -> Data? {
-        TOTPGenerator.resolveSecret(config: config, sessionKey: entrySessionKey)?.data
+        TOTPGenerator.decryptedSecret(config: config, sessionKey: entrySessionKey)
     }
 }

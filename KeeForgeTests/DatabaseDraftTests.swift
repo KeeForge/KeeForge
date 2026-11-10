@@ -1,6 +1,7 @@
 import CryptoKit
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 final class DatabaseDraftTests: XCTestCase {
@@ -81,7 +82,7 @@ final class DatabaseDraftTests: XCTestCase {
             for edit in [EntryEdit.createEntry(parentGroupID: tree.parentGroupID, draft: payload),
                          .updateEntry(entryID: tree.parentEntry.id, draft: payload)] {
                 XCTAssertThrowsError(try draft.apply(edit)) { error in
-                    XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+                    XCTAssertEqual(error as? KDBXDocument.WriteError, .invalidXMLCharacter("\u{0}"))
                 }
             }
             XCTAssertThrowsError(try draft.creatingEntries([EntryDraftPayload(title: "Valid Import"), payload], inGroup: tree.parentGroupID))
@@ -106,7 +107,7 @@ final class DatabaseDraftTests: XCTestCase {
         ]
         for edit in edits {
             XCTAssertThrowsError(try draft.apply(edit)) { error in
-                XCTAssertEqual(error as? KDBXXMLSerializer.SerializationError, .invalidXMLCharacter(0))
+                XCTAssertEqual(error as? KDBXDocument.WriteError, .invalidXMLCharacter("\u{0}"))
             }
         }
         XCTAssertFalse(draft.isDirty)
@@ -211,7 +212,7 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(created.protectedStringKeys, protectedKeys)
 
         let innerStreamKey = Data("KeeForge Draft Inner Stream Key".utf8)
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: updatedDraft.rootGroup,
             meta: updatedDraft.meta,
             innerStreamKey: innerStreamKey,
@@ -232,11 +233,7 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertFalse(xmlString.contains("3q2-7wEj"))
         XCTAssertFalse(xmlString.contains("AAEC-_z9"))
 
-        let reparsed = try KDBXXMLParser(
-            data: xml,
-            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: innerStreamKey),
-            sessionKey: sessionKey
-        ).parse()
+        let reparsed = try ModelXML.parse(xml, innerStream: .chaCha20, key: innerStreamKey, sessionKey: sessionKey)
         let reloaded = try XCTUnwrap(reparsed.rootGroup.allEntries.first { $0.title == "Registered Passkey" })
 
         XCTAssertEqual(reloaded.protectedStringKeys.intersection(PasskeyCredential.allFieldKeys), protectedKeys)
@@ -798,7 +795,7 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertTrue(created.protectedStringKeys.contains("otp"))
 
         let innerStreamKey = Data("KeeForge Draft Inner Stream Key".utf8)
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: updatedDraft.rootGroup,
             meta: updatedDraft.meta,
             innerStreamKey: innerStreamKey,
@@ -1808,7 +1805,7 @@ final class DatabaseDraftTests: XCTestCase {
     }
 
     private func serializedXML(of draft: DatabaseDraft) throws -> String {
-        var serializer = KDBXXMLSerializer(
+        let serializer = ModelXML.Serializer(
             rootGroup: draft.rootGroup,
             meta: draft.meta,
             innerStreamKey: Data("KeeForge Draft Inner Stream Key".utf8),
@@ -2117,11 +2114,7 @@ final class DatabaseDraftTests: XCTestCase {
     }
 
     private func parseDraftXML(_ xml: String) throws -> (rootGroup: KPGroup, meta: KPMeta) {
-        try KDBXXMLParser(
-            data: Data(xml.utf8),
-            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.chaCha20.rawValue, key: Data("KeeForge Draft Inner Stream Key".utf8)),
-            sessionKey: sessionKey
-        ).parse()
+        try ModelXML.parse(Data(xml.utf8), innerStream: .chaCha20, key: Data("KeeForge Draft Inner Stream Key".utf8), sessionKey: sessionKey)
     }
 
     private func applyingExpiry(

@@ -1,7 +1,7 @@
 @preconcurrency import AuthenticationServices
 import Foundation
 import OSLog
-import PublicSuffixList
+import SiteMatching
 
 // MARK: - Record identifier
 
@@ -799,7 +799,11 @@ enum CredentialIdentityStoreManager: Sendable {
         guard entry.hasTOTP else { return [] }
 
         var seenHosts = Set<String>()
-        let hosts = CredentialMatcher.webURLs(of: entry).compactMap(otpHostFromURLString).filter { seenHosts.insert($0).inserted }
+        // The exact host, so a code field on `vt.example.com` is not answered
+        // with every entry under `example.com`.
+        let hosts = CredentialMatcher.webURLs(of: entry)
+            .compactMap { SiteHost(publishableWebURL: $0)?.name }
+            .filter { seenHosts.insert($0).inserted }
 
         // The system list shows only this label, so the title alone cannot
         // tell two accounts on one site apart.
@@ -843,20 +847,6 @@ enum CredentialIdentityStoreManager: Sendable {
         )
     }
 
-    static func normalizedRelyingPartyIdentifier(_ value: String) -> String {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "" }
-
-        let host = CredentialMatcher.hostFromURLString(trimmed) ?? trimmed
-        let lowered = host.lowercased()
-
-        if lowered.hasPrefix("www.") {
-            return String(lowered.dropFirst(4))
-        }
-
-        return lowered
-    }
-
     // MARK: - Internal (visible to tests via @testable import)
 
     static func passwordIdentities(for entry: KPEntry, in databaseID: UUID) -> [ASPasswordCredentialIdentity] {
@@ -864,7 +854,7 @@ enum CredentialIdentityStoreManager: Sendable {
         guard !username.isEmpty else { return [] }
         guard entry.hasPassword else { return [] }
 
-        let hosts = Set(CredentialMatcher.webURLs(of: entry).compactMap(domainFromURLString))
+        let hosts = Set(CredentialMatcher.webURLs(of: entry).compactMap { SiteHost($0) }.filter(\.isPublishable).map(\.name))
         guard !hosts.isEmpty else { return [] }
 
         return hosts.sorted().map { host in
@@ -877,61 +867,5 @@ enum CredentialIdentityStoreManager: Sendable {
                 recordIdentifier: CredentialRecordIdentifier(databaseID: databaseID, entryID: entry.id).encoded
             )
         }
-    }
-
-    /// The URL's own host, as the matcher normalizes it. Hosts without a
-    /// registrable domain (IP addresses, `localhost`, bare public suffixes)
-    /// are not published.
-    static func domainFromURLString(_ urlString: String) -> String? {
-        guard let host = CredentialMatcher.hostFromURLString(urlString),
-              registeredDomain(from: host) != nil
-        else { return nil }
-        return host
-    }
-
-    /// The exact request host, so an OTP field on `vt.example.com` is not
-    /// answered with every entry under `example.com`. Non-web schemes carry no
-    /// web host and are dropped rather than coerced into one — notably
-    /// `otpauth://`, whose `totp` authority is not a domain.
-    ///
-    /// Normalization goes through `CredentialMatcher`, so a published host is
-    /// always the one the matcher recomputes from the same stored URL.
-    private static func otpHostFromURLString(_ urlString: String) -> String? {
-        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        // Retry on a missing host, not a missing scheme: `example.com:8080`
-        // parses with `example.com` as its scheme and no host at all.
-        let parsedURL = URL(string: trimmed)
-        let url = parsedURL?.host == nil ? URL(string: "https://\(trimmed)") : parsedURL
-
-        guard let url,
-              let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https",
-              let rawHost = url.host
-        else { return nil }
-
-        // The public-suffix lookup does not tolerate a fully-qualified
-        // trailing dot, so strip it before validating.
-        var host = rawHost
-        while host.hasSuffix(".") { host.removeLast() }
-        guard registeredDomain(from: host) != nil else { return nil }
-
-        return CredentialMatcher.hostFromURLString(host)
-    }
-
-    // MARK: - Registered domain extraction
-
-    /// Extracts the registered domain (eTLD+1) from a host string.
-    /// Returns nil for IP addresses, localhost, and single-label hosts.
-    static func registeredDomain(from host: String) -> String? {
-        let lowered = host.lowercased()
-        if lowered.contains(":") { return nil }
-
-        let labels = lowered.split(separator: ".")
-        guard labels.count >= 2 else { return nil }
-        if labels.allSatisfy({ $0.allSatisfy(\.isNumber) }) { return nil }
-
-        return PublicSuffixList.effectiveTLDPlusOne(lowered)
     }
 }

@@ -1,5 +1,6 @@
 import CryptoKit
 import XCTest
+import KDBXXML
 @testable import KeeForge
 
 /// `Meta/CustomIcons` is round-tripped verbatim, so adding an icon is a splice

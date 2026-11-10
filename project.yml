@@ -24,6 +24,12 @@ settings:
 packages:
   KDBXKit:
     path: Packages/KDBXKit
+  KDBXXML:
+    path: Packages/KDBXXML
+  OneTimeCodes:
+    path: Packages/OneTimeCodes
+  RemoteFileTransports:
+    path: Packages/RemoteFileTransports
   KeeForgeTwofish:
     path: Vendor/KeeForgeTwofish
   SwiftyDropbox:
@@ -32,9 +38,8 @@ packages:
   MSAL:
     url: https://github.com/AzureAD/microsoft-authentication-library-for-objc.git
     from: 1.7.0
-  swift-psl:
-    url: https://github.com/ameshkov/swift-psl.git
-    from: 1.1.161
+  SiteMatching:
+    path: Packages/SiteMatching
   YubiKit:
     url: https://github.com/Yubico/yubikit-ios.git
     from: 4.7.0
@@ -119,10 +124,12 @@ targets:
         embed: true
         codeSign: true
       - package: KDBXKit
+      - package: KDBXXML
+      - package: OneTimeCodes
+      - package: RemoteFileTransports
       - package: SwiftyDropbox
       - package: MSAL
-      - package: swift-psl
-        product: PublicSuffixList
+      - package: SiteMatching
       - package: YubiKit
     sources:
       # KeeForgeCommands.swift (menu bar), MacLockMonitor.swift (lock
@@ -201,8 +208,10 @@ targets:
         embed: true
         codeSign: true
       - package: KDBXKit
-      - package: swift-psl
-        product: PublicSuffixList
+      - package: KDBXXML
+      - package: SiteMatching
+      - package: OneTimeCodes
+      - package: RemoteFileTransports
     sources:
       - path: KeeForge/App
         excludes: ["README.md", "AGENTS.md"]
@@ -262,8 +271,9 @@ targets:
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
       - package: KDBXKit
-      - package: swift-psl
-        product: PublicSuffixList
+      - package: KDBXXML
+      - package: SiteMatching
+      - package: OneTimeCodes
     sources:
       # Exclude the macOS-only Info.plist / entitlements so they are not bundled
       # as stray resources in the iOS extension.
@@ -337,8 +347,9 @@ targets:
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
       - package: KDBXKit
-      - package: swift-psl
-        product: PublicSuffixList
+      - package: KDBXXML
+      - package: SiteMatching
+      - package: OneTimeCodes
     sources:
       # Exclude the iOS-only Info.plist / entitlements so they are not bundled
       # as stray resources in the macOS extension. The macOS presentation shell
@@ -484,6 +495,9 @@ targets:
     sources:
       - path: KeeForgeTests
         excludes: ["README.md", "AGENTS.md", "**/README.md", "**/AGENTS.md"]
+      # The package's fake FTP server, compiled here so it uses the host app's
+      # copy of RemoteFileTransports instead of linking a second one.
+      - path: Packages/RemoteFileTransports/Sources/RemoteFileTransportsTestSupport
 
   KeeForgeMacUITests:
     type: bundle.ui-testing
@@ -572,6 +586,7 @@ targets:
           - "**/AGENTS.md"
           - "DropboxCloudProviderTests.swift"
           - "OneDriveCloudProviderTests.swift"
+      - path: Packages/RemoteFileTransports/Sources/RemoteFileTransportsTestSupport
 
 
 schemeTemplates:

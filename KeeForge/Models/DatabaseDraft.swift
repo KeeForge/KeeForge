@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import KDBXKit
+import KDBXXML
 
 struct DatabaseDraft: Sendable {
     enum DraftError: Error, LocalizedError, Equatable {
@@ -316,7 +317,7 @@ struct DatabaseDraft: Sendable {
         }
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        try KDBXXMLSerializer.validateText(trimmedName)
+        try KDBXDocument.validate(text: trimmedName)
         let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: parentGroupPath[...]) { group in
             if group.groups.contains(where: { $0.name.compare(trimmedName, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) {
                 throw DraftError.duplicateGroupName(parentGroupID: parentGroupID, name: trimmedName)
@@ -427,7 +428,7 @@ struct DatabaseDraft: Sendable {
     /// anchor `KPAttachment.insertionIndex` is expressed against, so an entry
     /// whose source interleaved attachments that early shifts everything after
     /// them. Counting those slots is what keeps this in step with
-    /// `KDBXXMLSerializer.serializeEntry`; a fixed 2 writes the element ahead of
+    /// the KDBXXML writer's entry order; a fixed 2 writes the element ahead of
     /// `<IconID>` on exactly those entries.
     private static func customIconUUIDInsertionIndex(for entry: KPEntry) -> Int {
         let structuredChildrenBefore = 2
@@ -508,7 +509,7 @@ struct DatabaseDraft: Sendable {
         let timestamp = Date.now
         let updatedXML: OpaqueXMLNodes?
         if let name {
-            try KDBXXMLSerializer.validateText(name)
+            try KDBXDocument.validate(text: name)
             updatedXML = CustomIconXML.renaming(uuid: uuid, to: name, at: timestamp, in: meta.unknownXML)
             meta.customIconNames[uuid] = name
         } else {
@@ -601,10 +602,10 @@ struct DatabaseDraft: Sendable {
         }
 
         let tags = TagNormalizer.tags(from: draft.tags)
-        try KDBXXMLSerializer.validateText(trimmedName)
-        try KDBXXMLSerializer.validateText(draft.notes)
+        try KDBXDocument.validate(text: trimmedName)
+        try KDBXDocument.validate(text: draft.notes)
         for tag in tags {
-            try KDBXXMLSerializer.validateText(tag)
+            try KDBXDocument.validate(text: tag)
         }
         let timestamp = Date.now
         let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: groupPath[...]) { group in
@@ -1212,18 +1213,18 @@ struct DatabaseDraft: Sendable {
             fields.append(("otp", uri))
         }
         for (key, value) in fields {
-            try KDBXXMLSerializer.validateText(key)
+            try KDBXDocument.validate(text: key)
             if !protectedStringKeys.contains(key) {
-                try KDBXXMLSerializer.validateText(value)
+                try KDBXDocument.validate(text: value)
             }
         }
         for tag in draft.tags {
-            try KDBXXMLSerializer.validateText(tag)
+            try KDBXDocument.validate(text: tag)
         }
         for attachment in draft.attachments ?? [] {
             switch attachment {
             case .existing(let name, _), .new(let name, _):
-                try KDBXXMLSerializer.validateText(name)
+                try KDBXDocument.validate(text: name)
             }
         }
     }

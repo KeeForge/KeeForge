@@ -3,6 +3,7 @@ import Foundation
 import LocalAuthentication
 import Observation
 import KDBXKit
+import KDBXXML
 
 enum DatabaseSaveError: Error, LocalizedError, Identifiable, Equatable, Sendable {
     case databaseIsReadOnly
@@ -3347,9 +3348,9 @@ final class DatabaseViewModel {
         localBinaryPoolFields: [Data]
     ) async throws -> KDBXMerger.Merged {
         try await Task.detached(priority: .userInitiated) {
-            let remote: (rootGroup: KPGroup, meta: KPMeta, header: KDBXContainer.Header)
+            let remote: KDBXParser.Opened
             do {
-                remote = try KDBXParser.parseWithMetaAndHeader(
+                remote = try KDBXParser.parse(
                     data: remoteData,
                     compositeKey: compositeKey,
                     sessionKey: sessionKey,
@@ -3913,7 +3914,7 @@ final class DatabaseViewModel {
                         compositeKey: compositeKeyForStoreRefresh,
                         sessionKey: SymmetricKey(size: .bits256),
                         kdfPolicy: .mainApp
-                    )
+                    ).rootGroup
                     await self.refreshCredentialStoreIfStillUnlocked(
                         with: refreshedRoot,
                         expectedLockCycleID: expectedLockCycleID
@@ -4056,7 +4057,7 @@ final class DatabaseViewModel {
             // KDF output is never reused or stored, or quick unlock would
             // open the database without the YubiKey.
             if usesHardwareKey {
-                let parsed = try KDBXParser.parseWithMetaAndHeader(
+                let parsed = try KDBXParser.parse(
                     data: data,
                     compositeKey: compositeKey,
                     sessionKey: sessionKey,
@@ -4707,7 +4708,7 @@ final class DatabaseViewModel {
         sourceData: Data
     ) async throws -> Data {
         try await Task.detached(priority: .utility) {
-            let parsed = try KDBXParser.parseWithMetaAndHeader(
+            let parsed = try KDBXParser.parse(
                 data: sourceData,
                 compositeKey: compositeKey,
                 sessionKey: SymmetricKey(size: .bits256),
@@ -4895,7 +4896,7 @@ final class DatabaseViewModel {
     ) async throws -> ReloadedDatabase {
         let sessionKey = SymmetricKey(size: .bits256)
         let parsed = try await Task.detached(priority: .utility) {
-            try KDBXParser.parseWithMetaAndHeader(
+            try KDBXParser.parse(
                 data: data,
                 compositeKey: compositeKey,
                 sessionKey: sessionKey,

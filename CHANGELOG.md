@@ -12,6 +12,10 @@
 
 ### Fixes
 
+- Opening a database written by KeePassXC 4.1 with extension data on an entry or group (browser integration, for example) no longer replaces the entry's or group's modification time with that data's own timestamp, which also affected which side won a sync merge.
+- Saving keeps the protected values inside parts of a database KeeForge does not edit when there are two or more in one place. Before, they were scrambled and read back empty.
+- A protected value whose stored text is wrapped across lines no longer garbles every protected value after it. A database whose protected value cannot be decoded at all now reports that instead of opening with wrong values.
+- Saving no longer deletes a creation, modification, or move time, or a history or maintenance setting, that KeeForge cannot read; it is kept as written.
 - On iPhone and iPad, the app switcher now shows KeeForge's cover instead of the screen you left. Before, the cover appeared too late to be in the app switcher's picture of the app, so an open database could be seen there.
 - On iPhone and iPad, KeeForge stays covered during a screen recording, mirroring, or AirPlay when Face ID, Control Center, Notification Center, or a system alert appears. Before, the cover could disappear behind them and show the open entry in the recording. While the cover is up, taps no longer reach the hidden app and the keyboard closes, so nothing typed shows in the recording.
 - Password and verification-code pickers show credentials for the exact requested host first, offer related hosts as possible matches when none match, and let you search all credentials, including entries without a URL. Rows show the associated hosts, and search includes additional URLs.

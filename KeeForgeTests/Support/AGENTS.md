@@ -26,7 +26,7 @@
 - `KDFPolicyTestSupport.swift` gives parser, writer, and saver calls a `.mainApp` KDF policy when `kdfPolicy:` is omitted. A test about policy selection passes the policy explicitly.
 - Drive reveal/copy authentication through `SecretAccessGateHarness` (pass `harness.gate` as the `secretAccess:` argument of `DatabaseViewModel.init`). Assigning `gracePeriod` announces the change to live gates as Settings does; set `announcesSettingChanges = false` to model a bare write.
 - `YubiKeyEmulator.fixtureSecret` must match `HMAC_SECRET` in `../../TestFixtures/generators/challenge_response.py`.
-- `FakeFTPServer` sits behind `FTPClient`'s connector seam and runs the real command, reply, and data-connection logic. Script failures through its hooks rather than stubbing the client.
+- `FakeFTPServer` sits behind `FTPClient`'s connector seam and runs the real command, reply, and data-connection logic. Script failures through its hooks rather than stubbing the client. Its source is in `../../Packages/RemoteFileTransports/Sources/RemoteFileTransportsTestSupport/`, compiled into both app test targets (`../../project.yml`).
 
 ## See also
 

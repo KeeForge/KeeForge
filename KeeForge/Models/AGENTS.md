@@ -1,28 +1,27 @@
 # Models
 
-**Scope:** the KDBX model layer (XML parse and serialize, merge, draft edits) over `Packages/KDBXKit`, which owns the container and crypto, and the value types the app and both AutoFill extensions share. The most security-sensitive folder in the repo. Foundation/CryptoKit only: no UIKit/AppKit, no `@MainActor`; callers run parsing, KDF, and merge off the main actor.
+**Scope:** the KDBX model layer (mapping the database XML to the model, merge, draft edits) over `Packages/KDBXKit`, which owns the container and crypto, `Packages/KDBXXML`, which owns the XML document, and `Packages/OneTimeCodes`, which owns TOTP, Base32, and `otpauth` parsing, and the value types the app and both AutoFill extensions share. The most security-sensitive folder in the repo. Foundation/CryptoKit only: no UIKit/AppKit, no `@MainActor`; callers run parsing, KDF, and merge off the main actor.
 
 ## Ownership
 
 The root `AGENTS.md` lists the stable-core files and when they may change. Most invariants are explained at their site; read the type's header comment before editing it. What is easy to get wrong:
 
-- `KDBXXMLSerializer` owns all XML emission; `KDBXContainerWriter` (in KDBXKit) owns framing, header, and key derivation, and `KDBXWriter` joins the two. Nothing else builds KDBX bytes.
-- `KDBXParser` and `KDBXWriter` are the only seams between KDBXKit and the model: the container yields header plus XML, and KeeForge types never enter the package. KDBXKit throws plain errors; their localized text lives in `KDBXKit+Localization.swift`.
+- KDBXXML owns all XML reading and emission and KDBXKit owns framing, header, and key derivation. `KDBXParser` (document → model) and `KDBXWriter` (model → document) are the only seams between them and the model, and KeeForge types never enter either package. Nothing else builds KDBX bytes.
+- The mapping is where KeeForge's reading of the format lives: which `<String>` keys are standard fields, the TOTP formats, the diverted passkey PEM, the order KeeForge writes strings in, and sealing secrets under the session key. Both packages throw plain errors; their localized text lives in `KDBXKit+Localization.swift` and `KDBXXML+Localization.swift`.
 - `DatabaseDraft` is the only way to change a tree. `KPGroup` is a reference type: copy through `deepCopy()` before staging a change.
-- A structured field is one the serializer writes from the model. Everything else is replayed from `unknownXML` at its recorded insertion index, and its model property is a read-only display copy: an entry's `customIconUUID`, `expiryTime` / `expires`, and all of `Meta/CustomIcons`. Edit those by splicing the preserved XML (`EntryExpiryXML`, `CustomIconXML`, the draft's icon edits) and update the display copy in the same edit.
+- A structured field is one the writer emits from the model. Everything else is replayed from `unknownXML` at its recorded insertion index, and its model property is a read-only display copy: an entry's `customIconUUID`, `expiryTime` / `expires`, and all of `Meta/CustomIcons`. Edit those by splicing the preserved XML (`EntryExpiryXML`, `CustomIconXML`, the draft's icon edits) and update the display copy in the same edit.
 - `EntryHistoryTrimmer` is the one `HistoryMaxItems` / `HistoryMaxSize` policy, shared by the draft and the merger so they cannot disagree about which versions survive.
 - `TagNormalizer` is edit-side only. Parsed `tags` are never deduped, reordered, or rewritten on read; the parser has its own dedupe-free split.
-- `KDBXUUIDEncoding` and `KDBXDateEncoding` are the single encoders behind both the serializer and the spliced fragments.
+- `UUID.kdbxBase64String` and `Date.kdbxBase64String` in KDBXXML are the single encoders behind both the writer and the spliced fragments.
 
 ## Invariants
 
 ### Round-trip
 
 - Unknown XML, protected fields, history, the binary pool, custom icons, and unknown outer/inner header fields survive a save byte-exact. An unrelated edit must not change a foreign database.
-- Element positions are load-bearing. Opaque insertion indices count known children in KeePass's element order, so the serializer must emit each structured element at that position.
-- A structured element counts as known only under the exact conditions its parse handler accepted it. Keep the handler's guards and `recordOpaqueXML` identical, or every opaque fragment after it shifts.
+- Element positions are load-bearing. Opaque insertion indices count typed children in the writer's element order (`../../Packages/KDBXXML/AGENTS.md`). Splices that add a fragment (`EntryExpiryXML`, `PreviousParentGroupXML`, `CustomIconXML`, the draft's icon edits) compute its index against that order, and the strings `KDBXWriter` emits are part of it.
 - Optional elements are three-state (`<EnableSearching>`, group `<Tags>` / `<Notes>`, `locationChanged`): absent stays absent. Never invent an element the source did not have.
-- When an edit makes a preserved element structured, drop the preserved copy (`removeDirectChildren(named:)`) so the writer never emits a duplicate that outranks it.
+- When an edit makes a preserved element structured, drop the preserved copy (`removeDirectChildren(named:)`) so the model stays tidy. The writer also drops a fragment a typed child replaces, but the in-memory copy would still mislead a later edit.
 - Every `KPGroup` construction site forwards `tags`, `hasTagsElement`, `notes`, `hasNotesElement`, or the fields vanish on the next unrelated edit. `GroupScalars` in the compatibility support pins this.
 - Imported group names and `String` / `Binary` keys keep their whitespace. Only authoring trims.
 - Unknown inner-header fields are re-emitted in their original relative order before the pool, not at their old offsets among pool entries. Deliberate: KDBX 4 defines no ordering and KeePassXC skips unknown IDs.
@@ -36,19 +35,21 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 - `KDBXContainer.maxDecompressedPayloadSize` is 256 MiB. Reading refuses decompressed output over it, so the writer throws `payloadTooLarge` for a compressed payload over it rather than write a file it could not reopen. Uncompressed payloads have no limit on either side.
 - Every parse and write takes an explicit `KDFExecutionPolicy`: `.mainApp` in the apps, `.autoFillExtension` in the extensions (both defined in `KDFExecutionPolicy+App.swift`). They differ only in peak memory (4 GiB vs 512 MiB); total work (64 GiB) and parallelism (256) are identical so one context never refuses a vault the other opens. `KDFExecutionPolicy.validate` is the one resource check: `deriveKey` runs it before Argon2, and a caller whose key skipped the KDF (express unlock) runs it on the header before saving under that policy.
 - KDF parameters run exactly as stored or are rejected, never clamped. Format-invalid values throw `kdfParameterOutOfRange`; over-budget values throw `kdfResourceLimitExceeded`.
-- The serializer rejects XML 1.0-invalid scalars in everything it emits, as the final write barrier. Authoring also runs `KDBXXMLSerializer.validateText` before staging, so rejected text never enters the draft or a history snapshot.
+- The writer rejects XML 1.0-invalid scalars in everything it emits, as the final write barrier. Authoring also runs `KDBXDocument.validate(text:)` before staging, so rejected text never enters the draft or a history snapshot.
 - Twofish uses strict PKCS#7 validation. Do not add permissive padding recovery without a sanitized interoperability fixture that proves it is needed.
 
 ### Secrets
 
 - Native KeePass TOTP uses `TimeOtp-Secret`, `-Hex`, `-Base32`, or `-Base64` in that precedence order. `TOTPConfig.keePassSecretField` keeps the active field and `decodedSecret` keeps the effective bytes for non-Base32 secrets. An unchanged draft preserves that field; a new secret is written as Base32.
-- `TimeOtp-Algorithm` uses KeePass's `HMAC-SHA-*` names. `TOTPAlgorithm.rawValue` remains the short `otpauth` and KeeOTP token. The serializer writes `keePassName`; the parser also accepts the short names that earlier KeeForge versions wrote.
+- `TimeOtp-Algorithm` uses KeePass's `HMAC-SHA-*` names. `TOTPAlgorithm.rawValue` remains the short `otpauth` and KeeOTP token. `KDBXWriter` writes `keePassName`; `KDBXParser` also accepts the short names that earlier KeeForge versions wrote.
+- One-time codes are split at the session key. `OneTimeCodes` works on plain bytes; `TOTPGenerator` is the app's one entry point for a `TOTPConfig`: it decrypts (`decodedSecret` before the Base32 `secret`), wipes its decrypted buffer, and owns the `"------"` placeholder for a secret that does not resolve. `TOTPAlgorithm` is a typealias for the package's enum, and `TOTPGenerator.base32Decode` forwards to it, so `KDBXParser` builds without importing the package.
+- The parser's stored-TOTP readers (lenient stored `otpauth`, KeeOTP query, `TimeOtp-*` precedence and per-encoding decode, legacy `TOTP Seed`) and the writer's TOTP fields still live in `KDBXParser` and `KDBXWriter`, not the package. `OTPAuthURI` is the strict enrollment parser only.
 - Secrets stay sealed as `EncryptedValue` under the session key until the point of use. `EncryptedValue` re-seals with a fresh nonce, so equal secrets never have equal ciphertext: compare plaintext.
-- The passkey private key PEM is diverted out of `customFields` into `KPEntry.passkeyPrivateKey` at parse time and re-emitted by the serializer at its stored custom-field position. It is decrypted only at signing time.
+- The passkey private key PEM is diverted out of `customFields` into `KPEntry.passkeyPrivateKey` at parse time and re-emitted by `KDBXWriter` at its stored custom-field position. It is decrypted only at signing time.
 - `EntryDraftPayload.protectedCustomFieldKeys` is the complete protection set for supplied custom fields when present; nil preserves existing protection for callers that do not edit it. Non-custom and diverted passkey protection survives. AutoFill passkey registration supplies its `KPEX_PASSKEY_*` keys.
 - The composite key travels as a `SymmetricKey`. Transient key material in `Data` or arrays is wiped with `SecureWipe`, and only buffers this code created and uniquely owns (a shared buffer copies on mutation, so the wipe misses the original).
 - Pre-size multi-append key buffers with `Data(capacity:)`, or a reallocation leaves the earlier bytes unwiped.
-- `ExpressUnlock.parse` must open exactly what the KDF path opens. It offers an `ExpressUnlockKey` only when its binding (HMAC under the composite key over the canonically encoded KDF parameters) matches, and falls back to the KDF on `hmacMismatch`. The binding covers every KDF parameter with its type tag, unknown types included, so it covers everything `KDBXKeyDerivation.deriveKey` reads. The `transformedKey:` seam of `KDBXParser.parseWithMetaAndHeader(data:sessionKey:transformedKey:)` takes only `deriveKey` output or a key bound this way. The writer's `transformedKey:` seam takes only `deriveKey` output for the parameters it hands over (the rotated salt included); `ExpressUnlock.write` keeps that output as the saved version's key.
+- `ExpressUnlock.parse` must open exactly what the KDF path opens. It offers an `ExpressUnlockKey` only when its binding (HMAC under the composite key over the canonically encoded KDF parameters) matches, and falls back to the KDF on `hmacMismatch`. The binding covers every KDF parameter with its type tag, unknown types included, so it covers everything `KDBXKeyDerivation.deriveKey` reads. The `transformedKey:` seam of `KDBXParser.parse(data:sessionKey:transformedKey:)` takes only `deriveKey` output or a key bound this way. The writer's `transformedKey:` seam takes only `deriveKey` output for the parameters it hands over (the rotated salt included); `ExpressUnlock.write` keeps that output as the saved version's key.
 - `FieldReferenceResolver` is read-side only (display, copy, AutoFill fill). Never run it on an edit, save, or export path: a resolved value written back replaces the reference with its target. Unresolvable references stay literal, as in KeePass.
 - A password import preview holds plaintext; keep it only while the import screen is open. Files over `PasswordImport.maximumFileSize` (16 MiB) are refused before parsing.
 
@@ -81,7 +82,7 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 
 - YubiKey challenge-response follows KeePassXC: the challenge is the KDF salt PKCS#7-padded to 64 bytes and the key is `SHA256(preKey || SHA256(response))`. KDBX 4 only (3.1 folds the response in after the KDF); a KDBX 4 file with the legacy AES-KDF UUID is accepted because KeePassXC writes it.
 - `PasskeyCredential` reads KeePassXC `KPEX_PASSKEY_*` fields with ordered fallback to the legacy Strongbox / older KeePassXC names.
-- `OTPAuthURI` keeps the trimmed input verbatim in `rawURI` for the protected `otp` field KeePassXC reads.
+- `OTPAuthURI` (in `OneTimeCodes`) keeps the trimmed input verbatim in `rawURI` for the protected `otp` field KeePassXC reads.
 - `ApplePasswordsCSVImporter` rejects a CSV with any column it does not know, so no column is dropped unseen.
 
 ## Tests
@@ -89,8 +90,9 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 Classes in `../../KeeForgeTests/` are named `<Type>Tests`. Non-obvious mappings:
 
 - Any change to parse/write behaviour, draft edits, protected fields, or unknown XML also updates `KDBXCompatibilityTests` and `Support/KDBXCompatibilitySupport.swift`; see `../AGENTS.md`. Those tests emit the artifacts the external `keepassxc-cli` gate consumes.
-- Writer and serializer: `KDBXWriterTests`, `KDBXRoundTripTests`. Merge: `KDBXMergerTests` plus `KDBXMergerOracleTests` (KeePassXC reference fixtures).
+- Model saves: `KDBXWriterTests`. The document ↔ model mapping through XML: `KDBXRoundTripTests`, `KDBXParserTests`, `ChaCha20Tests`; the XML document itself is tested in `../../Packages/KDBXXML/Tests`. Merge: `KDBXMergerTests` plus `KDBXMergerOracleTests` (KeePassXC reference fixtures).
 - `ExpressUnlockTests` covers `ExpressUnlockKey.swift`, including every bundled fixture opened through the cached key.
+- `TOTPGeneratorTests` covers the adapter only; algorithm, Base32, `otpauth`, and KeeOTP query known answers are in `../../Packages/OneTimeCodes/Tests`.
 - `ChallengeResponseKeyTests` covers `HardwareKey.swift`; `AttachmentTests` covers `BinaryPool` and the draft's attachment edits; `PasskeyCredentialTests` and `PasskeyCryptoTests` are in `PasskeyTests.swift`.
 - Fixtures that pin format behaviour are described in `../../TestFixtures/README.md`.
 

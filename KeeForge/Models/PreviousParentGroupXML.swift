@@ -1,4 +1,5 @@
 import Foundation
+import KDBXXML
 
 /// KeePass's optional recovery reference stays opaque so unrelated edits preserve it.
 /// It is a KDBX 4.1 element; `KDBXWriter` raises the header to 4.1 when a tree carries one.
@@ -14,7 +15,7 @@ enum PreviousParentGroupXML {
     }
 
     /// Sets the group's reference where KeePass writes it, just before `<Tags>`.
-    /// The count follows `KDBXXMLSerializer.serializeGroup`'s child order.
+    /// The count follows the KDBXXML writer's group child order.
     static func setting(_ parentID: UUID?, on group: KPGroup) -> OpaqueXMLNodes {
         let hasNotes = group.hasNotesElement || !group.notes.isEmpty
         let hasTimes = group.creationTime != nil || group.lastModificationTime != nil

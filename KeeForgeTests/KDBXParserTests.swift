@@ -2,6 +2,7 @@ import CryptoKit
 import CommonCrypto
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 final class KDBXParserTests: XCTestCase {
@@ -204,7 +205,7 @@ final class KDBXParserTests: XCTestCase {
             XCTAssertEqual(config.period, 30)
             XCTAssertEqual(config.digits, 6)
             XCTAssertEqual(config.algorithm, .sha1)
-            XCTAssertEqual(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey)?.data, Data("hello world".utf8))
+            XCTAssertEqual(TOTPGenerator.decryptedSecret(config: config, sessionKey: testSessionKey), Data("hello world".utf8))
             XCTAssertEqual(config.keeOTPSource, KeeOTPSource(fieldName: fieldName, rawQuery: "key=hello%20world&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1"))
             XCTAssertNil(entry.displayCustomFields[fieldName])
         }
@@ -224,7 +225,7 @@ final class KDBXParserTests: XCTestCase {
                 "otp": "key=\(key)&type=TOTP&step=30&size=8&encoding=\(encoding)&otpHashMode=SHA256",
             ])
             let config = try XCTUnwrap(entry.totpConfig, "Expected \(encoding) config")
-            XCTAssertEqual(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey)?.data, expected)
+            XCTAssertEqual(TOTPGenerator.decryptedSecret(config: config, sessionKey: testSessionKey), expected)
         }
 
         XCTAssertNil(try parseSingleEntry(fields: [
@@ -288,7 +289,7 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertEqual(config.period, 30)
         XCTAssertEqual(config.digits, 6)
         XCTAssertEqual(config.algorithm, .sha1)
-        XCTAssertEqual(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey)?.data, Data("Hello".utf8))
+        XCTAssertEqual(TOTPGenerator.decryptedSecret(config: config, sessionKey: testSessionKey), Data("Hello".utf8))
         XCTAssertEqual(config.keeOTPSource, KeeOTPSource(fieldName: "otp", rawQuery: "key=JBSWY3DP"))
 
         let partial = try parseSingleEntry(fields: ["OTP": "key=JBSWY3DP&step=45"])
@@ -411,7 +412,7 @@ final class KDBXParserTests: XCTestCase {
         ] {
             let config = try XCTUnwrap(parseSingleEntry(fields: [field: value]).totpConfig, value)
             XCTAssertEqual(try config.secret.decrypt(using: testSessionKey), value)
-            XCTAssertNil(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey), value)
+            XCTAssertNil(TOTPGenerator.parameters(for: config, sessionKey: testSessionKey), value)
         }
     }
 
@@ -897,8 +898,8 @@ final class KDBXParserTests: XCTestCase {
         <CustomIconUUID>\(iconUUIDBase64)</CustomIconUUID></Entry>\
         </Group></Root></KeePassFile>
         """
-        let parsed = try KDBXParser.parseXML(
-            xmlData: Data(xml.utf8), innerStreamKey: Data(), innerStreamID: 0, sessionKey: testSessionKey
+        let parsed = try ModelXML.parse(
+            Data(xml.utf8), innerStream: .unprotected, key: Data(), sessionKey: testSessionKey
         )
 
         // The icon table is decoded for display…
@@ -925,8 +926,7 @@ final class KDBXParserTests: XCTestCase {
         <Icon><UUID>\(unnamed.kdbxBase64String)</UUID><Data>Ag==</Data></Icon>
         </CustomIcons></Meta><Root><Group><Name>Root</Name></Group></Root></KeePassFile>
         """
-        let parsed = try KDBXParser.parseXML(xmlData: Data(xml.utf8), innerStreamKey: Data(), innerStreamID: 0,
-                                            sessionKey: testSessionKey)
+        let parsed = try ModelXML.parse(Data(xml.utf8), innerStream: .unprotected, key: Data(), sessionKey: testSessionKey)
         XCTAssertEqual(parsed.meta.customIconNames[named], "Site & <Icon> 🗝\rName")
         XCTAssertNil(parsed.meta.customIconNames[unnamed])
         XCTAssertEqual(parsed.meta.customIcons[unnamed], Data([2]))
@@ -1102,8 +1102,8 @@ final class KDBXParserTests: XCTestCase {
             "<String><Key>\(xmlEscape(key))</Key><Value>\(xmlEscape(value))</Value></String>"
         }.joined()
         let xml = "<KeePassFile><Root><Group><Name>Test</Name><Entry><String><Key>Title</Key><Value>OTP</Value></String>\(strings)</Entry></Group></Root></KeePassFile>"
-        let parsed = try KDBXParser.parseXML(
-            xmlData: Data(xml.utf8), innerStreamKey: Data(), innerStreamID: 0, sessionKey: testSessionKey
+        let parsed = try ModelXML.parse(
+            Data(xml.utf8), innerStream: .unprotected, key: Data(), sessionKey: testSessionKey
         )
         return try XCTUnwrap(parsed.rootGroup.allEntries.first)
     }
@@ -1210,11 +1210,7 @@ final class KDBXParserTests: XCTestCase {
             + strings
             + "</Entry></Group></Root></KeePassFile>"
 
-        let parsed = try KDBXXMLParser(
-            data: Data(xml.utf8),
-            innerStream: KDBXInnerStream(streamID: KDBXInnerStream.Algorithm.salsa20.rawValue, key: Self.salsa20InnerStreamKey),
-            sessionKey: testSessionKey
-        ).parse()
+        let parsed = try ModelXML.parse(Data(xml.utf8), innerStream: .salsa20, key: Self.salsa20InnerStreamKey, sessionKey: testSessionKey)
 
         return try XCTUnwrap(parsed.rootGroup.allEntries.first)
     }

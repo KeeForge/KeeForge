@@ -370,7 +370,7 @@ enum DatabaseCreationService {
         // Verify under the stricter AutoFill KDF policy so creation never
         // writes a database that policy would reject (#57/#74). The extension's
         // runtime memory pre-flight remains the authoritative device-level gate.
-        let parsed = try KDBXParser.parseWithMetaAndHeader(
+        let parsed = try KDBXParser.parse(
             data: encryptedBytes,
             compositeKey: compositeKey,
             sessionKey: sessionKey,

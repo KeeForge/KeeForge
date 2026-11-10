@@ -1,8 +1,9 @@
 import Foundation
+import KDBXXML
 
-/// A KDBX tri-state group flag, as used by `<EnableSearching>` and
-/// `<EnableAutoType>`: an explicit yes/no, or `inherit` (serialized as `null`)
-/// meaning "take the parent's answer".
+/// A KDBX tri-state group flag, as used by `<EnableSearching>`: an explicit
+/// yes/no, or `inherit` meaning "take the parent's answer". Its XML form is
+/// `KDBXDocument.InheritableBool`.
 enum KPInheritableBool: Sendable, Hashable {
     case inherit
     case enabled
@@ -15,27 +16,6 @@ enum KPInheritableBool: Sendable, Hashable {
         case .inherit: return nil
         case .enabled: return true
         case .disabled: return false
-        }
-    }
-
-    /// Parses a KDBX element body. Returns `nil` for anything unrecognized so
-    /// the caller can leave the source element in `unknownXML` untouched
-    /// instead of rewriting it into something the original app didn't write.
-    static func parse(_ rawValue: String) -> KPInheritableBool? {
-        switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "null": return .inherit
-        case "true": return .enabled
-        case "false": return .disabled
-        default: return nil
-        }
-    }
-
-    /// KeePass casing: `True`/`False` for the booleans, lowercase `null` for inherit.
-    var xmlValue: String {
-        switch self {
-        case .inherit: return "null"
-        case .enabled: return "True"
-        case .disabled: return "False"
         }
     }
 }

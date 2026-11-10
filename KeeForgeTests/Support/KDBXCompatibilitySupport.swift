@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import XCTest
 import KDBXKit
+import KDBXXML
 @testable import KeeForge
 
 enum KDBXCompatibilitySupport {
