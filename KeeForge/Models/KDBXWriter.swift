@@ -83,9 +83,7 @@ enum KDBXWriter {
     static func document(rootGroup: KPGroup, meta: KPMeta, sessionKey: SymmetricKey) throws -> KDBXDocument {
         KDBXDocument(
             meta: KDBXDocument.Meta(
-                recycleBinUUID: meta.hasRecycleBinUUIDElement || meta.recycleBinUUID != nil
-                    ? meta.recycleBinUUID ?? KDBXParser.nullUUID
-                    : nil,
+                recycleBin: meta.recycleBin,
                 maintenanceHistoryDays: meta.maintenanceHistoryDays,
                 historyMaxItems: meta.historyMaxItems,
                 historyMaxSize: meta.historyMaxSize,
@@ -112,7 +110,7 @@ enum KDBXWriter {
                 lastModificationTime: group.lastModificationTime,
                 locationChanged: group.locationChanged
             ),
-            enableSearching: group.searchingEnabled?.documentValue,
+            enableSearching: group.searchingEnabled,
             tags: group.hasTagsElement || !group.tags.isEmpty ? group.tags : nil,
             entries: try group.entries.map { try entry($0, sessionKey: sessionKey) },
             groups: try group.groups.map { try self.group($0, sessionKey: sessionKey) },

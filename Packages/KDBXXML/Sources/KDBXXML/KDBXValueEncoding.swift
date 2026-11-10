@@ -73,6 +73,16 @@ extension Date {
     }
 }
 
+extension KDBXDocument.RecycleBin {
+    /// The stored UUID.
+    var uuid: UUID {
+        switch self {
+        case .unset: .kdbxNone
+        case .group(let uuid): uuid
+        }
+    }
+}
+
 extension KDBXDocument.InheritableBool {
     /// `True`/`False`/`null`, case-insensitive, whitespace allowed.
     init?(xmlText: String) {

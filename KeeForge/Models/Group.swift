@@ -1,14 +1,7 @@
 import Foundation
 import KDBXXML
 
-/// A KDBX tri-state group flag, as used by `<EnableSearching>`: an explicit
-/// yes/no, or `inherit` meaning "take the parent's answer". Its XML form is
-/// `KDBXDocument.InheritableBool`.
-enum KPInheritableBool: Sendable, Hashable {
-    case inherit
-    case enabled
-    case disabled
-
+extension KDBXDocument.InheritableBool {
     /// `nil` for `inherit`, so callers can fall back to the parent value with
     /// a single `??`.
     var boolValue: Bool? {
@@ -51,7 +44,7 @@ final class KPGroup: Identifiable, @unchecked Sendable {
     /// KDBX `<EnableSearching>`. `nil` means the source group had no such
     /// element at all, which behaves like `.inherit` but is kept distinct so
     /// the writer doesn't add an element the original app never wrote.
-    var searchingEnabled: KPInheritableBool?
+    var searchingEnabled: KDBXDocument.InheritableBool?
     var creationTime: Date?
     var lastModificationTime: Date?
     /// KDBX `<Times>/<LocationChanged>`: when this group last changed parent.
@@ -75,7 +68,7 @@ final class KPGroup: Identifiable, @unchecked Sendable {
         entries: [KPEntry] = [],
         groups: [KPGroup] = [],
         isExpanded: Bool = true,
-        searchingEnabled: KPInheritableBool? = nil,
+        searchingEnabled: KDBXDocument.InheritableBool? = nil,
         creationTime: Date? = nil,
         lastModificationTime: Date? = nil,
         locationChanged: Date? = nil,

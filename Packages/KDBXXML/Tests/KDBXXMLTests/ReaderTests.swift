@@ -246,7 +246,7 @@ final class ReaderTests: XCTestCase {
         <Generator>X</Generator><RecycleBinUUID>\(zero)</RecycleBinUUID><MaintenanceHistoryDays>soon</MaintenanceHistoryDays>\
         <HistoryMaxItems> 5 </HistoryMaxItems><HistoryMaxSize>99999999999</HistoryMaxSize><Tail/>
         """))
-        XCTAssertEqual(parsed.meta.recycleBinUUID, .kdbxNone, "the zero UUID is stored, not interpreted")
+        XCTAssertEqual(parsed.meta.recycleBin, .unset)
         XCTAssertNil(parsed.meta.maintenanceHistoryDays)
         XCTAssertEqual(parsed.meta.historyMaxItems, 5)
         XCTAssertEqual(parsed.meta.historyMaxSize, 99_999_999_999)
@@ -256,8 +256,16 @@ final class ReaderTests: XCTestCase {
             .init(insertionIndex: 3, xml: "<Tail></Tail>"),
         ])
         let bad = try read(document(root: "", meta: "<RecycleBinUUID>short</RecycleBinUUID><HistoryMaxItems>x</HistoryMaxItems><HistoryMaxSize>y</HistoryMaxSize>"))
-        XCTAssertNil(bad.meta.recycleBinUUID)
+        XCTAssertNil(bad.meta.recycleBin)
         XCTAssertEqual(bad.meta.unknownXML.nodes.count, 3)
+    }
+
+    func test_recycleBin_readsAbsentZeroAndGroup() throws {
+        XCTAssertNil(try read(document(root: "")).meta.recycleBin)
+        let zero = try read(document(root: "", meta: "<RecycleBinUUID>AAAAAAAAAAAAAAAAAAAAAA==</RecycleBinUUID>"))
+        XCTAssertEqual(zero.meta.recycleBin, .unset)
+        let set = try read(document(root: "", meta: "<RecycleBinUUID> AQIDBAUGBwgJCgsMDQ4PEA== </RecycleBinUUID>"))
+        XCTAssertEqual(set.meta.recycleBin, .group(try XCTUnwrap(UUID(uuidString: "01020304-0506-0708-090A-0B0C0D0E0F10"))))
     }
 
     func test_meta_lastOneWins() throws {

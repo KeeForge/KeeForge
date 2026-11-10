@@ -49,11 +49,9 @@ enum KDBXParser {
     /// `<Root>`'s own children and fragments under the all-zero UUID.
     static func model(from document: KDBXDocument, sessionKey: SymmetricKey) -> (rootGroup: KPGroup, meta: KPMeta) {
         let source = document.meta
-        let recycleBinUUID = source.recycleBinUUID.flatMap { $0 == nullUUID ? nil : $0 }
         let icons = source.customIcons
         let meta = KPMeta(
-            recycleBinUUID: recycleBinUUID,
-            hasRecycleBinUUIDElement: source.recycleBinUUID != nil,
+            recycleBin: source.recycleBin,
             maintenanceHistoryDays: source.maintenanceHistoryDays,
             historyMaxItems: source.historyMaxItems,
             historyMaxSize: source.historyMaxSize,
@@ -67,7 +65,7 @@ enum KDBXParser {
             name: "Root",
             entries: document.root.entries.map { entry($0, sessionKey: sessionKey) },
             groups: document.root.groups.map { group($0, sessionKey: sessionKey) },
-            recycleBinUUID: recycleBinUUID,
+            recycleBinUUID: meta.recycleBinUUID,
             unknownXML: document.root.unknownXML
         )
         return (root, meta)
@@ -88,7 +86,7 @@ enum KDBXParser {
             entries: source.entries.map { entry($0, sessionKey: sessionKey) },
             groups: source.groups.map { group($0, sessionKey: sessionKey) },
             isExpanded: source.isExpanded,
-            searchingEnabled: source.enableSearching.map(KPInheritableBool.init),
+            searchingEnabled: source.enableSearching,
             creationTime: source.times.creationTime,
             lastModificationTime: source.times.lastModificationTime,
             locationChanged: source.times.locationChanged,
@@ -145,24 +143,6 @@ enum KDBXParser {
             protectedStringKeys: protectedStringKeys,
             attachments: source.binaries.map { KPAttachment(name: $0.key, ref: $0.ref, insertionIndex: $0.insertionIndex) }
         )
-    }
-}
-
-extension KPInheritableBool {
-    init(_ value: KDBXDocument.InheritableBool) {
-        switch value {
-        case .inherit: self = .inherit
-        case .enabled: self = .enabled
-        case .disabled: self = .disabled
-        }
-    }
-
-    var documentValue: KDBXDocument.InheritableBool {
-        switch self {
-        case .inherit: .inherit
-        case .enabled: .enabled
-        case .disabled: .disabled
-        }
     }
 }
 

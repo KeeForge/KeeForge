@@ -14,7 +14,7 @@ final class WriterTests: XCTestCase {
     }
 
     func test_meta_writesSettingsInKeePassOrderAroundFragments() throws {
-        var meta = KDBXDocument.Meta(recycleBinUUID: .kdbxNone, maintenanceHistoryDays: 30, historyMaxItems: 5, historyMaxSize: 1024)
+        var meta = KDBXDocument.Meta(recycleBin: .unset, maintenanceHistoryDays: 30, historyMaxItems: 5, historyMaxSize: 1024)
         meta.unknownXML = OpaqueXMLNodes(nodes: [
             .init(insertionIndex: 0, xml: "<A></A>"),
             .init(insertionIndex: 2, xml: "<B></B>"),
@@ -25,6 +25,17 @@ final class WriterTests: XCTestCase {
         <MaintenanceHistoryDays>30</MaintenanceHistoryDays><B></B><HistoryMaxItems>5</HistoryMaxItems>\
         <HistoryMaxSize>1024</HistoryMaxSize><Z></Z></Meta><Root></Root></KeePassFile>
         """)
+    }
+
+    func test_recycleBin_writesNothingZeroOrTheGroup() throws {
+        XCTAssertEqual(try write(KDBXDocument(meta: .init(recycleBin: nil))), "<KeePassFile><Meta></Meta><Root></Root></KeePassFile>")
+        let group = try XCTUnwrap(UUID(uuidString: "01020304-0506-0708-090A-0B0C0D0E0F10"))
+        for (value, text) in [(KDBXDocument.RecycleBin.unset, "AAAAAAAAAAAAAAAAAAAAAA=="), (.group(group), "AQIDBAUGBwgJCgsMDQ4PEA==")] {
+            XCTAssertEqual(
+                try write(KDBXDocument(meta: .init(recycleBin: value))),
+                "<KeePassFile><Meta><RecycleBinUUID>\(text)</RecycleBinUUID></Meta><Root></Root></KeePassFile>"
+            )
+        }
     }
 
     func test_group_writesKeePassChildOrder() throws {

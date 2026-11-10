@@ -340,7 +340,7 @@ struct DatabaseDraft: Sendable {
 
     private func applySetGroupSearchingEnabled(
         groupID: UUID,
-        value: KPInheritableBool
+        value: KDBXDocument.InheritableBool
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
         guard let groupPath = pathToGroup(withID: groupID, in: currentRootGroupStorage) else {
             throw DraftError.groupNotFound(groupID)
@@ -942,8 +942,7 @@ struct DatabaseDraft: Sendable {
                 recycleBinUUIDOverride: .value(recycleBinID)
             )
             var updatedMeta = currentMetaStorage
-            updatedMeta.recycleBinUUID = recycleBinID
-            updatedMeta.hasRecycleBinUUIDElement = true
+            updatedMeta.recycleBin = .group(recycleBinID)
             return (updatedRootGroup, updatedMeta)
         }
     }
@@ -1018,8 +1017,7 @@ struct DatabaseDraft: Sendable {
                 recycleBinUUIDOverride: .value(recycleBinID)
             )
             var updatedMeta = currentMetaStorage
-            updatedMeta.recycleBinUUID = recycleBinID
-            updatedMeta.hasRecycleBinUUIDElement = true
+            updatedMeta.recycleBin = .group(recycleBinID)
             return (updatedRootGroup, updatedMeta)
         }
     }

@@ -27,7 +27,7 @@ for group in document.root.groups {
 
 Typed: `Meta` settings (recycle bin, history limits), groups (UUID, name, notes, icon, times, expansion, `EnableSearching`, tags), entries (UUID, icon, tags, times, `<String>` fields in order, `<Binary>` references, history), and tombstones. Everything else is in each element's `unknownXML`. Custom icons, entry expiry, and custom icon references are read-only views of those fragments.
 
-Optional elements are three-state: `notes == nil` means the source had no `<Notes>`, `""` an empty one.
+Optional elements are three-state: `notes == nil` means the source had no `<Notes>`, `""` an empty one. `meta.recycleBin` is `nil` without a `<RecycleBinUUID>`, `.unset` for the all-zero UUID KeePass writes when there is no recycle bin, and `.group(uuid)` otherwise; each writes back as it was read.
 
 ## Writing
 

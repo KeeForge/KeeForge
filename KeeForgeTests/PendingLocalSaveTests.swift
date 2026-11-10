@@ -753,8 +753,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let cleanDraft = DatabaseDraft(
             rootGroup: rootGroup,
             meta: KPMeta(
-                recycleBinUUID: rootGroup.recycleBinUUID,
-                hasRecycleBinUUIDElement: rootGroup.recycleBinUUID != nil
+                recycleBin: rootGroup.recycleBinUUID.map { .group($0) }
             ),
             sessionKey: try XCTUnwrap(viewModel.sessionKey)
         )

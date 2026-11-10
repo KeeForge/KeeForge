@@ -683,8 +683,7 @@ final class KDBXMergerTests: XCTestCase {
             )
         ])
         var remoteMeta = KPMeta()
-        remoteMeta.recycleBinUUID = binID
-        remoteMeta.hasRecycleBinUUIDElement = true
+        remoteMeta.recycleBin = .group(binID)
 
         let merged = try mergedResult(
             local: local,
@@ -692,7 +691,6 @@ final class KDBXMergerTests: XCTestCase {
         )
 
         XCTAssertEqual(merged.meta.recycleBinUUID, binID)
-        XCTAssertTrue(merged.meta.hasRecycleBinUUIDElement)
         XCTAssertEqual(merged.rootGroup.recycleBinUUID, binID)
         let bin = try XCTUnwrap(findGroup(binID, in: merged.rootGroup))
         XCTAssertEqual(bin.entries.map(\.id), [alphaID])
@@ -701,11 +699,9 @@ final class KDBXMergerTests: XCTestCase {
     func test_merge_keepsLocalRecycleBinUUIDWhenBothSidesHaveOne() throws {
         let localBinID = UUID()
         var localMeta = KPMeta()
-        localMeta.recycleBinUUID = localBinID
-        localMeta.hasRecycleBinUUIDElement = true
+        localMeta.recycleBin = .group(localBinID)
         var remoteMeta = KPMeta()
-        remoteMeta.recycleBinUUID = UUID()
-        remoteMeta.hasRecycleBinUUIDElement = true
+        remoteMeta.recycleBin = .group(UUID())
 
         let merged = try mergedResult(
             local: KDBXMerger.Side(rootGroup: try makeTree(work: []), meta: localMeta),

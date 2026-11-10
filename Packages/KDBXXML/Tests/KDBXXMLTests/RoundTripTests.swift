@@ -52,7 +52,7 @@ final class RoundTripTests: XCTestCase {
     func test_documentsBuiltInMemorySurviveAWriteAndRead() throws {
         let date = Date(unix: 1_700_000_000)
         let built = KDBXDocument(
-            meta: .init(recycleBinUUID: TestID.group, maintenanceHistoryDays: 1, historyMaxItems: 2, historyMaxSize: 3),
+            meta: .init(recycleBin: .group(TestID.group), maintenanceHistoryDays: 1, historyMaxItems: 2, historyMaxSize: 3),
             root: .init(
                 entries: [KDBXDocument.Entry(uuid: TestID.other, strings: [.init(key: "k", value: "\r\n\t &<>\"'")])],
                 groups: [KDBXDocument.Group(
@@ -70,6 +70,13 @@ final class RoundTripTests: XCTestCase {
             )
         )
         XCTAssertEqual(try read(write(built)), built)
+    }
+
+    func test_recycleBinStatesRoundTrip() throws {
+        for value in [nil, KDBXDocument.RecycleBin.unset, .group(TestID.group)] {
+            let built = KDBXDocument(meta: .init(recycleBin: value))
+            XCTAssertEqual(try read(write(built)), built, String(describing: value))
+        }
     }
 
     func test_salsa20AndUnprotectedStreamsRoundTrip() throws {

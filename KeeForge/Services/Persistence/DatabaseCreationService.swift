@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import KDBXKit
+import KDBXXML
 #if os(iOS)
 import UIKit
 #endif
@@ -470,8 +471,7 @@ enum DatabaseCreationService {
         )
         let root = KPGroup(name: "Root", groups: [visibleRoot], recycleBinUUID: recycleBinID)
         let meta = KPMeta(
-            recycleBinUUID: recycleBinID,
-            hasRecycleBinUUIDElement: true,
+            recycleBin: .group(recycleBinID),
             maintenanceHistoryDays: KPMeta.defaultMaintenanceHistoryDays,
             historyMaxItems: KPMeta.defaultHistoryMaxItems,
             historyMaxSize: KPMeta.defaultHistoryMaxSize

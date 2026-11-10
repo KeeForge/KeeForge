@@ -642,7 +642,7 @@ final class MacSSHAgentControllerTests: XCTestCase {
                 DatabaseViewModel.ReloadedDatabase(
                     reference: reference,
                     rootGroup: KPGroup(name: "Root", entries: entries),
-                    meta: KPMeta(recycleBinUUID: nil, hasRecycleBinUUIDElement: false),
+                    meta: KPMeta(),
                     formatVersion: .kdbx4(minor: 1),
                     sessionKey: SymmetricKey(size: .bits256),
                     openTimeSHA512: Data("injected-tree-hash".utf8),

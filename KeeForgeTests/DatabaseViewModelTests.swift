@@ -7715,8 +7715,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     reference: reference,
                     rootGroup: rootGroup,
                     meta: KPMeta(
-                        recycleBinUUID: rootGroup.recycleBinUUID,
-                        hasRecycleBinUUIDElement: rootGroup.recycleBinUUID != nil
+                        recycleBin: rootGroup.recycleBinUUID.map { .group($0) }
                     ),
                     formatVersion: .kdbx4(minor: 1),
                     sessionKey: SymmetricKey(size: .bits256),
@@ -7759,8 +7758,7 @@ final class DatabaseViewModelTests: XCTestCase {
         return DatabaseDraft(
             rootGroup: rootGroup,
             meta: KPMeta(
-                recycleBinUUID: rootGroup.recycleBinUUID,
-                hasRecycleBinUUIDElement: rootGroup.recycleBinUUID != nil
+                recycleBin: rootGroup.recycleBinUUID.map { .group($0) }
             ),
             sessionKey: sessionKey
         )

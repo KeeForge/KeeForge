@@ -13,6 +13,7 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 - `EntryHistoryTrimmer` is the one `HistoryMaxItems` / `HistoryMaxSize` policy, shared by the draft and the merger so they cannot disagree about which versions survive.
 - `TagNormalizer` is edit-side only. Parsed `tags` are never deduped, reordered, or rewritten on read; the parser has its own dedupe-free split.
 - `UUID.kdbxBase64String` and `Date.kdbxBase64String` in KDBXXML are the single encoders behind both the writer and the spliced fragments.
+- The model uses KDBXXML's value types where the meaning is the same, never an app mirror with a mapping: `KPGroup.searchingEnabled` is a `KDBXDocument.InheritableBool` (app-only helpers go in an app extension), and `KPMeta.recycleBin` is the `KDBXDocument.RecycleBin` as read. `KPMeta.recycleBinUUID` is its group, if any; set a bin with `recycleBin = .group(id)`. The package owns the zero-UUID rule.
 
 ## Invariants
 
@@ -20,7 +21,7 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 
 - Unknown XML, protected fields, history, the binary pool, custom icons, and unknown outer/inner header fields survive a save byte-exact. An unrelated edit must not change a foreign database.
 - Element positions are load-bearing. Opaque insertion indices count typed children in the writer's element order (`../../Packages/KDBXXML/AGENTS.md`). Splices that add a fragment (`EntryExpiryXML`, `PreviousParentGroupXML`, `CustomIconXML`, the draft's icon edits) compute its index against that order, and the strings `KDBXWriter` emits are part of it.
-- Optional elements are three-state (`<EnableSearching>`, group `<Tags>` / `<Notes>`, `locationChanged`): absent stays absent. Never invent an element the source did not have.
+- Optional elements are three-state (`<EnableSearching>`, group `<Tags>` / `<Notes>`, `locationChanged`, `<RecycleBinUUID>`): absent stays absent. Never invent an element the source did not have.
 - When an edit makes a preserved element structured, drop the preserved copy (`removeDirectChildren(named:)`) so the model stays tidy. The writer also drops a fragment a typed child replaces, but the in-memory copy would still mislead a later edit.
 - Every `KPGroup` construction site forwards `tags`, `hasTagsElement`, `notes`, `hasNotesElement`, or the fields vanish on the next unrelated edit. `GroupScalars` in the compatibility support pins this.
 - Imported group names and `String` / `Binary` keys keep their whitespace. Only authoring trims.

@@ -9,8 +9,7 @@ struct KPDeletedObject: Sendable, Hashable {
 }
 
 struct KPMeta: Sendable, Hashable {
-    var recycleBinUUID: UUID?
-    var hasRecycleBinUUIDElement: Bool
+    var recycleBin: KDBXDocument.RecycleBin?
     var maintenanceHistoryDays: Int?
     var historyMaxItems: Int?
     var historyMaxSize: Int64?
@@ -28,8 +27,7 @@ struct KPMeta: Sendable, Hashable {
     static let defaultHistoryMaxSize: Int64 = 6 * 1024 * 1024
 
     init(
-        recycleBinUUID: UUID? = nil,
-        hasRecycleBinUUIDElement: Bool = false,
+        recycleBin: KDBXDocument.RecycleBin? = nil,
         maintenanceHistoryDays: Int? = nil,
         historyMaxItems: Int? = nil,
         historyMaxSize: Int64? = nil,
@@ -38,8 +36,7 @@ struct KPMeta: Sendable, Hashable {
         customIcons: [UUID: Data] = [:],
         customIconNames: [UUID: String] = [:]
     ) {
-        self.recycleBinUUID = recycleBinUUID
-        self.hasRecycleBinUUIDElement = hasRecycleBinUUIDElement
+        self.recycleBin = recycleBin
         self.maintenanceHistoryDays = maintenanceHistoryDays
         self.historyMaxItems = historyMaxItems
         self.historyMaxSize = historyMaxSize
@@ -47,6 +44,11 @@ struct KPMeta: Sendable, Hashable {
         self.deletedObjects = deletedObjects
         self.customIcons = customIcons
         self.customIconNames = customIconNames
+    }
+
+    /// The recycle bin group, if the database names one.
+    var recycleBinUUID: UUID? {
+        if case .group(let uuid)? = recycleBin { uuid } else { nil }
     }
 
     var resolvedMaintenanceHistoryDays: Int {

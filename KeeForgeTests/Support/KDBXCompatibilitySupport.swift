@@ -992,7 +992,6 @@ enum KDBXCompatibilitySupport {
                 )
                 try assertSurvivingGroupsPreserveScalars(before: before, after: after, excluding: [rootGroupID])
                 XCTAssertNotNil(after.meta.recycleBinUUID)
-                XCTAssertTrue(after.meta.hasRecycleBinUUIDElement)
                 let recycleBinID = try XCTUnwrap(after.meta.recycleBinUUID)
                 let recycleBinGroup = try XCTUnwrap(after.groups[recycleBinID])
                 XCTAssertEqual(recycleBinGroup.name, DatabaseDraft.localizedRecycleBinName)
@@ -2661,7 +2660,7 @@ struct CompatibilitySnapshot {
         let tags: [String]
         let hasTagsElement: Bool
         let isExpanded: Bool
-        let searchingEnabled: KPInheritableBool?
+        let searchingEnabled: KDBXDocument.InheritableBool?
         let creationTime: Date?
         let lastModificationTime: Date?
         let locationChanged: Date?
@@ -2729,7 +2728,7 @@ struct CompatibilitySnapshot {
         let isExpanded: Bool
         /// Covered here so an unrelated edit cannot silently drop or flip a
         /// group's `<EnableSearching>` without a compatibility scenario failing.
-        let searchingEnabled: KPInheritableBool?
+        let searchingEnabled: KDBXDocument.InheritableBool?
         let creationTime: Date?
         let lastModificationTime: Date?
         /// Covered here so only an edit that actually reparents the group may
@@ -3810,8 +3809,7 @@ private extension KDBXCompatibilitySupport {
         )
 
         let meta = KPMeta(
-            recycleBinUUID: recycleBinID,
-            hasRecycleBinUUIDElement: recycleBinID != nil,
+            recycleBin: recycleBinID.map { .group($0) },
             maintenanceHistoryDays: KPMeta.defaultMaintenanceHistoryDays,
             historyMaxItems: KPMeta.defaultHistoryMaxItems,
             historyMaxSize: KPMeta.defaultHistoryMaxSize
@@ -3848,7 +3846,7 @@ private extension KDBXCompatibilitySupport {
     /// Mirrors a parsed group's `<EnableSearching>` state back into the draft
     /// payload, so a group edit that isn't about AutoFill visibility forwards
     /// the value verbatim instead of clearing it.
-    static func inheritableBoolPayload(for value: KPInheritableBool?) -> InheritableBoolPayload? {
+    static func inheritableBoolPayload(for value: KDBXDocument.InheritableBool?) -> InheritableBoolPayload? {
         switch value {
         case nil: return nil
         case .inherit: return .inherit

@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import KDBXXML
 
 /// Record-level reconciliation of two parses of the same database, in the style
 /// of KeePass 2.x Synchronize / KeePassXC merge.
@@ -604,8 +605,7 @@ extension KDBXMerger {
         /// same splice the icon editor uses.
         private func mergeMeta() {
             if meta.recycleBinUUID == nil, let remoteBin = remote.meta.recycleBinUUID {
-                meta.recycleBinUUID = remoteBin
-                meta.hasRecycleBinUUIDElement = true
+                meta.recycleBin = .group(remoteBin)
             }
 
             // Icon tombstones must survive a merge with a copy that still

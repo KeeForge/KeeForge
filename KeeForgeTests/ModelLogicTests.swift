@@ -144,7 +144,7 @@ final class ModelLogicTests: XCTestCase {
     }
 
     func testAutoFillEntriesTreatsInheritAndAbsentElementTheSame() {
-        func makeRoot(child: KPInheritableBool?) -> KPGroup {
+        func makeRoot(child: KDBXDocument.InheritableBool?) -> KPGroup {
             KPGroup(
                 name: "Root",
                 groups: [

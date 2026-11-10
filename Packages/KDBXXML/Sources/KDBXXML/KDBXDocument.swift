@@ -101,26 +101,35 @@ extension KDBXDocument {
     /// `<Meta>`. Only the settings below are typed; everything else, including
     /// `<CustomIcons>`, stays in `unknownXML`.
     public struct Meta: Sendable, Hashable {
-        /// `<RecycleBinUUID>` as stored: the all-zero UUID means none is set.
-        public var recycleBinUUID: UUID?
+        /// `<RecycleBinUUID>`. `nil` when the source has no element.
+        public var recycleBin: RecycleBin?
         public var maintenanceHistoryDays: Int?
         public var historyMaxItems: Int?
         public var historyMaxSize: Int64?
         public var unknownXML: OpaqueXMLNodes
 
         public init(
-            recycleBinUUID: UUID? = nil,
+            recycleBin: RecycleBin? = nil,
             maintenanceHistoryDays: Int? = nil,
             historyMaxItems: Int? = nil,
             historyMaxSize: Int64? = nil,
             unknownXML: OpaqueXMLNodes = .empty
         ) {
-            self.recycleBinUUID = recycleBinUUID
+            self.recycleBin = recycleBin
             self.maintenanceHistoryDays = maintenanceHistoryDays
             self.historyMaxItems = historyMaxItems
             self.historyMaxSize = historyMaxSize
             self.unknownXML = unknownXML
         }
+    }
+
+    /// The value of `<RecycleBinUUID>`.
+    public enum RecycleBin: Sendable, Hashable {
+        /// The all-zero UUID: the database has no recycle bin group.
+        case unset
+        /// A group UUID, which need not name a group in the document.
+        /// `.group` of the all-zero UUID writes the same bytes as `.unset`.
+        case group(UUID)
     }
 
     /// `<Root>`. KeePass keeps one group here; entries are tolerated.

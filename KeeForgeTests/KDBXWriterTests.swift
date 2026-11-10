@@ -376,8 +376,7 @@ final class KDBXWriterTests: XCTestCase {
             recycleBinUUID: recycleBinID
         )
         let meta = KPMeta(
-            recycleBinUUID: recycleBinID,
-            hasRecycleBinUUIDElement: true,
+            recycleBin: .group(recycleBinID),
             maintenanceHistoryDays: KPMeta.defaultMaintenanceHistoryDays,
             historyMaxItems: KPMeta.defaultHistoryMaxItems,
             historyMaxSize: KPMeta.defaultHistoryMaxSize

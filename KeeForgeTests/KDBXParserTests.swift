@@ -473,6 +473,19 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertEqual(internal_?.entries.count, 1)
     }
 
+    func testRecycleBinStatesMapToTheModelAndBack() throws {
+        let binID = UUID()
+        let cases: [(KDBXDocument.RecycleBin?, UUID?)] = [(nil, nil), (.unset, nil), (.group(binID), binID)]
+        for (stored, expectedBin) in cases {
+            let label = String(describing: stored)
+            let model = KDBXParser.model(from: KDBXDocument(meta: .init(recycleBin: stored)), sessionKey: testSessionKey)
+            XCTAssertEqual(model.meta.recycleBinUUID, expectedBin, label)
+            XCTAssertEqual(model.rootGroup.recycleBinUUID, expectedBin, label)
+            let written = try KDBXWriter.document(rootGroup: model.rootGroup, meta: model.meta, sessionKey: testSessionKey)
+            XCTAssertEqual(written.meta.recycleBin, stored, label)
+        }
+    }
+
     func testEmptyGroupHasNoEntries() throws {
         let root = try parseFixture()
         let empty = findGroup(named: "Empty", in: root)

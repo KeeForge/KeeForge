@@ -17,7 +17,7 @@ final class FixtureReadTests: XCTestCase {
         XCTAssertEqual(document.meta.maintenanceHistoryDays, 365)
         XCTAssertEqual(document.meta.historyMaxItems, 10)
         XCTAssertEqual(document.meta.historyMaxSize, 6_291_456)
-        XCTAssertEqual(document.meta.recycleBinUUID, top.groups.last?.uuid)
+        XCTAssertEqual(document.meta.recycleBin, .group(try XCTUnwrap(top.groups.last).uuid))
     }
 
     func test_kitchenSink_unmasksEveryProtectedValueInDocumentOrder() throws {
@@ -92,7 +92,7 @@ final class FixtureReadTests: XCTestCase {
         XCTAssertNotNil(top.times.locationChanged)
         let recycled = try XCTUnwrap(allEntries(top).first { field($0, "Title") == "Recycled Login" })
         XCTAssertEqual(field(recycled, "Password"), "RecycledLoginSecret1")
-        XCTAssertEqual(document.meta.recycleBinUUID, top.groups.last?.uuid)
+        XCTAssertEqual(document.meta.recycleBin, .group(try XCTUnwrap(top.groups.last).uuid))
         // KeePassXC's own <Times> order puts LastModificationTime first.
         XCTAssertNotNil(recycled.times.creationTime)
         XCTAssertNotNil(recycled.times.lastModificationTime)

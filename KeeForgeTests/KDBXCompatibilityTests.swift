@@ -230,8 +230,6 @@ final class KDBXCompatibilityTests: XCTestCase {
         // Omit RecycleBinUUID but keep a modeled element (MaintenanceHistoryDays)
         // so the mid-list emission site is exercised, not only trailingOpaqueXML.
         let meta = KPMeta(
-            recycleBinUUID: nil,
-            hasRecycleBinUUIDElement: false,
             maintenanceHistoryDays: KPMeta.defaultMaintenanceHistoryDays,
             unknownXML: unknownXML
         )
@@ -252,8 +250,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         }
 
         func assertNoDuplication(_ reparsed: KPMeta, _ label: String) {
-            XCTAssertNil(reparsed.recycleBinUUID, label)
-            XCTAssertFalse(reparsed.hasRecycleBinUUIDElement, label)
+            XCTAssertNil(reparsed.recycleBin, label)
             XCTAssertEqual(reparsed.maintenanceHistoryDays, KPMeta.defaultMaintenanceHistoryDays, label)
             for marker in ["<Generator>", "<DatabaseName>", "<CustomData>", "SweepMetaValue"] {
                 let count = reparsed.unknownXML.nodes.filter { $0.xml.contains(marker) }.count

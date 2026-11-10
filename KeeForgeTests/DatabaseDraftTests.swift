@@ -395,8 +395,7 @@ final class DatabaseDraftTests: XCTestCase {
             includeRecycleBin: true,
             parentEntryOverride: entryWithHistory,
             metaOverride: KPMeta(
-                recycleBinUUID: tree.recycleBinGroupID,
-                hasRecycleBinUUIDElement: true,
+                recycleBin: .group(try XCTUnwrap(tree.recycleBinGroupID)),
                 historyMaxItems: 1
             )
         )
@@ -915,7 +914,6 @@ final class DatabaseDraftTests: XCTestCase {
         let recycleBinGroup = try XCTUnwrap(findGroup(withID: recycleBinGroupID, in: updatedDraft.rootGroup))
 
         XCTAssertEqual(updatedDraft.rootGroup.recycleBinUUID, recycleBinGroupID)
-        XCTAssertTrue(updatedDraft.meta.hasRecycleBinUUIDElement)
         XCTAssertFalse(
             updatedDraft.rootGroup.groups.contains(where: { $0.id == recycleBinGroupID }),
             "Recycle Bin should not be a direct child of the synthetic root"
@@ -984,7 +982,6 @@ final class DatabaseDraftTests: XCTestCase {
         let recycleBinGroupID = try XCTUnwrap(updatedDraft.meta.recycleBinUUID)
         let recycleBinGroup = try XCTUnwrap(findGroup(withID: recycleBinGroupID, in: updatedDraft.rootGroup))
         XCTAssertEqual(updatedDraft.rootGroup.recycleBinUUID, recycleBinGroupID)
-        XCTAssertTrue(updatedDraft.meta.hasRecycleBinUUIDElement)
         XCTAssertTrue(recycleBinGroup.groups.contains(where: { $0.id == tree.parentGroupID }))
 
         let visibleRoot = try XCTUnwrap(updatedDraft.rootGroup.groups.first)
@@ -1005,7 +1002,7 @@ final class DatabaseDraftTests: XCTestCase {
             ]
         )
         let root = KPGroup(name: "Root", groups: [visibleRoot], recycleBinUUID: recycleBinID)
-        let meta = KPMeta(recycleBinUUID: recycleBinID, hasRecycleBinUUIDElement: true)
+        let meta = KPMeta(recycleBin: .group(recycleBinID))
         let draft = DatabaseDraft(rootGroup: root, meta: meta, sessionKey: sessionKey)
 
         let updatedDraft = try draft
@@ -3123,8 +3120,7 @@ final class DatabaseDraftTests: XCTestCase {
             recycleBinUUID: recycleBinGroupID
         )
         let meta = metaOverride ?? KPMeta(
-            recycleBinUUID: recycleBinGroupID,
-            hasRecycleBinUUIDElement: includeRecycleBin
+            recycleBin: recycleBinGroupID.map { .group($0) }
         )
 
         return SyntheticTree(

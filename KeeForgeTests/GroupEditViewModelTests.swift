@@ -1,4 +1,5 @@
 import XCTest
+import KDBXXML
 @testable import KeeForge
 
 @MainActor
@@ -10,7 +11,7 @@ final class GroupEditViewModelTests: XCTestCase {
         iconID: Int = 48,
         tags: [String] = [],
         hasTagsElement: Bool = false,
-        searchingEnabled: KPInheritableBool? = nil
+        searchingEnabled: KDBXDocument.InheritableBool? = nil
     ) -> KPGroup {
         KPGroup(
             name: name,
@@ -217,7 +218,7 @@ final class GroupEditViewModelTests: XCTestCase {
     // MARK: - Search & AutoFill visibility
 
     func testUntouchedVisibilitySwitchReplaysTheStoredValue() {
-        let cases: [(stored: KPInheritableBool?, expected: InheritableBoolPayload?)] = [
+        let cases: [(stored: KDBXDocument.InheritableBool?, expected: InheritableBoolPayload?)] = [
             (nil, nil),
             (.inherit, .inherit),
             (.enabled, .enabled),

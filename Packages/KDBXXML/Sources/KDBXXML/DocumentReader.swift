@@ -130,8 +130,8 @@ final class DocumentReader: NSObject, XMLParserDelegate {
             let accepted: Bool
             switch child.name {
             case "RecycleBinUUID":
-                meta.recycleBinUUID = UUID(kdbxText: text)
-                accepted = meta.recycleBinUUID != nil
+                meta.recycleBin = UUID(kdbxText: text).map { $0 == .kdbxNone ? .unset : .group($0) }
+                accepted = meta.recycleBin != nil
             case "MaintenanceHistoryDays":
                 meta.maintenanceHistoryDays = Int(text.trimmingCharacters(in: .whitespacesAndNewlines))
                 accepted = meta.maintenanceHistoryDays != nil
@@ -315,7 +315,7 @@ private protocol TimesOwner: AnyObject {
 }
 
 private final class MetaBuilder {
-    var recycleBinUUID: UUID?
+    var recycleBin: KDBXDocument.RecycleBin?
     var maintenanceHistoryDays: Int?
     var historyMaxItems: Int?
     var historyMaxSize: Int64?
@@ -324,7 +324,7 @@ private final class MetaBuilder {
 
     func build() -> KDBXDocument.Meta {
         KDBXDocument.Meta(
-            recycleBinUUID: recycleBinUUID,
+            recycleBin: recycleBin,
             maintenanceHistoryDays: maintenanceHistoryDays,
             historyMaxItems: historyMaxItems,
             historyMaxSize: historyMaxSize,

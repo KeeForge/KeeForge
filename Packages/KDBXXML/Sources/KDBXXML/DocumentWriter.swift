@@ -32,14 +32,14 @@ final class DocumentWriter {
     private func meta(_ meta: KDBXDocument.Meta) -> String {
         var children = Children(unknownXML: meta.unknownXML, path: [])
         children.supersede([
-            "RecycleBinUUID": meta.recycleBinUUID != nil,
+            "RecycleBinUUID": meta.recycleBin != nil,
             "MaintenanceHistoryDays": meta.maintenanceHistoryDays != nil,
             "HistoryMaxItems": meta.historyMaxItems != nil,
             "HistoryMaxSize": meta.historyMaxSize != nil,
         ])
         var xml = "<Meta>"
-        if let uuid = meta.recycleBinUUID {
-            xml += typed(&children) { element("RecycleBinUUID", uuid.kdbxBase64String) }
+        if let recycleBin = meta.recycleBin {
+            xml += typed(&children) { element("RecycleBinUUID", recycleBin.uuid.kdbxBase64String) }
         }
         if let days = meta.maintenanceHistoryDays {
             xml += typed(&children) { element("MaintenanceHistoryDays", String(days)) }
