@@ -516,13 +516,18 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let legacy = try PendingUploadQueue.enqueue(marker, notifying: false)
         var env = environment(Remote(context.source))
         env.pruneBackups = { _, _ in XCTFail("Failed preservation must not rotate backups") }
-        let payloadPath = legacy.fileURL.deletingPathExtension().appendingPathExtension("kdbx")
-            .standardizedFileURL.resolvingSymlinksInPath().path
+        let payloadURL = legacy.fileURL.deletingPathExtension().appendingPathExtension("kdbx")
+        let directoryAttributes = try FileManager.default.attributesOfItem(atPath: payloadURL.deletingLastPathComponent().path)
+        let directoryDevice = try XCTUnwrap(directoryAttributes[.systemNumber] as? NSNumber).uint64Value
+        let directoryInode = try XCTUnwrap(directoryAttributes[.systemFileNumber] as? NSNumber).uint64Value
         let legacyBytes = context.source
         env.queue.writeMarkerAtomically = { bytes, url in
-            let actualPath = url.standardizedFileURL.resolvingSymlinksInPath().path
-            guard actualPath == payloadPath else {
-                XCTFail("Unexpected queue write before legacy preservation: \(actualPath); expected \(payloadPath)")
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.deletingLastPathComponent().path)
+            // The nonexistent payload can retain /var while enumeration returns /private/var.
+            guard url.lastPathComponent == payloadURL.lastPathComponent,
+                  (attributes[.systemNumber] as? NSNumber)?.uint64Value == directoryDevice,
+                  (attributes[.systemFileNumber] as? NSNumber)?.uint64Value == directoryInode else {
+                XCTFail("Unexpected queue write before legacy preservation: \(url.path); expected \(payloadURL.path)")
                 throw POSIXError(.EINVAL)
             }
             XCTAssertEqual(bytes, legacyBytes)
