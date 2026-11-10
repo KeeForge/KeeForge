@@ -369,8 +369,10 @@ final class ExpressUnlockTests: XCTestCase {
     }
 
     func testCloudSaveReturnsTheKeyOfTheDurableLocalBytes() async throws {
-        let cacheURL = try makeScratchCopy(of: .test)
         let reference = makeCloudReference()
+        defer { DatabaseListStore.remove(id: reference.id) }
+        try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: bundle), for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let context = try makeSaveContext(data: try Data(contentsOf: cacheURL))
         let uploaded = UploadedBytes()
 
@@ -383,9 +385,10 @@ final class ExpressUnlockTests: XCTestCase {
         guard case .saved(_, let expressKey) = result else {
             return XCTFail("Expected save to succeed.")
         }
-        try assertOpensWithoutTheKDF(
-            try Data(contentsOf: cacheURL), expressKey: XCTUnwrap(expressKey), compositeKey: context.compositeKey
-        )
+        let journal = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
+        let retained = try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: XCTUnwrap(journal.marker.intendedPayloadPath)))
+        XCTAssertEqual(retained, try Data(contentsOf: cacheURL))
+        try assertOpensWithoutTheKDF(retained, expressKey: XCTUnwrap(expressKey), compositeKey: context.compositeKey)
     }
 
     /// The saver never hands out a key for a hardware-key database, whatever
@@ -403,9 +406,11 @@ final class ExpressUnlockTests: XCTestCase {
             openTimeSHA512: localContext.openTimeSHA512, kdfPolicy: .mainApp
         )
 
-        let cacheURL = try makeScratchCopy(of: .test)
         var cloudReference = makeCloudReference()
         cloudReference.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
+        DatabaseListStore.update(cloudReference)
+        try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: bundle), for: cloudReference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: cloudReference)
         let cloudContext = try makeSaveContext(data: try Data(contentsOf: cacheURL))
         let cloudResult = try await CloudDatabaseSaver.save(
             draft: cloudContext.draft, reference: cloudReference, compositeKey: cloudContext.compositeKey,
@@ -492,34 +497,15 @@ final class ExpressUnlockTests: XCTestCase {
     }
 
     private func makeCloudReference() -> DatabaseReference {
-        DatabaseReference(
-            id: UUID(),
-            nickname: nil,
-            filename: "express.kdbx",
-            bookmarkData: nil,
-            keyFileBookmarkData: nil,
-            keyFileFilename: nil,
-            isQuickLaunch: false,
-            lastOpenedAt: nil,
-            addedAt: Date(timeIntervalSince1970: 0),
-            colorTag: nil,
-            legacyKeychainFilename: nil,
-            isReadOnly: false,
-            autoFillEnabled: true,
-            source: .cloud(
-                CloudSyncMetadata(
-                    provider: CloudProviderKind.dropbox.rawValue,
-                    accountId: "acct-express",
-                    fileId: "/Vaults/express.kdbx",
-                    displayPath: "/Vaults/express.kdbx",
-                    remoteContentHash: nil,
-                    remoteModifiedAt: nil,
-                    remoteRev: "rev-1",
-                    lastSyncedAt: nil,
-                    lastSyncIssue: nil
-                )
-            )
+        let path = "/Vaults/\(UUID().uuidString).kdbx"
+        var reference = DatabaseListStore.addCloud(
+            provider: CloudProviderKind.dropbox.rawValue, accountId: "acct-express",
+            file: CloudFile(id: path, name: "express.kdbx", path: path,
+                isFolder: false, modifiedDate: nil, size: nil)
         )
+        reference.updateCloudSyncMetadata { $0.remoteRev = "rev-1" }
+        DatabaseListStore.update(reference)
+        return reference
     }
 
     private func makeCloudEnvironment(cacheURL: URL, uploaded: UploadedBytes) -> CloudDatabaseSaver.Environment {
@@ -537,7 +523,6 @@ final class ExpressUnlockTests: XCTestCase {
             uploaded.record(data)
             return CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: nil, size: Int64(data.count), rev: "rev-2")
         }
-        environment.queue.appGroupContainerURL = { cacheURL.deletingLastPathComponent() }
         environment.queue.postDarwinNotification = { }
         return environment
     }

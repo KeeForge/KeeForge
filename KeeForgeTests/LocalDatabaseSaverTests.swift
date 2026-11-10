@@ -490,6 +490,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         // file. The atomic replace is the cache write; a second refresh
         // through cacheDatabaseCopy would write the same bytes again.
         let reference = makeCloudReference()
+        try DatabaseListStore.addCreatedCloud(reference)
         let fixtureURL = try TestDatabaseSupport.fixtureURL(
             bundle: Bundle(for: LocalDatabaseSaverTests.self)
         )

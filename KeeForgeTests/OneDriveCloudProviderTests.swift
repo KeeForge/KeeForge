@@ -66,7 +66,13 @@ final class OneDriveCloudProviderTests: XCTestCase {
             if request.httpMethod == "POST" {
                 status = rejectsCreation ? 507 : 200
                 body = rejectsCreation ? ["error": ["code": "quotaLimitReached", "message": "quota"]] : ["uploadUrl": "https://upload.example.invalid/session"]
+            } else if request.httpMethod == "GET" {
+                status = 200
+                body = ["id": "large", "name": "large.kdbx", "size": bytes.count, "eTag": "r1"]
             } else {
+                guard request.httpMethod == "PUT", request.url?.host == "upload.example.invalid" else {
+                    throw CloudProviderError.invalidConfiguration
+                }
                 let data = request.httpBody ?? Data()
                 bodies.append(data)
                 bytes = data

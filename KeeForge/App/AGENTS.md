@@ -4,6 +4,8 @@
 
 ## Ownership
 
+- Injected unit-test hosts mount an empty root and do not start scene/launch services or the enqueue observer. Tests own their explicit drain and recovery tasks; the hosted app must never race their isolated App Group or start provider I/O. UI-test apps keep the normal lifecycle.
+
 Keep scene and platform adapters here and lifecycle decisions in the owning view model or service. Do not hide an app-wide state transition inside a view.
 
 - `KeeForgeApp` owns the optional active `DatabaseViewModel`, the shared `DatabaseListViewModel` and `AppRoutingCoordinator`, and the compact vs regular root choice. macOS always uses the regular layout.

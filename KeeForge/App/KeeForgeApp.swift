@@ -111,6 +111,7 @@ struct KeeForgeApp: App {
         .tint(appAccentColor)
         .preferredColorScheme(appearanceMode.preferredColorScheme)
         .onChange(of: scenePhase) { _, newPhase in
+            guard !AppGroupContainer.isRedirectedForTesting else { return }
             switch newPhase {
             case .active:
                 screenProtectionService.update(sceneIsActive: true)
@@ -137,6 +138,7 @@ struct KeeForgeApp: App {
             }
         }
         .task {
+            guard !AppGroupContainer.isRedirectedForTesting else { return }
             // A recording already running at launch sends no change notification.
             screenProtectionService.update(sceneIsActive: scenePhase != .background)
             // Plaintext preview files orphaned by a process that died
@@ -166,25 +168,29 @@ struct KeeForgeApp: App {
     /// show the normal root.
     @ViewBuilder
     private var rootView: some View {
-        #if DEBUG
-        if AutoFillStoreInspectorView.isPresentationRequested {
-            AutoFillStoreInspectorView()
-        } else if AutoFillPickerHarnessView.isPresentationRequested {
-            AutoFillPickerHarnessView()
+        if AppGroupContainer.isRedirectedForTesting {
+            Color.clear
         } else {
+            #if DEBUG
+            if AutoFillStoreInspectorView.isPresentationRequested {
+                AutoFillStoreInspectorView()
+            } else if AutoFillPickerHarnessView.isPresentationRequested {
+                AutoFillPickerHarnessView()
+            } else {
+                AppRootView(
+                    listViewModel: listViewModel,
+                    activeDatabaseViewModel: $activeDatabaseViewModel,
+                    routing: routing
+                )
+            }
+            #else
             AppRootView(
                 listViewModel: listViewModel,
                 activeDatabaseViewModel: $activeDatabaseViewModel,
                 routing: routing
             )
+            #endif
         }
-        #else
-        AppRootView(
-            listViewModel: listViewModel,
-            activeDatabaseViewModel: $activeDatabaseViewModel,
-            routing: routing
-        )
-        #endif
     }
 
     /// Registers KDBX files dropped into Documents via Finder/iTunes file
