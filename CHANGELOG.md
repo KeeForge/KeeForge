@@ -21,6 +21,7 @@
 - In the Mac app downloaded from the website, the update window shows the release notes instead of a GitHub page.
 - In AutoFill, entering the master password for a database whose saved key file can't be read now says that the key file is the problem. Before, AutoFill tried the password without the key file and reported a wrong password or a corrupted file, even when the password was correct (#274).
 - An XML key file with a non-ASCII character near its start now opens its database. Before, KeeForge could misread it as a plain file and derive the wrong key.
+- On iPhone and iPad with Touch ID, the Auto-Unlock setting now says Touch ID instead of Face ID.
 
 ### Changes
 

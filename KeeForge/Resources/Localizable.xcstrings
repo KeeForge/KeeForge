@@ -8058,6 +8058,58 @@
         }
       }
     },
+    "Auto-Unlock with Touch ID prompts after a database is opened. When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach dem Öffnen einer Datenbank fordert KeeForge zur Entsperrung mit Touch ID auf. Wenn das Sperren im Hintergrund deaktiviert ist, verwendet KeeForge weiterhin die Zeit bis zur automatischen Sperre und sperrt die Datenbank, sobald die App nach Ablauf dieser Frist wieder aktiv wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tras abrir una base de datos, KeeForge solicita el desbloqueo con Touch ID. Si el bloqueo en segundo plano está desactivado, KeeForge sigue utilizando el tiempo hasta el bloqueo automático y bloquea la base de datos la próxima vez que la app vuelva a estar activa después de que ese plazo haya vencido."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après l'ouverture d'une base de données, KeeForge propose de la déverrouiller avec Touch ID. Lorsque le verrouillage en arrière-plan est désactivé, KeeForge continue d'utiliser le délai de verrouillage automatique et verrouille la base de données dès que l'app redevient active après l'expiration de ce délai."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo sblocco automatico con Touch ID viene richiesto dopo l'apertura di un database. Quando il blocco in background è disattivato, KeeForge usa comunque il tempo di blocco automatico e si blocca la prossima volta che l'app diventa attiva dopo la scadenza di quel termine."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「Touch ID で自動ロック解除」は、データベースを開いたあとに確認を求めます。バックグラウンドでのロックをオフにしている場合も、KeeForge は自動ロックまでの時間を使用し、その時間が過ぎたあとに App が次にアクティブになった時点でロックします。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автоматическая разблокировка с Touch ID запрашивается после открытия базы данных. Если блокировка в фоне выключена, KeeForge всё равно учитывает тайм-аут автоблокировки и блокирует базу данных при следующей активации приложения после истечения этого срока."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开数据库后，“使用 Touch ID 自动解锁”会弹出提示。关闭后台锁定时，KeeForge 仍会使用自动锁定时限，并在超过该期限后 App 下次变为活跃时锁定。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟資料庫後，「使用 Touch ID 自動解鎖」會顯示提示。關閉背景鎖定時，KeeForge 仍會採用自動鎖定時限，並在超過該期限後，App 下次變為使用中時鎖定。"
+          }
+        }
+      }
+    },
     "AutoFill" : {
       "localizations" : {
         "de" : {
