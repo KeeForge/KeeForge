@@ -21,12 +21,13 @@ final class RoundTripTests: XCTestCase {
     }
 
     /// A compact KeePass-style payload survives byte for byte, apart from the
-    /// prolog: the writer's element order matches KeePass's.
+    /// prolog and an empty `<History>`: the writer's element order is KeePass's.
     func test_canonicalPayload_isReproducedExactly() throws {
         let date = Date(unix: 1_600_000_000).kdbxBase64String
         let masked = TestStream.masked(["pw"])
         let body = """
-        <KeePassFile><Meta><Generator>KeePassXC</Generator><RecycleBinUUID>\(TestID.other.kdbxBase64String)</RecycleBinUUID>\
+        <KeePassFile><Meta><Generator>KeePassXC</Generator><MaintenanceHistoryDays>365</MaintenanceHistoryDays>\
+        <MemoryProtection></MemoryProtection><RecycleBinUUID>\(TestID.other.kdbxBase64String)</RecycleBinUUID>\
         <HistoryMaxItems>10</HistoryMaxItems><CustomData></CustomData></Meta><Root><Group><UUID>\(TestID.group.kdbxBase64String)</UUID>\
         <Name>Root</Name><Notes></Notes><IconID>48</IconID><Times><CreationTime>\(date)</CreationTime>\
         <LastModificationTime>\(date)</LastModificationTime><LastAccessTime>\(date)</LastAccessTime>\
@@ -41,12 +42,7 @@ final class RoundTripTests: XCTestCase {
         <History></History></Entry></Group><DeletedObjects><DeletedObject><UUID>\(TestID.other.kdbxBase64String)</UUID>\
         <DeletionTime>\(date)</DeletionTime></DeletedObject></DeletedObjects></Root></KeePassFile>
         """
-        // KeePass writes IsExpanded after Times; the writer's fixed order
-        // puts it before, so compare against that one known move.
-        let reordered = body
-            .replacingOccurrences(of: "<IsExpanded>True</IsExpanded>", with: "")
-            .replacingOccurrences(of: "<IconID>48</IconID>", with: "<IconID>48</IconID><IsExpanded>True</IsExpanded>")
-        XCTAssertEqual(try write(read(body)), reordered.replacingOccurrences(of: "<History></History>", with: ""))
+        XCTAssertEqual(try write(read(body)), body.replacingOccurrences(of: "<History></History>", with: ""))
     }
 
     func test_documentLevelFragmentsSurviveByteForByte() throws {

@@ -624,7 +624,7 @@ extension KDBXMerger {
 
             for uuid in revivedIconUUIDs.sorted(by: { $0.uuidString < $1.uuidString }) where meta.customIcons[uuid] == nil {
                 guard let imageData = remote.meta.customIcons[uuid],
-                      let spliced = CustomIconXML.copying(uuid: uuid, from: remote.meta.unknownXML, to: meta.unknownXML)
+                      let spliced = CustomIconXML.copying(uuid: uuid, from: remote.meta.unknownXML, to: meta)
                 else { continue }
                 meta.unknownXML = spliced
                 meta.customIcons[uuid] = imageData
@@ -659,7 +659,7 @@ extension KDBXMerger {
             for uuid in remoteIconReferences.intersection(live).sorted(by: { $0.uuidString < $1.uuidString })
             where meta.customIcons[uuid] == nil {
                 guard let imageData = remote.meta.customIcons[uuid],
-                      let spliced = CustomIconXML.copying(uuid: uuid, from: remote.meta.unknownXML, to: meta.unknownXML)
+                      let spliced = CustomIconXML.copying(uuid: uuid, from: remote.meta.unknownXML, to: meta)
                 else {
                     // A reference with no icon behind it renders as the default
                     // icon in every client — cosmetic, so it must not cost the

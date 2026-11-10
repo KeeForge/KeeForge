@@ -272,8 +272,9 @@ extension KDBXDocument {
         public var key: String
         public var ref: Int
         /// The number of other typed entry children (attachments excluded)
-        /// before this one, which is where the writer puts it back. 0 for a new
-        /// attachment, which then goes before `<History>`.
+        /// before this one, which is where the writer puts it back. 0 writes
+        /// it before `<UUID>`; `Entry.binaryInsertionIndex(afterStrings:)`
+        /// places one among the strings.
         public var insertionIndex: Int
 
         public init(key: String, ref: Int, insertionIndex: Int = 0) {

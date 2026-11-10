@@ -39,7 +39,20 @@ let file = try KDBXContainerWriter.seal(xml: xml, header: header) { parameters i
 }
 ```
 
-A typed property replaces a preserved element of the same name, so setting `enableSearching` on a group whose source value was unreadable writes one element, not two. `KDBXDocument.validate(text:)` checks text against XML 1.0 before you accept it from a user; `serialized` checks the whole document before it writes anything and reports where the first bad character is.
+Typed children are written in KeePass's order. A typed property replaces a preserved element of the same name, so setting `enableSearching` on a group whose source value was unreadable writes one element, not two. `KDBXDocument.validate(text:)` checks text against XML 1.0 before you accept it from a user; `serialized` checks the whole document before it writes anything and reports where the first bad character is.
+
+## Splicing preserved elements
+
+To add or change an element the document keeps opaque, splice it through its owner rather than computing a position. A new element goes where KeePass writes it; a replacement keeps the existing one's place; an empty list removes it.
+
+```swift
+entry.replaceOpaqueChildren(named: "CustomIconUUID", with: ["<CustomIconUUID>\(icon.kdbxBase64String)</CustomIconUUID>"])
+entry.replaceOpaqueTimesChildren(named: "Expires", with: ["<Expires>True</Expires>"])
+meta.replaceOpaqueChildren(named: "CustomIcons", with: ["<CustomIcons></CustomIcons>"])
+let slot = entry.binaryInsertionIndex(afterStrings: 5) // a new attachment after the fifth <String>
+```
+
+Fragments must be canonical (see `OpaqueXMLNodes`).
 
 ## Errors
 

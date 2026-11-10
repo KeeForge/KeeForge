@@ -3,7 +3,7 @@ import KDBXKit
 
 /// Writes a `KDBXDocument` as payload XML.
 ///
-/// Each container emits its typed children in KeePass's order and, before
+/// Each container emits its typed children in `ChildOrder` and, before
 /// each one, the opaque fragments recorded at that count; fragments past the
 /// last typed child trail before the closing tag. A typed child replaces any
 /// direct opaque fragment of the same name in its container, so a document can
@@ -21,7 +21,7 @@ final class DocumentWriter {
     func write(_ document: KDBXDocument) throws -> Data {
         try document.validateForWriting()
         var children = Children(unknownXML: document.unknownXML, path: [])
-        children.supersede(["Meta": true, "Root": true])
+        children.supersede(["Meta", "Root"])
         var xml = "<KeePassFile>"
         xml += typed(&children) { meta(document.meta) }
         xml += typed(&children) { root(document.root) }
@@ -33,33 +33,12 @@ final class DocumentWriter {
     // MARK: - Containers
 
     private func meta(_ meta: KDBXDocument.Meta) -> String {
-        var children = Children(unknownXML: meta.unknownXML, path: [])
-        children.supersede([
-            "RecycleBinUUID": meta.recycleBin != nil,
-            "MaintenanceHistoryDays": meta.maintenanceHistoryDays != nil,
-            "HistoryMaxItems": meta.historyMaxItems != nil,
-            "HistoryMaxSize": meta.historyMaxSize != nil,
-        ])
-        var xml = "<Meta>"
-        if let recycleBin = meta.recycleBin {
-            xml += typed(&children) { element("RecycleBinUUID", recycleBin.uuid.kdbxBase64String) }
-        }
-        if let days = meta.maintenanceHistoryDays {
-            xml += typed(&children) { element("MaintenanceHistoryDays", String(days)) }
-        }
-        if let items = meta.historyMaxItems {
-            xml += typed(&children) { element("HistoryMaxItems", String(items)) }
-        }
-        if let size = meta.historyMaxSize {
-            xml += typed(&children) { element("HistoryMaxSize", String(size)) }
-        }
-        xml += trailing(children)
-        return xml + "</Meta>"
+        container("Meta", meta.layout.children, meta.unknownXML, path: [])
     }
 
     private func root(_ root: KDBXDocument.Root) -> String {
         var children = Children(unknownXML: root.unknownXML, path: [])
-        children.supersede(["DeletedObjects": !root.deletedObjects.isEmpty])
+        children.supersede(root.deletedObjects.isEmpty ? [] : ["DeletedObjects"])
         var xml = "<Root>"
         for entry in root.entries {
             xml += typed(&children) { self.entry(entry) }
@@ -74,65 +53,20 @@ final class DocumentWriter {
         return xml + "</Root>"
     }
 
-    private func group(_ group: KDBXDocument.Group) -> String {
-        let writesTimes = writesTimes(group.times, group.unknownXML)
-        var children = Children(unknownXML: group.unknownXML, path: [])
-        children.supersede([
-            "UUID": true,
-            "Name": true,
-            "Notes": group.notes != nil,
-            "IconID": true,
-            "IsExpanded": true,
-            "Times": writesTimes,
-            "EnableSearching": group.enableSearching != nil,
-            "Tags": group.tags != nil,
-        ])
-        var xml = "<Group>"
-        xml += typed(&children) { element("UUID", group.uuid.kdbxBase64String) }
-        xml += typed(&children) { element("Name", XMLText.escape(group.name)) }
-        // Right after `<Name>`, where KeePass writes it.
-        if let notes = group.notes {
-            xml += typed(&children) { element("Notes", XMLText.escape(notes)) }
-        }
-        xml += typed(&children) { element("IconID", String(group.iconID)) }
-        xml += typed(&children) { element("IsExpanded", group.isExpanded ? "True" : "False") }
-        if writesTimes {
-            xml += typed(&children) { times(group.times, group.unknownXML) }
-        }
-        if let enableSearching = group.enableSearching {
-            xml += typed(&children) { element("EnableSearching", enableSearching.xmlText) }
-        }
-        if let tags = group.tags {
-            xml += typed(&children) { element("Tags", XMLText.escape(tags.joined(separator: ","))) }
-        }
-        for entry in group.entries {
-            xml += typed(&children) { self.entry(entry) }
-        }
-        for subgroup in group.groups {
-            xml += typed(&children) { self.group(subgroup) }
-        }
-        xml += trailing(children)
-        return xml + "</Group>"
+    fileprivate func group(_ group: KDBXDocument.Group) -> String {
+        container("Group", group.layout.children, group.unknownXML, path: [])
     }
 
-    private func entry(_ entry: KDBXDocument.Entry) -> String {
-        let writesTimes = writesTimes(entry.times, entry.unknownXML)
-        let writesHistory = !entry.history.isEmpty || entry.unknownXML.contains(path: ["History"])
+    fileprivate func entry(_ entry: KDBXDocument.Entry) -> String {
+        let typedChildren = entry.layout.children
         var children = Children(unknownXML: entry.unknownXML, path: [])
-        children.supersede([
-            "UUID": true,
-            "IconID": true,
-            "Tags": entry.tags != nil,
-            "Times": writesTimes,
-            "History": writesHistory,
-        ])
+        children.supersede(typedChildren.map(\.name))
         // Attachments are typed children too, but their recorded positions
         // count only the other typed children (`attachmentAnchor`).
         var attachmentAnchor = 0
         var pendingAttachments = entry.binaries
         var xml = "<Entry>"
-
-        func emit(_ child: () -> String) {
+        for child in typedChildren {
             xml += opaque(children)
             for attachment in pendingAttachments where attachment.insertionIndex == attachmentAnchor {
                 xml += binary(attachment)
@@ -140,24 +74,9 @@ final class DocumentWriter {
                 xml += opaque(children)
             }
             pendingAttachments.removeAll { $0.insertionIndex == attachmentAnchor }
-            xml += child()
+            xml += child.xml(self)
             children.knownChildCount += 1
             attachmentAnchor += 1
-        }
-
-        emit { element("UUID", entry.uuid.kdbxBase64String) }
-        emit { element("IconID", String(entry.iconID)) }
-        if let tags = entry.tags {
-            emit { element("Tags", XMLText.escape(tags.joined(separator: ","))) }
-        }
-        if writesTimes {
-            emit { times(entry.times, entry.unknownXML) }
-        }
-        for field in entry.strings {
-            emit { string(field) }
-        }
-        if writesHistory {
-            emit { history(entry.history, entry.unknownXML) }
         }
         // Positions at or past the last typed child, new attachments included.
         xml += pendingAttachments.map(binary).joined()
@@ -165,42 +84,26 @@ final class DocumentWriter {
         return xml + "</Entry>"
     }
 
-    private func history(_ entries: [KDBXDocument.Entry], _ unknownXML: OpaqueXMLNodes) -> String {
-        var children = Children(unknownXML: unknownXML, path: ["History"])
-        var xml = "<History>"
-        for entry in entries {
-            xml += typed(&children) { self.entry(entry) }
-        }
-        xml += trailing(children)
-        return xml + "</History>"
+    fileprivate func history(_ entries: [KDBXDocument.Entry], _ unknownXML: OpaqueXMLNodes) -> String {
+        let children = entries.map { entry in TypedChild("Entry") { $0.entry(entry) } }
+        return container("History", children, unknownXML, path: ["History"])
     }
 
-    private func writesTimes(_ times: KDBXDocument.Times, _ unknownXML: OpaqueXMLNodes) -> Bool {
-        times.creationTime != nil || times.lastModificationTime != nil || times.locationChanged != nil
-            || unknownXML.contains(path: ["Times"])
+    fileprivate func times(_ times: KDBXDocument.Times, _ unknownXML: OpaqueXMLNodes) -> String {
+        container("Times", times.layout.children, unknownXML, path: ["Times"])
     }
 
-    private func times(_ times: KDBXDocument.Times, _ unknownXML: OpaqueXMLNodes) -> String {
-        var children = Children(unknownXML: unknownXML, path: ["Times"])
-        children.supersede([
-            "CreationTime": times.creationTime != nil,
-            "LastModificationTime": times.lastModificationTime != nil,
-            "LocationChanged": times.locationChanged != nil,
-        ])
-        var xml = "<Times>"
-        if let date = times.creationTime {
-            xml += typed(&children) { element("CreationTime", date.kdbxBase64String) }
-        }
-        if let date = times.lastModificationTime {
-            xml += typed(&children) { element("LastModificationTime", date.kdbxBase64String) }
-        }
-        // Last of KeePass's children, so the untyped ones before it
-        // (`ExpiryTime`, `Expires`, `UsageCount`, ...) keep their slot.
-        if let date = times.locationChanged {
-            xml += typed(&children) { element("LocationChanged", date.kdbxBase64String) }
+    /// `<tag>` with its typed children, each after the fragments recorded
+    /// before it, and the remaining fragments last.
+    private func container(_ tag: String, _ typedChildren: [TypedChild], _ unknownXML: OpaqueXMLNodes, path: [String]) -> String {
+        var children = Children(unknownXML: unknownXML, path: path)
+        children.supersede(typedChildren.map(\.name))
+        var xml = "<\(tag)>"
+        for child in typedChildren {
+            xml += typed(&children) { child.xml(self) }
         }
         xml += trailing(children)
-        return xml + "</Times>"
+        return xml + "</\(tag)>"
     }
 
     // MARK: - Leaves
@@ -213,7 +116,7 @@ final class DocumentWriter {
         return "<DeletedObjects>" + body.joined() + "</DeletedObjects>"
     }
 
-    private func string(_ field: KDBXDocument.Field) -> String {
+    fileprivate func string(_ field: KDBXDocument.Field) -> String {
         let value = field.isProtected
             ? element("Value", attributes: " Protected=\"True\"", mask(field.value))
             : element("Value", XMLText.escape(field.value))
@@ -224,7 +127,7 @@ final class DocumentWriter {
         "<Binary>" + element("Key", XMLText.escape(attachment.key)) + "<Value Ref=\"\(attachment.ref)\"/></Binary>"
     }
 
-    private func element(_ name: String, attributes: String = "", _ content: String) -> String {
+    fileprivate func element(_ name: String, attributes: String = "", _ content: String) -> String {
         "<\(name)\(attributes)>\(content)</\(name)>"
     }
 
@@ -247,9 +150,10 @@ final class DocumentWriter {
             self.path = path
         }
 
-        /// Names whose value says the container writes that typed child.
-        mutating func supersede(_ names: [String: Bool]) {
-            superseded = Set(names.filter(\.value).keys)
+        /// The typed children the container writes; a fragment of a
+        /// repeatable name is kept beside them.
+        mutating func supersede(_ names: [String]) {
+            superseded = Set(names).subtracting(ChildOrder.repeatable)
         }
 
         func fragments(at index: Int) -> [String] {
@@ -286,5 +190,105 @@ final class DocumentWriter {
     /// Masks the plaintext of every protected value in a fragment, in order.
     private func maskingProtectedValues(in xml: String) -> String {
         XMLText.replacingProtectedValues(in: xml) { mask(XMLText.unescape(String($0))) }
+    }
+}
+
+// MARK: - Typed children
+
+// What each element writes, in `ChildOrder`. The writer emits these lists and
+// `ChildLayout` counts them, so a new fragment is placed by the same children.
+
+extension KDBXDocument.Meta {
+    var layout: ChildLayout {
+        var children: [TypedChild] = []
+        if let days = maintenanceHistoryDays {
+            children.append(TypedChild("MaintenanceHistoryDays") { $0.element("MaintenanceHistoryDays", String(days)) })
+        }
+        if let recycleBin {
+            children.append(TypedChild("RecycleBinUUID") { $0.element("RecycleBinUUID", recycleBin.uuid.kdbxBase64String) })
+        }
+        if let items = historyMaxItems {
+            children.append(TypedChild("HistoryMaxItems") { $0.element("HistoryMaxItems", String(items)) })
+        }
+        if let size = historyMaxSize {
+            children.append(TypedChild("HistoryMaxSize") { $0.element("HistoryMaxSize", String(size)) })
+        }
+        return ChildLayout(order: ChildOrder.meta, children: ChildOrder.arranged(children, in: ChildOrder.meta))
+    }
+}
+
+extension KDBXDocument.Group {
+    var layout: ChildLayout {
+        let group = self
+        var children = [
+            TypedChild("UUID") { $0.element("UUID", group.uuid.kdbxBase64String) },
+            TypedChild("Name") { $0.element("Name", XMLText.escape(group.name)) },
+            TypedChild("IconID") { $0.element("IconID", String(group.iconID)) },
+            TypedChild("IsExpanded") { $0.element("IsExpanded", group.isExpanded ? "True" : "False") },
+        ]
+        if let notes {
+            children.append(TypedChild("Notes") { $0.element("Notes", XMLText.escape(notes)) })
+        }
+        if times.isWritten(unknownXML) {
+            children.append(TypedChild("Times") { $0.times(group.times, group.unknownXML) })
+        }
+        if let enableSearching {
+            children.append(TypedChild("EnableSearching") { $0.element("EnableSearching", enableSearching.xmlText) })
+        }
+        if let tags {
+            children.append(TypedChild("Tags") { $0.element("Tags", XMLText.escape(tags.joined(separator: ","))) })
+        }
+        children += entries.map { entry in TypedChild("Entry") { $0.entry(entry) } }
+        children += groups.map { subgroup in TypedChild("Group") { $0.group(subgroup) } }
+        return ChildLayout(order: ChildOrder.group, children: ChildOrder.arranged(children, in: ChildOrder.group))
+    }
+}
+
+extension KDBXDocument.Entry {
+    var layout: ChildLayout {
+        let entry = self
+        var children = [
+            TypedChild("UUID") { $0.element("UUID", entry.uuid.kdbxBase64String) },
+            TypedChild("IconID") { $0.element("IconID", String(entry.iconID)) },
+        ]
+        if let tags {
+            children.append(TypedChild("Tags") { $0.element("Tags", XMLText.escape(tags.joined(separator: ","))) })
+        }
+        if times.isWritten(unknownXML) {
+            children.append(TypedChild("Times") { $0.times(entry.times, entry.unknownXML) })
+        }
+        children += strings.map { field in TypedChild("String") { $0.string(field) } }
+        if !history.isEmpty || unknownXML.contains(path: ["History"]) {
+            children.append(TypedChild("History") { $0.history(entry.history, entry.unknownXML) })
+        }
+        return ChildLayout(
+            order: ChildOrder.entry,
+            children: ChildOrder.arranged(children, in: ChildOrder.entry),
+            binaries: binaries
+        )
+    }
+}
+
+extension KDBXDocument.Times {
+    var layout: ChildLayout {
+        var children: [TypedChild] = []
+        if let creationTime {
+            children.append(TypedChild("CreationTime") { $0.element("CreationTime", creationTime.kdbxBase64String) })
+        }
+        if let lastModificationTime {
+            children.append(TypedChild("LastModificationTime") {
+                $0.element("LastModificationTime", lastModificationTime.kdbxBase64String)
+            })
+        }
+        if let locationChanged {
+            children.append(TypedChild("LocationChanged") { $0.element("LocationChanged", locationChanged.kdbxBase64String) })
+        }
+        return ChildLayout(order: ChildOrder.times, children: ChildOrder.arranged(children, in: ChildOrder.times))
+    }
+
+    /// Whether the owner writes `<Times>`: for a typed date or a preserved child.
+    func isWritten(_ ownerXML: OpaqueXMLNodes) -> Bool {
+        creationTime != nil || lastModificationTime != nil || locationChanged != nil
+            || ownerXML.contains(path: ["Times"])
     }
 }

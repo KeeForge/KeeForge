@@ -420,22 +420,6 @@ struct DatabaseDraft: Sendable {
         return (updatedRootGroup, currentMetaStorage)
     }
 
-    /// Where a `<CustomIconUUID>` fragment has to sit to be written directly
-    /// after `<IconID>`, expressed in the opaque-XML position space.
-    ///
-    /// Two structured children precede it — `<UUID>` and `<IconID>` — but a
-    /// parsable `<Binary>` advances that space too while *not* advancing the
-    /// anchor `KPAttachment.insertionIndex` is expressed against, so an entry
-    /// whose source interleaved attachments that early shifts everything after
-    /// them. Counting those slots is what keeps this in step with
-    /// the KDBXXML writer's entry order; a fixed 2 writes the element ahead of
-    /// `<IconID>` on exactly those entries.
-    private static func customIconUUIDInsertionIndex(for entry: KPEntry) -> Int {
-        let structuredChildrenBefore = 2
-        let attachmentsBefore = entry.attachments.count { $0.insertionIndex < structuredChildrenBefore }
-        return structuredChildrenBefore + attachmentsBefore
-    }
-
     /// Changes which icon an entry displays.
     ///
     /// Both selections are expressed in the preserved XML, because that is the
@@ -486,19 +470,19 @@ struct DatabaseDraft: Sendable {
             meta: currentMetaStorage
         )
         updated.lastModificationTime = Date.now
-        updated.unknownXML.removeDirectChildren(named: "CustomIconUUID")
 
+        var fragments: [String] = []
         switch icon {
         case .standard(let iconID):
             updated.iconID = iconID
             updated.customIconUUID = nil
         case .custom(let uuid):
             updated.customIconUUID = uuid
-            updated.unknownXML.append(
-                xml: "<CustomIconUUID>\(uuid.kdbxBase64String)</CustomIconUUID>",
-                insertionIndex: Self.customIconUUIDInsertionIndex(for: entry)
-            )
+            fragments = ["<CustomIconUUID>\(uuid.kdbxBase64String)</CustomIconUUID>"]
         }
+        var element = KDBXWriter.element(of: updated)
+        element.replaceOpaqueChildren(named: "CustomIconUUID", with: fragments)
+        updated.unknownXML = element.unknownXML
 
         return updated
     }
@@ -559,7 +543,7 @@ struct DatabaseDraft: Sendable {
             guard let unknownXML = CustomIconXML.adding(
                 uuid: iconUUID,
                 imageData: imageData,
-                to: meta.unknownXML
+                to: meta
             ) else {
                 throw DraftError.customIconNotStorable
             }
@@ -736,7 +720,7 @@ struct DatabaseDraft: Sendable {
                 resolved.append(KPAttachment(
                     name: name,
                     ref: ref,
-                    insertionIndex: resolved.last?.insertionIndex ?? attachmentInsertionIndexAfterNotes(for: entry)
+                    insertionIndex: resolved.last?.insertionIndex ?? KDBXWriter.attachmentInsertionIndexAfterNotes(for: entry)
                 ))
             }
         }
@@ -762,21 +746,6 @@ struct DatabaseDraft: Sendable {
             }
         }
         return refs
-    }
-
-    /// The `KPAttachment.insertionIndex` that writes a `<Binary>` directly
-    /// after `<Notes>`, and that the parser reports back for it.
-    ///
-    /// Every entry writes `<UUID>`, `<IconID>` and the five standard strings,
-    /// `<Tags>` and `<Times>` only sometimes, all of them ahead of `<Notes>`.
-    /// Whatever the serializer writes after `<Notes>` cannot move this slot:
-    /// with nothing after it the attachment trails the entry, which the parser
-    /// counts as the same position. An edited entry always carries
-    /// `<LastModificationTime>`, so `<Times>` is always written here.
-    private static func attachmentInsertionIndexAfterNotes(for entry: KPEntry) -> Int {
-        let hasTags = entry.hasTagsElement || !entry.tags.isEmpty
-        let hasTimes = entry.creationTime != nil || entry.lastModificationTime != nil || entry.locationChanged != nil
-        return 2 + (hasTags ? 1 : 0) + (hasTimes ? 1 : 0) + 5
     }
 
     /// Whether a restore would keep the state it replaces, i.e. whether it can be undone.
@@ -822,25 +791,8 @@ struct DatabaseDraft: Sendable {
             throw DraftError.historyVersionNotFound(entryID: entryID, index: historyIndex)
         }
         let version = current.history[historyIndex]
-        var unknownXML = current.unknownXML
-        // Expiry has a display copy, but the serializer writes its preserved XML.
-        for elementName in ["ExpiryTime", "Expires"] {
-            let matches: (OpaqueXMLNodes.Node) -> Bool = {
-                $0.path == ["Times"] && $0.elementName == elementName
-            }
-            let insertionIndex = unknownXML.nodes.first(where: matches)?.insertionIndex
-                ?? ((current.creationTime != nil ? 1 : 0) + 1)
-            let nodeIndex = unknownXML.nodes.firstIndex(where: matches) ?? unknownXML.nodes.count
-            unknownXML.nodes.removeAll(where: matches)
-            unknownXML.nodes.insert(
-                contentsOf: version.unknownXML.nodes.filter(matches).map {
-                    OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: insertionIndex, xml: $0.xml)
-                },
-                at: nodeIndex
-            )
-        }
 
-        let restored = KPEntry(
+        var restored = KPEntry(
             id: current.id,
             title: version.title,
             username: version.username,
@@ -868,10 +820,19 @@ struct DatabaseDraft: Sendable {
                 existing: current.history,
                 meta: currentMetaStorage
             ),
-            unknownXML: unknownXML,
+            unknownXML: current.unknownXML,
             protectedStringKeys: version.protectedStringKeys,
             attachments: version.attachments
         )
+        // Expiry has a display copy, but the serializer writes its preserved XML.
+        var element = KDBXWriter.element(of: restored)
+        for elementName in ["ExpiryTime", "Expires"] {
+            element.replaceOpaqueTimesChildren(
+                named: elementName,
+                with: version.unknownXML.nodes.filter { $0.path == ["Times"] && $0.elementName == elementName }.map(\.xml)
+            )
+        }
+        restored.unknownXML = element.unknownXML
 
         let updatedRootGroup = try replacingEntry(at: entryLocation, with: restored)
 

@@ -82,13 +82,7 @@ enum KDBXWriter {
     /// Throws when a secret no longer opens under `sessionKey`.
     static func document(rootGroup: KPGroup, meta: KPMeta, sessionKey: SymmetricKey) throws -> KDBXDocument {
         KDBXDocument(
-            meta: KDBXDocument.Meta(
-                recycleBin: meta.recycleBin,
-                maintenanceHistoryDays: meta.maintenanceHistoryDays,
-                historyMaxItems: meta.historyMaxItems,
-                historyMaxSize: meta.historyMaxSize,
-                unknownXML: meta.unknownXML
-            ),
+            meta: element(of: meta),
             root: KDBXDocument.Root(
                 entries: try rootGroup.entries.map { try entry($0, sessionKey: sessionKey) },
                 groups: try rootGroup.groups.map { try group($0, sessionKey: sessionKey) },
@@ -100,6 +94,35 @@ enum KDBXWriter {
     }
 
     private static func group(_ group: KPGroup, sessionKey: SymmetricKey) throws -> KDBXDocument.Group {
+        var document = element(of: group)
+        document.entries = try group.entries.map { try entry($0, sessionKey: sessionKey) }
+        document.groups = try group.groups.map { try self.group($0, sessionKey: sessionKey) }
+        return document
+    }
+
+    private static func entry(_ entry: KPEntry, sessionKey: SymmetricKey) throws -> KDBXDocument.Entry {
+        var document = element(of: entry)
+        document.strings = try strings(of: entry, sessionKey: sessionKey)
+        document.history = try entry.history.map { try self.entry($0, sessionKey: sessionKey) }
+        return document
+    }
+
+    // The document elements without their secrets and nested children: what a
+    // splice of their preserved XML needs to find positions
+    // (`replaceOpaqueChildren`), and what a save fills in.
+
+    static func element(of meta: KPMeta) -> KDBXDocument.Meta {
+        KDBXDocument.Meta(
+            recycleBin: meta.recycleBin,
+            maintenanceHistoryDays: meta.maintenanceHistoryDays,
+            historyMaxItems: meta.historyMaxItems,
+            historyMaxSize: meta.historyMaxSize,
+            unknownXML: meta.unknownXML
+        )
+    }
+
+    /// The group without its entries and subgroups.
+    static func element(of group: KPGroup) -> KDBXDocument.Group {
         KDBXDocument.Group(
             uuid: group.id,
             name: group.name,
@@ -113,13 +136,12 @@ enum KDBXWriter {
             ),
             enableSearching: group.searchingEnabled,
             tags: group.hasTagsElement || !group.tags.isEmpty ? group.tags : nil,
-            entries: try group.entries.map { try entry($0, sessionKey: sessionKey) },
-            groups: try group.groups.map { try self.group($0, sessionKey: sessionKey) },
             unknownXML: group.unknownXML
         )
     }
 
-    private static func entry(_ entry: KPEntry, sessionKey: SymmetricKey) throws -> KDBXDocument.Entry {
+    /// The entry without its `<String>` fields and history.
+    static func element(of entry: KPEntry) -> KDBXDocument.Entry {
         KDBXDocument.Entry(
             uuid: entry.id,
             iconID: entry.iconID,
@@ -129,11 +151,17 @@ enum KDBXWriter {
                 lastModificationTime: entry.lastModificationTime,
                 locationChanged: entry.locationChanged
             ),
-            strings: try strings(of: entry, sessionKey: sessionKey),
             binaries: entry.attachments.map { .init(key: $0.name, ref: $0.ref, insertionIndex: $0.insertionIndex) },
-            history: try entry.history.map { try self.entry($0, sessionKey: sessionKey) },
             unknownXML: entry.unknownXML
         )
+    }
+
+    /// The `KPAttachment.insertionIndex` that writes a new attachment right
+    /// after `<Notes>`, the last of the five standard fields `strings(of:)`
+    /// always writes first. Custom fields added or removed later, after it,
+    /// cannot move it.
+    static func attachmentInsertionIndexAfterNotes(for entry: KPEntry) -> Int {
+        element(of: entry).binaryInsertionIndex(afterStrings: 5)
     }
 
     /// The entry's `<String>` fields in the order KeeForge writes them, which

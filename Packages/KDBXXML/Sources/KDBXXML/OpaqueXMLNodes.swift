@@ -79,7 +79,7 @@ public struct OpaqueXMLNodes: Sendable, Hashable {
     }
 
     /// The highest position under `path`, or 0 when there is none.
-    public func maxInsertionIndex(path: [String] = []) -> Int {
+    func maxInsertionIndex(path: [String] = []) -> Int {
         nodes
             .filter { $0.path == path }
             .map(\.insertionIndex)

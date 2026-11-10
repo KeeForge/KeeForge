@@ -13,7 +13,7 @@ final class DatabaseDraftTests: XCTestCase {
         entry.history = [entry]
         let child = KPGroup(name: "Child", iconID: 12, customIconUUID: uuid, entries: [entry], unknownXML: unknown)
         let root = KPGroup(name: "Root", groups: [child])
-        let xml = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: .empty))
+        let xml = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: Data([1]), to: KPMeta()))
         let meta = KPMeta(unknownXML: xml, customIcons: [uuid: Data([1])])
         let draft = DatabaseDraft(rootGroup: root, meta: meta, sessionKey: SymmetricKey(size: .bits256))
         let renamed = try draft.apply(.renameCustomIcon(iconUUID: uuid, name: "Named"))
@@ -882,7 +882,7 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(PreviousParentGroupXML.parentID(in: xml), parentID)
         xml.append(xml: "<PreviousParentGroup>invalid</PreviousParentGroup>", insertionIndex: 2)
         XCTAssertNil(PreviousParentGroupXML.parentID(in: xml))
-        let replaced = PreviousParentGroupXML.setting(parentID, in: xml, newInsertionIndex: 2)
+        let replaced = PreviousParentGroupXML.setting(parentID, on: KPEntry(unknownXML: xml))
         XCTAssertEqual(replaced.nodes.count, 1)
         XCTAssertEqual(PreviousParentGroupXML.parentID(in: replaced), parentID)
         for value in ["bad", "AAAA", "<Nested>\(parentID.kdbxBase64String)</Nested>"] {

@@ -20,7 +20,7 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 ### Round-trip
 
 - Unknown XML, protected fields, history, the binary pool, custom icons, and unknown outer/inner header fields survive a save byte-exact. An unrelated edit must not change a foreign database.
-- Element positions are load-bearing. Opaque insertion indices count typed children in the writer's element order (`../../Packages/KDBXXML/AGENTS.md`). Splices that add a fragment (`EntryExpiryXML`, `PreviousParentGroupXML`, `CustomIconXML`, the draft's icon edits) compute its index against that order, and the strings `KDBXWriter` emits are part of it.
+- Element positions are load-bearing, and KeePass's child order belongs to KDBXXML. Splices that add or replace a fragment (`EntryExpiryXML`, `PreviousParentGroupXML`, `CustomIconXML`, the draft's icon and restore edits) go through the package's `replaceOpaqueChildren` / `replaceOpaqueTimesChildren` on the document element `KDBXWriter.element(of:)` maps, never a hand-counted `insertionIndex`. The order `KDBXWriter` emits strings in is the app's, so a new attachment's slot after `<Notes>` lives beside it (`attachmentInsertionIndexAfterNotes`).
 - Optional elements are three-state (`<EnableSearching>`, group `<Tags>` / `<Notes>`, `locationChanged`, `<RecycleBinUUID>`): absent stays absent. Never invent an element the source did not have.
 - When an edit makes a preserved element structured, drop the preserved copy (`removeDirectChildren(named:)`) so the model stays tidy. The writer also drops a fragment a typed child replaces, but the in-memory copy would still mislead a later edit.
 - Every `KPGroup` construction site forwards `tags`, `hasTagsElement`, `notes`, `hasNotesElement`, or the fields vanish on the next unrelated edit. `GroupScalars` in the compatibility support pins this.
@@ -58,7 +58,7 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 
 - Custom fields retain their KDBX String-element order through parse, edits, history, merge, and write. Payloads without an order preserve the existing sequence; missing keys are ignored and new unlisted keys append alphabetically. Other clients may choose their own display order.
 
-- Recycling stores the standard optional `<PreviousParentGroup>` reference in opaque XML at KeePass's position: before `<Times>` in an entry, before `<Tags>` in a group. Recovery reparents only from the recycle subtree to a destination outside it, preserving fields, subtree contents, and modification times. Recovery permits duplicate sibling names to avoid renaming restored data.
+- Recycling stores the standard optional `<PreviousParentGroup>` reference in opaque XML at KeePass's position. Recovery reparents only from the recycle subtree to a destination outside it, preserving fields, subtree contents, and modification times. Recovery permits duplicate sibling names to avoid renaming restored data.
 - Only a reparent writes `LocationChanged`: move, and recycle (which is a move). New objects get `locationChanged == creationTime`. `LastModificationTime` does not change on a move.
 - `<EnableSearching>` gates both `KPGroup.autoFillEntries` and the search corpus in `DatabaseViewModel`, resolved in the same inheritance order. Change both together. Browsing and the tag browser use `allEntries`.
 - Choosing a standard icon removes the `<CustomIconUUID>` element as well as the display copy: a custom icon outranks `<IconID>` in KeePass and would hide the choice.

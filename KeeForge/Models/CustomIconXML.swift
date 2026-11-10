@@ -72,9 +72,9 @@ enum CustomIconXML {
         return result
     }
 
-    static func copying(uuid: UUID, from source: OpaqueXMLNodes, to destination: OpaqueXMLNodes) -> OpaqueXMLNodes? {
+    static func copying(uuid: UUID, from source: OpaqueXMLNodes, to meta: KPMeta) -> OpaqueXMLNodes? {
         guard let element = element(uuid: uuid, in: source) else { return nil }
-        return addingElement(element, to: destination)
+        return addingElement(element, to: meta)
     }
 
     static func replacing(uuid: UUID, from source: OpaqueXMLNodes, in destination: OpaqueXMLNodes) -> OpaqueXMLNodes? {
@@ -173,9 +173,10 @@ enum CustomIconXML {
         "<Icon><UUID>\(uuid.kdbxBase64String)</UUID><Data>\(imageData.base64EncodedString())</Data></Icon>"
     }
 
-    /// Returns `unknownXML` with the icon added to its `<CustomIcons>` fragment,
-    /// creating that element when the database has none, or `nil` when the
-    /// fragment offers no place to splice into.
+    /// Returns `meta`'s preserved XML with the icon added to its `<CustomIcons>`
+    /// fragment, creating that element where KeePass writes it when the
+    /// database has none, or `nil` when the fragment offers no place to splice
+    /// into.
     ///
     /// Base64 cannot contain `<` or `>`, so searching the fragment's text for
     /// its own closing tag is unambiguous: the last occurrence is the element's
@@ -189,21 +190,19 @@ enum CustomIconXML {
     static func adding(
         uuid: UUID,
         imageData: Data,
-        to unknownXML: OpaqueXMLNodes
+        to meta: KPMeta
     ) -> OpaqueXMLNodes? {
-        addingElement(iconElement(uuid: uuid, imageData: imageData), to: unknownXML)
+        addingElement(iconElement(uuid: uuid, imageData: imageData), to: meta)
     }
 
-    private static func addingElement(_ icon: String, to unknownXML: OpaqueXMLNodes) -> OpaqueXMLNodes? {
+    private static func addingElement(_ icon: String, to meta: KPMeta) -> OpaqueXMLNodes? {
+        let unknownXML = meta.unknownXML
         guard let index = unknownXML.nodes.firstIndex(where: {
             $0.path.isEmpty && $0.elementName == elementName
         }) else {
-            var created = unknownXML
-            created.append(
-                xml: "<\(elementName)>\(icon)</\(elementName)>",
-                insertionIndex: unknownXML.maxInsertionIndex()
-            )
-            return created
+            var created = KDBXWriter.element(of: meta)
+            created.replaceOpaqueChildren(named: elementName, with: ["<\(elementName)>\(icon)</\(elementName)>"])
+            return created.unknownXML
         }
 
         let existing = unknownXML.nodes[index]

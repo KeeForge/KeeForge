@@ -21,8 +21,8 @@ final class WriterTests: XCTestCase {
             .init(insertionIndex: 9, xml: "<Z></Z>"),
         ])
         XCTAssertEqual(try write(KDBXDocument(meta: meta)), """
-        <KeePassFile><Meta><A></A><RecycleBinUUID>AAAAAAAAAAAAAAAAAAAAAA==</RecycleBinUUID>\
-        <MaintenanceHistoryDays>30</MaintenanceHistoryDays><B></B><HistoryMaxItems>5</HistoryMaxItems>\
+        <KeePassFile><Meta><A></A><MaintenanceHistoryDays>30</MaintenanceHistoryDays>\
+        <RecycleBinUUID>AAAAAAAAAAAAAAAAAAAAAA==</RecycleBinUUID><B></B><HistoryMaxItems>5</HistoryMaxItems>\
         <HistoryMaxSize>1024</HistoryMaxSize><Z></Z></Meta><Root></Root></KeePassFile>
         """)
     }
@@ -50,8 +50,8 @@ final class WriterTests: XCTestCase {
         ])))
         XCTAssertEqual(written, """
         <KeePassFile><Meta></Meta><Root><Group><UUID>\(groupUUID)</UUID><Name>a&lt;b&gt;&amp;&#xD;</Name>\
-        <Notes>n</Notes><IconID>3</IconID><IsExpanded>False</IsExpanded>\
-        <Times><CreationTime>\(created.kdbxBase64String)</CreationTime></Times><EnableSearching>null</EnableSearching>\
+        <Notes>n</Notes><IconID>3</IconID><Times><CreationTime>\(created.kdbxBase64String)</CreationTime></Times>\
+        <IsExpanded>False</IsExpanded><EnableSearching>null</EnableSearching>\
         <Tags>x,y</Tags><Entry><UUID>\(uuid)</UUID><IconID>0</IconID></Entry>\
         <Group><UUID>\(TestID.other.kdbxBase64String)</UUID><Name>child</Name><IconID>48</IconID>\
         <IsExpanded>True</IsExpanded></Group></Group></Root></KeePassFile>

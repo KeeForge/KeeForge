@@ -4,28 +4,34 @@ import KDBXXML
 /// KeePass's optional recovery reference stays opaque so unrelated edits preserve it.
 /// It is a KDBX 4.1 element; `KDBXWriter` raises the header to 4.1 when a tree carries one.
 enum PreviousParentGroupXML {
+    private static let elementName = "PreviousParentGroup"
+
     static func isPresent(in nodes: OpaqueXMLNodes) -> Bool {
-        nodes.nodes.contains { $0.path.isEmpty && $0.elementName == "PreviousParentGroup" }
+        nodes.nodes.contains { $0.path.isEmpty && $0.elementName == elementName }
     }
 
-    /// Sets the entry's reference where KeePass writes it, just before `<Times>`.
+    /// Sets the entry's reference, where KeePass writes it unless it has one.
     static func setting(_ parentID: UUID?, on entry: KPEntry) -> OpaqueXMLNodes {
-        let hasTags = entry.hasTagsElement || !entry.tags.isEmpty
-        return setting(parentID, in: entry.unknownXML, newInsertionIndex: 2 + (hasTags ? 1 : 0))
+        guard let parentID else { return entry.unknownXML }
+        var element = KDBXWriter.element(of: entry)
+        element.replaceOpaqueChildren(named: elementName, with: [fragment(parentID)])
+        return element.unknownXML
     }
 
-    /// Sets the group's reference where KeePass writes it, just before `<Tags>`.
-    /// The count follows the KDBXXML writer's group child order.
+    /// Sets the group's reference, where KeePass writes it unless it has one.
     static func setting(_ parentID: UUID?, on group: KPGroup) -> OpaqueXMLNodes {
-        let hasNotes = group.hasNotesElement || !group.notes.isEmpty
-        let hasTimes = group.creationTime != nil || group.lastModificationTime != nil
-            || group.locationChanged != nil || group.unknownXML.nodes.contains { $0.path == ["Times"] }
-        let index = 4 + (hasNotes ? 1 : 0) + (hasTimes ? 1 : 0) + (group.searchingEnabled != nil ? 1 : 0)
-        return setting(parentID, in: group.unknownXML, newInsertionIndex: index)
+        guard let parentID else { return group.unknownXML }
+        var element = KDBXWriter.element(of: group)
+        element.replaceOpaqueChildren(named: elementName, with: [fragment(parentID)])
+        return element.unknownXML
+    }
+
+    static func fragment(_ parentID: UUID) -> String {
+        "<\(elementName)>\(parentID.kdbxBase64String)</\(elementName)>"
     }
 
     static func parentID(in nodes: OpaqueXMLNodes) -> UUID? {
-        let references = nodes.nodes.filter { $0.path.isEmpty && $0.elementName == "PreviousParentGroup" }
+        let references = nodes.nodes.filter { $0.path.isEmpty && $0.elementName == elementName }
         guard references.count == 1, let reference = references.first else { return nil }
         let reader = Reader()
         let parser = XMLParser(data: Data(reference.xml.utf8))
@@ -38,25 +44,15 @@ enum PreviousParentGroupXML {
                            bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
     }
 
-    static func setting(_ parentID: UUID?, in nodes: OpaqueXMLNodes, newInsertionIndex: Int) -> OpaqueXMLNodes {
-        guard let parentID else { return nodes }
-        var updated = nodes
-        let index = nodes.nodes.first { $0.path.isEmpty && $0.elementName == "PreviousParentGroup" }?.insertionIndex
-            ?? newInsertionIndex
-        updated.removeDirectChildren(named: "PreviousParentGroup")
-        updated.append(xml: "<PreviousParentGroup>\(parentID.kdbxBase64String)</PreviousParentGroup>", insertionIndex: index)
-        return updated
-    }
-
     static func removing(from nodes: OpaqueXMLNodes) -> OpaqueXMLNodes {
         var updated = nodes
-        updated.removeDirectChildren(named: "PreviousParentGroup")
+        updated.removeDirectChildren(named: elementName)
         return updated
     }
 
     static func copying(from source: OpaqueXMLNodes, into target: OpaqueXMLNodes) -> OpaqueXMLNodes {
-        let references = source.nodes.filter { $0.path.isEmpty && $0.elementName == "PreviousParentGroup" }
-        guard references != target.nodes.filter({ $0.path.isEmpty && $0.elementName == "PreviousParentGroup" }) else {
+        let references = source.nodes.filter { $0.path.isEmpty && $0.elementName == elementName }
+        guard references != target.nodes.filter({ $0.path.isEmpty && $0.elementName == elementName }) else {
             return target
         }
         var updated = removing(from: target)
@@ -72,7 +68,7 @@ enum PreviousParentGroupXML {
         func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?,
                     qualifiedName qName: String?, attributes attributeDict: [String: String]) {
             depth += 1
-            if depth != 1 || elementName != "PreviousParentGroup" || !attributeDict.isEmpty {
+            if depth != 1 || elementName != PreviousParentGroupXML.elementName || !attributeDict.isEmpty {
                 isValid = false
             }
         }
