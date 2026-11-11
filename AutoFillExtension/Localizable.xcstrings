@@ -6164,6 +6164,58 @@
         }
       }
     },
+    "Strength" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stärke"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seguridad"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Robustesse"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Robustezza"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "強度"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Надёжность"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "强度"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "強度"
+          }
+        }
+      }
+    },
     "Switch Database" : {
       "localizations" : {
         "de" : {
@@ -6967,7 +7019,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos está en «Eliminados recientemente» en la app Archivos. Restáuralo en Archivos o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
+            "value" : "El archivo de la base de datos está en «Eliminados recientemente» en la app Archivos. Restáuralo en Archivos o elige el archivo actual con «Localizar archivo de base de datos» en KeeForge."
           }
         },
         "fr" : {
@@ -7019,7 +7071,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos está en la Papelera. Restáuralo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
+            "value" : "El archivo de la base de datos está en la Papelera. Restáuralo desde la Papelera en el Finder o elige el archivo actual con «Localizar archivo de base de datos» en KeeForge."
           }
         },
         "fr" : {

@@ -161,9 +161,11 @@ done
 # UI-test launch hooks are Debug-only. `-ui-testing` itself is a Swift small
 # string that `strings` cannot see, so check the UI_TEST_* names around it.
 for owned_executable in "${OWNED_EXECUTABLES[@]}"; do
-  ! strings "$owned_executable" 2>/dev/null \
-    | grep -Eq 'UI_TEST_|XCTestConfigurationFilePath|autofill-store-inspector' \
-    || die "KeeForge executable contains Debug-only test hooks"
+  # Captured first: under pipefail, grep -q exiting early fails `strings` and would pass the check.
+  owned_strings="$(strings "$owned_executable" 2>/dev/null || true)"
+  if grep -Eq 'UI_TEST_|XCTestConfigurationFilePath|autofill-store-inspector' <<<"$owned_strings"; then
+    die "KeeForge executable contains Debug-only test hooks"
+  fi
 done
 
 # Collect every Mach-O binary in the exported artifact for dependency checks.

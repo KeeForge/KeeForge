@@ -17,7 +17,6 @@ final class MacWebDAVSmokeUITests: MacUITestCase {
     override var databaseFixtures: [DatabaseFixture] { [] }
 
     override func configureLaunch(app: XCUIApplication) throws {
-        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         let payload = try makeMockWebDAVPayload()
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

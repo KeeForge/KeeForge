@@ -216,9 +216,18 @@ class KeeForgeUITestCase: XCTestCase {
             }
 
             // A centre tap can leave the caret mid-text on a narrow field, where
-            // backspaces miss everything after it.
+            // backspaces miss everything after it. Tap the trailing edge: on a
+            // trailing-aligned field the text ends there.
             if element.elementType == .textField {
-                element.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
+                element.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5))
+                    .withOffset(CGVector(dx: -1, dy: 0))
+                    .tap()
+            }
+            if element.elementType == .textField {
+                // A tap can leave the caret in front of trailing-aligned text,
+                // where backspaces delete nothing; selecting all does not
+                // depend on where the caret landed.
+                element.typeKey("a", modifierFlags: .command)
             }
             element.typeText(deleteSequence(for: element))
             element.typeText(text)

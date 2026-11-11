@@ -1088,11 +1088,19 @@ struct DatabaseNavigationView: View {
     private func compactEditor(_ editor: DatabaseWorkspaceState.OpenEditor) -> some View {
         switch editor {
         case .entry(let formViewModel):
-            EntryEditView(formViewModel: formViewModel, databaseViewModel: viewModel) { completion in
+            EntryEditView(
+                formViewModel: formViewModel,
+                databaseViewModel: viewModel,
+                coordinator: viewModel.workspace.editorCoordinator(database: viewModel)
+            ) { completion in
                 viewModel.workspace.finishCompactEntryEditor(completion)
             }
         case .group(let formViewModel):
-            GroupEditView(formViewModel: formViewModel, databaseViewModel: viewModel) {
+            GroupEditView(
+                formViewModel: formViewModel,
+                databaseViewModel: viewModel,
+                coordinator: viewModel.workspace.editorCoordinator(database: viewModel)
+            ) {
                 viewModel.workspace.closeEditor()
             }
         }

@@ -68,7 +68,7 @@ enum WhatsNewCatalog {
                 WhatsNewFeature(
                     id: "totp-text-menu",
                     title: "Insert verification codes anywhere",
-                    detail: "When an app doesn't offer your verification code, tap the field, choose AutoFill, and pick the entry in KeeForge to insert its code.",
+                    detail: "When an app doesn't offer your verification code, tap the field, choose AutoFill, then Passwords, and pick the entry in KeeForge to insert its code.",
                     systemImage: "text.cursor",
                     platforms: [.iOS]
                 ),
@@ -84,13 +84,6 @@ enum WhatsNewCatalog {
                     title: "Create a key file in KeeForge",
                     detail: "Make a new key file while you create a database or change its master key. Keep a copy somewhere safe: without it, the database can't be opened.",
                     systemImage: "key"
-                ),
-                WhatsNewFeature(
-                    id: "mac-homebrew",
-                    title: "Install with Homebrew",
-                    detail: "Install KeeForge with `brew install --cask keeforge/tap/keeforge`. It then keeps itself up to date.",
-                    systemImage: "shippingbox",
-                    platforms: [.macOS]
                 ),
             ]
         case "1.21.0":
