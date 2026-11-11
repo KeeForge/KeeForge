@@ -566,11 +566,8 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         let value = app.descendants(matching: .any)["entry-edit.custom-field.value-field.0"].firstMatch
         XCTAssertTrue(revealFormElement(value))
         replaceText(in: value, with: "1234")
-        let protect = app.switches["entry-edit.custom-field.protection.0"]
-        XCTAssertTrue(revealElement(protect))
-        protect.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        toggleCustomFieldProtection(at: 0)
         XCTAssertTrue(app.secureTextFields["entry-edit.custom-field.value-field.0"].waitForExistence(timeout: 5))
-        XCTAssertEqual(protect.value as? String, "1")
         let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         screenshot.name = "custom-field-protection"
         screenshot.lifetime = .keepAlways
@@ -585,9 +582,8 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         XCTAssertTrue(app.staticTexts["1234"].waitForExistence(timeout: 5))
         XCTAssertTrue(revealElement(edit))
         tapElement(edit)
-        XCTAssertTrue(revealElement(protect))
-        XCTAssertEqual(protect.value as? String, "1")
-        protect.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertTrue(revealFormElement(app.secureTextFields["entry-edit.custom-field.value-field.0"]))
+        toggleCustomFieldProtection(at: 0)
         XCTAssertTrue(app.secureTextFields["entry-edit.custom-field.value-field.0"].waitForNonExistence(timeout: 5))
         tapElement(save)
         XCTAssertTrue(waitForSaveCompletion(saveButton: save, timeout: 10))
@@ -628,10 +624,6 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         let secondName = app.textFields["entry-edit.custom-field.name-field.1"]
         XCTAssertTrue(revealFormElement(secondName))
         replaceText(in: secondName, with: "Zulu")
-        let moveUp = app.buttons["entry-edit.custom-field.move-up.1"]
-        XCTAssertTrue(revealFormElement(moveUp))
-        tapElement(moveUp)
-        XCTAssertEqual(app.textFields["entry-edit.custom-field.name-field.0"].value as? String, "Zulu")
 
         let reorder = app.buttons["entry-edit.custom-field.reorder"]
         XCTAssertTrue(revealFormElement(reorder))
@@ -646,7 +638,7 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
             withVelocity: .slow,
             thenHoldForDuration: 1
         )
-        let reordered = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Account Number'"), object: firstRow)
+        let reordered = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Zulu'"), object: firstRow)
         XCTAssertEqual(
             XCTWaiter().wait(for: [reordered], timeout: 5),
             .completed,
@@ -657,8 +649,8 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         orderAttachment.lifetime = .keepAlways
         add(orderAttachment)
         tapElement(app.buttons["entry-edit.custom-field.order.done"])
-        XCTAssertTrue(revealFormElement(moveUp))
-        tapElement(moveUp)
+        XCTAssertTrue(revealFormElement(firstName))
+        XCTAssertEqual(firstName.value as? String, "Zulu")
 
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = "custom-field-editor"

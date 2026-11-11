@@ -7,7 +7,8 @@
 - `EntryEditViewModel` owns fields and payloads; `DatabaseEditorCoordinator` owns dirty registration, submission, completion, and Save and Lock (`../../ViewModels/AGENTS.md`). `EntryEditView` forwards appearance, dirty, and conflict changes and turns completion into dismissal. Every presenter closes through `onComplete`.
 - `RestoreRowAction` shares entry/group recovery across all shells; `PendingMove.restore` hosts the fallback destination picker with a recovery title. Cancellation stages nothing.
 - `PendingRowActions.swift` is the one source of delete-confirmation wording and move state for the iOS group list, `EntryListView`, `MacEntriesList`, and the macOS workspace. The Mac menu-bar Delete builds the same `PendingDeletion`; no path deletes without it.
-- Entry-row context-menu items are the shared `EntryRowCopyActions`, `EntryRowDuplicateAction`, and `EntryRowMoveAction`. Add or change an item there, not per shell. They hand an editor or `PendingMove` back to the caller instead of presenting, because the host differs per shell.
+- Entry-row context-menu items are the shared `EntryRowCopyActions`, `EntryRowDuplicateAction`, `EntryRowMoveAction`, and `EntryRowChangeIconAction`. Add or change an item there, not per shell. They hand an editor, `PendingMove`, or `PendingEntryIconChange` back to the caller instead of presenting, because the host differs per shell. Every menu groups them as copy, then edit, then delete, with dividers between. Change Icon is wired into the iOS lists only; on macOS the detail's icon button changes it.
+- `EntryIconChangeSheet` is the one way to pick and save an entry icon, from the detail and the row menus.
 - A duplicate saved from the search results or tag browser opens like a new entry: iOS pushes or selects it once its sheet has dismissed, macOS selects it.
 - `EntryRowMoveAction.isAvailable` (writable, not in the recycle bin) is the shared ordinary move/duplicate gate; Restore uses the session’s separate recovery eligibility. The group-row move keeps its own gate in `../Group/GroupListView.swift` on purpose.
 - Three entry lists: `EntryListView` (iOS search results and tag browser), `MacEntriesList` (the same two on macOS), and `MacEntriesColumn` in `../../App/RegularDatabaseWorkspaceView.swift` (the Mac group column). The Mac two share `MacEntryRow`.
@@ -54,7 +55,7 @@
 
 ### Editor
 
-- Custom field reordering uses a native List sheet containing field names only, plus named move controls in the form. Field values never appear in reorder rows. The view model owns order, including dirty tracking and save payloads.
+- Custom field reordering uses a native List sheet containing field names only. Field values never appear in reorder rows. On macOS the form also has named move controls; on iOS each field is one name/value row whose name field carries Move Up and Move Down as VoiceOver actions, with Protect Field and Remove Field in the row's menu. The view model owns order, including dirty tracking and save payloads.
 
 - `EntryEditView` draws additional URL rows in Basics using `EntryEditViewModel.additionalURLs`, with a named remove action for VoiceOver. Field names are stored as `KP2A_URL_<n>` but are not shown to the user; `EntryDetailView` displays those URLs once, outside Custom Fields.
 - On iOS the editor splits Basics into the fields, the URLs and the tags, and short fields are label/value rows (`basicFieldRow(_:inline:)`); macOS keeps one Basics section.

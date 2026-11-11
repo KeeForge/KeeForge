@@ -15,7 +15,7 @@ struct EntryRowSelectAction: View {
 
     var body: some View {
         if EntryRowMoveAction.isAvailable(entryID: entryID, viewModel: viewModel) {
-            Button("Select Entries") {
+            Button("Select Entries", systemImage: "checklist") {
                 viewModel.workspace.beginEntrySelection(with: entryID)
             }
             .accessibilityIdentifier("entry-row.select-context")

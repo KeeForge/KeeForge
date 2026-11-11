@@ -17,6 +17,7 @@ final class EntryRowCopyUITests: EntryEditUITestCase {
             preferredIdentifier: "entry.navlink"
         )
         XCTAssertTrue(app.buttons["entry-row.copy-password-context"].exists)
+        XCTAssertTrue(app.buttons["entry-row.change-icon-context"].exists, "A writable entry's menu offers Change Icon")
 
         copyUsername.tap()
 

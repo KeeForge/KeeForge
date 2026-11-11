@@ -272,6 +272,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
     // MARK: "Ask this question"
 
     func presentUnlockPrompt(
+        database: DatabaseReference,
         biometricOptionTitle: String?,
         onSubmitPassword: @escaping (String?) -> Void,
         onChooseBiometrics: @escaping () -> Void,

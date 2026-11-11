@@ -1850,6 +1850,33 @@ final class DatabaseViewModel {
         }
     }
 
+    /// Where an item lying directly in the recycle bin came from and when it
+    /// was put there. Nil for anything else: inside a recycled group,
+    /// `LocationChanged` dates the item's last move, not its deletion.
+    func recycleBinOrigin(for item: RecycleBinItem) -> RecycleBinOrigin? {
+        _ = contentRevision
+        guard let bin = recycleBinGroup else { return nil }
+        let xml: OpaqueXMLNodes
+        let deletedAt: Date?
+        switch item {
+        case .entry(let id):
+            guard let entry = bin.entries.first(where: { $0.id == id }) else { return nil }
+            xml = entry.unknownXML
+            deletedAt = entry.locationChanged
+        case .group(let id):
+            guard let group = bin.groups.first(where: { $0.id == id }) else { return nil }
+            xml = group.unknownXML
+            deletedAt = group.locationChanged
+        }
+        var groupName: String?
+        if let parentID = PreviousParentGroupXML.parentID(in: xml), let parent = groupIndex[parentID],
+           parentID != bin.id, isGroupInRecycleBin(groupID: parentID) == false {
+            groupName = parentID == visibleRootGroupID ? databaseDisplayName : parent.name
+        }
+        guard groupName != nil || deletedAt != nil else { return nil }
+        return RecycleBinOrigin(groupName: groupName, deletedAt: deletedAt)
+    }
+
     func restoreDestinationOptions(for item: RecycleBinItem) -> [MoveDestinationOption] {
         guard canRestore(item) else { return [] }
         switch item {
