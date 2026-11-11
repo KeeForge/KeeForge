@@ -114,6 +114,22 @@ final class ViewRenderTests: XCTestCase {
         try renderScreens([("Passphrase", AnyView(PasswordGeneratorSheet(onUse: { _ in })))], named: "password-generator-passphrase")
     }
 
+    func testEntryEditor() throws {
+        let form = EntryEditViewModel(
+            mode: .create(parentGroupID: UUID()),
+            title: "Example",
+            username: "ada@example.com",
+            password: "correct-Horse-battery-staple-42",
+            url: "https://example.com",
+            additionalURLs: [.init(key: "KP2A_URL_1", value: "https://login.example.com")],
+            tags: ["work"]
+        )
+        let editor = NavigationStack {
+            EntryEditView(formViewModel: form, databaseViewModel: DatabaseViewModel(databaseReference: reference("Personal")))
+        }
+        try renderScreens([("New entry, filled", AnyView(editor))], named: "entry-editor")
+    }
+
     /// Whole screens need a real window: `ImageRenderer` draws Form, Toggle,
     /// Slider and Picker as placeholders.
     private func renderScreens(_ states: [(String, AnyView)], named name: String) throws {

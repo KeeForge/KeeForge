@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- The entry editor's Title, Username, Password, URL, and Tags labels now appear in the app's language. Before, they stayed in English.
+
 ## v1.22.0 (2026-11-10)
 
 ### New Features

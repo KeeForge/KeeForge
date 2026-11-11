@@ -427,7 +427,7 @@ struct EntryEditView: View {
         let title = String(localized: "URL \(index + 2)")
         let removeLabel = String(localized: "Remove URL \(index + 2)")
 
-        return basicFieldRow(title, inline: true) {
+        return basicFieldRow("URL \(index + 2)", inline: true) {
             HStack {
                 TextField(title, text: additionalURL.value)
                     .textInputAutocapitalization(.never)
@@ -460,14 +460,14 @@ struct EntryEditView: View {
 
         return VStack(alignment: .leading, spacing: 10) {
             customFieldReorderControls(id: id, index: index)
-            basicFieldRow(String(localized: "Field Name")) {
+            basicFieldRow("Field Name") {
                 TextField(String(localized: "Field Name"), text: field.key)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .accessibilityIdentifier("entry-edit.custom-field.name-field.\(index)")
             }
 
-            basicFieldRow(String(localized: "Field Value")) {
+            basicFieldRow("Field Value") {
                 if field.wrappedValue.isProtected {
                     PasswordInputRow(
                         title: valueLabel,
@@ -628,7 +628,7 @@ struct EntryEditView: View {
     @ViewBuilder
     private var totpConfigurationRows: some View {
         if let preview = formViewModel.totpPreview {
-            basicFieldRow(String(localized: "Current Code"), inline: true) {
+            basicFieldRow("Current Code", inline: true) {
                 TOTPPreviewRow(preview: preview)
             }
         } else if hasTOTPConfiguration, formViewModel.unsupportedTOTPDigitsMessage == nil {
@@ -638,7 +638,7 @@ struct EntryEditView: View {
                 .accessibilityIdentifier("entry-edit.totp.preview-unavailable")
         }
 
-        basicFieldRow(String(localized: "Secret Key")) {
+        basicFieldRow("Secret Key") {
             PasswordInputRow(
                 title: String(localized: "Secret Key"),
                 text: $formViewModel.totpSecret,
@@ -650,7 +650,7 @@ struct EntryEditView: View {
             )
         }
 
-        basicFieldRow(String(localized: "Period (Seconds)"), inline: true) {
+        basicFieldRow("Period (Seconds)", inline: true) {
             TextField(String(localized: "Period (Seconds)"), text: $totpPeriodText)
                 .keyboardType(.numberPad)
                 .focused($isTOTPPeriodFieldFocused)
@@ -1021,7 +1021,7 @@ struct EntryEditView: View {
     /// row for a fact with a short value.
     @ViewBuilder
     private func basicFieldRow<Content: View>(
-        _ title: String,
+        _ title: LocalizedStringKey,
         inline: Bool = false,
         @ViewBuilder content: () -> Content
     ) -> some View {
