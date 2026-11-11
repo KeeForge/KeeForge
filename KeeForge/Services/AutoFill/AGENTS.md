@@ -31,18 +31,19 @@
 - The mutation queue is per process. The app and extension can overlap, so a refresh must be idempotent; the worst case is a briefly stale suggestion until the database's next refresh.
 - A password identity is a `.URL` identifier `https://<host>`; a one-time-code identity is a `.domain` identifier with the exact host. Only the host is published: no path, port, query, or user info reaches the system store, and never the registrable domain, because the host is all the system list shows to tell subdomains apart.
 - Expired entries are never published.
+- Identities are built only from unlocked entries, so a site-matching rule change that alters them reaches the store at each database's next unlock, which republishes them and drops what earlier rules published. No refresh is possible before that; until then the earlier suggestions stay, and a tapped one still fills the entry its record identifier names. On an unreadable store with two or more AutoFill-enabled databases, the additive-save limit above applies.
 - Legacy bare-UUID identifiers carry no database. They are attributed to the database that was active when they were written, which is why removal passes `includingLegacyIdentifiers` only for the active database.
 
 ### Matching
 
 - `KPGroup.autoFillEntries` is the single filter for groups whose `<EnableSearching>` resolves to false. All three sources call it: `DatabaseViewModel.credentialStoreEntries`, `AutoFillSaveCoordinator.credentialStoreEntries`, and the extension's own parse. `DatabaseViewModel.autoFillExcludedGroupIDs` must resolve inheritance the same way (`../../ViewModels/AGENTS.md`).
-- An `.app` service identifier (an App ID such as `TEAMID.com.example.app`) is never parsed as a host: `searchTerm(for:)` returns nil. Reverse-DNS App IDs end in real TLDs and would strictly match an unrelated website.
+- An `.app` service identifier (an App ID such as `TEAMID.com.example.app`) is never parsed as a host: `SiteRequest.host` is nil for it (rule R2). Reverse-DNS App IDs end in real TLDs and would strictly match an unrelated website.
 - An `.app` service identifier becomes `SiteRequest.app` only behind the iOS/macOS 26.2 availability check in `SiteRequest(_:)`.
 - Entries saved before that rule hold a raw App ID as a URL. Read entry URLs for AutoFill through `CredentialMatcher.webURLs(of:)`, which drops such a field without rewriting the entry.
 - Expired entries never become candidates: every `CredentialMatcher` entry point filters them before matching.
 - Strict matching decides silent fill; interactive matching decides picker sections (`../../../AutoFillExtension/AGENTS.md`).
 - Password and one-time-code pickers initially show only URLs whose normalized host equals the first web service identifier. If none match, related hosts appear only as possible matches; title/URL substring matches require an expanded search. Empty web context opens the full corpus. This does not change silent-fill candidates.
-- Registrable-domain boundaries come from the embedded Public Suffix List (`swift-psl`, through `SiteMatching`), not from string heuristics. Password identities publish `SiteHost.isPublishable` hosts, one-time-code identities `SiteHost(publishableWebURL:)`, and passkeys compare `SiteHost.relyingPartyKey`; where these rules disagree is listed in the package's `AGENTS.md`.
+- Registrable-domain boundaries come from the embedded Public Suffix List (`swift-psl`, through `SiteMatching`), not from string heuristics. Password identities publish `SiteHost.isPublishable` hosts, one-time-code identities `SiteHost(publishableWebURL:)`, and passkeys compare `SiteHost.relyingPartyKey`. The package's `AGENTS.md` is the specification for all of them (rules P1–P4 and K1–K2); check a matching report against it first.
 
 ### Memory pre-flight and settings
 
@@ -54,7 +55,7 @@
 
 ## Tests
 
-- `CredentialIdentityStoreManagerTests` (fake store via the DEBUG `storeProviderOverride`), `CredentialMatcherTests` (conversions and expiry only), `AutoFillMemoryLimitTests`, `PasswordGeneratorTests`, `PasswordStrengthEstimatorTests`.
+- `CredentialIdentityStoreManagerTests` (fake store via the DEBUG `storeProviderOverride`; `testRefreshAfterASiteMatchingRuleChange…` covers the republish after a rule change in all three store shapes), `CredentialMatcherTests` (conversions and expiry only), `AutoFillMemoryLimitTests`, `PasswordGeneratorTests`, `PasswordStrengthEstimatorTests`.
 - Host, domain, and match-tier rules are tested in `../../../Packages/SiteMatching/Tests`, with Public Suffix List and WHATWG URL vectors.
 - A store change needs a case for each of the three shapes: incremental and readable, non-incremental (`supportsIncrementalUpdatesValue = false`), and incremental but unreadable (`enumerationError`).
 - In a unit-test host the manager mutates nothing unless a store override is installed: the host is the real signed app, and its system store is the developer's own.

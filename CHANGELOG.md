@@ -2,8 +2,17 @@
 
 ## Unreleased
 
+### Changes
+
+- AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:
+  - An entry for an IP address, such as a router, is suggested only on that exact address. Before, entries for other addresses ending in the same two numbers appeared as possible matches.
+  - An entry for a subdomain is no longer suggested or filled on a parent that unrelated sites share, such as `localhost`, `github.io`, or `co.uk`.
+  - A passkey saved for `www.co.uk` is no longer offered on `co.uk`.
+  - A page on `www.www.example.com` no longer fills every entry for `example.com`.
+
 ### Fixes
 
+- In AutoFill, an entry URL with spaces before or after it now matches its website and appears in the system's suggestions (#285).
 - The entry editor's Title, Username, Password, URL, and Tags labels now appear in the app's language. Before, they stayed in English.
 
 ## v1.22.0 (2026-11-10)

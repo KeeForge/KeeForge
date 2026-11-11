@@ -5,8 +5,9 @@ import XCTest
 /// (`Fixtures/whatwg-url-hosts.json`, selected from web-platform-tests).
 ///
 /// `SiteHost` parses with Foundation's `URL`, which follows RFC 3986, not the
-/// WHATWG standard browsers use. The divergences below are that gap, listed
-/// so a change in either shows up here.
+/// WHATWG standard browsers use. The divergences below are the accepted part
+/// of that gap (`../../AGENTS.md`, "Accepted divergences"), each with its
+/// reason. A change in either list is a rule change.
 final class WHATWGHostVectorTests: XCTestCase {
     private static let hostDivergences: [String: String] = [
         // WHATWG strips ASCII tab and newline anywhere; Foundation rejects
@@ -47,8 +48,9 @@ final class WHATWGHostVectorTests: XCTestCase {
         "https://a%C2%ADb/": "percent-decoded IDNA",
     ]
 
-    /// URLs WHATWG rejects whose host is still publishable here, so an entry
-    /// storing one publishes a host no browser requests.
+    /// URLs WHATWG rejects whose host is still publishable here. A browser
+    /// never requests the percent-encoded hosts; a bracketed domain is read as
+    /// that domain, by matching and publishing alike (P4).
     private static let publishableFailures: [String: String] = [
         "http://%ef%b7%90zyx.com": "noncharacter after percent-decoding",
         "http://\u{FF05}\u{FF14}\u{FF11}.com": "fullwidth percent sign",
@@ -57,26 +59,9 @@ final class WHATWGHostVectorTests: XCTestCase {
         "http://%ef%bc%85%ef%bc%90%ef%bc%90.com": "fullwidth percent sign",
         "http://[www.google.com]/": "brackets around a domain",
         "http://[google.com]": "brackets around a domain",
-        "http://0..0x300/": "ends in a number",
-        "http://0..0x300./": "ends in a number",
-        "http://0x100.2.3.4": "ends in a number",
-        "http://0x100.2.3.4.": "ends in a number",
-        "http://0x1.2.3.4.5": "ends in a number",
-        "http://0x1.2.3.4.5.": "ends in a number",
-        "http://foo.1.2.3.4": "ends in a number",
-        "http://foo.1.2.3.4.": "ends in a number",
-        "http://foo.2.3.4": "ends in a number",
-        "http://foo.2.3.4.": "ends in a number",
-        "http://foo.09": "ends in a number",
-        "http://foo.09.": "ends in a number",
-        "http://foo.0x4": "ends in a number",
-        "http://foo.0x4.": "ends in a number",
-        "http://foo.0x": "ends in a number",
-        "http://foo.0XFfFfFfFfFfFfFfFfFfAcE123": "ends in a number",
-        "http://\u{1F4A9}.123/": "ends in a number",
     ]
 
-    func testHostsMatchWHATWGParsing() throws {
+    func testH1HostsMatchWHATWGParsingExceptAcceptedDivergences() throws {
         let fixture = try Self.fixture()
         XCTAssertEqual(fixture.hosts.count, 167, "Fixture changed; review the divergence list")
 
@@ -87,7 +72,7 @@ final class WHATWGHostVectorTests: XCTestCase {
         XCTAssertEqual(Set(Self.hostDivergences.keys).subtracting(inputs), [], "Divergence listed for a missing vector")
     }
 
-    func testURLsWHATWGRejectsAreNotPublishable() throws {
+    func testP1URLsWHATWGRejectsAreNotPublishable() throws {
         let fixture = try Self.fixture()
         XCTAssertEqual(fixture.failures.count, 190, "Fixture changed; review the divergence list")
 

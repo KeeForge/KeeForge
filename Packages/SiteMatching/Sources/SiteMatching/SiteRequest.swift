@@ -17,13 +17,12 @@ public enum SiteRequest: Hashable, Sendable {
         public let url: String
     }
 
-    /// The text the request is matched on: the normalized host, or for a URL
-    /// with no parsable host, the URL as given. Nil for an app.
-    public var searchTerm: String? {
+    /// The requested host, normalized once as stored hosts are. Nil for an
+    /// app and for a request with no parsable host, which matches nothing.
+    public var host: SiteHost? {
         switch self {
         case .app: nil
-        case .domain(let value): SiteHost.normalize(value)
-        case .url(let value): SiteHost.parse(value) ?? value
+        case .domain(let value), .url(let value): SiteHost(value)
         }
     }
 
