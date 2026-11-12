@@ -16,6 +16,7 @@
 
 - In AutoFill, an entry URL with spaces before or after it now matches its website and appears in the system's suggestions (#285).
 - The entry editor's Title, Username, Password, URL, and Tags labels now appear in the app's language. Before, they stayed in English.
+- An AutoFill suggestion for a website no longer fills an entry whose URL has since changed to another site; the picker opens instead.
 
 ## v1.22.0 (2026-11-10)
 

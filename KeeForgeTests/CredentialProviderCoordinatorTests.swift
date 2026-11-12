@@ -1607,6 +1607,47 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    /// A suggestion published before its entry moved to another site names
+    /// the right entry for the wrong site: the user picks instead.
+    func test_passwordFill_identifierWhoseEntryNoLongerListsTheSiteOpensThePicker() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let moved = KPEntry(
+            title: "Code host",
+            username: "octocat",
+            password: try EncryptedValue.encrypt("new-site-secret", using: sessionKey),
+            url: "https://gitlab.com"
+        )
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: [moved], sessionKey: sessionKey)
+        coordinator.activeDatabaseReference = try seedResolvableDefaultDatabase()
+        coordinator.targetRecordIdentifier = CredentialRecordIdentifier(databaseID: UUID(), entryID: moved.id).encoded
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        XCTAssertNil(presenter.completedCredential, "a suggestion for github.com must not fill an entry that now lists gitlab.com")
+        XCTAssertNotNil(presenter.searchView)
+    }
+
+    func test_otcFill_identifierWhoseEntryNoLongerListsTheSiteOpensThePicker() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let moved = try makeTOTPEntry(title: "Code host", url: "https://gitlab.com", sessionKey: sessionKey)
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: [moved], sessionKey: sessionKey)
+        coordinator.activeDatabaseReference = try seedResolvableDefaultDatabase()
+        coordinator.hasPendingOTCRequest = true
+        coordinator.targetRecordIdentifier = CredentialRecordIdentifier(databaseID: UUID(), entryID: moved.id).encoded
+
+        coordinator.completeOTCRequestFromPending()
+
+        XCTAssertNil(presenter.completedOneTimeCode, "a code suggestion for github.com must not answer with an entry that now lists gitlab.com")
+        XCTAssertNotNil(presenter.searchView)
+    }
+
     func test_passwordFill_resolvesLegacyIdentifier() throws {
         let (coordinator, presenter) = makeCoordinator()
         let sessionKey = SymmetricKey(size: .bits256)

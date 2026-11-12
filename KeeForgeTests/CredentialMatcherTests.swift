@@ -133,4 +133,14 @@ final class CredentialMatcherTests: XCTestCase {
             expiryTime: expired ? .distantPast : nil
         )
     }
+
+    func testListsRequestedSiteIgnoresExpiry() {
+        let expired = KPEntry(title: "Old", url: "https://github.com", expires: true, expiryTime: .distantPast)
+        let github = [ASCredentialServiceIdentifier(identifier: "https://github.com", type: .URL)]
+        XCTAssertTrue(CredentialMatcher.listsRequestedSite(expired, for: github))
+        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: [expired], for: github).isEmpty)
+        XCTAssertFalse(CredentialMatcher.listsRequestedSite(
+            expired, for: [ASCredentialServiceIdentifier(identifier: "gitlab.com", type: .domain)]
+        ))
+    }
 }

@@ -29,6 +29,12 @@ enum CredentialMatcher {
         return eligible.filter { ids.contains($0.id) }
     }
 
+    /// Whether `entry` still lists a requested site, expired or not: the
+    /// check behind a suggestion, whose expiry the caller handles itself.
+    static func listsRequestedSite(_ entry: KPEntry, for identifiers: [ASCredentialServiceIdentifier]) -> Bool {
+        !SiteMatcher.strictMatches([candidate(entry)], for: identifiers.map(SiteRequest.init)).isEmpty
+    }
+
     static func hasWebHost(_ identifiers: [ASCredentialServiceIdentifier]) -> Bool {
         SiteMatcher.firstWebHost(for: identifiers.map(SiteRequest.init)) != nil
     }
