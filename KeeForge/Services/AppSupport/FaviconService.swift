@@ -158,10 +158,21 @@ enum FaviconService: Sendable {
     // MARK: - Ensure Cache Directory
 
     private static func ensureCacheDirectory() {
+        prepareCacheDirectory(at: cacheDirectory)
+    }
+
+    /// Creates `directory` if needed and keeps it out of device backups: the
+    /// icons can be fetched again, and the file names are a per-domain
+    /// fingerprint of the vault's entries.
+    static func prepareCacheDirectory(at directory: URL) {
         let fm = FileManager.default
-        if !fm.fileExists(atPath: cacheDirectory.path) {
-            try? fm.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        if !fm.fileExists(atPath: directory.path) {
+            try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
         }
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var url = directory
+        try? url.setResourceValues(values)
     }
 
     // MARK: - Cached Image
