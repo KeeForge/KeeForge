@@ -134,6 +134,24 @@ final class ApplePasswordsCSVImporterTests: XCTestCase {
         ])
     }
 
+    /// A fill resolves `{REF:…}` against the whole database, so a file must
+    /// not be able to plant one.
+    func testRowsWithAFieldReferenceInAnyColumnAreSkipped() throws {
+        let csv = header
+            + "Good,https://a.example,me,pw,,\n"
+            + "{REF:T@T:Bank},https://b.example,me,pw,,\n"
+            + "Forum,https://c.example/?p={REF:P@T:Bank},me,pw,,\n"
+            + "Forum,https://d.example,{REF:U@T:Bank},pw,,\n"
+            + "Forum,https://e.example,me,{ref:p@t:bank},,\n"
+            + "Forum,https://f.example,me,pw,see {REF:N@T:Bank},\n"
+            + "Forum,https://g.example,me,pw,,otpauth://totp/x?secret=JBSWY3DPEHPK3PXP&issuer={REF:P@T:Bank}\n"
+
+        let preview = try ApplePasswordsCSVImporter.preview(from: Data(csv.utf8))
+
+        XCTAssertEqual(preview.items.map(\.row), [2])
+        XCTAssertEqual(preview.skippedRows, (3...8).map { .init(row: $0, reason: .fieldReference) })
+    }
+
     func testRowNumbersCountRecordsNotLines() throws {
         let csv = header + "One,,,,\"multi\nline\nnote\",\n" + "Two,,,,,\n"
 
