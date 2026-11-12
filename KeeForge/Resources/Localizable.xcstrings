@@ -25889,58 +25889,6 @@
         }
       }
     },
-    "Fill passwords in Safari and other apps." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Passwörter in Safari und anderen Apps ausfüllen."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rellena contraseñas en Safari y otras apps."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remplissez les mots de passe dans Safari et d'autres apps."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Inserisci le password in Safari e in altre app."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Safari やほかの App でパスワードを入力できます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Подставляйте пароли в Safari и других приложениях."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 Safari 和其他 App 中填充密码。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 Safari 和其他 App 中填寫密碼。"
-          }
-        }
-      }
-    },
     "Find" : {
       "localizations" : {
         "de" : {

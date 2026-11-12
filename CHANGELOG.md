@@ -10,7 +10,6 @@
 - AutoFill on iPhone and iPad unlocks in a sheet that names the database and its file, with the master password field, Face ID, and Unlock, instead of a system alert.
 - Change Master Key shows the strength of the new password, as New Database does.
 - The Recycle Bin shows which group each item came from and when it was deleted, and tells you to touch and hold an item to restore or delete it. Restore to Group… puts an item back in a group you choose.
-- On iPhone, the database list has Import and New Database in a bottom bar, and the AutoFill tip below the databases is a single row.
 - In the entry editor on iPhone and iPad, each custom field is one row with its name and value. Protect Field and Remove Field are in the row's menu, and Reorder Fields moves them.
 
 ### Changes

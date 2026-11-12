@@ -357,65 +357,16 @@ struct DatabaseListView: View {
                 }
                 .accessibilityIdentifier("database.settings.button")
 
-                if usesBottomToolbar == false {
-                    Menu {
-                        addDatabaseMenuContent
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .menuOrder(.fixed)
-                    .accessibilityIdentifier("database.add.button")
-                    .macHelp(String(localized: "Add Database"))
+                Menu {
+                    addDatabaseMenuContent
+                } label: {
+                    Image(systemName: "plus")
                 }
+                .menuOrder(.fixed)
+                .accessibilityIdentifier("database.add.button")
+                .macHelp(String(localized: "Add Database"))
                 #endif
             }
-        }
-        .modifier(DatabaseListBottomBar(view: self))
-    }
-
-    /// From iOS 26 the iPhone list puts Import and New Database in a bottom
-    /// bar, as the vault screens put search and New there. The empty state
-    /// offers both itself.
-    private var usesBottomToolbar: Bool {
-        #if os(iOS)
-        if #available(iOS 26.0, *) {
-            return isSidebarColumn == false && viewModel.databases.isEmpty == false
-        }
-        #endif
-        return false
-    }
-
-    private struct DatabaseListBottomBar: ViewModifier {
-        let view: DatabaseListView
-
-        func body(content: Content) -> some View {
-            #if os(iOS)
-            if #available(iOS 26.0, *), view.usesBottomToolbar {
-                content
-                    .toolbar {
-                        ToolbarItem(placement: .bottomBar) {
-                            Menu {
-                                view.importDatabaseMenuContent
-                            } label: {
-                                Text("Import")
-                            }
-                            .menuOrder(.fixed)
-                            .accessibilityIdentifier("database.add.button")
-                        }
-                        ToolbarSpacer(.flexible, placement: .bottomBar)
-                        ToolbarItem(placement: .bottomBar) {
-                            Button("New Database") {
-                                view.isDatabaseCreationPresented = true
-                            }
-                            .accessibilityIdentifier("database.add.new")
-                        }
-                    }
-            } else {
-                content
-            }
-            #else
-            content
-            #endif
         }
     }
 

@@ -16,8 +16,6 @@
 ### Database list
 
 - iPhone, iPad, and macOS list databases as plain rows: `DatabaseListRow` on iOS and `DatabaseRowView` on macOS. The badges and notices on both come from the pure `DatabaseRowStatusSummary`; keep identifiers on the same elements on both platforms. Pending uploads are a notice counted in words, not a badge. With Show Usage Stats off, a row says neither when its database was last opened nor when it last synced; sync warnings still show. On iOS a badge never truncates: badges move under the name, then one per line.
-- From iOS 26 the iPhone list puts Import (`database.add.button`) and New Database (`database.add.new`) in a bottom bar and drops the top bar's add menu; the iPad sidebar, earlier releases, and macOS keep the add menu. The empty state offers both itself, so the bar is hidden there.
-- Listed below the databases on iOS, the AutoFill tip is a single row; pinned above an empty list and on macOS it stays a card.
 - On iOS rows move only in Edit mode (`moveDisabled` plus the shared `EditMode` binding). Otherwise the reorder gesture competes with the long-press context menu and XCTest waits on animations. macOS reorders by drag with no Edit button.
 - `isSidebarColumn` is passed in by the host, not read from `horizontalSizeClass`, which a sidebar column reports as compact. It picks `.sidebar` over `.insetGrouped`; the grouped card renders darker than the column on iPadOS and opaque over the material on macOS.
 - On macOS the list has no `NavigationStack` of its own; one would paint over the sidebar material.
