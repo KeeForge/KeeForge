@@ -328,8 +328,12 @@ struct AppRootView: View {
     /// UI tests switch layouts with this control: no simulator can open or
     /// close an iPhone Duo from a test.
     private static let showsLayoutSwitchForUITests: Bool = {
+        #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         return arguments.contains("-ui-testing") && arguments.contains("-ui-testing-layout-switch")
+        #else
+        false
+        #endif
     }()
     #endif
 
