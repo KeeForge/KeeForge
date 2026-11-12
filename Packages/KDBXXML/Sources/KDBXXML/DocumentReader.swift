@@ -42,6 +42,10 @@ final class DocumentReader: NSObject, XMLParserDelegate {
 
     func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?,
                 qualifiedName qName: String?, attributes: [String: String] = [:]) {
+        guard stack.count < KDBXDocument.maxElementDepth else {
+            fail(.nestingTooDeep, parser)
+            return
+        }
         guard let parent = stack.last?.role else {
             guard elementName == "KeePassFile" else {
                 fail(.unexpectedRootElement(elementName), parser)

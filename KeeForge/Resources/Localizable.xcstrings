@@ -54161,6 +54161,110 @@
         }
       }
     },
+    "The database nests its groups or data too deeply to open." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbank verschachtelt ihre Gruppen oder Daten zu tief, um geöffnet zu werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos anida sus grupos o datos a demasiada profundidad para abrirla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données imbrique ses groupes ou ses données trop profondément pour être ouverte."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database annida i suoi gruppi o dati troppo in profondità per poter essere aperto."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースはグループまたはデータの入れ子が深すぎるため、開けません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В базе данных группы или данные вложены слишком глубоко, поэтому её нельзя открыть."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库的群组或数据嵌套过深，无法打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫的群組或資料巢狀層級過深，無法開啟。"
+          }
+        }
+      }
+    },
+    "The database nests its groups or data too deeply, so it can’t be saved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbank verschachtelt ihre Gruppen oder Daten zu tief, daher kann sie nicht gespeichert werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos anida sus grupos o datos a demasiada profundidad, así que no se puede guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données imbrique ses groupes ou ses données trop profondément ; elle ne peut donc pas être enregistrée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database annida i suoi gruppi o dati troppo in profondità, quindi non può essere salvato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースはグループまたはデータの入れ子が深すぎるため、保存できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В базе данных группы или данные вложены слишком глубоко, поэтому её нельзя сохранить."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库的群组或数据嵌套过深，因此无法保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫的群組或資料巢狀層級過深，因此無法儲存。"
+          }
+        }
+      }
+    },
     "The database requires this key file after the change. Clear it to unlock with the master password only." : {
       "localizations" : {
         "de" : {
@@ -54314,6 +54418,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資料庫會過大，KeeForge 將無法再次開啟，因此未儲存。"
+          }
+        }
+      }
+    },
+    "The entry “%@” is in a group nested too deeply, so the database can’t be saved. Move it closer to the top." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Eintrag „%@“ liegt in einer zu tief verschachtelten Gruppe, daher kann die Datenbank nicht gespeichert werden. Verschiebe ihn weiter nach oben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La entrada «%@» está en un grupo anidado a demasiada profundidad, así que no se puede guardar la base de datos. Muévela más arriba."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'entrée « %@ » se trouve dans un groupe imbriqué trop profondément ; la base de données ne peut donc pas être enregistrée. Déplacez-la plus près du sommet."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La voce “%@” si trova in un gruppo annidato troppo in profondità, quindi il database non può essere salvato. Spostala più in alto."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリ「%@」は入れ子が深すぎるグループ内にあるため、データベースを保存できません。上の階層に移動してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись «%@» находится в слишком глубоко вложенной группе, поэтому базу данных нельзя сохранить. Переместите её ближе к верхнему уровню."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条目“%@”所在的群组嵌套过深，因此无法保存数据库。请将它移到更靠上的位置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目「%@」所在的群組巢狀層級過深，因此無法儲存資料庫。請將它移到更上層的位置。"
           }
         }
       }
@@ -54632,6 +54788,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "FTP 使用者名稱或密碼遭拒。"
+          }
+        }
+      }
+    },
+    "The group “%@” is nested too deeply, so the database can’t be saved. Move it closer to the top." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Gruppe „%@“ ist zu tief verschachtelt, daher kann die Datenbank nicht gespeichert werden. Verschiebe sie weiter nach oben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El grupo «%@» está anidado a demasiada profundidad, así que no se puede guardar la base de datos. Muévelo más arriba."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le groupe « %@ » est imbriqué trop profondément ; la base de données ne peut donc pas être enregistrée. Déplacez-le plus près du sommet."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il gruppo “%@” è annidato troppo in profondità, quindi il database non può essere salvato. Spostalo più in alto."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グループ「%@」の入れ子が深すぎるため、データベースを保存できません。上の階層に移動してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Группа «%@» вложена слишком глубоко, поэтому базу данных нельзя сохранить. Переместите её ближе к верхнему уровню."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "群组“%@”嵌套过深，因此无法保存数据库。请将它移到更靠上的位置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "群組「%@」巢狀層級過深，因此無法儲存資料庫。請將它移到更上層的位置。"
           }
         }
       }
