@@ -49,7 +49,7 @@
 
 - Screen lock, screensaver, sleep, session resign, and the last host window closing lock unconditionally. App deactivation locks only under the strict `MacLockPolicy`.
 - Under the strict policy, a deactivation caused by the app's own authentication prompt is held, not excused: it needs both a pending request (`BiometricService.isBiometricAuthInProgress`) and the system authentication UI in front (`ForegroundApplication.isSystemAuthenticationPrompt`). Any other application coming forward locks.
-- When the request ends the hold settles: KeeForge is active again within `defaultReactivationGracePeriod`, or it locks.
+- When the last pending request ends the hold settles: KeeForge is active again within `defaultReactivationGracePeriod`, or it locks.
 - `MacLockMonitor.countRemainingHostWindows` is the one definition of a host window; `MacWindowCloseGuard` shares it. The guard proxies each window's delegate instead of replacing it.
 - The quick-search panel is a non-activating `NSPanel` with `canBecomeMain == false`: it neither keeps a vault unlocked nor counts as the last window. It holds no entry data and only a reference to the active session, cleared when the database closes.
 - The panel is outside `ScreenProtectionService`'s key-window sweep, so it sets its own `sharingType` from Block Screen Capture.

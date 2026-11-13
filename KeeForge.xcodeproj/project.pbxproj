@@ -261,6 +261,7 @@
 		40D9BA930E63C126D6B96ECA /* EncryptionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73293357D30932DF886D469A /* EncryptionSettingsView.swift */; };
 		41162494DE9804B24B6029A8 /* SecretAccessGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB544D0D840063C593A3CB55 /* SecretAccessGate.swift */; };
 		419C64150CA42C2652C21FAF /* PasswordInputRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A81C906DE4BC0FFCA1CC754 /* PasswordInputRow.swift */; };
+		4234514CE7E6C3692EE6FD33 /* BiometricServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D42EFE8F97F612C4B7D540BD /* BiometricServiceTests.swift */; };
 		4276E68C6A2135FAE792903A /* autofill-store-bravo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 3718FB82B786FE9BDE8DFE18 /* autofill-store-bravo.kdbx */; };
 		42798F96FBA6AB0926385048 /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280C8E252110A0DEC3BE5283 /* CredentialIdentityStoreManager.swift */; };
 		429AECFE25E7644FB34F4D23 /* WebDAVConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C45BE2A6CCF55DA054986A15 /* WebDAVConnectView.swift */; };
@@ -374,6 +375,7 @@
 		5E17A333954ADDC0205E1B72 /* PasskeyCredential.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AEBF3F7022FCACFF7195DB7 /* PasskeyCredential.swift */; };
 		5E1E376FC35BF2DB8D73A60B /* SortOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFF14B46CC89D1B7A9138E80 /* SortOrderTests.swift */; };
 		5E217AE7428BEFEC142CF5A7 /* SSHAgentKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60685C16D954487296526454 /* SSHAgentKey.swift */; };
+		5E734E964EB6EE2D055E8DA2 /* BiometricServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D42EFE8F97F612C4B7D540BD /* BiometricServiceTests.swift */; };
 		5E8004BCD066767C8044CD94 /* DatabaseDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBA8C05ADEAD4DD8BFE6152 /* DatabaseDraft.swift */; };
 		5EEEF6EDCED72B316D81FBC4 /* WebDAVError+CloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4B9D469C077735051E042E0 /* WebDAVError+CloudProvider.swift */; };
 		5F11ABD01AD686A560AFA115 /* DatabaseRowStatusSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5639283339EAE5046C580778 /* DatabaseRowStatusSummary.swift */; };
@@ -1415,6 +1417,7 @@
 		D265572977E75D10885314BB /* IOSUserActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSUserActivityTests.swift; sourceTree = "<group>"; };
 		D2AC0F9D824F4A5B7AF45B5C /* KeyFileExportDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyFileExportDocument.swift; sourceTree = "<group>"; };
 		D3E1425327264227236C2B67 /* FTPConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FTPConnectView.swift; sourceTree = "<group>"; };
+		D42EFE8F97F612C4B7D540BD /* BiometricServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricServiceTests.swift; sourceTree = "<group>"; };
 		D4B9D469C077735051E042E0 /* WebDAVError+CloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WebDAVError+CloudProvider.swift"; sourceTree = "<group>"; };
 		D4E7D480B1AAABFDCE5A3839 /* DatabaseWorkspaceStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseWorkspaceStateTests.swift; sourceTree = "<group>"; };
 		D6C99B38ABC76F14EEC9ECE5 /* StoreKitManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManagerTests.swift; sourceTree = "<group>"; };
@@ -2103,6 +2106,7 @@
 				2BFDB1A93AED371325A651F2 /* AutoFillStatusServiceTests.swift */,
 				149DB5F58CEC322A5B078635 /* AutoFillStoreInspectorGroupingTests.swift */,
 				6A60D769EF54ACAE8FAFEC73 /* AutoLockTests.swift */,
+				D42EFE8F97F612C4B7D540BD /* BiometricServiceTests.swift */,
 				15B37308F603CF890C96ED80 /* ChaCha20Tests.swift */,
 				5CDE9E08FA5FE394B6337815 /* ChallengeResponseKeyTests.swift */,
 				66DF057AA435224858861550 /* CloudAccountStoreTests.swift */,
@@ -2833,6 +2837,7 @@
 				03C0392B0DD10CAF15FBB775 /* AutoFillStatusServiceTests.swift in Sources */,
 				04421AEC9D8A96A6A75F82C9 /* AutoFillStoreInspectorGroupingTests.swift in Sources */,
 				AC3A4F535475A40584132682 /* AutoLockTests.swift in Sources */,
+				4234514CE7E6C3692EE6FD33 /* BiometricServiceTests.swift in Sources */,
 				E4C3E029F18DC8EB949E3157 /* BundledFixtureGuard.swift in Sources */,
 				9FA3177734D0E996B4125988 /* ChaCha20Tests.swift in Sources */,
 				F9841AA2F4C454FD73C370A1 /* ChallengeResponseKeyTests.swift in Sources */,
@@ -3444,6 +3449,7 @@
 				0E00E166755E9935BA8C31C4 /* AutoFillStatusServiceTests.swift in Sources */,
 				259148A788E9ADCD6DB573A1 /* AutoFillStoreInspectorGroupingTests.swift in Sources */,
 				593F3597EC5E308BE2BA67BC /* AutoLockTests.swift in Sources */,
+				5E734E964EB6EE2D055E8DA2 /* BiometricServiceTests.swift in Sources */,
 				F49363DB6F5F2248C431A47B /* BundledFixtureGuard.swift in Sources */,
 				70B5DFF94CC20D6BD049C9AB /* ChaCha20Tests.swift in Sources */,
 				B6447B4418955063C8F8ED6A /* ChallengeResponseKeyTests.swift in Sources */,
