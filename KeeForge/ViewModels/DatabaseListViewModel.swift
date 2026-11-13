@@ -145,7 +145,7 @@ final class DatabaseListViewModel {
         reload()
     }
 
-    /// Installed by the app root (`AppRootView` in `KeeForgeApp.swift`, which
+    /// Installed by the app root (`AppRootView` in `AppRootView.swift`, which
     /// is the one place that knows the active `DatabaseViewModel`): called
     /// with the id of a database whose AutoFill participation was just turned
     /// on, so the owner can refresh that database's credential identities
