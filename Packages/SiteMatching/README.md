@@ -13,7 +13,8 @@ let requests: [SiteRequest] = [.url("https://login.example.com/signin")]
 let candidates = entries.map { SiteCandidate(id: $0.id, urls: $0.urls) }
 
 // Safe to fill without asking: the stored host is the requested host or a
-// subdomain of it. `mybank.com` never matches a `bank.com` request.
+// subdomain of it on the same registrable domain. `mybank.com` never matches
+// a `bank.com` request, and an IP address or `co.uk` matches only itself.
 let fillable = SiteMatcher.strictMatches(candidates, for: requests)
 
 // For a picker: entries storing the requested host itself, or else related
@@ -30,12 +31,15 @@ An `.app` request (an App ID such as `TEAMID.com.example.app`) never matches a w
 ```swift
 SiteHost("https://WWW.Example.co.uk:8443/login")?.name   // "example.co.uk"
 SiteHost("https://www.co.uk")?.name                      // "www.co.uk": www is the registrable label
-SiteHost("https://192.168.1.1")?.isPublishable           // false
-SiteHost(publishableWebURL: "otpauth://totp/x")          // nil: not a web URL
+SiteHost("https://192.168.1.1")?.isPublishable           // false: an IP address
+SiteHost("https://www.www.example.com")?.name            // "www.example.com": one www, once
+SiteHost("androidapp://com.mybank.app")                  // nil: only http, https, or no scheme
 SiteRequest.url("https://example.com/a?b").website?.url  // "https://example.com"
 ```
 
-A host is publishable when it has a registrable domain and is not an IP address, `localhost`, a single label, or a bare public suffix. Use it before showing a host outside the app.
+A host is publishable when it has a registrable domain: not an IP address, `localhost`, a single label, or a bare public suffix. Use it before showing a host outside the app. A host whose last label is a number counts as an IP address, as in browsers.
+
+The full rule set, with the test that covers each rule, is in [AGENTS.md](AGENTS.md).
 
 Hosts are parsed with Foundation's `URL`, which follows RFC 3986 rather than the WHATWG URL Standard. The two differ on IPv4 number forms, backslashes, embedded tabs, and percent-encoded hosts; the test suite lists each case.
 

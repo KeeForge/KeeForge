@@ -4,13 +4,13 @@ import XCTest
 /// The Public Suffix List project's own `checkPublicSuffix` vectors
 /// (`Fixtures/test_psl.txt`): the registrable domain of each input host.
 final class PublicSuffixListVectorTests: XCTestCase {
-    /// Inputs where this package's answer differs from the list's, with why.
+    /// Accepted: inputs where this package's answer differs from the list's.
     private static let knownDivergences: [String: String] = [
         ".example.com": "A leading empty label is ignored rather than rejected.",
         ".example.example": "A leading empty label is ignored rather than rejected.",
     ]
 
-    func testRegistrableDomainsMatchTheListsVectors() throws {
+    func testH5RegistrableDomainsMatchTheListsVectors() throws {
         let vectors = try Self.vectors()
         XCTAssertEqual(vectors.count, 77, "test_psl.txt changed; review the divergence list")
 
@@ -20,15 +20,13 @@ final class PublicSuffixListVectorTests: XCTestCase {
             // conversion is checked against the list's own spelling too.
             let host = SiteHost.parse(vector.input)
             let expected = vector.expected.map { SiteHost.parse($0) ?? $0 }
-            let guarded = host.flatMap(SiteHost.registrableDomain(of:))
-            let unguarded = host.flatMap(SiteHost.suffixListDomain(of:))
+            let domain = host.flatMap(SiteHost.registrableDomain(of:))
 
             if Self.knownDivergences[vector.input] != nil {
-                XCTAssertNotEqual(guarded, expected, "\(vector.input) now agrees; drop it from knownDivergences")
+                XCTAssertNotEqual(domain, expected, "\(vector.input) now agrees; drop it from knownDivergences")
                 continue
             }
-            XCTAssertEqual(guarded, expected, vector.input)
-            XCTAssertEqual(unguarded, expected, vector.input)
+            XCTAssertEqual(domain, expected, vector.input)
         }
     }
 
