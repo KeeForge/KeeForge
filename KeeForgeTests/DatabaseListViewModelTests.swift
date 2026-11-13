@@ -201,6 +201,28 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertEqual(setup.effects.withLock { $0.encryptions }, 1)
     }
 
+    func testCloudKeyFilePreferenceNeverCreatesLocalAdmissionOrChangesCloudMetadata() async throws {
+        let file = CloudFile(id: "/cloud.kdbx", name: "cloud.kdbx", path: "/cloud.kdbx", isFolder: false,
+            modifiedDate: Date(timeIntervalSince1970: 100), size: 128)
+        let reference = DatabaseListStore.addCloud(provider: CloudProviderKind.dropbox.rawValue, accountId: "preference-only", file: file)
+        let keyURL = try makeTemporaryFileURL(name: "cloud.keyx", contents: Data(repeating: 1, count: 32))
+        var io = DatabaseListStore.KeyFilePreferenceIO()
+        io.registry.afterPublication = { _ in throw POSIXError(.EIO) }
+        let vm = DatabaseListViewModel(keyFilePreferenceIO: io)
+        do { try await vm.setKeyFile(url: keyURL, for: reference); XCTFail("Expected preference publication warning") }
+        catch let error as DatabaseListStore.KeyFilePreferenceError { XCTAssertEqual(error.outcome, .publishedWithoutConfirmedDurability) }
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(stored.keyFileFilename, keyURL.lastPathComponent)
+        XCTAssertEqual(stored.cloudSyncMetadata, reference.cloudSyncMetadata)
+        XCTAssertEqual(stored.lastMasterKeyChangeAt, reference.lastMasterKeyChangeAt)
+        let owner = try PendingLocalSaveStore.recovery(for: reference.id)
+        XCTAssertNil(owner.preferenceIntent)
+        XCTAssertNil(owner.keyEvidence)
+        XCTAssertNil(owner.admission)
+        guard case .missing = owner.ownerObservation else { return XCTFail("Cloud selection must not publish local owner state") }
+        XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
+    }
+
     func testSameValuePreferencePublicationStillInvalidatesAnOlderAssociationGeneration() async throws {
         let setup = try await makePreferenceDatabase()
         defer { setup.database.lock() }

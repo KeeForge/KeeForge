@@ -212,7 +212,7 @@ final class DatabaseListViewModel {
             reload()
             if keyFileRequests[reference.id]?.id == request.id { keyFileRequests.removeValue(forKey: reference.id) }
         }
-        let token = try await Task.detached { try DatabaseListStore.prepareKeyFilePreference(for: observed) }.value
+        let token = observed.isCloudBacked ? nil : try await Task.detached { try DatabaseListStore.prepareKeyFilePreference(for: observed) }.value
         let bookmark: Data?
         if let url { bookmark = try await keyFileBookmarkOperation(url) } else { bookmark = nil }
         guard !Task.isCancelled, !request.isCancelled, keyFileRequests[reference.id]?.id == request.id else { throw CancellationError() }
@@ -220,7 +220,11 @@ final class DatabaseListViewModel {
         let io = keyFilePreferenceIO
         let outcome = await withTaskCancellationHandler {
             await Task.detached {
-                DatabaseListStore.publishKeyFilePreference(token, desired: desired, io: io, canPublish: { !request.isCancelled })
+                if let token {
+                    return DatabaseListStore.publishKeyFilePreference(token, desired: desired, io: io, canPublish: { !request.isCancelled })
+                }
+                return DatabaseListStore.publishCloudKeyFilePreference(for: observed, desired: desired,
+                    io: io.registry, canPublish: { !request.isCancelled })
             }.value
         } onCancel: { request.cancel() }
         guard !Task.isCancelled, !request.isCancelled, keyFileRequests[reference.id]?.id == request.id else { throw CancellationError() }

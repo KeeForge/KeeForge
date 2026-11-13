@@ -514,8 +514,39 @@ enum DatabaseListStore {
         }
     }
 
+    static func publishCloudKeyFilePreference(
+        for expected: DatabaseReference, desired: PendingLocalSaveStore.KeyFilePreference,
+        io: DurableFileWriteIO = .init(), canPublish: @Sendable () -> Bool = { true }
+    ) -> KeyFilePreferenceOutcome {
+        guard expected.isCloudBacked, let anchor = AppGroupContainer.resolvedURL else { return .rejected }
+        return withStateLock {
+            var error: NSError?
+            var outcome: DurableWriteOutcome?
+            NSFileCoordinator().coordinate(writingItemAt: databaseListURL, options: .forReplacing, error: &error) { registry in
+                do {
+                    guard canPublish() else { return }
+                    var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
+                    guard let index = references.firstIndex(where: { $0.id == expected.id }),
+                          PendingLocalSaveStore.PreferenceObservation(expected).matches(references[index]) else { return }
+                    references[index].keyFileBookmarkData = desired.bookmarkData
+                    references[index].keyFileFilename = desired.filename
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                    outcome = writeWithDurabilityOutcome(try encoder.encode(references), to: registry, directoryAnchor: anchor, io: io)
+                } catch { outcome = .notPublished(error) }
+            }
+            switch outcome {
+            case .durable?: return error == nil ? .saved : .publishedWithoutConfirmedDurability
+            case .publishedWithoutConfirmedDurability?: return .publishedWithoutConfirmedDurability
+            case .notPublished?: return .notPublished
+            case nil: return .rejected
+            }
+        }
+    }
+
     static func prepareKeyFilePreference(for reference: DatabaseReference) throws -> PendingLocalSaveStore.PreferenceToken {
-        try withStateLock {
+        guard !reference.isCloudBacked else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
+        return try withStateLock {
             var error: NSError?
             var result: Result<PendingLocalSaveStore.PreferenceToken, Error>?
             NSFileCoordinator().coordinate(readingItemAt: databaseListURL, options: [], error: &error) { url in
@@ -984,13 +1015,15 @@ enum DatabaseListStore {
         makeBookmark: @Sendable (URL) throws -> Data = { try SecurityScopedBookmarkManager.makeBookmarkData(for: $0, readOnly: true) }
     ) -> KeyFilePreferenceOutcome {
         do {
-            let token = try prepareKeyFilePreference(for: reference)
+            let token = reference.isCloudBacked ? nil : try prepareKeyFilePreference(for: reference)
             guard let bookmark = reference.keyFileBookmarkData, let resolved = resolve(bookmark), resolved.isStale else { return .notPublished }
             let access = resolved.url.startAccessingSecurityScopedResource()
             defer { if access { resolved.url.stopAccessingSecurityScopedResource() } }
             let refreshed = try makeBookmark(resolved.url)
-            return publishKeyFilePreference(token, desired: .init(bookmarkData: refreshed,
-                filename: reference.keyFileFilename ?? resolved.url.lastPathComponent))
+            let desired = PendingLocalSaveStore.KeyFilePreference(bookmarkData: refreshed,
+                filename: reference.keyFileFilename ?? resolved.url.lastPathComponent)
+            if let token { return publishKeyFilePreference(token, desired: desired) }
+            return publishCloudKeyFilePreference(for: reference, desired: desired)
         } catch { return .rejected }
     }
 
