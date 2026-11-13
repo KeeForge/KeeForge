@@ -109,7 +109,7 @@ enum AutoFillSaveCoordinator {
         if case .app = request {
             suppliedTitle = appDisplayName(for: serviceIdentifier)
         } else {
-            suppliedTitle = request.searchTerm ?? serviceIdentifier.identifier
+            suppliedTitle = request.host?.name ?? serviceIdentifier.identifier
         }
         // A fill resolves `{REF:…}` in the title when the username is empty,
         // and the requesting app or website chose this value.

@@ -28,7 +28,7 @@ public enum SiteMatcher {
         guard let host = firstWebHost(for: requests) else {
             return InteractiveMatches(exact: [], possible: [])
         }
-        let exact = candidates.filter { hosts(of: $0).contains(host.name) }
+        let exact = candidates.filter { hosts(of: $0).contains(host) }
         guard exact.isEmpty else { return InteractiveMatches(exact: exact.map(\.id), possible: []) }
 
         var seenIDs = Set<UUID>()
@@ -38,15 +38,16 @@ public enum SiteMatcher {
     }
 
     /// Matches safe to fill without the user choosing: a stored host equals a
-    /// requested host or is a dotted subdomain of it (`login.paypal.com`
-    /// matches `paypal.com`; `mybank.com` does not match `bank.com`).
+    /// requested host or is a dotted subdomain of it on the same registrable
+    /// domain (`login.paypal.com` matches `paypal.com`; `mybank.com` does not
+    /// match `bank.com`, and nothing but itself matches `co.uk` or an IP).
     public static func strictMatches(_ candidates: [SiteCandidate], for requests: [SiteRequest]) -> [UUID] {
         strictCandidates(candidates, for: requests).map(\.id)
     }
 
     /// The first request that names a web host.
     public static func firstWebHost(for requests: [SiteRequest]) -> SiteHost? {
-        requests.lazy.compactMap(\.searchTerm).compactMap { SiteHost($0) }.first
+        requests.lazy.compactMap(\.host).first
     }
 
     /// `TEAMID.bundle.id` with no scheme or path, as saves from app requests
@@ -60,32 +61,22 @@ public enum SiteMatcher {
     // MARK: - Tiers
 
     static func strictCandidates(_ candidates: [SiteCandidate], for requests: [SiteRequest]) -> [SiteCandidate] {
-        // A request host is normalized once more here; on `www.www.example.com`
-        // that drops a second `www`.
-        let terms = Set(requests.compactMap(\.searchTerm).map(SiteHost.normalize))
+        let requested = requestHosts(requests)
         return candidates.filter { candidate in
-            let hosts = hosts(of: candidate)
-            return terms.contains { term in
-                hosts.contains { $0 == term || $0.hasSuffix(".\(term)") }
+            hosts(of: candidate).contains { stored in
+                requested.contains { stored == $0 || stored.isSubdomain(of: $0) }
             }
         }
     }
 
-    /// Other subdomains of a requested registrable domain. Never filled
-    /// without the user choosing.
+    /// Stored hosts on a requested registrable domain. Never filled without
+    /// the user choosing.
     static func possibleCandidates(_ candidates: [SiteCandidate], for requests: [SiteRequest]) -> [SiteCandidate] {
-        let requestedHosts = requestHosts(requests)
-        let requestedDomains = Set(requestedHosts.compactMap(SiteHost.suffixListDomain(of:)))
+        let requestedDomains = Set(requestHosts(requests).compactMap(\.registrableDomain))
         guard !requestedDomains.isEmpty else { return [] }
 
         return candidates.filter { candidate in
-            hosts(of: candidate).contains { storedHost in
-                guard let storedDomain = SiteHost.suffixListDomain(of: storedHost),
-                      requestedDomains.contains(storedDomain) else { return false }
-                return requestedHosts.contains { requestedHost in
-                    storedHost != requestedHost && storedHost.contains(".") && requestedHost.contains(".")
-                }
-            }
+            hosts(of: candidate).contains { $0.registrableDomain.map(requestedDomains.contains) ?? false }
         }
     }
 
@@ -97,7 +88,7 @@ public enum SiteMatcher {
             let stored = hosts(of: candidate)
             for (index, host) in requested.enumerated() {
                 if stored.contains(host) { return index * 2 }
-                if stored.contains(where: { $0.hasSuffix(".\(host)") }) { return index * 2 + 1 }
+                if stored.contains(where: { $0.isSubdomain(of: host) }) { return index * 2 + 1 }
             }
             return Int.max
         }
@@ -109,11 +100,11 @@ public enum SiteMatcher {
 
     // MARK: - Hosts
 
-    static func hosts(of candidate: SiteCandidate) -> [String] {
-        candidate.urls.filter { !isStoredAppIdentifier($0) }.compactMap(SiteHost.parse)
+    static func hosts(of candidate: SiteCandidate) -> [SiteHost] {
+        candidate.urls.filter { !isStoredAppIdentifier($0) }.compactMap { SiteHost($0) }
     }
 
-    static func requestHosts(_ requests: [SiteRequest]) -> [String] {
-        requests.compactMap(\.searchTerm).compactMap(SiteHost.parse)
+    static func requestHosts(_ requests: [SiteRequest]) -> [SiteHost] {
+        requests.compactMap(\.host)
     }
 }

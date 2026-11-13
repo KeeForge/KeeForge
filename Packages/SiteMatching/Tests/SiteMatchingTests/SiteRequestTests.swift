@@ -1,17 +1,27 @@
 import XCTest
 @testable import SiteMatching
 
+/// Requests R1–R3.
 final class SiteRequestTests: XCTestCase {
 
-    func testSearchTerm() {
-        XCTAssertEqual(SiteRequest.domain("GitHub.com.").searchTerm, "github.com")
-        XCTAssertEqual(SiteRequest.domain("www.example.co.uk").searchTerm, "example.co.uk")
-        XCTAssertEqual(SiteRequest.url("https://github.com/login").searchTerm, "github.com")
-        XCTAssertEqual(SiteRequest.url("not a url").searchTerm, "not a url", "A URL with no host is matched as given")
-        XCTAssertNil(SiteRequest.app("A1B2C3D4E5.com.mybank.app").searchTerm)
+    func testR1RequestHostIsNormalizedOnce() {
+        XCTAssertEqual(SiteRequest.domain("GitHub.com.").host?.name, "github.com")
+        XCTAssertEqual(SiteRequest.domain("www.example.co.uk").host?.name, "example.co.uk")
+        XCTAssertEqual(SiteRequest.domain("www.www.example.com").host?.name, "www.example.com")
+        XCTAssertEqual(SiteRequest.domain("中国.cn").host?.name, "xn--fiqs8s.cn")
+        XCTAssertEqual(SiteRequest.url("https://github.com/login").host?.name, "github.com")
+        XCTAssertEqual(SiteRequest.url("https://www.www.example.com/a").host?.name, "www.example.com")
+        XCTAssertNil(SiteRequest.url("not a url").host)
+        XCTAssertNil(SiteRequest.url("ftp://files.example.com").host)
+        XCTAssertNil(SiteRequest.url("https://my site.com").host)
+        XCTAssertNil(SiteRequest.domain("").host)
     }
 
-    func testWebsiteKeepsOnlySchemeHostAndPort() {
+    func testR2AppRequestHasNoHost() {
+        XCTAssertNil(SiteRequest.app("A1B2C3D4E5.com.mybank.app").host)
+    }
+
+    func testR3WebsiteKeepsOnlySchemeHostAndPort() {
         let cases: [(request: SiteRequest, host: String?, url: String?)] = [
             (.url("https://Login.Example.com/path?token=abc#frag"), "login.example.com", "https://login.example.com"),
             (.url("http://user:pw@intranet.local:8080/login"), "intranet.local:8080", "http://intranet.local:8080"),

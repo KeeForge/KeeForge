@@ -879,6 +879,97 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         )
     }
 
+    // MARK: - Site-matching rule changes
+
+    /// Identities exist only for unlocked entries, so a site-matching rule
+    /// change that alters them reaches the store at each database's next
+    /// unlock, whose refresh must drop what the earlier rules published. Here
+    /// those rules published `foo.1.2.3.4` and `www.1.1` (as `1.1`), which
+    /// the URL Standard reads as IP addresses, and the host of an Android app
+    /// URL (`Packages/SiteMatching`, H1, H6, P1).
+    func testRefreshAfterASiteMatchingRuleChangeDropsIdentitiesTheEarlierRulesPublished() async throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
+        enum Shape: CaseIterable { case incremental, nonIncremental, unreadable }
+        for shape in Shape.allCases {
+            await resetCredentialIdentityStoreState()
+            DatabaseListStore.clearAll()
+            let fake = installFake()
+            let databaseID = try registerDatabase(named: "rules.kdbx")
+            let entry = makeEntry(
+                title: "Router",
+                url: "http://foo.1.2.3.4",
+                username: "admin",
+                hasPassword: true,
+                hasTOTP: true,
+                customFields: [
+                    "KP2A_URL_1": "https://www.1.1",
+                    "KP2A_URL_2": "https://login.example.com",
+                    "KP2A_URL_3": "androidapp://com.mybank.app",
+                ]
+            )
+            let recordIdentifier = CredentialRecordIdentifier(databaseID: databaseID, entryID: entry.id).encoded
+            let earlierIdentities: [any ASCredentialIdentity] = [
+                ASPasswordCredentialIdentity(
+                    serviceIdentifier: ASCredentialServiceIdentifier(identifier: "https://foo.1.2.3.4", type: .URL),
+                    user: "admin",
+                    recordIdentifier: recordIdentifier
+                ),
+                ASPasswordCredentialIdentity(
+                    serviceIdentifier: ASCredentialServiceIdentifier(identifier: "https://com.mybank.app", type: .URL),
+                    user: "admin",
+                    recordIdentifier: recordIdentifier
+                ),
+                ASOneTimeCodeCredentialIdentity(
+                    serviceIdentifier: ASCredentialServiceIdentifier(identifier: "foo.1.2.3.4", type: .domain),
+                    label: "Router (admin)",
+                    recordIdentifier: recordIdentifier
+                ),
+                ASOneTimeCodeCredentialIdentity(
+                    serviceIdentifier: ASCredentialServiceIdentifier(identifier: "1.1", type: .domain),
+                    label: "Router (admin)",
+                    recordIdentifier: recordIdentifier
+                ),
+            ]
+            let otherDatabaseIdentities = CredentialIdentityStoreManager.passwordIdentities(
+                for: makeEntry(title: "Other", url: "https://other.example", username: "other", hasPassword: true),
+                in: UUID()
+            )
+
+            let mutations: Int
+            switch shape {
+            case .incremental:
+                fake.stored = earlierIdentities + otherDatabaseIdentities
+                mutations = 2
+            case .nonIncremental:
+                fake.supportsIncrementalUpdatesValue = false
+                fake.stored = earlierIdentities
+                mutations = 1
+            case .unreadable:
+                fake.stored = earlierIdentities
+                fake.enumerationError = .nonConformingIdentities(count: earlierIdentities.count)
+                mutations = 1
+            }
+
+            let refresh = expectMutations(mutations, on: fake, description: "Refresh for \(shape)")
+            CredentialIdentityStoreManager.populate(with: [entry], for: databaseID)
+            await fulfillment(of: [refresh], timeout: 1)
+
+            let published = fake.stored
+                .filter { $0.recordIdentifier == recordIdentifier }
+                .map { identity -> String in
+                    let kind = identity is ASOneTimeCodeCredentialIdentity ? "code" : "password"
+                    return "\(kind) \(identity.serviceIdentifier.identifier)"
+                }
+            XCTAssertEqual(Set(published), ["password https://login.example.com", "code login.example.com"], "\(shape)")
+            if shape == .incremental {
+                XCTAssertEqual(fake.stored.count, published.count + otherDatabaseIdentities.count, "Other database kept")
+            }
+        }
+    }
+
     func testPopulateWithNoEligibleEntriesEmptiesStore() async {
         let fake = installFake()
 
