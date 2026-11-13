@@ -104,9 +104,11 @@ final class DatabaseListViewModel {
         return reference
     }
 
-    func removeDatabase(_ reference: DatabaseReference) {
-        DatabaseListStore.remove(id: reference.id)
+    @discardableResult
+    func removeDatabase(_ reference: DatabaseReference) -> Bool {
+        let removed = DatabaseListStore.remove(id: reference.id)
         reload()
+        return removed
     }
 
     func moveDatabases(from source: IndexSet, to destination: Int) {

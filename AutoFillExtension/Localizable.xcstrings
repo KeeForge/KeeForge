@@ -1062,6 +1062,64 @@
         }
       }
     },
+    "AutoFill changes need recovery. Open Database Details to export their original encrypted snapshots or deliberately discard them before trying again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill-Änderungen müssen wiederhergestellt werden. Öffne die Datenbankdetails, um ihre ursprünglichen verschlüsselten Momentaufnahmen zu exportieren oder sie vor einem neuen Versuch bewusst zu verwerfen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill changes need recovery. Open Database Details to export their original encrypted snapshots or deliberately discard them before trying again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los cambios de Autorrelleno requieren recuperación. Abre Detalles de la base de datos para exportar sus instantáneas cifradas originales o descartarlas deliberadamente antes de volver a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les modifications de remplissage automatique nécessitent une récupération. Ouvrez Détails de la base de données pour exporter leurs instantanés chiffrés d'origine ou les abandonner volontairement avant de réessayer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le modifiche di Riempimento automatico richiedono un recupero. Apri Dettagli database per esportare le istantanee cifrate originali o scartarle deliberatamente prima di riprovare."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力の変更には復元が必要です。「データベースの詳細」で元の暗号化スナップショットを書き出すか、内容を確認して破棄してから、もう一度お試しください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменения автозаполнения требуют восстановления. Откройте сведения о базе данных, чтобы экспортировать исходные зашифрованные снимки или намеренно удалить их перед повторной попыткой."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动填充更改需要恢复。打开“数据库详细信息”，导出原始加密快照，或在重试之前明确选择丢弃。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動填寫更改需要復原。打開「資料庫詳細資訊」，輸出原始加密快照，或在重試之前明確選擇捨棄。"
+          }
+        }
+      }
+    },
     "AutoFill couldn't read the key file saved for this database. Open the database in the KeeForge app and check that its key file is still available." : {
       "localizations" : {
         "de" : {
@@ -2212,6 +2270,180 @@
         }
       }
     },
+    "Discard AutoFill Changes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill-Änderungen verwerfen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard AutoFill Changes"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descartar cambios de Autorrelleno"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abandonner les modifications de remplissage automatique"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scarta modifiche di Riempimento automatico"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力の変更を破棄"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить изменения автозаполнения"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "丢弃自动填充更改"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "捨棄自動填寫更改"
+          }
+        }
+      }
+    },
+    "Discard AutoFill Changes?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill-Änderungen verwerfen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard AutoFill Changes?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Descartar cambios de Autorrelleno?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abandonner les modifications de remplissage automatique ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scartare le modifiche di Riempimento automatico?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力の変更を破棄しますか？"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить изменения автозаполнения?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "丢弃自动填充更改？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "捨棄自動填寫更改？"
+          }
+        }
+      }
+    },
+    "Discard AutoFill Changes…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill-Änderungen verwerfen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard AutoFill Changes…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descartar cambios de Autorrelleno…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abandonner les modifications de remplissage automatique…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scarta modifiche di Riempimento automatico…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力の変更を破棄…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить изменения автозаполнения…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "丢弃自动填充更改…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "捨棄自動填寫更改…"
+          }
+        }
+      }
+    },
     "Disconnected" : {
       "localizations" : {
         "de" : {
@@ -2260,6 +2492,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已中斷連線"
+          }
+        }
+      }
+    },
+    "Each source is a full encrypted database snapshot. Open exported files with their original master key. Exporting does not discard the source." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jede Quelle ist eine vollständige verschlüsselte Momentaufnahme der Datenbank. Verwende zum Öffnen des Exports ihren ursprünglichen Hauptschlüssel. Beim Exportieren bleibt die Quelle erhalten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each source is a full encrypted database snapshot. Open exported files with their original master key. Exporting does not discard the source."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada origen es una instantánea cifrada completa de la base de datos. Usa su clave maestra original para abrir la exportación. Exportar no descarta el origen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque source est un instantané chiffré complet de la base de données. Utilisez sa clé principale d'origine pour ouvrir l'export. L'exportation ne supprime pas la source."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ogni origine è un'istantanea cifrata completa del database. Usa la chiave principale originale per aprire l'esportazione. L'esportazione non elimina l'origine."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各ソースはデータベース全体の暗号化スナップショットです。書き出したファイルは元のマスターキーで開いてください。書き出してもソースは破棄されません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каждый источник — полный зашифрованный снимок базы данных. Используйте исходный мастер-ключ для открытия экспорта. Экспорт не удаляет источник."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每个来源都是数据库的完整加密快照。请使用原始主密钥打开导出的文件。导出不会丢弃来源。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每個來源都是資料庫的完整加密快照。請使用原始主密鑰打開輸出的檔案。輸出不會捨棄來源。"
           }
         }
       }
@@ -2676,6 +2966,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已過期"
+          }
+        }
+      }
+    },
+    "Export AutoFill Snapshot…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill-Momentaufnahme exportieren …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export AutoFill Snapshot…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar instantánea de Autorrelleno…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporter l'instantané de remplissage automatique…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esporta istantanea di Riempimento automatico…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力スナップショットを書き出す…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Экспортировать снимок автозаполнения…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出自动填充快照…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸出自動填寫快照…"
           }
         }
       }
@@ -5640,6 +5988,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新產生"
+          }
+        }
+      }
+    },
+    "Removal paused. Export or discard these AutoFill changes, then remove the database again. Local writes are disabled." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Entfernen wurde angehalten. Exportiere oder verwirf diese AutoFill-Änderungen und entferne die Datenbank dann erneut. Lokale Schreibvorgänge sind deaktiviert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removal paused. Export or discard these AutoFill changes, then remove the database again. Local writes are disabled."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La eliminación está pausada. Exporta o descarta estos cambios de Autorrelleno y vuelve a eliminar la base de datos. Las escrituras locales están desactivadas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suppression suspendue. Exportez ou abandonnez ces modifications de remplissage automatique, puis supprimez à nouveau la base de données. Les écritures locales sont désactivées."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimozione sospesa. Esporta o scarta queste modifiche di Riempimento automatico, poi rimuovi nuovamente il database. Le scritture locali sono disabilitate."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除は一時停止しています。自動入力の変更を書き出すか破棄してから、もう一度データベースを削除してください。ローカルへの書き込みは無効です。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удаление приостановлено. Экспортируйте или удалите эти изменения автозаполнения, затем снова удалите базу данных. Локальная запись отключена."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除已暂停。请导出或丢弃这些自动填充更改，然后再次移除数据库。本地写入已停用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除已暫停。請輸出或捨棄這些自動填寫更改，然後再次移除資料庫。本機寫入已停用。"
           }
         }
       }
@@ -9074,6 +9480,64 @@
         }
       }
     },
+    "This permanently deletes the selected AutoFill snapshots and their recovery record. Changes not saved elsewhere will be lost. New snapshots added after this confirmation was opened are kept." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die ausgewählten AutoFill-Momentaufnahmen und ihr Wiederherstellungsdatensatz werden endgültig gelöscht. Nicht anderweitig gesicherte Änderungen gehen verloren. Momentaufnahmen, die nach dem Öffnen dieser Bestätigung hinzugefügt wurden, bleiben erhalten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This permanently deletes the selected AutoFill snapshots and their recovery record. Changes not saved elsewhere will be lost. New snapshots added after this confirmation was opened are kept."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esto elimina permanentemente las instantáneas de Autorrelleno seleccionadas y su registro de recuperación. Se perderán los cambios no guardados en otro lugar. Se conservan las instantáneas añadidas después de abrir esta confirmación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les instantanés de remplissage automatique sélectionnés et leur enregistrement de récupération seront définitivement supprimés. Les modifications non enregistrées ailleurs seront perdues. Les instantanés ajoutés après l'ouverture de cette confirmation seront conservés."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le istantanee di Riempimento automatico selezionate e il relativo record di recupero verranno eliminati definitivamente. Le modifiche non salvate altrove andranno perse. Le istantanee aggiunte dopo l'apertura di questa conferma verranno conservate."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した自動入力スナップショットと復元記録が完全に削除されます。他に保存されていない変更は失われます。この確認画面を開いた後に追加されたスナップショットは保持されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбранные снимки автозаполнения и запись восстановления будут удалены безвозвратно. Изменения, не сохранённые в другом месте, будут потеряны. Снимки, добавленные после открытия этого подтверждения, сохранятся."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这会永久删除所选自动填充快照及其恢复记录。未保存在其他位置的更改将丢失。打开此确认界面后添加的新快照会被保留。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這會永久刪除所選自動填寫快照及其復原記錄。未儲存在其他位置的更改將遺失。打開此確認畫面後新增的快照會被保留。"
+          }
+        }
+      }
+    },
     "Title" : {
       "localizations" : {
         "de" : {
@@ -9226,6 +9690,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 KeeForge 的設定中為資料庫開啟自動填寫，即可在此處使用。"
+          }
+        }
+      }
+    },
+    "Unavailable" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht verfügbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unavailable"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No disponible"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indisponible"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non disponibile"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "利用できません"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недоступно"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不可用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法使用"
           }
         }
       }

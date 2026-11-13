@@ -2,10 +2,13 @@ import SwiftUI
 
 enum DatabaseExportRequest: Identifiable, Equatable {
     case currentCopy(DatabaseReference)
+    case pendingLocal(PendingLocalSaveStore.Receipt, DatabaseReference)
     case backup(DatabaseExportService.Backup, DatabaseReference)
 
     var id: String {
         switch self {
+        case .pendingLocal(let receipt, let reference):
+            "pending-local-\(reference.id)-\(receipt.id)"
         case .currentCopy(let reference):
             "current-copy-\(reference.id.uuidString)"
         case .backup(let backup, let reference):
@@ -102,6 +105,13 @@ private struct DatabaseExportPresenter: ViewModifier {
         do {
             let loaded: DatabaseExportService.ExportPayload
             switch request {
+            case .pendingLocal(let receipt, let reference):
+                let data = try await Task.detached {
+                    try PendingLocalSaveStore.export(receipt, for: reference.id)
+                }.value
+                loaded = DatabaseExportService.ExportPayload(
+                    data: data, suggestedFilename: "\(reference.displayName)-autofill-snapshot.kdbx"
+                )
             case .currentCopy(let reference):
                 loaded = try await DatabaseExportService.exportCurrentCopy(for: reference)
             case .backup(let backup, let reference):

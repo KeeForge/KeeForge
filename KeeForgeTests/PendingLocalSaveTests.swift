@@ -20,6 +20,86 @@ final class PendingLocalSaveTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testExclusiveSourceIdentityNeverReplacesAnExistingSnapshot() throws {
+        let id = UUID()
+        let sourceID = UUID()
+        let first = try PendingLocalSaveStore.add(Data("A".utf8), for: id, sourceID: sourceID)
+        XCTAssertThrowsError(try PendingLocalSaveStore.add(Data("B".utf8), for: id, sourceID: sourceID))
+        XCTAssertEqual(try Data(contentsOf: first.fileURL), Data("A".utf8))
+        XCTAssertEqual(PendingLocalSaveStore.saves(for: id).count, 1)
+    }
+
+    func testReceiptExportAndDiscardRefuseAReplacedSource() throws {
+        let id = UUID()
+        let first = try PendingLocalSaveStore.add(Data("A".utf8), for: id)
+        let snapshot = try PendingLocalSaveStore.recovery(for: id)
+        let receipt = try XCTUnwrap(snapshot.receipts.first)
+        try Data("B".utf8).write(to: first.fileURL, options: .atomic)
+        XCTAssertThrowsError(try PendingLocalSaveStore.export(receipt, for: id))
+        XCTAssertThrowsError(try PendingLocalSaveStore.discard(snapshot))
+        XCTAssertEqual(try Data(contentsOf: first.fileURL), Data("B".utf8))
+    }
+
+    func testSnapshotDiscardKeepsSourcesAddedAfterConfirmation() throws {
+        let id = UUID()
+        let first = try PendingLocalSaveStore.add(Data("A".utf8), for: id)
+        let confirmed = try PendingLocalSaveStore.recovery(for: id)
+        let later = try PendingLocalSaveStore.add(Data("B".utf8), for: id)
+        try PendingLocalSaveStore.discard(confirmed)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: first.fileURL.path))
+        XCTAssertEqual(try Data(contentsOf: later.fileURL), Data("B".utf8))
+        XCTAssertEqual(PendingLocalSaveStore.saves(for: id), [later])
+    }
+
+    func testRevocationFencesAReplacementAndPreventsSourceAndReferenceResurrection() throws {
+        let url = try makeScratchDatabaseCopy()
+        let reference = try DatabaseListStore.add(url: url)
+        let source = try PendingLocalSaveStore.add(Data("A".utf8), for: reference.id)
+        let original = try Data(contentsOf: url)
+        XCTAssertFalse(DatabaseListStore.remove(id: reference.id), "Ordinary removal is not consent to lose AutoFill changes")
+        XCTAssertThrowsError(try LocalDatabaseSaver.replaceFileAtomically(
+            Data("late replacement".utf8), at: url, expectedSHA512: FileDigest.sha512(original),
+            authorization: .init(databaseID: reference.id, receipts: nil)
+        ))
+        XCTAssertEqual(try Data(contentsOf: url), original)
+        XCTAssertThrowsError(try PendingLocalSaveStore.add(Data("late add".utf8), for: reference.id))
+        XCTAssertEqual(try Data(contentsOf: source.fileURL), Data("A".utf8))
+        try PendingLocalSaveStore.discard(PendingLocalSaveStore.recovery(for: reference.id))
+        XCTAssertTrue(DatabaseListStore.remove(id: reference.id))
+        DatabaseListStore.update(reference)
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
+        XCTAssertThrowsError(try PendingLocalSaveStore.add(Data("stale add".utf8), for: reference.id))
+    }
+
+    func testUnknownOwnerVersionBlocksWritesButExactEncryptedExportAndExplicitDiscardRemainAvailable() throws {
+        let id = UUID()
+        let source = try PendingLocalSaveStore.add(Data("encrypted".utf8), for: id)
+        let owner = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(id.uuidString)/owner.json")
+        try Data(#"{"version":999,"removed":false}"#.utf8).write(to: owner, options: .atomic)
+        XCTAssertTrue(PendingLocalSaveStore.hasSaves(for: id))
+        XCTAssertThrowsError(try PendingLocalSaveStore.add(Data("new".utf8), for: id))
+        let snapshot = try PendingLocalSaveStore.recovery(for: id)
+        XCTAssertTrue(snapshot.ownerUnavailable)
+        let receipt = try XCTUnwrap(snapshot.receipts.first)
+        XCTAssertEqual(try PendingLocalSaveStore.export(receipt, for: id), Data("encrypted".utf8))
+        try PendingLocalSaveStore.discard(snapshot)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.fileURL.path))
+        XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: id))
+    }
+
+    func testLegacyTimestampSourceStillProducesAnExactReceiptAndExportWithoutUnlocking() throws {
+        let id = UUID()
+        let directory = AppGroupContainer.url.appendingPathComponent("pending-local-saves/\(id.uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let bytes = try Data(contentsOf: makeScratchDatabaseCopy())
+        let url = directory.appendingPathComponent("20261113-120000-000001.kdbx")
+        try bytes.write(to: url, options: .atomic)
+        let snapshot = try PendingLocalSaveStore.recovery(for: id)
+        XCTAssertEqual(snapshot.receipts.count, 1)
+        XCTAssertEqual(try PendingLocalSaveStore.export(XCTUnwrap(snapshot.receipts.first), for: id), bytes)
+        XCTAssertEqual(PendingLocalSaveStore.saves(for: id).first?.fileURL.lastPathComponent, url.lastPathComponent)
+    }
+
     // MARK: - Store
 
     func testAddKeepsEncryptedBytesUnderTheGroupContainerOldestFirst() throws {
@@ -59,7 +139,10 @@ final class PendingLocalSaveTests: XCTestCase {
         try PendingLocalSaveStore.add(Data("removed".utf8), for: reference.id)
         try PendingLocalSaveStore.add(Data("kept".utf8), for: kept)
 
-        DatabaseListStore.remove(id: reference.id)
+        XCTAssertFalse(DatabaseListStore.remove(id: reference.id))
+        XCTAssertTrue(PendingLocalSaveStore.hasSaves(for: reference.id))
+        try PendingLocalSaveStore.discard(PendingLocalSaveStore.recovery(for: reference.id))
+        XCTAssertTrue(DatabaseListStore.remove(id: reference.id))
 
         XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
         XCTAssertTrue(PendingLocalSaveStore.hasSaves(for: kept))
@@ -178,7 +261,7 @@ final class PendingLocalSaveTests: XCTestCase {
 
         var environment = LocalDatabaseSaver.Environment.live
         environment.resolveLocation = { LocalDatabaseSaver.sharedCopyLocation(for: $0) }
-        environment.replaceFileAtomically = { _, _, _ in
+        environment.replaceFileAtomically = { _, _, _, authorization in
             throw CocoaError(.fileWriteOutOfSpace)
         }
 

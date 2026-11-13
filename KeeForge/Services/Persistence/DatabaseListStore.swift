@@ -319,15 +319,26 @@ enum DatabaseListStore {
         )
     }
 
-    static func remove(id: UUID) {
+    @discardableResult
+    static func remove(id: UUID) -> Bool {
         withStateLock {
-            let currentDatabases = loadDatabases()
-            guard let removedReference = currentDatabases.first(where: { $0.id == id }) else { return }
-            // Computed before the registry mutation drops the reference; also
-            // decides the legacy sweep below (legacy bare-UUID identities can
-            // only have been published by the then-active database — see
-            // `setAutoFillEnabled`).
+            _ = loadDatabases()
+            do {
+                guard try PendingLocalSaveStore.revokeForRemoval(id) else { return false }
+            } catch { return false }
+            // Removal must distinguish an absent reference from an unreadable registry.
+            let currentDatabases: [DatabaseReference]
+            do {
+                currentDatabases = normalized(try JSONDecoder().decode(
+                    [DatabaseReference].self, from: Data(contentsOf: databaseListURL)
+                ))
+            } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+                return true
+            } catch { return false }
+            guard let removedReference = currentDatabases.first(where: { $0.id == id }) else { return true }
             let wasActiveAutoFillDatabase = activeAutoFillDatabase?.id == id
+            let remainingDatabases = currentDatabases.filter { $0.id != id }
+            guard saveDatabases(remainingDatabases) else { return false }
 
             KeychainService.deleteCompositeKey(for: removedReference.id)
             if let legacyFilename = removedReference.legacyKeychainFilename {
@@ -338,13 +349,10 @@ enum DatabaseListStore {
             try? FileManager.default.removeItem(at: cacheLocation(for: removedReference))
             try? FileManager.default.removeItem(at: databaseBackupDirectoryURL(for: removedReference))
             try? PendingUploadQueue.removeAllMarkers(for: removedReference.id)
-            PendingLocalSaveStore.removeAll(for: removedReference.id)
 
-            let remainingDatabases = currentDatabases.filter { $0.id != id }
             if activeAutoFillDatabaseID == id {
                 activeAutoFillDatabaseID = nil
             }
-            saveDatabases(remainingDatabases)
 
             // Every removal drops the database's published identities —
             // targeted, works while locked, leaves other databases'
@@ -354,11 +362,13 @@ enum DatabaseListStore {
                 forDatabase: id,
                 includingLegacyIdentifiers: wasActiveAutoFillDatabase
             )
+            return true
         }
     }
 
     static func update(_ reference: DatabaseReference) {
         withStateLock {
+            guard PendingLocalSaveStore.isRevoked(reference.id) == false else { return }
             var currentDatabases = loadDatabases()
 
             if let index = currentDatabases.firstIndex(where: { $0.id == reference.id }) {

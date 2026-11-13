@@ -434,11 +434,11 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let cachePath = cacheURL.standardizedFileURL.resolvingSymlinksInPath().path
         var environment = LocalDatabaseSaver.Environment.live
         let liveReplace = environment.replaceFileAtomically
-        environment.replaceFileAtomically = { data, url, expectedSHA512 in
+        environment.replaceFileAtomically = { data, url, expectedSHA512, authorization in
             if url.standardizedFileURL.resolvingSymlinksInPath().path == cachePath {
                 cacheWrites.increment()
             }
-            return try liveReplace(data, url, expectedSHA512)
+            return try liveReplace(data, url, expectedSHA512, authorization)
         }
         let liveCacheCopy = environment.cacheDatabaseCopy
         environment.cacheDatabaseCopy = { data, reference in
@@ -633,6 +633,23 @@ final class LocalDatabaseSaverTests: XCTestCase {
         }
     }
 
+    func testRemovalDuringRealStagingPreventsTheFinalReplacement() throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try DatabaseListStore.add(url: databaseURL)
+        let original = try Data(contentsOf: databaseURL)
+        var io = LocalDatabaseSaver.ReplacementIO()
+        io.stage = { data, stagingURL in
+            try writeAtomicallyAndDurably(data, to: stagingURL)
+            XCTAssertTrue(DatabaseListStore.remove(id: reference.id))
+        }
+        XCTAssertThrowsError(try LocalDatabaseSaver.replaceFileAtomically(
+            Data("late ciphertext".utf8), at: databaseURL, expectedSHA512: FileDigest.sha512(original),
+            authorization: .init(databaseID: reference.id, receipts: nil), io: io
+        ))
+        XCTAssertEqual(try Data(contentsOf: databaseURL), original)
+        XCTAssertTrue(PendingLocalSaveStore.isRevoked(reference.id))
+    }
+
     func testSaveAtomicReplaceDoesNotLeaveTempFilesOnSuccess() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
@@ -664,7 +681,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             entryTitle: "Failure Entry"
         )
         var environment = LocalDatabaseSaver.Environment.live
-        environment.replaceFileAtomically = { _, _, _ in
+        environment.replaceFileAtomically = { _, _, _, authorization in
             throw CocoaError(.fileWriteOutOfSpace)
         }
 

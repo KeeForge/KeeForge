@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 enum CoordinatedFileReader {
@@ -160,4 +161,79 @@ private actor FirstResult<Value: Sendable> {
             continuation.resume(with: result)
         }
     }
+}
+
+func writeAtomicallyAndDurably(_ data: Data, to destinationURL: URL) throws {
+    let fileManager = FileManager.default
+    let directoryURL = destinationURL.deletingLastPathComponent()
+    try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true, attributes: nil)
+
+    let tempURL = directoryURL.appendingPathComponent(".\(UUID().uuidString).tmp", isDirectory: false)
+    defer {
+        try? fileManager.removeItem(at: tempURL)
+    }
+
+    try data.withUnsafeBytes { buffer in
+        let fd = open(tempURL.path, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else {
+            throw POSIXError(.EIO)
+        }
+        defer { close(fd) }
+
+        guard let baseAddress = buffer.bindMemory(to: UInt8.self).baseAddress else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+
+        var totalWritten = 0
+        while totalWritten < data.count {
+            let bytesWritten = write(fd, baseAddress.advanced(by: totalWritten), data.count - totalWritten)
+            if bytesWritten < 0 {
+                throw POSIXError(.EIO)
+            }
+            totalWritten += bytesWritten
+        }
+
+        if fsync(fd) != 0 {
+            throw POSIXError(.EIO)
+        }
+    }
+
+    if rename(tempURL.path, destinationURL.path) != 0 {
+        throw POSIXError(.EIO)
+    }
+
+    let directoryFD = open(directoryURL.path, O_RDONLY)
+    guard directoryFD >= 0 else {
+        throw POSIXError(.EIO)
+    }
+    defer { close(directoryFD) }
+
+    if fsync(directoryFD) != 0 {
+        throw POSIXError(.EIO)
+    }
+}
+
+func createDurableDirectory(at directory: URL) throws {
+    let manager = FileManager.default
+    if manager.fileExists(atPath: directory.path) {
+        try synchronizeDirectory(directory)
+        try synchronizeDirectory(directory.deletingLastPathComponent())
+        return
+    }
+    let parent = directory.deletingLastPathComponent()
+    try createDurableDirectory(at: parent)
+    do { try manager.createDirectory(at: directory, withIntermediateDirectories: false) }
+    catch {
+        var isDirectory: ObjCBool = false
+        guard manager.fileExists(atPath: directory.path, isDirectory: &isDirectory), isDirectory.boolValue else { throw error }
+    }
+    try synchronizeDirectory(directory)
+    try synchronizeDirectory(parent)
+}
+
+func synchronizeDirectory(_ directory: URL) throws {
+    let descriptor = Darwin.open(directory.path, O_RDONLY)
+    guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+    defer { Darwin.close(descriptor) }
+    guard fsync(descriptor) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
 }

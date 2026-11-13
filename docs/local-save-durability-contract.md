@@ -61,3 +61,50 @@ one atomic transaction in this layer. A crash between them can require the new
 password/key file or restoration from the old encrypted backup. Do not claim a
 recovery journal that this layer does not implement. Native signed app/AutoFill,
 Keychain and power-loss validation remain separate from headless CI evidence.
+
+## Pending-local admission and ownership
+
+Pending local sources stay in their existing store, including throughout recovery.
+An operation first obtains a durable admission containing an operation UUID, exact
+source receipts (immutable identity and SHA-512 of the bytes actually merged), the
+target baseline, and the observed master-key-change date. Admission precedes the
+saver. There is no automatic replay after admission survives an interruption.
+
+| State / event | Next state | Automatic save permitted |
+| --- | --- | --- |
+| Idle, exact inputs still owned | Admitted | One invocation using its token |
+| Admitted, durable saved output includes the receipts | Consume those sources and resolve admission | A future new operation |
+| Admitted, affirmative typed pre-replacement failure or conflict | Resolve admission, retain sources | A future retry |
+| Admitted, warning, unknown error, cancellation or crash | Recovery required (an interrupted admission has the same restriction) | No |
+| Recovery, explicit export | Unchanged; export reads the exact receipt, never mutable cache | No |
+| Recovery, separate confirmed destructive discard | Consume only the confirmed receipt snapshot and resolve its admission | A future new operation |
+
+A missing payload or unreadable checkpoint is a recovery state, never an empty
+store. Export works while locked and warns that each source is a complete encrypted
+snapshot requiring its original key. A failed export neither authorizes nor claims
+discard; a separate destructive decision can resolve irreparable records honestly.
+Sources added after a snapshot are excluded from that snapshot's discard/cleanup.
+
+A stable per-database flock protects exclusive immutable source creation, receipt
+validation, admission transitions, retirement and revocation. The lock order is
+DatabaseListStore's process lock -> pending-local flock; pending-local code never
+acquires the list lock. Parsing, KDF and awaits run outside flock. The final local
+replacement accessor acquires that same flock, validates the admission token and
+permanent removal tombstone, and holds it through replacement. Removal either
+precedes that accessor and prevents replacement, or follows the completed replace;
+it cannot invalidate a check and then allow a late replacement. Coordination is
+acquired before flock, and removal never enters file coordination while holding it.
+
+Removal revokes future writes durably. Unresolved sources/checkpoints require an
+explicit recovery/discard decision before reference removal can finish; generic
+list removal is not consent to destroy AutoFill changes. Revocation and recovery
+metadata survive removal attempts, so stale add/finalize paths cannot recreate
+payloads. Database-list transactions and cross-process list CAS remain outside
+this cut; a list write failure must remain observable and cannot undo revocation.
+
+The ownership foundation implements immutable creation, exact receipts, source
+export/discard and removal fencing. Its source-retirement record protects partial
+cleanup after a completed save; it is not admission of a save and does not prevent
+re-encryption after an unknown save outcome. Admission and truthful local outcomes
+must therefore be connected as one further vertical change before this full contract
+can be considered implemented.

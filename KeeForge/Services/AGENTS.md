@@ -43,6 +43,8 @@
 - Network egress is limited to cloud sync, opt-in favicon fetching, the user-submitted feedback form, and the direct Mac build's update check (root `AGENTS.md`). The extensions make no network requests.
 - `AutoFill/AutoFillDiagnostics` (DEBUG builds only) logs event names, flags, and counts, never entry data, URLs, or secrets.
 
+- Pending-local ownership, exact encrypted-source exports and permanent write revocation belong to `Persistence/PendingLocalSaveStore`. A local coordinated accessor holds its owner lock across the last revocation/receipt check and replacement. Generic database removal does not authorize destroying unresolved AutoFill changes.
+
 ## Tests
 
 - Save paths: `LocalDatabaseSaverTests`, `CloudDatabaseSaverTests`, `CloudSyncCoordinatorTests`, `DatabaseListStoreTests`.

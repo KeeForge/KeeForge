@@ -4,6 +4,8 @@
 
 ### Changes
 
+- AutoFill changes waiting for a local database can be exported as their original encrypted snapshots in Database Details. Removing a database preserves these changes until you explicitly discard them.
+
 - AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:
   - An entry for an IP address, such as a router, is suggested only on that exact address. Before, entries for other addresses ending in the same two numbers appeared as possible matches.
   - An entry for a subdomain is no longer suggested or filled on a parent that unrelated sites share, such as `localhost`, `github.io`, or `co.uk`.

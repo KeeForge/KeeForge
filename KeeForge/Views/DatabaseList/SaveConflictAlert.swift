@@ -3,6 +3,7 @@ import SwiftUI
 struct SaveConflictAlertModifier: ViewModifier {
     @Bindable var viewModel: DatabaseViewModel
     @State private var isPresented = false
+    @State private var showsLocalRecovery = false
 
     func body(content: Content) -> some View {
         content
@@ -93,12 +94,23 @@ struct SaveConflictAlertModifier: ViewModifier {
                     set: { _ in }
                 )
             ) {
+                if viewModel.pendingUploadMergeFailure == .localSourceRecovery {
+                    Button("Database Details") {
+                        viewModel.dismissPendingUploadMergeFailure()
+                        showsLocalRecovery = true
+                    }
+                    .accessibilityIdentifier("pending-local.recover")
+                }
                 Button("OK") {
                     viewModel.dismissPendingUploadMergeFailure()
                 }
                 .accessibilityIdentifier("pending-upload-merge.failure-ok")
             } message: {
                 Text(viewModel.pendingUploadMergeFailure?.message ?? "")
+            }
+            .sheet(isPresented: $showsLocalRecovery) {
+                DatabaseDetailsView(reference: viewModel.databaseReference)
+                    .macSheetFrame()
             }
     }
 }

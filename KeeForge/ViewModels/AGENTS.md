@@ -71,6 +71,8 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `commitPendingTag()` is never called from the tag field's setter (rewriting a focused field drops keystrokes), and `normalizedTags()` includes the pending token. Both editors share these rules.
 - `AppSettingsViewModel.reload()` reads persisted values without replaying effects.
 
+- Pending-local merge retirement uses the receipts for the actual bytes merged. A failed retirement still applies the installed SHA/tree while keeping a recovery requirement; it never turns cleanup into proof that the target was not saved. Removal failure retains the reference and opens Database Details for source recovery.
+
 ## Tests
 
 Unit classes in `../../KeeForgeTests/` are named `<Type>Tests`. Cover success, failure, cancellation, and stale completion there; keep UI tests for presentation, bindings, and focus. Non-obvious mappings:

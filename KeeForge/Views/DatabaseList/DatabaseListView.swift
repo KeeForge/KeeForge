@@ -454,7 +454,12 @@ struct DatabaseListView: View {
             presenting: pendingRemoval
         ) { target in
             Button("Remove", role: .destructive) {
-                viewModel.removeDatabase(target)
+                if viewModel.removeDatabase(target) == false {
+                    Task { @MainActor in
+                        await Task.yield()
+                        detailsReference = target
+                    }
+                }
                 pendingRemoval = nil
             }
             Button("Cancel", role: .cancel) {

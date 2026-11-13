@@ -107,6 +107,21 @@ The legitimate user selects databases, authorizes unlocks, chooses recipients, a
 
 Container paths below are relative to the OS-resolved location, not fixed device paths. They describe production behavior. Injected unit tests instead use `<temporary directory>/KeeForgeUnitTestAppGroup/group.com.keevault.shared` and the `group.com.keevault.shared.unit-tests` defaults suite. In production, failure to resolve the group directory falls back to the process temporary directory; defaults independently fall back to standard defaults if the suite is unavailable ([AppGroupContainer.swift:28](../KeeForge/Services/Persistence/AppGroupContainer.swift#L28)). Neither fallback guarantees app/extension sharing.
 
+Pending local AutoFill snapshots also live under `pending-local-saves/<database UUID>/`.
+New sources have an exclusive UUID parent and an unchanged timestamp `.kdbx` name;
+legacy flat sources remain readable. `pending-local-save-owners/<database UUID>/`
+contains a stable lock, permanent removal tombstone and versioned nonsecret retirement
+receipts (relative identity, inode and SHA-512). Database removal revokes late local
+writes before registry mutation and refuses to erase unresolved sources implicitly.
+The coordinated replace holds this owner lock through its final receipt/revocation
+check and replacement; the owner never takes the database-list lock. Partial source
+retirement remains a recovery requirement, including missing payloads. Exact encrypted
+source export is available without unlocking; destructive discard needs a separate
+snapshot-specific confirmation and never follows from export failure. App Group denial
+or unknown owner metadata blocks mutation instead of using the temporary fallback.
+These controls do not make database-list writes transactional or establish physical
+power-loss behavior ([PendingLocalSaveStore.swift](../KeeForge/Services/Persistence/PendingLocalSaveStore.swift)).
+
 | Deployment and resource | Effective location or configuration | Access and enforcing control | Evidence and limitation |
 | --- | --- | --- | --- |
 | App Group caches and metadata | `group.com.keevault.shared`: `database-list.json`, `databases/<database UUID>.kdbx`, `cloud-cache/<sanitized provider-account>/<SHA256(file ID)>.kdbx`, `Library/Application Support/backups/<database UUID>/`, and `pending-uploads/<database UUID>/<marker UUID>.json`. | App and extension share the container. Cache paths identify the database (UUID for local files; provider, account, and file ID for cloud files); backups and upload markers use database UUIDs. Each session retains its own revision and references its database's cache. KDBX protects vault contents; references, bookmarks, and upload metadata remain outside vault encryption. | [AppGroupContainer.swift:31](../KeeForge/Services/Persistence/AppGroupContainer.swift#L31), [DatabaseListStore.swift:19](../KeeForge/Services/Persistence/DatabaseListStore.swift#L19), [cache paths:1316](../KeeForge/Services/Persistence/DatabaseListStore.swift#L1316), [PendingUploadQueue.swift:407](../KeeForge/Services/Cloud/PendingUploadQueue.swift#L407). Temporary-directory fallback does not establish cross-process sharing. |

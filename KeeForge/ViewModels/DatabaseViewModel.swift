@@ -127,6 +127,7 @@ enum DatabaseMergeFailure: String, Error, Identifiable, Equatable, Sendable {
 /// leaves the upload and its bytes in place; a pending local save that cannot
 /// be merged has been moved into the backups by the time it is reported.
 enum PendingUploadMergeFailure: Error, Equatable, Sendable {
+    case localSourceRecovery
     /// The change's bytes are gone from this device, or were saved under a
     /// master key the database no longer uses.
     case changeUnavailable
@@ -154,6 +155,8 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
     /// would hand the user the version without their change.
     var message: String {
         switch self {
+        case .localSourceRecovery:
+            PendingLocalSaveStore.OwnershipError.recoveryRequired.localizedDescription
         case .changeUnavailable:
             String(localized: "The change saved through AutoFill is no longer stored on this device, or it was saved before the master key changed. Use Discard Pending Upload in the database list to clear the conflict.")
         case .changeUnidentified:
@@ -3220,6 +3223,15 @@ final class DatabaseViewModel {
         }
 
         let reference = databaseReference
+        do {
+            if try PendingLocalSaveStore.recovery(for: reference.id).needsRecovery {
+                pendingUploadMergeFailure = .localSourceRecovery
+                return .settledOrDeferred
+            }
+        } catch {
+            pendingUploadMergeFailure = .localSourceRecovery
+            return .settledOrDeferred
+        }
         let pendingSaves = PendingLocalSaveStore.saves(for: reference.id)
         guard pendingSaves.isEmpty == false,
               let localDraft = try? makeWorkingDraft() else {
@@ -3235,17 +3247,17 @@ final class DatabaseViewModel {
 
         var mergedRootGroup = localDraft.rootGroup
         var mergedMeta = localDraft.meta
-        var mergedSaves: [PendingLocalSaveStore.PendingSave] = []
+        var mergedReceipts: [PendingLocalSaveStore.Receipt] = []
         var unmergeableSaves: [(save: PendingLocalSaveStore.PendingSave, failure: DatabaseMergeFailure)] = []
         for pendingSave in pendingSaves {
-            guard let data = try? await Task.detached(priority: .userInitiated, operation: {
-                try CoordinatedFileReader.readData(from: pendingSave.fileURL)
+            guard let source = try? await Task.detached(priority: .userInitiated, operation: {
+                try PendingLocalSaveStore.read(pendingSave)
             }).value else {
                 continue
             }
             do {
                 let merged = try await Self.mergeRemoteOffMain(
-                    remoteData: data,
+                    remoteData: source.data,
                     compositeKey: compositeKey,
                     sessionKey: sessionKey,
                     localRootGroup: mergedRootGroup,
@@ -3254,7 +3266,7 @@ final class DatabaseViewModel {
                 )
                 mergedRootGroup = merged.rootGroup
                 mergedMeta = merged.meta
-                mergedSaves.append(pendingSave)
+                mergedReceipts.append(source.receipt)
             } catch let failure as DatabaseMergeFailure where failure != .sessionUnavailable {
                 unmergeableSaves.append((pendingSave, failure))
             } catch {
@@ -3264,22 +3276,18 @@ final class DatabaseViewModel {
 
         guard expectedLockCycleID == lockCycleID else { return .settledOrDeferred }
 
-        if mergedSaves.isEmpty == false {
+        if mergedReceipts.isEmpty == false {
             let mergedDraft = DatabaseDraft(
                 rootGroup: mergedRootGroup,
                 meta: mergedMeta,
                 sessionKey: sessionKey,
                 binaryPoolFields: localBinaryPoolFields
             )
-            let saveResult = try? await localSaveOperation(
-                mergedDraft,
-                reference,
-                compositeKey,
-                openTimeSHA512,
-                nil,
-                nil,
-                nil
-            )
+            let saveResult = try? await PendingLocalSaveStore.$mergingReceipts.withValue(mergedReceipts) {
+                try await localSaveOperation(
+                    mergedDraft, reference, compositeKey, openTimeSHA512, nil, nil, nil
+                )
+            }
             guard case .saved(let newSHA512, let expressKey)? = saveResult else {
                 if case .conflict? = saveResult {
                     return .fileChangedSinceOpen
@@ -3288,10 +3296,15 @@ final class DatabaseViewModel {
             }
 
             // Not gated on the lock cycle: the file holds these saves now.
-            let resolvedSaves = mergedSaves
-            await Task.detached(priority: .userInitiated) {
-                resolvedSaves.forEach(PendingLocalSaveStore.remove)
-            }.value
+            let receipts = mergedReceipts
+            var cleanupFailed = false
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try PendingLocalSaveStore.consume(receipts, for: reference.id)
+                }.value
+            } catch {
+                cleanupFailed = true
+            }
             guard expectedLockCycleID == lockCycleID else { return .settledOrDeferred }
 
             replaceExpressUnlockKeyAfterSave(with: expressKey)
@@ -3302,6 +3315,10 @@ final class DatabaseViewModel {
             draft = draftReplayingEditsArriving(after: localDraft, onto: mergedDraft)
             refreshDatabaseReference()
             populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
+            if cleanupFailed {
+                pendingUploadMergeFailure = .localSourceRecovery
+                return .settledOrDeferred
+            }
         }
 
         for unmergeable in unmergeableSaves {

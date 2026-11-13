@@ -101,6 +101,11 @@ enum LocalDatabaseSaver {
         case changed(currentData: Data)
     }
 
+    struct ReplacementAuthorization: Sendable {
+        let databaseID: UUID
+        let receipts: [PendingLocalSaveStore.Receipt]?
+    }
+
     struct Environment: Sendable {
         var beginBackgroundTask: @MainActor @Sendable (String) -> BackgroundTaskHandle
         var endBackgroundTask: @MainActor @Sendable (BackgroundTaskHandle) -> Void
@@ -116,7 +121,7 @@ enum LocalDatabaseSaver {
         /// Replaces the file only while it still hashes to the expected
         /// SHA-512 (nil: unconditionally), checked inside the same coordinated
         /// write so no other coordinated writer can land in between.
-        var replaceFileAtomically: @Sendable (_ data: Data, _ url: URL, _ expectedSHA512: Data?) throws -> ReplaceOutcome
+        var replaceFileAtomically: @Sendable (_ data: Data, _ url: URL, _ expectedSHA512: Data?, _ authorization: ReplacementAuthorization) throws -> ReplaceOutcome
         var cacheDatabaseCopy: @Sendable (Data, DatabaseReference) throws -> Void
         var addPendingLocalSave: @Sendable (Data, DatabaseReference) throws -> PendingLocalSaveStore.PendingSave
         var removePendingLocalSave: @Sendable (PendingLocalSaveStore.PendingSave) -> Void
@@ -150,25 +155,17 @@ enum LocalDatabaseSaver {
                 DatabaseListStore.databaseBackupDirectoryURL(for: reference)
             },
             createDirectory: { url in
-                try FileManager.default.createDirectory(
-                    at: url,
-                    withIntermediateDirectories: true,
-                    attributes: nil
-                )
+                try createDurableDirectory(at: url)
             },
             writeBackup: { data, url in
-                try CoordinatedFileReader.writeData(
-                    data,
-                    to: url,
-                    options: .atomicProtected
-                )
+                try writeAtomicallyAndDurably(data, to: url)
             },
             pruneBackups: { reference, count in
                 try DatabaseListStore.pruneBackups(for: reference, keeping: count)
             },
             now: { .now },
-            replaceFileAtomically: { data, url, expectedSHA512 in
-                try LocalDatabaseSaver.replaceFileAtomically(data, at: url, expectedSHA512: expectedSHA512)
+            replaceFileAtomically: { data, url, expectedSHA512, authorization in
+                try LocalDatabaseSaver.replaceFileAtomically(data, at: url, expectedSHA512: expectedSHA512, authorization: authorization)
             },
             cacheDatabaseCopy: { data, reference in
                 try DatabaseListStore.cacheDatabaseCopy(data, for: reference)
@@ -257,6 +254,7 @@ enum LocalDatabaseSaver {
             }
         }
 
+        let authorization = ReplacementAuthorization(databaseID: reference.id, receipts: PendingLocalSaveStore.mergingReceipts)
         return try await Task.detached(priority: .utility) {
             try saveOffMain(
                 draft: draft,
@@ -269,7 +267,8 @@ enum LocalDatabaseSaver {
                 kdfPolicy: kdfPolicy,
                 newCompositeKey: newCompositeKey,
                 encryptionSettings: encryptionSettings,
-                environment: environment
+                environment: environment,
+                authorization: authorization
             )
         }.value
     }
@@ -282,7 +281,8 @@ enum LocalDatabaseSaver {
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: SymmetricKey?,
         encryptionSettings: EncryptionSettingsChange?,
-        environment: Environment
+        environment: Environment,
+        authorization: ReplacementAuthorization
     ) throws -> SaveResult {
         guard let location = environment.resolveLocation(reference) else {
             throw SaveError.databaseLocationUnavailable
@@ -306,7 +306,7 @@ enum LocalDatabaseSaver {
                 sequence: conflictSequence,
                 kdfPolicy: kdfPolicy
             )
-            _ = try environment.replaceFileAtomically(currentData, location.url, nil)
+            _ = try environment.replaceFileAtomically(currentData, location.url, nil, authorization)
         }
         #else
         let currentData = try environment.readData(location.url)
@@ -349,7 +349,7 @@ enum LocalDatabaseSaver {
             : nil
         let replaceOutcome: ReplaceOutcome
         do {
-            replaceOutcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512)
+            replaceOutcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512, authorization)
         } catch {
             if let pendingSave {
                 environment.removePendingLocalSave(pendingSave)
@@ -487,7 +487,14 @@ enum LocalDatabaseSaver {
     }
     #endif
 
-    private static func replaceFileAtomically(_ data: Data, at url: URL, expectedSHA512: Data?) throws -> ReplaceOutcome {
+    struct ReplacementIO: Sendable {
+        var stage: @Sendable (Data, URL) throws -> Void = { try writeAtomicallyAndDurably($0, to: $1) }
+    }
+
+    static func replaceFileAtomically(
+        _ data: Data, at url: URL, expectedSHA512: Data?,
+        authorization: ReplacementAuthorization? = nil, io: ReplacementIO = .init()
+    ) throws -> ReplaceOutcome {
         let fileManager = FileManager.default
 
         var coordinatorError: NSError?
@@ -518,13 +525,19 @@ enum LocalDatabaseSaver {
                 do {
                     // Keep the staged replacement outside the picked folder because
                     // file-scoped security access may not allow creating sibling temp files.
-                    try data.write(to: tempURL, options: .atomicProtected)
-                    _ = try fileManager.replaceItemAt(
-                        coordinatedURL,
-                        withItemAt: tempURL,
-                        backupItemName: nil,
-                        options: []
-                    )
+                    try io.stage(data, tempURL)
+                    let replace = {
+                        _ = try fileManager.replaceItemAt(
+                            coordinatedURL, withItemAt: tempURL, backupItemName: nil, options: []
+                        )
+                    }
+                    if let authorization {
+                        try PendingLocalSaveStore.withWriteAuthorization(
+                            for: authorization.databaseID, receipts: authorization.receipts, replace
+                        )
+                    } else {
+                        try replace()
+                    }
                 } catch {
                     try? fileManager.removeItem(at: tempURL)
                     throw error
@@ -556,9 +569,7 @@ enum LocalDatabaseSaver {
             }
         }
 
-        if let coordinatorError {
-            throw coordinatorError
-        }
+        if let coordinatorError { throw coordinatorError }
 
         guard let result else {
             throw CocoaError(.fileWriteUnknown)
