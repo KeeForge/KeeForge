@@ -402,6 +402,8 @@ enum DatabaseListStore {
 
     static func publishKeyFileAssociation(
         for id: UUID, operationID: UUID, association: PendingLocalSaveStore.KeyFileAssociation,
+        expectedTarget: PendingLocalSaveStore.TargetIdentity? = nil,
+        expectedWitness: PendingLocalSaveStore.KeyEpochEvidence? = nil, expectedAssociationVersion: UUID? = nil,
         io: DurableFileWriteIO = .init()
     ) -> KeyFileAssociationPublication {
         withStateLock {
@@ -415,6 +417,7 @@ enum DatabaseListStore {
             } else { target = cacheLocation(for: observed) }
             let access = observed.bookmarkData != nil && target.startAccessingSecurityScopedResource()
             defer { if access { target.stopAccessingSecurityScopedResource() } }
+            guard let expectedTarget = expectedTarget ?? (try? PendingLocalSaveStore.targetIdentity(at: target)) else { return .notPublished }
             var coordinatorError: NSError?
             var outcome: DurableWriteOutcome?
             var publishedBytes: Data?
@@ -437,8 +440,11 @@ enum DatabaseListStore {
                     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
                     let bytes = try encoder.encode(references)
                     outcome = try PendingLocalSaveStore.withAssociationPublicationAuthorization(
-                        for: id, operationID: operationID, association: association, observeTarget: {
-                            (try PendingLocalSaveStore.targetIdentity(at: protectedTarget), FileDigest.sha512(try Data(contentsOf: protectedTarget)))
+                        for: id, operationID: operationID, association: association,
+                        expectedWitness: expectedWitness, expectedAssociationVersion: expectedAssociationVersion, observeTarget: {
+                            let identity = try PendingLocalSaveStore.targetIdentity(at: protectedTarget)
+                            guard identity == expectedTarget else { throw PendingLocalSaveStore.OwnershipError.targetChanged }
+                            return (identity, FileDigest.sha512(try Data(contentsOf: protectedTarget)))
                         }
                     ) { writeWithDurabilityOutcome(bytes, to: registry, directoryAnchor: anchor, io: io) }
                     publishedBytes = bytes
@@ -451,6 +457,166 @@ enum DatabaseListStore {
                     association: association, registrySHA512: FileDigest.sha512(bytes)))
             case .publishedWithoutConfirmedDurability?: return .publishedWithoutConfirmedDurability
             case .notPublished?, nil: return .notPublished
+            }
+        }
+    }
+
+    enum KeyFilePreferenceOutcome: Sendable, Equatable {
+        case saved, notPublished, recoveryRequired, publishedWithoutConfirmedDurability, rejected
+    }
+    struct KeyFilePreferenceError: Error, LocalizedError {
+        let outcome: KeyFilePreferenceOutcome
+        var errorDescription: String? {
+            switch outcome {
+            case .saved: nil
+            case .notPublished: String(localized: "The key-file preference was not changed. The database master key is unchanged. Review Database Details before trying again.")
+            case .rejected: String(localized: "This key-file preference is out of date or blocked by local recovery. Review Database Details before choosing again.")
+            case .recoveryRequired: String(localized: "Confirm the intended key-file preference in Database Details. The database master key is unchanged.")
+            case .publishedWithoutConfirmedDurability: String(localized: "The key-file preference was published, but its record is not fully confirmed. Review Database Details before another selection. The database master key is unchanged.")
+            }
+        }
+    }
+    struct KeyFilePreferenceIO: Sendable {
+        var registry = DurableFileWriteIO()
+        var owner = PendingLocalSaveStore.StorageIO()
+    }
+    struct DurablePreferenceReceipt: Sendable {
+        let intent: PendingLocalSaveStore.PreferenceIntent
+        let registrySHA512: Data
+        fileprivate init(intent: PendingLocalSaveStore.PreferenceIntent, registrySHA512: Data) {
+            self.intent = intent
+            self.registrySHA512 = registrySHA512
+        }
+    }
+
+    static func currentSameEpochPreference(for reference: DatabaseReference) throws -> PendingLocalSaveStore.KeyFilePreference {
+        let owner = try PendingLocalSaveStore.recovery(for: reference.id)
+        guard !owner.ownerUnavailable, !owner.isRevoked else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+        guard owner.keyEvidence != nil else { return PendingLocalSaveStore.KeyFilePreference(reference) }
+        return try withStateLock {
+            var error: NSError?
+            var result: Result<PendingLocalSaveStore.KeyFilePreference, Error>?
+            NSFileCoordinator().coordinate(readingItemAt: databaseListURL, options: [], error: &error) { url in
+                result = Result {
+                    let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: url))
+                    guard let current = references.first(where: { $0.id == reference.id }),
+                          PendingLocalSaveStore.PreferenceObservation(reference).matches(current,
+                              preference: PendingLocalSaveStore.KeyFilePreference(current)) else {
+                        throw PendingLocalSaveStore.OwnershipError.sourceChanged
+                    }
+                    try PendingLocalSaveStore.validateReferenceAssociation(current)
+                    return PendingLocalSaveStore.KeyFilePreference(current)
+                }
+            }
+            if let error { throw error }
+            guard let result else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+            return try result.get()
+        }
+    }
+
+    static func prepareKeyFilePreference(for reference: DatabaseReference) throws -> PendingLocalSaveStore.PreferenceToken {
+        try withStateLock {
+            var error: NSError?
+            var result: Result<PendingLocalSaveStore.PreferenceToken, Error>?
+            NSFileCoordinator().coordinate(readingItemAt: databaseListURL, options: [], error: &error) { url in
+                result = Result {
+                    let observed = PendingLocalSaveStore.PreferenceObservation(reference)
+                    let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: url))
+                    guard let current = references.first(where: { $0.id == reference.id }), observed.matches(current) else {
+                        throw PendingLocalSaveStore.OwnershipError.sourceChanged
+                    }
+                    return try PendingLocalSaveStore.capturePreference(observed)
+                }
+            }
+            if let error { throw error }
+            guard let result else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+            return try result.get()
+        }
+    }
+
+    static func recoverKeyFilePreference(
+        _ intent: PendingLocalSaveStore.PreferenceIntent, io: KeyFilePreferenceIO = .init()
+    ) -> KeyFilePreferenceOutcome {
+        do {
+            let token = try PendingLocalSaveStore.recoverPreferenceToken(intent)
+            return publishKeyFilePreference(token, desired: intent.desired, recovering: true, io: io)
+        } catch { return .rejected }
+    }
+
+    static func publishKeyFilePreference(
+        _ token: PendingLocalSaveStore.PreferenceToken, desired: PendingLocalSaveStore.KeyFilePreference,
+        recovering: Bool = false, io: KeyFilePreferenceIO = .init(), canPublish: @Sendable () -> Bool = { true }
+    ) -> KeyFilePreferenceOutcome {
+        withStateLock {
+            guard let anchor = AppGroupContainer.resolvedURL else { return .rejected }
+            let target: URL?
+            if token.witness != nil {
+                if let bookmark = token.observation.targetBookmarkData {
+                    guard let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmark) else { return .rejected }
+                    target = resolved.url
+                } else { target = cacheURL(for: token.observation.databaseID) }
+            } else { target = nil }
+            let access = target.map { token.observation.targetBookmarkData != nil && $0.startAccessingSecurityScopedResource() } ?? false
+            defer { if access { target?.stopAccessingSecurityScopedResource() } }
+            var error: NSError?
+            var attempt: PendingLocalSaveStore.PreferencePublication?
+            var rejected = false
+            func publish(target: URL?, registry: URL) {
+                do {
+                    guard canPublish() else { rejected = true; return }
+                    var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
+                    guard let index = references.firstIndex(where: { $0.id == token.observation.databaseID }),
+                          token.observation.matches(references[index]) || (recovering && token.observation.matches(references[index], preference: desired)) else {
+                        throw PendingLocalSaveStore.OwnershipError.sourceChanged
+                    }
+                    references[index].keyFileBookmarkData = desired.bookmarkData
+                    references[index].keyFileFilename = desired.filename
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                    let bytes = try encoder.encode(references)
+                    attempt = try PendingLocalSaveStore.withPreferencePublication(token, desired: desired, observeTarget: {
+                        guard let target else { return nil }
+                        return (try PendingLocalSaveStore.targetIdentity(at: target), FileDigest.sha512(try Data(contentsOf: target)))
+                    }, io: io.owner) { writeWithDurabilityOutcome(bytes, to: registry, directoryAnchor: anchor, io: io.registry) }
+                } catch { rejected = true }
+            }
+            let coordinator = NSFileCoordinator()
+            if let target {
+                coordinator.coordinate(readingItemAt: target, options: [], writingItemAt: databaseListURL,
+                    options: .forReplacing, error: &error) { target, registry in publish(target: target, registry: registry) }
+            } else {
+                coordinator.coordinate(writingItemAt: databaseListURL, options: .forReplacing, error: &error) { publish(target: nil, registry: $0) }
+            }
+            if rejected { return .rejected }
+            guard let attempt else { return .notPublished }
+            switch attempt {
+            case .notStarted: return .notPublished
+            case .intentUnconfirmed: return .recoveryRequired
+            case .registry(let outcome, let intent):
+                switch outcome {
+                case .notPublished:
+                    return PendingLocalSaveStore.releaseUnpublishedPreference(intent, io: io.owner) == .resolved ? .notPublished : .recoveryRequired
+                case .publishedWithoutConfirmedDurability: return .publishedWithoutConfirmedDurability
+                case .durable:
+                    guard error == nil else { return .publishedWithoutConfirmedDurability }
+                    var completionError: NSError?
+                    var completion = PendingLocalSaveStore.ResolutionOutcome.retainedForRecovery
+                    coordinator.coordinate(readingItemAt: databaseListURL, options: [], error: &completionError) { registry in
+                        do {
+                            let data = try Data(contentsOf: registry)
+                            let references = try JSONDecoder().decode([DatabaseReference].self, from: data)
+                            guard let current = references.first(where: { $0.id == token.observation.databaseID }),
+                                  token.observation.matches(current, preference: desired) else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
+                            let handle = try FileHandle(forUpdating: registry)
+                            defer { try? handle.close() }
+                            try handle.synchronize()
+                            try createDurableDirectory(at: registry.deletingLastPathComponent(), anchor: anchor)
+                            let proof = DurablePreferenceReceipt(intent: intent, registrySHA512: FileDigest.sha512(data))
+                            completion = PendingLocalSaveStore.finishPreference(token, proof: proof, io: io.owner)
+                        } catch {}
+                    }
+                    return completion == .resolved && completionError == nil ? .saved : .publishedWithoutConfirmedDurability
+                }
             }
         }
     }
@@ -806,14 +972,26 @@ enum DatabaseListStore {
     }
 
     static func resolveKeyFileURL(for reference: DatabaseReference) -> URL? {
-        resolveURL(from: reference.keyFileBookmarkData) { refreshedBookmarkData in
-            var refreshedReference = reference
-            refreshedReference.keyFileBookmarkData = refreshedBookmarkData
-            if refreshedReference.keyFileFilename == nil {
-                refreshedReference.keyFileFilename = resolveFilename(from: refreshedBookmarkData)
-            }
-            update(refreshedReference)
-        }
+        guard let bookmark = reference.keyFileBookmarkData,
+              let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmark) else { return nil }
+        if resolved.isStale { Task.detached(priority: .utility) { _ = renewKeyFileBookmark(for: reference) } }
+        return resolved.url
+    }
+
+    static func renewKeyFileBookmark(
+        for reference: DatabaseReference,
+        resolve: @Sendable (Data) -> (url: URL, isStale: Bool)? = { SecurityScopedBookmarkManager.resolveURL(from: $0) },
+        makeBookmark: @Sendable (URL) throws -> Data = { try SecurityScopedBookmarkManager.makeBookmarkData(for: $0, readOnly: true) }
+    ) -> KeyFilePreferenceOutcome {
+        do {
+            let token = try prepareKeyFilePreference(for: reference)
+            guard let bookmark = reference.keyFileBookmarkData, let resolved = resolve(bookmark), resolved.isStale else { return .notPublished }
+            let access = resolved.url.startAccessingSecurityScopedResource()
+            defer { if access { resolved.url.stopAccessingSecurityScopedResource() } }
+            let refreshed = try makeBookmark(resolved.url)
+            return publishKeyFilePreference(token, desired: .init(bookmarkData: refreshed,
+                filename: reference.keyFileFilename ?? resolved.url.lastPathComponent))
+        } catch { return .rejected }
     }
 
     static func refreshBookmarks() {
@@ -1380,35 +1558,6 @@ enum DatabaseListStore {
                 bytes[12], bytes[13], bytes[14], bytes[15]
             ))
         }
-    }
-
-    private static func resolveURL(from bookmarkData: Data?, onRefresh: (Data) -> Void) -> URL? {
-        guard let bookmarkData else { return nil }
-        guard let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData) else {
-            return nil
-        }
-        let url = resolved.url
-
-        if resolved.isStale {
-            let accessed = url.startAccessingSecurityScopedResource()
-            defer {
-                if accessed {
-                    url.stopAccessingSecurityScopedResource()
-                }
-            }
-
-            if let refreshedBookmarkData = try? SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true) {
-                onRefresh(refreshedBookmarkData)
-            }
-        }
-
-        return url
-    }
-
-    private static func resolveFilename(from bookmarkData: Data) -> String? {
-        guard let url = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData)?.url else { return nil }
-
-        return filename(for: url)
     }
 
     private static func cacheURL(for databaseID: UUID) -> URL {

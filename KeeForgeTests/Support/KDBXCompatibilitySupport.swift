@@ -2096,7 +2096,7 @@ enum KDBXCompatibilitySupport {
     /// neither is a content edit, so the tree, groups, and meta must all
     /// survive the save unchanged. The old-key rejection and header rotation checks live
     /// in `Scenario.apply` and the running test method respectively.
-    private static func assertWholeTreeUnchanged(
+    static func assertWholeTreeUnchanged(
         before: CompatibilitySnapshot,
         after: CompatibilitySnapshot
     ) throws {

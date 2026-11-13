@@ -3,12 +3,14 @@ import SwiftUI
 enum DatabaseExportRequest: Identifiable, Equatable {
     case currentCopy(DatabaseReference)
     case localRecovery(UUID, Data, String)
+    case keyPublicationIntent(UUID, PendingLocalSaveStore.Admission, DatabaseReference)
     case keyPublication(UUID, PendingLocalSaveStore.KeyEpochEvidence, DatabaseReference)
     case pendingLocal(PendingLocalSaveStore.Receipt, DatabaseReference)
     case backup(DatabaseExportService.Backup, DatabaseReference)
 
     var id: String {
         switch self {
+        case .keyPublicationIntent(let id, _, _): "key-publication-intent-\(id)"
         case .keyPublication(let id, _, _): "key-publication-\(id)"
         case .localRecovery(let id, _, _): "local-recovery-\(id)"
         case .pendingLocal(let receipt, let reference):
@@ -109,9 +111,12 @@ private struct DatabaseExportPresenter: ViewModifier {
         do {
             let loaded: DatabaseExportService.ExportPayload
             switch request {
+            case .keyPublicationIntent(_, let admission, let reference):
+                let data = try await LocalDatabaseSaver.exportKeyEpochCopy(admission, for: reference)
+                loaded = .init(data: data, suggestedFilename: "\(reference.displayName)-\(String(localized: "Database Snapshot")).kdbx")
             case .keyPublication(_, let evidence, let reference):
                 let data = try await LocalDatabaseSaver.exportKeyEpochCopy(evidence, for: reference)
-                loaded = .init(data: data, suggestedFilename: "\(reference.displayName)-saved-key-snapshot.kdbx")
+                loaded = .init(data: data, suggestedFilename: "\(reference.displayName)-\(String(localized: "Database Snapshot")).kdbx")
             case .localRecovery(_, let data, let filename):
                 loaded = DatabaseExportService.ExportPayload(data: data, suggestedFilename: filename)
             case .pendingLocal(let receipt, let reference):
@@ -119,7 +124,7 @@ private struct DatabaseExportPresenter: ViewModifier {
                     try PendingLocalSaveStore.export(receipt, for: reference.id)
                 }.value
                 loaded = DatabaseExportService.ExportPayload(
-                    data: data, suggestedFilename: "\(reference.displayName)-autofill-snapshot.kdbx"
+                    data: data, suggestedFilename: "\(reference.displayName)-\(String(localized: "AutoFill Snapshot")).kdbx"
                 )
             case .currentCopy(let reference):
                 loaded = try await DatabaseExportService.exportCurrentCopy(for: reference)

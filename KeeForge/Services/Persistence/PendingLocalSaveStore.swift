@@ -87,22 +87,78 @@ enum PendingLocalSaveStore {
 
     struct CommitReceipt: Sendable, Equatable {
         let databaseID: UUID
-        let admission: Admission
+        let admission: Admission?
         let sha512: Data
-        var targetDurabilityConfirmed = false
-        var installedTarget: TargetIdentity?
+        var targetCommit: TargetCommit?
+        var encryptedSnapshot: Data?
+        var targetDurabilityConfirmed: Bool { targetCommit?.isConfirmed == true }
+        var installedTarget: TargetIdentity? { targetCommit?.snapshot.target }
         let ownerVersion = 1
-        var operationID: UUID { admission.operationID }
-        var purpose: Purpose { admission.purpose }
+        let operationID: UUID
+        var purpose: Purpose? { admission?.purpose }
+        init(databaseID: UUID, admission: Admission? = nil, sha512: Data, operationID: UUID? = nil) {
+            self.databaseID = databaseID
+            self.admission = admission
+            self.sha512 = sha512
+            self.operationID = admission?.operationID ?? operationID ?? UUID()
+        }
+    }
+
+    struct KeyFilePreference: Codable, Sendable, Equatable {
+        let bookmarkData: Data?
+        let filename: String?
+        init(bookmarkData: Data?, filename: String?) { self.bookmarkData = bookmarkData; self.filename = filename }
+        init(_ reference: DatabaseReference) { self.init(bookmarkData: reference.keyFileBookmarkData, filename: reference.keyFileFilename) }
+    }
+    struct PreferenceObservation: Codable, Sendable, Equatable {
+        let databaseID: UUID
+        let targetBookmarkData: Data?
+        let preference: KeyFilePreference
+        let masterKeyChangedAt: Date?
+        let cloudIdentity: [String]?
+        init(_ reference: DatabaseReference) {
+            databaseID = reference.id
+            targetBookmarkData = reference.bookmarkData
+            preference = KeyFilePreference(reference)
+            masterKeyChangedAt = reference.lastMasterKeyChangeAt
+            cloudIdentity = reference.cloudSyncMetadata.map { [String(describing: $0.provider), $0.accountId, $0.fileId] }
+        }
+        func matches(_ reference: DatabaseReference, preference override: KeyFilePreference? = nil) -> Bool {
+            let current = PreferenceObservation(reference)
+            return databaseID == current.databaseID && targetBookmarkData == current.targetBookmarkData
+                && masterKeyChangedAt == current.masterKeyChangedAt && cloudIdentity == current.cloudIdentity
+                && current.preference == (override ?? preference)
+        }
+    }
+    struct PreferenceIntent: Codable, Sendable, Equatable {
+        let operationID: UUID
+        let observation: PreferenceObservation
+        let expectedEpochID: UUID?
+        let expectedAssociationVersion: UUID?
+        let desired: KeyFilePreference
+    }
+    struct PreferenceToken: Sendable {
+        let operationID: UUID
+        let observation: PreferenceObservation
+        let expectedEpochID: UUID?
+        let expectedAssociationVersion: UUID?
+        let witness: KeyEpochEvidence?
+    }
+    enum PreferencePublication {
+        case notStarted
+        case intentUnconfirmed
+        case registry(DurableWriteOutcome, PreferenceIntent)
     }
 
     private enum Operation: Codable, Equatable {
         case idle
         case admitted(Admission)
         case recoveryRequired(Admission)
+        case preference(PreferenceIntent)
+        var preferenceIntent: PreferenceIntent? { if case .preference(let value) = self { return value }; return nil }
         var admission: Admission? {
             switch self {
-            case .idle: nil
+            case .idle, .preference: nil
             case .admitted(let value), .recoveryRequired(let value): value
             }
         }
@@ -117,23 +173,71 @@ enum PendingLocalSaveStore {
         let operationID: UUID
         let sha512: Data
     }
-    struct KeyEpochEvidence: Codable, Sendable, Equatable {
-        let epochID: UUID
-        let association: KeyFileAssociation
-        let associationRegistrySHA512: Data
-        var target: TargetIdentity
-        var sha512: Data
-        var targetDurabilityUnconfirmed: Bool
-        var pending: PlannedTarget?
-    }
-    struct TargetWriteObservation: Sendable {
+    struct InstalledTarget: Codable, Sendable, Equatable {
         let target: TargetIdentity
         let sha512: Data
-        let durabilityConfirmed: Bool
+    }
+
+    enum TargetCommit: Codable, Sendable, Equatable {
+        case confirmed(InstalledTarget)
+        case unconfirmed(InstalledTarget)
+        var snapshot: InstalledTarget {
+            switch self { case .confirmed(let value), .unconfirmed(let value): value }
+        }
+        var isConfirmed: Bool { if case .confirmed = self { return true }; return false }
+        var withoutConfirmation: TargetCommit { .unconfirmed(snapshot) }
+    }
+
+    enum KeyTargetState: Codable, Sendable, Equatable {
+        case confirmed(InstalledTarget)
+        case unconfirmed(InstalledTarget)
+        case planned(previous: InstalledTarget, intent: PlannedTarget)
+
+        init(_ commit: TargetCommit) {
+            switch commit { case .confirmed(let value): self = .confirmed(value); case .unconfirmed(let value): self = .unconfirmed(value) }
+        }
+        var snapshot: InstalledTarget {
+            switch self { case .confirmed(let value), .unconfirmed(let value), .planned(let value, _): value }
+        }
+        var pending: PlannedTarget? { if case .planned(_, let intent) = self { return intent }; return nil }
+        var isConfirmed: Bool { if case .confirmed = self { return true }; return false }
+
+        func finalized(with commit: TargetCommit, operationID: UUID? = nil) throws -> KeyTargetState {
+            let observed = commit.snapshot
+            if case .planned(let previous, let intent) = self {
+                guard operationID == nil || operationID == intent.operationID,
+                      observed.target.canonicalPath == previous.target.canonicalPath, observed.target.parent == previous.target.parent,
+                      observed.sha512 == intent.sha512 || (operationID == nil && observed == previous) else { throw OwnershipError.targetChanged }
+                // Recovery has no synchronization proof for the planned output.
+                return KeyTargetState(operationID == nil ? commit.withoutConfirmation : commit)
+            }
+            guard observed == snapshot else { throw OwnershipError.targetChanged }
+            return KeyTargetState(commit)
+        }
+
+        func recovered(at target: TargetIdentity, sha512: Data) throws -> KeyTargetState {
+            let observed = InstalledTarget(target: target, sha512: sha512)
+            return try finalized(with: isConfirmed ? .confirmed(observed) : .unconfirmed(observed))
+        }
+    }
+
+    struct KeyEpochEvidence: Codable, Sendable, Equatable {
+        let epochID: UUID
+        var association: KeyFileAssociation
+        var associationRegistrySHA512: Data
+        var targetState: KeyTargetState
+        var target: TargetIdentity { targetState.snapshot.target }
+        var sha512: Data { targetState.snapshot.sha512 }
+        var targetDurabilityUnconfirmed: Bool { !targetState.isConfirmed }
+        var pending: PlannedTarget? { targetState.pending }
+    }
+    struct TargetWriteToken: Sendable {
+        let databaseID: UUID
+        let operationID: UUID
     }
     struct AuthorizedWrite<Value> {
         let value: Value
-        let bookkeeping: ResolutionOutcome
+        let targetWrite: TargetWriteToken?
     }
     private enum SourcePhase: Codable, Equatable { case provisional, eligible(Receipt) }
     private struct SourceRecord: Codable {
@@ -151,6 +255,7 @@ enum PendingLocalSaveStore {
         var sources: [SourceRecord] = []
         var operation: Operation = .idle
         var keyEvidence: KeyEpochEvidence?
+        var associationVersion: UUID?
         var retirementID: UUID?
         var retiringEntries: [SourceSnapshot]?
     }
@@ -189,9 +294,15 @@ enum PendingLocalSaveStore {
         let admission: Admission?
         let sourcePublicationPending: Bool
         let keyEvidence: KeyEpochEvidence?
+        let associationVersion: UUID?
+        let preferenceIntent: PreferenceIntent?
         let ownerObservation: FileObservation
         let entries: [SourceSnapshot]
         let ownerUnavailable: Bool
+        var recoveryKeyFileFilename: String? {
+            if let preferenceIntent { return preferenceIntent.desired.filename }
+            return keyAssociationForRecovery?.filename
+        }
         var keyAssociationForRecovery: KeyFileAssociation? {
             if let evidence = keyEvidence { return evidence.association }
             if let admission, case .masterKeyChange(let association) = admission.purpose { return association }
@@ -202,7 +313,7 @@ enum PendingLocalSaveStore {
             return reference.lastMasterKeyChangeAt != association.changedAt
                 || reference.keyFileBookmarkData != association.bookmarkData || reference.keyFileFilename != association.filename
         }
-        var needsRecovery: Bool { isRevoked || retirementID != nil || admission != nil || sourcePublicationPending || keyEvidence?.pending != nil || ownerUnavailable || entries.contains { $0.receipt == nil } }
+        var needsRecovery: Bool { preferenceIntent != nil || isRevoked || retirementID != nil || admission != nil || sourcePublicationPending || keyEvidence?.pending != nil || ownerUnavailable || entries.contains { $0.receipt == nil } }
     }
 
     enum OwnershipError: Error, LocalizedError, Equatable {
@@ -211,7 +322,7 @@ enum PendingLocalSaveStore {
             if case .targetChanged = self {
                 return String(localized: "The database file changed since it was opened. Reload the database and try again.")
             }
-            return String(localized: "AutoFill changes need recovery. Open Database Details to export their original encrypted snapshots or deliberately discard them before trying again.")
+            return String(localized: "Local save recovery is required. Open Database Details to review the saved key record and recovery actions.")
         }
     }
 
@@ -312,7 +423,7 @@ enum PendingLocalSaveStore {
         do {
             return try withLock(for: databaseID) {
                 let state = try loadState(databaseID)
-                return try state?.retirementID != nil || state?.operation.admission != nil || state?.keyEvidence?.pending != nil || state?.sources.isEmpty == false || !sourceURLs(databaseID).isEmpty
+                return try state?.retirementID != nil || state.map { $0.operation != .idle } == true || state?.keyEvidence?.pending != nil || state?.sources.isEmpty == false || !sourceURLs(databaseID).isEmpty
             }
         } catch { return true }
     }
@@ -388,7 +499,7 @@ enum PendingLocalSaveStore {
         for databaseID: UUID, token: Token?, expectedMasterKeyChangeAt: Date?, enforcesEpoch: Bool,
         isMasterKeyChange: Bool, association: KeyFileAssociation?, prepared: PreparedSource?,
         intendedSHA512: Data, observeTarget: () throws -> (TargetIdentity, Data),
-        targetIsSharedCopy: Bool, observeEffect: () -> TargetWriteObservation?,
+        targetIsSharedCopy: Bool,
         io: StorageIO = .init(), _ replace: (CommitReceipt?) throws -> T
     ) throws -> AuthorizedWrite<T> {
         try withLock(for: databaseID) {
@@ -432,9 +543,13 @@ enum PendingLocalSaveStore {
                 guard state.operation == .idle || targetIsSharedCopy else { throw OwnershipError.recoveryRequired }
                 if state.epoch != previousEpoch { try persist(state, databaseID: databaseID, io: io) }
             }
-            if state.keyEvidence != nil, !isMasterKeyChange, !targetIsSharedCopy {
-                state.keyEvidence?.pending = PlannedTarget(operationID: UUID(), sha512: intendedSHA512)
+            var targetWrite: TargetWriteToken?
+            if let evidence = state.keyEvidence, !isMasterKeyChange, !targetIsSharedCopy {
+                let intent = PlannedTarget(operationID: UUID(), sha512: intendedSHA512)
+                state.keyEvidence?.targetState = .planned(previous: evidence.targetState.snapshot, intent: intent)
                 try persist(state, databaseID: databaseID, io: io)
+                targetWrite = TargetWriteToken(databaseID: databaseID, operationID: intent.operationID)
+                if committed == nil { committed = CommitReceipt(databaseID: databaseID, sha512: intendedSHA512, operationID: intent.operationID) }
             }
             if let prepared {
                 guard prepared.save.databaseID == databaseID,
@@ -444,19 +559,24 @@ enum PendingLocalSaveStore {
                 }
                 try validate(prepared.receipt, databaseID: databaseID)
             }
-            let value = try replace(committed)
-            var bookkeeping = ResolutionOutcome.resolved
-            if var evidence = state.keyEvidence, !isMasterKeyChange, !targetIsSharedCopy, let observed = observeEffect() {
-                evidence.target = observed.target
-                evidence.sha512 = observed.sha512
-                evidence.targetDurabilityUnconfirmed = !observed.durabilityConfirmed
-                evidence.pending = nil
-                state.keyEvidence = evidence
-                do { bookkeeping = try resolution(publish(state, databaseID: databaseID, io: io)) }
-                catch { bookkeeping = .retainedForRecovery }
-            }
-            return AuthorizedWrite(value: value, bookkeeping: bookkeeping)
+            return AuthorizedWrite(value: try replace(committed), targetWrite: targetWrite)
         }
+    }
+
+    static func finishTargetWrite(
+        _ token: TargetWriteToken, commit: TargetCommit, observeTarget: () throws -> (TargetIdentity, Data), io: StorageIO = .init()
+    ) -> ResolutionOutcome {
+        do {
+            return try withLock(for: token.databaseID) {
+                try requireNotRemoved(token.databaseID)
+                var state = try loadState(token.databaseID) ?? OwnerState(version: 1, removed: false)
+                guard let evidence = state.keyEvidence, evidence.pending?.operationID == token.operationID else { throw OwnershipError.sourceChanged }
+                let (target, sha) = try observeTarget()
+                guard InstalledTarget(target: target, sha512: sha) == commit.snapshot else { throw OwnershipError.targetChanged }
+                state.keyEvidence?.targetState = try evidence.targetState.finalized(with: commit, operationID: token.operationID)
+                return try resolution(publish(state, databaseID: token.databaseID, io: io))
+            }
+        } catch { return .retainedForRecovery }
     }
 
     static func releaseAfterProvenNoReplacement(_ token: Token, io: StorageIO = .init()) -> ResolutionOutcome {
@@ -540,9 +660,99 @@ enum PendingLocalSaveStore {
         }
     }
 
+    static func capturePreference(_ observation: PreferenceObservation) throws -> PreferenceToken {
+        try withLock(for: observation.databaseID) {
+            try requireNotRemoved(observation.databaseID)
+            let state = try loadState(observation.databaseID) ?? OwnerState(version: 1, removed: false)
+            guard state.operation == .idle, state.retirementID == nil, state.keyEvidence?.pending == nil,
+                  state.keyEvidence == nil || state.keyEvidence?.association.changedAt == observation.masterKeyChangedAt else {
+                throw OwnershipError.recoveryRequired
+            }
+            return PreferenceToken(operationID: UUID(), observation: observation, expectedEpochID: state.epoch.id,
+                expectedAssociationVersion: state.associationVersion, witness: state.keyEvidence)
+        }
+    }
+
+    static func recoverPreferenceToken(_ expected: PreferenceIntent) throws -> PreferenceToken {
+        try withLock(for: expected.observation.databaseID) {
+            try requireNotRemoved(expected.observation.databaseID)
+            let state = try loadState(expected.observation.databaseID) ?? OwnerState(version: 1, removed: false)
+            guard state.operation.preferenceIntent == expected else { throw OwnershipError.sourceChanged }
+            return PreferenceToken(operationID: expected.operationID, observation: expected.observation,
+                expectedEpochID: expected.expectedEpochID, expectedAssociationVersion: expected.expectedAssociationVersion,
+                witness: state.keyEvidence)
+        }
+    }
+
+    static func withPreferencePublication(
+        _ token: PreferenceToken, desired: KeyFilePreference, observeTarget: () throws -> (TargetIdentity, Data)?,
+        io: StorageIO = .init(), _ writeRegistry: () -> DurableWriteOutcome
+    ) throws -> PreferencePublication {
+        try withLock(for: token.observation.databaseID) {
+            let id = token.observation.databaseID
+            try requireNotRemoved(id)
+            var state = try loadState(id) ?? OwnerState(version: 1, removed: false)
+            guard state.epoch.id == token.expectedEpochID, state.associationVersion == token.expectedAssociationVersion,
+                  state.keyEvidence == token.witness, state.keyEvidence?.pending == nil, state.retirementID == nil else { throw OwnershipError.sourceChanged }
+            if let witness = token.witness {
+                guard let (target, sha) = try observeTarget(), target == witness.target, sha == witness.sha512 else { throw OwnershipError.targetChanged }
+            }
+            let intent = PreferenceIntent(operationID: token.operationID, observation: token.observation,
+                expectedEpochID: token.expectedEpochID, expectedAssociationVersion: token.expectedAssociationVersion, desired: desired)
+            if let existing = state.operation.preferenceIntent {
+                guard existing == intent else { throw OwnershipError.sourceChanged }
+            } else {
+                guard state.operation == .idle else { throw OwnershipError.recoveryRequired }
+                state.operation = .preference(intent)
+                switch try publish(state, databaseID: id, io: io) {
+                case .notPublished: return .notStarted
+                case .publishedWithoutConfirmedDurability: return .intentUnconfirmed
+                case .durable: break
+                }
+            }
+            return .registry(writeRegistry(), intent)
+        }
+    }
+
+    static func releaseUnpublishedPreference(_ intent: PreferenceIntent, io: StorageIO = .init()) -> ResolutionOutcome {
+        do {
+            return try withLock(for: intent.observation.databaseID) {
+                try requireNotRemoved(intent.observation.databaseID)
+                var state = try loadState(intent.observation.databaseID) ?? OwnerState(version: 1, removed: false)
+                guard state.operation.preferenceIntent == intent else { throw OwnershipError.sourceChanged }
+                state.operation = .idle
+                return try resolution(publish(state, databaseID: intent.observation.databaseID, io: io))
+            }
+        } catch { return .retainedForRecovery }
+    }
+
+    static func finishPreference(
+        _ token: PreferenceToken, proof: DatabaseListStore.DurablePreferenceReceipt, io: StorageIO = .init()
+    ) -> ResolutionOutcome {
+        let intent = proof.intent
+        do {
+            return try withLock(for: intent.observation.databaseID) {
+                let id = intent.observation.databaseID
+                try requireNotRemoved(id)
+                var state = try loadState(id) ?? OwnerState(version: 1, removed: false)
+                guard state.operation.preferenceIntent == intent, intent.operationID == token.operationID,
+                      state.epoch.id == token.expectedEpochID, state.associationVersion == token.expectedAssociationVersion,
+                      state.keyEvidence == token.witness else { throw OwnershipError.sourceChanged }
+                if let witness = state.keyEvidence {
+                    state.keyEvidence?.association = KeyFileAssociation(bookmarkData: intent.desired.bookmarkData,
+                        filename: intent.desired.filename, changedAt: witness.association.changedAt)
+                    state.keyEvidence?.associationRegistrySHA512 = proof.registrySHA512
+                }
+                state.associationVersion = intent.operationID
+                state.operation = .idle
+                return try resolution(publish(state, databaseID: id, io: io))
+            }
+        } catch { return .retainedForRecovery }
+    }
+
     static func withAssociationPublicationAuthorization<T>(
         for databaseID: UUID, operationID: UUID, association: KeyFileAssociation,
-        observeTarget: () throws -> (TargetIdentity, Data), _ publish: () throws -> T
+        expectedWitness: KeyEpochEvidence?, expectedAssociationVersion: UUID?, observeTarget: () throws -> (TargetIdentity, Data), _ publish: () throws -> T
     ) throws -> T {
         try withLock(for: databaseID) {
             try requireNotRemoved(databaseID)
@@ -551,8 +761,12 @@ enum PendingLocalSaveStore {
             if let admission = state.operation.admission, case .masterKeyChange(let expected) = admission.purpose {
                 barrierMatches = admission.operationID == operationID && expected == association
             } else { barrierMatches = false }
-            guard barrierMatches || (state.keyEvidence?.epochID == operationID && state.keyEvidence?.association == association) else {
+            guard state.operation.preferenceIntent == nil, barrierMatches || (state.keyEvidence?.epochID == operationID && state.keyEvidence?.association == association) else {
                 throw OwnershipError.sourceChanged
+            }
+            if !barrierMatches {
+                guard let expectedWitness, state.keyEvidence == expectedWitness,
+                      state.associationVersion == expectedAssociationVersion else { throw OwnershipError.sourceChanged }
             }
             let (target, sha) = try observeTarget()
             if barrierMatches, let admission = state.operation.admission {
@@ -569,6 +783,7 @@ enum PendingLocalSaveStore {
 
     static func validateReferenceAssociation(_ reference: DatabaseReference) throws {
         try withLock(for: reference.id) {
+            try requireNotRemoved(reference.id)
             if let evidence = try loadState(reference.id)?.keyEvidence {
                 guard reference.lastMasterKeyChangeAt == evidence.association.changedAt,
                       reference.keyFileBookmarkData == evidence.association.bookmarkData,
@@ -589,14 +804,15 @@ enum PendingLocalSaveStore {
                       admission == commit.admission, admission.sources.isEmpty,
                       case .masterKeyChange(let association) = admission.purpose, let association,
                       associationProof.databaseID == commit.databaseID, associationProof.operationID == commit.operationID,
-                      associationProof.association == association, let installed = commit.installedTarget else { throw OwnershipError.recoveryRequired }
+                      associationProof.association == association, let installed = commit.installedTarget,
+                      let targetCommit = commit.targetCommit, targetCommit.snapshot.sha512 == commit.sha512 else { throw OwnershipError.recoveryRequired }
                 let (target, sha) = try observeTarget()
                 guard target == installed, sha == commit.sha512, target.canonicalPath == admission.target.canonicalPath,
                       target.parent == admission.target.parent else { throw OwnershipError.targetChanged }
                 state.epoch = .known(association.changedAt, commit.operationID)
+                state.associationVersion = commit.operationID
                 state.keyEvidence = KeyEpochEvidence(epochID: commit.operationID, association: association,
-                    associationRegistrySHA512: associationProof.registrySHA512, target: target, sha512: sha,
-                    targetDurabilityUnconfirmed: !commit.targetDurabilityConfirmed)
+                    associationRegistrySHA512: associationProof.registrySHA512, targetState: KeyTargetState(targetCommit))
                 // Arrivals rejected by the key barrier remain recoverable under their original epoch.
                 for index in state.sources.indices where state.sources[index].epochID != commit.operationID {
                     state.sources[index].phase = .provisional
@@ -608,7 +824,7 @@ enum PendingLocalSaveStore {
     }
 
     static func confirmKeyEvidence(
-        _ expected: KeyEpochEvidence, for databaseID: UUID,
+        _ expected: KeyEpochEvidence, for databaseID: UUID, expectedAssociationVersion: UUID?,
         associationProof: DatabaseListStore.DurableKeyFileAssociationReceipt,
         observeTarget: () throws -> (TargetIdentity, Data), io: StorageIO = .init()
     ) -> ResolutionOutcome {
@@ -616,19 +832,16 @@ enum PendingLocalSaveStore {
             return try withLock(for: databaseID) {
                 try requireNotRemoved(databaseID)
                 var state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
-                guard state.keyEvidence == expected, state.epoch.id == expected.epochID,
+                guard state.operation.preferenceIntent == nil, state.keyEvidence == expected, state.epoch.id == expected.epochID,
+                      state.associationVersion == expectedAssociationVersion,
                       associationProof.databaseID == databaseID, associationProof.operationID == expected.epochID,
                       associationProof.association == expected.association else {
                     throw OwnershipError.sourceChanged
                 }
                 let (target, sha) = try observeTarget()
-                guard (target == expected.target && sha == expected.sha512)
-                    || (target.canonicalPath == expected.target.canonicalPath && target.parent == expected.target.parent
-                        && sha == expected.pending?.sha512) else { throw OwnershipError.targetChanged }
                 var confirmed = expected
-                confirmed.target = target
-                confirmed.sha512 = sha
-                confirmed.pending = nil
+                confirmed.targetState = try expected.targetState.recovered(at: target, sha512: sha)
+                confirmed.associationRegistrySHA512 = associationProof.registrySHA512
                 state.keyEvidence = confirmed
                 return try resolution(publish(state, databaseID: databaseID, io: io))
             }
@@ -711,7 +924,8 @@ enum PendingLocalSaveStore {
             return RecoverySnapshot(databaseID: databaseID, receipts: receipts,
                 isRevoked: try tombstoned(databaseID) || state?.removed == true,
                 retirementID: state?.retirementID, admission: state?.operation.admission,
-                sourcePublicationPending: publicationPending, keyEvidence: state?.keyEvidence, ownerObservation: ownerObservation, entries: entries,
+                sourcePublicationPending: publicationPending, keyEvidence: state?.keyEvidence,
+                associationVersion: state?.associationVersion, preferenceIntent: state?.operation.preferenceIntent, ownerObservation: ownerObservation, entries: entries,
                 ownerUnavailable: unavailable)
         }
     }
@@ -722,6 +936,21 @@ enum PendingLocalSaveStore {
             let data = try Data(contentsOf: sourceURL(receipt.relativePath, databaseID: databaseID))
             guard FileDigest.sha512(data) == receipt.digest else { throw OwnershipError.sourceChanged }
             return data
+        }
+    }
+
+    static func exportKeyEpochCopy(_ expected: Admission, for databaseID: UUID, at url: URL) throws -> Data {
+        try withLock(for: databaseID) {
+            guard expected.purpose.isMasterKeyChange, expected.sources.isEmpty,
+                  let sha = expected.intendedSHA512, try loadState(databaseID)?.operation.admission == expected,
+                  case .present(let identity, let parent) = observe(url), identity.mode & UInt32(S_IFMT) == UInt32(S_IFREG) else {
+                throw OwnershipError.sourceChanged
+            }
+            let bytes = try Data(contentsOf: url)
+            guard observe(url) == .present(identity, parent: parent), FileDigest.sha512(bytes) == sha else {
+                throw OwnershipError.sourceChanged
+            }
+            return bytes
         }
     }
 
@@ -753,13 +982,14 @@ enum PendingLocalSaveStore {
                 state = try loadState(snapshot.databaseID) ?? OwnerState(version: 1, removed: false)
                 guard state.retirementID == snapshot.retirementID,
                       state.operation.admission?.operationID == snapshot.admission?.operationID,
+                      state.operation.preferenceIntent == snapshot.preferenceIntent,
                       state.keyEvidence == snapshot.keyEvidence else { throw OwnershipError.sourceChanged }
             }
             guard snapshot.entries.allSatisfy({ validRecoveryPath($0.relativePath) }) else { throw OwnershipError.sourceChanged }
             for entry in snapshot.entries {
                 try validateObservation(entry.observation, at: recoveryURL(entry.relativePath, databaseID: snapshot.databaseID))
             }
-            if snapshot.keyEvidence?.pending != nil {
+            if snapshot.keyEvidence?.pending != nil || snapshot.preferenceIntent != nil {
                 try writeAtomicallyAndDurably(Data("removed".utf8), to: controlDirectory(snapshot.databaseID).appendingPathComponent(".tombstone"))
                 state.removed = true
             }
@@ -1010,6 +1240,10 @@ enum PendingLocalSaveStore {
                 _ = try sourceURL(receipt.relativePath, databaseID: databaseID)
                 guard receipt.digest.count == 64 else { throw OwnershipError.recoveryRequired }
             }
+        }
+        if let preference = state.operation.preferenceIntent {
+            guard preference.observation.databaseID == databaseID, preference.expectedEpochID == state.epoch.id,
+                  preference.expectedAssociationVersion == state.associationVersion else { throw OwnershipError.recoveryRequired }
         }
         if let evidence = state.keyEvidence {
             guard state.epoch.id == evidence.epochID, evidence.sha512.count == 64,

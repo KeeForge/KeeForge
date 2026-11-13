@@ -254,6 +254,7 @@ final class DatabaseViewModel {
         /// Nil for local databases and for reloads that did not go through
         /// the cloud coordinator.
         var cloudSyncStatus: CloudSyncResolution.Status? = nil
+        var encryptedSnapshot: Data? = nil
     }
 
     /// What the last Sync Now found, shown until dismissed or superseded.
@@ -560,6 +561,8 @@ final class DatabaseViewModel {
     private(set) var contentRevision = 0
     private(set) var searchResults: [KPEntry] = []
     private(set) var openTimeSHA512: Data?
+    private(set) var authenticatedLocalCiphertext: Data?
+    private var previousLocalCiphertext: Data?
     private(set) var saveError: DatabaseSaveError?
     private(set) var saveConflict: SaveConflict?
     /// Why the last merge attempt wrote nothing, awaiting acknowledgement.
@@ -2595,7 +2598,9 @@ final class DatabaseViewModel {
         // loop goes around again if the draft grew behind it — the grown draft
         // contains the saved edits plus the new ones, so re-saving it whole is
         // correct.
-        var snapshot = draft
+        try await refreshSameEpochKeyFilePreference()
+        guard let currentDraft = self.draft else { return }
+        var snapshot = currentDraft
         while true {
             guard let openTimeSHA512 else {
                 throw SaveError.saveContextUnavailable
@@ -2637,9 +2642,10 @@ final class DatabaseViewModel {
             guard expectedLockCycleID == lockCycleID else { return }
 
             switch saveResult {
-            case .saved(let newSHA512, let expressKey, _),
-                 .committedWithoutConfirmedDurability(let newSHA512, let expressKey, _, _):
+            case .saved(let newSHA512, let expressKey, let localCommit),
+                 .committedWithoutConfirmedDurability(let newSHA512, let expressKey, let localCommit, _):
                 replaceExpressUnlockKeyAfterSave(with: expressKey)
+                rememberCommittedCiphertext(localCommit)
                 rootGroup = snapshot.rootGroup
                 unlockedMeta = snapshot.meta
                 binaryPool = snapshot.binaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
@@ -2745,6 +2751,7 @@ final class DatabaseViewModel {
             isSaving = false
         }
 
+        try await refreshSameEpochKeyFilePreference()
         let saveResult: SaveResult
         do {
             switch databaseReference.source {
@@ -2802,7 +2809,7 @@ final class DatabaseViewModel {
                 let ref = databaseReference
                 let storageIO = pendingLocalStorageIO
                 let publication = await Task.detached {
-                    DatabaseListStore.publishKeyFileAssociation(for: ref.id, operationID: localCommit.operationID, association: association)
+                    DatabaseListStore.publishKeyFileAssociation(for: ref.id, operationID: localCommit.operationID, association: association, expectedTarget: localCommit.installedTarget)
                 }.value
                 if case .durable(let proof) = publication {
                     associationSaved = true
@@ -2820,6 +2827,7 @@ final class DatabaseViewModel {
                     filename: newKeyFileFilename, changedAt: databaseReference.isCloudBacked ? nil : association.changedAt)
             }
             if expectedLockCycleID == lockCycleID {
+                rememberCommittedCiphertext(localCommit)
                 self.compositeKey = newCompositeKey
                 sessionKeyFileData = newKeyFileData
                 quickUnlockItemHoldsSessionKey = storedNewKey
@@ -2944,6 +2952,7 @@ final class DatabaseViewModel {
             isSaving = false
         }
 
+        try await refreshSameEpochKeyFilePreference()
         let saveResult: SaveResult
         switch databaseReference.source {
         case .local:
@@ -2970,13 +2979,14 @@ final class DatabaseViewModel {
         }
 
         switch saveResult {
-        case .saved(let newSHA512, _, _), .committedWithoutConfirmedDurability(let newSHA512, _, _, _):
+        case .saved(let newSHA512, _, let localCommit), .committedWithoutConfirmedDurability(let newSHA512, _, let localCommit, _):
             // The reference carries the new cloud revision, so it updates even
             // if the session locked mid-flight. The new KDF settings have no
             // express key until the next unlock or save stores one.
             expressUnlockKeySaveOperation(nil, databaseReference)
             refreshDatabaseReference()
             if expectedLockCycleID == lockCycleID {
+                rememberCommittedCiphertext(localCommit)
                 self.openTimeSHA512 = newSHA512
                 // Same as `changeMasterKey`: edits that landed behind this
                 // save no-oped on `isSaving`, so flush them once it resets.
@@ -2992,33 +3002,53 @@ final class DatabaseViewModel {
         }
     }
 
+    private func rememberCommittedCiphertext(_ receipt: PendingLocalSaveStore.CommitReceipt?) {
+        guard !databaseReference.isCloudBacked, let data = receipt?.encryptedSnapshot else { return }
+        previousLocalCiphertext = authenticatedLocalCiphertext
+        authenticatedLocalCiphertext = data
+    }
+
     func makeLocalRecoveryExport() async throws -> DatabaseExportService.ExportPayload {
+        guard !isReadOnly else { throw SaveError.databaseIsReadOnly }
         guard !databaseReference.isCloudBacked, case .unlocked = state,
               let draft, draft.isDirty, let compositeKey, !isSaving else { throw SaveError.saveContextUnavailable }
         let cycle = lockCycleID
         let reference = databaseReference
         let encrypt = conflictCopyEncryptionOperation
+        func export(using source: Data) async throws -> DatabaseExportService.ExportPayload {
+            guard cycle == lockCycleID, case .unlocked = state else { throw SaveError.saveContextUnavailable }
+            let bytes = try await encrypt(draft, compositeKey, source)
+            try await Task.detached {
+                guard let expectedPool = draft.binaryPoolFields else { throw SaveError.saveContextUnavailable }
+                let opened = try KDBXParser.parse(data: bytes, compositeKey: compositeKey,
+                    sessionKey: draft.writerSessionKey, kdfPolicy: .mainApp)
+                let expected = try KDBXWriter.document(rootGroup: draft.rootGroup, meta: draft.meta, sessionKey: draft.writerSessionKey)
+                let actual = try KDBXWriter.document(rootGroup: opened.rootGroup, meta: opened.meta, sessionKey: draft.writerSessionKey)
+                guard expected == actual, expectedPool == opened.header.innerHeaderBinaryFields else {
+                    throw SaveError.reencryptionVerificationFailed
+                }
+            }.value
+            guard cycle == lockCycleID, case .unlocked = state else { throw SaveError.saveContextUnavailable }
+            let copyName = DatabaseExportService.currentCopyFilename(for: reference, date: conflictCopyDateProvider(), timeZone: .current)
+            let stem = (copyName as NSString).deletingPathExtension
+            return .init(data: bytes, suggestedFilename: "\(stem) - \(String(localized: "Unsaved Changes")).kdbx")
+        }
+        // These are bounded ciphertext references, never serialized session secrets.
+        for source in [authenticatedLocalCiphertext, previousLocalCiphertext].compactMap({ $0 }) {
+            if let exported = try? await export(using: source) { return exported }
+            guard cycle == lockCycleID, case .unlocked = state else { throw SaveError.saveContextUnavailable }
+        }
         var candidates: [Data] = []
-        if let snapshot = try? await Task.detached(operation: { try PendingLocalSaveStore.recovery(for: reference.id) }).value, let evidence = snapshot.keyEvidence,
+        if let snapshot = try? await Task.detached(operation: { try PendingLocalSaveStore.recovery(for: reference.id) }).value,
+           let evidence = snapshot.keyEvidence,
            let saved = try? await LocalDatabaseSaver.exportKeyEpochCopy(evidence, for: reference) { candidates.append(saved) }
         if let current = try? await DatabaseExportService.exportCurrentCopy(for: reference) { candidates.append(current.data) }
         for backup in DatabaseExportService.backups(for: reference) {
             if let payload = try? await DatabaseExportService.exportBackup(backup, for: reference) { candidates.append(payload.data) }
         }
         for source in candidates {
+            if let exported = try? await export(using: source) { return exported }
             guard cycle == lockCycleID, case .unlocked = state else { throw SaveError.saveContextUnavailable }
-            do {
-                let bytes = try await encrypt(draft, compositeKey, source)
-                try await Task.detached {
-                    _ = try KDBXParser.parse(data: bytes, compositeKey: compositeKey,
-                        sessionKey: SymmetricKey(size: .bits256), kdfPolicy: .mainApp)
-                }.value
-                guard cycle == lockCycleID, case .unlocked = state else { throw SaveError.saveContextUnavailable }
-                return DatabaseExportService.ExportPayload(data: bytes,
-                    suggestedFilename: conflictCopyFilename(for: reference.filename))
-            } catch {
-                guard cycle == lockCycleID, case .unlocked = state else { throw SaveError.saveContextUnavailable }
-            }
         }
         throw SaveError.saveContextUnavailable
     }
@@ -3151,9 +3181,10 @@ final class DatabaseViewModel {
         guard expectedLockCycleID == lockCycleID else { return }
 
         switch saveResult {
-        case .saved(let newSHA512, let expressKey, _),
-                 .committedWithoutConfirmedDurability(let newSHA512, let expressKey, _, _):
+        case .saved(let newSHA512, let expressKey, let localCommit),
+                 .committedWithoutConfirmedDurability(let newSHA512, let expressKey, let localCommit, _):
             replaceExpressUnlockKeyAfterSave(with: expressKey)
+            rememberCommittedCiphertext(localCommit)
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
             binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
@@ -3454,6 +3485,7 @@ final class DatabaseViewModel {
             guard expectedLockCycleID == lockCycleID else { return .settledOrDeferred }
 
             replaceExpressUnlockKeyAfterSave(with: expressKey)
+            rememberCommittedCiphertext(localCommit)
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
             binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
@@ -3662,6 +3694,8 @@ final class DatabaseViewModel {
         sessionKey = reloaded.sessionKey
         unlockedMeta = reloaded.meta
         openTimeSHA512 = reloaded.openTimeSHA512
+        previousLocalCiphertext = authenticatedLocalCiphertext
+        authenticatedLocalCiphertext = reloaded.reference.isCloudBacked ? nil : reloaded.encryptedSnapshot
         binaryPool = reloaded.binaryPool
         AttachmentPreviewFileStore.clear(owner: attachmentPreviewOwnerID)
         draft = nil
@@ -4212,6 +4246,7 @@ final class DatabaseViewModel {
         let openTimeSHA512: Data
         let binaryPool: BinaryPool
         var expressKey: ExpressUnlockKey?
+        var encryptedSnapshot: Data? = nil
     }
 
     nonisolated private static func openForUnlock(
@@ -4237,7 +4272,7 @@ final class DatabaseViewModel {
                     meta: parsed.meta,
                     formatVersion: parsed.header.formatVersion,
                     openTimeSHA512: FileDigest.sha512(data),
-                    binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
+                    binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields), encryptedSnapshot: data
                 )
             }
 
@@ -4254,12 +4289,14 @@ final class DatabaseViewModel {
                 formatVersion: opened.header.formatVersion,
                 openTimeSHA512: FileDigest.sha512(data),
                 binaryPool: BinaryPool(rawFields: opened.header.innerHeaderBinaryFields),
-                expressKey: opened.keyToStore
+                expressKey: opened.keyToStore, encryptedSnapshot: data
             )
         }.value
     }
 
     private func beginNewLockCycle() {
+        authenticatedLocalCiphertext = nil
+        previousLocalCiphertext = nil
         lockCycleID += 1
     }
 
@@ -4455,6 +4492,8 @@ final class DatabaseViewModel {
 
     /// Starts an unlock attempt and returns its token for `finishUnlockAttempt`.
     private func prepareForUnlock() -> UUID {
+        authenticatedLocalCiphertext = nil
+        previousLocalCiphertext = nil
         let attempt = UUID()
         secretAccess.invalidate()
         activeUnlockAttempt = attempt
@@ -4512,6 +4551,8 @@ final class DatabaseViewModel {
         self.unlockedMeta = payload.meta
         self.openedFormatVersion = payload.formatVersion
         self.openTimeSHA512 = payload.openTimeSHA512
+        authenticatedLocalCiphertext = databaseReference.isCloudBacked ? nil : payload.encryptedSnapshot
+        previousLocalCiphertext = nil
         self.binaryPool = payload.binaryPool
         self.draft = nil
         self.saveError = nil
@@ -4623,6 +4664,17 @@ final class DatabaseViewModel {
             canChooseDifferentFile: false,
             diagnostics: diagnostics
         )
+    }
+
+    private func refreshSameEpochKeyFilePreference() async throws {
+        guard !databaseReference.isCloudBacked else { return }
+        let cycle = lockCycleID
+        let reference = databaseReference
+        let preference = try await Task.detached { try DatabaseListStore.currentSameEpochPreference(for: reference) }.value
+        guard cycle == lockCycleID, case .unlocked = state,
+              databaseReference.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt else { throw CancellationError() }
+        databaseReference.keyFileBookmarkData = preference.bookmarkData
+        databaseReference.keyFileFilename = preference.filename
     }
 
     private func refreshDatabaseReference() {
@@ -5088,7 +5140,7 @@ final class DatabaseViewModel {
             sessionKey: sessionKey,
             openTimeSHA512: FileDigest.sha512(data),
             binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields),
-            cloudSyncStatus: cloudSyncStatus
+            cloudSyncStatus: cloudSyncStatus, encryptedSnapshot: reference.isCloudBacked ? nil : data
         )
     }
 

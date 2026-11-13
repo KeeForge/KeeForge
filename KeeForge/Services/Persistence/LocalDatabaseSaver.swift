@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import KDBXKit
+import KDBXXML
 
 enum SaveEffectScope: Sendable, Equatable { case databaseFile, sharedCopy, recoveryRecord }
 
@@ -602,6 +603,22 @@ enum LocalDatabaseSaver {
         }
     }
 
+    static func exportKeyEpochCopy(
+        _ admission: PendingLocalSaveStore.Admission, for reference: DatabaseReference
+    ) async throws -> Data {
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        return try await CoordinatedFileReader.performBlocking(timeout: .seconds(15)) {
+            var error: NSError?
+            var result: Result<Data, Error>?
+            NSFileCoordinator().coordinate(readingItemAt: cache, options: [], error: &error) { url in
+                result = Result { try PendingLocalSaveStore.exportKeyEpochCopy(admission, for: reference.id, at: url) }
+            }
+            if let error { throw error }
+            guard let result else { throw SaveError.databaseLocationUnavailable }
+            return try result.get()
+        }
+    }
+
     static func captureTarget(for reference: DatabaseReference) throws -> PendingLocalSaveStore.TargetIdentity {
         guard let location = resolveLocation(for: reference) else { throw SaveError.databaseLocationUnavailable }
         let access = location.usesSecurityScope && location.url.startAccessingSecurityScopedResource()
@@ -646,16 +663,18 @@ enum LocalDatabaseSaver {
     ) throws -> PendingLocalSaveStore.ResolutionOutcome {
         if let admission = snapshot.admission, case .masterKeyChange(let association) = admission.purpose,
            let association, let intended = admission.intendedSHA512 {
+            var inspectedTarget: PendingLocalSaveStore.TargetIdentity?
             _ = try observeOriginal(reference) { url in
                 try PendingLocalSaveStore.validateRecoveryAdmission(admission, for: reference.id)
                 let target = try PendingLocalSaveStore.targetIdentity(at: url)
                 guard target.canonicalPath == admission.target.canonicalPath, target.parent == admission.target.parent,
                       FileDigest.sha512(try Data(contentsOf: url)) == intended else { throw PendingLocalSaveStore.OwnershipError.targetChanged }
+                inspectedTarget = target
                 return .resolved
             }
             try beforePublication()
             guard case .durable(let proof) = DatabaseListStore.publishKeyFileAssociation(
-                for: reference.id, operationID: admission.operationID, association: association) else { throw SaveAssociationWarning() }
+                for: reference.id, operationID: admission.operationID, association: association, expectedTarget: inspectedTarget) else { throw SaveAssociationWarning() }
             return try observeOriginal(reference) { url in
                 try PendingLocalSaveStore.validateRecoveryAdmission(admission, for: reference.id)
                 guard FileDigest.sha512(try Data(contentsOf: url)) == intended else { throw PendingLocalSaveStore.OwnershipError.targetChanged }
@@ -664,26 +683,29 @@ enum LocalDatabaseSaver {
                 guard installed.canonicalPath == admission.target.canonicalPath, installed.parent == admission.target.parent else {
                     throw PendingLocalSaveStore.OwnershipError.targetChanged
                 }
-                receipt.installedTarget = installed
+                receipt.targetCommit = .unconfirmed(.init(target: installed, sha512: intended))
                 // Metadata recovery does not infer the original replacement's durability after a restart.
                 return PendingLocalSaveStore.settleKeyPublication(receipt, associationProof: proof,
                     observeTarget: { (try PendingLocalSaveStore.targetIdentity(at: url), FileDigest.sha512(try Data(contentsOf: url))) })
             }
         }
         guard let evidence = snapshot.keyEvidence else { throw SaveAssociationWarning() }
+        var inspectedTarget: PendingLocalSaveStore.TargetIdentity?
         _ = try observeOriginal(reference) { url in
             let target = try PendingLocalSaveStore.targetIdentity(at: url)
             let sha = FileDigest.sha512(try Data(contentsOf: url))
             guard (target == evidence.target && sha == evidence.sha512)
                 || (target.canonicalPath == evidence.target.canonicalPath && target.parent == evidence.target.parent
                     && sha == evidence.pending?.sha512) else { throw PendingLocalSaveStore.OwnershipError.targetChanged }
+            inspectedTarget = target
             return .resolved
         }
         try beforePublication()
         guard case .durable(let proof) = DatabaseListStore.publishKeyFileAssociation(
-            for: reference.id, operationID: evidence.epochID, association: evidence.association) else { throw SaveAssociationWarning() }
+            for: reference.id, operationID: evidence.epochID, association: evidence.association,
+            expectedTarget: inspectedTarget, expectedWitness: evidence, expectedAssociationVersion: snapshot.associationVersion) else { throw SaveAssociationWarning() }
         return try observeOriginal(reference) { url in
-            PendingLocalSaveStore.confirmKeyEvidence(evidence, for: reference.id, associationProof: proof,
+            PendingLocalSaveStore.confirmKeyEvidence(evidence, for: reference.id, expectedAssociationVersion: snapshot.associationVersion, associationProof: proof,
                 observeTarget: { (try PendingLocalSaveStore.targetIdentity(at: url), FileDigest.sha512(try Data(contentsOf: url))) })
         }
     }
@@ -808,7 +830,8 @@ enum LocalDatabaseSaver {
         var coordinatorError: NSError?
         var result: Result<ReplaceOutcome, Error>?
         var enteredReplacement = false
-        var observedEffect: PendingLocalSaveStore.TargetWriteObservation?
+        var observedEffect: PendingLocalSaveStore.TargetCommit?
+        var targetWrite: PendingLocalSaveStore.TargetWriteToken?
 
         func access(readingURL: URL?, writingURL: URL) {
             result = Result {
@@ -831,13 +854,17 @@ enum LocalDatabaseSaver {
                         guard let installed = try? Data(contentsOf: writingURL), FileDigest.sha512(installed) == intended,
                               let identity = try? PendingLocalSaveStore.targetIdentity(at: writingURL) else { return .indeterminate }
                         var installedReceipt = receipt
-                        installedReceipt?.installedTarget = identity
+                        if installedReceipt == nil, let authorization {
+                            installedReceipt = .init(databaseID: authorization.databaseID, sha512: intended)
+                        }
                         var durable = false
                         if !replacementThrew {
                             do { try io.synchronize(writingURL.deletingLastPathComponent()); durable = true } catch {}
                         }
-                        installedReceipt?.targetDurabilityConfirmed = durable
-                        observedEffect = .init(target: identity, sha512: intended, durabilityConfirmed: durable)
+                        let installedTarget = PendingLocalSaveStore.InstalledTarget(target: identity, sha512: intended)
+                        observedEffect = durable ? .confirmed(installedTarget) : .unconfirmed(installedTarget)
+                        installedReceipt?.targetCommit = observedEffect
+                        installedReceipt?.encryptedSnapshot = data
                         return durable ? .replaced(installedReceipt) : .replacedWithoutConfirmedDurability(installedReceipt)
                     }
                     if let authorization {
@@ -852,12 +879,10 @@ enum LocalDatabaseSaver {
                                     throw CoordinatedConflict(currentData: bytes)
                                 }
                                 return (try PendingLocalSaveStore.targetIdentity(at: writingURL), FileDigest.sha512(bytes))
-                            }, targetIsSharedCopy: authorization.targetIsSharedCopy, observeEffect: { observedEffect },
+                            }, targetIsSharedCopy: authorization.targetIsSharedCopy,
                             io: authorization.storageIO, perform
                         )
-                        if authorized.bookkeeping != .resolved, case .replaced(let receipt) = authorized.value {
-                            return .replacedWithUnconfirmedBookkeeping(receipt)
-                        }
+                        targetWrite = authorized.targetWrite
                         return authorized.value
                     }
                     return try perform(nil)
@@ -885,18 +910,36 @@ enum LocalDatabaseSaver {
                 access(readingURL: nil, writingURL: $0)
             }
         }
+        func finalize(_ outcome: ReplaceOutcome, coordinationFailed: Bool = false) -> ReplaceOutcome {
+            var finalOutcome = outcome
+            if coordinationFailed {
+                observedEffect = observedEffect?.withoutConfirmation
+                switch outcome {
+                case .replaced(var receipt), .replacedWithoutConfirmedDurability(var receipt), .replacedWithUnconfirmedBookkeeping(var receipt):
+                    receipt?.targetCommit = receipt?.targetCommit?.withoutConfirmation
+                    finalOutcome = .replacedWithoutConfirmedDurability(receipt)
+                case .indeterminate, .changed: break
+                }
+            }
+            if let targetWrite, let observedEffect {
+                var confirmationError: NSError?
+                var resolution = PendingLocalSaveStore.ResolutionOutcome.retainedForRecovery
+                NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &confirmationError) { target in
+                    resolution = PendingLocalSaveStore.finishTargetWrite(targetWrite, commit: observedEffect, observeTarget: {
+                        (try PendingLocalSaveStore.targetIdentity(at: target), FileDigest.sha512(try Data(contentsOf: target)))
+                    }, io: authorization?.storageIO ?? .init())
+                }
+                if resolution != .resolved || confirmationError != nil, case .replaced(let receipt) = finalOutcome {
+                    return .replacedWithUnconfirmedBookkeeping(receipt)
+                }
+            }
+            return finalOutcome
+        }
         do {
             if let coordinatorError { throw coordinatorError }
             try io.coordinationCompletion()
         } catch {
-            if case .success(let outcome)? = result {
-                switch outcome {
-                case .replaced(let receipt), .replacedWithoutConfirmedDurability(let receipt), .replacedWithUnconfirmedBookkeeping(let receipt):
-                    return .replacedWithoutConfirmedDurability(receipt)
-                case .indeterminate: return .indeterminate
-                case .changed: return outcome
-                }
-            }
+            if case .success(let outcome)? = result { return finalize(outcome, coordinationFailed: true) }
             if enteredReplacement { return .indeterminate }
             throw LocalSaveBeforeReplacementFailure(underlying: error)
         }
@@ -904,7 +947,7 @@ enum LocalDatabaseSaver {
             if enteredReplacement { return .indeterminate }
             throw LocalSaveBeforeReplacementFailure(underlying: CocoaError(.fileWriteUnknown))
         }
-        return try result.get()
+        return finalize(try result.get())
     }
 
     private struct CoordinatedConflict: Error { let currentData: Data }

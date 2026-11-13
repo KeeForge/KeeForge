@@ -92,6 +92,7 @@ struct DatabaseListView: View {
             allowedContentTypes: pickerContentTypes,
             onCompletion: handlePickerSelection
         )
+        .onDisappear { viewModel.cancelKeyFilePreference() }
         .alert(item: $selectionAlert) { alert in
             Alert(
                 title: Text(alert.title),
@@ -609,15 +610,22 @@ struct DatabaseListView: View {
             Button("Change Key File") {
                 pickerState.present(.keyFile(reference))
             }
+            .disabled(viewModel.isChangingKeyFile(for: reference.id))
 
             Button("Clear Key File", role: .destructive) {
-                try? viewModel.setKeyFile(url: nil, for: reference)
-                refreshDetailsReferenceIfNeeded(for: reference.id)
+                Task {
+                    do { try await viewModel.setKeyFile(url: nil, for: reference) }
+                    catch is CancellationError {}
+                    catch { selectionAlert = .init(title: String(localized: "Key File Preference"), message: error.localizedDescription) }
+                    refreshDetailsReferenceIfNeeded(for: reference.id)
+                }
             }
+            .disabled(viewModel.isChangingKeyFile(for: reference.id))
         } else {
             Button("Set Key File") {
                 pickerState.present(.keyFile(reference))
             }
+            .disabled(viewModel.isChangingKeyFile(for: reference.id))
         }
 
         Toggle(
@@ -722,12 +730,13 @@ struct DatabaseListView: View {
     private func handleKeyFileSelection(_ result: Result<URL, Error>, for reference: DatabaseReference) {
         switch result {
         case .success(let url):
-            do {
-                try viewModel.setKeyFile(url: url, for: reference)
-                refreshDetailsReferenceIfNeeded(for: reference.id)
-                selectionAlert = nil
-            } catch {
-                selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: error)
+            Task {
+                do {
+                    try await viewModel.setKeyFile(url: url, for: reference)
+                    refreshDetailsReferenceIfNeeded(for: reference.id)
+                    selectionAlert = nil
+                } catch is CancellationError {}
+                catch { selectionAlert = .init(title: String(localized: "Key File Preference"), message: error.localizedDescription) }
             }
 
         case .failure(let error):
