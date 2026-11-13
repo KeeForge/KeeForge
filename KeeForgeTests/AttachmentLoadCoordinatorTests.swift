@@ -4,6 +4,8 @@ import XCTest
 @MainActor
 final class AttachmentLoadCoordinatorTests: XCTestCase {
     func testPreviewFinishingAfterLockCannotWriteATempFile() async throws {
+        let owner = UUID()
+        defer { AttachmentPreviewFileStore.clear(owner: owner) }
         let coordinator = AttachmentLoadCoordinator()
         coordinator.activate()
         let started = expectation(description: "Preview decoding started")
@@ -19,14 +21,14 @@ final class AttachmentLoadCoordinatorTests: XCTestCase {
             },
             isCurrent: { lockCycle == 0 },
             onCompletion: {
-                previewURL = try? AttachmentPreviewFileStore.write($0, suggestedName: "late.txt")
+                previewURL = try? AttachmentPreviewFileStore.write($0, suggestedName: "late.txt", owner: owner)
             }
         ))
         XCTAssertTrue(coordinator.isLoading)
         await fulfillment(of: [started], timeout: 1)
 
         lockCycle += 1
-        AttachmentPreviewFileStore.clearAll()
+        AttachmentPreviewFileStore.clear(owner: owner)
         try XCTUnwrap(continuation).resume(returning: Data("private attachment".utf8))
         await task.value
 

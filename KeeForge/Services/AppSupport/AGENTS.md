@@ -43,7 +43,7 @@
 
 - `FeedbackSubmissionService` sends only on explicit submit, only to `feedback.keeforge.com`: the message, optional contact email with consent, an optional photo up to 5 MiB, and the error context of the failure being reported (category, code, details).
 - That context comes from `DatabaseOpenFailure` and carries no file names, paths, or vault data. Do not attach anything else automatically.
-- `AttachmentPreviewFileStore` files are plaintext attachment contents. They are removed on preview dismissal and on database lock, and `purgeOrphanedFiles()` at launch cleans up after a crash. A new consumer must call `remove(_:)`.
+- `AttachmentPreviewFileStore` files are plaintext attachment contents tracked by the owning database session's preview owner ID. Consumers pass that owner to `write` and `remove`; lock and reload clear only that owner's files. App-global `purgeOrphanedFiles()` at launch cleans up after a crash and is a no-op while any owner has tracked previews.
 
 ### Mac lock, window close, quick access
 

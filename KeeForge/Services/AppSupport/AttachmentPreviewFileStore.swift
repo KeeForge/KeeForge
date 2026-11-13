@@ -9,16 +9,16 @@ import Foundation
 @MainActor
 enum AttachmentPreviewFileStore {
     private static let subdirectoryName = "attachment-previews"
-    private static var trackedURLs: Set<URL> = []
+    private static var trackedURLs: [UUID: Set<URL>] = [:]
 
     private static var directory: URL {
         FileManager.default.temporaryDirectory.appendingPathComponent(subdirectoryName, isDirectory: true)
     }
 
     /// Writes `data` to a fresh temp file named `name` (falling back to a
-    /// generic name when empty) and returns its URL. Call `remove(_:)` once
+    /// generic name when empty) and returns its URL. Call `remove(_:owner:)` once
     /// the consumer (QuickLook, share sheet) is done with the file.
-    static func write(_ data: Data, suggestedName: String) throws -> URL {
+    static func write(_ data: Data, suggestedName: String, owner: UUID) throws -> URL {
         let fm = FileManager.default
         if fm.fileExists(atPath: directory.path) == false {
             try fm.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -31,16 +31,19 @@ enum AttachmentPreviewFileStore {
         try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
 
         try data.write(to: url, options: .atomicProtected)
-        trackedURLs.insert(url)
+        trackedURLs[owner, default: []].insert(url)
         return url
     }
 
     /// Removes a single previously written temp file (and its per-file
     /// directory) if present.
-    static func remove(_ url: URL) {
+    static func remove(_ url: URL, owner: UUID) {
+        guard trackedURLs[owner]?.remove(url) != nil else { return }
+        if trackedURLs[owner]?.isEmpty == true {
+            trackedURLs.removeValue(forKey: owner)
+        }
         let containingDirectory = url.deletingLastPathComponent()
         try? FileManager.default.removeItem(at: containingDirectory)
-        trackedURLs.remove(url)
     }
 
     /// Deletes any preview files left behind by a previous process that
@@ -48,20 +51,20 @@ enum AttachmentPreviewFileStore {
     /// attachment bytes from an earlier session never persist into this one.
     /// Called once at app launch, before any preview is written; the
     /// `trackedURLs` guard makes stray later calls a no-op while a preview
-    /// from the current session is live.
+    /// from any current session is live.
     static func purgeOrphanedFiles() {
         guard trackedURLs.isEmpty else { return }
         try? FileManager.default.removeItem(at: directory)
     }
 
-    /// Removes every tracked temp file. Called on database lock so plaintext
-    /// attachment bytes never outlive the unlocked session.
-    static func clearAll() {
-        for url in trackedURLs {
+    /// Removes only the owning session's previews on lock or reload.
+    static func clear(owner: UUID) {
+        for url in trackedURLs.removeValue(forKey: owner) ?? [] {
             try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
         }
-        trackedURLs.removeAll()
-        try? FileManager.default.removeItem(at: directory)
+        if trackedURLs.isEmpty {
+            try? FileManager.default.removeItem(at: directory)
+        }
     }
 
     private static func sanitizedFilename(_ name: String) -> String {

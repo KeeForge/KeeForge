@@ -109,13 +109,13 @@ private struct AttachmentRow: View {
                 return
             }
             byteCount = data.count
-            previewURL = try? AttachmentPreviewFileStore.write(data, suggestedName: displayName)
+            previewURL = try? AttachmentPreviewFileStore.write(data, suggestedName: displayName, owner: viewModel.attachmentPreviewOwnerID)
         }
     }
 
     private func cleanUpTempFile() {
         guard let previewURL else { return }
-        AttachmentPreviewFileStore.remove(previewURL)
+        AttachmentPreviewFileStore.remove(previewURL, owner: viewModel.attachmentPreviewOwnerID)
         self.previewURL = nil
     }
 

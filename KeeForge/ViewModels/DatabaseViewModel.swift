@@ -468,6 +468,7 @@ final class DatabaseViewModel {
     }
 
     private(set) var state: State = .locked
+    let attachmentPreviewOwnerID = UUID()
     private(set) var lockCycleID = 0
     /// The lock cycle whose biometric auto-unlock has been tried. Observed, so
     /// the opening screen that stands in for the unlock form leaves once the
@@ -2293,7 +2294,7 @@ final class DatabaseViewModel {
         binaryPool = nil
         draft = nil
         openTimeSHA512 = nil
-        AttachmentPreviewFileStore.clearAll()
+        AttachmentPreviewFileStore.clear(owner: attachmentPreviewOwnerID)
         saveError = nil
         saveConflict = nil
         mergeFailure = nil
@@ -3495,7 +3496,7 @@ final class DatabaseViewModel {
         unlockedMeta = reloaded.meta
         openTimeSHA512 = reloaded.openTimeSHA512
         binaryPool = reloaded.binaryPool
-        AttachmentPreviewFileStore.clearAll()
+        AttachmentPreviewFileStore.clear(owner: attachmentPreviewOwnerID)
         draft = nil
     }
 
