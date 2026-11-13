@@ -541,7 +541,8 @@ enum PendingLocalSaveStore {
     }
 
     static func withAssociationPublicationAuthorization<T>(
-        for databaseID: UUID, operationID: UUID, association: KeyFileAssociation, _ publish: () throws -> T
+        for databaseID: UUID, operationID: UUID, association: KeyFileAssociation,
+        observeTarget: () throws -> (TargetIdentity, Data), _ publish: () throws -> T
     ) throws -> T {
         try withLock(for: databaseID) {
             try requireNotRemoved(databaseID)
@@ -552,6 +553,15 @@ enum PendingLocalSaveStore {
             } else { barrierMatches = false }
             guard barrierMatches || (state.keyEvidence?.epochID == operationID && state.keyEvidence?.association == association) else {
                 throw OwnershipError.sourceChanged
+            }
+            let (target, sha) = try observeTarget()
+            if barrierMatches, let admission = state.operation.admission {
+                guard target.canonicalPath == admission.target.canonicalPath, target.parent == admission.target.parent,
+                      sha == admission.intendedSHA512 else { throw OwnershipError.targetChanged }
+            } else if let evidence = state.keyEvidence {
+                guard (target == evidence.target && sha == evidence.sha512)
+                    || (target.canonicalPath == evidence.target.canonicalPath && target.parent == evidence.target.parent
+                        && sha == evidence.pending?.sha512) else { throw OwnershipError.targetChanged }
             }
             return try publish()
         }

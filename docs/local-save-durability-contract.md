@@ -218,3 +218,12 @@ identity stays unchanged across the read under coordination/flock. This is an
 explicit verified copy of known ciphertext, never a substitute for a pending-source
 receipt or permission to consume it. A missing, foreign or unreadable copy reports
 export failure and grants no discard permission.
+
+Publishing a key-change association coordinates the registry and original target
+in one accessor before taking owner flock. The accessor rereads the current
+reference, validates operation/epoch and the exact compatible installed target,
+and holds both resources through association publication. A preliminary inspection
+is not publication authority; a cooperating replacement between inspection and
+publication is either excluded by coordination or rejected without changing the
+registry. Recovery never publishes new factors to discover whether they fit an
+old, missing or foreign target. Settlement independently revalidates afterwards.

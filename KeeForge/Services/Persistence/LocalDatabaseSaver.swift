@@ -641,10 +641,19 @@ enum LocalDatabaseSaver {
     }
 
     static func confirmInstalledKeyChange(
-        for reference: DatabaseReference, snapshot: PendingLocalSaveStore.RecoverySnapshot
+        for reference: DatabaseReference, snapshot: PendingLocalSaveStore.RecoverySnapshot,
+        beforePublication: @Sendable () throws -> Void = {}
     ) throws -> PendingLocalSaveStore.ResolutionOutcome {
         if let admission = snapshot.admission, case .masterKeyChange(let association) = admission.purpose,
            let association, let intended = admission.intendedSHA512 {
+            _ = try observeOriginal(reference) { url in
+                try PendingLocalSaveStore.validateRecoveryAdmission(admission, for: reference.id)
+                let target = try PendingLocalSaveStore.targetIdentity(at: url)
+                guard target.canonicalPath == admission.target.canonicalPath, target.parent == admission.target.parent,
+                      FileDigest.sha512(try Data(contentsOf: url)) == intended else { throw PendingLocalSaveStore.OwnershipError.targetChanged }
+                return .resolved
+            }
+            try beforePublication()
             guard case .durable(let proof) = DatabaseListStore.publishKeyFileAssociation(
                 for: reference.id, operationID: admission.operationID, association: association) else { throw SaveAssociationWarning() }
             return try observeOriginal(reference) { url in
@@ -661,9 +670,18 @@ enum LocalDatabaseSaver {
                     observeTarget: { (try PendingLocalSaveStore.targetIdentity(at: url), FileDigest.sha512(try Data(contentsOf: url))) })
             }
         }
-        guard let evidence = snapshot.keyEvidence,
-              case .durable(let proof) = DatabaseListStore.publishKeyFileAssociation(
-                for: reference.id, operationID: evidence.epochID, association: evidence.association) else { throw SaveAssociationWarning() }
+        guard let evidence = snapshot.keyEvidence else { throw SaveAssociationWarning() }
+        _ = try observeOriginal(reference) { url in
+            let target = try PendingLocalSaveStore.targetIdentity(at: url)
+            let sha = FileDigest.sha512(try Data(contentsOf: url))
+            guard (target == evidence.target && sha == evidence.sha512)
+                || (target.canonicalPath == evidence.target.canonicalPath && target.parent == evidence.target.parent
+                    && sha == evidence.pending?.sha512) else { throw PendingLocalSaveStore.OwnershipError.targetChanged }
+            return .resolved
+        }
+        try beforePublication()
+        guard case .durable(let proof) = DatabaseListStore.publishKeyFileAssociation(
+            for: reference.id, operationID: evidence.epochID, association: evidence.association) else { throw SaveAssociationWarning() }
         return try observeOriginal(reference) { url in
             PendingLocalSaveStore.confirmKeyEvidence(evidence, for: reference.id, associationProof: proof,
                 observeTarget: { (try PendingLocalSaveStore.targetIdentity(at: url), FileDigest.sha512(try Data(contentsOf: url))) })

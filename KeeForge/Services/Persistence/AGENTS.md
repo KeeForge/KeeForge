@@ -75,3 +75,5 @@
 - Source publication is provisional intent -> durable ciphertext -> known shared-cache replacement -> typed activation. Preparation alone is never automatic-merge eligibility. Admission, final replacement fencing, exact durable retirement and visible-unconfirmed clear form one production protocol.
 - A master-key barrier settles separately from source retirement, only against the installed target and a durable field-specific key-file association receipt. Keep target uncertainty and the new epoch witness. Reconfirm visible owner metadata under flock before future mutation, and reject old/missing/foreign targets; valid encrypted reads/exports remain independent.
 - Local cache refresh coordinates original/cache before flock and rechecks ciphertext, accepted sources and revocation through publication. A stale completion must not recreate a removed cache.
+
+- Key-change association publication holds combined target/registry coordination before owner flock through the registry write. It rereads reference fields and verifies the compatible installed ciphertext before publishing factors; a later settlement check cannot substitute for that protection.

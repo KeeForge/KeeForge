@@ -247,6 +247,83 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try PendingLocalSaveStore.export(XCTUnwrap(snapshot.receipts.first), for: reference.id), installed)
     }
 
+    func testKeyConfirmationRejectsOldMissingAndForeignTargetsBeforePublishingNewFactors() async throws {
+        for mutation in ["old", "missing", "foreign"] {
+            let setup = try await makePendingKeyChangeWithDistinctKeyFiles()
+            defer { try? FileManager.default.removeItem(at: setup.directory) }
+            let registry = AppGroupContainer.url.appendingPathComponent("database-list.json")
+            let before = try Data(contentsOf: registry)
+            switch mutation {
+            case "old": try setup.oldData.write(to: setup.url, options: .atomic)
+            case "missing": try FileManager.default.removeItem(at: setup.url)
+            default: try Data("foreign ciphertext".utf8).write(to: setup.url, options: .atomic)
+            }
+            XCTAssertThrowsError(try LocalDatabaseSaver.confirmInstalledKeyChange(for: setup.reference, snapshot: setup.snapshot))
+            XCTAssertEqual(try Data(contentsOf: registry), before, "Rejected confirmation must not publish new factors")
+            XCTAssertEqual(try PendingLocalSaveStore.recovery(for: setup.reference.id).admission?.operationID,
+                setup.snapshot.admission?.operationID)
+            let oldKeyURL = try XCTUnwrap(DatabaseListStore.resolveKeyFileURL(for: setup.reference))
+            XCTAssertEqual(try Data(contentsOf: oldKeyURL), setup.oldKeyFile)
+            if mutation == "old" {
+                _ = try KDBXParser.parse(data: Data(contentsOf: setup.url), compositeKey: setup.oldKey,
+                    sessionKey: SymmetricKey(size: .bits256))
+            }
+            XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: setup.reference)), setup.newData)
+        }
+    }
+
+    func testKeyConfirmationRechecksTargetUnderBothResourceCoordinationBeforePublishing() async throws {
+        let setup = try await makePendingKeyChangeWithDistinctKeyFiles()
+        defer { try? FileManager.default.removeItem(at: setup.directory) }
+        let registry = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        let before = try Data(contentsOf: registry)
+        let target = setup.url
+        let oldData = setup.oldData
+        let installedSHA = FileDigest.sha512(setup.newData)
+        XCTAssertThrowsError(try LocalDatabaseSaver.confirmInstalledKeyChange(for: setup.reference, snapshot: setup.snapshot,
+            beforePublication: {
+                _ = try LocalDatabaseSaver.replaceFileAtomically(oldData, at: target, expectedSHA512: installedSHA)
+            }))
+        XCTAssertEqual(try Data(contentsOf: target), oldData)
+        XCTAssertEqual(try Data(contentsOf: registry), before)
+        XCTAssertEqual(try PendingLocalSaveStore.recovery(for: setup.reference.id).admission?.operationID,
+            setup.snapshot.admission?.operationID)
+    }
+
+    private func makePendingKeyChangeWithDistinctKeyFiles() async throws -> (
+        directory: URL, url: URL, reference: DatabaseReference, oldData: Data, newData: Data,
+        oldKey: SymmetricKey, oldKeyFile: Data, snapshot: PendingLocalSaveStore.RecoverySnapshot
+    ) {
+        let loaded = try KDBXCompatibilitySupport.load(.passwordKeyfile, bundle: Bundle(for: Self.self))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("key-confirmation.kdbx")
+        try loaded.sourceData.write(to: url)
+        let oldKeyFile = try XCTUnwrap(loaded.keyFileData)
+        let oldKeyURL = directory.appendingPathComponent("old.keyx")
+        try oldKeyFile.write(to: oldKeyURL)
+        let newKeyURL = directory.appendingPathComponent("new.keyx")
+        let newKeyFile = Data(repeating: 0x52, count: 32)
+        try newKeyFile.write(to: newKeyURL)
+        var reference = try DatabaseListStore.add(url: url)
+        reference.keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: oldKeyURL, readOnly: true)
+        reference.keyFileFilename = oldKeyURL.lastPathComponent
+        DatabaseListStore.update(reference)
+        let desired = PendingLocalSaveStore.KeyFileAssociation(
+            bookmarkData: try SecurityScopedBookmarkManager.makeBookmarkData(for: newKeyURL, readOnly: true),
+            filename: newKeyURL.lastPathComponent, changedAt: Date(timeIntervalSince1970: 1_800_000_000))
+        let newKey = try KDBXCrypto.compositeKey(password: "new key-confirmation password", keyFileData: newKeyFile)
+        let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
+            binaryPoolFields: loaded.header.innerHeaderBinaryFields)
+        let outcome = try await PendingLocalSaveStore.$keyFileAssociation.withValue(desired) {
+            try await LocalDatabaseSaver.save(draft: draft, reference: reference, compositeKey: loaded.compositeKey,
+                openTimeSHA512: FileDigest.sha512(loaded.sourceData), kdfPolicy: .mainApp, newCompositeKey: newKey)
+        }
+        guard case .saved = outcome else { throw SaveError.saveContextUnavailable }
+        return (directory, url, reference, loaded.sourceData, try Data(contentsOf: url), loaded.compositeKey, oldKeyFile,
+            try PendingLocalSaveStore.recovery(for: reference.id))
+    }
+
     func testSaveWritesValidKDBXThatReParsesEqualToDraft() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)

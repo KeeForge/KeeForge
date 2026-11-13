@@ -405,31 +405,48 @@ enum DatabaseListStore {
         io: DurableFileWriteIO = .init()
     ) -> KeyFileAssociationPublication {
         withStateLock {
-            _ = loadDatabases()
-            guard let anchor = AppGroupContainer.resolvedURL else { return .notPublished }
-            let bytes: Data
-            do {
-                var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
-                guard let index = references.firstIndex(where: { $0.id == id }) else { return .notPublished }
-                references[index].keyFileBookmarkData = association.bookmarkData
-                references[index].keyFileFilename = association.filename
-                references[index].lastMasterKeyChangeAt = association.changedAt
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                bytes = try encoder.encode(normalized(references))
-            } catch { return .notPublished }
+            guard let anchor = AppGroupContainer.resolvedURL,
+                  let observed = try? JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
+                    .first(where: { $0.id == id }) else { return .notPublished }
+            let target: URL
+            if let bookmark = observed.bookmarkData {
+                guard let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmark) else { return .notPublished }
+                target = resolved.url
+            } else { target = cacheLocation(for: observed) }
+            let access = observed.bookmarkData != nil && target.startAccessingSecurityScopedResource()
+            defer { if access { target.stopAccessingSecurityScopedResource() } }
             var coordinatorError: NSError?
             var outcome: DurableWriteOutcome?
-            NSFileCoordinator().coordinate(writingItemAt: databaseListURL, options: [], error: &coordinatorError) { url in
+            var publishedBytes: Data?
+            // List lock -> target/registry coordination -> owner flock, with both resources held through publication.
+            NSFileCoordinator().coordinate(readingItemAt: target, options: [], writingItemAt: databaseListURL,
+                options: .forReplacing, error: &coordinatorError) { protectedTarget, registry in
                 do {
+                    var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
+                    guard let index = references.firstIndex(where: { $0.id == id }),
+                          references[index].bookmarkData == observed.bookmarkData,
+                          references[index].keyFileBookmarkData == observed.keyFileBookmarkData,
+                          references[index].keyFileFilename == observed.keyFileFilename,
+                          references[index].lastMasterKeyChangeAt == observed.lastMasterKeyChangeAt else {
+                        throw PendingLocalSaveStore.OwnershipError.sourceChanged
+                    }
+                    references[index].keyFileBookmarkData = association.bookmarkData
+                    references[index].keyFileFilename = association.filename
+                    references[index].lastMasterKeyChangeAt = association.changedAt
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                    let bytes = try encoder.encode(references)
                     outcome = try PendingLocalSaveStore.withAssociationPublicationAuthorization(
-                        for: id, operationID: operationID, association: association
-                    ) { writeWithDurabilityOutcome(bytes, to: url, directoryAnchor: anchor, io: io) }
+                        for: id, operationID: operationID, association: association, observeTarget: {
+                            (try PendingLocalSaveStore.targetIdentity(at: protectedTarget), FileDigest.sha512(try Data(contentsOf: protectedTarget)))
+                        }
+                    ) { writeWithDurabilityOutcome(bytes, to: registry, directoryAnchor: anchor, io: io) }
+                    publishedBytes = bytes
                 } catch { outcome = .notPublished(error) }
             }
             switch outcome {
             case .durable?:
-                guard coordinatorError == nil else { return .publishedWithoutConfirmedDurability }
+                guard coordinatorError == nil, let bytes = publishedBytes else { return .publishedWithoutConfirmedDurability }
                 return .durable(DurableKeyFileAssociationReceipt(databaseID: id, operationID: operationID,
                     association: association, registrySHA512: FileDigest.sha512(bytes)))
             case .publishedWithoutConfirmedDurability?: return .publishedWithoutConfirmedDurability
