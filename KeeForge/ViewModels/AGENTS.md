@@ -10,6 +10,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `DatabaseSessionStore`, owned by `KeeForgeApp` on iOS and `AppDelegate` on Mac, retains sessions until retirement completes their transition lock; a deferred retirement must be retried, and active selection is always explicit. Forced retirement discards unsaved work and clears secrets when the app drops a session unconditionally.
 - App activation, background/system lock, inactivity resets, and live Settings effects fan out through `DatabaseSessionStore` to every stored session, regardless of active selection. Database-list removal force-retires every missing session.
 - `DatabaseWorkspaceState` (`DatabaseViewModel.workspace`): selection, typed `DatabaseRoute` navigation, the open iOS editor with its coordinator, search activation, menu request counters. No tree or secret data, no navigation objects or view references.
+- `MacWorkspacePresentation`: per-window Mac editors, pending row actions, group creation form, expansion, database details, save-error presentation, and reconnect lifetime. The AppKit main window owns it; the stable workspace host clears it on disappearance. It holds no database session. Column focus and split measurements stay in views.
 - `DatabaseEditorCoordinator`: editor activation, dirty-editor registration, draft submission, save/delete completion, Save and Lock. `EntryEditViewModel` / `GroupEditViewModel` own only field state, validation, and the payload they emit.
 - `AppSettingsViewModel`: preference persistence and its live effects on open sessions.
 - `AppRoutingCoordinator`: launch order, queued database routes, incoming-URL classification, pending TOTP enrollment, Open/Close Database transitions.
@@ -78,6 +79,7 @@ Unit classes in `../../KeeForgeTests/` are named `<Type>Tests`. Cover success, f
 - `DatabaseViewModel` by concern: `DatabaseViewModelTests`, `DatabaseViewModelCloudSyncTests`, `AutoLockTests`, `HardwareKeyUnlockTests`, `SecretAccessGateTests`, `SortOrderTests`, `PendingUploadDrainerTests` (rekey marker cutoff), `DatabaseViewModelExpressUnlockTests` (in `ExpressUnlockTests.swift`).
 - `PasswordImportViewModelTests` is in `PasswordImportTests.swift`; `CloudFileBrowserViewModelTests` covers `CloudFileBrowserSession` and `CloudFolderBrowserViewModel`.
 - `DatabaseOpenFailure` has no class of its own: `DatabaseViewModelTests` and `FeedbackSubmissionServiceTests`.
+- `MacWorkspacePresentationTests` covers editor/deletion targets, existing-editor preservation, new-group failure/reset, per-window reset, and stale or overlapping cloud reconnects.
 - `DatabaseCommandsTests` covers database menu enablement and workspace requests; `EntrySecretActionTests` covers command password authentication and stale-session rejection.
 - Editor save/reopen and failed-write retry: `KDBXCompatibilityTests`. Held completion in the real UI: `SaveConflictMergeUITests`.
 

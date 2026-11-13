@@ -1,6 +1,25 @@
 # KeeForgeMac Target
 
-Native macOS app configuration and AppKit lifecycle sources. `App/` owns startup, the app delegate, the single main window, the main menu, and Settings. The main window still hosts the shared SwiftUI `AppRootView` whole in one `NSHostingController`, bridging its toolbar and title.
+Native macOS app configuration and AppKit lifecycle sources. `App/` owns startup, the app delegate, the single main window, the main menu, and Settings. The main window still hosts the shared SwiftUI `AppRootView` whole in one `NSHostingController`, bridging its toolbar and title. The unlocked workspace now composes three extracted SwiftUI column roots using one window-owned `MacWorkspacePresentation`; it still uses SwiftUI’s `NavigationSplitView`, search field, and toolbar.
+
+## Workspace presentation
+
+The sidebar, entries, and detail roots each take only the database session and
+the shared presentation object. List focus and sidebar-width measurement remain
+view-local; editors, pending row actions, new-group state, expansion, database
+details, save-error presentation, and reconnect state belong to the window.
+
+One outer `MacWorkspacePresentationHost` owns the workspace sheets, dialogs,
+alerts, banners, and saving overlay. Do not key that host by content revision or
+entry selection. It resets presentation state when the unlocked workspace
+disappears and rejects cloud-reconnect completions from an earlier lifetime.
+`AppRootView` remains mounted above lock/unlock with launch presentations and
+the biometric observer.
+
+This is P2-5 subset (a). The next steps replace the SwiftUI split with an
+`NSSplitViewController`, then replace bridged toolbars and search with one
+`NSToolbar`. Until then, retain `MacSidebarWidthSampler` and its defaults key,
+the Find request counter, and hosting-controller toolbar/title bridging.
 
 ## Status
 

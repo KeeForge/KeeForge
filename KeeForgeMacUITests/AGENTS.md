@@ -36,6 +36,8 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 
 - AppKit owns the retained main window (`main`, frame autosave `main-AppWindow-1`), the menus, and the retained Settings window (`settings`). The whole main-window content remains hosted SwiftUI; its toolbar and title bridge through the hosting controller.
 
+- The three SwiftUI column roots share a stable outer workspace presentation host; column revision keys must never replace it. Keep UI coverage for keyboard and double-click browsing, edit/move/delete/new-group sheets through row revisions, search and Find, repeated lock/unlock width restoration, launch/enrollment presentations, and saving/conflict banners. The split, search field, and toolbar use SwiftUI accessibility queries.
+
 - Vault rows are native `List(selection:)` cells, not buttons, although the same `group.navlink` / `entry.navlink` identifiers are buttons on iOS (`../KeeForge/Views/AGENTS.md`). Never query them through `app.buttons`. Use `MacUITestCase.openGroup`, `openEntry`, `clickFirstRow`, or `rowQuery(identifier:)`.
 - Most SwiftUI `Text` reports through the AppKit `value` attribute with an empty `label`. Read text with `displayText(of:)` and wait with `waitForDisplayText(_:identifier:)`, which re-queries every pass: reading a property from an element a rebuilding view has replaced fails the test.
 - SwiftUI copies row identifiers onto zero-sized wrappers and stale navigation layers. Click only a hittable match with a real height, as the row helpers do.

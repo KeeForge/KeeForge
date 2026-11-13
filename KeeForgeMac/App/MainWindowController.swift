@@ -7,6 +7,7 @@ import SwiftUI
 @MainActor
 final class MainWindowController: NSWindowController, NSMenuItemValidation {
     let sessionStore: DatabaseSessionStore
+    let workspacePresentation = MacWorkspacePresentation()
     private let listViewModel: DatabaseListViewModel
     private let routing: AppRoutingCoordinator
     private let quickAccess: MacQuickAccessController
@@ -56,6 +57,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         )
         let hosting = NSHostingController(rootView: content
             .environment(sessionStore)
+            .environment(workspacePresentation)
             .environment(quickAccess)
             .environment(sshAgent)
             .modifier(MacHostingAppearance()))
