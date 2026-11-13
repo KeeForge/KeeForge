@@ -119,6 +119,25 @@ retirement remains a recovery requirement, including missing payloads. Exact enc
 source export is available without unlocking; destructive discard needs a separate
 snapshot-specific confirmation and never follows from export failure. App Group denial
 or unknown owner metadata blocks mutation instead of using the temporary fallback.
+Source preparation persists a provisional owner before publishing ciphertext; shared-copy
+installation and activation are distinct effects. Merge admission precedes its saver,
+and surviving admission prevents automatic reencryption, including of later sources.
+Known committed outcomes retain installed keys and SHA despite failed final sync or
+coordination; unknown outcomes retain recovery ownership. Exact target re-observation
+and durable removal of admitted sources precede idle publication. A visible idle
+rename whose final sync fails is reported as bookkeeping uncertainty, not rollback.
+
+Local master-key publication has its own barrier and a durable field-specific
+association receipt. Epoch settlement retains exact new-target identity/SHA and any
+unconfirmed target durability; later mutations reconfirm visible owner metadata under
+flock and reject rollback/missing/foreign targets and incompatible associations. Late
+old-epoch sources stay retained and ineligible. Valid encrypted reads, receipt exports
+and an unlocked session's verified encrypted draft export remain separate from mutation
+permission. Draft export keeps edits and uses the unlocked session's key; failed export
+never authorizes destructive discard. Abandoning key publication revokes writes without
+undoing an installed change. Native save completion and identity publication are withheld
+on warnings; lock-cycle guards still prevent secret restoration.
+
 These controls do not make database-list writes transactional or establish physical
 power-loss behavior ([PendingLocalSaveStore.swift](../KeeForge/Services/Persistence/PendingLocalSaveStore.swift)).
 

@@ -165,37 +165,73 @@ private actor FirstResult<Value: Sendable> {
 
 struct DurableFileWriteIO: Sendable {
     var write: @Sendable (Int32, UnsafeRawPointer, Int) -> Int = { Darwin.write($0, $1, $2) }
+    var synchronizeFile: @Sendable (Int32) throws -> Void = synchronizeDescriptor
+    var synchronizeParent: @Sendable (URL) throws -> Void = synchronizeDirectory
+    var afterPublication: @Sendable (URL) throws -> Void = { _ in }
+}
+
+enum DurableFilePublication: Sendable { case replacing, exclusive }
+
+enum DurableWriteOutcome: Sendable {
+    case durable
+    case notPublished(any Error)
+    case publishedWithoutConfirmedDurability(any Error)
 }
 
 func writeAtomicallyAndDurably(
     _ data: Data, to destinationURL: URL, directoryAnchor: URL? = nil,
     io: DurableFileWriteIO = .init()
 ) throws {
-    let directory = destinationURL.deletingLastPathComponent()
-    // An existing granted directory is the boundary when no ancestry is supplied.
-    try createDurableDirectory(at: directory, anchor: directoryAnchor ?? directory)
-    let temporary = directory.appendingPathComponent(".\(UUID().uuidString).tmp")
-    defer { try? FileManager.default.removeItem(at: temporary) }
-    let descriptor = Darwin.open(temporary.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, S_IRUSR | S_IWUSR)
-    guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
-    defer { Darwin.close(descriptor) }
-    try protectDurableFile(at: temporary, descriptor: descriptor)
-    try data.withUnsafeBytes { buffer in
-        var offset = 0
-        while offset < buffer.count {
-            guard let base = buffer.baseAddress else { throw CocoaError(.fileWriteUnknown) }
-            let count = io.write(descriptor, base.advanced(by: offset), buffer.count - offset)
-            if count < 0 {
-                if errno == EINTR { continue }
-                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
-            }
-            guard count > 0 else { throw POSIXError(.EIO) }
-            offset += count
-        }
+    switch writeWithDurabilityOutcome(data, to: destinationURL, directoryAnchor: directoryAnchor, io: io) {
+    case .durable: return
+    case .notPublished(let error), .publishedWithoutConfirmedDurability(let error): throw error
     }
-    try synchronizeDescriptor(descriptor)
-    guard Darwin.rename(temporary.path, destinationURL.path) == 0 else { throw POSIXError(.EIO) }
-    try synchronizeDirectory(directory)
+}
+
+func writeWithDurabilityOutcome(
+    _ data: Data, to destinationURL: URL, directoryAnchor: URL? = nil, publication: DurableFilePublication = .replacing,
+    io: DurableFileWriteIO = .init()
+) -> DurableWriteOutcome {
+    var published = false
+    do {
+        let directory = destinationURL.deletingLastPathComponent()
+        // An existing granted directory is the boundary when no ancestry is supplied.
+        try createDurableDirectory(at: directory, anchor: directoryAnchor ?? directory, synchronize: io.synchronizeParent)
+        let temporary = directory.appendingPathComponent(".\(UUID().uuidString).tmp")
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        let descriptor = Darwin.open(temporary.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        defer { Darwin.close(descriptor) }
+        try protectDurableFile(at: temporary, descriptor: descriptor)
+        try data.withUnsafeBytes { buffer in
+            var offset = 0
+            while offset < buffer.count {
+                guard let base = buffer.baseAddress else { throw CocoaError(.fileWriteUnknown) }
+                let count = io.write(descriptor, base.advanced(by: offset), buffer.count - offset)
+                if count < 0 {
+                    if errno == EINTR { continue }
+                    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                }
+                guard count > 0 else { throw POSIXError(.EIO) }
+                offset += count
+            }
+        }
+        try io.synchronizeFile(descriptor)
+        switch publication {
+        case .replacing:
+            guard Darwin.rename(temporary.path, destinationURL.path) == 0 else { throw POSIXError(.EIO) }
+            published = true
+        case .exclusive:
+            guard Darwin.link(temporary.path, destinationURL.path) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            published = true
+            guard Darwin.unlink(temporary.path) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        }
+        try io.afterPublication(destinationURL)
+        try io.synchronizeParent(directory)
+        return .durable
+    } catch {
+        return published ? .publishedWithoutConfirmedDurability(error) : .notPublished(error)
+    }
 }
 
 func protectDurableFile(at url: URL, descriptor: Int32) throws {

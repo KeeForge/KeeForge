@@ -2489,6 +2489,45 @@ enum KDBXCompatibilitySupport {
             return result
         }
 
+        @MainActor
+        func runLocalRekey(_ scenario: Scenario, on loaded: LoadedFixture) async throws -> ScenarioResult {
+            let target = try XCTUnwrap(scenario.rekey?(loaded))
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let url = directory.appendingPathComponent(scenario.artifactFileName)
+            try loaded.sourceData.write(to: url)
+            let reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
+            defer {
+                if let snapshot = try? PendingLocalSaveStore.recovery(for: reference.id) { _ = try? PendingLocalSaveStore.discard(snapshot) }
+                try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
+                try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
+            }
+            let before = try CompatibilitySnapshot(rootGroup: loaded.rootGroup, meta: loaded.meta,
+                sessionKey: loaded.sessionKey, binaryPool: BinaryPool(rawFields: loaded.header.innerHeaderBinaryFields))
+            let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
+                binaryPoolFields: loaded.header.innerHeaderBinaryFields)
+            let outcome = try await LocalDatabaseSaver.save(draft: draft, reference: reference,
+                compositeKey: loaded.compositeKey, openTimeSHA512: FileDigest.sha512(loaded.sourceData),
+                kdfPolicy: .mainApp, newCompositeKey: target.compositeKey)
+            guard case .saved(let sha, let express, _) = outcome else { throw SaveError.saveContextUnavailable }
+            let written = try Data(contentsOf: url)
+            XCTAssertEqual(sha, FileDigest.sha512(written))
+            XCTAssertThrowsError(try KDBXParser.parse(data: written, compositeKey: loaded.compositeKey,
+                sessionKey: loaded.sessionKey, kdfPolicy: .mainApp))
+            let reopened = try KDBXParser.parse(data: written, compositeKey: target.compositeKey,
+                sessionKey: loaded.sessionKey, kdfPolicy: .mainApp)
+            XCTAssertTrue(try ExpressUnlock.parse(data: written, compositeKey: target.compositeKey,
+                cachedKey: XCTUnwrap(express), sessionKey: loaded.sessionKey, kdfPolicy: .mainApp).usedCachedKey)
+            let after = try CompatibilitySnapshot(rootGroup: reopened.rootGroup, meta: reopened.meta,
+                sessionKey: loaded.sessionKey, binaryPool: BinaryPool(rawFields: reopened.header.innerHeaderBinaryFields))
+            assertBinaryPoolUnchanged(before: before, after: after, scenarioID: scenario.id)
+            try scenario.assertChange(before, after, loaded)
+            let result = ScenarioResult(written: written, before: before, after: after, afterHeader: reopened.header, rekey: target)
+            try record(scenario: scenario, loaded: loaded, written: written, rekey: target)
+            return result
+        }
+
         /// Writes the manifest fragment for everything collected so far.
         func emit() throws {
             guard !artifacts.isEmpty else {

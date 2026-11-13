@@ -87,3 +87,5 @@ In `../KeeForgeTests/` (run on iOS, and on macOS through `KeeForgeMacTests`, whi
 - `../KeeForge/Services/AGENTS.md`: save paths, pending uploads, the shared-source allow-list rule
 - `../KeeForge/Services/AutoFill/AGENTS.md`, `../KeeForge/Services/Security/AGENTS.md`
 - `../KeeForge/AGENTS.md`: KDBX compatibility; `../KeeForgeMac/SECURITY.md`, `../docs/threat-model.md`
+
+- Password save, picker creation, website addition and passkey registration end committed/unknown save outcomes with a warning and cancellation. Known outcomes update installed tree/SHA without completing or republishing successful credentials; lock/request-identity guards still reject obsolete callbacks.

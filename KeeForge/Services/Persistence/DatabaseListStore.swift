@@ -381,6 +381,77 @@ enum DatabaseListStore {
         }
     }
 
+    struct DurableKeyFileAssociationReceipt: Sendable {
+        let databaseID: UUID
+        let operationID: UUID
+        let association: PendingLocalSaveStore.KeyFileAssociation
+        let registrySHA512: Data
+        fileprivate init(databaseID: UUID, operationID: UUID, association: PendingLocalSaveStore.KeyFileAssociation, registrySHA512: Data) {
+            self.databaseID = databaseID
+            self.operationID = operationID
+            self.association = association
+            self.registrySHA512 = registrySHA512
+        }
+    }
+
+    enum KeyFileAssociationPublication: Sendable {
+        case durable(DurableKeyFileAssociationReceipt)
+        case publishedWithoutConfirmedDurability
+        case notPublished
+    }
+
+    static func publishKeyFileAssociation(
+        for id: UUID, operationID: UUID, association: PendingLocalSaveStore.KeyFileAssociation,
+        io: DurableFileWriteIO = .init()
+    ) -> KeyFileAssociationPublication {
+        withStateLock {
+            _ = loadDatabases()
+            guard let anchor = AppGroupContainer.resolvedURL else { return .notPublished }
+            let bytes: Data
+            do {
+                var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
+                guard let index = references.firstIndex(where: { $0.id == id }) else { return .notPublished }
+                references[index].keyFileBookmarkData = association.bookmarkData
+                references[index].keyFileFilename = association.filename
+                references[index].lastMasterKeyChangeAt = association.changedAt
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                bytes = try encoder.encode(normalized(references))
+            } catch { return .notPublished }
+            var coordinatorError: NSError?
+            var outcome: DurableWriteOutcome?
+            NSFileCoordinator().coordinate(writingItemAt: databaseListURL, options: [], error: &coordinatorError) { url in
+                do {
+                    outcome = try PendingLocalSaveStore.withAssociationPublicationAuthorization(
+                        for: id, operationID: operationID, association: association
+                    ) { writeWithDurabilityOutcome(bytes, to: url, directoryAnchor: anchor, io: io) }
+                } catch { outcome = .notPublished(error) }
+            }
+            switch outcome {
+            case .durable?:
+                guard coordinatorError == nil else { return .publishedWithoutConfirmedDurability }
+                return .durable(DurableKeyFileAssociationReceipt(databaseID: id, operationID: operationID,
+                    association: association, registrySHA512: FileDigest.sha512(bytes)))
+            case .publishedWithoutConfirmedDurability?: return .publishedWithoutConfirmedDurability
+            case .notPublished?, nil: return .notPublished
+            }
+        }
+    }
+
+    @discardableResult
+    static func setKeyFileAssociation(
+        for id: UUID, bookmarkData: Data?, filename: String?, masterKeyChangedAt: Date
+    ) -> Bool {
+        withStateLock {
+            var references = loadDatabases()
+            guard let index = references.firstIndex(where: { $0.id == id }) else { return false }
+            references[index].keyFileBookmarkData = bookmarkData
+            references[index].keyFileFilename = filename
+            references[index].lastMasterKeyChangeAt = masterKeyChangedAt
+            return saveDatabases(references)
+        }
+    }
+
     /// Applies `mutate` to the cloud sync metadata of the *currently stored*
     /// copy, leaving every other stored field alone. Anything that learns
     /// cloud state across an `await` must use this instead of `update(_:)`,

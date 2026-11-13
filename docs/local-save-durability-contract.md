@@ -8,6 +8,7 @@ database-list transactions, durable cloud creation and Google Drive are separate
 | Outcome | File state | Caller behavior |
 | --- | --- | --- |
 | Failure before replacement | Original remains authoritative | Keep the previous SHA, key and association; report failure |
+| Unknown replacement effect | Do not infer original or new bytes | Keep recovery ownership; terminal warning, no automatic resend |
 | Conflict at the coordinated baseline check | Foreign bytes remain untouched | Reconcile the returned bytes before another save |
 | Durable replacement | New ciphertext installed and file/directory synchronization completed | Apply its SHA, keys, association and cache; complete the requested operation |
 | Committed replacement with unconfirmed durability | New ciphertext installed, but directory sync or coordination failed afterwards | Apply committed state and show a terminal warning; do not repeat encryption or claim durable completion |
@@ -131,3 +132,89 @@ the same owner lock. An unavailable observation never becomes proof of absence.
 Foreground refresh updates an already-open locked Details screen independently of
 SHA changes or process-local notifications. Export and discard remain separate
 operations; removal requires explicit discard after any desired exports.
+
+## Durable cleanup and visible publication
+
+A durable merge output is re-observed under target coordination and owner flock
+before consumption: installed identity and SHA must still match its receipt. Only
+then may the exact admitted sources be removed. Each unlink and removal of an empty
+source directory is synchronized through its changed ancestors inside the App Group
+anchor. A partial failure retains the admission, even if some payloads are now missing.
+
+Publishing idle is the last step after all admitted receipts are durably absent.
+Failure before that publication retains recovery. An observed idle rename followed
+by failed final synchronization is `resolvedVisibleWithoutConfirmedDurability`:
+other processes can see idle, but the removed receipts cannot be automatically
+reencrypted. A crash that revives the older checkpoint requires manual recovery
+for its missing receipts. Sources outside the admitted set remain owned and intact.
+The caller acknowledges a cleanup-record warning, without claiming target-file
+uncertainty when the output itself was durably saved.
+
+## Key publication is separate from source retirement
+
+A local master-key change starts only with no pending sources or admission. Its
+last coordinated accessor repeats that check while holding flock, then persists
+a key-publication barrier before replacement. A source arriving during this barrier
+can retain its ciphertext but cannot become eligible under the new key epoch.
+Settlement never consumes such a source.
+
+| Key publication state | Mutation permission / supported recovery |
+| --- | --- |
+| Barrier before replace, or unknown replace effect | Block another save/rekey; inspect the exact original target and intended SHA explicitly |
+| Exact new ciphertext installed, association or epoch publication unconfirmed | Keep installed keys/SHA and barrier; confirm the installed key change in Details, or export the unlocked draft before closing |
+| Exact new target, field-specific association durably published, owner epoch durable | A future explicit operation can use the new epoch and exact baseline; never repeat the rekey automatically |
+| Epoch publication visible but its final sync unconfirmed | Terminal record warning; a later mutation must reconfirm the visible owner file and namespace under flock before using it |
+| Epoch settled, target durability still unconfirmed | Retain target identity/SHA and this uncertainty in the owner record; warn about the file, permit a future explicit save against that exact new target |
+| Restart with old, missing, foreign or differently associated target | Do not infer settlement or permit an old-key drain; safe reads remain independent and recovery requires an explicit action |
+
+Association publication rereads and changes only the key-file fields on the
+registered reference. Its durable receipt requires the coordinated writer's actual
+file and in-anchor directory sync; a Boolean result from the ordinary list writer
+is not this proof. Publication validates the operation/epoch under flock, without
+acquiring the list lock from inside the owner. Database-list global transactions,
+read-failure handling and cross-process CAS remain outside this cut.
+
+Every future mutation reconfirms visible owner metadata under flock, checks the
+current epoch/association, and revalidates the target identity and SHA in the final
+coordinated accessor. A planned subsequent write is recorded before replacement;
+an unknown result or failed metadata update cannot leave an older witness authorizing
+another mutation. Read, fill and receipt-verified encrypted export do not require
+that mutation permission. An incompatible original read must not replace a proven
+new-key cache or republish an older quick-unlock key.
+
+Details reuses the native local export presenter for a full encrypted copy of an
+unlocked session's unsaved draft. It uses that session's composite key and an
+existing readable original/backup header, verifies reopening off the main thread,
+checks the lock cycle, and never clears the draft. The copy requires the key of
+that unlocked session, which can be the original key after an unknown rekey outcome.
+If no compatible encrypted header is readable, export fails and the edits remain
+in the session. Export is not rollback, association settlement or consent to discard.
+Abandoning an unresolved key-publication record explicitly revokes future writes;
+it does not undo a master-key change already installed in the file.
+
+Local cache refresh coordinates the original and cache before taking owner flock.
+It rechecks the original ciphertext and revocation, preserves accepted AutoFill
+sources and refuses stale completion after removal. Failed cache refresh invalidates
+only an older copy when ownership still permits it. The lock orders are list lock
+→ registry coordination → owner flock, and target/cache coordination → owner flock;
+there is no flock → list lock/coordination path and no await/KDF under flock.
+
+## Validation boundary
+
+Authored regression tests exercise real filesystem publication and replacement
+with external write/fsync/coordination faults, source ownership, explicit export and
+discard, session lock and draft growth, terminal forms, and AutoFill callers. The
+password-only compatibility artifact uses the real local saver and reopens its
+installed output with the new key before comparing the full semantic snapshot.
+Static parse/typechecking cannot establish these runtime assertions. Signed native
+layout, Keychain/device behavior and physical power-loss behavior require separate
+validation; no local app or test-host execution is part of this implementation run.
+
+Details also checks a key witness against the current original independently of
+unlock/SHA notifications. A readable older file may open without gaining mutation
+permission. A saved encrypted cache copy is exportable while locked only when its
+hash matches the captured key witness (or its pending same-epoch write) and its
+identity stays unchanged across the read under coordination/flock. This is an
+explicit verified copy of known ciphertext, never a substitute for a pending-source
+receipt or permission to consume it. A missing, foreign or unreadable copy reports
+export failure and grants no discard permission.

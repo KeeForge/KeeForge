@@ -94,7 +94,7 @@ Designated gates:
 - TOTP, HOTP, Base32, `otpauth` parsing, and the KeeOTP query rewrite are tested in `../Packages/OneTimeCodes/Tests`; `TOTPGeneratorTests` covers only the app adapter (decryption, `decodedSecret` precedence, placeholder).
 - Not unit-testable here: the live `FTPNetworkStream` (needs a server), live StoreKit purchases, and typed key events in an inactive Mac app (covered in `KeeForgeMacUITests`).
 
-- `PendingLocalSaveTests` also covers exclusive source identity, legacy flat sources, receipt-verified locked export, source replacement rejection, snapshot-scoped discard, unknown or unreadable owner records, independently unreadable sources, same-bytes inode replacement, foreground visibility without a process-local notification, and removal revocation. These storage contracts use the production owner and filesystem; save/admission durability evidence is a separate gate.
+- `PendingLocalSaveTests` also covers exclusive source identity, legacy flat sources, receipt-verified locked export, source replacement rejection, snapshot-scoped discard, unknown or unreadable owner records, independently unreadable sources, same-bytes inode replacement, foreground visibility without a process-local notification, and removal revocation. These storage contracts use the production owner and filesystem; the integrated saver/admission tests also cover post-publication faults, no automatic resend, exact target re-observation, partial consume, visible-unconfirmed clear and new-source retention.
 
 ## See also
 
@@ -102,3 +102,5 @@ Designated gates:
 - [../ci_scripts/AGENTS.md](../ci_scripts/AGENTS.md): the external KDBX compatibility gate
 - [../AGENTS.md](../AGENTS.md): "macOS tests", where Mac behavior gets tested
 - [../KeeForgeUITests/AGENTS.md](../KeeForgeUITests/AGENTS.md), [../KeeForgeMacUITests/AGENTS.md](../KeeForgeMacUITests/AGENTS.md)
+
+- Local durability coverage spans `LocalDatabaseSaverTests`, `PendingLocalSaveTests`, `DatabaseViewModelTests`, the two settings-form suites and the three credential save/registration/picker suites. Faults cross production filesystem boundaries; a mocked throw alone is not a staging-failure proof. Static typechecks are not runtime test results.

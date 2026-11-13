@@ -447,21 +447,32 @@ final class DatabaseListViewModel {
 @MainActor @Observable
 final class PendingLocalRecoveryViewModel {
     private let databaseID: UUID
+    private var reference: DatabaseReference?
+    private var refreshID = UUID()
+    private(set) var targetNeedsRecovery = false
     private(set) var snapshot: PendingLocalSaveStore.RecoverySnapshot?
     private var loadError: String?
     private var actionError: String?
     var errorMessage: String? { actionError ?? loadError }
 
-    init(databaseID: UUID) { self.databaseID = databaseID }
+    init(databaseID: UUID, reference: DatabaseReference? = nil) { self.databaseID = databaseID; self.reference = reference }
 
-    func refresh() async {
+    func refresh(reference updatedReference: DatabaseReference? = nil) async {
+        let request = UUID()
+        refreshID = request
+        if let updatedReference { reference = updatedReference }
         let id = databaseID
         do {
             let loaded = try await Task.detached { try PendingLocalSaveStore.recovery(for: id) }.value
-            guard !Task.isCancelled else { return }
+            guard request == refreshID, !Task.isCancelled else { return }
             snapshot = loaded
+            let targetMismatch: Bool
+            if let reference { targetMismatch = await LocalDatabaseSaver.keyTargetNeedsRecovery(for: reference, snapshot: loaded) }
+            else { targetMismatch = false }
+            guard request == refreshID, !Task.isCancelled else { return }
+            targetNeedsRecovery = targetMismatch
             loadError = loaded.ownerUnavailable ? PendingLocalSaveStore.OwnershipError.recoveryRequired.localizedDescription : nil
-        } catch { loadError = error.localizedDescription }
+        } catch { if request == refreshID { loadError = error.localizedDescription } }
     }
 
     func becameActive() async { await refresh() }
@@ -471,10 +482,26 @@ final class PendingLocalRecoveryViewModel {
         await refresh()
     }
 
+    func confirmInstalledKeyChange(reference: DatabaseReference, snapshot: PendingLocalSaveStore.RecoverySnapshot) async {
+        do {
+            let outcome = try await Task.detached { try LocalDatabaseSaver.confirmInstalledKeyChange(for: reference, snapshot: snapshot) }.value
+            switch outcome {
+            case .resolved: actionError = nil
+            case .resolvedVisibleWithoutConfirmedDurability: actionError = RecoveryRecordWarning().localizedDescription
+            case .retainedForRecovery: actionError = PendingLocalSaveStore.OwnershipError.recoveryRequired.localizedDescription
+            }
+        } catch { actionError = error.localizedDescription }
+        await refresh()
+    }
+
     func discard(_ confirmed: PendingLocalSaveStore.RecoverySnapshot) async {
         do {
-            try await Task.detached { try PendingLocalSaveStore.discard(confirmed) }.value
-            actionError = nil
+            let outcome = try await Task.detached { try PendingLocalSaveStore.discard(confirmed) }.value
+            switch outcome {
+            case .resolved: actionError = nil
+            case .resolvedVisibleWithoutConfirmedDurability: actionError = RecoveryRecordWarning().localizedDescription
+            case .retainedForRecovery: actionError = PendingLocalSaveStore.OwnershipError.recoveryRequired.localizedDescription
+            }
         } catch { actionError = error.localizedDescription }
         await refresh()
     }

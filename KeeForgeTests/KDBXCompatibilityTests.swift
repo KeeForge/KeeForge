@@ -322,11 +322,12 @@ final class KDBXCompatibilityTests: XCTestCase {
     /// composite key fails the header HMAC and that the tree survives
     /// unchanged; this method adds the header hygiene — cipher, KDF identity,
     /// and cost parameters preserved, master seed and KDF salt rotated.
-    func test_rekeyScenarios_reEncryptUnderNewKeyAndPreserveHeaderIdentity() throws {
+    @MainActor
+    func test_rekeyScenarios_reEncryptUnderNewKeyAndPreserveHeaderIdentity() async throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
 
         let passwordOnly = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: bundle)
-        let passwordOnlyResult = try collector.run(
+        let passwordOnlyResult = try await collector.runLocalRekey(
             KDBXCompatibilitySupport.rekeyPasswordOnlyScenario(),
             on: passwordOnly
         )
@@ -1542,7 +1543,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             DatabaseListStore.activeAutoFillDatabaseID = previousActiveDatabaseID
             try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
             try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
-            PendingLocalSaveStore.removeAll(for: reference.id)
+            if let snapshot = try? PendingLocalSaveStore.recovery(for: reference.id) { _ = try? PendingLocalSaveStore.discard(snapshot) }
         }
         // The Mac extension cannot open the bookmarked file: it reads the
         // shared copy and saves there, leaving the file to the app (#182).

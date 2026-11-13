@@ -168,6 +168,28 @@ final class CredentialProviderPickerCreationTests: XCTestCase {
 
     // MARK: - Saving fills the form
 
+    func test_saveFromCreator_committedWarningDoesNotFillOrCompleteAndCannotResend() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        seedPickerState(coordinator, reference: makeLocalReference())
+        var environment = AutoFillSaveCoordinator.Environment.live
+        environment.saveDraft = { draft, _, _, _ in
+            .committedWithoutConfirmedDurability(.init(savedRootGroup: draft.rootGroup,
+                newSHA512: Data("committed-picker".utf8), enqueuedPendingUpload: false, warningScope: .sharedCopy))
+        }
+        coordinator.saveEnvironment = environment
+        coordinator.presentPasswordMatchesOrFinish()
+        try XCTUnwrap(presenter.searchView?.onCreateEntry)()
+        let creator = try XCTUnwrap(presenter.entryCreator)
+        let outcome = await creator.onSave(EntryDraftPayload(title: "Saved", username: "user", password: "secret"))
+        guard case .showWarningAndCancel = outcome else { return XCTFail("Expected terminal warning") }
+        XCTAssertEqual(coordinator.openTimeSHA512, Data("committed-picker".utf8))
+        XCTAssertNil(presenter.completedCredential)
+        XCTAssertFalse(presenter.didCompleteSavePassword)
+        creator.onCancel()
+        XCTAssertNil(coordinator.sessionKey)
+        XCTAssertEqual(presenter.cancelledError?.code, .userCanceled)
+    }
+
     func test_saveFromCreator_missingTitleAndUsername_showsErrorWithoutCompleting() async throws {
         let (coordinator, presenter) = makeCoordinator()
         seedPickerState(coordinator, reference: makeLocalReference())

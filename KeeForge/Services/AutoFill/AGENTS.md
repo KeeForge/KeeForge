@@ -66,3 +66,5 @@
 
 - `../AGENTS.md`, `../Cloud/AGENTS.md`, `../Persistence/AGENTS.md`
 - `../../../AutoFillExtension/AGENTS.md`: request handling and platform limits
+
+- Save outcomes distinguish a known installed change with unconfirmed durability from an indeterminate effect. Preserve known installed state, but do not publish identities, active-pointer success or registration completion for a warning. Provisional cloud markers are dropped only for affirmative local pre-replacement failure/conflict, never an opaque error; this does not prove a cloud upload had no effect.

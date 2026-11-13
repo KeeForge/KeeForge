@@ -13739,6 +13739,64 @@
         }
       }
     },
+    "Confirm Installed Key Change" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installierten Schlüsselwechsel bestätigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm Installed Key Change"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmar el cambio de clave instalado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmer le changement de clé installé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conferma il cambio di chiave installato"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み済みのキー変更を確認"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подтвердить записанную смену ключа"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认已写入的密钥更改"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認已寫入的密鑰變更"
+          }
+        }
+      }
+    },
     "Confirm password" : {
       "localizations" : {
         "de" : {
@@ -20007,180 +20065,6 @@
         }
       }
     },
-    "Discard AutoFill Changes" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AutoFill-Änderungen verwerfen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Discard AutoFill Changes"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Descartar cambios de Autorrelleno"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Abandonner les modifications de remplissage automatique"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scarta modifiche di Riempimento automatico"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動入力の変更を破棄"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Удалить изменения автозаполнения"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "丢弃自动填充更改"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "捨棄自動填寫更改"
-          }
-        }
-      }
-    },
-    "Discard AutoFill Changes?" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AutoFill-Änderungen verwerfen?"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Discard AutoFill Changes?"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "¿Descartar cambios de Autorrelleno?"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Abandonner les modifications de remplissage automatique ?"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scartare le modifiche di Riempimento automatico?"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動入力の変更を破棄しますか？"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Удалить изменения автозаполнения?"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "丢弃自动填充更改？"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "捨棄自動填寫更改？"
-          }
-        }
-      }
-    },
-    "Discard AutoFill Changes…" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AutoFill-Änderungen verwerfen …"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Discard AutoFill Changes…"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Descartar cambios de Autorrelleno…"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Abandonner les modifications de remplissage automatique…"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scarta modifiche di Riempimento automatico…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動入力の変更を破棄…"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Удалить изменения автозаполнения…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "丢弃自动填充更改…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "捨棄自動填寫更改…"
-          }
-        }
-      }
-    },
     "Discard Changes" : {
       "localizations" : {
         "de" : {
@@ -20281,6 +20165,180 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要捨棄變更嗎？"
+          }
+        }
+      }
+    },
+    "Discard Local Recovery" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokale Wiederherstellung verwerfen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard Local Recovery"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descartar recuperación local"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abandonner la récupération locale"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elimina recupero locale"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカル復旧を破棄"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить локальные данные восстановления"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "丢弃本地恢复记录"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "捨棄本機復原記錄"
+          }
+        }
+      }
+    },
+    "Discard Local Recovery?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokale Wiederherstellung verwerfen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard Local Recovery?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Descartar la recuperación local?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abandonner la récupération locale ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminare il recupero locale?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカル復旧を破棄しますか？"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить локальные данные восстановления?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "丢弃本地恢复记录？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "捨棄本機復原記錄？"
+          }
+        }
+      }
+    },
+    "Discard Local Recovery…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokale Wiederherstellung verwerfen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard Local Recovery…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descartar recuperación local…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abandonner la récupération locale…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elimina recupero locale…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカル復旧を破棄…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить локальные данные восстановления…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "丢弃本地恢复记录…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "捨棄本機復原記錄…"
           }
         }
       }
@@ -20489,6 +20547,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "捨棄上傳"
+          }
+        }
+      }
+    },
+    "Discarding this recovery record disables local writes. It does not undo a saved master-key change. Export any snapshots and unsaved edits you need first, then remove and add the database again using the correct master key. Changes not saved elsewhere will be lost." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Verwerfen dieses Wiederherstellungseintrags deaktiviert lokale Schreibvorgänge. Ein gespeicherter Hauptschlüsselwechsel wird dadurch nicht rückgängig gemacht. Exportiere zuerst benötigte Momentaufnahmen und ungesicherte Änderungen. Entferne die Datenbank anschließend und füge sie mit dem richtigen Hauptschlüssel erneut hinzu. Nicht anderweitig gespeicherte Änderungen gehen verloren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discarding this recovery record disables local writes. It does not undo a saved master-key change. Export any snapshots and unsaved edits you need first, then remove and add the database again using the correct master key. Changes not saved elsewhere will be lost."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descartar este registro de recuperación desactiva las escrituras locales. No revierte un cambio de clave maestra ya guardado. Exporta primero las instantáneas y ediciones sin guardar que necesites; después, elimina la base de datos de la lista y añádela de nuevo con la clave maestra correcta. Se perderán los cambios que no hayas guardado en otro lugar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abandonner cet enregistrement de récupération désactive l'écriture locale sans annuler un changement de clé principale déjà enregistré. Exportez d'abord les instantanés et modifications non enregistrées à conserver, puis retirez la base et ajoutez-la à nouveau avec la bonne clé principale. Les modifications non enregistrées ailleurs seront perdues."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminare questo record di recupero disabilita le scritture locali senza annullare un cambio di chiave principale già salvato. Esporta prima le istantanee e le modifiche non salvate da conservare, poi rimuovi il database e aggiungilo di nuovo con la chiave principale corretta. Le modifiche non salvate altrove andranno perse."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この復旧記録を破棄するとローカルへの書き込みが無効になります。保存済みのマスターキー変更は元に戻りません。必要なスナップショットと未保存の編集を書き出してから、データベースを削除し、正しいマスターキーで再追加してください。ほかに保存していない変更は失われます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удаление этой записи восстановления отключает локальную запись, но не отменяет сохранённую смену мастер-ключа. Сначала экспортируйте нужные снимки и несохранённые правки, затем уберите базу и добавьте её снова с правильным мастер-ключом. Изменения, не сохранённые в другом месте, будут потеряны."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "丢弃此恢复记录会停用本地写入，但不会撤销已存储的主密钥更改。请先导出需要保留的快照和未存储编辑，然后移除数据库并使用正确的主密钥重新添加。未在其他位置存储的更改将丢失。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "捨棄此復原記錄會停用本機寫入，但不會還原已儲存的主密鑰變更。請先輸出需要保留的快照和尚未儲存的編輯，再移除資料庫並使用正確的主密鑰重新加入。未在其他位置儲存的變更將遺失。"
           }
         }
       }
@@ -24671,6 +24787,64 @@
         }
       }
     },
+    "Export a full encrypted copy of your unsaved changes before closing this session. Open it with the master key used by this unlocked session. Exporting keeps your edits here." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportiere vor dem Schließen dieser Sitzung eine vollständige verschlüsselte Kopie deiner ungesicherten Änderungen. Öffne sie mit dem Hauptschlüssel dieser entsperrten Sitzung. Deine Änderungen bleiben beim Exportieren hier erhalten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export a full encrypted copy of your unsaved changes before closing this session. Open it with the master key used by this unlocked session. Exporting keeps your edits here."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Antes de cerrar esta sesión, exporta una copia cifrada completa de los cambios sin guardar. Ábrela con la clave maestra de esta sesión desbloqueada. Exportar conserva tus ediciones aquí."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avant de fermer cette session, exportez une copie chiffrée complète de vos modifications non enregistrées. Ouvrez-la avec la clé principale de cette session déverrouillée. L'exportation conserve vos modifications ici."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prima di chiudere questa sessione, esporta una copia cifrata completa delle modifiche non salvate. Aprila con la chiave principale di questa sessione sbloccata. L'esportazione conserva qui le modifiche."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このセッションを閉じる前に、未保存の変更を含む完全な暗号化コピーを書き出してください。このロック解除済みセッションのマスターキーで開いてください。書き出しても編集内容はここに残ります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перед закрытием сеанса экспортируйте полную зашифрованную копию несохранённых изменений. Открывайте её мастер-ключом этого разблокированного сеанса. Экспорт сохраняет ваши правки здесь."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭此会话前，请导出包含未存储更改的完整加密副本。请使用此已解锁会话的主密钥打开。导出会保留此处的编辑。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉此工作階段前，請輸出包含尚未儲存變更的完整加密副本。請使用此已解鎖工作階段的主密鑰開啟。輸出會保留此處的編輯。"
+          }
+        }
+      }
+    },
     "Export AutoFill Snapshot…" : {
       "localizations" : {
         "de" : {
@@ -24833,6 +25007,64 @@
         }
       }
     },
+    "Export Saved Database Copy…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gesicherte Datenbankkopie exportieren …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Saved Database Copy…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar copia guardada de la base de datos…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporter la copie enregistrée de la base…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esporta copia salvata del database…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存済みのデータベースコピーを書き出す…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Экспортировать сохранённую копию базы…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出已存储的数据库副本…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸出已儲存的資料庫副本…"
+          }
+        }
+      }
+    },
     "Export the locally cached copy of the database via iOS Sharing." : {
       "localizations" : {
         "de" : {
@@ -24881,6 +25113,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "透過 iOS 分享匯出資料庫的本機快取副本。"
+          }
+        }
+      }
+    },
+    "Export Unsaved Changes…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ungesicherte Änderungen exportieren …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Unsaved Changes…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar cambios sin guardar…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporter les modifications non enregistrées…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esporta modifiche non salvate…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未保存の変更を書き出す…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Экспортировать несохранённые изменения…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出未存储的更改…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸出尚未儲存的變更…"
           }
         }
       }
@@ -29993,6 +30283,180 @@
         }
       }
     },
+    "KeeForge could not confirm the encrypted AutoFill snapshot. This save did not change the shared copy or original database. Open Database Details in KeeForge to recover or discard the pending snapshot." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge konnte die verschlüsselte Momentaufnahme von AutoFill nicht bestätigen. Diese Sicherung hat weder die gemeinsame Kopie noch die ursprüngliche Datenbank geändert. Öffne die Datenbankdetails in KeeForge, um die ausstehende Momentaufnahme wiederherzustellen oder zu verwerfen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge could not confirm the encrypted AutoFill snapshot. This save did not change the shared copy or original database. Open Database Details in KeeForge to recover or discard the pending snapshot."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no pudo confirmar la instantánea cifrada de Autorrelleno. Este guardado no cambió la copia compartida ni la base de datos original. Abre Detalles de la base de datos en KeeForge para recuperar o descartar la instantánea pendiente."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n'a pas pu confirmer l'instantané chiffré du remplissage automatique. Cet enregistrement n'a modifié ni la copie partagée ni la base d'origine. Ouvrez les détails de la base dans KeeForge pour récupérer ou supprimer l'instantané en attente."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge non ha potuto confermare l'istantanea cifrata di Riempimento automatico. Questo salvataggio non ha modificato la copia condivisa né il database originale. Apri Dettagli database in KeeForge per recuperare o eliminare l'istantanea in sospeso."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForgeは自動入力の暗号化スナップショットを確認できませんでした。今回の保存では共有コピーも元のデータベースも変更されていません。KeeForgeのデータベース詳細を開き、保留中のスナップショットを復旧または破棄してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge не удалось подтвердить зашифрованный снимок автозаполнения. Это сохранение не изменило общую копию или исходную базу данных. Откройте сведения о базе в KeeForge для восстановления или удаления ожидающего снимка."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法确认自动填充的加密快照。此次存储未更改共享副本或原始数据库。请在 KeeForge 中打开数据库详情，以恢复或丢弃待处理快照。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法確認自動填寫的加密快照。此次儲存未變更共享副本或原始資料庫。請在 KeeForge 中開啟資料庫詳細資訊，以復原或捨棄待處理快照。"
+          }
+        }
+      }
+    },
+    "KeeForge could not determine whether the database file was replaced. Do not repeat this operation. Keep the original and new master keys if you changed them, and use Database Details to recover the local save." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge konnte nicht feststellen, ob die Datenbankdatei ersetzt wurde. Wiederhole diesen Vorgang nicht. Bewahre bei einem Schlüsselwechsel den ursprünglichen und den neuen Hauptschlüssel auf und stelle die lokale Sicherung über die Datenbankdetails wieder her."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge could not determine whether the database file was replaced. Do not repeat this operation. Keep the original and new master keys if you changed them, and use Database Details to recover the local save."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no pudo determinar si se reemplazó el archivo de la base de datos. No repitas esta operación. Si cambiaste la clave maestra, conserva la original y la nueva, y usa Detalles de la base de datos para recuperar el guardado local."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n'a pas pu déterminer si le fichier de la base a été remplacé. Ne répétez pas cette opération. Si vous avez changé la clé principale, conservez l'ancienne et la nouvelle, puis utilisez les détails de la base pour récupérer l'enregistrement local."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge non ha potuto determinare se il file del database è stato sostituito. Non ripetere l'operazione. Se hai cambiato la chiave principale, conserva quella originale e quella nuova e usa Dettagli database per recuperare il salvataggio locale."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForgeはデータベースファイルが置き換えられたか判断できませんでした。この操作を繰り返さないでください。マスターキーを変更した場合は元のキーと新しいキーを両方保管し、データベース詳細からローカル保存を復旧してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge не удалось определить, был ли заменён файл базы данных. Не повторяйте операцию. Если мастер-ключ менялся, сохраните старый и новый ключи и используйте сведения о базе для восстановления локального сохранения."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法确定数据库文件是否已被替换。请勿重复此操作。如果更改了主密钥，请保留原始和新主密钥，并使用数据库详情恢复本地存储。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法確定資料庫檔案是否已被取代。請勿重複此操作。如果變更了主密鑰，請保留原始和新主密鑰，並使用資料庫詳細資訊復原本機儲存。"
+          }
+        }
+      }
+    },
+    "KeeForge could not determine whether the shared copy was replaced. The original database was not updated by this save. Do not repeat this operation; open Database Details in KeeForge to recover its encrypted snapshot." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge konnte nicht feststellen, ob die gemeinsame Kopie ersetzt wurde. Die ursprüngliche Datenbank wurde durch diese Sicherung nicht aktualisiert. Wiederhole den Vorgang nicht. Öffne die Datenbankdetails in KeeForge, um die verschlüsselte Momentaufnahme wiederherzustellen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge could not determine whether the shared copy was replaced. The original database was not updated by this save. Do not repeat this operation; open Database Details in KeeForge to recover its encrypted snapshot."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no pudo determinar si se reemplazó la copia compartida. Este guardado no actualizó la base de datos original. No repitas esta operación; abre Detalles de la base de datos en KeeForge para recuperar su instantánea cifrada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n'a pas pu déterminer si la copie partagée a été remplacée. Cet enregistrement n'a pas mis à jour la base d'origine. Ne répétez pas l'opération ; ouvrez les détails de la base dans KeeForge pour récupérer son instantané chiffré."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge non ha potuto determinare se la copia condivisa è stata sostituita. Questo salvataggio non ha aggiornato il database originale. Non ripetere l'operazione; apri Dettagli database in KeeForge per recuperare l'istantanea cifrata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForgeは共有コピーが置き換えられたか判断できませんでした。今回の保存では元のデータベースは更新されていません。操作を繰り返さず、KeeForgeのデータベース詳細を開いて暗号化スナップショットを復旧してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge не удалось определить, была ли заменена общая копия. Это сохранение не обновило исходную базу данных. Не повторяйте операцию; откройте сведения о базе в KeeForge для восстановления зашифрованного снимка."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法确定共享副本是否已被替换。此次存储未更新原始数据库。请勿重复此操作；请在 KeeForge 中打开数据库详情，以恢复其加密快照。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法確定共享副本是否已被取代。此次儲存未更新原始資料庫。請勿重複此操作；請在 KeeForge 中開啟資料庫詳細資訊，以復原其加密快照。"
+          }
+        }
+      }
+    },
     "KeeForge couldn't access the selected database file." : {
       "localizations" : {
         "de" : {
@@ -33994,6 +34458,122 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本機檔案"
+          }
+        }
+      }
+    },
+    "Local Save Recovery" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiederherstellung lokaler Änderungen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local Save Recovery"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recuperación del guardado local"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Récupération de l'enregistrement local"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recupero del salvataggio locale"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカル保存の復旧"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстановление локального сохранения"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地存储恢复"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本機儲存復原"
+          }
+        }
+      }
+    },
+    "Local writes are disabled. Export any snapshots you want to keep, then separately discard pending changes and remove the database. Add it again with the correct master key if you want to keep using it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokale Schreibvorgänge sind deaktiviert. Exportiere die Momentaufnahmen, die du behalten möchtest. Verwirf anschließend separat die ausstehenden Änderungen und entferne die Datenbank. Füge sie mit dem richtigen Hauptschlüssel erneut hinzu, wenn du sie weiter verwenden möchtest."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local writes are disabled. Export any snapshots you want to keep, then separately discard pending changes and remove the database. Add it again with the correct master key if you want to keep using it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las escrituras locales están desactivadas. Exporta las instantáneas que quieras conservar; después, descarta por separado los cambios pendientes y elimina la base de datos de la lista. Añádela de nuevo con la clave maestra correcta si quieres seguir usándola."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'écriture locale est désactivée. Exportez les instantanés à conserver, puis supprimez séparément les modifications en attente et retirez la base. Ajoutez-la à nouveau avec la bonne clé principale pour continuer à l'utiliser."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le scritture locali sono disabilitate. Esporta le istantanee da conservare, poi elimina separatamente le modifiche in sospeso e rimuovi il database. Aggiungilo di nuovo con la chiave principale corretta per continuare a usarlo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルへの書き込みは無効です。残したいスナップショットを書き出し、その後、別の操作で保留中の変更を破棄してデータベースを削除してください。引き続き使うには、正しいマスターキーで再追加してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Локальная запись отключена. Экспортируйте нужные снимки, затем отдельно удалите ожидающие изменения и уберите базу из списка. Чтобы продолжить работу, добавьте её снова с правильным мастер-ключом."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地写入已停用。请先导出要保留的快照，然后单独丢弃待处理更改并移除数据库。如果要继续使用，请使用正确的主密钥重新添加。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本機寫入已停用。請先輸出要保留的快照，再另外捨棄待處理變更並移除資料庫。如果要繼續使用，請使用正確的主密鑰重新加入。"
           }
         }
       }
@@ -43391,64 +43971,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "遠端已修改"
-          }
-        }
-      }
-    },
-    "Removal paused. Export any snapshots you want to keep, then separately choose Discard AutoFill Changes before removing the database again. Local writes are disabled." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Das Entfernen wurde angehalten. Exportiere die Momentaufnahmen, die du behalten möchtest. Wähle danach separat „AutoFill-Änderungen verwerfen“, bevor du die Datenbank erneut entfernst. Lokale Schreibvorgänge sind deaktiviert."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Removal paused. Export any snapshots you want to keep, then separately choose Discard AutoFill Changes before removing the database again. Local writes are disabled."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La eliminación está pausada. Exporta las instantáneas que quieras conservar y después elige por separado «Descartar cambios de Autorrelleno» antes de volver a eliminar la base de datos. Las escrituras locales están desactivadas."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Suppression suspendue. Exportez les instantanés à conserver, puis choisissez séparément « Abandonner les modifications de remplissage automatique » avant de supprimer à nouveau la base de données. Les écritures locales sont désactivées."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rimozione sospesa. Esporta le istantanee da conservare, poi scegli separatamente “Scarta modifiche di Riempimento automatico” prima di rimuovere nuovamente il database. Le scritture locali sono disabilitate."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "削除は一時停止しています。保持するスナップショットを書き出し、その後で別途「自動入力の変更を破棄」を選択してから、もう一度データベースを削除してください。ローカルへの書き込みは無効です。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Удаление приостановлено. Экспортируйте нужные снимки, затем отдельно выберите «Удалить изменения автозаполнения» перед повторным удалением базы данных. Локальная запись отключена."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移除已暂停。请导出要保留的快照，然后单独选择“丢弃自动填充更改”，再移除数据库。本地写入已停用。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移除已暫停。請輸出要保留的快照，然後單獨選擇「捨棄自動填寫更改」，再移除資料庫。本機寫入已停用。"
           }
         }
       }
@@ -52995,6 +53517,64 @@
         }
       }
     },
+    "The current database file does not match the saved key record. Keep the original and new master keys and encrypted backups. Export unsaved changes before closing this session." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die aktuelle Datenbankdatei passt nicht zum gespeicherten Schlüsseleintrag. Bewahre den ursprünglichen und den neuen Hauptschlüssel sowie verschlüsselte Sicherungen auf. Exportiere ungesicherte Änderungen, bevor du diese Sitzung schließt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current database file does not match the saved key record. Keep the original and new master keys and encrypted backups. Export unsaved changes before closing this session."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo actual de la base de datos no coincide con el registro de clave guardado. Conserva la clave maestra original, la nueva y las copias de seguridad cifradas. Exporta los cambios sin guardar antes de cerrar esta sesión."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier actuel de la base ne correspond pas à l'enregistrement de clé sauvegardé. Conservez l'ancienne et la nouvelle clé principale ainsi que les sauvegardes chiffrées. Exportez les modifications non enregistrées avant de fermer cette session."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il file attuale del database non corrisponde al record della chiave salvato. Conserva la chiave principale originale, quella nuova e i backup cifrati. Esporta le modifiche non salvate prima di chiudere questa sessione."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のデータベースファイルは保存済みのキー記録と一致しません。元のマスターキー、新しいマスターキー、暗号化バックアップを保管してください。このセッションを閉じる前に未保存の変更を書き出してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текущий файл базы не соответствует сохранённой записи ключа. Сохраните старый и новый мастер-ключи и зашифрованные резервные копии. Экспортируйте несохранённые изменения перед закрытием сеанса."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前数据库文件与已存储的密钥记录不符。请保留原始和新主密钥以及加密备份。关闭此会话前，请导出未存储的更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前的資料庫檔案與已儲存的密鑰記錄不符。請保留原始和新主密鑰以及加密備份。關閉此工作階段前，請輸出尚未儲存的變更。"
+          }
+        }
+      }
+    },
     "The current key file could not be read. Select it again or clear it, then try again." : {
       "localizations" : {
         "de" : {
@@ -53047,6 +53627,64 @@
         }
       }
     },
+    "The database already uses the new master key, but its key-file association could not be saved. Keep the new password and key file. Select the key file when unlocking, then set it again in Database Details." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbank verwendet bereits den neuen Hauptschlüssel, aber die Zuordnung der Schlüsseldatei konnte nicht gesichert werden. Bewahre das neue Passwort und die Schlüsseldatei auf. Wähle die Schlüsseldatei beim Entsperren aus und lege sie dann in den Datenbankdetails erneut fest."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The database already uses the new master key, but its key-file association could not be saved. Keep the new password and key file. Select the key file when unlocking, then set it again in Database Details."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos ya usa la nueva clave maestra, pero no se pudo guardar su asociación al archivo de clave. Conserva la nueva contraseña y el archivo de clave. Selecciona el archivo de clave al desbloquear y vuelve a asociarlo en Detalles de la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données utilise déjà la nouvelle clé principale, mais l'association au fichier clé n'a pas pu être enregistrée. Conservez le nouveau mot de passe et le fichier clé. Sélectionnez le fichier clé au déverrouillage, puis associez-le à nouveau dans Détails de la base de données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database usa già la nuova chiave principale, ma non è stato possibile salvare l'associazione al file chiave. Conserva la nuova password e il file chiave. Seleziona il file chiave allo sblocco, poi associalo nuovamente in Dettagli database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースはすでに新しいマスターキーを使用していますが、キーファイルの関連付けを保存できませんでした。新しいパスワードとキーファイルを保管してください。ロック解除時にキーファイルを選び、「データベースの詳細」で再設定してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных уже использует новый мастер-ключ, но привязку файла ключа сохранить не удалось. Сохраните новый пароль и файл ключа. Выберите файл ключа при разблокировке, затем снова задайте его в сведениях о базе данных."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库已使用新的主密钥，但无法保存密钥文件关联。请保留新密码和密钥文件。解锁时选择密钥文件，然后在“数据库详细信息”中重新设置关联。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫已使用新的主密鑰，但無法儲存密鑰檔案關聯。請保留新密碼和密鑰檔案。解鎖時選擇密鑰檔案，然後在「資料庫詳細資訊」中重新設定關聯。"
+          }
+        }
+      }
+    },
     "The database appears corrupted or incomplete." : {
       "localizations" : {
         "de" : {
@@ -53095,6 +53733,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資料庫似乎已損毀或不完整。"
+          }
+        }
+      }
+    },
+    "The database change is saved, but KeeForge could not confirm completion of its local recovery record. Do not repeat the save. Open Database Details to review any remaining recovery records or snapshots." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankänderung ist gespeichert, aber KeeForge konnte den Abschluss des lokalen Wiederherstellungseintrags nicht bestätigen. Wiederhole die Sicherung nicht. Prüfe verbleibende Wiederherstellungseinträge oder Momentaufnahmen in den Datenbankdetails."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The database change is saved, but KeeForge could not confirm completion of its local recovery record. Do not repeat the save. Open Database Details to review any remaining recovery records or snapshots."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio en la base de datos está guardado, pero KeeForge no pudo confirmar la finalización de su registro de recuperación local. No repitas el guardado. Abre Detalles de la base de datos para revisar los registros de recuperación o las instantáneas restantes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification de la base est enregistrée, mais KeeForge n'a pas pu confirmer la clôture de son enregistrement de récupération local. Ne répétez pas l'enregistrement. Ouvrez les détails de la base pour examiner les enregistrements de récupération ou instantanés restants."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modifica al database è salvata, ma KeeForge non ha potuto confermare la conclusione del relativo record di recupero locale. Non ripetere il salvataggio. Apri Dettagli database per controllare i record di recupero o le istantanee rimasti."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースの変更は保存済みですが、KeeForgeはローカル復旧記録の完了を確認できませんでした。保存を繰り返さないでください。データベース詳細で残っている復旧記録やスナップショットを確認してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменение базы данных сохранено, но KeeForge не удалось подтвердить завершение локальной записи восстановления. Не повторяйте сохранение. Откройте сведения о базе и проверьте оставшиеся записи восстановления или снимки."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库更改已存储，但 KeeForge 无法确认其本地恢复记录是否已完成。请勿重复存储。请打开数据库详情，查看剩余的恢复记录或快照。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫變更已儲存，但 KeeForge 無法確認其本機復原記錄是否已完成。請勿重複儲存。請開啟資料庫詳細資訊，查看剩餘的復原記錄或快照。"
           }
         }
       }
@@ -53835,6 +54531,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資料庫檔案已被移至「檔案」App 中的「最近刪除項目」——它可能已被刪除，或被較新的副本取代。請在「檔案」中回復它，或使用「尋找資料庫檔案」選擇目前的檔案。"
+          }
+        }
+      }
+    },
+    "The database file was replaced, but KeeForge could not confirm that the change will survive a system failure. The file already contains this change. If you changed the master key, use the new key. Keep a backup before closing the database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdatei wurde ersetzt, aber KeeForge konnte nicht bestätigen, dass die Änderung einen Systemausfall übersteht. Die Datei enthält diese Änderung bereits. Wenn du den Hauptschlüssel geändert hast, verwende den neuen Schlüssel. Bewahre eine Sicherungskopie auf, bevor du die Datenbank schließt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo de la base de datos se reemplazó, pero KeeForge no pudo confirmar que el cambio se conservará si falla el sistema. El archivo ya contiene este cambio. Si cambiaste la clave maestra, usa la nueva clave. Conserva una copia de seguridad antes de cerrar la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de la base de données a été remplacé, mais KeeForge n’a pas pu confirmer que la modification sera conservée en cas de défaillance du système. Le fichier contient déjà cette modification. Si vous avez changé la clé principale, utilisez la nouvelle clé. Conservez une sauvegarde avant de fermer la base de données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il file del database è stato sostituito, ma KeeForge non ha potuto confermare che la modifica verrà conservata in caso di errore del sistema. Il file contiene già questa modifica. Se hai cambiato la chiave principale, usa la nuova chiave. Conserva una copia di backup prima di chiudere il database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースファイルは置き換えられましたが、システム障害が発生した場合に変更が保持されることをKeeForgeは確認できませんでした。ファイルにはすでにこの変更が含まれています。マスターキーを変更した場合は、新しいキーを使用してください。データベースを閉じる前にバックアップを確保してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл базы данных заменён, но KeeForge не удалось подтвердить, что изменение сохранится при сбое системы. Файл уже содержит это изменение. Если вы изменили мастер-ключ, используйте новый ключ. Сохраните резервную копию перед закрытием базы данных."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库文件已替换，但 KeeForge 无法确认此更改在系统故障后仍会保留。文件已包含此更改。如果你更改了主密钥，请使用新密钥。关闭数据库前请保留备份。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫檔案已替換，但 KeeForge 無法確認此變更在系統故障後仍會保留。檔案已包含此變更。如果你變更了主金鑰，請使用新金鑰。關閉資料庫前請保留備份。"
           }
         }
       }
@@ -55309,6 +56057,64 @@
         }
       }
     },
+    "The recovery operation took effect, but KeeForge could not confirm the durability of its final record. Review Database Details again; do not repeat the save." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Wiederherstellungsvorgang wurde wirksam, aber KeeForge konnte die dauerhafte Speicherung des abschließenden Eintrags nicht bestätigen. Prüfe die Datenbankdetails erneut. Wiederhole die Sicherung nicht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The recovery operation took effect, but KeeForge could not confirm the durability of its final record. Review Database Details again; do not repeat the save."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La operación de recuperación surtió efecto, pero KeeForge no pudo confirmar la durabilidad de su registro final. Revisa de nuevo Detalles de la base de datos; no repitas el guardado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'opération de récupération a pris effet, mais KeeForge n'a pas pu confirmer la persistance de son enregistrement final. Consultez à nouveau les détails de la base ; ne répétez pas l'enregistrement."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'operazione di recupero ha avuto effetto, ma KeeForge non ha potuto confermare la persistenza del record finale. Controlla di nuovo Dettagli database; non ripetere il salvataggio."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復旧操作は反映されましたが、KeeForgeは最終記録の永続性を確認できませんでした。データベース詳細を再確認し、保存を繰り返さないでください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Операция восстановления вступила в силу, но KeeForge не удалось подтвердить устойчивость её итоговой записи. Снова проверьте сведения о базе; не повторяйте сохранение."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复操作已生效，但 KeeForge 无法确认最终记录的持久性。请再次查看数据库详情；请勿重复存储。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復原操作已生效，但 KeeForge 無法確認最終記錄的持久性。請再次查看資料庫詳細資訊；請勿重複儲存。"
+          }
+        }
+      }
+    },
     "The remote database could not be found." : {
       "localizations" : {
         "de" : {
@@ -56137,6 +56943,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "伺服器傳回的回應過大。為保護記憶體，傳輸已停止。"
+          }
+        }
+      }
+    },
+    "The shared copy contains this change, but KeeForge could not confirm its durability or automatic write-back. The original database has not been updated by this save. Open KeeForge to review pending changes and keep their encrypted snapshots." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die gemeinsame Kopie enthält diese Änderung, aber KeeForge konnte ihre dauerhafte Speicherung oder automatische Rückübertragung nicht bestätigen. Die ursprüngliche Datenbank wurde durch diese Sicherung nicht aktualisiert. Öffne KeeForge, um ausstehende Änderungen zu prüfen und ihre verschlüsselten Momentaufnahmen aufzubewahren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The shared copy contains this change, but KeeForge could not confirm its durability or automatic write-back. The original database has not been updated by this save. Open KeeForge to review pending changes and keep their encrypted snapshots."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copia compartida contiene este cambio, pero KeeForge no pudo confirmar su durabilidad ni su escritura automática en el archivo original. Este guardado no actualizó la base de datos original. Abre KeeForge para revisar los cambios pendientes y conservar sus instantáneas cifradas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copie partagée contient cette modification, mais KeeForge n'a pas pu confirmer sa persistance ou son report automatique. Cet enregistrement n'a pas mis à jour la base d'origine. Ouvrez KeeForge pour examiner les modifications en attente et conserver leurs instantanés chiffrés."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copia condivisa contiene la modifica, ma KeeForge non ha potuto confermarne la persistenza o la riscrittura automatica. Questo salvataggio non ha aggiornato il database originale. Apri KeeForge per controllare le modifiche in sospeso e conservare le istantanee cifrate."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共有コピーにはこの変更が含まれていますが、KeeForgeは永続性や自動書き戻しを確認できませんでした。今回の保存では元のデータベースは更新されていません。KeeForgeを開き、保留中の変更を確認して暗号化スナップショットを保管してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Общая копия содержит это изменение, но KeeForge не удалось подтвердить его устойчивость или автоматическую запись в исходный файл. Это сохранение не обновило исходную базу данных. Откройте KeeForge, проверьте ожидающие изменения и сохраните их зашифрованные снимки."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共享副本包含此更改，但 KeeForge 无法确认其持久性或自动写回。此次存储未更新原始数据库。请打开 KeeForge，查看待处理更改并保留其加密快照。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共享副本包含此變更，但 KeeForge 無法確認其持久性或自動寫回。此次儲存未更新原始資料庫。請開啟 KeeForge，查看待處理變更並保留其加密快照。"
           }
         }
       }
@@ -58655,6 +59519,64 @@
         }
       }
     },
+    "This encrypted copy requires the master key from the saved key change. Exporting does not change the database or discard recovery records." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese verschlüsselte Kopie benötigt den Hauptschlüssel des gespeicherten Schlüsselwechsels. Beim Exportieren werden weder die Datenbank geändert noch Wiederherstellungseinträge verworfen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This encrypted copy requires the master key from the saved key change. Exporting does not change the database or discard recovery records."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta copia cifrada requiere la clave maestra del cambio de clave guardado. Exportar no cambia la base de datos ni descarta registros de recuperación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette copie chiffrée nécessite la clé principale issue du changement de clé enregistré. L'exportation ne modifie pas la base et ne supprime aucun enregistrement de récupération."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa copia cifrata richiede la chiave principale del cambio di chiave salvato. L'esportazione non modifica il database e non elimina i record di recupero."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この暗号化コピーを開くには、保存済みのキー変更後のマスターキーが必要です。書き出してもデータベースは変更されず、復旧記録も破棄されません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этой зашифрованной копии нужен мастер-ключ из сохранённой смены ключа. Экспорт не изменяет базу данных и не удаляет записи восстановления."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此加密副本需要已存储的密钥更改所使用的主密钥。导出不会更改数据库或丢弃恢复记录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此加密副本需要已儲存的密鑰變更所使用的主密鑰。輸出不會變更資料庫或捨棄復原記錄。"
+          }
+        }
+      }
+    },
     "This entry already has a verification code. Saving will replace it." : {
       "localizations" : {
         "de" : {
@@ -60281,6 +61203,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這會從自動填寫中移除所有建議。下次解鎖每個已開啟自動填寫的資料庫時，建議會重新出現。"
+          }
+        }
+      }
+    },
+    "This save did not replace the database file, but KeeForge could not confirm that its recovery record was cleared. Open Database Details before trying a new operation." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Sicherung hat die Datenbankdatei nicht ersetzt, aber KeeForge konnte das Löschen ihres Wiederherstellungseintrags nicht bestätigen. Öffne die Datenbankdetails, bevor du einen neuen Vorgang startest."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This save did not replace the database file, but KeeForge could not confirm that its recovery record was cleared. Open Database Details before trying a new operation."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este guardado no reemplazó el archivo de la base de datos, pero KeeForge no pudo confirmar que se borrara su registro de recuperación. Abre Detalles de la base de datos antes de intentar una nueva operación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet enregistrement n'a pas remplacé le fichier de la base, mais KeeForge n'a pas pu confirmer l'effacement de son enregistrement de récupération. Ouvrez les détails de la base avant de lancer une nouvelle opération."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo salvataggio non ha sostituito il file del database, ma KeeForge non ha potuto confermare la cancellazione del record di recupero. Apri Dettagli database prima di tentare una nuova operazione."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今回の保存ではデータベースファイルは置き換えられていませんが、KeeForgeは復旧記録の消去を確認できませんでした。新しい操作を試す前にデータベース詳細を開いてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это сохранение не заменило файл базы данных, но KeeForge не удалось подтвердить очистку записи восстановления. Откройте сведения о базе, прежде чем начинать новую операцию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此次存储未替换数据库文件，但 KeeForge 无法确认其恢复记录是否已清除。尝试新操作前，请打开数据库详情。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此次儲存未取代資料庫檔案，但 KeeForge 無法確認其復原記錄是否已清除。嘗試新操作前，請開啟資料庫詳細資訊。"
           }
         }
       }

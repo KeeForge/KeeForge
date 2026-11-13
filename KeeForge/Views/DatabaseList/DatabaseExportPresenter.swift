@@ -2,11 +2,15 @@ import SwiftUI
 
 enum DatabaseExportRequest: Identifiable, Equatable {
     case currentCopy(DatabaseReference)
+    case localRecovery(UUID, Data, String)
+    case keyPublication(UUID, PendingLocalSaveStore.KeyEpochEvidence, DatabaseReference)
     case pendingLocal(PendingLocalSaveStore.Receipt, DatabaseReference)
     case backup(DatabaseExportService.Backup, DatabaseReference)
 
     var id: String {
         switch self {
+        case .keyPublication(let id, _, _): "key-publication-\(id)"
+        case .localRecovery(let id, _, _): "local-recovery-\(id)"
         case .pendingLocal(let receipt, let reference):
             "pending-local-\(reference.id)-\(receipt.id)"
         case .currentCopy(let reference):
@@ -105,6 +109,11 @@ private struct DatabaseExportPresenter: ViewModifier {
         do {
             let loaded: DatabaseExportService.ExportPayload
             switch request {
+            case .keyPublication(_, let evidence, let reference):
+                let data = try await LocalDatabaseSaver.exportKeyEpochCopy(evidence, for: reference)
+                loaded = .init(data: data, suggestedFilename: "\(reference.displayName)-saved-key-snapshot.kdbx")
+            case .localRecovery(_, let data, let filename):
+                loaded = DatabaseExportService.ExportPayload(data: data, suggestedFilename: filename)
             case .pendingLocal(let receipt, let reference):
                 let data = try await Task.detached {
                     try PendingLocalSaveStore.export(receipt, for: reference.id)

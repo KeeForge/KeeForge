@@ -32,3 +32,5 @@
 
 - [../AGENTS.md](../AGENTS.md): layering, the compatibility matrix, platform rules
 - [../../TestFixtures/README.md](../../TestFixtures/README.md): bundled databases, passwords, key files
+
+- The password-only rekey compatibility artifact runs through the production local saver, records only the installed ciphertext, rejects its old key and checks the full semantic/binary-pool snapshot under the new key. Artifact collection must not encrypt the scenario again.

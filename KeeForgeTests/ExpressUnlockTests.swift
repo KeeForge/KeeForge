@@ -360,7 +360,7 @@ final class ExpressUnlockTests: XCTestCase {
             openTimeSHA512: context.openTimeSHA512, kdfPolicy: .mainApp
         )
 
-        guard case .saved(_, let expressKey) = result else {
+        guard case .saved(_, let expressKey, _) = result else {
             return XCTFail("Expected save to succeed.")
         }
         try assertOpensWithoutTheKDF(
@@ -380,7 +380,7 @@ final class ExpressUnlockTests: XCTestCase {
             environment: makeCloudEnvironment(cacheURL: cacheURL, uploaded: uploaded)
         )
 
-        guard case .saved(_, let expressKey) = result else {
+        guard case .saved(_, let expressKey, _) = result else {
             return XCTFail("Expected save to succeed.")
         }
         try assertOpensWithoutTheKDF(
@@ -414,7 +414,7 @@ final class ExpressUnlockTests: XCTestCase {
         )
 
         for result in [localResult, cloudResult] {
-            guard case .saved(_, let expressKey) = result else {
+            guard case .saved(_, let expressKey, _) = result else {
                 return XCTFail("Expected save to succeed.")
             }
             XCTAssertNil(expressKey)

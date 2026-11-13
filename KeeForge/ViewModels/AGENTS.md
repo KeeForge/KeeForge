@@ -40,7 +40,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `mergeAndSave()` gates its write on the conflict's `remoteSHA512` (the bytes it merged), not `openTimeSHA512`. Every failure leaves the draft and the conflict standing.
 - `mergePendingUploads()` drops upload markers only after `.saved`; `.changeUnidentified` must never suggest Discard.
 - Rekey and re-encryption refuse a dirty draft, an in-flight save, and cloud references with pending upload markers (draining them afterwards reverts the remote). The rekey stamps `lastMasterKeyChangeAt` so the drainer refuses older markers.
-- `save()` no-ops behind an in-flight save. An operation holding `isSaving` (rekey, re-encryption) flushes edits that landed behind it; `importEntries` refuses to start.
+- `save()` no-ops behind an in-flight save. An operation holding `isSaving` (rekey, re-encryption) flushes edits that landed behind it only after confirmed completion; a committed/unknown warning retains them for an explicit operation; `importEntries` refuses to start.
 - `syncCloudNow()` never discards unsaved work, never applies a response older than a save that finished mid-sync, never swaps a YubiKey session, and never pushes pending uploads.
 - A completion arriving while a save conflict is on screen is held by `EntryEditCompletionGate` until `isSettled`. Reporting it races the conflict alert, which presents from the editor, and loses the dismissal.
 - A successful new-entry save reports `.created` with its stable UUID; failed writes and unresolved conflicts report nothing, and Save and Lock keeps its ordinary completion without opening an entry.
@@ -89,3 +89,7 @@ Unit classes in `../../KeeForgeTests/` are named `<Type>Tests`. Cover success, f
 - `../Views/AGENTS.md`, `../App/AGENTS.md`: the shells that adapt this state and run auto-unlock
 - `../Models/AGENTS.md`, `../Services/AGENTS.md`: `DatabaseDraft`, merge, save paths, pending uploads
 - `../../KeeForgeTests/AGENTS.md`, `../../KeeForgeMac/SECURITY.md`
+
+- Known local commits apply installed SHA/tree/key material across persistence boundaries while lock-cycle checks prevent restoring unlocked secrets. Warnings stop save loops and forms end with acknowledgement, without successful-save cleanup or automatic rekey repetition.
+- Pending-local merge admits the exact bytes it merged before invoking the saver. Only affirmative pre-replacement failure/conflict can release admission; cancellation, lock, generic errors and uncertain results retain it. Durable completion consumes receipts through the coordinated target/owner boundary.
+- Key-publication recovery can export an unlocked draft through the existing encrypted local-copy operation and native presenter. Keep the draft on export success, failure or cancellation; never present discard/removal as recovery of unsaved edits.

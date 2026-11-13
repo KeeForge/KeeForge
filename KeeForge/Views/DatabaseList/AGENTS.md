@@ -49,3 +49,6 @@
 - `../AGENTS.md`, `../Cloud/AGENTS.md`, `../Components/AGENTS.md` (`SettingsSummaryRow`)
 - `../../ViewModels/AGENTS.md`: rekey and re-encryption preconditions, conflict and merge policy
 - `../../Services/AGENTS.md`: save paths, pending uploads, AutoFill allow-list
+
+- Master-key and encryption-settings warnings complete that invocation and replace Save with acknowledgement. Keep entered master-key material until acknowledgement/dismissal; field edits cannot re-enable a completed request. Local recovery distinguishes target-file durability from cleanup-record uncertainty. Its destructive action is independent of export and explicitly warns that abandoning key publication does not undo an installed key change.
+- An unlocked session can export its retained unsaved draft through the existing native exporter while recovering local publication. The exported full snapshot uses the unlocked session's key; locked source exports continue to use exact encrypted receipts without restoring secrets.

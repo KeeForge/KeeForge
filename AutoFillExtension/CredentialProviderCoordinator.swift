@@ -1755,6 +1755,21 @@ final class CredentialProviderCoordinator {
                 )
                 guard isRequestActive(generation),
                       activeDatabaseReference?.id == reference.id else { return }
+                if case .committedWithoutConfirmedDurability(let outcome) = result {
+                    parsedRootGroup = outcome.savedRootGroup
+                    parsedEntries = outcome.savedRootGroup.autoFillEntries(excludingGroupID: outcome.savedRootGroup.recycleBinUUID)
+                    self.openTimeSHA512 = outcome.newSHA512
+                    presenter?.presentReadOnlyNotice(message: SaveDurabilityWarning(scope: outcome.warningScope).localizedDescription) { [weak self] in
+                        self?.cancelRequest(code: .failed)
+                    }
+                    return
+                }
+                if case .indeterminate(let scope) = result {
+                    presenter?.presentReadOnlyNotice(message: SaveUnknownOutcomeWarning(scope: scope).localizedDescription) { [weak self] in
+                        self?.cancelRequest(code: .failed)
+                    }
+                    return
+                }
                 guard case .saved(let outcome) = result else {
                     fillWithoutAddingWebsite(entry, reason: "conflict")
                     return
@@ -2137,9 +2152,19 @@ final class CredentialProviderCoordinator {
                     presenter.completeRequest(withSelectedCredential: credential)
                 }
                 return .completed
+            case .committedWithoutConfirmedDurability(let outcome):
+                self.parsedRootGroup = outcome.savedRootGroup
+                self.parsedEntries = outcome.savedRootGroup.autoFillEntries(excludingGroupID: outcome.savedRootGroup.recycleBinUUID)
+                self.openTimeSHA512 = outcome.newSHA512
+                return .showWarningAndCancel(SaveDurabilityWarning(scope: outcome.warningScope).localizedDescription)
+            case .indeterminate(let scope):
+                return .showWarningAndCancel(SaveUnknownOutcomeWarning(scope: scope).localizedDescription)
             case .conflict:
                 return .showWarningAndCancel(String(localized: "Database changed — open KeeForge to save"))
             }
+        } catch let failure as LocalSaveBeforeReplacementFailure where failure.underlying is PendingLocalSaveStore.SourcePreparationFailure {
+            guard isRequestActive(generation) else { return .completed }
+            return .showWarningAndCancel(failure.localizedDescription)
         } catch {
             guard isRequestActive(generation) else { return .completed }
             return .showError(error.localizedDescription)
@@ -2221,9 +2246,19 @@ final class CredentialProviderCoordinator {
                     presenter.completeSavePasswordRequest()
                 }
                 return .completed
+            case .committedWithoutConfirmedDurability(let outcome):
+                self.parsedRootGroup = outcome.savedRootGroup
+                self.parsedEntries = outcome.savedRootGroup.autoFillEntries(excludingGroupID: outcome.savedRootGroup.recycleBinUUID)
+                self.openTimeSHA512 = outcome.newSHA512
+                return .showWarningAndCancel(SaveDurabilityWarning(scope: outcome.warningScope).localizedDescription)
+            case .indeterminate(let scope):
+                return .showWarningAndCancel(SaveUnknownOutcomeWarning(scope: scope).localizedDescription)
             case .conflict:
                 return .showWarningAndCancel(String(localized: "Database changed — open KeeForge to save"))
             }
+        } catch let failure as LocalSaveBeforeReplacementFailure where failure.underlying is PendingLocalSaveStore.SourcePreparationFailure {
+            guard isRequestActive(generation) else { return .completed }
+            return .showWarningAndCancel(failure.localizedDescription)
         } catch {
             guard isRequestActive(generation) else { return .completed }
             return .showError(error.localizedDescription)
@@ -2337,6 +2372,9 @@ final class CredentialProviderCoordinator {
                     )
                 )
             }.value
+        } catch let failure as LocalSaveBeforeReplacementFailure where failure.underlying is PendingLocalSaveStore.SourcePreparationFailure {
+            guard isRequestActive(generation) else { return .completed }
+            return .showWarningAndCancel(failure.localizedDescription)
         } catch {
             guard isRequestActive(generation) else { return .completed }
             return .showError(error.localizedDescription)
@@ -2389,9 +2427,19 @@ final class CredentialProviderCoordinator {
                     presenter.completeRegistrationRequest(using: credential)
                 }
                 return .completed
+            case .committedWithoutConfirmedDurability(let outcome):
+                self.parsedRootGroup = outcome.savedRootGroup
+                self.parsedEntries = outcome.savedRootGroup.autoFillEntries(excludingGroupID: outcome.savedRootGroup.recycleBinUUID)
+                self.openTimeSHA512 = outcome.newSHA512
+                return .showWarningAndCancel(SaveDurabilityWarning(scope: outcome.warningScope).localizedDescription)
+            case .indeterminate(let scope):
+                return .showWarningAndCancel(SaveUnknownOutcomeWarning(scope: scope).localizedDescription)
             case .conflict:
                 return .showWarningAndCancel(String(localized: "Database changed — open KeeForge to save"))
             }
+        } catch let failure as LocalSaveBeforeReplacementFailure where failure.underlying is PendingLocalSaveStore.SourcePreparationFailure {
+            guard isRequestActive(generation) else { return .completed }
+            return .showWarningAndCancel(failure.localizedDescription)
         } catch {
             guard isRequestActive(generation) else { return .completed }
             return .showError(error.localizedDescription)

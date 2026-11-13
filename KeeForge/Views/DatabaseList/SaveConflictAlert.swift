@@ -94,7 +94,7 @@ struct SaveConflictAlertModifier: ViewModifier {
                     set: { _ in }
                 )
             ) {
-                if viewModel.pendingUploadMergeFailure == .localSourceRecovery {
+                if viewModel.pendingUploadMergeFailure?.offersLocalRecovery == true {
                     Button("Database Details") {
                         viewModel.dismissPendingUploadMergeFailure()
                         showsLocalRecovery = true
@@ -109,7 +109,7 @@ struct SaveConflictAlertModifier: ViewModifier {
                 Text(viewModel.pendingUploadMergeFailure?.message ?? "")
             }
             .sheet(isPresented: $showsLocalRecovery) {
-                DatabaseDetailsView(reference: viewModel.databaseReference)
+                DatabaseDetailsView(reference: viewModel.databaseReference, sessionViewModel: viewModel)
                     .macSheetFrame()
             }
     }
