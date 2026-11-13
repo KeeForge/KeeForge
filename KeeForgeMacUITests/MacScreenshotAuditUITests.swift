@@ -68,6 +68,8 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         let appearance = ProcessInfo.processInfo.environment["SCREENSHOT_AUDIT_DARK"] == "1" ? "dark" : "light"
         insertLaunchArguments(["-KeeForge.appearanceMode", appearance], into: app)
 
+        insertLaunchArguments(["-NSWindow Frame main-AppWindow-1", Self.frameDefault(size: NSSize(width: 1080, height: 700))], into: app)
+
         // The `results:N` overlay is a UI-test hook, not app UI.
         app.launchEnvironment["UI_TEST_HIDE_SEARCH_RESULTS_COUNT"] = "1"
     }
@@ -493,7 +495,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         // 9. Back to the main window in a clean state.
         await snap("09-final-state")
 
-        // 10. The three columns and the five-item toolbar at the window's
+        // 10. The three columns and native toolbar at the window's
         //     minimum size (900x620), where crowding and truncation show up.
         shrinkMainWindowToMinimum()
         settle()
@@ -588,20 +590,37 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         return skippedCaptures.contains(where: { $0.hasPrefix(name) }) == false
     }
 
-    /// Drags the main window's bottom-right corner far up and left; AppKit
-    /// clamps the drag at the scene's `minWidth`/`minHeight`, so the window
-    /// lands exactly on its minimum size.
+    private static func frameDefault(size: NSSize) -> String {
+        let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1050)
+        let x = screen.minX + max(0, (screen.width - size.width) / 2)
+        let y = screen.minY + max(0, (screen.height - size.height) / 2)
+        return [x, y, size.width, size.height, screen.minX, screen.minY, screen.width, screen.height]
+            .map { String(Int($0.rounded())) }
+            .joined(separator: " ")
+    }
+
     private func shrinkMainWindowToMinimum() {
-        waitForStableForeground()
-        guard let window = mainWindowElement, window.exists else {
-            noteSkip("10-minimum-width", reason: "no main window to resize")
+        // Corner drags do not resize windows on macOS 27.
+        let size = NSWindow.frameRect(
+            forContentRect: NSRect(x: 0, y: 0, width: 900, height: 620),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        ).size
+        app.terminate()
+        let argument = "-NSWindow Frame main-AppWindow-1"
+        if let index = app.launchArguments.firstIndex(of: argument) {
+            app.launchArguments[index + 1] = Self.frameDefault(size: size)
+        }
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+        unlockSuccessfully()
+        openGroup(named: "Social")
+        openEntry(named: "Twitter")
+        guard let window = mainWindowElement else {
+            XCTFail("The minimum-size main window did not appear")
             return
         }
-        let corner = window.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 1))
-        let target = corner.withOffset(
-            CGVector(dx: -window.frame.width, dy: -window.frame.height)
-        )
-        corner.press(forDuration: 0.4, thenDragTo: target)
+        XCTAssertEqual(window.frame.width, size.width, accuracy: 2)
+        XCTAssertEqual(window.frame.height, size.height, accuracy: 2)
     }
 
     /// Records which captures were skipped, so a short export is obviously a
@@ -626,34 +645,26 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     }
 
     private func captureSettingsTabs() async {
-        // SwiftUI exposes only the selected Settings tab to XCUITest on macOS
-        // 26, even though all six controls are visible and reachable through
-        // AppKit accessibility. The pane has a fixed 540pt width, and the
-        // system lays the six controls out at stable, evenly spaced positions
-        // (0.104 of the width apart, centered) in its toolbar, so address them
-        // through window-relative coordinates. Each click is still verified
-        // through the identifier on the content it reveals.
-        let tabs: [(String, CGFloat, String, String)] = [
-            ("Security", 0.240, "settings.tab.security", "07a-settings-security"),
-            ("AutoFill", 0.344, "settings.tab.autofill", "07b-settings-autofill"),
-            ("Menu Bar", 0.448, "settings.tab.menu-bar", "07f-settings-menu-bar"),
-            ("Display", 0.552, "settings.tab.display", "07c-settings-display"),
-            ("Cloud", 0.656, "settings.tab.cloud", "07d-settings-cloud"),
-            ("About", 0.760, "settings.tab.about", "07e-settings-about"),
+        let tabs = [
+            ("Security", "settings.tab.security", "07a-settings-security"),
+            ("AutoFill", "settings.tab.autofill", "07b-settings-autofill"),
+            ("Menu Bar", "settings.tab.menu-bar", "07f-settings-menu-bar"),
+            ("SSH Agent", "settings.tab.ssh-agent", "07g-settings-ssh-agent"),
+            ("Display", "settings.tab.display", "07c-settings-display"),
+            ("Cloud", "settings.tab.cloud", "07d-settings-cloud"),
+            ("About", "settings.tab.about", "07e-settings-about"),
         ]
 
         let settingsWindow = app.windows["settings"].firstMatch
         guard settingsWindow.waitForExistence(timeout: 5) else {
-            for (title, _, _, name) in tabs {
+            for (title, _, name) in tabs {
                 noteSkip(name, reason: "Settings window missing before selecting '\(title)'")
             }
             return
         }
 
-        for (title, horizontalPosition, contentIdentifier, name) in tabs {
-            settingsWindow.coordinate(
-                withNormalizedOffset: CGVector(dx: horizontalPosition, dy: 0.09)
-            ).click()
+        for (title, contentIdentifier, name) in tabs {
+            guard selectSettingsTab(named: title) else { continue }
             settle(0.6)
             guard surface(hosting: contentIdentifier) != nil else {
                 noteSkip(name, reason: "settings tab '\(title)' did not reveal its content")

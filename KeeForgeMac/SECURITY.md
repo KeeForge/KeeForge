@@ -72,6 +72,19 @@ unit tests from reaching the user's real shared container.
 
 ## Lock and unlock lifecycle
 
+[AppDelegate](App/AppDelegate.swift) owns the session store, lock services, and
+AppKit main menu. Database commands resolve the live active session through the
+main window controller, including when Settings has focus. The retained main
+window keeps its root host mounted across lock and unlock. A completed lock
+drops the native split controller and toolbar; the workspace presentation host
+resets editors and pending actions on disappearance. Split-view autosave retains
+only column geometry and collapse state in defaults.
+
+[SettingsWindowController](App/SettingsWindowController.swift) retains a separate
+Settings window whose hosted root reads the current session from the store.
+Closing and reopening it preserves the selected tab within the process.
+
+
 [MacLockMonitor](../KeeForge/Services/AppSupport/MacLockMonitor.swift) requests a
 lock on screen lock, screensaver start, system sleep, fast-user-switch session
 resign, and closure of the last UI-hosting window. App deactivation also requests

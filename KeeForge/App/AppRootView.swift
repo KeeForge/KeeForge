@@ -287,6 +287,7 @@ struct AppRootView: View {
                 .navigationSplitViewStyle(.balanced)
             }
         } else {
+            #if os(iOS)
             if let activeSession = sessionStore.activeSession {
                 CompactDatabaseHost(
                     listViewModel: listViewModel,
@@ -302,6 +303,7 @@ struct AppRootView: View {
                     onCreateDatabase: openCreatedDatabase
                 )
             }
+            #endif
         }
     }
 

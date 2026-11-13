@@ -1,5 +1,7 @@
 import SwiftUI
 
+#if os(iOS)
+
 struct CompactDatabaseHost: View {
     @Bindable var listViewModel: DatabaseListViewModel
     @Bindable var viewModel: DatabaseViewModel
@@ -68,7 +70,6 @@ struct CompactDatabaseHost: View {
             }
 
             if hasUnlockedInThisSession, case .locked = newValue {
-                #if os(iOS)
                 // Manual locks only. An automatic lock can fire as the app is
                 // being backgrounded, and a snapshot added at that moment is
                 // exactly what iOS would capture for the app switcher — the
@@ -77,12 +78,13 @@ struct CompactDatabaseHost: View {
                 if viewModel.didManuallyLock {
                     VaultCloseTransition.coverCurrentFrame()
                 }
-                #endif
                 onReturnToList()
             }
         }
     }
 }
+
+#endif
 
 /// Offered by the opening screen only while a YubiKey challenge is outstanding.
 @MainActor
@@ -91,6 +93,7 @@ private func hardwareKeyCancelAction(for viewModel: DatabaseViewModel) -> (() ->
     return { viewModel.cancelHardwareKeyRequest() }
 }
 
+#if os(iOS)
 private struct CompactUnlockScene: View {
     @Bindable var viewModel: DatabaseViewModel
     let onReturnToList: () -> Void
@@ -125,11 +128,11 @@ private struct CompactUnlockScene: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: viewModel.state)
-        #if os(iOS)
         .biometricAutoUnlock(viewModel)
-        #endif
     }
 }
+
+#endif
 
 struct RegularDatabaseScene: View {
     @Bindable var viewModel: DatabaseViewModel

@@ -6,7 +6,7 @@
 
 Prefer a unit test here over a UI test unless the behavior only exists as UI. Run the class for the type you changed, on the platform you changed; the commands are in the root `AGENTS.md`.
 
-- `-only-testing:` takes a class name, not a file name. `<Type>Tests.swift` declares `<Type>Tests` except where "Where to look" says otherwise.
+- `-only-testing:` takes a class name, not a file name. Find the test class declaration rather than assuming it matches the filename.
 - A change to shared source runs its class under both `KeeForgeTests/` and `KeeForgeMacTests/`. A suite wrapped in `#if os(macOS)` exists only under `KeeForgeMacTests/`.
 - A change to format or save behavior also needs `KDBXCompatibilityTests`, and before a release the external gate in [../ci_scripts/AGENTS.md](../ci_scripts/AGENTS.md).
 
@@ -42,6 +42,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 - Tests that scan Documents set `DatabaseListStore.documentsDirectoryOverride`; never touch the real directory.
 - `MacSSHAgentControllerTests` gives the controller a `UserDefaults` suite and a `NotificationCenter` of its own and a socket in a temporary directory. Never point it at `UserDefaults.standard`, which in the hosted Mac app holds the developer's real agent settings. Its OpenSSH round trip (`ssh-add`, `ssh-keygen`) skips in a sandboxed test host.
 - `LocalDatabaseSaverTests` saves attachments at the reader's size limit and holds several hundred megabytes. Do not add tests of that size elsewhere.
+- AppKit controller tests construct hosts without ordering windows; native layout, keyboard/focus, and screenshots belong in the Mac UI suite.
 - Inject the prompt, clipboard, clock, notification centers, and window effects. No unit test raises a system authentication prompt, writes the real pasteboard, shows a window, registers a global hot key, or locks the screen.
 - Keychain-dependent cases (`CloudTokenStore`, `KeychainService`, WebDAV and FTP credentials) `XCTSkip` when the host cannot write the Keychain. A skip is not coverage.
 - `ViewRenderTests` (iOS only) writes PNGs for visual review and skips unless `VIEW_RENDER_DIR` is set; `scripts/render-views.sh` sets it and runs each shipped language. It asserts nothing about layout. Small views go through `ImageRenderer`; whole screens with Form, Toggle, Slider, Picker, or a navigation bar go through `renderScreens`, which snapshots a window in the test host, because `ImageRenderer` draws UIKit-backed controls as placeholders. Secure fields render blank either way.
@@ -72,19 +73,7 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 - Renaming or moving a catalog means updating both copy scripts and `catalogSources` in the test. A new locale joins `shippedTranslationLocales`.
 - `URLSchemeFormatTests` reads `Bundle.main`, the host app, so it sees substituted build settings. It is the only check before App Store Connect that a placeholder did not produce an illegal URL scheme.
 
-## Where to look
-
-Convention: `<Type>Tests.swift` declares `<Type>Tests` and covers `<Type>`. The exceptions:
-
-- `PasskeyTests.swift`: `PasskeyCredentialTests`, `PasskeyCryptoTests`. There is no `PasskeyTests` class.
-- `PasswordImportTests.swift`: `CSVReaderTests`, `ApplePasswordsCSVImporterTests`, `PasswordImportViewModelTests`.
-- `SecretAccessGateTests.swift`: `SecretAccessGateTests` (the gate alone) and `SecretAccessSessionTests` (the grace period across a `DatabaseViewModel` session).
-- `SettingsSummaryTests.swift`: `SettingsSummaryRowTests`, `AppSettingsSummaryTests`, `DatabaseSettingsSummaryTests`.
-- `FTPCloudProviderTests.swift` also declares `FTPAccountTests`; `FaviconServiceTests.swift` also declares `FaviconLoadModelTests`.
-- `CloudFileBrowserViewModelTests` covers `CloudFileBrowserSession` and `CloudFolderBrowserViewModel`.
-- `ModelLogicTests` holds pure model helpers with no suite of their own (icon tables, entry traversal, `OpaqueXMLNodes`, the `KeeOTPSource` forwarding).
-
-Designated gates:
+## Designated gates
 
 - `AutoFillExtension/CredentialProviderCoordinator.swift`: `CredentialProviderCoordinatorTests`, on both platforms. It pins `cleanup()` on every completion path, including manual text insertion after a real fixture unlock, database switches from an empty code list, cancellation, repeated requests, reactivation, and stale callbacks. The Mac shell's window-close and alert paths are `CredentialProviderShellMacTests`.
 - `DatabaseViewModel` is split by concern: `DatabaseViewModelTests`, `DatabaseViewModelCloudSyncTests`, `AutoLockTests`, `HardwareKeyUnlockTests`, `SecretAccessSessionTests`, `SortOrderTests`. The vault half of macOS window close is an `#if os(macOS)` section of `DatabaseViewModelTests`.

@@ -21,12 +21,13 @@ enum TagAccessibility {
     }
 }
 
+#if os(iOS)
 /// The rows of the root list's Tags view: every distinct tag in the open
 /// database with the number of live entries carrying it.
 ///
 /// Rows are plain `NavigationLink`s: both shells that show this view are
 /// `NavigationStack`s (the compact push and the iPad sidebar). macOS browses
-/// tags from its own sidebar section in `RegularDatabaseWorkspaceView` instead,
+/// tags from its own sidebar section instead,
 /// so it never renders them.
 struct TagListRows: View {
     @Bindable var viewModel: DatabaseViewModel
@@ -87,3 +88,4 @@ struct TagRow: View {
         .contentShape(Rectangle())
     }
 }
+#endif

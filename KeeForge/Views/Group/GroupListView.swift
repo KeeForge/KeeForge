@@ -1,6 +1,8 @@
 import OneTimeCodes
 import SwiftUI
 
+#if os(iOS)
+
 struct GroupListView: View {
     /// Identifies the group whose icon picker is showing. A wrapper rather than a bare
     /// `UUID?` so `sheet(item:)` has an `Identifiable` to key on without retroactively
@@ -20,9 +22,7 @@ struct GroupListView: View {
     /// iPad split view: pushes onto the sidebar's own stack, which is not the
     /// workspace's navigation path.
     var onOpenRoute: ((DatabaseRoute) -> Void)? = nil
-    #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    #endif
     @State private var showSettings = false
     @State private var pendingDeletion: PendingDeletion?
     @State private var isShowingNewGroupSheet = false
@@ -74,13 +74,7 @@ struct GroupListView: View {
     }
 
     private var isCompact: Bool {
-        // `\.horizontalSizeClass` does not exist on macOS; the Mac app always
-        // uses the regular layout.
-        #if os(iOS)
         horizontalSizeClass == .compact
-        #else
-        false
-        #endif
     }
 
     private var canCreateHere: Bool {
@@ -89,11 +83,9 @@ struct GroupListView: View {
 
     /// From iOS 26 compact screens put search and New in a bottom bar.
     private var usesBottomToolbar: Bool {
-        #if os(iOS)
         if #available(iOS 26.0, *) {
             return isCompact
         }
-        #endif
         return false
     }
 
@@ -129,11 +121,9 @@ struct GroupListView: View {
     /// placement keeps the items and truncates the title instead.
     private var databaseActionsPlacement: ToolbarItemPlacement {
         #if compiler(>=6.4)
-        #if os(iOS)
         if #available(iOS 27.0, *) {
             return .topBarPinnedTrailing
         }
-        #endif
         #endif
         return .topBarTrailing
     }
@@ -297,7 +287,6 @@ struct GroupListView: View {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(iOS)
             content
                 .sheet(isPresented: view.$isShowingQRScanner, onDismiss: {
                     view.codeToEnroll = view.scannedCode
@@ -312,9 +301,6 @@ struct GroupListView: View {
                         view.codeToEnroll = nil
                     }
                 }
-            #else
-            content
-            #endif
         }
     }
 
@@ -375,14 +361,12 @@ struct GroupListView: View {
                 isShowingNewGroupSheet = true
             }
 
-            #if os(iOS)
             Divider()
 
             Button("Scan QR Code", systemImage: "qrcode.viewfinder") {
                 isShowingQRScanner = true
             }
             .accessibilityIdentifier("entry-list.scan-qr")
-            #endif
         } label: {
             Image(systemName: "plus")
         }
@@ -393,13 +377,11 @@ struct GroupListView: View {
     /// The root's sync status and read-only state in words, then its tiles.
     @ViewBuilder
     private var homeSections: some View {
-        #if os(iOS)
         if pinsCloudTitle == false, CloudSyncStatusRow.isVisible(for: viewModel) {
             Section {
                 CloudSyncStatusRow(viewModel: viewModel)
             }
         }
-        #endif
         if viewModel.isReadOnly {
             Section {
                 Label {
@@ -439,7 +421,6 @@ struct GroupListView: View {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(iOS)
             if view.pinsCloudTitle {
                 content
                     .navigationBarTitleDisplayMode(.inline)
@@ -465,12 +446,8 @@ struct GroupListView: View {
             } else {
                 content
             }
-            #else
-            content
-            #endif
         }
 
-        #if os(iOS)
         private var title: some View {
             Group {
                 if view.viewModel.searchText.isEmpty == false {
@@ -482,7 +459,6 @@ struct GroupListView: View {
             .font(.largeTitle.bold())
             .lineLimit(1)
         }
-        #endif
     }
 
     /// The database's name on iPhone sits level with Lock, Sort, and More,
@@ -491,16 +467,12 @@ struct GroupListView: View {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(iOS)
             if view.isRoot, view.usesBottomToolbar, view.pinsCloudTitle == false,
                view.viewModel.workspace.entrySelection == nil {
                 content.toolbarTitleDisplayMode(.inlineLarge)
             } else {
                 content
             }
-            #else
-            content
-            #endif
         }
     }
 
@@ -512,7 +484,6 @@ struct GroupListView: View {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(iOS)
             if #available(iOS 26.0, *), view.usesBottomToolbar, view.viewModel.workspace.entrySelection == nil {
                 content
                     .toolbar {
@@ -528,9 +499,6 @@ struct GroupListView: View {
             } else {
                 content
             }
-            #else
-            content
-            #endif
         }
     }
 
@@ -584,7 +552,6 @@ struct GroupListView: View {
         let isTitlePinned: Bool
 
         func body(content: Content) -> some View {
-            #if os(iOS)
             if #available(iOS 26.0, *) {
                 if let subtitle, isTitlePinned == false {
                     content
@@ -596,18 +563,13 @@ struct GroupListView: View {
             } else {
                 content
             }
-            #else
-            content
-            #endif
         }
     }
 
     private var showsSummaryAsSubtitle: Bool {
-        #if os(iOS)
         if #available(iOS 26.0, *) {
             return true
         }
-        #endif
         return false
     }
 
@@ -624,11 +586,7 @@ struct GroupListView: View {
     /// the controls pinned above the list. On iPhone the root shows the sync
     /// status as a row and the bar's actions stay in the bar.
     private var pinsCloudTitle: Bool {
-        #if os(iOS)
         return onSelectEntry != nil && CloudSyncControls.isVisible(for: viewModel)
-        #else
-        return false
-        #endif
     }
 
     @ViewBuilder
@@ -1007,6 +965,8 @@ struct GroupListView: View {
     }
 }
 
+#endif
+
 struct NewGroupSheet: View {
     @Binding var name: String
     @Binding var errorMessage: String?
@@ -1058,6 +1018,7 @@ struct NewGroupSheet: View {
     }
 }
 
+#if os(iOS)
 struct GroupRow: View {
     let groupID: UUID
     @Bindable var viewModel: DatabaseViewModel
@@ -1111,6 +1072,8 @@ struct GroupRow: View {
         }
     }
 }
+
+#endif
 
 struct EntryRow: View {
     let entry: KPEntry

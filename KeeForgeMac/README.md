@@ -5,8 +5,8 @@ the app delegate, the retained main window, menus, and Settings. The main window
 keeps its `AppRootView` hosting controller mounted for the lifetime of the window.
 Unlocked content embeds an AppKit `NSSplitViewController` with three independent
 SwiftUI hosting controllers, and the window shows a native `NSToolbar` with an
-`NSSearchToolbarItem`. Locked, opening, error, and list content still use the
-existing SwiftUI root and its bridged SwiftUI toolbar.
+`NSSearchToolbarItem`. Locked, opening, error, and list content use the
+SwiftUI root and its bridged toolbar.
 
 ## Workspace presentation
 
@@ -29,9 +29,8 @@ no content swap orders the window or assigns first responder.
 The sidebar is collapsible (200–340 pt), the entries column is 260–460 pt, and
 the detail takes the remaining width. `NSSplitView` autosave owns widths and
 collapse state under `MacDatabaseWorkspace`, including across lock/unlock.
-The former measured-width defaults key is no longer used. View → Show Sidebar
-is forwarded to the active native split controller. The main window's identity,
-close guard, and host-window counting remain unchanged.
+View → Show Sidebar is forwarded to the active native split controller.
+The close guard settles unsaved work before the last host window closes.
 
 ## Toolbar and search
 
@@ -42,19 +41,18 @@ off and installs it as the window toolbar; on lock it removes it and turns
 bridging back on, so the list screen's Add Database and Settings items come back
 from SwiftUI. One source owns the bar in each state. Column hosts never bridge.
 
-The items keep the former SwiftUI toolbar's order, labels, tooltips, and
-accessibility identifiers (each item identifier is also its view's
-accessibility identifier). The database-scoped items are navigational, so they
+Each item's identifier is also its view's accessibility identifier. The
+database-scoped items are navigational, so they
 lead before the window title; Edit and the search field sit at the trailing
 edge. Each item has a menu form for the overflow menu. The cloud sync controls
 are the shared SwiftUI view in a hosting view; the others are AppKit controls.
 Enablement comes from `DatabaseCommands` where a rule exists, and the whole bar
-is disabled while saving, as the SwiftUI bar was.
+is disabled while saving.
 
 The search field and `DatabaseViewModel.searchText` are bound both ways through
 the toolbar's observation. Edit ▸ Find (`findEntry:`) calls
-`MacWorkspaceToolbar.focusSearch()`, which begins the search item's interaction;
-there is no Find request counter. Title bridging is off; AppKit observation owns
+`MacWorkspaceToolbar.focusSearch()`, which begins the search item's interaction.
+Title bridging is off; AppKit observation owns
 the database title and group/tag/search subtitle. Column roots apply saving
 disablement and appearance explicitly across hosting boundaries.
 
@@ -107,12 +105,13 @@ ssh -T git@github.com   # or any host that trusts the key
 both commands find no key; quit KeeForge or turn the agent off and they cannot reach
 the agent at all.
 
-## Target Map
+## Build contracts
 
-- `KeeForgeMac` (app target in `project.yml`): requires macOS 15 and compiles the shared `KeeForge/` tree (minus the iOS `KeeForgeApp.swift`, `LaunchScreen.storyboard`, and the Dropbox and OneDrive providers) plus `KeeForgeMac/App/` and selected `AutoFillExtension/` shells (sharing rules: `../KeeForge/AGENTS.md`). `MARKETING_VERSION` tracks iOS in lockstep — all four product targets carry the same version and build number, and one release bump covers them together. `PRODUCT_NAME` is `KeeForge`, so the bundle on disk is `KeeForge.app`.
-- `KeeForgeMacAutoFill` (extension): uses `AutoFillExtension/InfoMac.plist` and `AutoFillExtension/AutoFillExtensionMac.entitlements`; its shared-source list must stay literally identical to the iOS `KeeForgeAutoFill` allow-list (marked invariant in `project.yml`).
-- `KeeForgeMacTests`: **no folder of its own** — compiles the shared `KeeForgeTests/` sources, hosted in `KeeForge.app` (`TEST_HOST`/`BUNDLE_LOADER`).
-- `KeeForgeMacUITests`: has its own folder and `AGENTS.md` (`../KeeForgeMacUITests/AGENTS.md`).
+The app requires macOS 15. Source membership and AutoFill sharing rules belong
+in [the shared-source guidance](../KeeForge/AGENTS.md). Both channels produce
+`KeeForge.app`; all four product targets share the iOS marketing version and
+build number. Mac unit tests run hosted in the app and compile the shared test
+suite. Native window interactions belong in the Mac UI suite.
 
 ## Entitlements Gotchas
 

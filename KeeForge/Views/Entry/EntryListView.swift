@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 struct EntryListView: View {
@@ -17,12 +18,6 @@ struct EntryListView: View {
     @State private var pendingDeletion: PendingDeletion?
     /// The entry whose Move-to-Group picker is presented, or `nil` when none is.
     @State private var pendingMove: PendingMove?
-    #if os(macOS)
-    /// The prefilled New Entry form a Duplicate raised, or `nil` when none is.
-    /// iOS opens it as the workspace's editor instead.
-    @State private var duplicateEditor: EntryEditViewModel?
-    @State private var createdEntryToOpen: UUID?
-    #endif
 
     var body: some View {
         Group {
@@ -70,39 +65,9 @@ struct EntryListView: View {
                 pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
             }
         }
-        #if os(macOS)
-        // Outside the branches for the same reason as the hosts above.
-        .sheet(item: $duplicateEditor, onDismiss: openCreatedEntry) { formViewModel in
-            NavigationStack {
-                EntryEditView(
-                    formViewModel: formViewModel,
-                    databaseViewModel: viewModel
-                ) { completion in
-                    if case .created(let entryID) = completion {
-                        createdEntryToOpen = entryID
-                    }
-                    duplicateEditor = nil
-                }
-            }
-        }
-        #endif
         .modifier(ListScopedSelectionBar(viewModel: viewModel, isHosted: onRequestDeletion == nil) { pendingMove = $0 })
     }
 
-    #if os(macOS)
-    /// Waits for the duplicate's sheet to finish dismissing: a push issued
-    /// while it is still up would be dropped.
-    private func openCreatedEntry() {
-        guard let entryID = createdEntryToOpen else { return }
-        createdEntryToOpen = nil
-        guard let entry = viewModel.entry(withID: entryID) else { return }
-        if let onSelectEntry {
-            onSelectEntry(entry)
-        } else {
-            viewModel.workspace.navigationPath.append(.entry(entryID))
-        }
-    }
-    #endif
 
     /// Resolves the soft/permanent choice per entry — these lists draw from
     /// more than one group — then hands the finished action to the container's
@@ -165,11 +130,7 @@ struct EntryListView: View {
             EntryRowCopyActions(entry: entry, viewModel: viewModel)
 
             EntryRowDuplicateAction(entryID: entry.id, viewModel: viewModel) { editor in
-                #if os(macOS)
-                duplicateEditor = editor
-                #else
                 viewModel.workspace.present(.entry(editor))
-                #endif
             }
 
             EntryRowMoveAction(entryID: entry.id, viewModel: viewModel) { move in
@@ -208,3 +169,4 @@ struct EntryListView: View {
         viewModel.isEntryInRecycleBin(entryID: entry.id) == false
     }
 }
+#endif
