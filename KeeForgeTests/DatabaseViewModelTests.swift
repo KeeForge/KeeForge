@@ -6926,6 +6926,131 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(try PendingLocalSaveStore.export(source.receipt, for: reference.id), bytes)
     }
 
+    func testKnownUnconfirmedOrdinaryCommitsAllowDistinctExplicitSavesWithoutSourcesOrResend() async throws {
+        for afterRekey in [false, true] {
+            let setup: LocalInteropSetup
+            if afterRekey { setup = try await makeLocalInteropSetup(unconfirmed: true) }
+            else {
+                let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                let url = folder.appendingPathComponent("explicit-ordinary.kdbx")
+                let original = try Data(contentsOf: fixtureURL())
+                try original.write(to: url)
+                let reference = try DatabaseListStore.add(url: url)
+                let effects = OSAllocatedUnfairLock(initialState: (crypto: 0, replace: 0, exports: 0))
+                let live = LocalDatabaseSaver.Environment.live
+                let vm = try makeViewModel(reference: reference, localSaveOperation: { draft, ref, key, hash, reconciled, newKey, settings in
+                    var environment = live
+                    environment.encryptDraft = { draft, key, header, policy in
+                        effects.withLock { $0.crypto += 1 }; return try live.encryptDraft(draft, key, header, policy)
+                    }
+                    environment.replaceFileAtomically = { bytes, target, baseline, authorization in
+                        effects.withLock { $0.replace += 1 }
+                        var io = LocalDatabaseSaver.ReplacementIO()
+                        io.synchronize = { _ in throw POSIXError(.EACCES) }
+                        return try LocalDatabaseSaver.replaceFileAtomically(bytes, at: target, expectedSHA512: baseline, authorization: authorization, io: io)
+                    }
+                    return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                        openTimeSHA512: hash, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                        newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+                })
+                await vm.unlock(password: fixturePassword)
+                setup = LocalInteropSetup(vm: vm, url: url, original: original, prior: original, effects: effects)
+            }
+            defer { setup.vm.lock() }
+            let association = setup.vm.databaseReference
+            var operations = Set<UUID>()
+            for index in 1...3 {
+                try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
+                    draft: EntryDraftPayload(title: "Distinct Explicit \(index)", password: "kept")))
+                do { try await setup.vm.save(); XCTFail("Each distinct operation reports its own target warning") }
+                catch { XCTAssertTrue(error is SaveDurabilityWarning) }
+                let owner = try PendingLocalSaveStore.recovery(for: association.id)
+                let admission = try XCTUnwrap(owner.admission)
+                XCTAssertEqual(admission.purpose, .ordinarySave)
+                XCTAssertTrue(admission.sources.isEmpty)
+                XCTAssertTrue(owner.entries.isEmpty)
+                XCTAssertTrue(operations.insert(admission.operationID).inserted)
+                let installed = try Data(contentsOf: setup.url)
+                XCTAssertEqual(admission.knownTarget?.snapshot.sha512, FileDigest.sha512(installed))
+                XCTAssertFalse(admission.knownTarget?.isConfirmed == true)
+                XCTAssertEqual(setup.vm.openTimeSHA512, FileDigest.sha512(installed))
+                XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: association)), installed)
+                XCTAssertEqual(setup.vm.databaseReference.lastMasterKeyChangeAt, association.lastMasterKeyChangeAt)
+                XCTAssertEqual(setup.vm.databaseReference.keyFileBookmarkData, association.keyFileBookmarkData)
+                XCTAssertEqual(setup.vm.databaseReference.keyFileFilename, association.keyFileFilename)
+                try await setup.vm.save()
+                await setup.vm.mergePendingLocalSaves()
+                XCTAssertEqual(setup.effects.withLock { $0.crypto }, index + (afterRekey ? 1 : 0))
+                XCTAssertEqual(setup.effects.withLock { $0.replace }, index + (afterRekey ? 1 : 0))
+            }
+            let parsed = try KDBXParser.parse(data: Data(contentsOf: setup.url), compositeKey: XCTUnwrap(setup.vm.compositeKey), sessionKey: XCTUnwrap(setup.vm.sessionKey))
+            for index in 1...3 { XCTAssertTrue(parsed.allEntries.contains { $0.title == "Distinct Explicit \(index)" }) }
+        }
+    }
+
+    func testAppLateOldReadCannotPublishKeysAfterAnotherSessionRekeysAndRetires() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("late-app-read.kdbx")
+        let original = try Data(contentsOf: fixtureURL())
+        try original.write(to: url)
+        var reference = try DatabaseListStore.add(url: url)
+        reference.legacyKeychainFilename = "late-app-legacy-\(UUID().uuidString).kdbx"
+        DatabaseListStore.update(reference)
+        let gate = InFlightSaveGate()
+        let stored = OSAllocatedUnfairLock(initialState: Optional<SymmetricKey>.none)
+        let lateCalls = OSAllocatedUnfairLock(initialState: 0)
+        let old = DatabaseViewModel(databaseReference: reference, localDatabaseReadOperation: { reference in
+            let read = try await Task.detached {
+                let source = try XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: reference))
+                var error: NSError?
+                var result: DatabaseViewModel.LocalDatabaseReadResult?
+                NSFileCoordinator().coordinate(readingItemAt: source, options: [], error: &error) { url in
+                    if let bytes = try? Data(contentsOf: url), let identity = try? PendingLocalSaveStore.targetIdentity(at: url) {
+                        result = .init(url: url, data: bytes, sourceIdentity: identity)
+                    }
+                }
+                if let error { throw error }
+                return try XCTUnwrap(result)
+            }.value
+            await gate.parkFirstCall()
+            return read
+        }, quickUnlockKeyPersistOperation: { keys, _, _ in
+            lateCalls.withLock { $0 += 1 }; stored.withLock { $0 = keys.storedKey }; return true
+        })
+        let oldUnlock = Task { await old.unlock(password: fixturePassword) }
+        await gate.firstCallStarted()
+        let fresh = DatabaseViewModel(databaseReference: reference, quickUnlockKeyPersistOperation: { _, _, _ in false },
+            expressUnlockKeySaveOperation: { _, _ in }, storedKeyPresenceCheck: { _ in true },
+            storedKeyStoreOperation: { key, _ in stored.withLock { $0 = key } })
+        defer { old.lock(); fresh.lock() }
+        await fresh.unlock(password: fixturePassword)
+        try await fresh.changeMasterKey(newPassword: "new app publication key", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+        let newKey = KDBXCrypto.compositeKey(password: "new app publication key")
+        XCTAssertEqual(stored.withLock { $0 }, newKey)
+        XCTAssertNil(try PendingLocalSaveStore.recovery(for: reference.id).keyEvidence)
+        await gate.releaseFirstCall()
+        await oldUnlock.value
+        XCTAssertEqual(old.state, .unlocked)
+        XCTAssertNotNil(old.rootGroup)
+        XCTAssertEqual(old.openTimeSHA512, FileDigest.sha512(original))
+        XCTAssertEqual(lateCalls.withLock { $0 }, 0)
+        XCTAssertEqual(stored.withLock { $0 }, newKey)
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertNil(current.legacyKeychainFilename)
+        try original.write(to: url, options: .atomic)
+        let restored = DatabaseViewModel(databaseReference: current, quickUnlockKeyPersistOperation: { keys, _, _ in
+            stored.withLock { $0 = keys.storedKey }; return true
+        })
+        defer { restored.lock() }
+        await restored.unlock(password: fixturePassword)
+        XCTAssertEqual(restored.state, .unlocked)
+        XCTAssertEqual(stored.withLock { $0 }, KDBXCrypto.compositeKey(password: fixturePassword))
+    }
+
     func testOrdinaryIndeterminateSaveRetainsAdmissionAcrossEditsAndColdSessionWithoutResend() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -6992,7 +7117,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let denySync = OSAllocatedUnfairLock(initialState: true)
         let crypto = OSAllocatedUnfairLock(initialState: 0)
         let live = LocalDatabaseSaver.Environment.live
-        let vm = try makeViewModel(reference: created.reference, localSaveOperation: { draft, ref, key, hash, reconciled, newKey, settings in
+        let vm = DatabaseViewModel(createdDatabase: created, localSaveOperation: { draft, ref, key, hash, reconciled, newKey, settings in
             var environment = live
             environment.encryptDraft = { draft, key, header, policy in
                 crypto.withLock { $0 += 1 }; return try live.encryptDraft(draft, key, header, policy)
@@ -7010,7 +7135,8 @@ final class DatabaseViewModelTests: XCTestCase {
                 newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
         })
         defer { vm.lock() }
-        await vm.unlock(password: "original app-only key")
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNil(vm.databaseReference.bookmarkData)
         do { try await vm.changeMasterKey(newPassword: "settled app-only key", newKeyFileData: nil,
             newKeyFileBookmarkData: nil, newKeyFileFilename: nil); XCTFail("Expected unconfirmed target") }
         catch { XCTAssertTrue(error is SaveDurabilityWarning) }
@@ -7344,6 +7470,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let originalBytes = try Data(contentsOf: fixtureURL())
         let calls = OSAllocatedUnfairLock(initialState: 0)
         let ownerWrites = OSAllocatedUnfairLock(initialState: 0)
+        let replacementObserved = OSAllocatedUnfairLock(initialState: false)
         let live = LocalDatabaseSaver.Environment.live
         let operation: DatabaseViewModel.LocalSaveOperation = { draft, ref, key, hash, reconciled, newKey, settings in
             let call = calls.withLock { value in value += 1; return value }
@@ -7351,15 +7478,18 @@ final class DatabaseViewModelTests: XCTestCase {
             if call == 2 {
                 environment.replaceFileAtomically = { data, target, baseline, authorization in
                     var io = LocalDatabaseSaver.ReplacementIO()
-                    io.synchronize = { _ in throw POSIXError(.EIO) }
+                    io.synchronize = { _ in
+                        replacementObserved.withLock { $0 = true }
+                        throw POSIXError(.EIO)
+                    }
                     return try LocalDatabaseSaver.replaceFileAtomically(data, at: target,
                         expectedSHA512: baseline, authorization: authorization, io: io)
                 }
                 environment.pendingLocalStorageIO.fileIO = { destination in
                     var writer = DurableFileWriteIO()
-                    if destination.lastPathComponent == "owner.json" {
+                    if destination.lastPathComponent == "owner.json", replacementObserved.withLock({ $0 }) {
                         let number = ownerWrites.withLock { value in value += 1; return value }
-                        if number > 1 { writer.write = { _, _, _ in 0 } }
+                        if number == 1 { writer.write = { _, _, _ in 0 } }
                     }
                     return writer
                 }
@@ -7378,7 +7508,13 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
         try await vm.changeMasterKey(newPassword: "same epoch key", newKeyFileData: nil,
             newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
-        XCTAssertTrue(try XCTUnwrap(PendingLocalSaveStore.recovery(for: reference.id).keyEvidence).targetState.isConfirmed)
+        let oldSource = try PendingLocalSaveStore.recovery(for: reference.id)
+        XCTAssertTrue(try XCTUnwrap(oldSource.keyEvidence).targetState.isConfirmed)
+        XCTAssertEqual(try PendingLocalSaveStore.discard(oldSource), .resolved)
+        let installed = try Data(contentsOf: url)
+        let source = try PendingLocalSaveStore.prepareSource(installed, for: reference.id,
+            masterKeyChangedAt: vm.databaseReference.lastMasterKeyChangeAt, baseCacheSHA512: FileDigest.sha512(installed))
+        XCTAssertEqual(PendingLocalSaveStore.activateSource(source), .accepted)
         try vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(vm.rootGroup)),
             draft: EntryDraftPayload(title: "Unconfirmed Planned Output", password: "preserve")))
         do { try await vm.save(); XCTFail("Expected target warning") }
@@ -7396,8 +7532,12 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(PendingLocalSaveStore.recovery(for: reference.id).keyEvidence).targetDurabilityUnconfirmed)
         try restarted.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(restarted.rootGroup)),
             draft: EntryDraftPayload(title: "Explicit Durable Followup", password: "next")))
-        try await restarted.save()
+        // Keep the eligible source owned; this checks the writer before a separate automatic merge.
+        let followup = try await operation(XCTUnwrap(restarted.draft), restarted.databaseReference,
+            XCTUnwrap(restarted.compositeKey), XCTUnwrap(restarted.openTimeSHA512), nil, nil, nil)
+        guard case .saved = followup else { return XCTFail("Explicit followup must be durably saved") }
         XCTAssertTrue(try XCTUnwrap(PendingLocalSaveStore.recovery(for: reference.id).keyEvidence).targetState.isConfirmed)
+        XCTAssertEqual(try PendingLocalSaveStore.export(source.receipt, for: reference.id), installed)
         XCTAssertEqual(calls.withLock { $0 }, 3)
         restarted.lock()
     }

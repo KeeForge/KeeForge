@@ -226,3 +226,12 @@ Local AutoFill final key publication validates the read-bound ciphertext/identit
 reference epoch and revocation under the owner lock through keychain-only writes.
 Legacy registry cleanup occurs afterwards by field CAS, without list-lock inversion;
 refusing key publication does not prevent filling authenticated credentials.
+
+Known ordinary output is distinct from an unknown effect: its typed commit is
+recorded in the existing empty-receipt admission. A new explicit save requires the
+exact installed identity/SHA and epoch, uses a new operation UUID, and never drains
+receipts or retries an unknown outcome. Only the exact actual commit receipt can
+authorize cache repair when its owner publication fails. Failed pre-replacement
+release remains an actionable recovery error rather than a promise of safe retry.
+App unlock now also holds the final reference/owner fence through keychain-only
+publication; old parsed data remains readable without overwriting later keys.

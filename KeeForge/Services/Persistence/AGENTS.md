@@ -83,3 +83,7 @@
 - Every local cache writer captures reference/epoch before external reads and publishes under current-reference lock → original/cache coordination → owner flock. Scanner/initial-copy/heal/relink/migration/creation cannot bypass active recovery or removal; failed publication does not advance scanner fingerprints.
 
 - Ordinary local saves also obtain the existing typed admission with empty source receipts before encryption. Only observed durable completion or affirmative pre-replacement proof releases it; unknown, warning or interrupted outcomes keep recovery and block subsequent automatic encryption across sessions. Database-bookmark renewal updates only the expected bookmark under reference/epoch CAS, never a captured whole reference. Primary-target resolution is shared by replacement and witness retirement, including KeeForge-only cache targets.
+
+- An empty ordinary admission may retain its known typed TargetCommit. Only an exact same-epoch baseline/identity permits a fresh explicit operation; unknown outcomes and receipt-bearing admissions never use that path. Cache effects use only its known bytes or the live matching commit receipt, preserving source ownership. A failed pre-replacement release is observable and cannot promise a safe retry.
+
+- A new ordinary attempt keeps one flat preceding known-commit proof for affirmative pre-replacement unwind. Restoring it preserves the previous uncertainty; a newer unknown attempt never inherits its retry permission. Successful known publication replaces that proof rather than growing a history chain.

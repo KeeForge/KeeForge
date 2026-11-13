@@ -97,3 +97,5 @@ Unit classes in `../../KeeForgeTests/` are named `<Type>Tests`. Cover success, f
 - Same-epoch key-file Select/Clear and renewal run bookmark creation/hash/fsync off the main actor, reject stale generations and retain exact desired preferences on uncertain publication. Refresh only that nonsecret field before an explicit session save.
 
 - Fully durable key settlement retires target evidence; ordinary external restore/merge/reload behavior resumes without adoption. During actual recovery, conflict actions check ownership before discarding a draft. The same unlocked local dirty session exposes encrypted draft export even when owner data is absent or unreadable, using one RAM ciphertext context and cycle/revision/cancel guards.
+
+- App final unlock key publication uses the same pre-read lease/current-reference/owner fence as AutoFill, held through keychain-only effects, with legacy field cleanup outside flock. A stale parse may remain readable but cannot publish older keys. A known ordinary warning ends the action; a later explicit save uses a new UUID and exact current baseline without destructive discard.

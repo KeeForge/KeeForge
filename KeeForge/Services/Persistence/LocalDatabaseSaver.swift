@@ -420,117 +420,134 @@ enum LocalDatabaseSaver {
         if let encryptionSettings {
             header = encryptionSettings.applied(to: header)
         }
-        let ordinaryToken: PendingLocalSaveStore.Token?
+        var ordinaryToken: PendingLocalSaveStore.Token?
         if authorization.enforcesEpoch, authorization.token == nil, !authorization.isMasterKeyChange, !location.awaitsWriteBack {
             do { ordinaryToken = try admitOrdinarySave(reference: reference, location: location,
                 baseline: currentSHA512, io: environment.pendingLocalStorageIO) }
             catch let conflict as CoordinatedConflict { return .conflict(remoteSHA512: FileDigest.sha512(conflict.currentData), remoteData: conflict.currentData) }
         } else { ordinaryToken = nil }
         var replacementMayHaveStarted = false
-        defer {
-            if let ordinaryToken, !replacementMayHaveStarted {
-                _ = PendingLocalSaveStore.releaseAfterProvenNoReplacement(ordinaryToken, io: environment.pendingLocalStorageIO)
+        func releaseProvenUncommittedAdmission() throws {
+            guard let token = ordinaryToken else { return }
+            ordinaryToken = nil
+            guard PendingLocalSaveStore.releaseAfterProvenNoReplacement(token, io: environment.pendingLocalStorageIO) == .resolved else {
+                throw LocalSaveBeforeReplacementFailure(underlying: SavePreReplacementRecoveryWarning())
             }
         }
-        let writeKey = newCompositeKey ?? compositeKey
-        let written = try environment.encryptDraft(draft, writeKey, header, kdfPolicy)
-        let newData = written.data
-        if newCompositeKey != nil || encryptionSettings != nil {
-            do {
-                _ = try environment.extractHeader(newData, writeKey, kdfPolicy)
-            } catch {
-                throw SaveError.reencryptionVerificationFailed
-            }
-        }
-
-        let backupDirectoryURL = environment.backupDirectoryURL(reference)
-        try environment.createDirectory(backupDirectoryURL)
-
-        let backupURL = backupDirectoryURL.appendingPathComponent(
-            backupFilename(for: environment.now()),
-            isDirectory: false
-        )
-        try environment.writeBackup(currentData, backupURL)
-        let scope: SaveEffectScope = location.awaitsWriteBack || reference.isCloudBacked ? .sharedCopy : .databaseFile
-        let prepared = location.awaitsWriteBack
-            ? try PendingLocalSaveStore.prepareSource(newData, for: reference.id,
-                masterKeyChangedAt: reference.lastMasterKeyChangeAt, baseCacheSHA512: currentSHA512, io: environment.pendingLocalStorageIO)
-            : nil
-        var writeAuthorization = authorization
-        writeAuthorization.prepared = prepared
-        if let ordinaryToken { writeAuthorization.token = ordinaryToken }
-        writeAuthorization.targetIsSharedCopy = location.awaitsWriteBack || reference.isCloudBacked
-        let replaceOutcome: ReplaceOutcome
         do {
-            replacementMayHaveStarted = true
-            replaceOutcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512, writeAuthorization)
-        } catch let failure as LocalSaveBeforeReplacementFailure {
-            replacementMayHaveStarted = false
-            throw failure
-        }
-        catch {
-            // An opaque adapter error after entering replacement is not proof of no effect.
-            return .indeterminate(scope: scope)
-        }
-        let localCommit: PendingLocalSaveStore.CommitReceipt?
-        var unconfirmed: Bool
-        var warningScope = scope
-        switch replaceOutcome {
-        case .changed(let changedData):
-            replacementMayHaveStarted = false
-            return .conflict(remoteSHA512: FileDigest.sha512(changedData), remoteData: changedData)
-        case .indeterminate: return .indeterminate(scope: scope)
-        case .replaced(let receipt): localCommit = receipt; unconfirmed = false
-        case .replacedWithoutConfirmedDurability(let receipt): localCommit = receipt; unconfirmed = true
-        case .replacedWithUnconfirmedBookkeeping(let receipt):
-            localCommit = receipt; unconfirmed = true; warningScope = .recoveryRecord
-        }
-        if ordinaryToken != nil, !unconfirmed {
-            let completion = localCommit.map { completePendingMerge($0, reference: reference, io: environment.pendingLocalStorageIO) }
-                ?? .retainedForRecovery
-            if completion != .resolved { unconfirmed = true; warningScope = .recoveryRecord }
-        }
-        var sourceAcceptanceUnconfirmed = false
-        if let prepared, unconfirmed == false {
-            switch PendingLocalSaveStore.activateSource(prepared, io: environment.pendingLocalStorageIO) {
-            case .accepted: break
-            case .acceptedWithoutConfirmedDurability, .notAccepted: sourceAcceptanceUnconfirmed = true
+            let writeKey = newCompositeKey ?? compositeKey
+            let written = try environment.encryptDraft(draft, writeKey, header, kdfPolicy)
+            let newData = written.data
+            if newCompositeKey != nil || encryptionSettings != nil {
+                do {
+                    _ = try environment.extractHeader(newData, writeKey, kdfPolicy)
+                } catch {
+                    throw SaveError.reencryptionVerificationFailed
+                }
             }
-        }
-        // When the save location already IS the cache file (a cloud reference
-        // without a bookmark resolves straight to it), the replace above was
-        // the cache write; repeating it widens the window where a concurrent
-        // cache read can mismatch its pending-upload marker.
-        //
-        // A pending local save keeps the shared copy too: that copy holds an
-        // AutoFill save these bytes may not contain, and AutoFill reads it.
-        // Whoever merges the pending saves refreshes the copy afterwards.
-        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
-        if canonicalPath(of: location.url) != canonicalPath(of: cacheURL),
-           newCompositeKey != nil || environment.hasPendingLocalSaves(reference) == false {
-            do {
-                try environment.cacheDatabaseCopy(newData, reference)
-            } catch {
-                // The file is already replaced, so the save has succeeded. An
-                // older copy must not keep answering AutoFill for it; with
-                // none, AutoFill reads the file or fails until a copy is written.
-                if reference.isCloudBacked { try? FileManager.default.removeItem(at: cacheURL) }
-                else { invalidateOlderLocalCache(for: reference, installedSHA512: FileDigest.sha512(newData)) }
-            }
-        }
-        try? environment.pruneBackups(reference, 5)
 
-        if unconfirmed || sourceAcceptanceUnconfirmed {
-            return .committedWithoutConfirmedDurability(
-                newSHA512: FileDigest.sha512(newData),
-                expressKey: reference.hardwareKey == nil ? written.expressKey : nil,
-                localCommit: localCommit, scope: warningScope
+            let backupDirectoryURL = environment.backupDirectoryURL(reference)
+            try environment.createDirectory(backupDirectoryURL)
+
+            let backupURL = backupDirectoryURL.appendingPathComponent(
+                backupFilename(for: environment.now()),
+                isDirectory: false
             )
+            try environment.writeBackup(currentData, backupURL)
+            let scope: SaveEffectScope = location.awaitsWriteBack || reference.isCloudBacked ? .sharedCopy : .databaseFile
+            let prepared = location.awaitsWriteBack
+                ? try PendingLocalSaveStore.prepareSource(newData, for: reference.id,
+                    masterKeyChangedAt: reference.lastMasterKeyChangeAt, baseCacheSHA512: currentSHA512, io: environment.pendingLocalStorageIO)
+                : nil
+            var writeAuthorization = authorization
+            writeAuthorization.prepared = prepared
+            if let ordinaryToken { writeAuthorization.token = ordinaryToken }
+            writeAuthorization.targetIsSharedCopy = location.awaitsWriteBack || reference.isCloudBacked
+            let replaceOutcome: ReplaceOutcome
+            do {
+                replacementMayHaveStarted = true
+                replaceOutcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512, writeAuthorization)
+            } catch let failure as LocalSaveBeforeReplacementFailure {
+                replacementMayHaveStarted = false
+                throw failure
+            }
+            catch {
+                // An opaque adapter error after entering replacement is not proof of no effect.
+                return .indeterminate(scope: scope)
+            }
+            let localCommit: PendingLocalSaveStore.CommitReceipt?
+            var unconfirmed: Bool
+            var warningScope = scope
+            switch replaceOutcome {
+            case .changed(let changedData):
+                replacementMayHaveStarted = false
+                try releaseProvenUncommittedAdmission()
+                return .conflict(remoteSHA512: FileDigest.sha512(changedData), remoteData: changedData)
+            case .indeterminate: return .indeterminate(scope: scope)
+            case .replaced(let receipt): localCommit = receipt; unconfirmed = false
+            case .replacedWithoutConfirmedDurability(let receipt): localCommit = receipt; unconfirmed = true
+            case .replacedWithUnconfirmedBookkeeping(let receipt):
+                localCommit = receipt; unconfirmed = true; warningScope = .recoveryRecord
+            }
+            if ordinaryToken != nil, !unconfirmed {
+                let completion = localCommit.map { completePendingMerge($0, reference: reference, io: environment.pendingLocalStorageIO) }
+                    ?? .retainedForRecovery
+                if completion != .resolved { unconfirmed = true; warningScope = .recoveryRecord }
+            }
+            if ordinaryToken != nil, unconfirmed, let localCommit {
+                _ = try? observeOriginal(reference) { target in
+                    PendingLocalSaveStore.recordKnownOrdinaryCommit(localCommit, observeTarget: {
+                        (try PendingLocalSaveStore.targetIdentity(at: target), FileDigest.sha512(try Data(contentsOf: target)))
+                    }, io: environment.pendingLocalStorageIO)
+                }
+            }
+            var sourceAcceptanceUnconfirmed = false
+            if let prepared, unconfirmed == false {
+                switch PendingLocalSaveStore.activateSource(prepared, io: environment.pendingLocalStorageIO) {
+                case .accepted: break
+                case .acceptedWithoutConfirmedDurability, .notAccepted: sourceAcceptanceUnconfirmed = true
+                }
+            }
+            // When the save location already IS the cache file (a cloud reference
+            // without a bookmark resolves straight to it), the replace above was
+            // the cache write; repeating it widens the window where a concurrent
+            // cache read can mismatch its pending-upload marker.
+            //
+            // A pending local save keeps the shared copy too: that copy holds an
+            // AutoFill save these bytes may not contain, and AutoFill reads it.
+            // Whoever merges the pending saves refreshes the copy afterwards.
+            let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+            if canonicalPath(of: location.url) != canonicalPath(of: cacheURL),
+               newCompositeKey != nil || localCommit?.purpose == .ordinarySave || environment.hasPendingLocalSaves(reference) == false {
+                PendingLocalSaveStore.$cacheCommit.withValue(localCommit) {
+                    do {
+                        try environment.cacheDatabaseCopy(newData, reference)
+                    } catch {
+                        // The file is already replaced, so the save has succeeded. An
+                        // older copy must not keep answering AutoFill for it; with
+                        // none, AutoFill reads the file or fails until a copy is written.
+                        if reference.isCloudBacked { try? FileManager.default.removeItem(at: cacheURL) }
+                        else { invalidateOlderLocalCache(for: reference, installedSHA512: FileDigest.sha512(newData)) }
+                    }
+                }
+            }
+            try? environment.pruneBackups(reference, 5)
+
+            if unconfirmed || sourceAcceptanceUnconfirmed {
+                return .committedWithoutConfirmedDurability(
+                    newSHA512: FileDigest.sha512(newData),
+                    expressKey: reference.hardwareKey == nil ? written.expressKey : nil,
+                    localCommit: localCommit, scope: warningScope
+                )
+            }
+            return .saved(
+                newSHA512: FileDigest.sha512(newData),
+                expressKey: reference.hardwareKey == nil ? written.expressKey : nil, localCommit: localCommit
+            )
+        } catch {
+            if !replacementMayHaveStarted { try releaseProvenUncommittedAdmission() }
+            throw error
         }
-        return .saved(
-            newSHA512: FileDigest.sha512(newData),
-            expressKey: reference.hardwareKey == nil ? written.expressKey : nil, localCommit: localCommit
-        )
     }
 
     private static func admitOrdinarySave(

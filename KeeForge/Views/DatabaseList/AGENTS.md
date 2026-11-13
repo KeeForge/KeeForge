@@ -54,3 +54,5 @@
 - An unlocked session can export its retained unsaved draft through the existing native exporter while recovering local publication. The exported full snapshot uses the unlocked session's key; locked source exports continue to use exact encrypted receipts without restoring secrets.
 
 - The draft-export capability is outside optional owner/witness rows and requires the same unlocked local dirty session. Active recovery replaces normal conflict Merge/Reload promises with actionable Details/export; durable settlement resumes the existing conflict actions.
+
+- Distinguish a known committed ordinary file from an unknown save outcome. Known output supports a new explicit save without destructive record discard; neither acknowledgement nor activation resends the previous operation. Keep file-durability and record warnings truthful.

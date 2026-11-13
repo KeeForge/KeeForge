@@ -906,7 +906,8 @@ enum DatabaseListStore {
         try withStateLock {
             let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
             guard let current = references.first(where: { $0.id == expected.id }),
-                  read.lease.reference.matches(current), current.legacyKeychainFilename == expected.legacyKeychainFilename else {
+                  read.lease.reference.matches(current), current.hardwareKey == expected.hardwareKey,
+                  current.legacyKeychainFilename == expected.legacyKeychainFilename else {
                 throw PendingLocalSaveStore.OwnershipError.sourceChanged
             }
             return try PendingLocalSaveStore.withReadKeyPublicationAuthorization(read, publish)

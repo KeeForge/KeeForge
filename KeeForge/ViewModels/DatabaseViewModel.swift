@@ -241,6 +241,7 @@ final class DatabaseViewModel {
     struct LocalDatabaseReadResult: Sendable {
         let url: URL
         let data: Data
+        var sourceIdentity: PendingLocalSaveStore.TargetIdentity? = nil
     }
 
     struct ReloadedDatabase: Sendable {
@@ -763,7 +764,8 @@ final class DatabaseViewModel {
             return try QuickUnlockKeychain.retrieve(for: reference, context: context)
         },
         quickUnlockKeyPersistOperation: @escaping QuickUnlockKeyPersistOperation = { keys, reference, masterKeyEntered in
-            QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered)
+            if reference.isCloudBacked { return QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered) }
+            return QuickUnlockKeychain.persistKeychainItems(keys, for: reference, masterKeyEntered: masterKeyEntered) == .stored
         },
         expressUnlockKeySaveOperation: @escaping ExpressUnlockKeySaveOperation = { key, reference in
             QuickUnlockKeychain.replaceExpressKey(with: key, for: reference)
@@ -829,8 +831,17 @@ final class DatabaseViewModel {
         workspace.onInteraction = { [weak self] in self?.resetInactivityTimer() }
     }
 
-    convenience init(createdDatabase: CreatedDatabase) {
-        self.init(databaseReference: createdDatabase.reference)
+    convenience init(createdDatabase: CreatedDatabase, localSaveOperation: @escaping LocalSaveOperation = { draft, reference, key, sha, reconciled, newKey, settings in
+        try await LocalDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key, openTimeSHA512: sha,
+            reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings)
+    }) {
+        self.init(databaseReference: createdDatabase.reference, localSaveOperation: localSaveOperation)
+        let localRead: PendingLocalSaveStore.ReadKeyPublication?
+        if !createdDatabase.reference.isCloudBacked,
+           let lease = try? PendingLocalSaveStore.captureCacheReadLease(for: createdDatabase.reference),
+           let target = try? LocalDatabaseSaver.captureTarget(for: createdDatabase.reference) {
+            localRead = .init(lease: lease, target: target, sha512: createdDatabase.openTimeSHA512, sharedCopy: false)
+        } else { localRead = nil }
         finalizeSuccessfulUnlock(
             payload: UnlockPayload(
                 rootGroup: createdDatabase.rootGroup,
@@ -843,7 +854,7 @@ final class DatabaseViewModel {
             quickLaunchKey: createdDatabase.compositeKey,
             usesHardwareKey: false,
             sessionKey: createdDatabase.sessionKey,
-            masterKeyEntered: true
+            masterKeyEntered: true, localRead: localRead
         )
     }
 
@@ -1187,7 +1198,7 @@ final class DatabaseViewModel {
                 quickLaunchKey: quickLaunchKey,
                 usesHardwareKey: hardwareKey != nil,
                 sessionKey: sessionKey,
-                masterKeyEntered: true
+                masterKeyEntered: true, localRead: readResult.readProof
             )
             sessionKeyFileData = keyFileData
             await mergePendingLocalSaves()
@@ -1277,7 +1288,7 @@ final class DatabaseViewModel {
                 quickLaunchKey: storedKey,
                 usesHardwareKey: hardwareKey != nil,
                 sessionKey: sessionKey,
-                masterKeyEntered: false
+                masterKeyEntered: false, localRead: readResult.readProof
             )
             await mergePendingLocalSaves()
             return .unlocked
@@ -4590,7 +4601,8 @@ final class DatabaseViewModel {
         quickLaunchKey: SymmetricKey,
         usesHardwareKey: Bool,
         sessionKey: SymmetricKey,
-        masterKeyEntered: Bool
+        masterKeyEntered: Bool,
+        localRead: PendingLocalSaveStore.ReadKeyPublication? = nil
     ) {
         self.rootGroup = payload.rootGroup
         self.compositeKey = compositeKey
@@ -4621,13 +4633,20 @@ final class DatabaseViewModel {
             secretAccess.noteSuccessfulAuthentication()
         }
 
-        let mayPublish = databaseReference.isCloudBacked || PendingLocalSaveStore.permitsPublishingReadCopy(
-            sha512: payload.openTimeSHA512, for: databaseReference.id)
-        let storedQuickUnlockKey = mayPublish && quickUnlockKeyPersistOperation(
-            QuickUnlockKeys(storedKey: quickLaunchKey, expressKey: usesHardwareKey ? nil : payload.expressKey),
-            databaseReference,
-            masterKeyEntered
-        )
+        let keys = QuickUnlockKeys(storedKey: quickLaunchKey, expressKey: usesHardwareKey ? nil : payload.expressKey)
+        let mayPublish: Bool
+        let storedQuickUnlockKey: Bool
+        if databaseReference.isCloudBacked {
+            mayPublish = true
+            storedQuickUnlockKey = quickUnlockKeyPersistOperation(keys, databaseReference, masterKeyEntered)
+        } else if let localRead {
+            let stored = try? DatabaseListStore.withLocalReadKeyPublication(for: databaseReference, read: localRead) {
+                quickUnlockKeyPersistOperation(keys, databaseReference, masterKeyEntered)
+            }
+            mayPublish = stored != nil
+            storedQuickUnlockKey = stored == true
+            if storedQuickUnlockKey { DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference) }
+        } else { mayPublish = false; storedQuickUnlockKey = false }
         quickUnlockItemHoldsSessionKey = storedQuickUnlockKey && usesHardwareKey == false
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
         refreshDatabaseReference()
@@ -4839,7 +4858,7 @@ final class DatabaseViewModel {
 
     private func readDatabaseData(
         prefetchedCloudResolution: CloudSyncResolution? = nil
-    ) async throws -> (url: URL, data: Data, cloudSyncStatus: CloudSyncResolution.Status?, cacheLease: PendingLocalSaveStore.CacheReadLease?) {
+    ) async throws -> (url: URL, data: Data, cloudSyncStatus: CloudSyncResolution.Status?, cacheLease: PendingLocalSaveStore.CacheReadLease?, readProof: PendingLocalSaveStore.ReadKeyPublication?) {
         if databaseReference.isCloudBacked {
             let resolution = if let prefetchedCloudResolution {
                 prefetchedCloudResolution
@@ -4855,7 +4874,7 @@ final class DatabaseViewModel {
             unlockStatusMessage = Self.decryptingStatusMessage
             DatabaseListStore.update(resolution.reference)
             databaseReference = resolution.reference
-            return (resolution.localURL, resolution.data, resolution.status, nil)
+            return (resolution.localURL, resolution.data, resolution.status, nil, nil)
         }
 
         cloudSyncBannerText = nil
@@ -4864,7 +4883,12 @@ final class DatabaseViewModel {
         let reference = databaseReference
         let lease = await Task.detached { try? PendingLocalSaveStore.captureCacheReadLease(for: reference) }.value
         let result = try await localDatabaseReadOperation(reference)
-        return (result.url, result.data, nil, lease)
+        let proof: PendingLocalSaveStore.ReadKeyPublication?
+        if let lease, let target = result.sourceIdentity {
+            let sha = await Task.detached { FileDigest.sha512(result.data) }.value
+            proof = .init(lease: lease, target: target, sha512: sha, sharedCopy: reference.bookmarkData == nil)
+        } else { proof = nil }
+        return (result.url, result.data, nil, lease, proof)
     }
 
     nonisolated private static func readLocalDatabase(
@@ -4885,10 +4909,15 @@ final class DatabaseViewModel {
                 }
             }
 
-            return LocalDatabaseReadResult(
-                url: url,
-                data: try CoordinatedFileReader.readData(from: url)
-            )
+            var error: NSError?
+            var result: Result<LocalDatabaseReadResult, Error>?
+            NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &error) { source in
+                result = Result { LocalDatabaseReadResult(url: source, data: try Data(contentsOf: source),
+                    sourceIdentity: try PendingLocalSaveStore.targetIdentity(at: source)) }
+            }
+            if let error { throw error }
+            guard let result else { throw CocoaError(.fileReadUnknown) }
+            return try result.get()
         }
     }
 

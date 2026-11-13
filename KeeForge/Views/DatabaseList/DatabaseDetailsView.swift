@@ -143,6 +143,9 @@ struct DatabaseDetailsView: View {
             let snapshot = request.snapshot
             if snapshot.preferenceIntent != nil {
                 Text("Abandoning this key-file preference recovery disables local writes. It does not change the database master key. Keep any snapshots and unsaved edits you need, then remove and add the database again.")
+            } else if snapshot.admission?.purpose == .ordinarySave, snapshot.admission?.knownTarget != nil,
+                      snapshot.entries.isEmpty, snapshot.keyEvidence?.pending == nil, !request.abandonKeyRecord, !snapshot.ownerUnavailable {
+                Text("The file contains this change, but its durability or recovery record is unconfirmed. You can make a new explicit save from this version without discarding recovery. Discarding the record does not undo the file change or discard your open draft.")
             } else if snapshot.admission?.purpose == .ordinarySave, snapshot.keyEvidence?.pending == nil, !request.abandonKeyRecord, !snapshot.ownerUnavailable {
                 Text("This local save has an unresolved outcome. Export the database and any unsaved changes before discarding this recovery record. Discarding does not undo a replacement and deletes only the snapshots listed here; later snapshots and your open draft are kept.")
             } else if request.abandonKeyRecord || snapshot.ownerUnavailable || snapshot.admission?.purpose.isMasterKeyChange == true || snapshot.keyEvidence?.pending != nil {
@@ -707,7 +710,9 @@ struct DatabaseDetailsView: View {
         }
         if let localRecovery = localRecoveryViewModel.snapshot, !localRecovery.entries.isEmpty || localRecovery.needsRecovery || localRecovery.keyEvidence?.targetDurabilityUnconfirmed == true || localRecovery.requiresAssociationRecovery(for: currentReference) || localRecoveryViewModel.targetNeedsRecovery {
             Section("Local Save Recovery") {
-                if localRecovery.admission?.purpose == .ordinarySave {
+                if localRecovery.admission?.purpose == .ordinarySave, localRecovery.admission?.knownTarget != nil {
+                    Text("The file contains this change, but its durability or recovery record is unconfirmed. You can make a new explicit save from this version without discarding recovery. Discarding the record does not undo the file change or discard your open draft.")
+                } else if localRecovery.admission?.purpose == .ordinarySave {
                     Text("This local save has an unresolved outcome. Export the database and any unsaved changes before discarding this recovery record. Discarding does not undo a replacement and deletes only the snapshots listed here; later snapshots and your open draft are kept.")
                 }
                 if !localRecovery.entries.isEmpty {
@@ -728,7 +733,7 @@ struct DatabaseDetailsView: View {
                     Button("Export Saved Database Copy…") { exportRequest = .keyPublication(UUID(), evidence, currentReference) }
                         .accessibilityIdentifier("database-details.local-recovery.export-key-copy")
                 }
-                if localRecovery.keyEvidence?.targetDurabilityUnconfirmed == true {
+                if localRecovery.keyEvidence?.targetDurabilityUnconfirmed == true || localRecovery.admission?.knownTarget?.isConfirmed == false {
                     Text("The current file's durability is unconfirmed. Keep an encrypted backup before closing this session.")
                 }
                 ForEach(localRecovery.entries) { source in

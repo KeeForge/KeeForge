@@ -68,4 +68,4 @@
 - `../../../AutoFillExtension/AGENTS.md`: the extension's own unlock rules
 - `../../../KeeForgeMac/SECURITY.md`, `../../../docs/threat-model.md`
 
-- Local AutoFill publishes only Keychain items under list-lock then owner flock, using the read-bound target/SHA and pre-read reference epoch. The keychain-only body reaches Keychain, LocalAuthentication availability and shared-default getters only; it must never reenter the database list or owner. The app/cloud wrapper retains policy and interval behavior. Legacy reference cleanup runs afterwards by expected filename/reference CAS and cannot undo already-written keys.
+- Local app unlock and AutoFill publish only Keychain items under list-lock then owner flock, using the read-bound target/SHA and pre-read reference epoch. The keychain-only body reaches Keychain, LocalAuthentication availability and shared-default getters only; it must never reenter the database list or owner. The app/cloud wrapper retains policy and interval behavior. Legacy reference cleanup runs afterwards by expected filename/reference CAS and cannot undo already-written keys.

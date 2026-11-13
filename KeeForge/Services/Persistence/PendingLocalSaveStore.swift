@@ -70,6 +70,15 @@ enum PendingLocalSaveStore {
         }
     }
 
+    // A pre-replacement failure must retain the previous commit's unresolved durability.
+    struct PreviousOrdinaryCommit: Codable, Sendable, Equatable {
+        let operationID: UUID
+        let target: TargetIdentity
+        let baseline: Data
+        let observedMasterKeyChangeAt: Date?
+        let commit: TargetCommit
+    }
+
     struct Admission: Codable, Sendable, Equatable {
         let operationID: UUID
         let purpose: Purpose
@@ -78,6 +87,8 @@ enum PendingLocalSaveStore {
         let baseline: Data
         let observedMasterKeyChangeAt: Date?
         var intendedSHA512: Data?
+        var knownTarget: TargetCommit?
+        var previousKnown: PreviousOrdinaryCommit?
     }
 
     struct Token: Sendable, Equatable {
@@ -333,6 +344,7 @@ enum PendingLocalSaveStore {
 
     @TaskLocal private static var ownerContainer: URL?
     @TaskLocal static var saveToken: Token?
+    @TaskLocal static var cacheCommit: CommitReceipt?
     @TaskLocal static var keyFileAssociation: KeyFileAssociation?
     static let didChange = Notification.Name("KeeForge.pendingLocalSavesChanged")
 
@@ -486,7 +498,8 @@ enum PendingLocalSaveStore {
             if let token {
                 guard case .admitted(let admission) = state.operation, admission == token.admission else { throw OwnershipError.recoveryRequired }
             } else {
-                guard preparesSource || state.operation == .idle else { throw OwnershipError.recoveryRequired }
+                let knownOrdinary = state.operation.admission.map { $0.purpose == .ordinarySave && $0.sources.isEmpty && $0.knownTarget != nil } == true
+                guard preparesSource || state.operation == .idle || (!isMasterKeyChange && knownOrdinary) else { throw OwnershipError.recoveryRequired }
             }
             if isMasterKeyChange {
                 guard state.operation == .idle, state.sources.isEmpty, try sourceURLs(databaseID).isEmpty else { throw OwnershipError.recoveryRequired }
@@ -501,13 +514,22 @@ enum PendingLocalSaveStore {
         try withLock(for: databaseID) {
             try requireNotRemoved(databaseID)
             var state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
-            guard state.operation == .idle, state.retirementID == nil, state.keyEvidence?.pending == nil,
+            var previousKnown: PreviousOrdinaryCommit?
+            if state.operation != .idle {
+                guard purpose == .ordinarySave, receipts.isEmpty, let previous = state.operation.admission,
+                      previous.purpose == .ordinarySave, previous.sources.isEmpty, let known = previous.knownTarget,
+                      known.snapshot.target == target, known.snapshot.sha512 == baseline,
+                      previous.observedMasterKeyChangeAt == masterKeyChangedAt else { throw OwnershipError.recoveryRequired }
+                previousKnown = PreviousOrdinaryCommit(operationID: previous.operationID, target: previous.target,
+                    baseline: previous.baseline, observedMasterKeyChangeAt: previous.observedMasterKeyChangeAt, commit: known)
+            }
+            guard state.retirementID == nil, state.keyEvidence?.pending == nil,
                   !state.sources.contains(where: { $0.phase == .provisional || $0.epochID != state.epoch.id }) else { throw OwnershipError.recoveryRequired }
             try checkEpoch(&state, expected: masterKeyChangedAt)
             for receipt in receipts { try validateEligible(receipt, state: state, databaseID: databaseID) }
             guard purpose == .merge || (purpose == .ordinarySave && receipts.isEmpty) else { throw OwnershipError.recoveryRequired }
             let admission = Admission(operationID: UUID(), purpose: purpose, sources: receipts,
-                target: target, baseline: baseline, observedMasterKeyChangeAt: masterKeyChangedAt)
+                target: target, baseline: baseline, observedMasterKeyChangeAt: masterKeyChangedAt, previousKnown: previousKnown)
             state.operation = .admitted(admission)
             try persist(state, databaseID: databaseID, io: io)
             return Token(databaseID: databaseID, admission: admission)
@@ -605,9 +627,38 @@ enum PendingLocalSaveStore {
                 try requireNotRemoved(token.databaseID)
                 var state = try loadState(token.databaseID) ?? OwnerState(version: 1, removed: false)
                 guard state.version == token.ownerVersion, let admission = state.operation.admission,
-                      admission.operationID == token.admission.operationID, admission.sources == token.admission.sources else { throw OwnershipError.sourceChanged }
-                state.operation = .idle
+                      admission.operationID == token.admission.operationID, admission.sources == token.admission.sources,
+                      admission.target == token.admission.target, admission.baseline == token.admission.baseline,
+                      admission.purpose == token.admission.purpose,
+                      admission.observedMasterKeyChangeAt == token.admission.observedMasterKeyChangeAt,
+                      admission.knownTarget == nil, admission.previousKnown == token.admission.previousKnown else { throw OwnershipError.sourceChanged }
+                if let previous = admission.previousKnown {
+                    state.operation = .recoveryRequired(Admission(operationID: previous.operationID, purpose: .ordinarySave,
+                        sources: [], target: previous.target, baseline: previous.baseline,
+                        observedMasterKeyChangeAt: previous.observedMasterKeyChangeAt,
+                        intendedSHA512: previous.commit.snapshot.sha512, knownTarget: previous.commit))
+                } else { state.operation = .idle }
                 return try resolution(publish(state, databaseID: token.databaseID, io: io))
+            }
+        } catch { return .retainedForRecovery }
+    }
+
+    static func recordKnownOrdinaryCommit(
+        _ commit: CommitReceipt, observeTarget: () throws -> (TargetIdentity, Data), io: StorageIO = .init()
+    ) -> ResolutionOutcome {
+        do {
+            return try withLock(for: commit.databaseID) {
+                try requireNotRemoved(commit.databaseID)
+                var state = try loadState(commit.databaseID) ?? OwnerState(version: 1, removed: false)
+                guard case .recoveryRequired(var admission) = state.operation,
+                      admission == commit.admission, admission.purpose == .ordinarySave, admission.sources.isEmpty,
+                      let known = commit.targetCommit, known.snapshot.sha512 == admission.intendedSHA512 else { throw OwnershipError.sourceChanged }
+                let (target, sha) = try observeTarget()
+                guard target == known.snapshot.target, sha == known.snapshot.sha512 else { throw OwnershipError.targetChanged }
+                admission.knownTarget = known
+                admission.previousKnown = nil
+                state.operation = .recoveryRequired(admission)
+                return try resolution(publish(state, databaseID: commit.databaseID, io: io))
             }
         } catch { return .retainedForRecovery }
     }
@@ -698,8 +749,19 @@ enum PendingLocalSaveStore {
             if let admission = state.operation.admission, admission.purpose.isMasterKeyChange {
                 guard admission.intendedSHA512 == sha512 else { throw OwnershipError.targetChanged }
             } else {
-                guard state.operation == .idle, state.retirementID == nil, state.sources.isEmpty,
-                      try sourceURLs(databaseID).isEmpty else { throw OwnershipError.recoveryRequired }
+                guard state.retirementID == nil, state.sources.isEmpty, try sourceURLs(databaseID).isEmpty else { throw OwnershipError.recoveryRequired }
+                if let admission = state.operation.admission, admission.purpose == .ordinarySave, admission.sources.isEmpty {
+                    let supplied = cacheCommit
+                    let known = admission.knownTarget ?? supplied.flatMap { proof in
+                        proof.databaseID == databaseID && proof.ownerVersion == state.version
+                            && proof.operationID == admission.operationID && proof.sha512 == sha512
+                            && proof.admission?.purpose == .ordinarySave && proof.admission?.sources == admission.sources
+                            && proof.admission?.target == admission.target && proof.admission?.baseline == admission.baseline
+                            && proof.admission?.observedMasterKeyChangeAt == admission.observedMasterKeyChangeAt
+                            && proof.admission?.intendedSHA512 == admission.intendedSHA512 ? proof.targetCommit : nil
+                    }
+                    guard let known, known.snapshot.sha512 == sha512, admission.intendedSHA512 == sha512 else { throw OwnershipError.targetChanged }
+                } else if state.operation != .idle { throw OwnershipError.recoveryRequired }
                 if let evidence = state.keyEvidence {
                     guard evidence.sha512 == sha512 || evidence.pending?.sha512 == sha512 else { throw OwnershipError.targetChanged }
                 }
@@ -1369,6 +1431,22 @@ enum PendingLocalSaveStore {
             guard admission.baseline.count == 64, admission.intendedSHA512 == nil || admission.intendedSHA512?.count == 64,
                   Set(admission.sources.map(\.relativePath)).count == admission.sources.count,
                   !admission.purpose.isMasterKeyChange || admission.sources.isEmpty else { throw OwnershipError.recoveryRequired }
+            if let previous = admission.previousKnown {
+                guard admission.purpose == .ordinarySave, admission.sources.isEmpty, admission.knownTarget == nil,
+                      previous.operationID != admission.operationID, previous.baseline.count == 64,
+                      previous.target.canonicalPath == admission.target.canonicalPath,
+                      previous.target.parent == admission.target.parent,
+                      previous.commit.snapshot.target == admission.target,
+                      previous.commit.snapshot.sha512 == admission.baseline,
+                      previous.observedMasterKeyChangeAt == admission.observedMasterKeyChangeAt else { throw OwnershipError.recoveryRequired }
+            }
+            if let known = admission.knownTarget {
+                guard case .recoveryRequired = state.operation else { throw OwnershipError.recoveryRequired }
+                guard admission.purpose == .ordinarySave, admission.sources.isEmpty,
+                      known.snapshot.sha512 == admission.intendedSHA512, known.snapshot.sha512.count == 64,
+                      known.snapshot.target.canonicalPath == admission.target.canonicalPath,
+                      known.snapshot.target.parent == admission.target.parent else { throw OwnershipError.recoveryRequired }
+            }
             for receipt in admission.sources {
                 _ = try sourceURL(receipt.relativePath, databaseID: databaseID)
                 guard receipt.digest.count == 64 else { throw OwnershipError.recoveryRequired }

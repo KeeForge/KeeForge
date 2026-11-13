@@ -110,10 +110,21 @@ contract and is not a complete candidate.
 Ordinary local saves use this same admission with an explicit ordinary-save purpose
 and empty source receipts. Admission is durable before encryption and the final
 coordinated accessor validates its token, baseline, epoch and revocation. Opaque
-adapter errors, interrupted/cancelled operations and uncertain completion retain
-recovery even when the old target is still observable; observing old bytes is not
-permission to resend. Durable completion releases the empty admission, while an
-affirmative pre-replacement proof permits a future retry. Explicit snapshot-scoped
+adapter errors and interrupted/cancelled operations retain recovery even when the
+old target is still observable; observing old bytes is not permission to resend.
+An actual known replacement records its existing typed TargetCommit on that same
+empty admission. A future explicit save may replace it with a fresh operation UUID
+only after exact target identity/SHA, baseline, epoch and revocation checks. Known
+unconfirmed output is not an automatic resend permission or a new rekey; receipts
+and unknown outcomes cannot use this path. Durable completion releases the empty
+admission, while an affirmative pre-replacement proof permits a future retry only
+if the release itself succeeds. A failed or visible-unconfirmed release reports a
+pre-replacement recovery warning and keeps remaining ownership honestly. A fresh
+attempt retains at most one flat prior ordinary-commit proof inside this same
+admission. Affirmative pre-replacement release restores that exact prior operation
+instead of erasing its unresolved durability. A new known commit drops the prior
+proof; a new unknown outcome retains the barrier and cannot use the prior proof to
+retry. This is bounded unwind context, not a replay history or another journal. Explicit snapshot-scoped
 discard remains separate from export and never discards an unlocked draft.
 
 ## Effect boundaries for source publication
@@ -175,7 +186,7 @@ consistently. No generic exception establishes pre-replacement failure.
 | State | Permission / completion |
 | --- | --- |
 | Unknown, planned, admitted, key publication or retirement unresolved | Preserve ownership; never infer idle from timeout, mismatch, missing payload or owner read/decode/permission failure |
-| Known installed unconfirmed target with durable key epoch/association | Keep exact target/baseline evidence; permit a future explicit same-epoch save, stop automatic repeat/rekey and warn about file durability |
+| Known installed unconfirmed target with durable key epoch/association, or a known ordinary commit with empty receipts | Keep exact target/baseline evidence; permit a future explicit same-epoch save with a new UUID, stop automatic repeat/rekey and warn about file durability |
 | Target and current association durable, required receipts consumed durably, no remaining sources | Publish ready-to-retire certificate with the new epoch; synchronize that owner record before withdrawing the witness |
 | Ready certificate | Retire by owner/epoch/revocation CAS, preserving later work; replay does not require the same target SHA again |
 | Minimal owner publication visible but final sync fails | Terminal bookkeeping warning; other processes may see idle, so do not simulate rollback or claim every reader retains the witness |
@@ -284,3 +295,17 @@ credentials. The helper's policy/interval/Keychain callees never enter the datab
 list or owner; expected legacy metadata is cleaned separately by field CAS after
 release. A cleanup failure retains metadata and cannot undo keychain effects. A new
 read after full durable retirement follows main, without a permanent target pin.
+
+An ordinary commit can refresh or invalidate the separate AutoFill cache using only
+the exact known ciphertext from its actual receipt. If recording the positive
+observation fails, the synchronous cache effect may still use that live receipt
+bound to the same admission/UUID/intended SHA; a later generic read cannot. Unknown
+outcomes have no such receipt authorization, and accepted sources remain protected.
+
+App unlock uses the same final key-publication authority as AutoFill: pre-IO lease,
+read-bound identity/SHA, current reference/epoch and revocation under list lock then
+owner flock through keychain-only effects. Legacy metadata cleanup follows by field
+CAS outside flock. A late old parse remains readable but cannot publish stale keys
+after another session rekeys and retires; a fresh read after full settlement retains
+main semantics. Created-session initialization uses its verified creation snapshot
+and captures ownership before target observation; cloud publication is unchanged.

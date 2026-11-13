@@ -55798,6 +55798,58 @@
         }
       }
     },
+    "The file contains this change, but its durability or recovery record is unconfirmed. You can make a new explicit save from this version without discarding recovery. Discarding the record does not undo the file change or discard your open draft." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datei enthält diese Änderung, aber ihre dauerhafte Speicherung oder ihr Wiederherstellungseintrag ist nicht bestätigt. Sie können diese Version erneut ausdrücklich speichern, ohne die Wiederherstellung zu verwerfen. Das Verwerfen des Eintrags macht die Dateiänderung nicht rückgängig und verwirft Ihren geöffneten Entwurf nicht."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo contiene este cambio, pero su durabilidad o registro de recuperación no están confirmados. Puedes iniciar un nuevo guardado explícito desde esta versión sin descartar la recuperación. Descartar el registro no revierte el cambio del archivo ni descarta el borrador abierto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier contient cette modification, mais sa durabilité ou son suivi de récupération n’est pas confirmé. Vous pouvez lancer un nouvel enregistrement explicite depuis cette version sans supprimer la récupération. Supprimer ce suivi n’annule pas la modification du fichier et ne supprime pas votre brouillon ouvert."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il file contiene questa modifica, ma la sua durabilità o il record di recupero non sono confermati. Puoi avviare un nuovo salvataggio esplicito da questa versione senza eliminare il recupero. Eliminare il record non annulla la modifica del file e non elimina la bozza aperta."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルにはこの変更が含まれていますが、永続性または復旧記録は未確認です。復旧情報を破棄せず、このバージョンから新たな保存を明示的に開始できます。記録を破棄しても、ファイルの変更は取り消されず、開いている下書きも破棄されません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл содержит это изменение, но его сохранность после сбоя или запись восстановления не подтверждены. Вы можете явно запустить новое сохранение этой версии, не удаляя данные восстановления. Удаление записи не отменяет изменение файла и не удаляет открытый черновик."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件已包含此更改，但尚未确认其持久性或恢复记录。你可以基于此版本主动发起新的保存，无需丢弃恢复信息。丢弃记录不会撤销文件更改，也不会丢弃当前打开的草稿。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案已包含此更改，但尚未確認其持久性或復原記錄。你可以基於此版本主動發起新的儲存，無須捨棄復原資訊。捨棄記錄不會撤銷檔案更改，也不會捨棄目前開啟的草稿。"
+          }
+        }
+      }
+    },
     "The file is damaged: a quoted value that starts in row %lld never ends. Export your passwords again and retry." : {
       "localizations" : {
         "de" : {

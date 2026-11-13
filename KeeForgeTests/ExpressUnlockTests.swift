@@ -922,12 +922,16 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
         storedKeyPresenceCheck: @escaping DatabaseViewModel.StoredKeyPresenceCheck = { _ in false },
         expressSaves: ExpressKeySaves = ExpressKeySaves()
     ) throws -> DatabaseViewModel {
-        let url = try KDBXTestFixture.test.url(in: bundle)
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("express-unlock.kdbx")
+        try data.write(to: url)
         var reference = try TestDatabaseSupport.makeReference(for: url)
         reference.hardwareKey = hardwareKey
+        DatabaseListStore.update(reference)
+        addTeardownBlock { try? FileManager.default.removeItem(at: folder) }
         return DatabaseViewModel(
             databaseReference: reference,
-            localDatabaseReadOperation: { _ in DatabaseViewModel.LocalDatabaseReadResult(url: url, data: data) },
             localSaveOperation: localSave,
             biometricCompositeKeyOperation: biometricKeys,
             quickUnlockKeyPersistOperation: { keys, _, masterKeyEntered in
