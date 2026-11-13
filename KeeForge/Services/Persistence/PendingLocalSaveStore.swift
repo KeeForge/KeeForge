@@ -51,7 +51,7 @@ enum PendingLocalSaveStore {
         try withLock(for: databaseID) {
             try requireNotRemoved(databaseID)
             let payloadRoot = directoryURL(for: databaseID)
-            try createDurableDirectory(at: payloadRoot)
+            try createDurableDirectory(at: payloadRoot, anchor: ownerContainer ?? payloadRoot)
             let directory = payloadRoot.appendingPathComponent(sourceID.uuidString, isDirectory: true)
             guard Darwin.mkdir(directory.path, S_IRWXU) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
             try synchronizeDirectory(directory)
@@ -213,7 +213,7 @@ enum PendingLocalSaveStore {
             try requireNotRemoved(save.databaseID)
             let receipt = try receipt(at: save.fileURL, databaseID: save.databaseID)
             let data = try Data(contentsOf: save.fileURL)
-            try createDurableDirectory(at: backupDirectory)
+            try createDurableDirectory(at: backupDirectory, anchor: ownerContainer ?? backupDirectory)
             var date = Date.now
             var name = save.fileURL.deletingPathExtension().lastPathComponent
             var url = backupDirectory.appendingPathComponent("\(name)\(DatabaseListStore.retainedBackupSuffix).kdbx")
@@ -250,10 +250,11 @@ enum PendingLocalSaveStore {
         guard let container = AppGroupContainer.resolvedURL else { throw OwnershipError.recoveryRequired }
         return try $ownerContainer.withValue(container) {
             let directory = controlDirectory(databaseID)
-            try createDurableDirectory(at: directory)
+            try createDurableDirectory(at: directory, anchor: container)
             let fd = Darwin.open(directory.appendingPathComponent(".lock").path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)
             guard fd >= 0 else { throw POSIXError(.EIO) }
             defer { Darwin.close(fd) }
+            try protectDurableFile(at: directory.appendingPathComponent(".lock"), descriptor: fd)
             try synchronizeDirectory(directory)
             guard flock(fd, LOCK_EX) == 0 else { throw POSIXError(.EIO) }
             defer { flock(fd, LOCK_UN) }

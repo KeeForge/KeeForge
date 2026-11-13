@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import XCTest
 import KDBXKit
 import KDBXXML
@@ -631,6 +632,69 @@ final class LocalDatabaseSaverTests: XCTestCase {
         } catch {
             XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
         }
+    }
+
+    func testDurableWriterAcceptsEmptyDataAndRetriesInterruptedWrites() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("payload")
+        try writeAtomicallyAndDurably(Data(), to: url)
+        XCTAssertEqual(try Data(contentsOf: url), Data())
+        let calls = WriteCounter()
+        var io = DurableFileWriteIO()
+        io.write = { descriptor, bytes, count in
+            calls.increment()
+            if calls.count == 1 { errno = EINTR; return -1 }
+            return Darwin.write(descriptor, bytes, count)
+        }
+        let bytes = Data("complete payload after interrupt".utf8)
+        try writeAtomicallyAndDurably(bytes, to: url, io: io)
+        XCTAssertEqual(try Data(contentsOf: url), bytes)
+        XCTAssertGreaterThanOrEqual(calls.count, 2)
+    }
+
+    func testDurableWriterTreatsZeroWriteAsFailureWithoutReplacingDestination() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("payload")
+        let original = Data("original ciphertext".utf8)
+        try original.write(to: url)
+        var io = DurableFileWriteIO()
+        io.write = { _, _, _ in 0 }
+        XCTAssertThrowsError(try writeAtomicallyAndDurably(Data("new ciphertext".utf8), to: url, io: io))
+        XCTAssertEqual(try Data(contentsOf: url), original)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["payload"])
+    }
+
+    func testDurableDirectoryStaysInsideGrantAndReconfirmsCreatedNamespaceAfterSyncFailure() throws {
+        let anchor = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: anchor, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: anchor) }
+        let child = anchor.appendingPathComponent("owned")
+        let rootCalls = WriteCounter()
+        let rootPath = anchor.standardizedFileURL.resolvingSymlinksInPath().path
+        XCTAssertThrowsError(try createDurableDirectory(at: child, anchor: anchor, synchronize: { url in
+            let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+            guard path == rootPath || path.hasPrefix(rootPath + "/") else { throw POSIXError(.EACCES) }
+            if path == rootPath {
+                rootCalls.increment()
+                if rootCalls.count == 2 { throw POSIXError(.EIO) }
+            }
+            try synchronizeDirectory(url)
+        }))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: child.path))
+        let childCalls = WriteCounter()
+        let replayRootCalls = WriteCounter()
+        try createDurableDirectory(at: child, anchor: anchor, synchronize: { url in
+            let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+            guard path == rootPath || path.hasPrefix(rootPath + "/") else { throw POSIXError(.EACCES) }
+            if path == rootPath { replayRootCalls.increment() } else { childCalls.increment() }
+            try synchronizeDirectory(url)
+        })
+        XCTAssertGreaterThanOrEqual(childCalls.count, 1)
+        XCTAssertGreaterThanOrEqual(replayRootCalls.count, 1)
     }
 
     func testRemovalDuringRealStagingPreventsTheFinalReplacement() throws {

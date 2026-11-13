@@ -20,6 +20,21 @@ final class PendingLocalSaveTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testCreatedPayloadAndOwnerFilesKeepPrivatePermissionsAndIOSCompleteProtection() throws {
+        let id = UUID()
+        let source = try PendingLocalSaveStore.add(Data("encrypted snapshot".utf8), for: id)
+        XCTAssertFalse(try PendingLocalSaveStore.revokeForRemoval(id))
+        let owner = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(id.uuidString)")
+        for file in [source.fileURL, owner.appendingPathComponent("owner.json"), owner.appendingPathComponent(".tombstone"), owner.appendingPathComponent(".lock")] {
+            let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+            XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600, file.lastPathComponent)
+            #if os(iOS)
+            XCTAssertEqual(attributes[.protectionKey] as? FileProtectionType, .complete, file.lastPathComponent)
+            #endif
+        }
+        XCTAssertEqual(try Data(contentsOf: source.fileURL), Data("encrypted snapshot".utf8))
+    }
+
     func testExclusiveSourceIdentityNeverReplacesAnExistingSnapshot() throws {
         let id = UUID()
         let sourceID = UUID()

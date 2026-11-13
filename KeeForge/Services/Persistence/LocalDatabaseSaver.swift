@@ -155,10 +155,12 @@ enum LocalDatabaseSaver {
                 DatabaseListStore.databaseBackupDirectoryURL(for: reference)
             },
             createDirectory: { url in
-                try createDurableDirectory(at: url)
+                guard let anchor = AppGroupContainer.resolvedURL else { throw SaveError.databaseLocationUnavailable }
+                try createDurableDirectory(at: url, anchor: anchor)
             },
             writeBackup: { data, url in
-                try writeAtomicallyAndDurably(data, to: url)
+                guard let anchor = AppGroupContainer.resolvedURL else { throw SaveError.databaseLocationUnavailable }
+                try writeAtomicallyAndDurably(data, to: url, directoryAnchor: anchor)
             },
             pruneBackups: { reference, count in
                 try DatabaseListStore.pruneBackups(for: reference, keeping: count)

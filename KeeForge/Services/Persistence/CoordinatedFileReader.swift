@@ -163,77 +163,89 @@ private actor FirstResult<Value: Sendable> {
     }
 }
 
-func writeAtomicallyAndDurably(_ data: Data, to destinationURL: URL) throws {
-    let fileManager = FileManager.default
-    let directoryURL = destinationURL.deletingLastPathComponent()
-    try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true, attributes: nil)
+struct DurableFileWriteIO: Sendable {
+    var write: @Sendable (Int32, UnsafeRawPointer, Int) -> Int = { Darwin.write($0, $1, $2) }
+}
 
-    let tempURL = directoryURL.appendingPathComponent(".\(UUID().uuidString).tmp", isDirectory: false)
-    defer {
-        try? fileManager.removeItem(at: tempURL)
-    }
-
+func writeAtomicallyAndDurably(
+    _ data: Data, to destinationURL: URL, directoryAnchor: URL? = nil,
+    io: DurableFileWriteIO = .init()
+) throws {
+    let directory = destinationURL.deletingLastPathComponent()
+    // An existing granted directory is the boundary when no ancestry is supplied.
+    try createDurableDirectory(at: directory, anchor: directoryAnchor ?? directory)
+    let temporary = directory.appendingPathComponent(".\(UUID().uuidString).tmp")
+    defer { try? FileManager.default.removeItem(at: temporary) }
+    let descriptor = Darwin.open(temporary.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, S_IRUSR | S_IWUSR)
+    guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+    defer { Darwin.close(descriptor) }
+    try protectDurableFile(at: temporary, descriptor: descriptor)
     try data.withUnsafeBytes { buffer in
-        let fd = open(tempURL.path, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)
-        guard fd >= 0 else {
-            throw POSIXError(.EIO)
-        }
-        defer { close(fd) }
-
-        guard let baseAddress = buffer.bindMemory(to: UInt8.self).baseAddress else {
-            throw CocoaError(.fileWriteUnknown)
-        }
-
-        var totalWritten = 0
-        while totalWritten < data.count {
-            let bytesWritten = write(fd, baseAddress.advanced(by: totalWritten), data.count - totalWritten)
-            if bytesWritten < 0 {
-                throw POSIXError(.EIO)
+        var offset = 0
+        while offset < buffer.count {
+            guard let base = buffer.baseAddress else { throw CocoaError(.fileWriteUnknown) }
+            let count = io.write(descriptor, base.advanced(by: offset), buffer.count - offset)
+            if count < 0 {
+                if errno == EINTR { continue }
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
             }
-            totalWritten += bytesWritten
-        }
-
-        if fsync(fd) != 0 {
-            throw POSIXError(.EIO)
+            guard count > 0 else { throw POSIXError(.EIO) }
+            offset += count
         }
     }
+    try synchronizeDescriptor(descriptor)
+    guard Darwin.rename(temporary.path, destinationURL.path) == 0 else { throw POSIXError(.EIO) }
+    try synchronizeDirectory(directory)
+}
 
-    if rename(tempURL.path, destinationURL.path) != 0 {
-        throw POSIXError(.EIO)
+func protectDurableFile(at url: URL, descriptor: Int32) throws {
+    guard fchmod(descriptor, S_IRUSR | S_IWUSR) == 0 else {
+        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
     }
+    #if os(iOS)
+    try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+    #endif
+}
 
-    let directoryFD = open(directoryURL.path, O_RDONLY)
-    guard directoryFD >= 0 else {
-        throw POSIXError(.EIO)
+func createDurableDirectory(
+    at directory: URL, anchor: URL,
+    synchronize: @Sendable (URL) throws -> Void = synchronizeDirectory
+) throws {
+    let root = anchor.standardizedFileURL.resolvingSymlinksInPath()
+    let target = directory.standardizedFileURL.resolvingSymlinksInPath()
+    let rootParts = root.pathComponents
+    let parts = target.pathComponents
+    guard parts.starts(with: rootParts),
+          try FileManager.default.attributesOfItem(atPath: root.path)[.type] as? FileAttributeType == .typeDirectory else {
+        throw CocoaError(.fileWriteNoPermission)
     }
-    defer { close(directoryFD) }
-
-    if fsync(directoryFD) != 0 {
-        throw POSIXError(.EIO)
+    try synchronize(root)
+    var parent = root
+    for component in parts.dropFirst(rootParts.count) {
+        let child = parent.appendingPathComponent(component, isDirectory: true)
+        if Darwin.mkdir(child.path, S_IRWXU) != 0 {
+            guard errno == EEXIST,
+                  try FileManager.default.attributesOfItem(atPath: child.path)[.type] as? FileAttributeType == .typeDirectory else {
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+        }
+        // Reconfirm every in-grant namespace edge, including a previous failed mkdir/fsync.
+        try synchronize(child)
+        try synchronize(parent)
+        parent = child
     }
 }
 
-func createDurableDirectory(at directory: URL) throws {
-    let manager = FileManager.default
-    if manager.fileExists(atPath: directory.path) {
-        try synchronizeDirectory(directory)
-        try synchronizeDirectory(directory.deletingLastPathComponent())
-        return
+private func synchronizeDescriptor(_ descriptor: Int32) throws {
+    while fsync(descriptor) != 0 {
+        if errno == EINTR { continue }
+        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
     }
-    let parent = directory.deletingLastPathComponent()
-    try createDurableDirectory(at: parent)
-    do { try manager.createDirectory(at: directory, withIntermediateDirectories: false) }
-    catch {
-        var isDirectory: ObjCBool = false
-        guard manager.fileExists(atPath: directory.path, isDirectory: &isDirectory), isDirectory.boolValue else { throw error }
-    }
-    try synchronizeDirectory(directory)
-    try synchronizeDirectory(parent)
 }
 
 func synchronizeDirectory(_ directory: URL) throws {
-    let descriptor = Darwin.open(directory.path, O_RDONLY)
+    let descriptor = Darwin.open(directory.path, O_RDONLY | O_CLOEXEC)
     guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
     defer { Darwin.close(descriptor) }
-    guard fsync(descriptor) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+    try synchronizeDescriptor(descriptor)
 }

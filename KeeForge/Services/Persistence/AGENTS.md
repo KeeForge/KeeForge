@@ -55,6 +55,7 @@
 - Pending-local sources are immutable: new snapshots use a unique UUID directory and retain the timestamp `.kdbx` filename; legacy flat files remain readable. Receipts bind path, inode and SHA-512. Export and successful merge cleanup use captured receipts, never a mutable cache. A separately confirmed discard touches only its captured snapshot.
 - Pending-local ownership uses a stable flock and versioned nonsecret metadata under `pending-local-save-owners/<database UUID>/`, outside the payload tree. Removal permanently revokes writes before list removal and refuses to destroy unresolved sources. List-lock -> flock and coordinated-accessor -> flock are the only orders; owner code never acquires the list lock or performs awaits, parsing or KDF under flock. A retirement failure remains a recovery record, including when its payload is missing. Container resolution and owner decode failures block mutation.
 - Durable file/directory helpers live in `CoordinatedFileReader.swift` so staging, backups and the existing cloud marker writer share extension-safe primitives without a cloud queue dependency.
+- Durable ancestry is bounded by an explicit existing accessible anchor; reconfirm namespace edges inside that grant on replay, and never fsync the grant's external parent. Payloads and owner files use mode 0600 and, on iOS, complete file protection before file synchronization.
 
 ## Tests
 
