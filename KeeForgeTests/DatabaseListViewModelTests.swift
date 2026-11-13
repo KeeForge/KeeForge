@@ -230,6 +230,8 @@ final class DatabaseListViewModelTests: XCTestCase {
         })
         let first = Task { try await preferences.setKeyFile(url: setup.firstKeyURL, for: setup.reference) }
         await gate.firstCallStarted()
+        preferences.cancelKeyFilePreference(for: setup.reference.id)
+        XCTAssertFalse(preferences.isChangingKeyFile(for: setup.reference.id))
         first.cancel()
         try await preferences.setKeyFile(url: setup.secondKeyURL, for: setup.reference)
         let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == setup.reference.id })

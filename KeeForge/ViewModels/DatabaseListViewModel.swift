@@ -196,8 +196,11 @@ final class DatabaseListViewModel {
     func isChangingKeyFile(for id: UUID) -> Bool { keyFileRequests[id] != nil }
 
     func cancelKeyFilePreference(for id: UUID? = nil) {
-        if let id { keyFileRequests[id]?.cancel() }
-        else { for request in keyFileRequests.values { request.cancel() } }
+        if let id { keyFileRequests.removeValue(forKey: id)?.cancel() }
+        else {
+            for request in keyFileRequests.values { request.cancel() }
+            keyFileRequests.removeAll()
+        }
     }
 
     func setKeyFile(url: URL?, for reference: DatabaseReference) async throws {
