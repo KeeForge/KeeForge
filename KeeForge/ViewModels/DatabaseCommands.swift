@@ -54,9 +54,10 @@ struct DatabaseCommands {
         guard let session, let entry = selectedEntry else { return }
         ClipboardService.copy(session.resolvingFieldReferences(entry.username))
     }
-    func copyPassword(activeSession: @escaping @MainActor () -> DatabaseViewModel?) {
+    /// `currentSession` answers, after authentication, which session the command's origin still shows.
+    func copyPassword(currentSession: @escaping @MainActor () -> DatabaseViewModel?) {
         guard let session else { return }
-        Self.copySelectedEntryPassword(in: session, action: passwordCopyAction, activeSession: activeSession)
+        Self.copySelectedEntryPassword(in: session, action: passwordCopyAction, currentSession: currentSession)
     }
     func copyURL() {
         guard let session, let entry = selectedEntry else { return }
@@ -77,7 +78,7 @@ struct DatabaseCommands {
     static func copySelectedEntryPassword(
         in viewModel: DatabaseViewModel,
         action: EntrySecretAction,
-        activeSession: @escaping @MainActor () -> DatabaseViewModel?,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
         authenticate: (@MainActor () async throws -> Void)? = nil,
         copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
     ) -> Task<Void, Never>? {
@@ -91,7 +92,7 @@ struct DatabaseCommands {
                     try await secretAccess.authenticate(reason: String(localized: "Copy password"))
                 }
             },
-            isCurrent: { activeSession() === viewModel && isCurrentSession() },
+            isCurrent: { currentSession() === viewModel && isCurrentSession() },
             disclose: {
                 guard let entry = viewModel.entry(withID: entryID) else { return }
                 copy(viewModel.resolvedPassword(for: entry))

@@ -7,7 +7,6 @@ import StoreKit
 final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidation {
     let listViewModel = DatabaseListViewModel()
     let sessionStore = DatabaseSessionStore()
-    let routing = AppRoutingCoordinator()
     private let pendingUploadDrainer = PendingUploadDrainer()
     private let screenProtectionService = ScreenProtectionService()
     private let macLockMonitor = MacLockMonitor()
@@ -15,10 +14,10 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     private lazy var macWindowCloseGuard = MacWindowCloseGuard(registry: databaseWindowRegistry)
     private let macQuickAccess = MacQuickAccessController()
     private let macSSHAgent = MacSSHAgentController()
-    private let quickAccessFocus = MacObservation()
-    private(set) var mainWindowController: MainWindowController?
+    private(set) lazy var windowCoordinator = MacWindowCoordinator(listViewModel: listViewModel, sessionStore: sessionStore,
+        registry: databaseWindowRegistry, quickAccess: macQuickAccess,
+        prepareWindow: { [screenProtectionService] in screenProtectionService.applyCapturePolicy(to: $0) })
     private var settingsWindowController: SettingsWindowController?
-    private var pendingURLs: [URL] = []
     private var didLaunch = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -30,6 +29,13 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         DatabaseExportService.purgeShareFiles()
         #if !KEEFORGE_DIRECT_DOWNLOAD
         StoreKitManager.shared.start()
+        let windowCoordinator = self.windowCoordinator
+        ReviewPromptService.requestReviewHandler = {
+            MainActor.assumeIsolated {
+                guard let content = windowCoordinator.commandTarget()?.window?.contentViewController else { return }
+                AppStore.requestReview(in: content)
+            }
+        }
         #endif
         pendingUploadDrainer.startObserving { [listViewModel] in
             Task { await listViewModel.drainPendingUploadsOnAppActive() }
@@ -49,64 +55,63 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         macLockMonitor.onUserActivity = { sessionStore.resetInactivityTimer(for: $0) }
         macLockMonitor.start()
         macWindowCloseGuard.start()
-        let macQuickAccess = self.macQuickAccess
         macQuickAccess.sessionForDatabase = { sessionStore.session(for: $0) }
-        macQuickAccess.showDatabaseWindow = { [weak self] in self?.mainWindowController?.showWindow(forDatabase: $0) ?? false }
-        macQuickAccess.showDatabaseList = { [weak self] in self?.showMainWindow() }
-        // The main window is the only database window, so its database is the focused one.
-        quickAccessFocus.start(reading: { sessionStore.activeSessionID }, onChange: { macQuickAccess.focusedDatabaseID = $0 })
         macQuickAccess.start()
         macSSHAgent.sessionsProvider = { sessionStore.openSessions }
         macSSHAgent.start()
-        let controller = MainWindowController(listViewModel: listViewModel, sessionStore: sessionStore,
-            routing: routing, quickAccess: macQuickAccess, sshAgent: macSSHAgent, windowRegistry: databaseWindowRegistry)
-        mainWindowController = controller
-        // Keep database commands reachable while an auxiliary window has focus.
+        // Database commands resolve through the coordinator while another window has focus.
         nextResponder = NSApp.nextResponder
         NSApp.nextResponder = self
         MainMenu.install(MainMenu.build())
-        showMainWindow()
-        for url in pendingURLs { controller.handleOpenURL(url) }
-        pendingURLs.removeAll()
+        let transitionNotice = MacTransitionNoticeService.claimPresentation()
+        windowCoordinator.start(
+            transitionNotice: transitionNotice,
+            whatsNewRelease: transitionNotice ? nil : WhatsNewPresentationService.releaseToPresent(),
+            automaticOpenID: transitionNotice ? nil : listViewModel.databaseToAutoOpenOnLaunch()?.id
+        )
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        showMainWindow()
+        windowCoordinator.dockReopen(hasVisibleWindows: flag)
         return true
     }
 
+    // Queued by the coordinator until the launch presentations are done.
     func application(_ application: NSApplication, open urls: [URL]) {
-        guard let mainWindowController else {
-            pendingURLs.append(contentsOf: urls)
-            return
-        }
-        showMainWindow()
-        for url in urls { mainWindowController.handleOpenURL(url) }
+        for url in urls { windowCoordinator.handleOpenURL(url) }
     }
 
     override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
-        if let mainWindowController, mainWindowController.responds(to: action) {
-            return mainWindowController
+        if let target = windowCoordinator.commandTarget(), target.responds(to: action) {
+            return target
         }
         return super.supplementalTarget(forAction: action, sender: sender)
     }
 
-    func showMainWindow() { mainWindowController?.showMainWindow() }
+    @objc func showDatabasesWindow(_ sender: Any?) { windowCoordinator.showDatabasesWindow() }
 
     @objc func showSettings(_ sender: Any?) {
         if settingsWindowController == nil {
             settingsWindowController = SettingsWindowController(listViewModel: listViewModel, sessionStore: sessionStore,
                 quickAccess: macQuickAccess, sshAgent: macSSHAgent)
+            if let window = settingsWindowController?.window { screenProtectionService.applyCapturePolicy(to: window) }
         }
         settingsWindowController?.showWindow(sender)
         settingsWindowController?.window?.makeKeyAndOrderFront(sender)
     }
 
     @objc func newDatabase(_ sender: Any?) {
-        showMainWindow()
+        windowCoordinator.showDatabasesWindow()
         listViewModel.requestNewDatabase()
+    }
+
+    @objc func connectToServer(_ sender: Any?) {
+        guard let rawValue = (sender as? NSMenuItem)?.representedObject as? String,
+              let provider = CloudProviderKind(rawValue: rawValue) else { return }
+        windowCoordinator.showDatabasesWindow()
+        windowCoordinator.launcher.requestConnect(provider)
     }
 
     @objc func showHelp(_ sender: Any?) { open("https://github.com/KeeForge/KeeForge#readme") }
@@ -118,8 +123,9 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
-        case #selector(newDatabase): return sessionStore.activeSession?.state != .unlocked
-        case #selector(openDatabase): return sessionStore.activeSession?.isSaving != true
+        case #selector(connectToServer):
+            let rawValue = item.representedObject as? String
+            return windowCoordinator.launcher.connectProviders.contains { $0.rawValue == rawValue }
         #if KEEFORGE_DIRECT_DOWNLOAD
         case #selector(checkForUpdates): return SoftwareUpdateService.shared.canCheckForUpdates
         #endif
@@ -128,7 +134,6 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     }
 
     @objc func openDatabase(_ sender: Any?) {
-        showMainWindow()
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [DocumentPickerService.databaseContentType]
         panel.allowsMultipleSelection = false
@@ -139,17 +144,13 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
 
         do {
             let reference = try listViewModel.addDatabase(from: url)
-            openSession(reference)
+            windowCoordinator.open(reference)
         } catch DatabaseListStore.AddDatabaseError.duplicateFile(let existingReferenceID, _) {
             guard let existing = listViewModel.databases.first(where: { $0.id == existingReferenceID }) else { return }
-            openSession(existing)
+            windowCoordinator.open(existing)
         } catch {
             presentOpenFailure(error)
         }
-    }
-
-    private func openSession(_ reference: DatabaseReference) {
-        routing.requestDatabaseTransition(to: .open(reference), from: sessionStore.activeSession)
     }
 
     private func presentOpenFailure(_ error: Error) {

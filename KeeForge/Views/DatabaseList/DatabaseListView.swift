@@ -46,6 +46,10 @@ struct DatabaseListView: View {
         let isPresented: Binding<Bool>
         let content: () -> AnyView
     }
+    #if os(macOS)
+    /// The Databases window's open and connect decisions.
+    @Bindable var launcher: MacDatabasesLauncherViewModel
+    #endif
 
     @State private var pickerState = PickerPresentationState<PickerTarget>()
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
@@ -192,6 +196,9 @@ struct DatabaseListView: View {
         .onChange(of: viewModel.newDatabaseRequestID) { _, _ in
             isDatabaseCreationPresented = true
         }
+        .onChange(of: launcher.connectRequest) { _, request in
+            if let request { activeCloudProvider = request.provider }
+        }
         #endif
         .databaseExporter(request: $exportRequest)
     }
@@ -249,8 +256,17 @@ struct DatabaseListView: View {
             }
         }
         #else
-        List {
+        List(selection: $launcher.selectedDatabaseID) {
             databaseRows
+        }
+        .contextMenu(forSelectionType: UUID.self) { ids in
+            if ids.count == 1, let id = ids.first, let reference = launcher.databases.first(where: { $0.id == id }) {
+                Button("Open") { launcher.open(reference) }
+                Divider()
+                contextMenu(for: reference)
+            }
+        } primaryAction: { ids in
+            launcher.open(ids: ids)
         }
         #endif
     }
@@ -282,22 +298,35 @@ struct DatabaseListView: View {
     }
 
     private var databaseRows: some View {
+        #if os(iOS)
         ForEach(viewModel.databases) { reference in
             databaseRowButton(for: reference)
-                #if os(iOS)
                 // Outside Edit mode, the long press belongs to the context menu.
                 .moveDisabled(!editMode.isEditing)
-                #endif
                 .modifier(
                     DatabaseRowChrome(isSelected: reference.id == selectedDatabaseID)
                 )
         }
         .onMove(perform: viewModel.moveDatabases)
+        #else
+        ForEach(launcher.databases) { reference in
+            databaseRowButton(for: reference)
+                .tag(reference.id)
+        }
+        #endif
+    }
+
+    private var showsEmptyState: Bool {
+        #if os(macOS)
+        launcher.emptyState != nil
+        #else
+        viewModel.databases.isEmpty
+        #endif
     }
 
     private var listContent: some View {
         Group {
-            if viewModel.databases.isEmpty {
+            if showsEmptyState {
                 emptyState
             } else {
                 styledDatabaseList
@@ -313,6 +342,11 @@ struct DatabaseListView: View {
                 }
             }
         }
+        #if os(macOS)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            launcherActions
+        }
+        #endif
         .modifier(DatabaseListTitle(count: viewModel.databases.count))
         .toolbar {
             // `EditButton` does not exist on macOS; list rows reorder via
@@ -328,19 +362,7 @@ struct DatabaseListView: View {
 
             ToolbarItemGroup(placement: .topBarTrailing) {
                 #if os(macOS)
-                // Add first, Settings last, so the gear stays at the trailing
-                // edge in both the locked list and the unlocked workspace
-                // instead of jumping sides between the two states. macOS uses
-                // the standard Settings window (⌘,) rather than a sheet.
-                Menu {
-                    addDatabaseMenuContent
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .menuOrder(.fixed)
-                .accessibilityIdentifier("database.add.button")
-                .macHelp(String(localized: "Add Database"))
-
+                // macOS uses the standard Settings window (⌘,) rather than a sheet.
                 Button {
                     NSApp.sendAction(#selector(AppDelegate.showSettings(_:)), to: nil, from: nil)
                 } label: {
@@ -405,28 +427,17 @@ struct DatabaseListView: View {
         }
     }
 
-    private func databaseRowButton(for reference: DatabaseReference) -> some View {
+    #if os(iOS)
+    private func rowContent(for reference: DatabaseReference) -> some View {
         Button {
             onSelectDatabase(reference)
         } label: {
-            #if os(iOS)
             DatabaseListRow(
                 reference: reference,
                 status: viewModel.status(for: reference),
                 lastOpenedDescription: viewModel.lastOpenedDescription(for: reference, showsUsageStats: showDatabaseUsageStats),
                 showsUsageStats: showDatabaseUsageStats
             )
-            #else
-            DatabaseRowView(
-                reference: reference,
-                status: viewModel.status(for: reference),
-                lastOpenedDescription: viewModel.lastOpenedDescription(
-                    for: reference,
-                    showsUsageStats: showDatabaseUsageStats
-                ),
-                filenameSubtitle: viewModel.detailSubtitle(for: reference)
-            )
-            #endif
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("database.row")
@@ -436,6 +447,25 @@ struct DatabaseListView: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             removeSwipeAction(for: reference)
         }
+    }
+    #else
+    /// Plain content: the list owns selection, and double-click or Return opens the row.
+    private func rowContent(for reference: DatabaseReference) -> some View {
+        DatabaseRowView(
+            reference: reference,
+            status: viewModel.status(for: reference),
+            lastOpenedDescription: viewModel.lastOpenedDescription(
+                for: reference,
+                showsUsageStats: showDatabaseUsageStats
+            ),
+            filenameSubtitle: viewModel.detailSubtitle(for: reference)
+        )
+        .accessibilityIdentifier("database.row")
+    }
+    #endif
+
+    private func databaseRowButton(for reference: DatabaseReference) -> some View {
+        rowContent(for: reference)
         // Both dialogs are attached to the row (not the List) so iOS anchors
         // them to the database they act on instead of an arbitrary popover in
         // the middle of the screen. Each dialog only presents on the row whose
@@ -515,6 +545,89 @@ struct DatabaseListView: View {
         }
     }
 
+    #if os(macOS)
+    private var emptyState: some View {
+        ContentUnavailableView {
+            Label("No Databases", systemImage: "folder.badge.plus")
+        } description: {
+            if launcher.emptyState == .noneAvailable {
+                Text("None of your databases can be opened on this Mac.")
+            } else {
+                Text("Create a new KeePass database or import an existing .kdbx file.")
+            }
+        } actions: {
+            VStack(spacing: 12) {
+                Button {
+                    isDatabaseCreationPresented = true
+                } label: {
+                    Label("Create New Database", systemImage: "doc.badge.plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .accessibilityIdentifier("database.empty.create")
+
+                Button {
+                    presentDatabasePicker()
+                } label: {
+                    Label("Add Existing…", systemImage: "folder")
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("database.empty.add")
+            }
+        }
+    }
+
+    /// The Databases window's actions, below the list in every state.
+    private var launcherActions: some View {
+        HStack(spacing: 8) {
+            Button("Create New…") {
+                isDatabaseCreationPresented = true
+            }
+            .accessibilityIdentifier("databases.create-new")
+
+            Button("Add Existing…") {
+                presentDatabasePicker()
+            }
+            .accessibilityIdentifier("databases.add-existing")
+
+            if launcher.connectProviders.isEmpty == false {
+                Menu("Connect to Server…") {
+                    ForEach(launcher.connectProviders) { providerKind in
+                        Button {
+                            activeCloudProvider = providerKind
+                        } label: {
+                            Label {
+                                Text(providerKind.displayName)
+                            } icon: {
+                                CloudProviderIcon(provider: providerKind)
+                            }
+                        }
+                        .accessibilityIdentifier("database.add.\(providerKind.rawValue)")
+                    }
+                }
+                .menuOrder(.fixed)
+                .fixedSize()
+                .accessibilityIdentifier("databases.connect-server")
+            }
+
+            Spacer(minLength: 0)
+
+            Button("Open") {
+                launcher.openSelection()
+            }
+            .keyboardShortcut(.defaultAction)
+            .disabled(launcher.canOpenSelection == false)
+            .accessibilityIdentifier("databases.open")
+        }
+        .padding(12)
+        .background(.bar)
+    }
+
+    private func presentDatabasePicker() {
+        selectionAlert = nil
+        pickerState.present(.database)
+    }
+    #else
     private var emptyState: some View {
         ContentUnavailableView {
             Label("No Databases", systemImage: "folder.badge.plus")
@@ -581,16 +694,9 @@ struct DatabaseListView: View {
         }
     }
 
-    /// The "Files" source opens the OS file browser. An iPhone glyph reads wrong
-    /// on a Mac, so use a folder symbol there; iOS keeps the device glyph that
-    /// matches the Files app.
-    private var filesMenuSymbolName: String {
-        #if os(macOS)
-        "folder"
-        #else
-        "iphone"
-        #endif
-    }
+    /// The "Files" source opens the OS file browser; iOS uses the device glyph that matches the Files app.
+    private var filesMenuSymbolName: String { "iphone" }
+    #endif
 
     @ViewBuilder
     private func contextMenu(for reference: DatabaseReference) -> some View {

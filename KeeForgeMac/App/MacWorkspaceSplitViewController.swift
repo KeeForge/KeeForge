@@ -7,9 +7,11 @@ final class MacWindowWorkspace {
     private(set) var splitViewController: MacWorkspaceSplitViewController?
     private(set) var toolbar: MacWorkspaceToolbar?
     private let presentation: MacWorkspacePresentation
+    private let splitAutosaveName: NSSplitView.AutosaveName?
 
-    init(presentation: MacWorkspacePresentation) {
+    init(presentation: MacWorkspacePresentation, splitAutosaveName: NSSplitView.AutosaveName? = nil) {
         self.presentation = presentation
+        self.splitAutosaveName = splitAutosaveName
     }
 
     static func subtitle(for session: DatabaseViewModel?) -> String {
@@ -22,7 +24,9 @@ final class MacWindowWorkspace {
 
     func show(_ session: DatabaseViewModel?) {
         guard splitViewController?.session !== session else { return }
-        let controller = session.map { MacWorkspaceSplitViewController(session: $0, presentation: presentation) }
+        let controller = session.map {
+            MacWorkspaceSplitViewController(session: $0, presentation: presentation, autosaveName: splitAutosaveName)
+        }
         toolbar = controller.map { MacWorkspaceToolbar(session: $0.session, presentation: presentation) }
         splitViewController = controller
     }
@@ -30,10 +34,10 @@ final class MacWindowWorkspace {
 
 @MainActor
 final class MacWorkspaceSplitViewController: NSSplitViewController {
-    static let autosaveName = NSSplitView.AutosaveName("MacDatabaseWorkspace")
     let session: DatabaseViewModel
 
-    init(session: DatabaseViewModel, presentation: MacWorkspacePresentation) {
+    /// Each database keeps its own widths and collapse state; nil keeps the layout unsaved.
+    init(session: DatabaseViewModel, presentation: MacWorkspacePresentation, autosaveName: NSSplitView.AutosaveName? = nil) {
         self.session = session
         super.init(nibName: nil, bundle: nil)
         splitView.isVertical = true
@@ -62,7 +66,7 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         detail.minimumThickness = 280
         detail.holdingPriority = .defaultLow
         addSplitViewItem(detail)
-        splitView.autosaveName = Self.autosaveName
+        splitView.autosaveName = autosaveName
 
         if session.workspace.selectedGroupID == nil, session.workspace.selectedTag == nil {
             session.workspace.selectedGroupID = session.visibleRootGroupID

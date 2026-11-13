@@ -5,10 +5,8 @@ import Observation
 final class DatabaseSessionStore {
     private var sessionsByID: [UUID: DatabaseViewModel] = [:]
     private var openingOrder: [UUID] = []
-    var activeSessionID: UUID? {
-        didSet { onActiveSessionChanged?() }
-    }
-    @ObservationIgnored var onActiveSessionChanged: (() -> Void)?
+    /// The iOS shell's selection; Mac windows hold their sessions directly and never read it.
+    var activeSessionID: UUID?
 
     @ObservationIgnored private let makeSession: @MainActor (DatabaseReference) -> DatabaseViewModel
 

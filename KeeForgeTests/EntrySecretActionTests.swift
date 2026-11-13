@@ -232,7 +232,7 @@ final class EntrySecretActionTests: XCTestCase {
         let task = try XCTUnwrap(DatabaseCommands.copySelectedEntryPassword(
             in: session,
             action: action,
-            activeSession: { session },
+            currentSession: { session },
             authenticate: authentication.authenticate,
             copy: { copied.append($0) }
         ))
@@ -256,7 +256,7 @@ final class EntrySecretActionTests: XCTestCase {
             let task = try XCTUnwrap(DatabaseCommands.copySelectedEntryPassword(
                 in: session,
                 action: action,
-                activeSession: { activeSession },
+                currentSession: { activeSession },
                 authenticate: authentication.authenticate,
                 copy: { copied.append($0) }
             ))

@@ -292,8 +292,8 @@ enum MacSheetMetrics {
     /// Capping the height here keeps the form scrolling inside a sheet that
     /// fits, which is also what a fixed-size AppKit sheet does.
     ///
-    /// Sized to fit the window's minimum height (`MainWindowController`) with the
-    /// toolbar above it; raising one means raising the other.
+    /// Sized to fit the database and Databases windows' minimum heights with the
+    /// toolbar above them; raising one means raising the others.
     static let maxHeight: CGFloat = 560
 }
 #endif

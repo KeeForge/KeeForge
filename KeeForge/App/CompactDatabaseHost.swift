@@ -84,16 +84,6 @@ struct CompactDatabaseHost: View {
     }
 }
 
-#endif
-
-/// Offered by the opening screen only while a YubiKey challenge is outstanding.
-@MainActor
-private func hardwareKeyCancelAction(for viewModel: DatabaseViewModel) -> (() -> Void)? {
-    guard viewModel.isAwaitingHardwareKey else { return nil }
-    return { viewModel.cancelHardwareKeyRequest() }
-}
-
-#if os(iOS)
 private struct CompactUnlockScene: View {
     @Bindable var viewModel: DatabaseViewModel
     let onReturnToList: () -> Void
@@ -132,8 +122,6 @@ private struct CompactUnlockScene: View {
     }
 }
 
-#endif
-
 struct RegularDatabaseScene: View {
     @Bindable var viewModel: DatabaseViewModel
     let onReturnToList: () -> Void
@@ -142,16 +130,12 @@ struct RegularDatabaseScene: View {
         Group {
             switch viewModel.state {
             case .locked:
-                #if os(macOS)
-                unlockView
-                #else
                 if viewModel.isAwaitingBiometricAutoUnlock {
                     DatabaseOpeningView(viewModel: viewModel)
                     .transition(.opacity)
                 } else {
                     unlockView
                 }
-                #endif
             case .error:
                 unlockView
             case .unlocking:
@@ -163,9 +147,7 @@ struct RegularDatabaseScene: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: viewModel.state)
-        #if os(iOS)
         .biometricAutoUnlock(viewModel)
-        #endif
     }
 
     private var unlockView: some View {
@@ -176,6 +158,15 @@ struct RegularDatabaseScene: View {
         )
         .transition(.opacity)
     }
+}
+
+#endif
+
+/// Offered by the opening screen only while a YubiKey challenge is outstanding.
+@MainActor
+func hardwareKeyCancelAction(for viewModel: DatabaseViewModel) -> (() -> Void)? {
+    guard viewModel.isAwaitingHardwareKey else { return nil }
+    return { viewModel.cancelHardwareKeyRequest() }
 }
 
 #if os(iOS)

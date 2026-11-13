@@ -23,15 +23,19 @@ enum MainMenu {
         let file = submenu(String(localized: "File"), in: menu)
         add(String(localized: "New Database…"), #selector(AppDelegate.newDatabase), to: file)
         file.addItem(.separator())
-        add(String(localized: "New Entry"), #selector(MainWindowController.newEntry), key: "n", to: file)
-        add(String(localized: "New Group"), #selector(MainWindowController.newGroup), key: "n", modifiers: [.command, .shift], to: file)
+        add(String(localized: "New Entry"), #selector(DatabaseWindowController.newEntry), key: "n", to: file)
+        add(String(localized: "New Group"), #selector(DatabaseWindowController.newGroup), key: "n", modifiers: [.command, .shift], to: file)
         file.addItem(.separator())
         add(String(localized: "Open Database…"), #selector(AppDelegate.openDatabase), key: "o", to: file)
+        let connect = submenu(String(localized: "Connect to Server"), in: file)
+        for provider in CloudProviderRegistry.availableProviders where MacDatabasesLauncherViewModel.isServerProvider(provider) {
+            add(provider.displayName, #selector(AppDelegate.connectToServer), to: connect).representedObject = provider.rawValue
+        }
         add(String(localized: "Close Window"), #selector(NSWindow.performClose(_:)), key: "w", to: file)
         file.addItem(.separator())
-        add(String(localized: "Save"), #selector(MainWindowController.saveDatabase), key: "s", to: file)
+        add(String(localized: "Save"), #selector(DatabaseWindowController.saveDatabase), key: "s", to: file)
         file.addItem(.separator())
-        add(String(localized: "Close Database"), #selector(MainWindowController.closeDatabase), key: "w", modifiers: [.command, .shift], to: file)
+        add(String(localized: "Close Database"), #selector(DatabaseWindowController.closeDatabase), key: "w", modifiers: [.command, .shift], to: file)
 
         let edit = submenu(String(localized: "Edit"), in: menu)
         add(String(localized: "Undo"), Selector(("undo:")), key: "z", to: edit)
@@ -42,14 +46,14 @@ enum MainMenu {
         add(String(localized: "Paste"), #selector(NSText.paste(_:)), key: "v", to: edit)
         add(String(localized: "Select All"), #selector(NSText.selectAll(_:)), key: "a", to: edit)
         edit.addItem(.separator())
-        add(String(localized: "Copy Username"), #selector(MainWindowController.copyUsername), key: "b", modifiers: [.command, .shift], to: edit)
-        add(String(localized: "Copy Password"), #selector(MainWindowController.copyPassword), key: "c", modifiers: [.command, .shift], to: edit)
-        add(String(localized: "Copy URL"), #selector(MainWindowController.copyURL), key: "u", modifiers: [.command, .shift], to: edit)
-        add(String(localized: "Copy Verification Code"), #selector(MainWindowController.copyVerificationCode), key: "t", modifiers: [.command, .shift], to: edit)
+        add(String(localized: "Copy Username"), #selector(DatabaseWindowController.copyUsername), key: "b", modifiers: [.command, .shift], to: edit)
+        add(String(localized: "Copy Password"), #selector(DatabaseWindowController.copyPassword), key: "c", modifiers: [.command, .shift], to: edit)
+        add(String(localized: "Copy URL"), #selector(DatabaseWindowController.copyURL), key: "u", modifiers: [.command, .shift], to: edit)
+        add(String(localized: "Copy Verification Code"), #selector(DatabaseWindowController.copyVerificationCode), key: "t", modifiers: [.command, .shift], to: edit)
         edit.addItem(.separator())
-        add(String(localized: "Edit Entry"), #selector(MainWindowController.editEntry), key: "e", to: edit)
-        add(String(localized: "Delete"), #selector(MainWindowController.deleteSelection), key: "\u{8}", to: edit)
-        add(String(localized: "Find"), #selector(MainWindowController.findEntry), key: "f", to: edit)
+        add(String(localized: "Edit Entry"), #selector(DatabaseWindowController.editEntry), key: "e", to: edit)
+        add(String(localized: "Delete"), #selector(DatabaseWindowController.deleteSelection), key: "\u{8}", to: edit)
+        add(String(localized: "Find"), #selector(DatabaseWindowController.findEntry), key: "f", to: edit)
 
         let view = submenu(String(localized: "View"), in: menu)
         add(String(localized: "Show Toolbar"), #selector(NSWindow.toggleToolbarShown(_:)), key: "t", modifiers: [.command, .option], to: view)
@@ -59,11 +63,13 @@ enum MainMenu {
         add(String(localized: "Enter Full Screen"), #selector(NSWindow.toggleFullScreen(_:)), key: "f", modifiers: [.command, .control], to: view)
 
         let database = submenu(String(localized: "Database"), in: menu)
-        add(String(localized: "Lock"), #selector(MainWindowController.lockDatabase), key: "l", to: database)
+        add(String(localized: "Lock"), #selector(DatabaseWindowController.lockDatabase), key: "l", to: database)
 
         let window = submenu(String(localized: "Window"), in: menu)
         add(String(localized: "Minimize"), #selector(NSWindow.performMiniaturize(_:)), key: "m", to: window)
         add(String(localized: "Zoom"), #selector(NSWindow.performZoom(_:)), to: window)
+        window.addItem(.separator())
+        add(String(localized: "Databases"), #selector(AppDelegate.showDatabasesWindow), to: window)
         window.addItem(.separator())
         add(String(localized: "Bring All to Front"), #selector(NSApplication.arrangeInFront(_:)), to: window)
 
@@ -88,10 +94,12 @@ enum MainMenu {
         return submenu
     }
 
+    @discardableResult
     private static func add(_ title: String, _ action: Selector, key: String = "",
-                            modifiers: NSEvent.ModifierFlags = .command, to menu: NSMenu) {
+                            modifiers: NSEvent.ModifierFlags = .command, to menu: NSMenu) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.keyEquivalentModifierMask = key.isEmpty ? [] : modifiers
         menu.addItem(item)
+        return item
     }
 }

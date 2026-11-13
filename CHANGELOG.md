@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New Features
+
+- On Mac, open several databases at once, each in its own window. A new Databases window lists your databases and opens, adds, creates, or connects to them; Window ▸ Databases brings it back. Closing a database's window locks that database only.
+
 ### Changes
 
 - AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:

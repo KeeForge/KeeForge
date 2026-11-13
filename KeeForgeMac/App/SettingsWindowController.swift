@@ -9,13 +9,14 @@ final class SettingsWindowController: NSWindowController {
         quickAccess: MacQuickAccessController,
         sshAgent: MacSSHAgentController
     ) {
-        let hosting = NSHostingController(rootView: MacSettingsRoot(listViewModel: listViewModel, sessionStore: sessionStore)
+        // Settings picks its own database where it needs one (SSH Agent), never the focused window's.
+        let hosting = NSHostingController(rootView: SettingsView(listViewModel: listViewModel)
             .environment(sessionStore)
             .environment(quickAccess)
             .environment(sshAgent)
             .modifier(MacHostingAppearance()))
         hosting.sizingOptions = [.preferredContentSize]
-        let window = NSWindow(contentViewController: hosting)
+        let window = SettingsWindow(contentViewController: hosting)
         window.styleMask = [.titled, .closable]
         window.title = String(localized: "Settings")
         window.identifier = NSUserInterfaceItemIdentifier("settings")
@@ -29,11 +30,7 @@ final class SettingsWindowController: NSWindowController {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 }
 
-private struct MacSettingsRoot: View {
-    let listViewModel: DatabaseListViewModel
-    let sessionStore: DatabaseSessionStore
-
-    var body: some View {
-        SettingsView(viewModel: sessionStore.activeSession, listViewModel: listViewModel)
-    }
+/// An auxiliary window: database commands keep targeting the main database window behind it.
+private final class SettingsWindow: NSWindow {
+    override var canBecomeMain: Bool { false }
 }

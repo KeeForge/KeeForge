@@ -1,22 +1,16 @@
+#if os(iOS)
 import StoreKit
 import SwiftUI
 
 struct AppRootView: View {
     @Bindable var listViewModel: DatabaseListViewModel
     let sessionStore: DatabaseSessionStore
-    #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.scenePhase) private var scenePhase
-    #endif
     let routing: AppRoutingCoordinator
-    var onReadyForURLs: (() -> Void)? = nil
-    #if os(macOS)
-    @State private var showsMacTransitionNotice = false
-    #else
     /// The layout on screen. It trails the size class by one update so the
     /// workspace is carried over before the other layout is built.
     @State private var appliedRegularLayout: Bool?
-    #endif
 
     var body: some View {
         @Bindable var routing = routing
@@ -28,7 +22,6 @@ struct AppRootView: View {
                 rootContent
             }
         }
-        #if os(iOS)
         .environment(\.horizontalSizeClass, usesRegularLayout ? .regular : .compact)
         .onAppear {
             appliedRegularLayout = horizontalSizeClass == .regular
@@ -44,50 +37,16 @@ struct AppRootView: View {
                 .accessibilityIdentifier("ui-testing.switch-layout")
             }
         }
-        #endif
         .task {
             await resolveInitialExperienceIfNeeded()
-            onReadyForURLs?()
         }
-        #if os(iOS)
         .onOpenURL { url in
             handleOpenURL(url)
         }
-        #endif
-        #if os(macOS)
-        // Above the locked/unlocked switch: a lock must not remount it, since
-        // mounting counts as opening the session and prompts.
-        .background {
-            if let activeSession = sessionStore.activeSession {
-                MacBiometricAutoUnlockObserver(viewModel: activeSession)
-                    .id(ObjectIdentifier(activeSession))
-            }
-        }
-        .sheet(isPresented: $showsMacTransitionNotice) {
-            MacTransitionNoticeView()
-                .frame(
-                    minWidth: 520,
-                    idealWidth: 560,
-                    maxWidth: 640,
-                    minHeight: 500,
-                    maxHeight: MacSheetMetrics.maxHeight
-                )
-        }
-        #endif
         .sheet(item: $routing.whatsNewRelease, onDismiss: finishWhatsNewPresentation) { release in
             WhatsNewView(release: release)
-                #if os(macOS)
-                .frame(
-                    minWidth: 520,
-                    idealWidth: 560,
-                    maxWidth: 640,
-                    minHeight: 500,
-                    maxHeight: MacSheetMetrics.maxHeight
-                )
-                #else
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
-                #endif
         }
         .sheet(item: enrollmentPresentation) { enrollment in
             // The session is re-read at presentation time; when it vanished in
@@ -121,12 +80,8 @@ struct AppRootView: View {
                 // otherwise keep enrolling the old secret into the old
                 // database.
                 .id("\(enrollment.id)-\(enrollmentSession.identity)-\(enrollmentSession.lockCycleID)")
-                #if os(macOS)
-                .macSheetFrame()
-                #else
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
-                #endif
             }
         }
         .onChange(of: routingSession, initial: true) { _, session in
@@ -148,19 +103,10 @@ struct AppRootView: View {
             }
             routing.enrollment.completeDeferredPresentation(id: requestID)
         }
-        #if os(iOS)
         .onChange(of: scenePhase) { _, _ in
             routing.enrollment.discardExpiredEnrollment()
         }
-        #else
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            routing.enrollment.discardExpiredEnrollment()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            routing.enrollment.discardExpiredEnrollment()
-        }
-        #endif
-        .alert(item: $enrollmentCoordinator.enrollmentAlert, content: totpEnrollmentAlertContent)
+        .alert(item: $enrollmentCoordinator.enrollmentAlert) { $0.alertContent }
     }
 
     private var routingSession: TOTPEnrollmentCoordinator.Session? {
@@ -188,43 +134,11 @@ struct AppRootView: View {
         )
     }
 
-    private func totpEnrollmentAlertContent(for alert: TOTPEnrollmentAlert) -> Alert {
-        switch alert {
-        case .unsupportedLink:
-            Alert(
-                title: Text("Couldn’t Add Verification Code"),
-                message: Text("This setup link uses an unsupported code type. Only time-based (TOTP) codes are supported."),
-                dismissButton: .default(Text("OK"))
-            )
-        case .invalidLink:
-            Alert(
-                title: Text("Couldn’t Add Verification Code"),
-                message: Text("The verification code setup link is invalid or incomplete."),
-                dismissButton: .default(Text("OK"))
-            )
-        case .unlockNeeded:
-            Alert(
-                title: Text("Unlock a Database"),
-                message: Text("Open and unlock a database, and KeeForge will then add the verification code."),
-                dismissButton: .default(Text("OK"))
-            )
-        case .linkExpired:
-            Alert(
-                title: Text("Couldn’t Add Verification Code"),
-                message: Text("This setup link expired. Open it again from the service to add the verification code."),
-                dismissButton: .default(Text("OK"))
-            )
-        }
-    }
-
     @ViewBuilder
     private var rootContent: some View {
         if usesRegularLayout {
             if let activeSession = sessionStore.activeSession, case .unlocked = activeSession.state {
                 RegularDatabaseWorkspaceView(viewModel: activeSession)
-                    #if os(macOS)
-                    .id(ObjectIdentifier(activeSession))
-                    #endif
             } else {
                 NavigationSplitView {
                     DatabaseListView(
@@ -250,14 +164,11 @@ struct AppRootView: View {
                             )
                         }
                     }
-                    #if os(iOS)
                     .appSettingsToolbarButton()
-                    #endif
                 }
                 .navigationSplitViewStyle(.balanced)
             }
         } else {
-            #if os(iOS)
             if let activeSession = sessionStore.activeSession {
                 CompactDatabaseHost(
                     listViewModel: listViewModel,
@@ -273,21 +184,13 @@ struct AppRootView: View {
                     onCreateDatabase: openCreatedDatabase
                 )
             }
-            #endif
         }
     }
 
     private var usesRegularLayout: Bool {
-        // `\.horizontalSizeClass` does not exist on macOS; the Mac app always
-        // uses the regular (split-view) layout.
-        #if os(iOS)
         appliedRegularLayout ?? (horizontalSizeClass == .regular)
-        #else
-        true
-        #endif
     }
 
-    #if os(iOS)
     /// iPhone Duo opening or closing, or an iPad window resizing.
     private func applyLayout(regular: Bool) {
         guard regular != usesRegularLayout else { return }
@@ -301,21 +204,13 @@ struct AppRootView: View {
         let arguments = ProcessInfo.processInfo.arguments
         return arguments.contains("-ui-testing") && arguments.contains("-ui-testing-layout-switch")
     }()
-    #endif
 
     private func resolveInitialExperienceIfNeeded() async {
         guard !routing.didResolveInitialRoute else { return }
-        var showsTransitionNotice = false
-        #if os(macOS)
-        if sessionStore.activeSession == nil {
-            showsTransitionNotice = MacTransitionNoticeService.claimPresentation()
-            showsMacTransitionNotice = showsTransitionNotice
-        }
-        #endif
-        let mayAutoOpen = sessionStore.activeSession == nil && !showsTransitionNotice
+        let mayAutoOpen = sessionStore.activeSession == nil
         if let reference = routing.resolveInitialRoute(
             hasActiveSession: sessionStore.activeSession != nil,
-            showsTransitionNotice: showsTransitionNotice,
+            showsTransitionNotice: false,
             release: mayAutoOpen ? WhatsNewPresentationService.releaseToPresent() : nil,
             autoOpenReference: mayAutoOpen ? listViewModel.databaseToAutoOpenOnLaunch() : nil
         ) {
@@ -372,8 +267,7 @@ struct AppRootView: View {
         listViewModel.reload()
     }
 
-    // Also called by the AppKit delegate; URL routing uses only the shared owners.
-    func handleOpenURL(_ url: URL) {
+    private func handleOpenURL(_ url: URL) {
         if CloudProviderRegistry.handleOpenURL(url) {
             return
         }
@@ -433,4 +327,4 @@ private struct LaunchRoutingView: View {
         }
     }
 }
-
+#endif

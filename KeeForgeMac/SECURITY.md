@@ -84,15 +84,29 @@ unit tests from reaching the user's real shared container.
 ## Lock and unlock lifecycle
 
 [AppDelegate](App/AppDelegate.swift) owns the session store, lock services, and
-AppKit main menu. Database commands resolve the live active session through the
-main window controller, including when Settings has focus. The retained main
-window keeps its root host mounted across lock and unlock. A completed lock
-drops the native split controller and toolbar; the workspace presentation host
-resets editors and pending actions on disappearance. Split-view autosave retains
-only column geometry and collapse state in defaults.
+AppKit main menu. [MacWindowCoordinator](App/MacWindowCoordinator.swift) keeps one
+window per open database, keyed by the database UUID; each
+[DatabaseWindowController](App/DatabaseWindowController.swift) holds its session
+directly for its whole life, so its content, commands, close, enrollment and
+automatic unlock can never act on another database's session. Opening a database
+never locks or retires another. Database commands resolve, at validation and at
+dispatch, to the key database window or the window a key sheet belongs to; with
+Settings key, to the main database window; with the Databases window key, to
+nothing. A password copy re-checks after authentication that the same controller
+still owns that session. Each database window keeps its root host mounted across
+lock and unlock. A completed lock drops the native split controller and toolbar;
+the workspace presentation host resets editors and pending actions on
+disappearance. Split-view autosave retains only column geometry and collapse
+state in defaults, one name per database UUID.
+
+The Databases window lists and manages database references and never shows a
+database's contents or holds a session. A verification-code link binds to the
+database window targeted when it arrives; without one, the Databases window asks
+which database to use, and a later focus change never moves it.
 
 [SettingsWindowController](App/SettingsWindowController.swift) retains a separate
-Settings window whose hosted root reads the current session from the store.
+Settings window. It reads no window's session; the SSH Agent tab chooses its
+database explicitly.
 Closing and reopening it preserves the selected tab within the process.
 
 
@@ -146,14 +160,16 @@ resolves unsaved work independently for each registered database window. Repeate
 close requests share its pending prompt; cancel and failed save retain the window
 and session. A committed close locks exactly that session, regardless of other open
 windows; an opening or unlock still in flight is superseded, so its late result
-cannot open the database. The app stays running with zero windows and retains the
-locked selection for reopening its single main window.
+cannot open the database. The committed close then retires that session from the
+store and releases the window's controller. The app stays running with zero
+windows; the Databases window reopens a database in a new, locked window.
 
 [MacDatabaseWindowRegistry](../KeeForge/Services/AppSupport/MacDatabaseWindowRegistry.swift),
-owned by AppDelegate, maps window object identity to database UUIDs. The main
-controller updates its registration when its selected database changes and when
-reopened. Unregistering invalidates pending close callbacks; sessions hold no
-AppKit objects. Settings and panels are not registered database hosts.
+owned by AppDelegate, maps window object identity to database UUIDs. The
+coordinator registers each database window once, before showing it, and
+unregisters it on committed close. Unregistering invalidates pending close
+callbacks; sessions hold no AppKit objects. The Databases window, Settings and
+panels are not registered database hosts.
 
 Revealing or copying a password or protected field asks for device-owner
 authentication through the session's
@@ -297,7 +313,7 @@ asks the app to front that database's window and selects the entry only there,
 so an entry UUID that also exists in another open database (a copy of the same
 file) is never selected in the wrong one.
 
-Copying follows the main window's rules: the password waits on the same
+Copying follows the database window's rules: the password waits on the same
 device-owner prompt as ⇧⌘C, skipped only inside the session's authentication
 grace period, and is re-checked against the session after it,
 while the user name and verification code copy without a prompt. Copies go

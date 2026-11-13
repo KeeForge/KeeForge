@@ -1,75 +1,76 @@
 import AppKit
-#if !KEEFORGE_DIRECT_DOWNLOAD
-import StoreKit
-#endif
 import SwiftUI
 
+/// One database's window. It owns that session for its whole life and never
+/// looks another one up: content, title, toolbar, commands and close all act on
+/// `session`.
 @MainActor
-final class MainWindowController: NSWindowController, NSMenuItemValidation {
-    let windowRegistry: MacDatabaseWindowRegistry
-    let sessionStore: DatabaseSessionStore
+final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
+    let session: DatabaseViewModel
     let workspacePresentation = MacWorkspacePresentation()
-    private lazy var workspace = MacWindowWorkspace(presentation: workspacePresentation)
-    private let contentObservation = MacObservation()
-    private let listViewModel: DatabaseListViewModel
-    private let routing: AppRoutingCoordinator
-    private let quickAccess: MacQuickAccessController
-    private let sshAgent: MacSSHAgentController
+    let splitAutosaveName: NSSplitView.AutosaveName?
+    let frameAutosaveName: NSWindow.FrameAutosaveName?
+    private lazy var workspace = MacWindowWorkspace(presentation: workspacePresentation, splitAutosaveName: splitAutosaveName)
+    private let titleObservation = MacObservation()
+    private let windowRegistry: MacDatabaseWindowRegistry
+    private let enrollment: TOTPEnrollmentCoordinator
     private let passwordCopyAction: EntrySecretAction
-    private var pendingURLs: [URL] = []
-    private var isRootReady = false
+    private let requestClose: @MainActor (NSWindow) -> Void
     private var setRootToolbarBridging: (@MainActor (Bool) -> Void)?
+    private var closeObserver: NSObjectProtocol?
 
+    /// Menu validation and dispatch act only while this is the command target; set by the coordinator.
+    var isCommandTarget: @MainActor () -> Bool = { true }
+    /// Whether this controller still owns its database's window, rechecked after authentication.
+    var isCurrent: @MainActor () -> Bool = { true }
+    /// The unlock screen's way back: closes this window and shows the Databases window.
+    var onReturnToDatabases: (@MainActor () -> Void)?
+    var onWillClose: (@MainActor (DatabaseWindowController) -> Void)?
+
+    var databaseID: UUID { session.databaseReference.id }
     var workspaceSplitViewController: MacWorkspaceSplitViewController? { workspace.splitViewController }
     var workspaceToolbar: MacWorkspaceToolbar? { workspace.toolbar }
 
-    var session: DatabaseViewModel? { sessionStore.activeSession }
-    private var commands: DatabaseCommands {
-        DatabaseCommands(session: session, passwordCopyAction: passwordCopyAction)
+    static func windowIdentifier(for databaseID: UUID) -> NSUserInterfaceItemIdentifier {
+        NSUserInterfaceItemIdentifier("database.\(databaseID.uuidString)")
     }
 
+    private var commands: DatabaseCommands {
+        DatabaseCommands(session: isCommandTarget() ? session : nil, passwordCopyAction: passwordCopyAction)
+    }
+
+    /// `persistsLayout` off keeps tests from writing frames or split geometry into the host app's defaults.
     init(
-        listViewModel: DatabaseListViewModel,
-        sessionStore: DatabaseSessionStore,
-        routing: AppRoutingCoordinator,
-        quickAccess: MacQuickAccessController,
-        sshAgent: MacSSHAgentController,
+        session: DatabaseViewModel,
+        windowRegistry: MacDatabaseWindowRegistry,
+        enrollment: TOTPEnrollmentCoordinator,
+        persistsLayout: Bool = true,
         passwordCopyAction: EntrySecretAction = EntrySecretAction(),
-        windowRegistry: MacDatabaseWindowRegistry? = nil
+        requestClose: @escaping @MainActor (NSWindow) -> Void = { $0.performClose(nil) }
     ) {
-        self.windowRegistry = windowRegistry ?? MacDatabaseWindowRegistry(sessionStore: sessionStore)
-        self.listViewModel = listViewModel
-        self.sessionStore = sessionStore
-        self.routing = routing
-        self.quickAccess = quickAccess
-        self.sshAgent = sshAgent
+        self.session = session
+        self.windowRegistry = windowRegistry
+        self.enrollment = enrollment
         self.passwordCopyAction = passwordCopyAction
+        self.requestClose = requestClose
+        let databaseID = session.databaseReference.id
+        splitAutosaveName = persistsLayout ? MacWindowRestorationStore.splitViewAutosaveName(for: databaseID) : nil
+        frameAutosaveName = persistsLayout ? "database.\(databaseID.uuidString)" : nil
         super.init(window: nil)
-        sessionStore.onActiveSessionChanged = { [weak self] in self?.updateWindowRegistration() }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    private var root: AppRootView {
-        AppRootView(listViewModel: listViewModel, sessionStore: sessionStore, routing: routing)
-    }
-
     override func loadWindow() {
         guard window == nil else { return }
-        let content = MacMainRoot(
-            listViewModel: listViewModel,
-            sessionStore: sessionStore,
-            routing: routing,
-            onReadyForURLs: { [weak self] in self?.rootDidBecomeReady() }
-        )
+        let content = MacDatabaseRootView(session: session, enrollment: enrollment, onClose: { [weak self] in
+            self?.onReturnToDatabases?()
+        })
         let hosting = NSHostingController(rootView: content
             .environment(windowRegistry)
-            .environment(sessionStore)
             .environment(workspacePresentation)
             .environment(workspace)
-            .environment(quickAccess)
-            .environment(sshAgent)
             .modifier(MacHostingAppearance()))
         // AppKit owns the size limits; hosted toolbar safe areas must not raise them.
         hosting.sizingOptions = []
@@ -77,34 +78,46 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         setRootToolbarBridging = { [weak hosting] bridges in
             hosting?.sceneBridgingOptions = bridges ? [.toolbars] : []
         }
-        let window = MainWindow(contentViewController: hosting)
+        let window = DatabaseWindow(contentViewController: hosting)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        window.title = "KeeForge"
-        window.identifier = NSUserInterfaceItemIdentifier("main")
+        window.title = session.databaseDisplayName
+        window.identifier = Self.windowIdentifier(for: databaseID)
         window.isReleasedWhenClosed = false
-        window.contentMinSize = MainWindow.minimumContentSize
+        window.isRestorable = false
+        window.contentMinSize = DatabaseWindow.minimumContentSize
         window.setContentSize(NSSize(width: 1080, height: 700))
         window.center()
-        window.setFrameAutosaveName("main-AppWindow-1")
+        if let frameAutosaveName { window.setFrameAutosaveName(frameAutosaveName) }
         self.window = window
-        updateWindowRegistration()
-        contentObservation.start(reading: { [weak self] in
-            let session = self?.session
-            let unlocked = session?.state == .unlocked ? session : nil
-            return (unlocked, unlocked?.databaseDisplayName ?? "KeeForge", MacWindowWorkspace.subtitle(for: unlocked))
-        }, onChange: { [weak self] session, title, subtitle in
+        closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: window, queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.onWillClose?(self)
+            }
+        }
+        titleObservation.start(reading: { [weak self] () -> (DatabaseViewModel?, String, String) in
+            guard let session = self?.session else { return (nil, "", "") }
+            let unlocked = session.state == .unlocked ? session : nil
+            return (unlocked, session.databaseDisplayName, MacWindowWorkspace.subtitle(for: unlocked))
+        }, onChange: { [weak self] unlocked, title, subtitle in
             guard let self else { return }
-            self.workspace.show(session)
+            self.workspace.show(unlocked)
             self.installToolbar()
             self.window?.title = title
             self.window?.subtitle = subtitle
         })
-        #if !KEEFORGE_DIRECT_DOWNLOAD
-        ReviewPromptService.requestReviewHandler = { [weak hosting] in
-            guard let hosting else { return }
-            AppStore.requestReview(in: hosting)
-        }
-        #endif
+    }
+
+    /// Stops observing once the window has closed for good.
+    func invalidate() {
+        titleObservation.cancel()
+        if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
+        closeObserver = nil
+        onWillClose = nil
+        onReturnToDatabases = nil
+        workspace.show(nil)
     }
 
     /// The locked screens keep the root's bridged SwiftUI toolbar; the unlocked
@@ -121,49 +134,14 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         }
     }
 
-    func handleOpenURL(_ url: URL) {
-        guard isRootReady else {
-            pendingURLs.append(url)
-            return
-        }
-        root.handleOpenURL(url)
-    }
-
-    func rootDidBecomeReady() {
-        guard !isRootReady else { return }
-        isRootReady = true
-        for url in pendingURLs { root.handleOpenURL(url) }
-        pendingURLs.removeAll()
-    }
-
-    private func updateWindowRegistration() {
+    /// Close Window and Close Database both go through the window's guarded close.
+    func requestGuardedClose() {
         guard let window else { return }
-        if let id = session?.databaseReference.id {
-            windowRegistry.register(window, databaseID: id)
-        } else {
-            windowRegistry.unregister(window)
-        }
-    }
-
-    /// Fronts the main window when it shows `databaseID`, and reports whether it does.
-    @discardableResult
-    func showWindow(forDatabase databaseID: UUID) -> Bool {
-        guard session?.databaseReference.id == databaseID else { return false }
-        showMainWindow()
-        return true
-    }
-
-    func showMainWindow() {
-        if window == nil { loadWindow() }
-        updateWindowRegistration()
-        if NSApp.isHidden { NSApp.unhide(nil) }
-        showWindow(nil)
-        if window?.isMiniaturized == true { window?.deminiaturize(nil) }
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate()
+        requestClose(window)
     }
 
     @objc func toggleSidebar(_ sender: Any?) {
+        guard isCommandTarget() else { return }
         workspace.splitViewController?.toggleSidebar(sender)
     }
 
@@ -171,22 +149,29 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     @objc func newGroup(_ sender: Any?) { commands.newGroup() }
     @objc func saveDatabase(_ sender: Any?) { commands.save() }
     @objc func closeDatabase(_ sender: Any?) {
-        routing.requestDatabaseTransition(to: .close, from: session)
+        guard commands.canCloseDatabase else { return }
+        requestGuardedClose()
     }
     @objc func copyUsername(_ sender: Any?) { commands.copyUsername() }
     @objc func copyPassword(_ sender: Any?) {
-        commands.copyPassword(activeSession: { [weak self] in self?.session })
+        commands.copyPassword(currentSession: { [weak self] in
+            guard let self, self.isCurrent() else { return nil }
+            return self.session
+        })
     }
     @objc func copyURL(_ sender: Any?) { commands.copyURL() }
     @objc func copyVerificationCode(_ sender: Any?) { commands.copyVerificationCode() }
     @objc func editEntry(_ sender: Any?) { commands.editEntry() }
     @objc func deleteSelection(_ sender: Any?) { commands.deleteSelection() }
-    @objc func findEntry(_ sender: Any?) { workspace.toolbar?.focusSearch() }
+    @objc func findEntry(_ sender: Any?) {
+        guard commands.canFind else { return }
+        workspace.toolbar?.focusSearch()
+    }
     @objc func lockDatabase(_ sender: Any?) { commands.lock() }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
-        case #selector(toggleSidebar): return workspace.splitViewController != nil
+        case #selector(toggleSidebar): return isCommandTarget() && workspace.splitViewController != nil
         case #selector(newEntry): return commands.canNewEntry
         case #selector(newGroup): return commands.canNewGroup
         case #selector(saveDatabase): return commands.canSave
@@ -225,34 +210,7 @@ struct MacHostingAppearance: ViewModifier {
     }
 }
 
-private struct MacMainRoot: View {
-    let listViewModel: DatabaseListViewModel
-    let sessionStore: DatabaseSessionStore
-    let routing: AppRoutingCoordinator
-    let onReadyForURLs: () -> Void
-
-    var body: some View { content }
-
-    private var root: AppRootView {
-        AppRootView(listViewModel: listViewModel, sessionStore: sessionStore, routing: routing, onReadyForURLs: onReadyForURLs)
-    }
-
-    @ViewBuilder private var content: some View {
-        #if DEBUG
-        if AutoFillStoreInspectorView.isPresentationRequested {
-            AutoFillStoreInspectorView()
-        } else if AutoFillPickerHarnessView.isPresentationRequested {
-            AutoFillPickerHarnessView()
-        } else {
-            root
-        }
-        #else
-        root
-        #endif
-    }
-}
-
-private final class MainWindow: NSWindow {
+final class DatabaseWindow: NSWindow {
     static let minimumContentSize = NSSize(width: 900, height: 620)
 
     // Hosting resets this during layout even when its sizing options are empty.

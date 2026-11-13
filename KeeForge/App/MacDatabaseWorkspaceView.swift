@@ -1,15 +1,6 @@
 #if os(macOS)
 import SwiftUI
 
-struct RegularDatabaseWorkspaceView: View {
-    let viewModel: DatabaseViewModel
-    @Environment(MacWorkspacePresentation.self) private var presentation
-
-    var body: some View {
-        MacDatabaseWorkspaceView(viewModel: viewModel, presentation: presentation)
-    }
-}
-
 /// The window's `MacWorkspaceToolbar` owns the toolbar and search field while
 /// this is shown; the root host stops bridging SwiftUI toolbars for it.
 struct MacDatabaseWorkspaceView: View {

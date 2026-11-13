@@ -180,7 +180,7 @@ final class TOTPEnrollmentCoordinator {
                 && destination?.identity == expectedSession.identity))
     }
 
-    private func discardEnrollment() {
+    func discardEnrollment() {
         pendingEnrollment = nil
         presentedEnrollment = nil
         deferredPresentation = nil

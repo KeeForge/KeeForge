@@ -7,6 +7,11 @@ import XCTest
 final class MacWorkspaceSplitViewControllerTests: XCTestCase {
     func testNativeColumnConstraintsAndSidebarCommand() throws {
         let session = try makeSession()
+        let autosaveName = MacWindowRestorationStore.splitViewAutosaveName(for: session.databaseReference.id)
+        let named = MacWorkspaceSplitViewController(session: session, presentation: MacWorkspacePresentation(),
+            autosaveName: autosaveName)
+        XCTAssertEqual(named.splitView.autosaveName, autosaveName)
+        // Unnamed, so toggling below writes nothing into the host app's defaults.
         let controller = MacWorkspaceSplitViewController(session: session, presentation: MacWorkspacePresentation())
         XCTAssertEqual(controller.splitViewItems.count, 3)
         let sidebar = controller.splitViewItems[0]
@@ -18,7 +23,7 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         XCTAssertEqual(entries.behavior, .contentList)
         XCTAssertEqual(entries.minimumThickness, 260)
         XCTAssertEqual(entries.maximumThickness, 460)
-        XCTAssertEqual(controller.splitView.autosaveName, MacWorkspaceSplitViewController.autosaveName)
+        XCTAssertNil(controller.splitView.autosaveName)
         XCTAssertTrue(controller.splitView.isVertical)
         sidebar.isCollapsed = false
         controller.toggleSidebar(nil)

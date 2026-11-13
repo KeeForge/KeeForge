@@ -418,7 +418,8 @@ final class ScreenProtectionService {
         }
     }
 
-    private func applyCapturePolicy(to window: NSWindow) {
+    /// Also called for each window the app creates, before it is first shown.
+    func applyCapturePolicy(to window: NSWindow) {
         // Never retarget our own cover overlays through the generic sweep;
         // they track the policy via `setCaptureBlocked`.
         guard isCover(window) == false else { return }

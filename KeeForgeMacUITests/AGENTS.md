@@ -2,6 +2,19 @@
 
 **Scope:** XCUITest smoke suite for the native macOS app (scheme `KeeForgeMac`). It is a thin layer by design; see "macOS tests" in `../AGENTS.md`. The fix workflow, launch environment, and fixtures are shared with `../KeeForgeUITests/AGENTS.md`.
 
+## Window contracts not yet updated
+
+The app now opens a Databases window and one window per open database. The UI classes still encode the single main window and have not been updated; until they are, expect these suites to fail where they rely on the old contract:
+
+- The database list lives only in the Databases window (identifier `databases`, accessibility identifier `databases`). Database windows never show it, so a launcher row no longer proves that a database locked, and `MacUITestCase.openFirstDatabaseFromListIfNeeded` must open from the Databases window and then query the new database window.
+- Database rows are plain `List(selection:)` content, not buttons: `app.buttons["database.row"]` (used by `MacUITestCase.databaseRow(containing:)`, `openFirstDatabaseFromListIfNeeded`, and `MacScreenshotAuditUITests`) no longer matches. A single click selects; double-click, Return, or `databases.open` opens or fronts the database's window.
+- On Mac the toolbar plus menu is gone: `database.add.button`, `database.add.new`, and `database.add.files` no longer exist. Use `databases.create-new`, `databases.add-existing`, and the `databases.connect-server` menu, whose provider items keep `database.add.webdav` and `database.add.ftp`. `database.empty.create` and `database.empty.add` remain on the empty state (the latter now opens the file picker directly instead of a menu).
+- Database windows have identifier `database.<database UUID>`; the identifier `main` is gone. Escape or Choose Different File on a database window's unlock screen closes that window (guarded) and shows the Databases window instead of returning to a list inside it.
+- Frame autosave `main-AppWindow-1` is gone: database windows autosave under `database.<UUID>`, so the `-NSWindow Frame main-AppWindow-1` launch default in `MacScreenshotAuditUITests` and `MacAppStoreScreenshots` no longer sizes anything. The Databases window is a fixed-minimum 600 x 620 pt window.
+- Split geometry autosaves per database under `MacDatabaseWorkspace.<database UUID>`; the `-NSSplitView Subview Frames MacDatabaseWorkspace ()` default in `MacUITestCase` no longer clears it. Fixture databases get new UUIDs on each seeded launch, so a stale collapsed sidebar is not inherited from an earlier run.
+- `windows.firstMatch`, the largest window, and Command-W "in the main window" are ambiguous with two or more windows; scope queries to the database window or the Databases window. Closing a database window locks and retires only its session and leaves the app running; the Databases window reopens it in a new, locked window.
+- Launch presentations (transition notice, What's New) and the verification-code destination prompt (`databases.enrollment-destination.row`, `databases.enrollment-destination.cancel`) appear on the Databases window, not on a database window.
+
 ## Running
 
 ```bash
@@ -13,7 +26,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - The suite runs on the Studio only when explicitly selected; Xcode Cloud does not run it. It drives real windows and takes screen and keyboard focus, so it needs an unlocked, active login session; with the screen locked it fails with "Failed to activate application (Running Background)".
 - It needs Automation Mode. If `automationmodetool` (no arguments, read-only) says enabling it requires authentication, the runner prompts and, unattended, fails with "Timed out while enabling automation mode" after running zero tests. Zero tests run is a failure, not a pass.
 - `MacSmokeUITests` is the required local release smoke (`prepare-release` skill).
-- `MacUITestCase` launches with an empty `NSSplitView Subview Frames MacDatabaseWorkspace` default. The split view autosaves into the app's defaults, which unit tests hosted by the app and earlier UI runs also write, so a saved collapsed sidebar would otherwise hide every sidebar row.
+- `MacUITestCase` launches with an empty `NSSplitView Subview Frames MacDatabaseWorkspace` default, a name the app no longer uses (see above). Split views autosave into the app's defaults under per-database names; unit tests hosted by the app write none.
 - `MacScreenshotAuditUITests` skips unless `TEST_RUNNER_SCREENSHOT_AUDIT=1` is set; `TEST_RUNNER_SCREENSHOT_AUDIT_DARK=1` switches its captures to dark. Both must be real environment variables on the `xcodebuild` process: a trailing `KEY=value` argument is a build-setting override that never reaches the runner, and the class skips silently.
 
 - `MacAppStoreScreenshots` skips unless `TEST_RUNNER_APPSTORE_SCREENSHOTS=1` is set. It captures the Mac App Store screenshots from `demo.kdbx` in a 1440x900 pt window, sized through the `NSWindow Frame main-AppWindow-1` launch default because XCUITest corner drags do not resize windows on macOS 27.
@@ -35,7 +48,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 
 ### Queries
 
-- AppKit owns the retained main window (`main`, frame autosave `main-AppWindow-1`), the menus, and the retained Settings window (`settings`). The root hosting controller remains mounted; unlocked content embeds an AppKit three-item split view whose columns each host SwiftUI. The unlocked window's toolbar is a native `NSToolbar` (`MacWorkspaceToolbar`) with an `NSSearchToolbarItem`; the locked and list screens keep the root's bridged SwiftUI toolbar. AppKit observation sets the title.
+- AppKit owns the Databases window (`databases`), one window per open database (`database.<UUID>`, titled with the database name), the menus (Window ▸ Databases shows the Databases window), and the retained Settings window (`settings`). Each database window's root hosting controller remains mounted; unlocked content embeds an AppKit three-item split view whose columns each host SwiftUI. The unlocked window's toolbar is a native `NSToolbar` (`MacWorkspaceToolbar`) with an `NSSearchToolbarItem`; the unlock screen keeps the root's bridged SwiftUI toolbar. AppKit observation sets the title.
 
 - The three SwiftUI column roots share a stable outer workspace presentation host; column revision keys must never replace it. Keep UI coverage for keyboard and double-click browsing, edit/move/delete/new-group sheets through row revisions, search and Find, repeated lock/unlock width restoration, launch/enrollment presentations, and saving/conflict banners. The split dividers are native AppKit splitters; the existing `app.splitters` query remains valid. The native toolbar exposes item identifiers on its controls: buttons still match `app.buttons[identifier]` (each item's view carries its item identifier), the search field is `app.searchFields.firstMatch`, and Command-F focuses it. Add and Sort are pull-down pop-up buttons. Verify View → Show Sidebar, widths after collapse/resize and repeated lock/unlock, and the toolbar's entry Edit action, including delete-from-editor completion, across hosting boundaries.
 
@@ -49,7 +62,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - XCUITest drags do not move split-view dividers on macOS 27, so resizing a column is a manual check. Unit tests cover native split-item constraints and collapse; autosave restoration requires the repeated-lock/unlock UI test and manual divider resizing.
 - Toolbar buttons, `lock.button` included, can collapse into the "more toolbar items" overflow, where they are menu items matched by label. Use `clickToolbarButton(identifier:overflowLabel:)`, and detect the unlocked state from vault rows as `waitForVaultToUnlock` does.
 - The retained AppKit Settings window reopens on the tab used last in this process; a fresh root starts on Security. Select the tab with `selectSettingsTab(named:)`; the `settings.tab.*` identifiers sit on tab content, not on the switching control.
-- Closing the main window locks its database session (`MacWindowCloseGuard`), even with other windows open. A test pressing Command-W in the main window must expect the lock.
+- Closing a database window locks and retires its session (`MacWindowCloseGuard`), even with other windows open. A test pressing Command-W in a database window must expect the window to close and its database to lock.
 
 ### Screenshot audit
 

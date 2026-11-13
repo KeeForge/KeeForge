@@ -1,7 +1,7 @@
 #if os(macOS)
 import SwiftUI
 
-/// Presented once by `AppRootView` when `MacTransitionNoticeService` finds a
+/// Presented once by the Databases window when `MacTransitionNoticeService` finds a
 /// database list left by the "Designed for iPad" build. Deliberately static
 /// copy: it must be correct whether the list behind it is intact, stale, or
 /// empty, so it never names a database or reports a count.

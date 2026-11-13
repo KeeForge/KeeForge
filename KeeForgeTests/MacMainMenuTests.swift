@@ -62,10 +62,11 @@ final class MacMainMenuTests: XCTestCase {
         ], [("Lock", "l", command, "lockDatabase:")], [
             ("Minimize", "m", command, "performMiniaturize:"),
             ("Zoom", "", [], "performZoom:"),
+            ("Databases", "", [], "showDatabasesWindow:"),
             ("Bring All to Front", "", [], "arrangeInFront:"),
         ], [("KeeForge Help", "", [], "showHelp:"), ("Report a Bug", "", [], "reportBug:")]]
         let databaseActions: Set<String> = ["newEntry:", "newGroup:", "saveDatabase:", "closeDatabase:", "copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "editEntry:", "deleteSelection:", "findEntry:", "lockDatabase:"]
-        let appActions: Set<String> = ["showAboutPanel:", "showSettings:", "newDatabase:", "openDatabase:", "showHelp:", "reportBug:", "checkForUpdates:"]
+        let appActions: Set<String> = ["showAboutPanel:", "showSettings:", "newDatabase:", "openDatabase:", "showHelp:", "reportBug:", "checkForUpdates:", "showDatabasesWindow:", "connectToServer:"]
         for (top, contracts) in zip(menu.items, expected) {
             let submenu = try XCTUnwrap(top.submenu)
             let items = submenu.items.filter { $0.action != nil && $0.submenu == nil }
@@ -78,197 +79,41 @@ final class MacMainMenuTests: XCTestCase {
                 XCTAssertNil(item.target)
                 let selector = NSSelectorFromString(contract.3)
                 if databaseActions.contains(contract.3) {
-                    XCTAssertTrue(MainWindowController.instancesRespond(to: selector), contract.3)
+                    XCTAssertTrue(DatabaseWindowController.instancesRespond(to: selector), contract.3)
                     XCTAssertFalse(AppDelegate.instancesRespond(to: selector), contract.3)
                 } else if appActions.contains(contract.3) {
                     XCTAssertTrue(AppDelegate.instancesRespond(to: selector), contract.3)
-                    XCTAssertFalse(MainWindowController.instancesRespond(to: selector), contract.3)
+                    XCTAssertFalse(DatabaseWindowController.instancesRespond(to: selector), contract.3)
                 }
             }
         }
+        let connect = try XCTUnwrap(menu.items[1].submenu?.items.first { $0.title == localized("Connect to Server") }?.submenu)
+        XCTAssertEqual(connect.items.map(\.title), [CloudProviderKind.webDAV.displayName, CloudProviderKind.ftp.displayName])
+        XCTAssertEqual(connect.items.compactMap { $0.representedObject as? String }, [CloudProviderKind.webDAV.rawValue, CloudProviderKind.ftp.rawValue])
+        XCTAssertTrue(connect.items.allSatisfy { $0.action == #selector(AppDelegate.connectToServer) && $0.target == nil })
         MainMenu.install(menu)
         XCTAssertTrue(application.windowsMenu === menu.items[5].submenu)
         XCTAssertTrue(application.helpMenu === menu.items[6].submenu)
         XCTAssertEqual(application.servicesMenu?.title, localized("Services"))
     }
 
-    func testAppKitHostWindowAndSupplementalCommandTarget() throws {
+    func testLauncherWindowAndAppLevelCommandsIgnoreDatabaseState() throws {
         let delegate = try XCTUnwrap(NSApp.delegate as? AppDelegate)
-        let controller = try XCTUnwrap(delegate.mainWindowController)
-        let window = try XCTUnwrap(controller.window)
-        XCTAssertNotNil(window.contentViewController)
-        XCTAssertEqual(window.contentMinSize, NSSize(width: 900, height: 620))
-        XCTAssertEqual(window.frameAutosaveName, "main-AppWindow-1")
-        XCTAssertEqual(window.identifier?.rawValue, "main")
-        XCTAssertTrue(window.canBecomeMain, "The retained window must count as a host window")
+        // The host app's launch shows the Databases window when nothing else opens.
+        let window = try XCTUnwrap(delegate.windowCoordinator.databasesWindow)
+        XCTAssertEqual(window.identifier, DatabasesWindowController.identifier)
+        XCTAssertEqual(window.contentMinSize, DatabasesWindowController.contentSize)
+        XCTAssertGreaterThanOrEqual(DatabasesWindowController.contentSize.height, MacSheetMetrics.maxHeight + 60)
         XCTAssertFalse(window.isReleasedWhenClosed)
         XCTAssertFalse(delegate.applicationShouldTerminateAfterLastWindowClosed(NSApp))
-        for selector in ["newEntry:", "newGroup:", "saveDatabase:", "closeDatabase:", "copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "editEntry:", "deleteSelection:", "findEntry:", "lockDatabase:"] {
-            XCTAssertTrue(delegate.supplementalTarget(forAction: NSSelectorFromString(selector), sender: nil) as? MainWindowController === controller, selector)
+        for selector in ["newDatabase:", "openDatabase:"] {
+            XCTAssertTrue(delegate.validateMenuItem(item(selector)), selector)
         }
-    }
-
-    func testWindowRegistrationTracksSelectionSynchronously() throws {
-        let store = DatabaseSessionStore()
-        let registry = MacDatabaseWindowRegistry(sessionStore: store)
-        let controller = MainWindowController(listViewModel: DatabaseListViewModel(), sessionStore: store,
-            routing: AppRoutingCoordinator(), quickAccess: MacQuickAccessController(), sshAgent: MacSSHAgentController(),
-            windowRegistry: registry)
-        controller.loadWindow()
-        let window = try XCTUnwrap(controller.window)
-        XCTAssertNil(registry.registration(for: window))
-        let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
-        let first = store.open(try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false))
-        let second = store.open(try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false))
-        store.activeSessionID = first.databaseReference.id
-        XCTAssertTrue(registry.session(for: window) === first)
-        var cancelled = false
-        registry.registration(for: window)?.onUnregister = { cancelled = true }
-        store.activeSessionID = second.databaseReference.id
-        XCTAssertTrue(cancelled)
-        XCTAssertTrue(registry.session(for: window) === second)
-        store.activeSessionID = nil
-        XCTAssertNil(registry.registration(for: window))
-    }
-
-    func testIncomingURLsWaitForInitialRoutingAndDrainOnceInOrder() throws {
-        let routing = AppRoutingCoordinator()
-        let controller = MainWindowController(listViewModel: DatabaseListViewModel(), sessionStore: DatabaseSessionStore(),
-            routing: routing, quickAccess: MacQuickAccessController(), sshAgent: MacSSHAgentController())
-        let unsupported = try XCTUnwrap(URL(string: "otpauth://hotp/Test?secret=JBSWY3DPEHPK3PXP&counter=0"))
-        let invalid = try XCTUnwrap(URL(string: "otpauth://totp/Test"))
-        controller.handleOpenURL(unsupported)
-        controller.handleOpenURL(invalid)
-        XCTAssertNil(routing.enrollment.enrollmentAlert)
-        XCTAssertFalse(routing.didResolveInitialRoute)
-        _ = routing.resolveInitialRoute(hasActiveSession: false, showsTransitionNotice: false, release: nil, autoOpenReference: nil)
-        controller.rootDidBecomeReady()
-        XCTAssertEqual(routing.enrollment.enrollmentAlert, .invalidLink)
-        routing.enrollment.enrollmentAlert = nil
-        controller.rootDidBecomeReady()
-        XCTAssertNil(routing.enrollment.enrollmentAlert)
-        controller.handleOpenURL(unsupported)
-        XCTAssertEqual(routing.enrollment.enrollmentAlert, .unsupportedLink)
-        XCTAssertNil(controller.window)
-    }
-
-    func testValidationTracksSessionSelectionWritabilityAndAuthentication() async throws {
-        let store = DatabaseSessionStore()
-        let action = EntrySecretAction()
-        let controller = MainWindowController(listViewModel: DatabaseListViewModel(), sessionStore: store,
-            routing: AppRoutingCoordinator(), quickAccess: MacQuickAccessController(), sshAgent: MacSSHAgentController(),
-            passwordCopyAction: action)
-        assertValidation(controller, action: action)
-        let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
-        for readOnly in [false, true] {
-            var reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
-            reference.isReadOnly = readOnly
-            let session = store.adopt(DatabaseViewModel(databaseReference: reference, quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false }))
-            store.activeSessionID = reference.id
-            XCTAssertTrue(controller.session === session)
-            assertValidation(controller, action: action)
-            await session.unlock(password: "testpassword123")
-            XCTAssertEqual(session.state, .unlocked)
-            session.workspace.selectedEntryID = try XCTUnwrap(session.rootGroup?.allEntries.first(where: { $0.hasPassword })).id
-            assertValidation(controller, action: action)
-            let task = try XCTUnwrap(action.perform(authenticate: {}, isCurrent: { true }, disclose: {}))
-            XCTAssertFalse(controller.validateMenuItem(item("copyPassword:")))
-            await task.value
-            XCTAssertTrue(controller.validateMenuItem(item("copyPassword:")))
-            if !readOnly {
-                try session.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: try XCTUnwrap(session.rootGroup)), draft: EntryDraftPayload(title: "Menu validation")))
-                XCTAssertTrue(controller.validateMenuItem(item("saveDatabase:")))
-                let entryID = try XCTUnwrap(session.workspace.selectedEntryID)
-                try session.applyEntryEdit(.deleteEntry(entryID: entryID, sendToRecycleBin: true))
-                session.workspace.selectedEntryID = entryID
-                XCTAssertTrue(session.isEntryInRecycleBin(entryID: entryID))
-                assertValidation(controller, action: action)
-                let delete = item("deleteSelection:")
-                XCTAssertTrue(controller.validateMenuItem(delete))
-                XCTAssertEqual(delete.title, localized("Delete Permanently"))
-            }
-            store.retire(reference.id, force: true)
-            assertValidation(controller, action: action)
-        }
-        XCTAssertNil(controller.window, "Headless menu validation must not create a window")
-    }
-
-    func testContentAndTitleFollowUnlockLockAndSessionReplacementWithoutRemountingRoot() async throws {
-        let store = DatabaseSessionStore()
-        let routing = AppRoutingCoordinator()
-        _ = routing.resolveInitialRoute(hasActiveSession: false, showsTransitionNotice: false, release: nil, autoOpenReference: nil)
-        let controller = MainWindowController(listViewModel: DatabaseListViewModel(), sessionStore: store,
-            routing: routing, quickAccess: MacQuickAccessController(), sshAgent: MacSSHAgentController())
-        controller.loadWindow()
-        let window = try XCTUnwrap(controller.window)
-        let root = try XCTUnwrap(window.contentViewController)
-        defer { window.close() }
-        XCTAssertNil(controller.workspaceSplitViewController)
-        XCTAssertEqual(window.title, "KeeForge")
-        let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
-        for _ in 0..<2 {
-            let reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
-            let session = store.adopt(DatabaseViewModel(databaseReference: reference,
-                quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false }))
-            store.activeSessionID = reference.id
-            await session.unlock(password: "testpassword123")
-            await Task { @MainActor in }.value
-            let split = try XCTUnwrap(controller.workspaceSplitViewController)
-            XCTAssertTrue(split.session === session)
-            let toolbar = try XCTUnwrap(controller.workspaceToolbar)
-            XCTAssertTrue(toolbar.session === session)
-            XCTAssertTrue(window.toolbar === toolbar.toolbar)
-            XCTAssertEqual(window.title, session.databaseDisplayName)
-            let group = try XCTUnwrap(session.group(withID: try XCTUnwrap(session.visibleRootGroupID)))
-            XCTAssertEqual(window.subtitle, group.name)
-            session.searchText = "GitHub"
-            await Task { @MainActor in }.value
-            XCTAssertEqual(window.subtitle, localized("Search"))
-            XCTAssertTrue(controller.workspaceSplitViewController === split)
-            session.workspace.selectedTag = "Work"
-            session.searchText = ""
-            await Task { @MainActor in }.value
-            XCTAssertEqual(window.subtitle, "Work")
-            XCTAssertEqual(window.title, session.databaseDisplayName)
-            XCTAssertTrue(window.contentViewController === root)
-            XCTAssertTrue(controller.validateMenuItem(item("toggleSidebar:")))
-            split.splitViewItems[0].isCollapsed = false
-            controller.toggleSidebar(nil)
-            XCTAssertTrue(split.splitViewItems[0].isCollapsed)
-            // Split autosave writes to the host app's defaults, which the UI tests launch with.
-            controller.toggleSidebar(nil)
-            XCTAssertFalse(split.splitViewItems[0].isCollapsed)
-            session.lock()
-            await Task { @MainActor in }.value
-            XCTAssertNil(controller.workspaceSplitViewController)
-            XCTAssertNil(controller.workspaceToolbar)
-            XCTAssertNotEqual(window.toolbar?.identifier, MacWorkspaceToolbar.identifier)
-            XCTAssertEqual(window.title, "KeeForge")
-            XCTAssertEqual(window.subtitle, "")
-            XCTAssertTrue(window.contentViewController === root)
-            XCTAssertFalse(controller.validateMenuItem(item("toggleSidebar:")))
-            store.retire(reference.id, force: true)
-        }
-    }
-
-    private func assertValidation(_ controller: MainWindowController, action: EntrySecretAction,
-                                  file: StaticString = #filePath, line: UInt = #line) {
-        let commands = DatabaseCommands(session: controller.session, passwordCopyAction: action)
-        let cases = [
-            ("newEntry:", commands.canNewEntry), ("newGroup:", commands.canNewGroup),
-            ("saveDatabase:", commands.canSave), ("closeDatabase:", commands.canCloseDatabase),
-            ("copyUsername:", commands.canCopyUsername), ("copyPassword:", commands.canCopyPassword),
-            ("copyURL:", commands.canCopyURL), ("copyVerificationCode:", commands.canCopyVerificationCode),
-            ("editEntry:", commands.canEditEntry), ("deleteSelection:", commands.canDelete),
-            ("findEntry:", commands.canFind), ("lockDatabase:", commands.canLock),
-        ]
-        for (selector, expected) in cases {
-            let menuItem = item(selector)
-            XCTAssertEqual(controller.validateMenuItem(menuItem), expected, selector, file: file, line: line)
-            if selector == "deleteSelection:" {
-                XCTAssertEqual(menuItem.title, localized(commands.deletesPermanently ? "Delete Permanently" : "Delete"), file: file, line: line)
-            }
-        }
+        let connect = item("connectToServer:")
+        connect.representedObject = CloudProviderKind.webDAV.rawValue
+        XCTAssertTrue(delegate.validateMenuItem(connect))
+        connect.representedObject = CloudProviderKind.dropbox.rawValue
+        XCTAssertFalse(delegate.validateMenuItem(connect))
     }
 
     private func item(_ selector: String) -> NSMenuItem {

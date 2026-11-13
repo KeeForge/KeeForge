@@ -1,17 +1,46 @@
 # KeeForgeMac Target
 
 Native macOS app configuration and AppKit lifecycle sources. `App/` owns startup,
-the app delegate, the retained main window, menus, and Settings. The main window
-keeps its `AppRootView` hosting controller mounted for the lifetime of the window.
-Unlocked content embeds an AppKit `NSSplitViewController` with three independent
-SwiftUI hosting controllers, and the window shows a native `NSToolbar` with an
-`NSSearchToolbarItem`. Locked, opening, error, and list content use the
-SwiftUI root and its bridged toolbar.
+the app delegate, the window coordinator, menus, and Settings.
+
+## Windows
+
+`MacWindowCoordinator`, owned by `AppDelegate`, retains the Databases window
+(`DatabasesWindowController`, identifier `databases`) and one
+`DatabaseWindowController` per open database, keyed by the database UUID. That
+UUID names both the session in `DatabaseSessionStore` and the window in
+`MacDatabaseWindowRegistry`. Opening a database calls `sessionStore.open`
+(creation uses `adopt`) and creates its window, or fronts and deminiaturizes the
+one already open; opening another database never closes, locks or retires one
+that is open. The app keeps running with no windows; Dock reopen shows the
+Databases window when nothing is visible.
+
+The coordinator turns `MacApplicationRouting` effects into window effects through
+`MacWindowPresenting`, the seam unit tests replace: launch presentations first,
+then queued URL and Quick Launch opens, duplicates fronting the open window. It
+applies the capture policy to each window it creates before showing it, supplies
+Quick Access with the database window the user last made key, and closes a
+window whose session was retired elsewhere (removed from the list).
+
+The Databases window (about 600 x 620 pt, so the 540 x 560 pt sheets fit) hosts
+`DatabaseListView`'s macOS branch with `MacDatabasesLauncherViewModel`: the
+local, WebDAV and FTP references, double-click or Return to open, Create New,
+Add Existing, Connect to Server, and the existing row management. It never shows
+a database's contents. It also presents the transition notice and What's New,
+once per launch, and asks which database a verification-code link belongs to
+when no database window was targeted.
+
+Each `DatabaseWindowController` owns its session for its whole life and never
+looks one up through `activeSession`. Its window (identifier
+`database.<UUID>`, frame autosave `database.<UUID>`, not restorable) hosts the
+always-mounted `MacDatabaseRootView`: that session's unlock, opening, error and
+unlocked content, its `MacBiometricAutoUnlockObserver`, and enrollment sheets
+bound to this database. The window title is the database name in every state.
 
 ## Workspace presentation
 
-`MainWindowController` owns one `MacWorkspacePresentation` and `MacWindowWorkspace`.
-A `MacObservation` tracks the active unlocked session and database title, then
+Each database window owns one `MacWorkspacePresentation` and `MacWindowWorkspace`.
+A `MacObservation` tracks the session's unlocked state and title, then
 updates the native controller, toolbar, and window title. It re-arms on the main actor,
 rejects queued callbacks after replacement/cancellation, and captures the window
 controller weakly. A session lock drops the native controller; content revisions
@@ -21,27 +50,43 @@ One outer `MacWorkspacePresentationHost` remains in `MacDatabaseWorkspaceView`,
 around the native split representable, inside the always-mounted root host.
 It owns workspace sheets, dialogs, alerts, banners, and the saving overlay.
 Column revisions never replace it. It resets presentation state on workspace
-disappearance and rejects old cloud reconnect completions. `AppRootView` keeps
-launch presentations, enrollment, and its biometric observer mounted across
-lock/unlock. This embedding avoids replacing the window's presentation hierarchy;
-no content swap orders the window or assigns first responder.
+disappearance and rejects old cloud reconnect completions. `MacDatabaseRootView`
+keeps enrollment and its biometric observer mounted across lock/unlock. This
+embedding avoids replacing the window's presentation hierarchy; no content swap
+orders the window or assigns first responder.
 
 The sidebar is collapsible (200–340 pt), the entries column is 260–460 pt, and
 the detail takes the remaining width. `NSSplitView` autosave owns widths and
-collapse state under `MacDatabaseWorkspace`, including across lock/unlock.
-View → Show Sidebar is forwarded to the active native split controller.
-The close guard settles unsaved work per registered database window, then locks
-only its session. The app-owned registry follows the single main window's active
-database and attributes activity from its sheets and children to that session.
+collapse state under `MacWindowRestorationStore.splitViewAutosaveName(for:)`, one
+name per database, including across lock/unlock. View → Show Sidebar is forwarded
+to the target window's native split controller.
+
+## Commands and closing
+
+`MacDatabaseCommandTargetResolver` picks the window a database command acts on:
+the key database window (or the one a key sheet belongs to); with Settings or a
+panel key, the main database window; with the Databases window key, or no
+database window, none, so database commands are disabled. Validation and dispatch
+both ask it when they run, through `AppDelegate.supplementalTarget` and each
+controller's `isCommandTarget` gate. File ▸ New Database, Open Database and
+Connect to Server are launcher operations and ignore every session's state.
+Window ▸ Databases shows the Databases window; AppKit's Window menu lists the open
+windows by database name. Settings is an auxiliary window that cannot become main
+and chooses its own database where it needs one.
+
+Close Window, Close Database and Escape on the unlock screen all go through the
+window's guarded close (`MacWindowCloseGuard`). A committed close locks and
+retires exactly that session and releases its controller; cancel or a failed save
+keeps both. Lock keeps the window open on its unlock screen.
 
 ## Toolbar and search
 
 `MacWindowWorkspace` creates one `MacWorkspaceToolbar` per unlocked session,
 beside the split controller, and drops it on lock or replacement. When it
-exists, `MainWindowController` turns the root host's `.toolbars` scene bridging
+exists, `DatabaseWindowController` turns the root host's `.toolbars` scene bridging
 off and installs it as the window toolbar; on lock it removes it and turns
-bridging back on, so the list screen's Add Database and Settings items come back
-from SwiftUI. One source owns the bar in each state. Column hosts never bridge.
+bridging back on for the unlock screen. One source owns the bar in each state.
+Column hosts never bridge.
 
 Each item's identifier is also its view's accessibility identifier. The
 database-scoped items are navigational, so they
