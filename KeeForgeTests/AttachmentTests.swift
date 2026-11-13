@@ -189,6 +189,33 @@ final class AttachmentTests: XCTestCase {
 
     // MARK: - Editing attachments
 
+    func testAuthenticatedRebaseDoesNotReplayCreatedAttachmentAndDiscardRestoresCurrentPool() throws {
+        let fixture = try makeEditableFixture()
+        let draft = try fixture.draft().apply(.createEntry(parentGroupID: fixture.rootGroup.id,
+            draft: EntryDraftPayload(title: "Created Once", password: "secret",
+                attachments: [.new(name: "created.bin", data: Data("once".utf8))])))
+        let base = fixture.rootGroup.deepCopy()
+        base.entries.append(KPEntry(title: "External"))
+        let merged = draft.rootGroup
+        merged.entries.append(try XCTUnwrap(base.entries.last))
+        let rebased = draft.rebased(baseRootGroup: base, baseMeta: fixture.meta,
+            baseBinaryPoolFields: fixture.header.innerHeaderBinaryFields,
+            mergedRootGroup: merged, mergedMeta: draft.meta, mergedBinaryPoolFields: draft.binaryPoolFields)
+        XCTAssertEqual(rebased.pendingEdits, draft.pendingEdits)
+        XCTAssertEqual(rebased.binaryPoolFields, draft.binaryPoolFields)
+        XCTAssertEqual(rebased.rootGroup.allEntries.filter { $0.title == "Created Once" }.count, 1)
+        let reopened = try fixture.writeAndReparse(rebased)
+        let created = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.title == "Created Once" })
+        XCTAssertEqual(created.attachments.count, 1)
+        XCTAssertEqual(BinaryPool(rawFields: reopened.header.innerHeaderBinaryFields)[created.attachments[0].ref]?.data, Data("once".utf8))
+        XCTAssertTrue(reopened.rootGroup.allEntries.contains { $0.title == "External" })
+        let discarded = rebased.discardingEdits()
+        XCTAssertEqual(discarded.binaryPoolFields, fixture.header.innerHeaderBinaryFields)
+        XCTAssertFalse(discarded.rootGroup.allEntries.contains { $0.title == "Created Once" })
+        XCTAssertTrue(discarded.rootGroup.allEntries.contains { $0.title == "External" })
+        XCTAssertEqual(discarded.meta, fixture.meta)
+    }
+
     func test_addingAttachment_appendsProtectedPoolEntryKeepsHistoryAndRoundTrips() throws {
         let fixture = try makeEditableFixture()
         let entry = try fixture.entry()

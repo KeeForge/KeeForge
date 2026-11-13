@@ -56,6 +56,8 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 
 ### Draft edits
 
+- Authenticated local adoption rebases a draft onto the exact current-file tree/meta/pool and owns deep copies of both trees. Preserve the real edit log without replay; discard restores that authenticated base. An empty log stays a clean current-file draft.
+
 - Custom fields retain their KDBX String-element order through parse, edits, history, merge, and write. Payloads without an order preserve the existing sequence; missing keys are ignored and new unlisted keys append alphabetically. Other clients may choose their own display order.
 
 - Recycling stores the standard optional `<PreviousParentGroup>` reference in opaque XML at KeePass's position. Recovery reparents only from the recycle subtree to a destination outside it, preserving fields, subtree contents, and modification times. Recovery permits duplicate sibling names to avoid renaming restored data.
