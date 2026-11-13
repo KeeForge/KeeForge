@@ -1852,7 +1852,9 @@ final class DatabaseViewModel {
 
     /// Where an item lying directly in the recycle bin came from and when it
     /// was put there. Nil for anything else: inside a recycled group,
-    /// `LocationChanged` dates the item's last move, not its deletion.
+    /// `LocationChanged` dates the item's last move, not its deletion. The
+    /// date also needs `PreviousParentGroup`: versions before 1.15 recycled
+    /// without stamping either, leaving an older move's `LocationChanged`.
     func recycleBinOrigin(for item: RecycleBinItem) -> RecycleBinOrigin? {
         _ = contentRevision
         guard let bin = recycleBinGroup else { return nil }
@@ -1868,9 +1870,9 @@ final class DatabaseViewModel {
             xml = group.unknownXML
             deletedAt = group.locationChanged
         }
+        guard let parentID = PreviousParentGroupXML.parentID(in: xml) else { return nil }
         var groupName: String?
-        if let parentID = PreviousParentGroupXML.parentID(in: xml), let parent = groupIndex[parentID],
-           parentID != bin.id, isGroupInRecycleBin(groupID: parentID) == false {
+        if let parent = groupIndex[parentID], parentID != bin.id, isGroupInRecycleBin(groupID: parentID) == false {
             groupName = parentID == visibleRootGroupID ? databaseDisplayName : parent.name
         }
         guard groupName != nil || deletedAt != nil else { return nil }

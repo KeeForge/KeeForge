@@ -14,7 +14,6 @@ struct AutoFillUnlockView: View {
     let onCancel: () -> Void
 
     @State private var password = ""
-    @State private var isPasswordVisible = false
     @FocusState private var isPasswordFocused: Bool
 
     var body: some View {
@@ -81,19 +80,10 @@ struct AutoFillUnlockView: View {
         }
     }
 
-    /// Built here rather than from `PasswordInputRow` so focus lands on the
-    /// field itself and the keyboard is up when the sheet appears.
-    private var fieldTitle: String { String(localized: "Master Password") }
-
+    /// Secure-only, as the alert it replaced was: no reveal inside another
+    /// app's AutoFill request.
     private var passwordField: some View {
-        HStack(spacing: 12) {
-            Group {
-                if isPasswordVisible {
-                    TextField("Master Password", text: $password)
-                } else {
-                    SecureField("Master Password", text: $password)
-                }
-            }
+        SecureField("Master Password", text: $password)
             .passwordInputStyle()
             .focused($isPasswordFocused)
             // On the field, not the stack: the form builds its rows after the
@@ -102,18 +92,6 @@ struct AutoFillUnlockView: View {
             .submitLabel(.go)
             .onSubmit(submit)
             .accessibilityIdentifier("autofill-unlock.password-field")
-
-            Button {
-                isPasswordVisible.toggle()
-                isPasswordFocused = true
-            } label: {
-                Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
-                    .frame(width: 30, height: 30)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel(isPasswordVisible ? Text("Hide \(fieldTitle)") : Text("Show \(fieldTitle)"))
-            .accessibilityIdentifier("autofill-unlock.password-visibility-button")
-        }
     }
 
     private func submit() {

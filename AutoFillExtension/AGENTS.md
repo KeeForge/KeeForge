@@ -19,7 +19,7 @@
 - Mac `viewDidAppear` signals `presentationDidBecomeActive()` on a later main-loop turn, never synchronously: AppKit suppresses an `NSAlert.runModal()` started inside the window-ordering transaction, turning the unlock prompt into a silent cancel.
 - Terminal completion happens exactly once. Picker actions are bound to the current request and presentation; starting a database switch or opening a creator invalidates the old picker. Shells check validity before dismissing picker content, and iOS checks again after dismissal. Request generations invalidate late unlock and save continuations; dismissing an internal iOS modal is not cancellation. A save already in progress may commit its bytes and refresh identities, but its obsolete result must not restore cleared vault state, show alerts, or complete a replacement request.
 - Post-unlock UI goes through `presentWhenActive`, which defers while the shell is off screen, so a modal is never dropped.
-- The unlock prompt names the database it opens (`presentUnlockPrompt(database:)`). On iOS it is `AutoFillUnlockView`, hosted like the picker; the shell dismisses it before handing the answer to the coordinator, which re-prompts only while nothing is presented. It offers no database switching before unlock. macOS keeps its `NSAlert`.
+- The unlock prompt names the database it opens (`presentUnlockPrompt(database:)`). On iOS it is `AutoFillUnlockView`, hosted like the picker; the shell dismisses it before handing the answer to the coordinator, which re-prompts only while nothing is presented. It offers no database switching before unlock, and its password field is secure-only: no reveal inside another app's request. macOS keeps its `NSAlert`.
 
 ### What may be filled
 

@@ -1097,6 +1097,28 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNotNil(orphanedOrigin.deletedAt)
     }
 
+    func testRecycleBinOriginIsWithheldForItemsRecycledWithoutAPreviousParent() async throws {
+        let active = KPGroup(name: "Active")
+        var legacy = KPEntry(title: "Legacy")
+        legacy.locationChanged = Date(timeIntervalSinceReferenceDate: 0)
+        var stamped = KPEntry(title: "Stamped")
+        stamped.locationChanged = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        stamped.unknownXML = OpaqueXMLNodes(nodes: [.init(insertionIndex: 0,
+            xml: "<PreviousParentGroup>\(active.id.kdbxBase64String)</PreviousParentGroup>")])
+        let bin = KPGroup(name: "Recycle Bin", entries: [legacy, stamped])
+        let root = KPGroup(name: "Root", groups: [KPGroup(name: "Visible", groups: [active, bin])], recycleBinUUID: bin.id)
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertNil(
+            vm.recycleBinOrigin(for: .entry(legacy.id)),
+            "Without PreviousParentGroup, LocationChanged may date an older move, not the deletion"
+        )
+        XCTAssertEqual(
+            vm.recycleBinOrigin(for: .entry(stamped.id)),
+            RecycleBinOrigin(groupName: "Active", deletedAt: stamped.locationChanged)
+        )
+    }
+
     func testRecycleBinOriginSummaryJoinsGroupAndRelativeDate() {
         let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
         let locale = Locale(identifier: "en_US")

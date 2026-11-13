@@ -26,4 +26,29 @@ final class EntryRowCopyUITests: EntryEditUITestCase {
             "Copying from the context menu should leave the entry list in place"
         )
     }
+
+    func testChangeIconFromTheRowMenuChangesTheEntryIcon() {
+        unlockSuccessfully()
+
+        openGroup(named: socialGroupName)
+        revealContextMenuButton(
+            rowNamed: discordEntryTitle,
+            identifier: "entry-row.change-icon-context",
+            preferredIdentifier: "entry.navlink"
+        ).tap()
+        let icon = app.buttons["entry-icon-picker.standard.37"]
+        XCTAssertTrue(icon.waitForExistence(timeout: 5), "Change Icon did not open the icon picker")
+        XCTAssertTrue(revealElement(icon), "Icon 37 could not be scrolled into view")
+        tapElement(icon)
+        XCTAssertTrue(icon.waitForNonExistence(timeout: 5), "Picking an icon should dismiss the picker")
+
+        revealContextMenuButton(
+            rowNamed: discordEntryTitle,
+            identifier: "entry-row.change-icon-context",
+            preferredIdentifier: "entry.navlink"
+        ).tap()
+        let reopened = app.buttons["entry-icon-picker.standard.37"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 5), "The icon picker did not open again")
+        XCTAssertTrue(reopened.isSelected, "The icon picked from the row menu should be the entry's icon")
+    }
 }

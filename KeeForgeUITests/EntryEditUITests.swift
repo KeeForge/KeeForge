@@ -775,12 +775,36 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
         waitForAutosaveAttempt()
         tapBackButton()
         selectDatabaseView(.recycleBin)
+        XCTAssertTrue(revealElement(entry(named: discordEntryTitle)))
+        let origin = app.staticTexts.matching(
+            NSPredicate(format: "identifier == 'recycle-bin.origin' AND label CONTAINS[c] %@", socialGroupName)
+        ).firstMatch
+        XCTAssertTrue(origin.waitForExistence(timeout: 5), "A recycled entry should say where it came from")
         revealContextMenuButton(rowNamed: discordEntryTitle, identifier: "entry-row.restore-context", preferredIdentifier: "entry.navlink").tap()
         waitForAutosaveAttempt()
         XCTAssertFalse(entry(named: discordEntryTitle).exists)
         selectDatabaseView(.groups)
         openGroup(named: socialGroupName)
         XCTAssertTrue(revealElement(entry(named: discordEntryTitle)))
+    }
+
+    func testRestoreToGroupPutsTheEntryWhereTheUserChooses() {
+        unlockSuccessfully()
+        openGroup(named: socialGroupName)
+        revealContextMenuButton(rowNamed: discordEntryTitle, identifier: "entry-row.delete-context", preferredIdentifier: "entry.navlink").tap()
+        app.alerts.buttons["Delete"].tap()
+        waitForAutosaveAttempt()
+        tapBackButton()
+        selectDatabaseView(.recycleBin)
+        revealContextMenuButton(rowNamed: discordEntryTitle, identifier: "entry-row.restore-to-group-context", preferredIdentifier: "entry.navlink").tap()
+        let destination = moveDestination(named: workGroupName)
+        XCTAssertTrue(destination.waitForExistence(timeout: 5), "Restore to Group… did not offer '\(workGroupName)'")
+        destination.tap()
+        waitForAutosaveAttempt()
+        XCTAssertFalse(entry(named: discordEntryTitle).exists)
+        selectDatabaseView(.groups)
+        openGroup(named: workGroupName)
+        XCTAssertTrue(revealElement(entry(named: discordEntryTitle)), "The entry should be restored into '\(workGroupName)'")
     }
 
     func testRestoreGroupReturnsItsSubtreeToOriginalParent() {
