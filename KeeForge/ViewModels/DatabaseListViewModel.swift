@@ -443,3 +443,39 @@ final class DatabaseListViewModel {
     }
 
 }
+
+@MainActor @Observable
+final class PendingLocalRecoveryViewModel {
+    private let databaseID: UUID
+    private(set) var snapshot: PendingLocalSaveStore.RecoverySnapshot?
+    private var loadError: String?
+    private var actionError: String?
+    var errorMessage: String? { actionError ?? loadError }
+
+    init(databaseID: UUID) { self.databaseID = databaseID }
+
+    func refresh() async {
+        let id = databaseID
+        do {
+            let loaded = try await Task.detached { try PendingLocalSaveStore.recovery(for: id) }.value
+            guard !Task.isCancelled else { return }
+            snapshot = loaded
+            loadError = loaded.ownerUnavailable ? PendingLocalSaveStore.OwnershipError.recoveryRequired.localizedDescription : nil
+        } catch { loadError = error.localizedDescription }
+    }
+
+    func becameActive() async { await refresh() }
+
+    func retry() async {
+        actionError = nil
+        await refresh()
+    }
+
+    func discard(_ confirmed: PendingLocalSaveStore.RecoverySnapshot) async {
+        do {
+            try await Task.detached { try PendingLocalSaveStore.discard(confirmed) }.value
+            actionError = nil
+        } catch { actionError = error.localizedDescription }
+        await refresh()
+    }
+}

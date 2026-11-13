@@ -26,6 +26,7 @@ struct DatabaseDetailsView: View {
     var onSelectKeyFile: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var listViewModel: DatabaseListViewModel
     @State private var nickname = ""
     @State private var isQuickLaunch = false
@@ -37,8 +38,7 @@ struct DatabaseDetailsView: View {
     @State private var showAutoFillDestinationPicker = false
     @State private var backups: [DatabaseExportService.Backup] = []
     @State private var exportRequest: DatabaseExportRequest?
-    @State private var localRecovery: PendingLocalSaveStore.RecoverySnapshot?
-    @State private var localRecoveryError: String?
+    @State private var localRecoveryViewModel: PendingLocalRecoveryViewModel
     @State private var pendingLocalDiscard: PendingLocalSaveStore.RecoverySnapshot?
 
     /// True when this view created its own `DatabaseListViewModel` because the
@@ -57,6 +57,7 @@ struct DatabaseDetailsView: View {
         self.onSelectKeyFile = onSelectKeyFile
         self.ownsListViewModel = listViewModel == nil
         _listViewModel = State(initialValue: listViewModel ?? DatabaseListViewModel())
+        _localRecoveryViewModel = State(initialValue: PendingLocalRecoveryViewModel(databaseID: reference.id))
     }
 
     private var currentReference: DatabaseReference {
@@ -97,21 +98,26 @@ struct DatabaseDetailsView: View {
             fileInfo = loadedFileInfo
             isLoadingFileInfo = false
         }
-        .task { await refreshLocalRecovery() }
+        .task { await localRecoveryViewModel.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: PendingLocalSaveStore.didChange)) { _ in
             Task { await refreshLocalRecovery() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task {
+                    await localRecoveryViewModel.becameActive()
+                    backups = DatabaseExportService.backups(for: currentReference)
+                }
+            }
         }
         .confirmationDialog("Discard AutoFill Changes?", isPresented: Binding(
             get: { pendingLocalDiscard != nil }, set: { if !$0 { pendingLocalDiscard = nil } }
         ), presenting: pendingLocalDiscard) { snapshot in
             Button("Discard AutoFill Changes", role: .destructive) {
                 Task {
-                    do {
-                        try await Task.detached { try PendingLocalSaveStore.discard(snapshot) }.value
-                        localRecoveryError = nil
-                    } catch { localRecoveryError = error.localizedDescription }
+                    await localRecoveryViewModel.discard(snapshot)
                     pendingLocalDiscard = nil
-                    await refreshLocalRecovery()
+                    backups = DatabaseExportService.backups(for: currentReference)
                 }
             }
             .accessibilityIdentifier("database-details.local-recovery.confirm-discard")
@@ -638,24 +644,24 @@ struct DatabaseDetailsView: View {
 
     @ViewBuilder
     private var localRecoverySection: some View {
-        if let localRecovery, !localRecovery.receipts.isEmpty || localRecovery.needsRecovery {
+        if let localRecovery = localRecoveryViewModel.snapshot, !localRecovery.entries.isEmpty || localRecovery.needsRecovery {
             Section("AutoFill") {
                 Text("Each source is a full encrypted database snapshot. Open exported files with their original master key. Exporting does not discard the source.")
                 if localRecovery.isRevoked {
-                    Text("Removal paused. Export or discard these AutoFill changes, then remove the database again. Local writes are disabled.")
+                    Text("Removal paused. Export any snapshots you want to keep, then separately choose Discard AutoFill Changes before removing the database again. Local writes are disabled.")
                 }
-                ForEach(localRecovery.receipts) { receipt in
+                ForEach(localRecovery.entries) { source in
                     LabeledContent {
-                        if localRecovery.unavailableReceiptIDs.contains(receipt.id) {
-                            Text("Unavailable")
-                        } else {
+                        if let receipt = source.receipt {
                             Button("Export AutoFill Snapshot…") {
                                 exportRequest = .pendingLocal(receipt, currentReference)
                             }
                             .accessibilityIdentifier("database-details.local-recovery.export")
+                        } else {
+                            Text("Unavailable")
                         }
                     } label: {
-                        let name = URL(fileURLWithPath: receipt.relativePath).lastPathComponent
+                        let name = URL(fileURLWithPath: source.relativePath).lastPathComponent
                         Text(DatabaseExportService.backupDate(fromFilename: name)?.formatted() ?? name)
                     }
                 }
@@ -665,25 +671,17 @@ struct DatabaseDetailsView: View {
                 .accessibilityIdentifier("database-details.local-recovery.discard")
             }
         }
-        if let localRecoveryError {
+        if let localRecoveryError = localRecoveryViewModel.errorMessage {
             Section("AutoFill") {
                 Text(localRecoveryError)
-                Button("Try Again") { Task { await refreshLocalRecovery() } }
+                Button("Try Again") { Task { await localRecoveryViewModel.retry() } }
             }
         }
     }
 
     private func refreshLocalRecovery() async {
-        let id = reference.id
-        do {
-            let snapshot = try await Task.detached { try PendingLocalSaveStore.recovery(for: id) }.value
-            guard !Task.isCancelled else { return }
-            localRecovery = snapshot
-            localRecoveryError = snapshot.ownerUnavailable ? PendingLocalSaveStore.OwnershipError.recoveryRequired.localizedDescription : nil
-            backups = DatabaseExportService.backups(for: currentReference)
-        } catch {
-            localRecoveryError = error.localizedDescription
-        }
+        await localRecoveryViewModel.refresh()
+        backups = DatabaseExportService.backups(for: currentReference)
     }
 
     private var backupsSection: some View {

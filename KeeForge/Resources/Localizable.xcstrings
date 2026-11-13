@@ -43395,60 +43395,60 @@
         }
       }
     },
-    "Removal paused. Export or discard these AutoFill changes, then remove the database again. Local writes are disabled." : {
+    "Removal paused. Export any snapshots you want to keep, then separately choose Discard AutoFill Changes before removing the database again. Local writes are disabled." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Das Entfernen wurde angehalten. Exportiere oder verwirf diese AutoFill-Änderungen und entferne die Datenbank dann erneut. Lokale Schreibvorgänge sind deaktiviert."
+            "value" : "Das Entfernen wurde angehalten. Exportiere die Momentaufnahmen, die du behalten möchtest. Wähle danach separat „AutoFill-Änderungen verwerfen“, bevor du die Datenbank erneut entfernst. Lokale Schreibvorgänge sind deaktiviert."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Removal paused. Export or discard these AutoFill changes, then remove the database again. Local writes are disabled."
+            "value" : "Removal paused. Export any snapshots you want to keep, then separately choose Discard AutoFill Changes before removing the database again. Local writes are disabled."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La eliminación está pausada. Exporta o descarta estos cambios de Autorrelleno y vuelve a eliminar la base de datos. Las escrituras locales están desactivadas."
+            "value" : "La eliminación está pausada. Exporta las instantáneas que quieras conservar y después elige por separado «Descartar cambios de Autorrelleno» antes de volver a eliminar la base de datos. Las escrituras locales están desactivadas."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Suppression suspendue. Exportez ou abandonnez ces modifications de remplissage automatique, puis supprimez à nouveau la base de données. Les écritures locales sont désactivées."
+            "value" : "Suppression suspendue. Exportez les instantanés à conserver, puis choisissez séparément « Abandonner les modifications de remplissage automatique » avant de supprimer à nouveau la base de données. Les écritures locales sont désactivées."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rimozione sospesa. Esporta o scarta queste modifiche di Riempimento automatico, poi rimuovi nuovamente il database. Le scritture locali sono disabilitate."
+            "value" : "Rimozione sospesa. Esporta le istantanee da conservare, poi scegli separatamente “Scarta modifiche di Riempimento automatico” prima di rimuovere nuovamente il database. Le scritture locali sono disabilitate."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "削除は一時停止しています。自動入力の変更を書き出すか破棄してから、もう一度データベースを削除してください。ローカルへの書き込みは無効です。"
+            "value" : "削除は一時停止しています。保持するスナップショットを書き出し、その後で別途「自動入力の変更を破棄」を選択してから、もう一度データベースを削除してください。ローカルへの書き込みは無効です。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Удаление приостановлено. Экспортируйте или удалите эти изменения автозаполнения, затем снова удалите базу данных. Локальная запись отключена."
+            "value" : "Удаление приостановлено. Экспортируйте нужные снимки, затем отдельно выберите «Удалить изменения автозаполнения» перед повторным удалением базы данных. Локальная запись отключена."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "移除已暂停。请导出或丢弃这些自动填充更改，然后再次移除数据库。本地写入已停用。"
+            "value" : "移除已暂停。请导出要保留的快照，然后单独选择“丢弃自动填充更改”，再移除数据库。本地写入已停用。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "移除已暫停。請輸出或捨棄這些自動填寫更改，然後再次移除資料庫。本機寫入已停用。"
+            "value" : "移除已暫停。請輸出要保留的快照，然後單獨選擇「捨棄自動填寫更改」，再移除資料庫。本機寫入已停用。"
           }
         }
       }

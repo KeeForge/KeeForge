@@ -20,6 +20,68 @@ final class PendingLocalSaveTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testUnreadableSourceDoesNotHideHealthyExportAndCanBeDeliberatelyDiscarded() throws {
+        let id = UUID()
+        let blocked = try PendingLocalSaveStore.add(Data("blocked ciphertext".utf8), for: id)
+        let healthy = try PendingLocalSaveStore.add(Data("healthy ciphertext".utf8), for: id)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: blocked.fileURL.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: blocked.fileURL.path) }
+        guard (try? Data(contentsOf: blocked.fileURL)) == nil else { throw XCTSkip("This host bypasses POSIX read denial") }
+        let snapshot = try PendingLocalSaveStore.recovery(for: id)
+        XCTAssertEqual(snapshot.entries.count, 2)
+        XCTAssertEqual(snapshot.entries.filter { $0.receipt == nil }.count, 1)
+        XCTAssertTrue(snapshot.needsRecovery)
+        let receipt = try XCTUnwrap(snapshot.receipts.first)
+        XCTAssertEqual(try PendingLocalSaveStore.export(receipt, for: id), Data("healthy ciphertext".utf8))
+        try PendingLocalSaveStore.discard(snapshot)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: blocked.fileURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: healthy.fileURL.path))
+        XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: id))
+    }
+
+    func testUnreadableOwnerCanBeResolvedByItsExactIdentityWithoutReadingItsBytes() throws {
+        let id = UUID()
+        let source = try PendingLocalSaveStore.add(Data("encrypted".utf8), for: id)
+        try PendingLocalSaveStore.consume([], for: id)
+        let owner = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(id.uuidString)/owner.json")
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: owner.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: owner.path) }
+        guard (try? Data(contentsOf: owner)) == nil else { throw XCTSkip("This host bypasses POSIX read denial") }
+        let snapshot = try PendingLocalSaveStore.recovery(for: id)
+        XCTAssertTrue(snapshot.ownerUnavailable)
+        XCTAssertEqual(try PendingLocalSaveStore.export(XCTUnwrap(snapshot.receipts.first), for: id), Data("encrypted".utf8))
+        try PendingLocalSaveStore.discard(snapshot)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.fileURL.path))
+        XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: id))
+    }
+
+    func testSameCiphertextAtADifferentInodeDoesNotSatisfyReceiptOrDiscardConsent() throws {
+        let id = UUID()
+        let bytes = Data("same encrypted bytes".utf8)
+        let source = try PendingLocalSaveStore.add(bytes, for: id)
+        let snapshot = try PendingLocalSaveStore.recovery(for: id)
+        let receipt = try XCTUnwrap(snapshot.receipts.first)
+        try bytes.write(to: source.fileURL, options: .atomic)
+        XCTAssertThrowsError(try PendingLocalSaveStore.export(receipt, for: id))
+        XCTAssertThrowsError(try PendingLocalSaveStore.discard(snapshot))
+        XCTAssertEqual(try Data(contentsOf: source.fileURL), bytes)
+    }
+
+    func testForegroundRefreshObservesAnExternalLegacySourceWhileTheSessionRemainsLocked() async throws {
+        let id = UUID()
+        let recovery = PendingLocalRecoveryViewModel(databaseID: id)
+        await recovery.refresh()
+        XCTAssertTrue(try XCTUnwrap(recovery.snapshot).entries.isEmpty)
+        let directory = AppGroupContainer.url.appendingPathComponent("pending-local-saves/\(id.uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        // Another process sends no Foundation NotificationCenter event to this process.
+        try Data("external encrypted source".utf8).write(to: directory.appendingPathComponent("20261113-120000-000001.kdbx"))
+        await recovery.becameActive()
+        let snapshot = try XCTUnwrap(recovery.snapshot)
+        XCTAssertEqual(snapshot.receipts.count, 1)
+        XCTAssertEqual(try PendingLocalSaveStore.export(XCTUnwrap(snapshot.receipts.first), for: id), Data("external encrypted source".utf8))
+    }
+
     func testCreatedPayloadAndOwnerFilesKeepPrivatePermissionsAndIOSCompleteProtection() throws {
         let id = UUID()
         let source = try PendingLocalSaveStore.add(Data("encrypted snapshot".utf8), for: id)

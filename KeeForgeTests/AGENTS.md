@@ -94,7 +94,7 @@ Designated gates:
 - TOTP, HOTP, Base32, `otpauth` parsing, and the KeeOTP query rewrite are tested in `../Packages/OneTimeCodes/Tests`; `TOTPGeneratorTests` covers only the app adapter (decryption, `decodedSecret` precedence, placeholder).
 - Not unit-testable here: the live `FTPNetworkStream` (needs a server), live StoreKit purchases, and typed key events in an inactive Mac app (covered in `KeeForgeMacUITests`).
 
-- `PendingLocalSaveTests` also covers exclusive source identity, legacy flat sources, receipt-verified locked export, source replacement rejection, snapshot-scoped discard, unknown owner versions and removal revocation. These storage contracts use the production owner and filesystem; save/admission durability evidence is a separate gate.
+- `PendingLocalSaveTests` also covers exclusive source identity, legacy flat sources, receipt-verified locked export, source replacement rejection, snapshot-scoped discard, unknown or unreadable owner records, independently unreadable sources, same-bytes inode replacement, foreground visibility without a process-local notification, and removal revocation. These storage contracts use the production owner and filesystem; save/admission durability evidence is a separate gate.
 
 ## See also
 

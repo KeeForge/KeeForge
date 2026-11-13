@@ -36,7 +36,7 @@
 
 - `SaveConflictAlertModifier` stacks four mutually exclusive alerts. Acknowledging a failed merge puts the conflict alert back up; a merge failure is never a dead end.
 
-- Database Details enumerates pending-local recovery independently of unlock and target SHA. Exports read a receipt-verified full encrypted source and need its original key when opened. Discard is a separate destructive confirmation over a captured snapshot; export failure never invokes or authorizes it. Owner notifications refresh source and backup lists even when the database SHA is unchanged.
+- Database Details enumerates pending-local recovery independently of unlock and target SHA. Exports read a receipt-verified full encrypted source and need its original key when opened. Discard is a separate destructive confirmation over a captured snapshot; export failure never invokes or authorizes it. Process-local owner notifications and foreground refresh both reload source and backup lists independently of the database SHA. Foreground refresh is the cross-process visibility boundary; Foundation NotificationCenter is not an interprocess signal.
 
 ## Tests
 

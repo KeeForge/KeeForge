@@ -102,9 +102,32 @@ metadata survive removal attempts, so stale add/finalize paths cannot recreate
 payloads. Database-list transactions and cross-process list CAS remain outside
 this cut; a list write failure must remain observable and cannot undo revocation.
 
-The ownership foundation implements immutable creation, exact receipts, source
-export/discard and removal fencing. Its source-retirement record protects partial
-cleanup after a completed save; it is not admission of a save and does not prevent
-re-encryption after an unknown save outcome. Admission and truthful local outcomes
-must therefore be connected as one further vertical change before this full contract
-can be considered implemented.
+Ownership, source publication, admission and truthful local save outcomes form one
+integrated guarantee. A helper or ownership subcommit alone does not implement this
+contract and is not a complete candidate.
+
+## Effect boundaries for source publication
+
+| Event | Shared copy | Bookmarked original | Source ownership / caller |
+| --- | --- | --- | --- |
+| Durable provisional intent, payload write not confirmed | Unchanged | Unchanged | Recovery-only source; never eligible for automatic merge |
+| Durable provisional payload | Unchanged | Unchanged | Prepared handle; preparation alone is not acceptance |
+| Known coordinated shared-copy replacement | Contains the intended ciphertext | Unchanged | Activate the exact prepared source |
+| Source acceptance confirmed | Contains the intended ciphertext | Unchanged | Accepted AutoFill change awaiting app write-back |
+| Acceptance published, later sync unconfirmed | Contains the intended ciphertext | Unchanged | Terminal warning with committed shared-copy state; no durable registration/save completion |
+| Shared-copy replacement effect indeterminate | Unknown | Unchanged | Keep provisional source in recovery; do not activate, discard, or resend automatically |
+| App merge admitted before its saver invocation | Unchanged until replacement | Guarded by captured identity/baseline/epoch | A surviving admission prevents another automatic invocation, including for newly arrived sources |
+
+Only an affirmative observation before replacement can establish a pre-replacement
+failure. An exception after entering a replace operation is not that proof. Source
+acceptance never proves that the bookmarked original was updated. Recovery copy
+must identify the affected storage boundary instead of calling a prepared source a
+replaced database file.
+
+Recovery entries retain independent identity observations when their bytes cannot
+be read; healthy sources remain exportable. Destructive resolution of an irreparable
+entry or owner record validates device, inode, stat and safe parent identity under
+the same owner lock. An unavailable observation never becomes proof of absence.
+Foreground refresh updates an already-open locked Details screen independently of
+SHA changes or process-local notifications. Export and discard remain separate
+operations; removal requires explicit discard after any desired exports.

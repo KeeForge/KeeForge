@@ -8,20 +8,51 @@ enum PendingLocalSaveStore {
         let fileURL: URL
     }
 
+    struct NodeIdentity: Codable, Sendable, Equatable {
+        let device: Int64
+        let inode: UInt64
+    }
+
+    struct FileIdentity: Codable, Sendable, Equatable {
+        let node: NodeIdentity
+        let mode: UInt32
+        let size: Int64
+        let modifiedSeconds: Int64
+        let modifiedNanos: Int64
+        let changedSeconds: Int64
+        let changedNanos: Int64
+        let birthSeconds: Int64
+        let birthNanos: Int64
+    }
+
+    enum FileObservation: Codable, Sendable, Equatable {
+        case present(FileIdentity, parent: NodeIdentity)
+        case missing(ancestor: [String], identity: NodeIdentity)
+        case unavailable
+    }
+
     struct Receipt: Codable, Sendable, Equatable, Identifiable {
         let relativePath: String
-        let fileNumber: UInt64
+        let identity: FileIdentity
+        let parentIdentity: NodeIdentity
         let digest: Data
         var id: String {
-            relativePath + "-" + String(fileNumber) + "-" + digest.map { String(format: "%02x", $0) }.joined()
+            relativePath + "-" + String(identity.node.inode) + "-" + digest.map { String(format: "%02x", $0) }.joined()
         }
+    }
+
+    struct SourceSnapshot: Codable, Sendable, Equatable, Identifiable {
+        let relativePath: String
+        let observation: FileObservation
+        let receipt: Receipt?
+        var id: String { relativePath }
     }
 
     private struct OwnerState: Codable {
         let version: Int
         var removed: Bool
         var retirementID: UUID?
-        var retiringSources: [Receipt]?
+        var retiringEntries: [SourceSnapshot]?
     }
 
     struct RecoverySnapshot: Sendable, Equatable {
@@ -29,10 +60,10 @@ enum PendingLocalSaveStore {
         let receipts: [Receipt]
         let isRevoked: Bool
         let retirementID: UUID?
-        let ownerDigest: Data?
+        let ownerObservation: FileObservation
+        let entries: [SourceSnapshot]
         let ownerUnavailable: Bool
-        let unavailableReceiptIDs: Set<String>
-        var needsRecovery: Bool { isRevoked || retirementID != nil || ownerUnavailable }
+        var needsRecovery: Bool { isRevoked || retirementID != nil || ownerUnavailable || entries.contains { $0.receipt == nil } }
     }
 
     enum OwnershipError: Error, LocalizedError {
@@ -111,7 +142,9 @@ enum PendingLocalSaveStore {
             guard state.retirementID == nil else { throw OwnershipError.recoveryRequired }
             for receipt in receipts { try validate(receipt, databaseID: databaseID) }
             state.retirementID = UUID()
-            state.retiringSources = receipts
+            state.retiringEntries = receipts.map {
+                SourceSnapshot(relativePath: $0.relativePath, observation: .present($0.identity, parent: $0.parentIdentity), receipt: $0)
+            }
             try persist(state, databaseID: databaseID)
             for receipt in receipts {
                 let url = try sourceURL(receipt.relativePath, databaseID: databaseID)
@@ -119,30 +152,52 @@ enum PendingLocalSaveStore {
                 try synchronizeDirectory(url.deletingLastPathComponent())
             }
             state.retirementID = nil
-            state.retiringSources = nil
+            state.retiringEntries = nil
             try persist(state, databaseID: databaseID)
         }
     }
 
     static func recovery(for databaseID: UUID) throws -> RecoverySnapshot {
         try withLock(for: databaseID) {
-            let raw: Data?
-            var readFailed = false
-            do { raw = try ownerData(databaseID) } catch { raw = nil; readFailed = true }
+            let ownerObservation = observe(stateURL(databaseID))
             let state = try? loadState(databaseID)
-            let unavailable = readFailed || (raw != nil && state == nil)
-            var receipts = state?.retiringSources ?? []
-            for url in try sourceURLs(databaseID) {
-                let current = try receipt(at: url, databaseID: databaseID)
-                if !receipts.contains(current) { receipts.append(current) }
+            let unavailable: Bool
+            switch ownerObservation {
+            case .missing: unavailable = false
+            case .present: unavailable = state == nil
+            case .unavailable: unavailable = true
             }
-            let unavailableIDs = Set(receipts.filter { receipt in
-                do { try validate(receipt, databaseID: databaseID); return false } catch { return true }
-            }.map(\.id))
+            var paths = Set(state?.retiringEntries?.map(\.relativePath) ?? [])
+            let root = directoryURL(for: databaseID)
+            do {
+                if try exists(root) {
+                    guard case .present(let rootIdentity, _) = observe(root), rootIdentity.mode & UInt32(S_IFMT) == UInt32(S_IFDIR) else { throw OwnershipError.sourceChanged }
+                    for url in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
+                        if url.pathExtension.lowercased() == "kdbx" { paths.insert(url.lastPathComponent) }
+                        else if UUID(uuidString: url.lastPathComponent) != nil {
+                            guard case .present(let parentIdentity, _) = observe(url), parentIdentity.mode & UInt32(S_IFMT) == UInt32(S_IFDIR) else {
+                                paths.insert(url.lastPathComponent)
+                                continue
+                            }
+                            do {
+                                for child in try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) where child.pathExtension.lowercased() == "kdbx" {
+                                    paths.insert(url.lastPathComponent + "/" + child.lastPathComponent)
+                                }
+                            } catch { paths.insert(url.lastPathComponent) }
+                        }
+                    }
+                }
+            } catch { paths.insert(".") }
+            let entries = paths.sorted().map { path in
+                let url = recoveryURL(path, databaseID: databaseID)
+                return SourceSnapshot(relativePath: path, observation: observe(url),
+                    receipt: try? receipt(at: url, databaseID: databaseID))
+            }
+            let receipts = entries.compactMap(\.receipt)
             return RecoverySnapshot(databaseID: databaseID, receipts: receipts,
                 isRevoked: try tombstoned(databaseID) || state?.removed == true,
-                retirementID: state?.retirementID, ownerDigest: raw.map(FileDigest.sha512),
-                ownerUnavailable: unavailable, unavailableReceiptIDs: unavailableIDs)
+                retirementID: state?.retirementID, ownerObservation: ownerObservation, entries: entries,
+                ownerUnavailable: unavailable)
         }
     }
 
@@ -158,29 +213,32 @@ enum PendingLocalSaveStore {
     /// Separate destructive consent applies only to this snapshot, never newer sources.
     static func discard(_ snapshot: RecoverySnapshot) throws {
         try withLock(for: snapshot.databaseID) {
-            guard try ownerData(snapshot.databaseID).map(FileDigest.sha512) == snapshot.ownerDigest else { throw OwnershipError.sourceChanged }
-            var state = (try? loadState(snapshot.databaseID)) ?? OwnerState(version: 1, removed: snapshot.isRevoked)
-            guard state.retirementID == snapshot.retirementID else { throw OwnershipError.sourceChanged }
-            let paths = Set(snapshot.receipts.map(\.relativePath))
-            for path in paths {
-                let url = try sourceURL(path, databaseID: snapshot.databaseID)
-                if try exists(url) {
-                    let actual = try receipt(at: url, databaseID: snapshot.databaseID)
-                    guard snapshot.receipts.contains(actual) else { throw OwnershipError.sourceChanged }
-                }
+            var state: OwnerState
+            if snapshot.ownerUnavailable {
+                try validateObservation(snapshot.ownerObservation, at: stateURL(snapshot.databaseID))
+                state = OwnerState(version: 1, removed: try tombstoned(snapshot.databaseID))
+            } else {
+                state = try loadState(snapshot.databaseID) ?? OwnerState(version: 1, removed: false)
+                guard state.retirementID == snapshot.retirementID else { throw OwnershipError.sourceChanged }
+            }
+            guard snapshot.entries.allSatisfy({ validRecoveryPath($0.relativePath) }) else { throw OwnershipError.sourceChanged }
+            for entry in snapshot.entries {
+                try validateObservation(entry.observation, at: recoveryURL(entry.relativePath, databaseID: snapshot.databaseID))
             }
             state.retirementID = UUID()
-            state.retiringSources = snapshot.receipts
+            state.retiringEntries = snapshot.entries
             try persist(state, databaseID: snapshot.databaseID)
-            for path in paths {
-                let url = try sourceURL(path, databaseID: snapshot.databaseID)
-                if try exists(url) {
+            let removals = snapshot.entries.contains(where: { $0.relativePath == "." })
+                ? snapshot.entries.filter { $0.relativePath == "." } : snapshot.entries
+            for entry in removals {
+                let url = recoveryURL(entry.relativePath, databaseID: snapshot.databaseID)
+                if case .present = entry.observation {
                     try FileManager.default.removeItem(at: url)
                     try synchronizeDirectory(url.deletingLastPathComponent())
                 }
             }
             state.retirementID = nil
-            state.retiringSources = nil
+            state.retiringEntries = nil
             try persist(state, databaseID: snapshot.databaseID)
         }
     }
@@ -266,9 +324,11 @@ enum PendingLocalSaveStore {
         let directory = directoryURL(for: databaseID)
         var urls: [URL] = []
         guard try exists(directory) else { return [] }
+        guard case .present(let rootIdentity, _) = observe(directory), rootIdentity.mode & UInt32(S_IFMT) == UInt32(S_IFDIR) else { throw OwnershipError.sourceChanged }
         for url in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
             if url.pathExtension.lowercased() == "kdbx" { urls.append(url) }
             else if UUID(uuidString: url.lastPathComponent) != nil {
+                guard case .present(let parentIdentity, _) = observe(url), parentIdentity.mode & UInt32(S_IFMT) == UInt32(S_IFDIR) else { throw OwnershipError.sourceChanged }
                 urls += try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
                     .filter { $0.pathExtension.lowercased() == "kdbx" }
             }
@@ -291,14 +351,67 @@ enum PendingLocalSaveStore {
         return directoryURL(for: databaseID).appendingPathComponent(path)
     }
 
+    private static func identity(at url: URL) throws -> FileIdentity {
+        var info = stat()
+        guard Darwin.lstat(url.path, &info) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        return FileIdentity(node: NodeIdentity(device: Int64(info.st_dev), inode: UInt64(info.st_ino)),
+            mode: UInt32(info.st_mode), size: Int64(info.st_size),
+            modifiedSeconds: Int64(info.st_mtimespec.tv_sec), modifiedNanos: Int64(info.st_mtimespec.tv_nsec),
+            changedSeconds: Int64(info.st_ctimespec.tv_sec), changedNanos: Int64(info.st_ctimespec.tv_nsec),
+            birthSeconds: Int64(info.st_birthtimespec.tv_sec), birthNanos: Int64(info.st_birthtimespec.tv_nsec))
+    }
+
+    private static func observe(_ url: URL) -> FileObservation {
+        guard let container = ownerContainer else { return .unavailable }
+        let anchor = container.standardizedFileURL.resolvingSymlinksInPath()
+        let target = url.standardizedFileURL.resolvingSymlinksInPath()
+        guard target.pathComponents.starts(with: anchor.pathComponents) else { return .unavailable }
+        do {
+            let file = try identity(at: url)
+            let parent = try identity(at: url.deletingLastPathComponent())
+            guard parent.mode & UInt32(S_IFMT) == UInt32(S_IFDIR) else { return .unavailable }
+            return .present(file, parent: parent.node)
+        } catch let error as POSIXError where error.code == .ENOENT {
+            var ancestor = url.deletingLastPathComponent()
+            while ancestor.standardizedFileURL.resolvingSymlinksInPath().pathComponents.starts(with: anchor.pathComponents) {
+                do {
+                    let parent = try identity(at: ancestor)
+                    guard parent.mode & UInt32(S_IFMT) == UInt32(S_IFDIR) else { return .unavailable }
+                    let relative = Array(ancestor.standardizedFileURL.resolvingSymlinksInPath().pathComponents.dropFirst(anchor.pathComponents.count))
+                    return .missing(ancestor: relative, identity: parent.node)
+                } catch let error as POSIXError where error.code == .ENOENT { ancestor.deleteLastPathComponent() }
+                catch { return .unavailable }
+            }
+            return .unavailable
+        } catch { return .unavailable }
+    }
+
+    private static func validateObservation(_ expected: FileObservation, at url: URL) throws {
+        guard expected != .unavailable, observe(url) == expected else { throw OwnershipError.sourceChanged }
+    }
+
+    private static func validRecoveryPath(_ path: String) -> Bool {
+        if path == "." { return true }
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else { return false }
+        if parts.count == 1 { return UUID(uuidString: path) != nil || path.lowercased().hasSuffix(".kdbx") }
+        return parts.count == 2 && UUID(uuidString: String(parts[0])) != nil && path.lowercased().hasSuffix(".kdbx")
+    }
+
+    private static func recoveryURL(_ path: String, databaseID: UUID) -> URL {
+        path == "." ? directoryURL(for: databaseID) : directoryURL(for: databaseID).appendingPathComponent(path)
+    }
+
     private static func receipt(at url: URL, databaseID: UUID) throws -> Receipt {
         let relative = relativePath(url, databaseID: databaseID)
         let resolved = try sourceURL(relative, databaseID: databaseID)
-        let attributes = try FileManager.default.attributesOfItem(atPath: resolved.path)
-        guard attributes[.type] as? FileAttributeType == .typeRegular,
-              let number = attributes[.systemFileNumber] as? NSNumber else { throw OwnershipError.sourceChanged }
-        return Receipt(relativePath: relative, fileNumber: number.uint64Value,
-                       digest: FileDigest.sha512(try Data(contentsOf: resolved)))
+        guard case .present(let file, let parent) = observe(resolved),
+              file.mode & UInt32(S_IFMT) == UInt32(S_IFREG) else { throw OwnershipError.sourceChanged }
+        let digest = FileDigest.sha512(try Data(contentsOf: resolved))
+        guard case .present(let after, let afterParent) = observe(resolved), after == file, afterParent == parent else {
+            throw OwnershipError.sourceChanged
+        }
+        return Receipt(relativePath: relative, identity: file, parentIdentity: parent, digest: digest)
     }
 
     private static func validate(_ expected: Receipt, databaseID: UUID) throws {
@@ -322,7 +435,8 @@ enum PendingLocalSaveStore {
     private static func loadState(_ databaseID: UUID) throws -> OwnerState? {
         guard let data = try ownerData(databaseID) else { return nil }
         let state = try JSONDecoder().decode(OwnerState.self, from: data)
-        guard state.version == 1 else { throw OwnershipError.recoveryRequired }
+        guard state.version == 1, (state.retirementID == nil) == (state.retiringEntries == nil) else { throw OwnershipError.recoveryRequired }
+        guard (state.retiringEntries ?? []).allSatisfy({ validRecoveryPath($0.relativePath) }) else { throw OwnershipError.recoveryRequired }
         return state
     }
     private static func persist(_ state: OwnerState, databaseID: UUID) throws {
