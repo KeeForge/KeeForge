@@ -4449,6 +4449,18 @@ final class DatabaseViewModel {
         )
     }
 
+    func reconcileReference(_ reference: DatabaseReference) {
+        guard reference.id == databaseReference.id else { return }
+        // Session writes reach the list store before a delayed list callback can arrive.
+        let current = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
+        guard current != databaseReference else { return }
+        databaseReference = current
+        if isReadOnly {
+            workspace.endEntrySelection()
+        }
+        refreshPendingUploadConflict()
+    }
+
     private func refreshDatabaseReference() {
         if let refreshedReference = DatabaseListStore.databases.first(where: { $0.id == databaseReference.id }) {
             databaseReference = refreshedReference

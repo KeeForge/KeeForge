@@ -5,8 +5,8 @@ import UIKit
 
 @main
 struct KeeForgeApp: App {
-    @State private var listViewModel = DatabaseListViewModel()
-    @State private var sessionStore = DatabaseSessionStore()
+    @State private var listViewModel: DatabaseListViewModel
+    @State private var sessionStore: DatabaseSessionStore
     @State private var routing = AppRoutingCoordinator()
     @State private var pendingUploadDrainer = PendingUploadDrainer()
     @State private var screenProtectionService = ScreenProtectionService()
@@ -17,6 +17,11 @@ struct KeeForgeApp: App {
 
     init() {
         AutoFillDiagnostics.migrateLegacyLogLocation()
+        let sessionStore = DatabaseSessionStore()
+        let listViewModel = DatabaseListViewModel()
+        sessionStore.installListHooks(on: listViewModel)
+        _sessionStore = State(initialValue: sessionStore)
+        _listViewModel = State(initialValue: listViewModel)
     }
 
     var body: some Scene {

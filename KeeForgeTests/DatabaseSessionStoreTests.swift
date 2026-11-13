@@ -1,5 +1,6 @@
 import CryptoKit
 import os
+import Observation
 import XCTest
 @testable import KeeForge
 
@@ -362,11 +363,206 @@ final class DatabaseSessionStoreTests: XCTestCase {
         XCTAssertNotNil(retained.sessionKey)
     }
 
+    func testReferenceReconciliationUpdatesOnlyMatchingSessionAndPreservesUnsavedWork() async throws {
+        let store = DatabaseSessionStore()
+        let first = try await makeUnlockedSession()
+        let second = try await makeUnlockedSession()
+        defer { first.lock(); second.lock() }
+        store.adopt(first)
+        store.adopt(second)
+        let root = try XCTUnwrap(first.rootGroup)
+        first.draft = try DatabaseDraft(
+            rootGroup: root,
+            meta: KPMeta(recycleBin: root.recycleBinUUID.map { .group($0) }),
+            sessionKey: XCTUnwrap(first.sessionKey)
+        ).apply(.createEntry(
+            parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: root),
+            draft: EntryDraftPayload(title: "Unsaved", password: "secret")
+        ))
+        first.setEditorHasUnsavedChanges(true, editorID: UUID())
+        let draft = first.draft
+        let cycle = first.lockCycleID
+        let secondReference = second.databaseReference
+        let secondCycle = second.lockCycleID
+        var renamed = first.databaseReference
+        renamed.nickname = "Renamed"
+        renamed.isReadOnly = true
+        renamed.keyFileFilename = "new.keyx"
+        renamed.keyFileBookmarkData = Data([1, 2, 3])
+        DatabaseListStore.update(renamed)
+
+        store.reconcileReferences([renamed])
+
+        XCTAssertEqual(first.databaseReference, renamed)
+        XCTAssertEqual(first.databaseDisplayName, "Renamed")
+        XCTAssertTrue(first.isReadOnly)
+        XCTAssertEqual(first.state, .unlocked)
+        XCTAssertTrue(first.rootGroup === root)
+        XCTAssertEqual(first.draft?.rootGroup.allEntries.map(\.id), draft?.rootGroup.allEntries.map(\.id))
+        XCTAssertTrue(first.isDirty)
+        XCTAssertTrue(first.hasUnsavedEditor)
+        XCTAssertEqual(first.lockCycleID, cycle)
+        XCTAssertNotNil(first.sessionKey)
+        XCTAssertEqual(second.databaseReference, secondReference)
+        XCTAssertEqual(second.lockCycleID, secondCycle)
+        XCTAssertEqual(second.state, .unlocked)
+        XCTAssertEqual(store.openSessions.count, 2)
+    }
+
+    func testIdenticalReferenceDoesNotPublishAnObservationChange() throws {
+        let store = DatabaseSessionStore()
+        let reference = try makeReference()
+        let session = store.open(reference)
+        let changed = OSAllocatedUnfairLock(initialState: false)
+        withObservationTracking {
+            _ = session.databaseReference
+        } onChange: {
+            changed.withLock { $0 = true }
+        }
+
+        store.reconcileReferences([reference])
+
+        XCTAssertFalse(changed.withLock { $0 })
+    }
+
+    func testReconciliationNeverCreatesOrRetiresSessionsAndRejectsAnotherID() throws {
+        let store = DatabaseSessionStore()
+        let first = store.open(try makeReference())
+        let original = first.databaseReference
+        let absent = try makeReference()
+
+        first.reconcileReference(absent)
+        store.reconcileReferences([absent])
+        store.reconcileReferences([])
+
+        XCTAssertEqual(first.databaseReference, original)
+        XCTAssertTrue(store.session(for: original.id) === first)
+        XCTAssertNil(store.session(for: absent.id))
+        XCTAssertEqual(store.openSessions.count, 1)
+    }
+
+    func testTargetedActivityResetsOnlyOneSessionAndIgnoresRetiredID() async throws {
+        let previousTimeout = SettingsService.autoLockTimeout
+        defer { SettingsService.autoLockTimeout = previousTimeout }
+        SettingsService.autoLockTimeout = .thirtySeconds
+        let clock = OSAllocatedUnfairLock(initialState: Date(timeIntervalSince1970: 1_000))
+        let store = DatabaseSessionStore()
+        let first = try await makeUnlockedSession(nowProvider: { clock.withLock { $0 } })
+        let second = try await makeUnlockedSession(nowProvider: { clock.withLock { $0 } })
+        defer { first.lock(); second.lock() }
+        store.adopt(first)
+        store.adopt(second)
+        store.activeSessionID = second.databaseReference.id
+        let secondTimer = second.inactivityTimer
+        clock.withLock { $0.addTimeInterval(20) }
+
+        store.resetInactivityTimer(for: first.databaseReference.id)
+        store.resetInactivityTimer(for: UUID())
+
+        XCTAssertEqual(first.inactivityDeadline, Date(timeIntervalSince1970: 1_050))
+        XCTAssertEqual(second.inactivityDeadline, Date(timeIntervalSince1970: 1_030))
+        XCTAssertTrue(second.inactivityTimer === secondTimer)
+        store.retire(first.databaseReference.id, force: true)
+        store.resetInactivityTimer(for: first.databaseReference.id)
+        XCTAssertNil(first.inactivityTimer)
+        XCTAssertEqual(second.inactivityDeadline, Date(timeIntervalSince1970: 1_030))
+    }
+
+    func testListHooksForceRetireWithoutAMountedViewAndIgnoreDelayedReferenceCallback() async throws {
+        let store = DatabaseSessionStore()
+        let removed = try await makeUnlockedSession()
+        let retained = try await makeUnlockedSession()
+        defer { removed.lock(); retained.lock() }
+        store.adopt(removed)
+        store.adopt(retained)
+        store.activeSessionID = removed.databaseReference.id
+        let list = DatabaseListViewModel()
+        store.installListHooks(on: list)
+        removed.setEditorHasUnsavedChanges(true, editorID: UUID())
+        let delayed = try XCTUnwrap(list.referencesDidChange)
+        var renamed = removed.databaseReference
+        renamed.nickname = "Late rename"
+
+        list.removeDatabase(removed.databaseReference)
+        let cycle = removed.lockCycleID
+        delayed([renamed, retained.databaseReference])
+
+        XCTAssertNil(store.session(for: renamed.id))
+        XCTAssertNil(store.activeSessionID)
+        XCTAssertEqual(removed.state, .locked)
+        XCTAssertNil(removed.sessionKey)
+        XCTAssertFalse(removed.hasUnsavedEditor)
+        XCTAssertEqual(removed.lockCycleID, cycle)
+        XCTAssertNotEqual(removed.databaseReference.nickname, "Late rename")
+        XCTAssertTrue(store.session(for: retained.databaseReference.id) === retained)
+        XCTAssertEqual(retained.state, .unlocked)
+        XCTAssertEqual(store.openSessions.count, 1)
+    }
+
+    func testStaleListCallbackPreservesMetadataWrittenBySessionSync() async throws {
+        var reference = DatabaseListStore.addCloud(
+            provider: CloudProviderKind.webDAV.rawValue,
+            accountId: "account",
+            file: CloudFile(id: "/cloud.kdbx", name: "cloud.kdbx", path: "/cloud.kdbx",
+                            isFolder: false, modifiedDate: nil, size: nil)
+        )
+        reference.autoFillEnabled = false
+        reference.updateCloudSyncMetadata { $0.remoteRev = "old" }
+        DatabaseListStore.update(reference)
+        let data = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        let session = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(reference: reference,
+                                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                                    data: data, status: .refreshSkipped)
+            },
+            cloudRefreshOperation: { reference, _ in
+                var updated = reference
+                updated.updateCloudSyncMetadata {
+                    $0.remoteRev = "new"
+                    $0.remoteContentHash = "new-hash"
+                    $0.lastSyncedAt = Date(timeIntervalSince1970: 2_000)
+                }
+                return CloudSyncResolution(reference: updated,
+                                           localURL: DatabaseListStore.cacheLocation(for: reference),
+                                           data: data, status: .current)
+            },
+            quickUnlockKeyPersistOperation: { _, _, _ in false },
+            storedKeyPresenceCheck: { _ in false }
+        )
+        defer { session.lock() }
+        let store = DatabaseSessionStore()
+        store.adopt(session)
+        let list = DatabaseListViewModel()
+        store.installListHooks(on: list)
+        let delayed = try XCTUnwrap(list.referencesDidChange)
+        await session.unlock(password: KDBXTestFixture.test.password)
+        await session.syncCloudNow()
+        let metadata = session.databaseReference.cloudSyncMetadata
+        XCTAssertEqual(metadata?.remoteRev, "new")
+        XCTAssertEqual(metadata?.remoteContentHash, "new-hash")
+        let root = session.rootGroup
+        let cycle = session.lockCycleID
+
+        delayed([reference])
+        list.setNickname("Renamed after sync", for: reference)
+
+        XCTAssertEqual(session.databaseReference.cloudSyncMetadata, metadata)
+        XCTAssertEqual(DatabaseListStore.databases.first?.cloudSyncMetadata, metadata)
+        XCTAssertEqual(session.databaseDisplayName, "Renamed after sync")
+        XCTAssertEqual(session.state, .unlocked)
+        XCTAssertEqual(session.lockCycleID, cycle)
+        XCTAssertTrue(session.rootGroup === root)
+    }
+
     private func makeReference() throws -> DatabaseReference {
-        try TestDatabaseSupport.makeReference(
+        let reference = try TestDatabaseSupport.makeReference(
             for: KDBXTestFixture.test.url(in: Bundle(for: Self.self)),
             autoFillEnabled: false
         )
+        DatabaseListStore.update(reference)
+        return reference
     }
 
     private func makeUnlockedSession(

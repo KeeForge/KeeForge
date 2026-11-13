@@ -66,10 +66,6 @@ struct AppRootView: View {
         }
         #endif
         .task {
-            let sessionStore = self.sessionStore
-            listViewModel.autoFillEnabledRefreshHandler = { databaseID in
-                sessionStore.session(for: databaseID)?.populateCredentialStoreIfUnlocked()
-            }
             await resolveInitialExperienceIfNeeded()
             onReadyForURLs?()
         }
@@ -187,9 +183,6 @@ struct AppRootView: View {
             routing.discardExpiredEnrollment()
         }
         #endif
-        .onChange(of: listViewModel.databases.map(\.id)) { _, identifiers in
-            sessionStore.retireSessionsMissingFromDatabaseList(identifiers)
-        }
         .alert(item: $routing.enrollmentAlert, content: totpEnrollmentAlertContent)
     }
 

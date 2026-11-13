@@ -3,7 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     var viewModel: DatabaseViewModel? = nil
     /// The app's shared `DatabaseListViewModel` — the instance whose
-    /// `autoFillEnabledRefreshHandler` AppRootView installed, so the
+    /// `autoFillEnabledRefreshHandler` KeeForgeApp installed, so the
     /// per-database AutoFill toggles hit that hook.
     let listViewModel: DatabaseListViewModel
     @Environment(DatabaseSessionStore.self) private var sessionStore: DatabaseSessionStore?

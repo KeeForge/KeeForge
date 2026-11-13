@@ -34,6 +34,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         }
         let sessionStore = self.sessionStore
         let listViewModel = self.listViewModel
+        sessionStore.installListHooks(on: listViewModel)
         macLockMonitor.onLockTriggered = { _ in
             NotificationCenter.default.post(name: MacBiometricAutoUnlockController.lockRequestedNotification, object: nil)
             sessionStore.handleAppDidEnterBackground()

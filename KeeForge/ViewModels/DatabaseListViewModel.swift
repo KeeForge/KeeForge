@@ -71,9 +71,12 @@ final class DatabaseListViewModel {
         reload()
     }
 
+    var referencesDidChange: (([DatabaseReference]) -> Void)?
+
     func reload() {
         databases = DatabaseListStore.databases
         refreshRowStatuses()
+        referencesDidChange?(databases)
     }
 
     /// macOS File ▸ New Database…: signals the list view to present its
@@ -145,14 +148,7 @@ final class DatabaseListViewModel {
         reload()
     }
 
-    /// Installed by the app root (`AppRootView` in `AppRootView.swift`, which
-    /// is the one place that knows the active `DatabaseViewModel`): called
-    /// with the id of a database whose AutoFill participation was just turned
-    /// on, so the owner can refresh that database's credential identities
-    /// immediately when it is the currently unlocked session (and no-op
-    /// otherwise). The registry layer cannot know what is unlocked, which is
-    /// why the enable-while-unlocked immediacy lives at this layer; for every
-    /// other database enabling stays lazy — identities appear on next unlock.
+    // The application owner supplies session lookup without retaining a view.
     var autoFillEnabledRefreshHandler: ((UUID) -> Void)?
 
     /// Toggles a database's AutoFill participation (surfaced by the settings
@@ -162,7 +158,7 @@ final class DatabaseListViewModel {
     /// consequences: targeted removal of exactly that database's credential
     /// identities and reassigning the active AutoFill pointer when the active
     /// database is disabled. Enabling is lazy in the store; when the toggled
-    /// database is the currently unlocked session, the app-root-installed
+    /// database is the currently unlocked session, the application-installed
     /// `autoFillEnabledRefreshHandler` republishes its identities immediately.
     func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) {
         DatabaseListStore.setAutoFillEnabled(isEnabled, for: reference)
@@ -311,7 +307,7 @@ final class DatabaseListViewModel {
     // MARK: - Private
 
     private func update(_ reference: DatabaseReference, mutate: (inout DatabaseReference) throws -> Void) rethrows {
-        guard var updatedReference = databases.first(where: { $0.id == reference.id }) else { return }
+        guard var updatedReference = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else { return }
         try mutate(&updatedReference)
         DatabaseListStore.update(updatedReference)
         reload()

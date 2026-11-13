@@ -833,7 +833,7 @@ struct DatabaseDetailsView: View {
 
     // MARK: - Helpers
 
-    /// Mirrors the bridge `AppRootView` installs on the app's shared list view
+    /// Mirrors the bridge `KeeForgeApp` installs on the app's shared list view
     /// model, so enabling AutoFill for the database that is currently unlocked
     /// republishes its identities immediately instead of waiting for the next
     /// unlock.

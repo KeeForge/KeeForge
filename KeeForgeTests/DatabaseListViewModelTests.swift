@@ -36,6 +36,80 @@ final class DatabaseListViewModelTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testListMutationsReconcileOnlyMatchingOpenSessionWithoutAView() throws {
+        let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "first.kdbx"))
+        let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "second.kdbx"))
+        let list = DatabaseListViewModel()
+        let store = DatabaseSessionStore()
+        store.installListHooks(on: list)
+        let matching = store.open(first)
+        let other = store.open(second)
+        let cycle = matching.lockCycleID
+        let keyURL = try makeTemporaryFileURL(name: "new.keyx")
+
+        list.setNickname("Renamed", for: first)
+        XCTAssertEqual(matching.databaseDisplayName, "Renamed")
+        list.setReadOnly(true, for: first)
+        XCTAssertTrue(matching.isReadOnly)
+        try list.setKeyFile(url: keyURL, for: first)
+        XCTAssertEqual(matching.databaseReference.keyFileFilename, "new.keyx")
+        XCTAssertNotNil(matching.databaseReference.keyFileBookmarkData)
+        try list.setKeyFile(url: nil, for: first)
+        XCTAssertNil(matching.databaseReference.keyFileBookmarkData)
+        XCTAssertNil(matching.databaseReference.keyFileFilename)
+        XCTAssertEqual(matching.databaseReference.nickname, "Renamed")
+        XCTAssertEqual(matching.state, .locked)
+        XCTAssertEqual(matching.lockCycleID, cycle)
+        XCTAssertEqual(other.databaseReference, second)
+        list.removeDatabase(first)
+        XCTAssertNil(store.session(for: first.id))
+        XCTAssertTrue(store.session(for: second.id) === other)
+    }
+
+    func testApplicationAutoFillHookRefreshesOnlyMatchingUnlockedSessionAndIgnoresRetiredID() async throws {
+        let previousQuickAutoFill = SettingsService.quickAutoFillEnabled
+        defer { SettingsService.quickAutoFillEnabled = previousQuickAutoFill }
+        SettingsService.quickAutoFillEnabled = true
+        let fixtureURL = try KDBXTestFixture.test.url(in: Bundle(for: Self.self))
+        let first = try TestDatabaseSupport.makeReference(for: fixtureURL, autoFillEnabled: false)
+        let second = try TestDatabaseSupport.makeReference(for: fixtureURL, autoFillEnabled: false)
+        DatabaseListStore.update(first)
+        DatabaseListStore.update(second)
+        let list = DatabaseListViewModel()
+        let store = DatabaseSessionStore()
+        store.installListHooks(on: list)
+        let matching = store.open(first)
+        let other = store.open(second)
+        defer { matching.lock(); other.lock() }
+        await matching.unlock(password: KDBXTestFixture.test.password)
+        await other.unlock(password: KDBXTestFixture.test.password)
+        XCTAssertEqual(matching.state, .unlocked)
+        XCTAssertEqual(other.state, .unlocked)
+        let fake = FakeCredentialIdentityStore()
+        CredentialIdentityStoreManager.storeProviderOverride = fake
+        var populatedIDs: [UUID] = []
+        CredentialIdentityStoreManager.populateObserver = { id, _ in populatedIDs.append(id) }
+        let refreshed = expectation(description: "AutoFill identities refreshed")
+        fake.onMutation = { refreshed.fulfill() }
+
+        list.setAutoFillEnabled(true, for: first)
+
+        await fulfillment(of: [refreshed], timeout: 5)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        XCTAssertEqual(populatedIDs, [first.id])
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, first.id)
+        XCTAssertTrue(matching.databaseReference.autoFillEnabled)
+        XCTAssertFalse(other.databaseReference.autoFillEnabled)
+        let delayed = try XCTUnwrap(list.autoFillEnabledRefreshHandler)
+        store.retire(first.id, force: true)
+        fake.onMutation = { XCTFail("A retired session must not refresh AutoFill") }
+        delayed(first.id)
+        delayed(UUID())
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        XCTAssertEqual(populatedIDs, [first.id])
+        XCTAssertNil(store.session(for: first.id))
+    }
+
     func testMoveDatabasesPublishesTheNewOrderImmediately() throws {
         let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "one.kdbx"))
         let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "two.kdbx"))

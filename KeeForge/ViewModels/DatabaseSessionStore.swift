@@ -17,6 +17,28 @@ final class DatabaseSessionStore {
         self.makeSession = makeSession
     }
 
+    func installListHooks(on list: DatabaseListViewModel) {
+        list.referencesDidChange = { [weak self] references in
+            self?.retireSessionsMissingFromDatabaseList(references.map(\.id))
+            self?.reconcileReferences(references)
+        }
+        list.autoFillEnabledRefreshHandler = { [weak self] id in
+            self?.session(for: id)?.populateCredentialStoreIfUnlocked()
+        }
+        retireSessionsMissingFromDatabaseList(list.databases.map(\.id))
+        reconcileReferences(list.databases)
+    }
+
+    func reconcileReferences(_ references: [DatabaseReference]) {
+        for reference in references {
+            sessionsByID[reference.id]?.reconcileReference(reference)
+        }
+    }
+
+    func resetInactivityTimer(for databaseID: UUID) {
+        sessionsByID[databaseID]?.resetInactivityTimer()
+    }
+
     var activeSession: DatabaseViewModel? {
         activeSessionID.flatMap { sessionsByID[$0] }
     }
@@ -44,7 +66,6 @@ final class DatabaseSessionStore {
     }
 
     func resetInactivityTimers() {
-        // Activity has no window identity yet, so it resets every session's timer.
         for session in openSessions {
             session.resetInactivityTimer()
         }
