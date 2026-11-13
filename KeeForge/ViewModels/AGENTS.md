@@ -14,6 +14,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `AppSettingsViewModel`: preference persistence and its live effects on open sessions.
 - `AppRoutingCoordinator`: launch order, queued database routes, incoming-URL classification, pending TOTP enrollment, Open/Close Database transitions.
 - `EntrySecretAction`: every reveal/copy disclosure that follows device-owner authentication.
+- `DatabaseCommands`: platform-neutral database command enablement, delete-title variant, and actions; presentation and app routing stay in the shell.
 - `DatabaseListViewModel`: the database list and all pending-upload draining (`drainPendingUploadsOnAppActive()`); a session never drains.
 
 ## Invariants
@@ -58,7 +59,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - Entries under an excluded group leave the search corpus but stay in the tag index and browsing lists.
 - Re-including a group writes an explicit `True`, never `inherit`, or a group inside a hidden parent cannot be turned back on. An untouched `GroupEditViewModel` switch replays the stored value, because the payload is absolute.
 - `effectiveTags(for:inheritedGroupTags:)` feeds both the tag index and the searchable text; `sortedGroups(_:)` orders every folder list (recycle bin pinned last). Do not add a second path for either.
-- Mac menu commands only raise a `workspace` request counter. `canEditSelectedEntry` and `deletableSelection` decide both enablement and action so they cannot drift, and Delete stops at the request so the confirmation cannot be bypassed.
+- Menu commands that need workspace presentation only raise a `workspace` request counter. `canEditSelectedEntry` and `deletableSelection` decide both enablement and action so they cannot drift, and Delete stops at the request so the confirmation cannot be bypassed.
 
 ### Stale completions and forms
 
@@ -77,6 +78,7 @@ Unit classes in `../../KeeForgeTests/` are named `<Type>Tests`. Cover success, f
 - `DatabaseViewModel` by concern: `DatabaseViewModelTests`, `DatabaseViewModelCloudSyncTests`, `AutoLockTests`, `HardwareKeyUnlockTests`, `SecretAccessGateTests`, `SortOrderTests`, `PendingUploadDrainerTests` (rekey marker cutoff), `DatabaseViewModelExpressUnlockTests` (in `ExpressUnlockTests.swift`).
 - `PasswordImportViewModelTests` is in `PasswordImportTests.swift`; `CloudFileBrowserViewModelTests` covers `CloudFileBrowserSession` and `CloudFolderBrowserViewModel`.
 - `DatabaseOpenFailure` has no class of its own: `DatabaseViewModelTests` and `FeedbackSubmissionServiceTests`.
+- `DatabaseCommandsTests` covers database menu enablement and workspace requests; `EntrySecretActionTests` covers command password authentication and stale-session rejection.
 - Editor save/reopen and failed-write retry: `KDBXCompatibilityTests`. Held completion in the real UI: `SaveConflictMergeUITests`.
 
 ## See also

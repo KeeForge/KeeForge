@@ -28,19 +28,8 @@ struct KeeForgeCommands: Commands {
         focusedDatabaseViewModel ?? sessionStore.activeSession
     }
 
-    private var isUnlocked: Bool {
-        guard let viewModel else { return false }
-        if case .unlocked = viewModel.state { return true }
-        return false
-    }
-
-    private var isEditable: Bool {
-        isUnlocked && viewModel?.isReadOnly == false
-    }
-
-    private var selectedEntry: KPEntry? {
-        guard isUnlocked, let viewModel, let entryID = viewModel.workspace.commandEntryID else { return nil }
-        return viewModel.entry(withID: entryID)
+    private var databaseCommands: DatabaseCommands {
+        DatabaseCommands(session: viewModel, passwordCopyAction: passwordCopyAction)
     }
 
     var body: some Commands {
@@ -57,21 +46,21 @@ struct KeeForgeCommands: Commands {
             Button("New Database…") {
                 listViewModel.requestNewDatabase()
             }
-            .disabled(isUnlocked)
+            .disabled(databaseCommands.isUnlocked)
 
             Divider()
 
             Button("New Entry") {
-                viewModel?.requestNewEntry()
+                databaseCommands.newEntry()
             }
             .keyboardShortcut("n", modifiers: .command)
-            .disabled(isEditable == false)
+            .disabled(databaseCommands.canNewEntry == false)
 
             Button("New Group") {
-                viewModel?.requestNewGroup()
+                databaseCommands.newGroup()
             }
             .keyboardShortcut("n", modifiers: [.command, .shift])
-            .disabled(isEditable == false)
+            .disabled(databaseCommands.canNewGroup == false)
 
             Divider()
 
@@ -97,22 +86,10 @@ struct KeeForgeCommands: Commands {
             Divider()
 
             Button("Save") {
-                guard let viewModel else { return }
-                Task {
-                    await viewModel.saveHandlingError()
-                }
+                databaseCommands.save()
             }
             .keyboardShortcut("s", modifiers: .command)
-            // The draft stays dirty until the save lands, so `isSaving` is
-            // what stops a repeated ⌘S. `DatabaseViewModel.save()` refuses
-            // reentry too; this only keeps the menu item from advertising an
-            // action it would ignore.
-            .disabled(
-                isUnlocked == false
-                    || viewModel?.isDirty != true
-                    || viewModel?.isReadOnly != false
-                    || viewModel?.isSaving != false
-            )
+            .disabled(databaseCommands.canSave == false)
 
             Divider()
 
@@ -120,67 +97,65 @@ struct KeeForgeCommands: Commands {
                 closeDatabase()
             }
             .keyboardShortcut("w", modifiers: [.command, .shift])
-            .disabled(viewModel == nil)
+            .disabled(databaseCommands.canCloseDatabase == false)
         }
 
         CommandGroup(after: .pasteboard) {
             Divider()
 
             Button("Copy Username") {
-                guard let viewModel, let entry = selectedEntry else { return }
-                ClipboardService.copy(viewModel.resolvingFieldReferences(entry.username))
+                databaseCommands.copyUsername()
             }
             .keyboardShortcut("b", modifiers: [.command, .shift])
-            .disabled(selectedEntry?.username.isEmpty != false)
+            .disabled(databaseCommands.canCopyUsername == false)
 
             Button("Copy Password") {
-                copySelectedEntryPassword()
+                databaseCommands.copyPassword(activeSession: { [sessionStore] in sessionStore.activeSession })
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
-            .disabled(selectedEntry?.hasPassword != true || passwordCopyAction.isAuthenticating)
+            .disabled(databaseCommands.canCopyPassword == false)
 
             Button("Copy URL") {
-                guard let viewModel, let entry = selectedEntry else { return }
-                ClipboardService.copy(viewModel.resolvingFieldReferences(entry.url))
+                databaseCommands.copyURL()
             }
             .keyboardShortcut("u", modifiers: [.command, .shift])
-            .disabled(selectedEntry?.url.isEmpty != false)
+            .disabled(databaseCommands.canCopyURL == false)
 
             Button("Copy Verification Code") {
-                copySelectedEntryTOTP()
+                databaseCommands.copyVerificationCode()
             }
             .keyboardShortcut("t", modifiers: [.command, .shift])
-            .disabled(selectedEntry?.totpConfig == nil || viewModel?.sessionKey == nil)
+            .disabled(databaseCommands.canCopyVerificationCode == false)
 
             Divider()
 
             Button("Edit Entry") {
-                viewModel?.requestEntryEdit()
+                databaseCommands.editEntry()
             }
             .keyboardShortcut("e", modifiers: .command)
-            .disabled(viewModel?.canEditSelectedEntry != true)
+            .disabled(databaseCommands.canEditEntry == false)
 
             Button(deleteSelectionTitle) {
-                viewModel?.requestDeleteSelection()
+                databaseCommands.deleteSelection()
             }
             .keyboardShortcut(.delete, modifiers: .command)
-            .disabled(viewModel?.deletableSelection == nil)
+            .disabled(databaseCommands.canDelete == false)
         }
 
         CommandGroup(after: .textEditing) {
             Button("Find") {
-                viewModel?.requestSearchFocus()
+                databaseCommands.find()
             }
             .keyboardShortcut("f", modifiers: .command)
-            .disabled(isUnlocked == false)
+            .disabled(databaseCommands.canFind == false)
         }
 
         CommandMenu("Database") {
             Button("Lock") {
-                viewModel?.lockRequest(manuallyTriggered: true)
+                databaseCommands.lock()
             }
             .keyboardShortcut("l", modifiers: .command)
-            .disabled(isUnlocked == false)
+            .disabled(databaseCommands.canLock == false)
         }
 
         // Without a replacement macOS ships a "KeeForge Help" item that only raises
@@ -196,16 +171,8 @@ struct KeeForgeCommands: Commands {
         }
     }
 
-    /// Mirrors the row context menus: a permanent delete has to say so, in the
-    /// menu bar as much as in the menu that hangs off the row.
     private var deleteSelectionTitle: LocalizedStringKey {
-        guard let viewModel else { return "Delete" }
-        let isAlreadyRecycled = switch viewModel.deletableSelection {
-        case .entry(let entryID): viewModel.isEntryInRecycleBin(entryID: entryID)
-        case .group(let groupID): viewModel.isGroupInRecycleBin(groupID: groupID)
-        case nil: false
-        }
-        return isAlreadyRecycled ? "Delete Permanently" : "Delete"
+        databaseCommands.deletesPermanently ? "Delete Permanently" : "Delete"
     }
 
     // MARK: - Actions
@@ -249,54 +216,6 @@ struct KeeForgeCommands: Commands {
         alert.informativeText = error.localizedDescription
         alert.addButton(withTitle: String(localized: "OK"))
         alert.runModal()
-    }
-
-    private func copySelectedEntryPassword() {
-        guard let viewModel else { return }
-        Self.copySelectedEntryPassword(
-            in: viewModel,
-            action: passwordCopyAction,
-            activeSession: { [sessionStore] in sessionStore.activeSession }
-        )
-    }
-
-    /// Same device-owner gate as reveal/copy in the entry detail view:
-    /// biometrics when available, login password / Apple Watch otherwise.
-    /// Only skipped inside the session's authentication grace period, or when
-    /// the device has no protection at all.
-    @discardableResult
-    static func copySelectedEntryPassword(
-        in viewModel: DatabaseViewModel,
-        action: EntrySecretAction,
-        activeSession: @escaping @MainActor () -> DatabaseViewModel?,
-        authenticate: (@MainActor () async throws -> Void)? = nil,
-        copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
-    ) -> Task<Void, Never>? {
-        guard let entryID = viewModel.workspace.commandEntryID,
-              viewModel.entry(withID: entryID)?.hasPassword == true else { return nil }
-        let isCurrentSession = EntrySecretAction.currentSession(viewModel)
-        let secretAccess = viewModel.secretAccess
-        return action.perform(
-            authenticate: authenticate ?? {
-                if secretAccess.requiresAuthentication {
-                    try await secretAccess.authenticate(reason: String(localized: "Copy password"))
-                }
-            },
-            isCurrent: { activeSession() === viewModel && isCurrentSession() },
-            disclose: {
-                guard let entry = viewModel.entry(withID: entryID) else { return }
-                copy(viewModel.resolvedPassword(for: entry))
-            }
-        )
-    }
-
-    /// Not behind the device-owner gate, matching the entry detail view's
-    /// verification-code copy button: the code expires on its own.
-    private func copySelectedEntryTOTP() {
-        guard let viewModel,
-              let config = selectedEntry?.totpConfig,
-              let sessionKey = viewModel.sessionKey else { return }
-        ClipboardService.copy(TOTPGenerator.generateCode(config: config, sessionKey: sessionKey))
     }
 
     private func showAboutPanel() {

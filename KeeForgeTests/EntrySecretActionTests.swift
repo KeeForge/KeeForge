@@ -221,8 +221,7 @@ final class EntrySecretActionTests: XCTestCase {
         XCTAssertTrue(EntrySecretAction.currentSession(session)())
     }
 
-    #if os(macOS)
-    func testMacPasswordCommandCopiesOnlyAfterAuthenticationForCurrentSelection() async throws {
+    func testPasswordCommandCopiesOnlyAfterAuthenticationForCurrentSelection() async throws {
         let session = try await makeCommandSession()
         defer { session.lockRequest(force: true) }
         let entry = try XCTUnwrap(session.entry(withID: try XCTUnwrap(session.workspace.selectedEntryID)))
@@ -230,7 +229,7 @@ final class EntrySecretActionTests: XCTestCase {
         let action = EntrySecretAction()
         let authentication = SuspendedAuthentication()
         var copied: [String] = []
-        let task = try XCTUnwrap(KeeForgeCommands.copySelectedEntryPassword(
+        let task = try XCTUnwrap(DatabaseCommands.copySelectedEntryPassword(
             in: session,
             action: action,
             activeSession: { session },
@@ -246,7 +245,7 @@ final class EntrySecretActionTests: XCTestCase {
         XCTAssertEqual(copied, [expected])
     }
 
-    func testMacPasswordCommandRejectsChangedSelectionDraftLockCycleAndActiveSession() async throws {
+    func testPasswordCommandRejectsChangedSelectionDraftLockCycleAndActiveSession() async throws {
         for change in CommandChange.allCases {
             let session = try await makeCommandSession()
             defer { session.lockRequest(force: true) }
@@ -254,7 +253,7 @@ final class EntrySecretActionTests: XCTestCase {
             let action = EntrySecretAction()
             let authentication = SuspendedAuthentication()
             var copied: [String] = []
-            let task = try XCTUnwrap(KeeForgeCommands.copySelectedEntryPassword(
+            let task = try XCTUnwrap(DatabaseCommands.copySelectedEntryPassword(
                 in: session,
                 action: action,
                 activeSession: { activeSession },
@@ -299,7 +298,6 @@ final class EntrySecretActionTests: XCTestCase {
     private enum CommandChange: CaseIterable {
         case selection, draft, lockCycle, activeSession
     }
-    #endif
 
     private enum AuthenticationError: Error {
         case rejected

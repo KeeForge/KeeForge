@@ -10,7 +10,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 - Launch order, incoming URLs, pending TOTP enrollment, and Open/Close Database transitions are decided by `../ViewModels/AppRoutingCoordinator.swift` (see `../ViewModels/AGENTS.md`). `AppRootView` only adapts the result to SwiftUI presentation.
 - Auto-unlock is attempted in one place per platform: `.biometricAutoUnlock(_:)` on the iOS scene shells, and `MacBiometricAutoUnlockObserver` hosted once per active session by `AppRootView` on macOS. Eligibility is `DatabaseViewModel.isEligibleForBiometricAutoUnlock`.
 - `RegularDatabaseWorkspaceView` owns the regular-width unlocked workspace: a two-column split on iPad, the three-column `macSplitView` on macOS. It hosts every sheet and confirmation its rows raise.
-- `KeeForgeCommands` (KeeForgeMac only) owns the menu bar. Items reach the session through `FocusedValues` and act through `DatabaseViewModel`; the four that need a presentation only raise a `workspace` request counter (`../ViewModels/AGENTS.md`).
+- `KeeForgeCommands` (KeeForgeMac only) owns the menu bar. Items reach the session through `FocusedValues` and delegate per-database enablement and actions to `DatabaseCommands`; presentation commands only raise a `workspace` request counter (`../ViewModels/AGENTS.md`).
 - `MacLockMonitor` is the sole lock driver on macOS; `MacWindowCloseGuard` settles unsaved work before a window close commits (`../Services/AppSupport/`).
 
 ## Invariants
@@ -81,7 +81,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 - Persistent cloud sync controls, repeated syncs, policy changes, and warning state: `DatabaseViewModelCloudSyncTests`. The status popover workflow is covered by `CloudUnlockSmokeUITests` and `MacWebDAVSmokeUITests`.
 - Mac automatic prompts, their trigger notifications, and queued-event invalidation: `MacBiometricAutoUnlockTests`.
-- Routing and launch order: `AppRoutingCoordinatorTests`. Menu password copy: `EntrySecretActionTests`. Lock triggers: `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `AutoLockTests`. Multi-session event delivery and database-list retirement: `DatabaseSessionStoreTests`; Settings effects: `AppSettingsViewModelTests`. iOS window activity forwarding: `IOSUserActivityTests`; real editor typing, scrolling, button taps, and subsequent idle locking: `AutoLockActivityUITests`.
+- Routing and launch order: `AppRoutingCoordinatorTests`. Database menu rules and requests: `DatabaseCommandsTests`; password copy: `EntrySecretActionTests`. Lock triggers: `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `AutoLockTests`. Multi-session event delivery and database-list retirement: `DatabaseSessionStoreTests`; Settings effects: `AppSettingsViewModelTests`. iOS window activity forwarding: `IOSUserActivityTests`; real editor typing, scrolling, button taps, and subsequent idle locking: `AutoLockActivityUITests`.
 - Mac list selection and keyboard wiring exists only as UI: `MacSmokeUITests` (the `testDownArrow…` and double-click cases) and `MacListKeyboardNavigationUITests`.
 - Sidebar custom-icon data and recycle-bin icon projection: the macOS cases in `GroupIconViewTests`.
 - Which sidebar widths count as the preference: `MacSidebarWidthSamplerTests`. Divider restoration across repeated lock/unlock cycles: `MacSmokeUITests.testSidebarWidthSurvivesRepeatedLockUnlockCycles`; native split-view layout requires the UI test.
