@@ -42,7 +42,10 @@ struct SearchView: View {
                 .accessibilityIdentifier("search.results")
             }
         }
-        .modifier(SearchTitle())
+        #if os(iOS)
+        .navigationTitle("Search")
+        .navigationBarTitleDisplayMode(.large)
+        #endif
         .overlay(alignment: .bottomTrailing) {
             if showsUITestResultsCount {
                 Text("results:\(viewModel.searchResults.count)")
@@ -82,22 +85,6 @@ private struct SearchResultsList: View {
             header: String(localized: "Results: \(viewModel.searchResults.count)"),
             footer: String(localized: "Type to search by title, username, URL, notes, or tags.")
         )
-        #endif
-    }
-}
-
-/// Titles the results per shell: iOS pushes them onto the browsing stack, so
-/// "Search" is the navigation title; macOS renders them in the split view's
-/// content column, where the window title belongs to the database, so it
-/// becomes the subtitle the way the group name does in `MacEntriesColumn`.
-private struct SearchTitle: ViewModifier {
-    func body(content: Content) -> some View {
-        #if os(macOS)
-        content.navigationSubtitle(Text("Search"))
-        #else
-        content
-            .navigationTitle("Search")
-            .navigationBarTitleDisplayMode(.large)
         #endif
     }
 }

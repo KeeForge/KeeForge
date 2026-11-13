@@ -34,9 +34,9 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 
 ### Queries
 
-- AppKit owns the retained main window (`main`, frame autosave `main-AppWindow-1`), the menus, and the retained Settings window (`settings`). The whole main-window content remains hosted SwiftUI; its toolbar and title bridge through the hosting controller.
+- AppKit owns the retained main window (`main`, frame autosave `main-AppWindow-1`), the menus, and the retained Settings window (`settings`). The root hosting controller remains mounted; unlocked content embeds an AppKit three-item split view whose columns each host SwiftUI. Toolbar and search still bridge through the outer root hosting controller only; AppKit observation sets the title.
 
-- The three SwiftUI column roots share a stable outer workspace presentation host; column revision keys must never replace it. Keep UI coverage for keyboard and double-click browsing, edit/move/delete/new-group sheets through row revisions, search and Find, repeated lock/unlock width restoration, launch/enrollment presentations, and saving/conflict banners. The split, search field, and toolbar use SwiftUI accessibility queries.
+- The three SwiftUI column roots share a stable outer workspace presentation host; column revision keys must never replace it. Keep UI coverage for keyboard and double-click browsing, edit/move/delete/new-group sheets through row revisions, search and Find, repeated lock/unlock width restoration, launch/enrollment presentations, and saving/conflict banners. The split dividers are native AppKit splitters; the existing `app.splitters` query remains valid. Search and toolbar still use the existing SwiftUI accessibility queries. No query changes are required for subset (b). Verify View → Show Sidebar, widths after collapse/resize and repeated lock/unlock, and the outer toolbar’s entry Edit action, including delete-from-editor completion, across hosting boundaries.
 
 - Vault rows are native `List(selection:)` cells, not buttons, although the same `group.navlink` / `entry.navlink` identifiers are buttons on iOS (`../KeeForge/Views/AGENTS.md`). Never query them through `app.buttons`. Use `MacUITestCase.openGroup`, `openEntry`, `clickFirstRow`, or `rowQuery(identifier:)`.
 - Most SwiftUI `Text` reports through the AppKit `value` attribute with an empty `label`. Read text with `displayText(of:)` and wait with `waitForDisplayText(_:identifier:)`, which re-queries every pass: reading a property from an element a rebuilding view has replaced fails the test.
@@ -45,7 +45,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - A SwiftUI `Toggle` in a form is a switch, not a checkbox: query `app.switches` and read its state as a number (`value as? Int`), not the string iOS reports.
 - Scroll the scroll view that contains the target. `app.scrollViews.firstMatch` is usually the sidebar or a list, not the editor or entry detail, and scrolling it leaves the target where it was.
 - A control touching the window's bottom edge reports hittable, but a click there misses it. Scroll it clear of the edge first.
-- XCUITest drags do not move split-view dividers on macOS 27, so resizing a column is a manual check. Cover the width logic in a unit test.
+- XCUITest drags do not move split-view dividers on macOS 27, so resizing a column is a manual check. Unit tests cover native split-item constraints and collapse; autosave restoration requires the repeated-lock/unlock UI test and manual divider resizing.
 - Toolbar buttons, `lock.button` included, can collapse into the "more toolbar items" overflow, where they are menu items matched by label. Use `clickToolbarButton(identifier:overflowLabel:)`, and detect the unlocked state from vault rows as `waitForVaultToUnlock` does.
 - The retained AppKit Settings window reopens on the tab used last in this process; a fresh root starts on Security. Select the tab with `selectSettingsTab(named:)`; the `settings.tab.*` identifiers sit on tab content, not on the switching control.
 - Closing the last window locks the vault (`MacLockMonitor.Trigger.lastWindowClosed`). A test pressing Command-W must leave another window open.

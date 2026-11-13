@@ -25,8 +25,7 @@ struct EntryDetailView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
     #if os(macOS)
-    /// iOS opens the editor as the workspace's instead.
-    @State private var activeEditor: EntryEditViewModel?
+    @Environment(MacWorkspacePresentation.self) private var macPresentation: MacWorkspacePresentation?
     #endif
     /// Both `onAppear`s in `body` can fire on the same reveal, and each
     /// `dismiss()` would pop one navigation level.
@@ -142,26 +141,9 @@ struct EntryDetailView: View {
         EntrySecretAction.currentSession(viewModel)
     }
 
-    /// macOS states the read-only condition once, in the window toolbar the
-    /// workspace owns. This screen's toolbar merges into that same bar, so
-    /// repeating it here put two indicators side by side in one toolbar.
-    private var showsReadOnlyIndicator: Bool {
-        #if os(iOS)
-        true
-        #else
-        false
-        #endif
-    }
-
-    /// The regular layouts keep `CloudSyncControls` beside this view, and
-    /// those already carry the cached-copy warning.
-    private var showsCloudSyncWarning: Bool {
-        #if os(iOS)
-        horizontalSizeClass == .compact
-        #else
-        false
-        #endif
-    }
+    #if os(iOS)
+    private var showsCloudSyncWarning: Bool { horizontalSizeClass == .compact }
+    #endif
 
     var body: some View {
         Group {
@@ -296,7 +278,9 @@ struct EntryDetailView: View {
                         }
                     }
                 }
-                .modifier(EntryDetailTitle(title: entry.title))
+                #if os(iOS)
+                .navigationTitle(entry.title)
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         HStack(spacing: 12) {
@@ -324,19 +308,16 @@ struct EntryDetailView: View {
                                         knownTags: viewModel.tagsInDisplayOrder,
                                         inheritedTags: viewModel.inheritedTags(forEntryID: entryID)
                                     )
-                                    #if os(macOS)
-                                    activeEditor = editor
-                                    #else
                                     viewModel.workspace.present(.entry(editor))
-                                    #endif
                                 }
                                 .accessibilityIdentifier("entry-detail.edit")
-                            } else if showsReadOnlyIndicator {
+                            } else {
                                 ReadOnlyIndicator(explanation: viewModel.readOnlyExplanation)
                             }
                         }
                     }
                 }
+                #endif
                 .sheet(isPresented: $isShowingHistory) {
                     EntryHistoryView(entryID: entryID, viewModel: viewModel)
                         .macSheetFrame(minWidth: 760, minHeight: 520)
@@ -375,11 +356,6 @@ struct EntryDetailView: View {
                 }
             }
         }
-        #if os(macOS)
-        // Outside the entry branch: a permanent delete removes the entry while
-        // the editor is up, and a branch-scoped host would be torn down.
-        .modifier(EntryEditorPresentation(view: self))
-        #endif
         // An editor dismissed over a vanished entry (e.g. cancelled after a
         // sync removed it). A compact delete pops this screen with its editor.
         .onAppear {
@@ -391,7 +367,7 @@ struct EntryDetailView: View {
 
     private var isEditorOpen: Bool {
         #if os(macOS)
-        activeEditor != nil
+        macPresentation?.commandEditor != nil
         #else
         viewModel.workspace.openEditor != nil
         #endif
@@ -467,14 +443,9 @@ struct EntryDetailView: View {
         isExpired ? Theme.danger : Theme.labelSecondary
     }
 
-    /// iPhone only: on iPad the sidebar's Lock sits right beside this screen.
-    private var showsLockButton: Bool {
-        #if os(iOS)
-        horizontalSizeClass == .compact
-        #else
-        false
-        #endif
-    }
+    #if os(iOS)
+    private var showsLockButton: Bool { horizontalSizeClass == .compact }
+    #endif
 
     /// iOS: where the entry lives, its tags, dates and history in one card.
     /// An expired entry's footer says how to clear the banner.
@@ -692,56 +663,6 @@ struct EntryDetailView: View {
         .accessibilityIdentifier(
             "entry-detail.inherited-tag.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: fallbackIndex))"
         )
-    }
-
-    #if os(macOS)
-    /// Presents the entry editor as a sheet: navigation-stack pushes inside
-    /// the split-view columns misrender on macOS.
-    private struct EntryEditorPresentation: ViewModifier {
-        let view: EntryDetailView
-
-        func body(content: Content) -> some View {
-            content
-                .sheet(item: view.$activeEditor) { formViewModel in
-                    NavigationStack {
-                        EntryEditView(
-                            formViewModel: formViewModel,
-                            databaseViewModel: view.viewModel
-                        ) { completion in
-                            view.activeEditor = nil
-                            // Sheets never re-fire the presenter's `onAppear`.
-                            if completion == .deleted {
-                                view.finishClose()
-                            }
-                        }
-                    }
-                    .macSheetFrame()
-                }
-        }
-    }
-    #endif
-}
-
-/// Titles the entry screen per shell: iOS pushes it, so the entry's title is the
-/// inline navigation title. macOS renders it in the split view's detail column,
-/// which is the innermost `navigationTitle`/`navigationSubtitle` in the window
-/// and would therefore rename the whole window — Window menu, Mission Control,
-/// window switcher, screenshots — after a secret-bearing entry name. The window
-/// title belongs to the database (`RegularDatabaseWorkspaceView.macSplitView`)
-/// and its subtitle to the content column's group, tag, or search context
-/// (`MacEntriesColumn`, `TagEntriesView`), so the Mac side titles nothing here;
-/// the entry's own name is already the header of this screen.
-private struct EntryDetailTitle: ViewModifier {
-    let title: String
-
-    func body(content: Content) -> some View {
-        #if os(macOS)
-        content
-        #else
-        content
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-        #endif
     }
 }
 

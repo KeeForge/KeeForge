@@ -1,0 +1,58 @@
+#if os(macOS)
+import AppKit
+import XCTest
+@testable import KeeForge
+
+@MainActor
+final class MacWorkspaceSplitViewControllerTests: XCTestCase {
+    func testNativeColumnConstraintsAndSidebarCommand() throws {
+        let session = try makeSession()
+        let controller = MacWorkspaceSplitViewController(session: session, presentation: MacWorkspacePresentation())
+        XCTAssertEqual(controller.splitViewItems.count, 3)
+        let sidebar = controller.splitViewItems[0]
+        let entries = controller.splitViewItems[1]
+        XCTAssertEqual(sidebar.behavior, .sidebar)
+        XCTAssertTrue(sidebar.canCollapse)
+        XCTAssertEqual(sidebar.minimumThickness, 200)
+        XCTAssertEqual(sidebar.maximumThickness, 340)
+        XCTAssertEqual(entries.behavior, .contentList)
+        XCTAssertEqual(entries.minimumThickness, 260)
+        XCTAssertEqual(entries.maximumThickness, 460)
+        XCTAssertEqual(controller.splitView.autosaveName, MacWorkspaceSplitViewController.autosaveName)
+        XCTAssertTrue(controller.splitView.isVertical)
+        sidebar.isCollapsed = false
+        controller.toggleSidebar(nil)
+        XCTAssertTrue(sidebar.isCollapsed)
+    }
+
+    func testWindowKeepsControllerUntilSessionChangesThenReleasesIt() throws {
+        let workspace = MacWindowWorkspace(presentation: MacWorkspacePresentation())
+        let first = try makeSession()
+        let second = try makeSession()
+        weak var original: MacWorkspaceSplitViewController?
+        autoreleasepool {
+            workspace.show(first)
+            original = workspace.splitViewController
+            workspace.show(first)
+            XCTAssertTrue(workspace.splitViewController === original)
+            workspace.show(second)
+        }
+        XCTAssertNil(original)
+        XCTAssertTrue(workspace.splitViewController?.session === second)
+        weak var replacement: MacWorkspaceSplitViewController?
+        autoreleasepool {
+            replacement = workspace.splitViewController
+            workspace.show(nil)
+        }
+        XCTAssertNil(workspace.splitViewController)
+        XCTAssertNil(replacement)
+    }
+
+    private func makeSession() throws -> DatabaseViewModel {
+        let reference = try TestDatabaseSupport.makeReference(
+            for: KDBXTestFixture.test.url(in: Bundle(for: Self.self)), autoFillEnabled: false
+        )
+        return DatabaseViewModel(databaseReference: reference)
+    }
+}
+#endif

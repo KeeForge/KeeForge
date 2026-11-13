@@ -255,7 +255,6 @@ private struct MacGroupEntriesList: View {
                     }
                 }
             }
-            .navigationSubtitle(group.name)
         } else {
             ContentUnavailableView(
                 "Select a Group",

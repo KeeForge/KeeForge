@@ -124,7 +124,7 @@ final class MacSmokeUITests: MacUITestCase {
     // Only the native split view can establish whether a recreated workspace
     // restores the divider position after locking. XCUITest drags do not move
     // split-view dividers on macOS 27, so the drag itself is a manual check and
-    // MacSidebarWidthSamplerTests covers which widths are remembered.
+    // Native split-item constraints are covered by MacWorkspaceSplitViewControllerTests.
     func testSidebarWidthSurvivesRepeatedLockUnlockCycles() throws {
         unlockSuccessfully()
         let window = app.windows.firstMatch

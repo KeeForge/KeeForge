@@ -8,6 +8,8 @@ import SwiftUI
 final class MainWindowController: NSWindowController, NSMenuItemValidation {
     let sessionStore: DatabaseSessionStore
     let workspacePresentation = MacWorkspacePresentation()
+    private lazy var workspace = MacWindowWorkspace(presentation: workspacePresentation)
+    private let contentObservation = MacObservation()
     private let listViewModel: DatabaseListViewModel
     private let routing: AppRoutingCoordinator
     private let quickAccess: MacQuickAccessController
@@ -15,6 +17,8 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     private let passwordCopyAction: EntrySecretAction
     private var pendingURLs: [URL] = []
     private var isRootReady = false
+
+    var workspaceSplitViewController: MacWorkspaceSplitViewController? { workspace.splitViewController }
 
     var session: DatabaseViewModel? { sessionStore.activeSession }
     private var commands: DatabaseCommands {
@@ -58,12 +62,13 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         let hosting = NSHostingController(rootView: content
             .environment(sessionStore)
             .environment(workspacePresentation)
+            .environment(workspace)
             .environment(quickAccess)
             .environment(sshAgent)
             .modifier(MacHostingAppearance()))
         // AppKit owns the size limits; hosted toolbar safe areas must not raise them.
         hosting.sizingOptions = []
-        hosting.sceneBridgingOptions = [.toolbars, .title]
+        hosting.sceneBridgingOptions = [.toolbars]
         let window = MainWindow(contentViewController: hosting)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.title = "KeeForge"
@@ -75,6 +80,16 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         window.setFrameAutosaveName("main-AppWindow-1")
         self.window = window
         quickAccess.mainWindow = window
+        contentObservation.start(reading: { [weak self] in
+            let session = self?.session
+            let unlocked = session?.state == .unlocked ? session : nil
+            return (unlocked, unlocked?.databaseDisplayName ?? "KeeForge", MacWindowWorkspace.subtitle(for: unlocked))
+        }, onChange: { [weak self] session, title, subtitle in
+            guard let self else { return }
+            self.workspace.show(session)
+            self.window?.title = title
+            self.window?.subtitle = subtitle
+        })
         #if !KEEFORGE_DIRECT_DOWNLOAD
         ReviewPromptService.requestReviewHandler = { [weak hosting] in
             guard let hosting else { return }
@@ -107,6 +122,10 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         NSApp.activate()
     }
 
+    @objc func toggleSidebar(_ sender: Any?) {
+        workspace.splitViewController?.toggleSidebar(sender)
+    }
+
     @objc func newEntry(_ sender: Any?) { commands.newEntry() }
     @objc func newGroup(_ sender: Any?) { commands.newGroup() }
     @objc func saveDatabase(_ sender: Any?) { commands.save() }
@@ -126,6 +145,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
+        case #selector(toggleSidebar): return workspace.splitViewController != nil
         case #selector(newEntry): return commands.canNewEntry
         case #selector(newGroup): return commands.canNewGroup
         case #selector(saveDatabase): return commands.canSave

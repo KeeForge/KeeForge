@@ -18,7 +18,7 @@
 - Container and row identifiers (`search.results`, `tag-entries.list`, `search.entry.navlink`) are the same on both platforms although the lists differ.
 - Case-variant tags (`Work`, `work`) share one identifier suffix. A test that must tell them apart enumerates matches instead of taking `firstMatch`.
 - `quick-search.panel` is set on the panel window, not on this view's root, where it would replace every inner identifier.
-- macOS shows the search or tag context as a `navigationSubtitle`; the window title belongs to the database.
+- On macOS the main window observer sets the search or tag context as its subtitle; the window title belongs to the database. Column hosts do not bridge titles or toolbars.
 
 ## Tests
 

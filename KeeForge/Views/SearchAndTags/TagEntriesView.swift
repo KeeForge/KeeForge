@@ -40,7 +40,10 @@ struct TagEntriesView: View {
                 .accessibilityIdentifier("tag-entries.list")
             }
         }
-        .modifier(TagEntriesTitle(tag: tag))
+        #if os(iOS)
+        .navigationTitle(tag)
+        .navigationBarTitleDisplayMode(.large)
+        #endif
     }
 }
 
@@ -68,25 +71,6 @@ private struct TagEntriesList: View {
             onSelectEntry: onSelectEntry,
             onRequestDeletion: onRequestDeletion
         )
-        #endif
-    }
-}
-
-/// Titles the tag-filtered list per shell: iOS pushes it, so the tag becomes the
-/// navigation title (standard truncation for long names); macOS renders it in
-/// the split view's content column, where the window title belongs to the
-/// database, so the tag becomes the subtitle the way the group name does in
-/// `MacEntriesColumn`.
-private struct TagEntriesTitle: ViewModifier {
-    let tag: String
-
-    func body(content: Content) -> some View {
-        #if os(macOS)
-        content.navigationSubtitle(tag)
-        #else
-        content
-            .navigationTitle(tag)
-            .navigationBarTitleDisplayMode(.large)
         #endif
     }
 }

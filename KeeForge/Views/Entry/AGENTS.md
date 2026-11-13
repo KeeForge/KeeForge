@@ -14,7 +14,7 @@
 
 ## Invariants
 
-- `EntryDetailView` shows entry actions and any sync warning in its toolbar. On iPhone it also offers Lock (`lock.button`) beside Edit; at regular width the sidebar's Lock sits beside it, so the detail adds none.
+- `EntryDetailView` shows entry actions and any sync warning in its iOS toolbar. On Mac the outer workspace toolbar owns Edit and opens the shared presentation host’s editor; the detail reads that editor state to defer closing a deleted entry. On iPhone it also offers Lock (`lock.button`) beside Edit; at regular width the sidebar's Lock sits beside it, so the detail adds none.
 
 - On iOS the detail puts its fields in one `EntryFieldsCard` of label/value rows (`isCardRow` on the field rows); macOS keeps a section per field. The history viewer shares the card.
 - Below the fields, iOS gathers Group, Tags, Created, Expires and History in one card; the Group row pushes the group only in the compact stack. A row whose content switches with state (the password reveal) keeps one top-level container: in a `List` a changed top-level view is a new row, and its `onDisappear`/`onAppear` would clear and reload the reveal without end.

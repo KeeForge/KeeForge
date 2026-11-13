@@ -252,6 +252,9 @@ struct AppRootView: View {
         if usesRegularLayout {
             if let activeSession = sessionStore.activeSession, case .unlocked = activeSession.state {
                 RegularDatabaseWorkspaceView(viewModel: activeSession)
+                    #if os(macOS)
+                    .id(ObjectIdentifier(activeSession))
+                    #endif
             } else {
                 NavigationSplitView {
                     DatabaseListView(

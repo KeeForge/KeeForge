@@ -14,62 +14,24 @@ struct RegularDatabaseWorkspaceView: View {
 struct MacDatabaseWorkspaceView: View {
     @Bindable var viewModel: DatabaseViewModel
     @Bindable var presentation: MacWorkspacePresentation
-    @AppStorage("macWorkspace.sidebarWidth") private var macSidebarWidth = MacSidebarWidthSampler.idealWidth
-    @State private var macSidebarWidthSampler = MacSidebarWidthSampler()
-    @State private var macSplitWidth: Double?
+    @Environment(MacWindowWorkspace.self) private var workspace
     @FocusState private var isSearchFieldFocused: Bool
 
     var body: some View {
         MacWorkspacePresentationHost(viewModel: viewModel, presentation: presentation) {
-            splitView.navigationSplitViewStyle(.balanced)
-        }
-    }
-
-    private var splitView: some View {
-        NavigationSplitView {
-            MacWorkspaceSidebarColumn(viewModel: viewModel, presentation: presentation)
-                .onGeometryChange(for: Double.self) { proxy in
-                    Double(proxy.size.width)
-                } action: { width in
-                    // Deferred so the split view's width from the same layout
-                    // pass is known, whichever geometry change fires first.
-                    Task { @MainActor in
-                        guard viewModel.state == .unlocked else { return }
-                        if let preferred = macSidebarWidthSampler.preferredWidth(sidebarWidth: width, splitWidth: macSplitWidth) {
-                            macSidebarWidth = preferred
-                        }
+            NavigationStack {
+                Group {
+                    if let controller = workspace.splitViewController, controller.session === viewModel {
+                        MacWorkspaceSplitView(controller: controller)
+                            .id(ObjectIdentifier(controller))
                     }
                 }
-                // Outermost: wrapped by the geometry observer, the split view
-                // ignores the column width (144 pt on macOS 27.0.1).
-                .navigationSplitViewColumnWidth(
-                    min: MacSidebarWidthSampler.minimumWidth,
-                    ideal: macSidebarWidth,
-                    max: MacSidebarWidthSampler.maximumWidth
-                )
-        } content: {
-            MacWorkspaceEntriesColumn(viewModel: viewModel, presentation: presentation)
-                .navigationSplitViewColumnWidth(min: 260, ideal: 320, max: 460)
-        } detail: {
-            MacWorkspaceDetailColumn(viewModel: viewModel, presentation: presentation)
-        }
-        .onGeometryChange(for: Double.self) { proxy in
-            Double(proxy.size.width)
-        } action: { width in
-            macSplitWidth = width
-        }
-        .navigationTitle(viewModel.databaseDisplayName)
-        .searchable(text: $viewModel.searchText, prompt: "Search entries")
-        .searchFocused($isSearchFieldFocused)
-        .onChange(of: viewModel.workspace.searchFocusRequestID) { _, _ in
-            isSearchFieldFocused = true
-        }
-        .toolbar { macToolbar }
-        .onAppear {
-            // The tag check keeps a re-fired onAppear from silently clearing a
-            // sidebar tag selection — selecting a group deselects the tag.
-            if viewModel.workspace.selectedGroupID == nil, viewModel.workspace.selectedTag == nil {
-                viewModel.workspace.selectedGroupID = viewModel.visibleRootGroupID
+                .searchable(text: $viewModel.searchText, prompt: "Search entries")
+                .searchFocused($isSearchFieldFocused)
+                .onChange(of: viewModel.workspace.searchFocusRequestID) { _, _ in
+                    isSearchFieldFocused = true
+                }
+                .toolbar { macToolbar }
             }
         }
     }
@@ -80,6 +42,16 @@ struct MacDatabaseWorkspaceView: View {
     /// own Edit button, where they read as actions on the selected entry.
     @ToolbarContentBuilder
     private var macToolbar: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            Button {
+                NSApp.sendAction(#selector(MainWindowController.toggleSidebar(_:)), to: nil, from: nil)
+            } label: {
+                Image(systemName: "sidebar.left")
+            }
+            .help("Show Sidebar")
+            .accessibilityLabel("Show Sidebar")
+        }
+
         ToolbarItem(placement: .navigation) {
             Button {
                 viewModel.lockRequest(manuallyTriggered: true)
@@ -150,6 +122,18 @@ struct MacDatabaseWorkspaceView: View {
             .help("Settings")
             .accessibilityLabel("Settings")
             .accessibilityIdentifier("settings.button")
+        }
+
+        ToolbarItem(placement: .primaryAction) {
+            if let entryID = viewModel.workspace.selectedEntryID,
+               viewModel.entry(withID: entryID) != nil,
+               viewModel.isReadOnly == false {
+                Button("Edit") {
+                    presentation.beginEntryEdit(entryID: entryID, in: viewModel)
+                }
+                .disabled(viewModel.canEditSelectedEntry == false)
+                .accessibilityIdentifier("entry-detail.edit")
+            }
         }
     }
 

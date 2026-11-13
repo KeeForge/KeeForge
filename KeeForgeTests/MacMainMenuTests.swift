@@ -170,6 +170,56 @@ final class MacMainMenuTests: XCTestCase {
         XCTAssertNil(controller.window, "Headless menu validation must not create a window")
     }
 
+    func testContentAndTitleFollowUnlockLockAndSessionReplacementWithoutRemountingRoot() async throws {
+        let store = DatabaseSessionStore()
+        let routing = AppRoutingCoordinator()
+        _ = routing.resolveInitialRoute(hasActiveSession: false, showsTransitionNotice: false, release: nil, autoOpenReference: nil)
+        let controller = MainWindowController(listViewModel: DatabaseListViewModel(), sessionStore: store,
+            routing: routing, quickAccess: MacQuickAccessController(), sshAgent: MacSSHAgentController())
+        controller.loadWindow()
+        let window = try XCTUnwrap(controller.window)
+        let root = try XCTUnwrap(window.contentViewController)
+        defer { window.close() }
+        XCTAssertNil(controller.workspaceSplitViewController)
+        XCTAssertEqual(window.title, "KeeForge")
+        let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        for _ in 0..<2 {
+            let reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
+            let session = store.adopt(DatabaseViewModel(databaseReference: reference,
+                quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false }))
+            store.activeSessionID = reference.id
+            await session.unlock(password: "testpassword123")
+            await Task { @MainActor in }.value
+            let split = try XCTUnwrap(controller.workspaceSplitViewController)
+            XCTAssertTrue(split.session === session)
+            XCTAssertEqual(window.title, session.databaseDisplayName)
+            let group = try XCTUnwrap(session.group(withID: try XCTUnwrap(session.visibleRootGroupID)))
+            XCTAssertEqual(window.subtitle, group.name)
+            session.searchText = "GitHub"
+            await Task { @MainActor in }.value
+            XCTAssertEqual(window.subtitle, localized("Search"))
+            XCTAssertTrue(controller.workspaceSplitViewController === split)
+            session.workspace.selectedTag = "Work"
+            session.searchText = ""
+            await Task { @MainActor in }.value
+            XCTAssertEqual(window.subtitle, "Work")
+            XCTAssertEqual(window.title, session.databaseDisplayName)
+            XCTAssertTrue(window.contentViewController === root)
+            XCTAssertTrue(controller.validateMenuItem(item("toggleSidebar:")))
+            split.splitViewItems[0].isCollapsed = false
+            controller.toggleSidebar(nil)
+            XCTAssertTrue(split.splitViewItems[0].isCollapsed)
+            session.lock()
+            await Task { @MainActor in }.value
+            XCTAssertNil(controller.workspaceSplitViewController)
+            XCTAssertEqual(window.title, "KeeForge")
+            XCTAssertEqual(window.subtitle, "")
+            XCTAssertTrue(window.contentViewController === root)
+            XCTAssertFalse(controller.validateMenuItem(item("toggleSidebar:")))
+            store.retire(reference.id, force: true)
+        }
+    }
+
     private func assertValidation(_ controller: MainWindowController, action: EntrySecretAction,
                                   file: StaticString = #filePath, line: UInt = #line) {
         let commands = DatabaseCommands(session: controller.session, passwordCopyAction: action)

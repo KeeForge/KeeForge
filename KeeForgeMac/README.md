@@ -1,25 +1,44 @@
 # KeeForgeMac Target
 
-Native macOS app configuration and AppKit lifecycle sources. `App/` owns startup, the app delegate, the single main window, the main menu, and Settings. The main window still hosts the shared SwiftUI `AppRootView` whole in one `NSHostingController`, bridging its toolbar and title. The unlocked workspace now composes three extracted SwiftUI column roots using one window-owned `MacWorkspacePresentation`; it still uses SwiftUI’s `NavigationSplitView`, search field, and toolbar.
+Native macOS app configuration and AppKit lifecycle sources. `App/` owns startup,
+the app delegate, the retained main window, menus, and Settings. The main window
+keeps its `AppRootView` hosting controller mounted for the lifetime of the window.
+Unlocked content embeds an AppKit `NSSplitViewController` with three independent
+SwiftUI hosting controllers. Locked, opening, error, and list content still use
+the existing SwiftUI root. Toolbar and search still bridge from SwiftUI.
 
 ## Workspace presentation
 
-The sidebar, entries, and detail roots each take only the database session and
-the shared presentation object. List focus and sidebar-width measurement remain
-view-local; editors, pending row actions, new-group state, expansion, database
-details, save-error presentation, and reconnect state belong to the window.
+`MainWindowController` owns one `MacWorkspacePresentation` and `MacWindowWorkspace`.
+A `MacObservation` tracks the active unlocked session and database title, then
+updates the native controller and window title. It re-arms on the main actor,
+rejects queued callbacks after replacement/cancellation, and captures the window
+controller weakly. A session lock drops the native controller; content revisions
+and selection changes keep the same controller and hosting roots.
 
-One outer `MacWorkspacePresentationHost` owns the workspace sheets, dialogs,
-alerts, banners, and saving overlay. Do not key that host by content revision or
-entry selection. It resets presentation state when the unlocked workspace
-disappears and rejects cloud-reconnect completions from an earlier lifetime.
-`AppRootView` remains mounted above lock/unlock with launch presentations and
-the biometric observer.
+One outer `MacWorkspacePresentationHost` remains in `MacDatabaseWorkspaceView`,
+around the native split representable, inside the always-mounted root host.
+It owns workspace sheets, dialogs, alerts, banners, and the saving overlay.
+Column revisions never replace it. It resets presentation state on workspace
+disappearance and rejects old cloud reconnect completions. `AppRootView` keeps
+launch presentations, enrollment, and its biometric observer mounted across
+lock/unlock. This embedding avoids replacing the window's presentation hierarchy;
+no content swap orders the window or assigns first responder.
 
-This is P2-5 subset (a). The next steps replace the SwiftUI split with an
-`NSSplitViewController`, then replace bridged toolbars and search with one
-`NSToolbar`. Until then, retain `MacSidebarWidthSampler` and its defaults key,
-the Find request counter, and hosting-controller toolbar/title bridging.
+The sidebar is collapsible (200–340 pt), the entries column is 260–460 pt, and
+the detail takes the remaining width. `NSSplitView` autosave owns widths and
+collapse state under `MacDatabaseWorkspace`, including across lock/unlock.
+The former measured-width defaults key is no longer used. View → Show Sidebar
+is forwarded to the active native split controller. The main window's identity,
+close guard, and host-window counting remain unchanged.
+
+This is P2-5 subset (b). Subset (c) still replaces the SwiftUI toolbar/search
+with `NSToolbar` / `NSSearchToolbarItem`. Until then retain the Find request
+counter and toolbar scene bridging on the root only. Native column hosts disable
+scene bridging; the outer SwiftUI toolbar supplies the selected entry’s Edit
+action through the shared presentation host. Title
+bridging is disabled; AppKit observation owns the database title and group/tag/search subtitle. Column roots apply
+saving disablement and appearance explicitly across hosting boundaries.
 
 ## Status
 
