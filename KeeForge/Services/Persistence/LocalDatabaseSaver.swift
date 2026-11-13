@@ -1037,7 +1037,8 @@ enum LocalDatabaseSaver {
                 observedEffect = observedEffect?.withoutConfirmation
                 switch outcome {
                 case .replaced(var receipt), .replacedWithoutConfirmedDurability(var receipt), .replacedWithUnconfirmedBookkeeping(var receipt):
-                    receipt?.targetCommit = receipt?.targetCommit?.withoutConfirmation
+                    let targetCommit = receipt?.targetCommit?.withoutConfirmation
+                    receipt?.targetCommit = targetCommit
                     finalOutcome = .replacedWithoutConfirmedDurability(receipt)
                 case .indeterminate, .changed: break
                 }
