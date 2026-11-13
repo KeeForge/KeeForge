@@ -352,7 +352,7 @@ final class ScreenProtectionService {
         applyCapturePolicyToAllWindows()
     }
 
-    // MARK: - Public API (called from the shared scenePhase hooks in KeeForgeApp)
+    // MARK: - Public API (initial state supplied by AppDelegate)
 
     func update(sceneIsActive: Bool) {
         if sceneIsActive { hideShield() } else { showShield() }

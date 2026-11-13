@@ -39,7 +39,7 @@ struct SettingsView: View {
 
     #if os(macOS)
     /// Settings-window layout: the standard macOS tabbed settings shape,
-    /// shown by the `Settings { }` scene (⌘,) and by in-app settings sheets.
+    /// hosted by the AppKit SettingsWindowController (⌘,).
     private var macSettingsLayout: some View {
         macSettingsTabs
     }
@@ -389,7 +389,6 @@ private struct AutoFillSettingsView: View {
     let listViewModel: DatabaseListViewModel
     let clearEntries: () -> Void
     @State private var isClearEntriesConfirmationPresented = false
-    @Environment(\.scenePhase) private var scenePhase
 
     private var isProviderEnabled: Bool? { listViewModel.isAutoFillProviderEnabled }
 
@@ -433,10 +432,8 @@ private struct AutoFillSettingsView: View {
         .task {
             await listViewModel.refreshAutoFillStatus()
         }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
-                Task { await listViewModel.refreshAutoFillStatus() }
-            }
+        .onAppDidBecomeActive {
+            Task { await listViewModel.refreshAutoFillStatus() }
         }
     }
 

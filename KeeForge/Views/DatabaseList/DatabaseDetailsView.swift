@@ -749,7 +749,9 @@ struct DatabaseDetailsView: View {
             Section {
                 Group {
                     #if os(macOS)
-                    SettingsLink {
+                    Button {
+                        NSApp.sendAction(#selector(AppDelegate.showSettings(_:)), to: nil, from: nil)
+                    } label: {
                         Label("App Settings", systemImage: "gearshape")
                     }
                     #else

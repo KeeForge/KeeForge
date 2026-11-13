@@ -18,7 +18,7 @@ final class MacAppStoreScreenshots: MacUITestCase {
     private static let appBundleIdentifier = "com.keevault.app"
     private static let demoPassword = "demo"
     private static let windowSize = CGSize(width: 1440, height: 900)
-    private static let settingsWindowIdentifier = "com_apple_SwiftUI_Settings_window"
+    private static let settingsWindowIdentifier = "settings"
 
     override var databaseFixtures: [DatabaseFixture] {
         [

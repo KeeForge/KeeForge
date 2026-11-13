@@ -642,7 +642,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             ("About", 0.760, "settings.tab.about", "07e-settings-about"),
         ]
 
-        let settingsWindow = app.windows["com_apple_SwiftUI_Settings_window"].firstMatch
+        let settingsWindow = app.windows["settings"].firstMatch
         guard settingsWindow.waitForExistence(timeout: 5) else {
             for (title, _, _, name) in tabs {
                 noteSkip(name, reason: "Settings window missing before selecting '\(title)'")
@@ -667,7 +667,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     /// Activating the app before sending ⌘W can raise the main window instead,
     /// leaving Settings open to interrupt the later sheet interactions.
     private func closeSettingsWindow() -> Bool {
-        let settingsWindow = app.windows["com_apple_SwiftUI_Settings_window"].firstMatch
+        let settingsWindow = app.windows["settings"].firstMatch
         guard settingsWindow.exists else { return true }
 
         settingsWindow.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))

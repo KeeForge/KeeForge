@@ -1,16 +1,16 @@
 # App
 
-**Scope:** app startup, scene phase, the adaptive root shell that connects the database list to one active session, and the macOS menu bar. Compiled into `KeeForge` and `KeeForgeMac`, not the AutoFill targets.
+**Scope:** app startup, scene phase, the adaptive root shell that connects the database list to one active session, and shared SwiftUI presentation. Compiled into `KeeForge` and `KeeForgeMac`, not the AutoFill targets.
 
 ## Ownership
 
 Keep scene and platform adapters here and lifecycle decisions in the owning view model or service. Do not hide an app-wide state transition inside a view.
 
-- `KeeForgeApp` owns the `DatabaseSessionStore` with explicit active selection, the shared `DatabaseListViewModel` and `AppRoutingCoordinator`, and the compact vs regular root choice. macOS always uses the regular layout.
+- `KeeForgeApp` owns the iOS lifecycle and its `DatabaseSessionStore`, `DatabaseListViewModel`, and `AppRoutingCoordinator`. On Mac, `../../KeeForgeMac/App/AppDelegate` owns those objects and app services; `MainWindowController` owns the single retained AppKit main window hosting the whole `AppRootView`. macOS always uses the regular layout.
 - Launch order, incoming URLs, pending TOTP enrollment, and Open/Close Database transitions are decided by `../ViewModels/AppRoutingCoordinator.swift` (see `../ViewModels/AGENTS.md`). `AppRootView` only adapts the result to SwiftUI presentation.
 - Auto-unlock is attempted in one place per platform: `.biometricAutoUnlock(_:)` on the iOS scene shells, and `MacBiometricAutoUnlockObserver` hosted once per active session by `AppRootView` on macOS. Eligibility is `DatabaseViewModel.isEligibleForBiometricAutoUnlock`.
 - `RegularDatabaseWorkspaceView` owns the regular-width unlocked workspace: a two-column split on iPad, the three-column `macSplitView` on macOS. It hosts every sheet and confirmation its rows raise.
-- `KeeForgeCommands` (KeeForgeMac only) owns the menu bar. Items reach the session through `FocusedValues` and delegate per-database enablement and actions to `DatabaseCommands`; presentation commands only raise a `workspace` request counter (`../ViewModels/AGENTS.md`).
+- The Mac `MainMenu` builds the AppKit menu. The delegate supplies the main controller as a supplemental responder while auxiliary windows have focus. Nil-target actions reach `AppDelegate` for app actions and `MainWindowController` for database actions; its `session` property is the session lookup seam. `DatabaseCommands` owns enablement and actions; presentation commands only raise workspace request counters.
 - `MacLockMonitor` is the sole lock driver on macOS; `MacWindowCloseGuard` settles unsaved work before a window close commits (`../Services/AppSupport/`).
 
 ## Invariants
@@ -22,13 +22,14 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 - Scene activation, iOS backgrounding, Mac lock/activation callbacks, and foreground user activity forward through `DatabaseSessionStore` to every stored session. The app supplies that store to all Settings entry points through the environment; per-database AutoFill refresh looks up the toggled database's session by ID.
 - iOS observes touches across the main window (including sheets) and text-field/text-view edits through `IOSUserActivityObserver`. Only foreground activity resets the inactivity timer; its passive recognizer must never delay, cancel, or prevent normal controls and scrolling.
 - On the compact shell only a manual lock calls `VaultCloseTransition.coverCurrentFrame()`, immediately before the closing state change. An automatic lock can coincide with backgrounding, and a snapshot added then is what iOS would capture for the app switcher.
-- Pending AutoFill uploads drain on foreground activation (scene phase, and `MacLockMonitor.onDidBecomeActive` on macOS) and on the extension's Darwin notification. Both go through `DatabaseListViewModel.drainPendingUploadsOnAppActive()`.
+- Pending AutoFill uploads drain on foreground activation (iOS scene phase, and `MacLockMonitor.onDidBecomeActive` on macOS) and on the extension's Darwin notification. Both go through `DatabaseListViewModel.drainPendingUploadsOnAppActive()`.
 - A change to background/foreground behaviour needs checking in both shells together with AutoFill cache refresh and pending-upload drain timing.
 
 ### Launch and presentation
 
 - Open cloud databases keep Sync Now below the iPad sidebar title and in the Mac database toolbar. On iPhone only a status badge sits beside the root title and scrolls away with it (a spinner while syncing, a warning whose popover offers Sync Now), and pulling a cloud list down syncs on every iOS layout. Skipped-check, last-sync, pending-upload, and result text lives in its status popover; choosing a future sync policy never claims the current open skipped a check. Sync enablement comes from `DatabaseViewModel.canSyncCloudNow`.
 - Unlock, unlocking, and unlocked are one selected-database flow. Compact presents unlock as a sheet over the list and swaps to the session once unlocked; regular renders all three states inline in the detail column.
+- Incoming Mac URLs queue until the main root resolves its initial experience, then use the same URL adapter as iOS.
 - Quick Launch waits until the What's New sheet (and the Mac transition notice) is dismissed, so two launch presentations never compete.
 - SwiftUI drops a presentation raised while another sheet is dismissing. That is why deferred presentations wait 450 ms and why the conflicted-upload notice is a banner, not an alert: it is due at unlock, while the compact unlock sheet is dismissing.
 - The iOS Settings sheet is attached above the root so it survives the lock/unlock root swap. It exists for the iPad app running on a Mac, where the sidebar gear is hidden and the system Settings item opens a compatibility window.
@@ -53,7 +54,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 ### macOS workspace lists
 
-- The group sidebar width lives in scene storage, outside the unlocked workspace's lifetime. Measure the visible column and restore its preferred width on unlock; never retain database contents to preserve layout. Only a width measured in a split view of unchanged width is a preference: a narrower window compresses the column without replacing it (`MacSidebarWidthSampler`). Keep `navigationSplitViewColumnWidth` the column's outermost modifier: wrapped by `onGeometryChange`, the split view ignored it on macOS 27.0.1 and laid the sidebar out at 144 pt.
+- The group sidebar width lives in app defaults, outside the unlocked workspace's lifetime and across relaunch. Measure the visible column and restore its preferred width on unlock; never retain database contents to preserve layout. Only a width measured in a split view of unchanged width is a preference: a narrower window compresses the column without replacing it (`MacSidebarWidthSampler`). Keep `navigationSplitViewColumnWidth` the column's outermost modifier: wrapped by `onGeometryChange`, the split view ignored it on macOS 27.0.1 and laid the sidebar out at 144 pt.
 - All three browsing columns are native `List(selection:)` so arrow keys, type-select, and the focus ring come from AppKit. Rows are plain content, not buttons: a `Button` swallows the click the list needs.
 - Do not rely on the list still selecting under a row's tap gesture. On macOS 27.0 it does (`onTapGesture`, `simultaneousGesture`, and double-tap variants all still move the selection); the earlier releases where the gesture was recorded as consuming the click are unverified. Sidebar rows carry no tap gesture; the disclosure triangle is the only way to fold a group.
 - The entries column wants double-click-to-open, so its row (`../Views/Entry/MacEntriesList.swift`) handles the single click itself: it sets `selectedEntryID` and focuses the list, so neither selection nor arrow keys depend on what the list does with that click. The sidebar's selection binding takes focus on every write for a related reason: on macOS 27.0 a click on a gesture-free row, or an accessibility selection, moves the selection without making the list first responder.
@@ -73,7 +74,9 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 ### Menu bar
 
-- Replacing `.saveItem` removes the standard File > Close, so `KeeForgeCommands` re-adds Close Window (Cmd-W). The macOS lock guarantee and `MacWindowCloseGuard` assume that shortcut exists.
+- `SettingsWindowController` retains the Settings window (`settings`); its hosted root reads the current session on every update. Settings buttons send `showSettings:` through the responder chain. Mac activation notifications replace scene-phase reads for enrollment expiry and AutoFill status.
+
+- The AppKit File menu includes Close Window (Cmd-W). The macOS lock guarantee and `MacWindowCloseGuard` assume that shortcut exists.
 - Every item is disabled when it cannot apply (locked, read-only, no selection). Enablement for Edit and Delete comes from the same view-model properties the action uses.
 - Copy Password goes through `EntrySecretAction` and revalidates the active session after authentication.
 
@@ -81,7 +84,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 - Persistent cloud sync controls, repeated syncs, policy changes, and warning state: `DatabaseViewModelCloudSyncTests`. The status popover workflow is covered by `CloudUnlockSmokeUITests` and `MacWebDAVSmokeUITests`.
 - Mac automatic prompts, their trigger notifications, and queued-event invalidation: `MacBiometricAutoUnlockTests`.
-- Routing and launch order: `AppRoutingCoordinatorTests`. Database menu rules and requests: `DatabaseCommandsTests`; password copy: `EntrySecretActionTests`. Lock triggers: `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `AutoLockTests`. Multi-session event delivery and database-list retirement: `DatabaseSessionStoreTests`; Settings effects: `AppSettingsViewModelTests`. iOS window activity forwarding: `IOSUserActivityTests`; real editor typing, scrolling, button taps, and subsequent idle locking: `AutoLockActivityUITests`.
+- Routing and launch order: `AppRoutingCoordinatorTests`. AppKit menu titles, shortcuts, selectors, owners, and validation: `MacMainMenuTests`. Database menu rules and requests: `DatabaseCommandsTests`; password copy: `EntrySecretActionTests`. Lock triggers: `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `AutoLockTests`. Multi-session event delivery and database-list retirement: `DatabaseSessionStoreTests`; Settings effects: `AppSettingsViewModelTests`. iOS window activity forwarding: `IOSUserActivityTests`; real editor typing, scrolling, button taps, and subsequent idle locking: `AutoLockActivityUITests`.
 - Mac list selection and keyboard wiring exists only as UI: `MacSmokeUITests` (the `testDownArrow…` and double-click cases) and `MacListKeyboardNavigationUITests`.
 - Sidebar custom-icon data and recycle-bin icon projection: the macOS cases in `GroupIconViewTests`.
 - Which sidebar widths count as the preference: `MacSidebarWidthSamplerTests`. Divider restoration across repeated lock/unlock cycles: `MacSmokeUITests.testSidebarWidthSurvivesRepeatedLockUnlockCycles`; native split-view layout requires the UI test.

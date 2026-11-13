@@ -34,6 +34,8 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 
 ### Queries
 
+- AppKit owns the retained main window (`main`, frame autosave `main-AppWindow-1`), the menus, and the retained Settings window (`settings`). The whole main-window content remains hosted SwiftUI; its toolbar and title bridge through the hosting controller.
+
 - Vault rows are native `List(selection:)` cells, not buttons, although the same `group.navlink` / `entry.navlink` identifiers are buttons on iOS (`../KeeForge/Views/AGENTS.md`). Never query them through `app.buttons`. Use `MacUITestCase.openGroup`, `openEntry`, `clickFirstRow`, or `rowQuery(identifier:)`.
 - Most SwiftUI `Text` reports through the AppKit `value` attribute with an empty `label`. Read text with `displayText(of:)` and wait with `waitForDisplayText(_:identifier:)`, which re-queries every pass: reading a property from an element a rebuilding view has replaced fails the test.
 - SwiftUI copies row identifiers onto zero-sized wrappers and stale navigation layers. Click only a hittable match with a real height, as the row helpers do.
@@ -43,7 +45,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - A control touching the window's bottom edge reports hittable, but a click there misses it. Scroll it clear of the edge first.
 - XCUITest drags do not move split-view dividers on macOS 27, so resizing a column is a manual check. Cover the width logic in a unit test.
 - Toolbar buttons, `lock.button` included, can collapse into the "more toolbar items" overflow, where they are menu items matched by label. Use `clickToolbarButton(identifier:overflowLabel:)`, and detect the unlocked state from vault rows as `waitForVaultToUnlock` does.
-- The Settings window reopens on the tab used last, which persists in the app's preferences across launches. Select the tab with `selectSettingsTab(named:)`; the `settings.tab.*` identifiers sit on tab content, not on the switching control.
+- The retained AppKit Settings window reopens on the tab used last in this process; a fresh root starts on Security. Select the tab with `selectSettingsTab(named:)`; the `settings.tab.*` identifiers sit on tab content, not on the switching control.
 - Closing the last window locks the vault (`MacLockMonitor.Trigger.lastWindowClosed`). A test pressing Command-W must leave another window open.
 
 ### Screenshot audit

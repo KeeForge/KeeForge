@@ -74,7 +74,7 @@ final class MacQuickAccessController {
     /// session.
     var activeSession: DatabaseViewModel?
 
-    /// Opens a new main window; set by the app, which owns `openWindow`.
+    /// Shows the retained main window; set by the AppKit delegate.
     @ObservationIgnored var openMainWindow: (() -> Void)?
     @ObservationIgnored weak var mainWindow: NSWindow?
 

@@ -11,7 +11,7 @@ struct RegularDatabaseWorkspaceView: View {
     @State private var presentedSaveError: DatabaseSaveError?
     @State private var isCloudReconnectInFlight = false
     #if os(macOS)
-    @SceneStorage("macWorkspace.sidebarWidth") private var macSidebarWidth = MacSidebarWidthSampler.idealWidth
+    @AppStorage("macWorkspace.sidebarWidth") private var macSidebarWidth = MacSidebarWidthSampler.idealWidth
     @State private var macSidebarWidthSampler = MacSidebarWidthSampler()
     @State private var macSplitWidth: Double?
     /// Editor presented by the menu-bar New Entry command (⌘N) and the toolbar
@@ -686,7 +686,9 @@ struct RegularDatabaseWorkspaceView: View {
             .accessibilityLabel("Database Details")
             .accessibilityIdentifier("database-details.button")
 
-            SettingsLink {
+            Button {
+                NSApp.sendAction(#selector(AppDelegate.showSettings(_:)), to: nil, from: nil)
+            } label: {
                 Image(systemName: "gearshape")
             }
             .help("Settings")
@@ -719,7 +721,7 @@ struct RegularDatabaseWorkspaceView: View {
         guard commandEditor == nil else { return }
         // Target the group the user is looking at (selected in the sidebar),
         // falling back to the visible root. When there is no writable target we
-        // do nothing — ⌘N is also disabled in that state in KeeForgeCommands —
+        // do nothing — ⌘N is also disabled in that state in the main menu —
         // rather than presenting an editor with no destination group.
         guard let targetGroupID = viewModel.workspace.selectedGroupID ?? viewModel.visibleRootGroupID else { return }
 

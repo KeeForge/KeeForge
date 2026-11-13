@@ -1,6 +1,6 @@
 # KeeForgeMac Target
 
-Configuration folder for the native macOS app target — only `Info.plist`, `KeeForgeMac.entitlements` (Mac App Store) and `KeeForgeMacDirect.entitlements` (direct download); no Mac-only sources.
+Native macOS app configuration and AppKit lifecycle sources. `App/` owns startup, the app delegate, the single main window, the main menu, and Settings. The main window still hosts the shared SwiftUI `AppRootView` whole in one `NSHostingController`, bridging its toolbar and title.
 
 ## Status
 
@@ -53,7 +53,7 @@ the agent at all.
 
 ## Target Map
 
-- `KeeForgeMac` (app target in `project.yml`): requires macOS 15 and compiles the shared `KeeForge/` tree (minus `LaunchScreen.storyboard` and the Dropbox and OneDrive providers) plus selected `AutoFillExtension/` shells (sharing rules: `../KeeForge/AGENTS.md`). `MARKETING_VERSION` tracks iOS in lockstep — all four product targets carry the same version and build number, and one release bump covers them together. `PRODUCT_NAME` is `KeeForge`, so the bundle on disk is `KeeForge.app`.
+- `KeeForgeMac` (app target in `project.yml`): requires macOS 15 and compiles the shared `KeeForge/` tree (minus the iOS `KeeForgeApp.swift`, `LaunchScreen.storyboard`, and the Dropbox and OneDrive providers) plus `KeeForgeMac/App/` and selected `AutoFillExtension/` shells (sharing rules: `../KeeForge/AGENTS.md`). `MARKETING_VERSION` tracks iOS in lockstep — all four product targets carry the same version and build number, and one release bump covers them together. `PRODUCT_NAME` is `KeeForge`, so the bundle on disk is `KeeForge.app`.
 - `KeeForgeMacAutoFill` (extension): uses `AutoFillExtension/InfoMac.plist` and `AutoFillExtension/AutoFillExtensionMac.entitlements`; its shared-source list must stay literally identical to the iOS `KeeForgeAutoFill` allow-list (marked invariant in `project.yml`).
 - `KeeForgeMacTests`: **no folder of its own** — compiles the shared `KeeForgeTests/` sources, hosted in `KeeForge.app` (`TEST_HOST`/`BUNDLE_LOADER`).
 - `KeeForgeMacUITests`: has its own folder and `AGENTS.md` (`../KeeForgeMacUITests/AGENTS.md`).

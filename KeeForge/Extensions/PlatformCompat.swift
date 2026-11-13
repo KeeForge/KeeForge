@@ -292,7 +292,7 @@ enum MacSheetMetrics {
     /// Capping the height here keeps the form scrolling inside a sheet that
     /// fits, which is also what a fixed-size AppKit sheet does.
     ///
-    /// Sized to fit the window's minimum height (`KeeForgeApp`) with the
+    /// Sized to fit the window's minimum height (`MainWindowController`) with the
     /// toolbar above it; raising one means raising the other.
     static let maxHeight: CGFloat = 560
 }
@@ -348,6 +348,33 @@ enum PlatformDesign {
         true
         #else
         false
+        #endif
+    }
+}
+
+// MARK: - Activation
+
+extension View {
+    func onAppDidBecomeActive(perform: @escaping @MainActor () -> Void) -> some View {
+        modifier(AppActivationModifier(perform: perform))
+    }
+}
+
+private struct AppActivationModifier: ViewModifier {
+    let perform: @MainActor () -> Void
+    #if os(iOS)
+    @Environment(\.scenePhase) private var scenePhase
+    #endif
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content.onChange(of: scenePhase) { _, phase in
+            if phase == .active { perform() }
+        }
+        #else
+        content.onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            perform()
+        }
         #endif
     }
 }

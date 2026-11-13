@@ -479,13 +479,13 @@ final class SettingsServiceTests: XCTestCase {
 
     func testPrivacyCoverIncludesSettingsWindow() {
         // The SSH Agent tab can show vault titles and key fingerprints.
-        XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "com_apple_SwiftUI_Settings_window"))
+        XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "settings"))
         XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "SettingsWindow"))
     }
 
     func testPrivacyCoverAppliesToVaultAndUnknownWindows() {
         XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: nil))
-        XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "com_apple_SwiftUI_Window-1"))
+        XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "main"))
     }
 
     @MainActor

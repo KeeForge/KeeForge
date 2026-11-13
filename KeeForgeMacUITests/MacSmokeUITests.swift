@@ -522,7 +522,7 @@ final class MacSmokeUITests: MacUITestCase {
 
         typeCommandShortcut(",")
 
-        let settingsWindow = app.windows["com_apple_SwiftUI_Settings_window"]
+        let settingsWindow = app.windows["settings"]
         XCTAssertTrue(settingsWindow.waitForExistence(timeout: 15), "⌘, did not open the Settings window")
 
         // The window reopens on whichever tab was used last, which persists in
@@ -539,7 +539,7 @@ final class MacSmokeUITests: MacUITestCase {
     /// recorder removes its AppKit monitor; a controller test cannot reach it.
     func testDisablingMenuBarDuringShortcutRecordingRestoresWindowCommands() throws {
         typeCommandShortcut(",")
-        let settingsWindow = app.windows["com_apple_SwiftUI_Settings_window"].firstMatch
+        let settingsWindow = app.windows["settings"].firstMatch
         XCTAssertTrue(settingsWindow.waitForExistence(timeout: 15))
         XCTAssertTrue(selectSettingsTab(named: "Menu Bar"))
 

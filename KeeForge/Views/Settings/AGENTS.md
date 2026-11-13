@@ -32,7 +32,7 @@
 ### Layout
 
 - Every macOS tab is pinned to `MacSettingsPane`'s fixed size, not a minimum. A settings window sizes to its widest tab and `Form` footers each want a full line, so a free-sizing window opens far too wide.
-- The Mac window selects Security explicitly so it does not restore the last tab.
+- A fresh Mac Settings root selects Security explicitly; the retained window keeps its selected tab when closed and reopened. Its hosted root reads the current session from the app-owned store.
 - The support section stays inline on the iOS root; a tip jar behind a row is not seen.
 - A direct-download build must not show the StoreKit tip jar (no receipt to purchase against); it links to GitHub Sponsors.
 - Only a direct-download build has the About tab's Updates section (`settings.updates.{automatic-checks,check-now}`). Its toggle writes Sparkle's own setting, so it always matches what the updater does.

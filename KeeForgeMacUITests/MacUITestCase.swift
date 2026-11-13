@@ -372,11 +372,9 @@ class MacUITestCase: XCTestCase {
 
     /// Selects a tab in the Settings window by its visible name.
     ///
-    /// The `Settings { }` scene restores whichever tab was open last through
-    /// `com_apple_SwiftUI_Settings_selectedTabIndex`, which persists in the
-    /// app's own preferences and therefore survives a UI-test launch. A test
-    /// that needs a specific tab's controls has to select the tab rather than
-    /// assume the first one. The `settings.tab.*` identifiers sit on the tab
+    /// The retained AppKit Settings window keeps its tab while closed. A test
+    /// that needs a specific tab's controls selects it explicitly rather than
+    /// assuming the first one. The `settings.tab.*` identifiers sit on the tab
     /// *content*, not on the control that switches tabs, so the visible name is
     /// the only handle — matched across element types and both text attributes,
     /// like the vault rows.

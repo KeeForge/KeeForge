@@ -59,7 +59,6 @@ struct DatabaseListView: View {
     @State private var activeCloudProvider: CloudProviderKind?
     @State private var isDatabaseCreationPresented = false
     @State private var exportRequest: DatabaseExportRequest?
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
     #if os(iOS)
     @State private var editMode: EditMode = .inactive
@@ -74,10 +73,8 @@ struct DatabaseListView: View {
         .task {
             await viewModel.refreshAutoFillStatus()
         }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
-                Task { await viewModel.refreshAutoFillStatus() }
-            }
+        .onAppDidBecomeActive {
+            Task { await viewModel.refreshAutoFillStatus() }
         }
         .onChange(of: showDatabaseUsageStats) { _, _ in
             viewModel.reload()
@@ -344,7 +341,9 @@ struct DatabaseListView: View {
                 .accessibilityIdentifier("database.add.button")
                 .macHelp(String(localized: "Add Database"))
 
-                SettingsLink {
+                Button {
+                    NSApp.sendAction(#selector(AppDelegate.showSettings(_:)), to: nil, from: nil)
+                } label: {
                     Image(systemName: "gearshape")
                 }
                 .accessibilityIdentifier("database.settings.button")

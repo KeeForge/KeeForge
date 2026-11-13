@@ -3,22 +3,17 @@ import SwiftUI
 
 #if os(macOS)
 /// Keeps the menu bar quick search on the app's active session, and lets it
-/// front this window, or open a new one once it has been closed: `openWindow`
-/// only exists inside a scene.
+/// hand off changes to the SSH agent. AppDelegate owns window reopening.
 struct MacQuickAccessMainWindowHookup: ViewModifier {
     let controller: MacQuickAccessController
     let sshAgent: MacSSHAgentController
     let activeSession: DatabaseViewModel?
-    @Environment(\.openWindow) private var openWindow
 
     func body(content: Content) -> some View {
         content
             .background(MacWindowReader { window in
                 if let window { controller.mainWindow = window }
             })
-            .onAppear {
-                controller.openMainWindow = { openWindow(id: KeeForgeApp.mainWindowID) }
-            }
             .onChange(of: activeSession.map(ObjectIdentifier.init), initial: true) {
                 controller.activeSession = activeSession
                 sshAgent.activeSessionDidChange()
@@ -32,11 +27,10 @@ struct AppRootView: View {
     let sessionStore: DatabaseSessionStore
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    #elseif !KEEFORGE_DIRECT_DOWNLOAD
-    @Environment(\.requestReview) private var requestReview
-    #endif
     @Environment(\.scenePhase) private var scenePhase
+    #endif
     let routing: AppRoutingCoordinator
+    var onReadyForURLs: (() -> Void)? = nil
     #if os(macOS)
     @State private var showsMacTransitionNotice = false
     #else
@@ -76,17 +70,14 @@ struct AppRootView: View {
             listViewModel.autoFillEnabledRefreshHandler = { databaseID in
                 sessionStore.session(for: databaseID)?.populateCredentialStoreIfUnlocked()
             }
-            #if os(macOS) && !KEEFORGE_DIRECT_DOWNLOAD
-            // macOS has no scene-based StoreKit review entry point; inject the
-            // SwiftUI RequestReviewAction so ReviewPromptService can present the
-            // modern prompt without a view dependency.
-            ReviewPromptService.requestReviewHandler = { requestReview() }
-            #endif
             await resolveInitialExperienceIfNeeded()
+            onReadyForURLs?()
         }
+        #if os(iOS)
         .onOpenURL { url in
             handleOpenURL(url)
         }
+        #endif
         #if os(macOS)
         // Above the locked/unlocked switch: a lock must not remount it, since
         // mounting counts as opening the session and prompts.
@@ -184,9 +175,18 @@ struct AppRootView: View {
             }
             routing.completeDeferredPresentation(id: requestID)
         }
+        #if os(iOS)
         .onChange(of: scenePhase) { _, _ in
             routing.discardExpiredEnrollment()
         }
+        #else
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            routing.discardExpiredEnrollment()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+            routing.discardExpiredEnrollment()
+        }
+        #endif
         .onChange(of: listViewModel.databases.map(\.id)) { _, identifiers in
             sessionStore.retireSessionsMissingFromDatabaseList(identifiers)
         }
@@ -402,7 +402,8 @@ struct AppRootView: View {
         listViewModel.reload()
     }
 
-    private func handleOpenURL(_ url: URL) {
+    // Also called by the AppKit delegate; URL routing uses only the shared owners.
+    func handleOpenURL(_ url: URL) {
         if CloudProviderRegistry.handleOpenURL(url) {
             return
         }
