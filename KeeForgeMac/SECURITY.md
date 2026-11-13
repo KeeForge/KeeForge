@@ -67,9 +67,37 @@ window frames, Databases-window visibility and frame, and an optional frontmost
 database UUID. It has no fields for sessions, unlocked state, keys, authentication
 grants, passwords, search text, selected entries/groups/tags, editor drafts,
 enrollment URIs, database titles, paths, or bookmarks. UUIDs are resolved against
-the database list and planned windows are always locked. This storage service
-exists but is not yet used by any window. Its per-database split autosave naming
-and cleanup helpers are also unwired; AppKit still owns split geometry.
+the database list and planned windows are always locked.
+
+`MacWindowCoordinator` is its only writer and the only owner of top-level frames:
+database windows and the Databases window have no AppKit frame autosave and are
+not restorable through AppKit state restoration. It records the topology when a
+database window opens, closes for good, moves, resizes (once, at the end of a live
+resize), is minimized or comes to the front, and when the Databases window is
+shown, moved or closed. Nothing is recorded until launch has restored the previous
+topology, so a launch presentation or an early quit cannot overwrite it.
+
+On launch, after the transition notice and What's New, each recorded database that
+is still in the list and supported comes back as a new, locked session in its own
+window, with its frame fitted to the current screens; the recorded frontmost one is
+fronted. Missing, removed and unsupported databases are skipped silently.
+Restoration only shows the unlock screen: it never authenticates, reads no stored
+key, and registers each window as restoring, so the automatic Touch ID prompt stays
+off until the user turns to that window with a click or key press in it, or opens
+that database again explicitly (Databases window, Open, Quick Access or a file).
+Restoration takes precedence over Quick Launch, which runs only when no window was
+restored and no file arrived. A file that arrives at launch for a restored database
+fronts that window instead of opening a second one.
+
+On quit, including logout and restart, the coordinator asks about each window's
+unsaved write in turn, front window first, with the close prompt, collecting every
+answer before writing anything. Cancel, a failed save, or an editor still holding
+fields (which only its own prompt can settle; the quit fronts that window instead)
+cancels the quit with every window, session and draft as it was. Only when every
+window has settled does the store keep the pre-quit topology and stop recording,
+so the closes that termination brings never save an empty set. Don't Save leaves
+the unsaved draft to end with the process. Removing a database from the list also
+removes its split geometry and its entry in the record.
 
 [DatabaseListStore](../KeeForge/Services/Persistence/DatabaseListStore.swift)
 owns production cache writes, scoped by database UUID for local caches and by

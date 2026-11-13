@@ -31,6 +31,11 @@ final class MacSystemWindowPresenter: MacWindowPresenting {
 /// A database's UUID names both its session and its window. Opening a
 /// database never closes, locks or retires another one; a committed close
 /// retires exactly that window's session.
+///
+/// It is also the only writer of the window topology in
+/// `MacWindowRestorationStore`: restored windows come back locked and marked
+/// as restoring, and a quit settles every window's unsaved work before the
+/// pre-quit topology is kept.
 @MainActor @Observable
 final class MacWindowCoordinator {
     @ObservationIgnored let listViewModel: DatabaseListViewModel
@@ -58,6 +63,26 @@ final class MacWindowCoordinator {
     @ObservationIgnored private var pendingURLs: [URL] = []
     @ObservationIgnored private var didStart = false
 
+    @ObservationIgnored private let restorationStore: MacWindowRestorationStore?
+    @ObservationIgnored private let restoresWindows: Bool
+    @ObservationIgnored private let screenFrames: @MainActor () -> [CGRect]
+    @ObservationIgnored private let terminationPrompt: MacWindowCloseGuard.UnsavedWorkPrompt
+    @ObservationIgnored private let databaseWindowContentSize: NSSize
+    @ObservationIgnored private var restorationPlan: MacWindowRestorationStore.Plan?
+    /// Off until the recorded windows are back, so launch never overwrites them.
+    @ObservationIgnored private(set) var isRecordingTopology = false
+    /// Open database windows, back to front.
+    @ObservationIgnored private var windowOrder: [UUID] = []
+    /// The last frame outside full screen, which is what the next launch should restore.
+    @ObservationIgnored private var normalFrames: [UUID: CGRect] = [:]
+    @ObservationIgnored private var isDatabasesWindowOpen = false
+    @ObservationIgnored private var databasesWindowFrame: CGRect?
+    @ObservationIgnored private var collectsLaunchOpens = false
+    @ObservationIgnored private var launchOpenIDs: [UUID] = []
+    @ObservationIgnored private var knownDatabaseIDs: Set<UUID>?
+    @ObservationIgnored private let databaseListObservation = MacObservation()
+    @ObservationIgnored private var terminationTask: Task<Void, Never>?
+
     init(
         listViewModel: DatabaseListViewModel,
         sessionStore: DatabaseSessionStore,
@@ -68,6 +93,11 @@ final class MacWindowCoordinator {
         mainWindow: @escaping @MainActor () -> NSWindow? = { NSApp.mainWindow },
         prepareWindow: @escaping @MainActor (NSWindow) -> Void = { _ in },
         persistsLayout: Bool = true,
+        restorationStore: MacWindowRestorationStore? = nil,
+        restoresWindows: Bool = true,
+        screenFrames: @escaping @MainActor () -> [CGRect] = { NSScreen.screens.map(\.visibleFrame) },
+        terminationPrompt: @escaping MacWindowCloseGuard.UnsavedWorkPrompt = MacWindowCloseGuard.presentUnsavedWorkAlert,
+        databaseWindowContentSize: NSSize = DatabaseWindow.defaultContentSize,
         notificationCenter: NotificationCenter = .default,
         deferredPresentationDelay: Duration = .milliseconds(450)
     ) {
@@ -80,6 +110,11 @@ final class MacWindowCoordinator {
         self.mainWindow = mainWindow
         self.prepareWindow = prepareWindow
         self.persistsLayout = persistsLayout
+        self.restorationStore = restorationStore
+        self.restoresWindows = restoresWindows && restorationStore != nil
+        self.screenFrames = screenFrames
+        self.terminationPrompt = terminationPrompt
+        self.databaseWindowContentSize = databaseWindowContentSize
         self.notificationCenter = notificationCenter
         self.deferredPresentationDelay = deferredPresentationDelay
         launcher = MacDatabasesLauncherViewModel(references: { listViewModel.databases })
@@ -91,6 +126,7 @@ final class MacWindowCoordinator {
         quickAccess.showDatabaseWindow = { [weak self] in self?.showDatabaseWindow($0) ?? false }
         quickAccess.showDatabaseList = { [weak self] in self?.showDatabasesWindow() }
         observeApplication()
+        observeDatabaseList()
     }
 
     static func enrollmentSession(for session: DatabaseViewModel) -> TOTPEnrollmentCoordinator.Session {
@@ -111,12 +147,60 @@ final class MacWindowCoordinator {
         enrollment.isLaunchPresentationPending = transitionNotice || release != nil
         let urls = pendingURLs
         pendingURLs.removeAll()
+        collectsLaunchOpens = true
         for url in urls { handleOpenURL(url) }
+        collectsLaunchOpens = false
+        let quickLaunchID = transitionNotice ? nil : automaticOpenID
+        let plan = makeRestorationPlan(quickLaunchDatabaseID: quickLaunchID)
+        restorationPlan = plan
+        databasesWindowFrame = plan?.databasesWindowFrame
         var effects = routing.beginStartup(transitionNotice: transitionNotice, whatsNew: release != nil,
-            automaticOpen: transitionNotice ? nil : automaticOpenID)
+            restoresWindows: plan != nil, automaticOpen: plan.map(\.quickLaunchDatabaseID) ?? quickLaunchID)
         effects += routing.becomeReady(openDatabaseIDs: openDatabaseIDs)
         apply(effects)
         ensureVisibleWindow()
+    }
+
+    private func makeRestorationPlan(quickLaunchDatabaseID: UUID?) -> MacWindowRestorationStore.Plan? {
+        guard restoresWindows, let restorationStore else { return nil }
+        let screens = screenFrames()
+        let launcherSize = Self.frameSize(content: DatabasesWindowController.contentSize, style: DatabasesWindowController.styleMask)
+        let defaultLauncherFrame = screens.first.map {
+            CGRect(x: $0.midX - launcherSize.width / 2, y: $0.midY - launcherSize.height / 2,
+                width: launcherSize.width, height: launcherSize.height)
+        } ?? CGRect(origin: .zero, size: launcherSize)
+        return restorationStore.restorationPlan(
+            knownDatabases: listViewModel.databases,
+            screens: screens,
+            databaseWindowMinimumSize: Self.frameSize(content: DatabaseWindow.minimumContentSize, style: DatabaseWindow.styleMask),
+            databasesWindowMinimumSize: launcherSize,
+            defaultDatabasesWindowFrame: defaultLauncherFrame,
+            quickLaunchDatabaseID: quickLaunchDatabaseID,
+            explicitOpenRequests: launchOpenIDs
+        )
+    }
+
+    private static func frameSize(content: NSSize, style: NSWindow.StyleMask) -> CGSize {
+        NSWindow.frameRect(forContentRect: CGRect(origin: .zero, size: content), styleMask: style).size
+    }
+
+    /// Recreates the recorded windows locked and marked as restoring, so no
+    /// automatic Touch ID prompt fires until the user turns to one of them.
+    private func restoreWindows() {
+        guard let plan = restorationPlan else { return }
+        restorationPlan = nil
+        for restored in plan.databaseWindows {
+            let databaseID = restored.databaseID
+            // A session that already exists is not a restoration; its own open path owns it.
+            guard databaseWindows[databaseID] == nil, sessionStore.session(for: databaseID) == nil,
+                  let reference = listViewModel.databases.first(where: { $0.id == databaseID }),
+                  MacDatabasesLauncherViewModel.isAvailable(reference) else { continue }
+            makeWindow(for: sessionStore.open(reference), restoredFrame: restored.frame)
+        }
+        if plan.showDatabasesWindow { showDatabasesWindow() }
+        if let front = plan.frontmostDatabaseID, let controller = databaseWindows[front] { present(controller) }
+        isRecordingTopology = true
+        recordTopology()
     }
 
     func finishLaunchPresentation(_ presentation: MacApplicationRouting.LaunchPresentation) {
@@ -136,8 +220,7 @@ final class MacWindowCoordinator {
     }
 
     private func ensureVisibleWindow() {
-        let launcherVisible = databasesWindowController?.window?.isVisible == true
-        apply(routing.ensureVisibleWindow(hasVisibleWindows: launcherVisible || !databaseWindows.isEmpty))
+        apply(routing.ensureVisibleWindow(hasVisibleWindows: isDatabasesWindowOpen || !databaseWindows.isEmpty))
     }
 
     // MARK: - Opening
@@ -153,26 +236,52 @@ final class MacWindowCoordinator {
         makeWindow(for: session)
     }
 
+    /// An explicit request to show this database: it also counts as the user
+    /// turning to a restored window.
     @discardableResult
     func showDatabaseWindow(_ databaseID: UUID) -> Bool {
-        guard let window = databaseWindows[databaseID]?.window else { return false }
-        presenter.show(window)
+        guard let controller = databaseWindows[databaseID], controller.window != nil else { return false }
+        noteDeliberateFocus(databaseID)
+        present(controller)
         return true
     }
 
     func showDatabasesWindow() {
         let controller = databasesWindowController ?? makeDatabasesWindow()
         guard let window = controller.window else { return }
+        isDatabasesWindowOpen = true
         presenter.show(window)
+        recordTopology()
     }
 
     var databasesWindow: NSWindow? { databasesWindowController?.window }
 
     private func makeDatabasesWindow() -> DatabasesWindowController {
         let controller = DatabasesWindowController(coordinator: self)
-        if let window = controller.window { prepareWindow(window) }
+        if let window = controller.window {
+            if let databasesWindowFrame { window.setFrame(databasesWindowFrame, display: false) }
+            prepareWindow(window)
+        }
+        controller.onWillClose = { [weak self] in
+            self?.isDatabasesWindowOpen = false
+            self?.recordTopology()
+        }
         databasesWindowController = controller
         return controller
+    }
+
+    private func present(_ controller: DatabaseWindowController) {
+        guard let window = controller.window else { return }
+        presenter.show(window)
+        bringToFront(controller.databaseID)
+    }
+
+    /// A click or key press in a database window, or an explicit request to
+    /// show it, ends its restoration and lets automatic unlock apply again.
+    func noteDeliberateFocus(_ databaseID: UUID) {
+        guard let window = databaseWindows[databaseID]?.window,
+              let registration = registry.registration(for: window), registration.window === window else { return }
+        registration.isRestoring = false
     }
 
     private func reference(for databaseID: UUID) -> DatabaseReference? {
@@ -187,7 +296,7 @@ final class MacWindowCoordinator {
         makeWindow(for: sessionStore.open(reference))
     }
 
-    private func makeWindow(for session: DatabaseViewModel) {
+    private func makeWindow(for session: DatabaseViewModel, restoredFrame: CGRect? = nil) {
         let databaseID = session.databaseReference.id
         guard databaseWindows[databaseID] == nil else {
             showDatabaseWindow(databaseID)
@@ -195,7 +304,8 @@ final class MacWindowCoordinator {
         }
         let presenter = self.presenter
         let controller = DatabaseWindowController(session: session, windowRegistry: registry, enrollment: enrollment,
-            persistsLayout: persistsLayout, requestClose: { presenter.requestClose($0) })
+            persistsLayout: persistsLayout, initialContentSize: databaseWindowContentSize,
+            requestClose: { presenter.requestClose($0) })
         controller.isCommandTarget = { [weak self, weak controller] in
             guard let self, let controller else { return false }
             return self.commandTarget() === controller
@@ -213,11 +323,12 @@ final class MacWindowCoordinator {
         controller.onWillClose = { [weak self] in self?.windowWillClose($0) }
         controller.loadWindow()
         guard let window = controller.window else { return }
+        if let restoredFrame { window.setFrame(restoredFrame, display: false) }
         prepareWindow(window)
         databaseWindows[databaseID] = controller
-        registry.register(window, databaseID: databaseID)
+        registry.register(window, databaseID: databaseID, isRestoring: restoredFrame != nil)
         startObservingSessions()
-        presenter.show(window)
+        present(controller)
     }
 
     // MARK: - Closing
@@ -240,6 +351,9 @@ final class MacWindowCoordinator {
             sessionStore.retire(databaseID, force: true)
         }
         controller.invalidate()
+        windowOrder.removeAll { $0 == databaseID }
+        normalFrames[databaseID] = nil
+        recordTopology()
     }
 
     /// A session retired elsewhere (removed from the list) takes its window with it.
@@ -286,6 +400,7 @@ final class MacWindowCoordinator {
             showEnrollmentAlertHost()
         case .database:
             guard let reference = databaseReference(forIncoming: url) else { return }
+            if collectsLaunchOpens { launchOpenIDs.append(reference.id) }
             apply(routing.requestOpen(.file(url, databaseID: reference.id), openDatabaseIDs: openDatabaseIDs))
         }
     }
@@ -357,6 +472,8 @@ final class MacWindowCoordinator {
                 bindEnrollment(to: databaseID)
             case .askEnrollmentDestination:
                 launcher.isChoosingEnrollmentDestination = true
+            case .restoreWindows:
+                restoreWindows()
             }
         }
     }
@@ -368,6 +485,16 @@ final class MacWindowCoordinator {
             guard let window, let controller = coordinator.databaseWindows.values.first(where: { $0.window === window }) else { return }
             coordinator.lastFocusedDatabaseID = controller.databaseID
             coordinator.quickAccess.focusedDatabaseID = controller.databaseID
+            coordinator.bringToFront(controller.databaseID)
+        }
+        for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification, NSWindow.didEndLiveResizeNotification,
+                     NSWindow.didMiniaturizeNotification, NSWindow.didDeminiaturizeNotification,
+                     NSWindow.didExitFullScreenNotification] {
+            observe(name) { coordinator, window in
+                // A live resize is recorded once, when it ends.
+                guard let window, name != NSWindow.didResizeNotification || !window.inLiveResize else { return }
+                coordinator.windowGeometryDidChange(window)
+            }
         }
         for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
             observe(name) { coordinator, _ in coordinator.enrollment.discardExpiredEnrollment() }
@@ -385,6 +512,137 @@ final class MacWindowCoordinator {
         })
     }
 
+    // MARK: - Restoration record
+
+    private func bringToFront(_ databaseID: UUID) {
+        guard databaseWindows[databaseID] != nil, windowOrder.last != databaseID else { return }
+        windowOrder.removeAll { $0 == databaseID }
+        windowOrder.append(databaseID)
+        recordTopology()
+    }
+
+    private func windowGeometryDidChange(_ window: NSWindow) {
+        guard window === databasesWindow || databaseWindows.values.contains(where: { $0.window === window }) else { return }
+        recordTopology()
+    }
+
+    /// What a relaunch would restore right now: identities and frames only.
+    func currentTopology() -> MacWindowRestorationStore.Topology {
+        let knownIDs = Set(listViewModel.databases.map(\.id))
+        let windows = windowOrder.compactMap { databaseID -> MacWindowRestorationStore.DatabaseWindow? in
+            guard knownIDs.contains(databaseID), let window = databaseWindows[databaseID]?.window else { return nil }
+            if !window.styleMask.contains(.fullScreen) { normalFrames[databaseID] = window.frame }
+            return .init(databaseID: databaseID, frame: normalFrames[databaseID] ?? window.frame)
+        }
+        if let window = databasesWindow, !window.styleMask.contains(.fullScreen) { databasesWindowFrame = window.frame }
+        return .init(databaseWindows: windows, databasesWindowOpen: isDatabasesWindowOpen,
+            databasesWindowFrame: databasesWindowFrame ?? .zero, frontmostDatabaseID: windows.last?.databaseID)
+    }
+
+    private func recordTopology() {
+        guard isRecordingTopology, let restorationStore else { return }
+        restorationStore.recordTopology(currentTopology())
+    }
+
+    /// A database removed from the list leaves no split geometry or window record behind.
+    private func observeDatabaseList() {
+        databaseListObservation.start(reading: { [weak self] in
+            Set(self?.listViewModel.databases.map(\.id) ?? [])
+        }, onChange: { [weak self] ids in
+            guard let self else { return }
+            defer { self.knownDatabaseIDs = ids }
+            guard let previous = self.knownDatabaseIDs else { return }
+            let removed = previous.subtracting(ids)
+            guard !removed.isEmpty else { return }
+            for databaseID in removed {
+                self.restorationStore?.removeSavedGeometry(for: databaseID)
+                self.windowOrder.removeAll { $0 == databaseID }
+                self.normalFrames[databaseID] = nil
+            }
+            self.recordTopology()
+        })
+    }
+
+    // MARK: - Termination
+
+    /// Whether quitting now would lose something: an unlocked session with a
+    /// failed or in-flight write, or an editor holding fields.
+    var hasUnsavedWork: Bool {
+        databaseWindows.values.contains { Self.hasUnsavedWork($0.session) }
+    }
+
+    private static func hasUnsavedWork(_ session: DatabaseViewModel) -> Bool {
+        session.state == .unlocked && (session.isDirty || session.hasUnsavedEditor || session.isSaving)
+    }
+
+    /// `applicationShouldTerminate(_:)`. Settles each window's unsaved work
+    /// one at a time; any Cancel or failed save cancels the quit with every
+    /// window and session as it was. Only a quit that goes ahead stops recording,
+    /// after keeping the pre-quit topology.
+    func requestTermination(reply: @escaping @MainActor (Bool) -> Void) -> NSApplication.TerminateReply {
+        guard terminationTask == nil else { return .terminateCancel }
+        guard hasUnsavedWork else {
+            prepareForTermination()
+            return .terminateNow
+        }
+        terminationTask = Task { @MainActor [weak self] in
+            let settled = await self?.settleUnsavedWork() ?? false
+            if settled { self?.prepareForTermination() }
+            self?.terminationTask = nil
+            reply(settled)
+        }
+        return .terminateLater
+    }
+
+    private func prepareForTermination() {
+        recordTopology()
+        restorationStore?.beginTermination()
+    }
+
+    /// Every answer is collected before anything is written, so a later
+    /// Cancel leaves earlier windows untouched. Don't Save needs no action:
+    /// the draft goes with the process.
+    private func settleUnsavedWork() async -> Bool {
+        let controllers = windowOrder.reversed().compactMap { databaseWindows[$0] }
+        // Only the editor can settle its own fields, and its prompt ends in a lock; the quit stops there instead.
+        if let editing = controllers.first(where: { $0.session.state == .unlocked && $0.session.hasUnsavedEditor }) {
+            present(editing)
+            return false
+        }
+        var saves: [DatabaseWindowController] = []
+        var discarded: Set<ObjectIdentifier> = []
+        for controller in controllers {
+            let session = controller.session
+            await session.waitForInFlightSave()
+            guard isCurrent(controller) else { return false }
+            guard session.state == .unlocked, session.isDirty else { continue }
+            present(controller)
+            let choice = await terminationPrompt(controller.window, !session.isReadOnly)
+            guard isCurrent(controller), session.state == .unlocked else { return false }
+            switch choice {
+            case .cancel: return false
+            case .save: saves.append(controller)
+            case .discard: discarded.insert(ObjectIdentifier(session))
+            }
+        }
+        for controller in saves {
+            await controller.session.saveHandlingError()
+            guard isCurrent(controller), !controller.session.isDirty, controller.session.saveError == nil else {
+                if isCurrent(controller) { present(controller) }
+                return false
+            }
+        }
+        // Work that became unsaved while the prompts were up also stops the quit.
+        return !databaseWindows.values.contains {
+            Self.hasUnsavedWork($0.session) && !discarded.contains(ObjectIdentifier($0.session))
+        }
+    }
+
+    private func isCurrent(_ controller: DatabaseWindowController) -> Bool {
+        databaseWindows[controller.databaseID] === controller
+            && sessionStore.session(for: controller.databaseID) === controller.session
+    }
+
     private func observe(_ name: Notification.Name, handler: @escaping @MainActor (MacWindowCoordinator, NSWindow?) -> Void) {
         let token = notificationCenter.addObserver(forName: name, object: nil, queue: nil) { [weak self] notification in
             guard Thread.isMainThread else { return }
@@ -395,5 +653,23 @@ final class MacWindowCoordinator {
             }
         }
         observers.append(token)
+    }
+}
+
+/// Launch arguments that change window restoration, honored only with `-ui-testing`.
+/// UI tests start with no restored windows and record nothing; they choose the
+/// database window size with `-ui-testing-database-window-size <width>x<height>`.
+struct MacWindowLaunchOptions: Equatable {
+    static let databaseWindowSizeArgument = "-ui-testing-database-window-size"
+    private(set) var restoresWindows = true
+    private(set) var databaseWindowContentSize = DatabaseWindow.defaultContentSize
+
+    init(arguments: [String]) {
+        guard arguments.contains("-ui-testing") else { return }
+        restoresWindows = false
+        guard let index = arguments.firstIndex(of: Self.databaseWindowSizeArgument), index + 1 < arguments.count else { return }
+        let parts = arguments[index + 1].split(separator: "x").compactMap { Double($0) }
+        guard parts.count == 2, parts.allSatisfy({ $0.isFinite && $0 > 0 }) else { return }
+        databaseWindowContentSize = NSSize(width: parts[0], height: parts[1])
     }
 }

@@ -14,9 +14,16 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     private lazy var macWindowCloseGuard = MacWindowCloseGuard(registry: databaseWindowRegistry)
     private let macQuickAccess = MacQuickAccessController()
     private let macSSHAgent = MacSSHAgentController()
-    private(set) lazy var windowCoordinator = MacWindowCoordinator(listViewModel: listViewModel, sessionStore: sessionStore,
-        registry: databaseWindowRegistry, quickAccess: macQuickAccess,
-        prepareWindow: { [screenProtectionService] in screenProtectionService.applyCapturePolicy(to: $0) })
+    private(set) lazy var windowCoordinator: MacWindowCoordinator = {
+        let options = MacWindowLaunchOptions(arguments: ProcessInfo.processInfo.arguments)
+        // A unit-test host never reads or writes the app's own window record.
+        let restorationStore = AppGroupContainer.isRedirectedForTesting ? nil : MacWindowRestorationStore(defaults: .standard)
+        return MacWindowCoordinator(listViewModel: listViewModel, sessionStore: sessionStore,
+            registry: databaseWindowRegistry, quickAccess: macQuickAccess,
+            prepareWindow: { [screenProtectionService] in screenProtectionService.applyCapturePolicy(to: $0) },
+            restorationStore: restorationStore, restoresWindows: options.restoresWindows,
+            databaseWindowContentSize: options.databaseWindowContentSize)
+    }()
     private var settingsWindowController: SettingsWindowController?
     private var didLaunch = false
 
@@ -52,7 +59,11 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
             Task { await listViewModel.drainPendingUploadsOnAppActive() }
         }
         macLockMonitor.windowRegistry = databaseWindowRegistry
-        macLockMonitor.onUserActivity = { sessionStore.resetInactivityTimer(for: $0) }
+        let coordinator = self.windowCoordinator
+        macLockMonitor.onUserActivity = {
+            sessionStore.resetInactivityTimer(for: $0)
+            coordinator.noteDeliberateFocus($0)
+        }
         macLockMonitor.start()
         macWindowCloseGuard.start()
         macQuickAccess.sessionForDatabase = { sessionStore.session(for: $0) }
@@ -72,6 +83,11 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    // Logout and restart arrive here too.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        windowCoordinator.requestTermination { sender.reply(toApplicationShouldTerminate: $0) }
+    }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         windowCoordinator.dockReopen(hasVisibleWindows: flag)

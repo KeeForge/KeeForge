@@ -60,6 +60,26 @@ final class MacApplicationRoutingTests: XCTestCase {
         XCTAssertEqual(routing.finishLaunchPresentation(.whatsNew, openDatabaseIDs: [id]), [.front(id)])
     }
 
+    func testRestorationWaitsForLaunchPresentationsAndPrecedesQueuedAndAutomaticOpens() {
+        let routing = MacApplicationRouting()
+        let file = MacApplicationRouting.OpenRequest.file(URL(fileURLWithPath: "/tmp/vault.kdbx"), databaseID: UUID())
+        XCTAssertEqual(routing.requestOpen(file, openDatabaseIDs: []), [])
+        XCTAssertEqual(routing.beginStartup(transitionNotice: false, whatsNew: true, restoresWindows: true, automaticOpen: nil),
+                       [.showLauncher, .present(.whatsNew)])
+        XCTAssertEqual(routing.becomeReady(), [], "Nothing is restored behind a launch presentation")
+        XCTAssertEqual(routing.finishLaunchPresentation(.whatsNew), [.restoreWindows, .open(file)])
+        XCTAssertEqual(routing.becomeReady(), [], "Restoration happens once")
+
+        let quick = UUID()
+        let second = MacApplicationRouting()
+        XCTAssertEqual(second.beginStartup(transitionNotice: false, whatsNew: false, restoresWindows: true, automaticOpen: quick), [])
+        XCTAssertEqual(second.becomeReady(), [.restoreWindows, .open(.database(quick))])
+
+        let none = MacApplicationRouting()
+        _ = none.beginStartup(transitionNotice: false, whatsNew: false, automaticOpen: nil)
+        XCTAssertEqual(none.becomeReady(), [], "No restoration without a plan")
+    }
+
     func testEnrollmentBindsArrivalTargetRegardlessOfSubsequentOpenRequests() {
         let routing = MacApplicationRouting()
         let destination = UUID(), other = UUID()

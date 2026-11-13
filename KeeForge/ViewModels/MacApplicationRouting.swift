@@ -27,6 +27,8 @@ final class MacApplicationRouting {
         case showLauncher
         case bindEnrollment(UUID)
         case askEnrollmentDestination
+        /// Recreates the recorded windows, locked; always before any queued or automatic open.
+        case restoreWindows
     }
 
     private(set) var launchPresentation: LaunchPresentation?
@@ -38,10 +40,12 @@ final class MacApplicationRouting {
     private var queuedEffects: [Effect] = []
     private var queuedDatabaseIDs: Set<UUID> = []
     private var automaticOpen: UUID?
+    private var restoresWindows = false
 
-    func beginStartup(transitionNotice: Bool, whatsNew: Bool, automaticOpen: UUID?) -> [Effect] {
+    func beginStartup(transitionNotice: Bool, whatsNew: Bool, restoresWindows: Bool = false, automaticOpen: UUID?) -> [Effect] {
         guard !didBeginStartup else { return [] }
         didBeginStartup = true
+        self.restoresWindows = restoresWindows
         self.automaticOpen = queuedEffects.isEmpty ? automaticOpen : nil
         remainingPresentations = (transitionNotice ? [.transitionNotice] : []) + (whatsNew ? [.whatsNew] : [])
         return advanceStartup()
@@ -101,7 +105,9 @@ final class MacApplicationRouting {
 
     private func drain(openDatabaseIDs: Set<UUID>) -> [Effect] {
         guard canAuthenticate else { return [] }
-        var effects = queuedEffects.map { effect in
+        var effects: [Effect] = restoresWindows ? [.restoreWindows] : []
+        restoresWindows = false
+        effects += queuedEffects.map { effect in
             if case .open(let request) = effect, openDatabaseIDs.contains(request.databaseID) {
                 return Effect.front(request.databaseID)
             }

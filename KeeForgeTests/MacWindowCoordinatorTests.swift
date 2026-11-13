@@ -3,8 +3,9 @@ import AppKit
 import XCTest
 @testable import KeeForge
 
-/// Window effects go through a recording presenter: nothing is shown, and
-/// `persistsLayout: false` keeps frames and split state out of the host app's defaults.
+/// Window effects go through a recording presenter: nothing is shown,
+/// `persistsLayout: false` keeps split state out of the host app's defaults, and
+/// the restoration record lives in a throwaway defaults suite.
 @MainActor
 final class MacWindowCoordinatorTests: XCTestCase {
     @MainActor
@@ -26,6 +27,19 @@ final class MacWindowCoordinatorTests: XCTestCase {
         var value = 0
     }
 
+    /// Answers quit prompts in order; an unexpected extra prompt cancels.
+    @MainActor
+    private final class PromptScript {
+        var choices: [MacWindowCloseGuard.Choice] = []
+        var windows: [NSWindow?] = []
+        func next(_ window: NSWindow?) -> MacWindowCloseGuard.Choice {
+            windows.append(window)
+            return choices.isEmpty ? .cancel : choices.removeFirst()
+        }
+    }
+
+    private static let screen = CGRect(x: 0, y: 0, width: 2560, height: 1440)
+
     private var presenter: Presenter!
     private var focus: Focus!
     private var center: NotificationCenter!
@@ -37,6 +51,10 @@ final class MacWindowCoordinatorTests: XCTestCase {
     private var prepared: [NSWindow] = []
     private var references: [DatabaseReference] = []
     private var fileURLs: [URL] = []
+    private var restorationSuite = ""
+    private var restorationDefaults: UserDefaults!
+    private var restoration: MacWindowRestorationStore!
+    private var prompts: PromptScript!
 
     override func setUp() async throws {
         try await super.setUp()
@@ -62,6 +80,10 @@ final class MacWindowCoordinatorTests: XCTestCase {
             keyWindow: { focus.key }, mainWindow: { focus.main },
             prepareWindow: { [weak self] in self?.prepared.append($0) },
             persistsLayout: false, notificationCenter: center, deferredPresentationDelay: .zero)
+        restorationSuite = "MacWindowCoordinatorTests.\(UUID())"
+        restorationDefaults = try XCTUnwrap(UserDefaults(suiteName: restorationSuite))
+        restoration = MacWindowRestorationStore(defaults: restorationDefaults)
+        prompts = PromptScript()
     }
 
     override func tearDown() async throws {
@@ -71,6 +93,9 @@ final class MacWindowCoordinatorTests: XCTestCase {
         }
         coordinator.databasesWindow?.close()
         coordinator = nil
+        restorationDefaults.removePersistentDomain(forName: restorationSuite)
+        restorationDefaults = nil
+        restoration = nil
         DatabaseListStore.clearAll()
         try await super.tearDown()
     }
@@ -310,7 +335,349 @@ final class MacWindowCoordinatorTests: XCTestCase {
         XCTAssertTrue(coordinator.launcherHostsEnrollmentAlert)
     }
 
+    // MARK: - Restoration
+
+    func testColdLaunchRestoresTwoDatabasesLockedWithTheirFramesAndTheRecordedFront() throws {
+        let (a, b) = (references[0].id, references[1].id)
+        let frameA = CGRect(x: 100, y: 120, width: 1100, height: 760)
+        let frameB = CGRect(x: 900, y: 300, width: 1200, height: 800)
+        record([(a, frameA), (b, frameB)], front: a)
+        makeRestoringCoordinator()
+        start()
+
+        let windowA = try XCTUnwrap(coordinator.databaseWindows[a]?.window)
+        let windowB = try XCTUnwrap(coordinator.databaseWindows[b]?.window)
+        XCTAssertEqual(coordinator.databaseWindows.count, 2)
+        XCTAssertEqual(windowA.frame, frameA)
+        XCTAssertEqual(windowB.frame, frameB)
+        XCTAssertEqual(store.session(for: a)?.state, .locked)
+        XCTAssertEqual(store.session(for: b)?.state, .locked)
+        XCTAssertTrue(presenter.shown.last === windowA, "The recorded front comes back in front")
+        XCTAssertNil(coordinator.databasesWindow, "Databases was closed and a database window survived")
+        let recorded = try recordedTopology()
+        XCTAssertEqual(Set(recorded.databaseWindows.map(\.databaseID)), [a, b])
+        XCTAssertEqual(recorded.frontmostDatabaseID, a)
+        XCTAssertEqual(recorded.databaseWindows.first { $0.databaseID == b }?.frame, frameB)
+        XCTAssertFalse(recorded.databasesWindowOpen)
+    }
+
+    func testRestoredWindowsAdmitNoAutomaticUnlockUntilTheUserTurnsToThem() throws {
+        let (a, b) = (references[0].id, references[1].id)
+        record([(a, frame(0)), (b, frame(1))], front: b)
+        makeRestoringCoordinator()
+        start()
+        let controllerA = try XCTUnwrap(coordinator.databaseWindows[a])
+        let controllerB = try XCTUnwrap(coordinator.databaseWindows[b])
+        for controller in [controllerA, controllerB] {
+            XCTAssertEqual(registry.registration(for: controller.window)?.isRestoring, true)
+            XCTAssertFalse(registry.admitsAutomaticUnlock(for: controller.session, in: controller.window))
+        }
+        center.post(name: NSWindow.didBecomeKeyNotification, object: controllerB.window)
+        XCTAssertFalse(registry.admitsAutomaticUnlock(for: controllerB.session, in: controllerB.window),
+            "Becoming key during launch is not the user turning to the window")
+
+        coordinator.noteDeliberateFocus(a)
+        XCTAssertTrue(registry.admitsAutomaticUnlock(for: controllerA.session, in: controllerA.window))
+        XCTAssertFalse(registry.admitsAutomaticUnlock(for: controllerB.session, in: controllerB.window))
+        coordinator.launcher.open(references[1])
+        XCTAssertTrue(registry.admitsAutomaticUnlock(for: controllerB.session, in: controllerB.window),
+            "Opening it again from Databases is deliberate")
+        XCTAssertEqual(controllerA.session.state, .locked)
+        XCTAssertEqual(controllerB.session.state, .locked)
+
+        coordinator.open(references[2])
+        let opened = try XCTUnwrap(coordinator.databaseWindows[references[2].id])
+        XCTAssertEqual(registry.registration(for: opened.window)?.isRestoring, false, "Only restored windows wait")
+    }
+
+    func testQueuedURLForARestoredDatabaseFrontsItAndMissingDatabasesAreSkipped() throws {
+        let a = references[0].id
+        let missing = UUID()
+        record([(a, frame(0)), (missing, frame(1))], front: missing)
+        makeRestoringCoordinator()
+        coordinator.handleOpenURL(fileURLs[0])
+        start(automaticOpenID: references[2].id)
+        XCTAssertEqual(Array(coordinator.databaseWindows.keys), [a], "No second window and no Quick Launch")
+        let window = try XCTUnwrap(coordinator.databaseWindows[a]?.window)
+        XCTAssertTrue(presenter.shown.last === window)
+        XCTAssertEqual(store.session(for: a)?.state, .locked)
+        XCTAssertEqual(try recordedTopology().databaseWindows.map(\.databaseID), [a])
+    }
+
+    func testNothingSurvivingShowsDatabasesAndQuickLaunchOnlyRunsWithoutRestoredWindows() throws {
+        record([(UUID(), frame(0))], launcher: false, front: nil)
+        makeRestoringCoordinator()
+        start()
+        XCTAssertTrue(coordinator.databaseWindows.isEmpty)
+        XCTAssertTrue(presenter.shown.last === coordinator.databasesWindow)
+        XCTAssertEqual(try recordedTopology().databasesWindowOpen, true)
+    }
+
+    func testQuickLaunchOpensWhenNothingIsRestored() throws {
+        record([(UUID(), frame(0))], front: nil)
+        makeRestoringCoordinator()
+        start(automaticOpenID: references[1].id)
+        XCTAssertEqual(Array(coordinator.databaseWindows.keys), [references[1].id])
+        XCTAssertNil(coordinator.databasesWindow, "Quick Launch shows only the database")
+        XCTAssertEqual(registry.registration(for: coordinator.databaseWindows[references[1].id]?.window)?.isRestoring, false)
+    }
+
+    func testQuickLaunchYieldsToARestoredWindow() throws {
+        record([(references[0].id, frame(0))], front: references[0].id)
+        makeRestoringCoordinator()
+        start(automaticOpenID: references[1].id)
+        XCTAssertEqual(Array(coordinator.databaseWindows.keys), [references[0].id])
+    }
+
+    func testLaunchPresentationDelaysRestorationAndNeverOverwritesTheRecord() throws {
+        let a = references[0].id
+        record([(a, frame(0))], front: a)
+        let saved = restorationDefaults.data(forKey: MacWindowRestorationStore.storageKey)
+        makeRestoringCoordinator()
+        coordinator.start(transitionNotice: false, whatsNewRelease: WhatsNewRelease(version: "1.0", features: []), automaticOpenID: nil)
+        XCTAssertEqual(coordinator.routing.launchPresentation, .whatsNew)
+        XCTAssertTrue(coordinator.databaseWindows.isEmpty, "Nothing is restored behind a launch presentation")
+        coordinator.databasesWindow?.close()
+        coordinator.showDatabasesWindow()
+        XCTAssertEqual(restorationDefaults.data(forKey: MacWindowRestorationStore.storageKey), saved)
+        coordinator.finishLaunchPresentation(.whatsNew)
+        XCTAssertNotNil(coordinator.databaseWindows[a])
+        XCTAssertEqual(store.session(for: a)?.state, .locked)
+        XCTAssertTrue(try recordedTopology().databasesWindowOpen)
+    }
+
+    func testRecordingFollowsOpenFrontChangeMoveResizeMinimizeAndCommittedClose() throws {
+        makeRestoringCoordinator()
+        start()
+        XCTAssertTrue(try recordedTopology().databasesWindowOpen)
+        coordinator.open(references[0])
+        XCTAssertEqual(try recordedTopology().databaseWindows.map(\.databaseID), [references[0].id])
+        coordinator.open(references[1])
+        var recorded = try recordedTopology()
+        XCTAssertEqual(recorded.databaseWindows.map(\.databaseID), [references[0].id, references[1].id])
+        XCTAssertEqual(recorded.frontmostDatabaseID, references[1].id)
+
+        let windowA = try XCTUnwrap(coordinator.databaseWindows[references[0].id]?.window)
+        center.post(name: NSWindow.didBecomeKeyNotification, object: windowA)
+        XCTAssertEqual(try recordedTopology().frontmostDatabaseID, references[0].id)
+
+        let moved = CGRect(x: 40, y: 60, width: 1300, height: 820)
+        windowA.setFrame(moved, display: false)
+        center.post(name: NSWindow.didMoveNotification, object: windowA)
+        XCTAssertEqual(try recordedTopology().databaseWindows.first { $0.databaseID == references[0].id }?.frame, moved)
+        let resized = CGRect(x: 40, y: 60, width: 1400, height: 900)
+        windowA.setFrame(resized, display: false)
+        center.post(name: NSWindow.didEndLiveResizeNotification, object: windowA)
+        XCTAssertEqual(try recordedTopology().databaseWindows.first { $0.databaseID == references[0].id }?.frame, resized)
+
+        // Never ordered on screen, like a minimized window: it is still part of the topology.
+        XCTAssertFalse(windowA.isVisible)
+        center.post(name: NSWindow.didMiniaturizeNotification, object: windowA)
+        XCTAssertEqual(try recordedTopology().databaseWindows.count, 2)
+
+        coordinator.databaseWindows[references[1].id]?.window?.close()
+        recorded = try recordedTopology()
+        XCTAssertEqual(recorded.databaseWindows.map(\.databaseID), [references[0].id])
+        XCTAssertEqual(recorded.frontmostDatabaseID, references[0].id)
+
+        let launcherFrame = try XCTUnwrap(coordinator.databasesWindow?.frame)
+        coordinator.databasesWindow?.close()
+        XCTAssertFalse(try recordedTopology().databasesWindowOpen)
+        windowA.close()
+        recorded = try recordedTopology()
+        XCTAssertTrue(recorded.databaseWindows.isEmpty, "Zero windows: the app keeps running with nothing to restore")
+        XCTAssertNil(recorded.frontmostDatabaseID)
+        XCTAssertFalse(recorded.databasesWindowOpen)
+        XCTAssertEqual(recorded.databasesWindowFrame, launcherFrame)
+
+        coordinator.dockReopen(hasVisibleWindows: false)
+        XCTAssertTrue(presenter.shown.last === coordinator.databasesWindow)
+        XCTAssertTrue(try recordedTopology().databasesWindowOpen)
+    }
+
+    func testRestoredDatabasesWindowUsesItsRecordedFrame() throws {
+        let launcherFrame = CGRect(x: 300, y: 200, width: 700, height: 720)
+        restoration.recordTopology(.init(databaseWindows: [], databasesWindowOpen: true,
+            databasesWindowFrame: launcherFrame, frontmostDatabaseID: nil))
+        makeRestoringCoordinator()
+        start()
+        XCTAssertEqual(coordinator.databasesWindow?.frame, launcherFrame)
+    }
+
+    func testRemovingADatabaseDropsItsSplitGeometryAndItsWindowRecord() async throws {
+        makeRestoringCoordinator()
+        start()
+        coordinator.open(references[0])
+        coordinator.open(references[1])
+        let geometryKey = "NSSplitView Subview Frames \(MacWindowRestorationStore.splitViewAutosaveName(for: references[0].id))"
+        let otherKey = "NSSplitView Subview Frames \(MacWindowRestorationStore.splitViewAutosaveName(for: references[1].id))"
+        restorationDefaults.set(["geometry"], forKey: geometryKey)
+        restorationDefaults.set(["other"], forKey: otherKey)
+        list.removeDatabase(references[0])
+        await Task { @MainActor in }.value
+        await Task { @MainActor in }.value
+        XCTAssertNil(restorationDefaults.object(forKey: geometryKey))
+        XCTAssertEqual(restorationDefaults.stringArray(forKey: otherKey), ["other"])
+        XCTAssertEqual(try recordedTopology().databaseWindows.map(\.databaseID), [references[1].id])
+        XCTAssertNil(coordinator.databaseWindows[references[0].id])
+    }
+
+    // MARK: - Quit
+
+    func testCleanQuitTerminatesNowAndKeepsThePreQuitTopology() throws {
+        makeRestoringCoordinator()
+        start()
+        coordinator.open(references[0])
+        coordinator.open(references[1])
+        let before = try recordedTopology()
+        XCTAssertEqual(coordinator.requestTermination { _ in XCTFail("No reply for an immediate quit") }, .terminateNow)
+        for controller in coordinator.databaseWindows.values { controller.window?.close() }
+        coordinator.databasesWindow?.close()
+        XCTAssertEqual(try recordedTopology(), before, "Closes during termination never overwrite the record")
+        XCTAssertTrue(prompts.windows.isEmpty)
+    }
+
+    func testCancelledQuitWithTwoDirtyWindowsKeepsEveryWindowSessionAndTheRecord() async throws {
+        makeRestoringCoordinator()
+        start()
+        coordinator.open(references[0])
+        coordinator.open(references[1])
+        let a = try XCTUnwrap(coordinator.databaseWindows[references[0].id])
+        let b = try XCTUnwrap(coordinator.databaseWindows[references[1].id])
+        await a.session.unlock(password: "testpassword123")
+        await b.session.unlock(password: "testpassword123")
+        try makeDirty(a.session, title: "Unsaved in A")
+        try makeDirty(b.session, title: "Unsaved in B")
+        let before = try recordedTopology()
+        prompts.choices = [.save, .cancel]
+
+        let reply = try await terminate()
+        XCTAssertEqual(reply, false)
+        XCTAssertEqual(prompts.windows.count, 2)
+        XCTAssertTrue(prompts.windows[0] === b.window, "The front window is asked first")
+        XCTAssertTrue(prompts.windows[1] === a.window)
+        for controller in [a, b] {
+            XCTAssertTrue(coordinator.databaseWindows[controller.databaseID] === controller)
+            XCTAssertTrue(store.session(for: controller.databaseID) === controller.session)
+            XCTAssertEqual(controller.session.state, .unlocked)
+            XCTAssertTrue(controller.session.isDirty, "Save on the first window waits for every answer")
+        }
+        let after = try recordedTopology()
+        XCTAssertEqual(Set(after.databaseWindows.map(\.databaseID)), Set(before.databaseWindows.map(\.databaseID)))
+
+        center.post(name: NSWindow.didBecomeKeyNotification, object: b.window)
+        XCTAssertEqual(try recordedTopology().frontmostDatabaseID, b.databaseID, "Recording carries on after a cancelled quit")
+    }
+
+    func testSettledQuitSavesThenKeepsThePreQuitTopologyWhileWindowsClose() async throws {
+        makeRestoringCoordinator()
+        start()
+        coordinator.open(references[0])
+        coordinator.open(references[1])
+        let a = try XCTUnwrap(coordinator.databaseWindows[references[0].id])
+        let b = try XCTUnwrap(coordinator.databaseWindows[references[1].id])
+        await a.session.unlock(password: "testpassword123")
+        await b.session.unlock(password: "testpassword123")
+        try makeDirty(a.session, title: "Saved on quit")
+        try makeDirty(b.session, title: "Discarded on quit")
+        prompts.choices = [.discard, .save]
+
+        let reply = try await terminate()
+        XCTAssertEqual(reply, true)
+        XCTAssertFalse(a.session.isDirty, "Save wrote A")
+        XCTAssertNil(a.session.saveError)
+        let before = try recordedTopology()
+        XCTAssertEqual(before.databaseWindows.map(\.databaseID), [references[1].id, references[0].id],
+            "Each prompt fronted its window; the last one asked is in front")
+        XCTAssertEqual(before.frontmostDatabaseID, references[0].id)
+
+        for controller in [a, b] {
+            controller.session.lockRequest(force: true)
+            controller.window?.close()
+        }
+        coordinator.databasesWindow?.close()
+        XCTAssertEqual(try recordedTopology(), before)
+    }
+
+    func testLaunchOptionsOnlyApplyUnderUITesting() {
+        let plain = MacWindowLaunchOptions(arguments: ["KeeForge", MacWindowLaunchOptions.databaseWindowSizeArgument, "1440x900"])
+        XCTAssertTrue(plain.restoresWindows)
+        XCTAssertEqual(plain.databaseWindowContentSize, DatabaseWindow.defaultContentSize)
+        let testing = MacWindowLaunchOptions(arguments: ["KeeForge", "-ui-testing", MacWindowLaunchOptions.databaseWindowSizeArgument, "1440x900"])
+        XCTAssertFalse(testing.restoresWindows)
+        XCTAssertEqual(testing.databaseWindowContentSize, NSSize(width: 1440, height: 900))
+        for value in ["wide", "0x900", "1440", "1440x900x2", "infx900"] {
+            let options = MacWindowLaunchOptions(arguments: ["-ui-testing", MacWindowLaunchOptions.databaseWindowSizeArgument, value])
+            XCTAssertEqual(options.databaseWindowContentSize, DatabaseWindow.defaultContentSize, value)
+        }
+        XCTAssertEqual(MacWindowLaunchOptions(arguments: ["-ui-testing", MacWindowLaunchOptions.databaseWindowSizeArgument])
+            .databaseWindowContentSize, DatabaseWindow.defaultContentSize)
+    }
+
+    func testUITestingStartsWithoutRestoredWindowsAndRecordsNothing() throws {
+        record([(references[0].id, frame(0))], front: references[0].id)
+        let saved = restorationDefaults.data(forKey: MacWindowRestorationStore.storageKey)
+        makeRestoringCoordinator(restoresWindows: false, databaseWindowContentSize: NSSize(width: 1440, height: 900))
+        start()
+        XCTAssertTrue(coordinator.databaseWindows.isEmpty)
+        coordinator.open(references[1])
+        let window = try XCTUnwrap(coordinator.databaseWindows[references[1].id]?.window)
+        XCTAssertEqual(window.contentRect(forFrameRect: window.frame).size, NSSize(width: 1440, height: 900))
+        XCTAssertEqual(restorationDefaults.data(forKey: MacWindowRestorationStore.storageKey), saved)
+    }
+
     // MARK: - Helpers
+
+    private func makeRestoringCoordinator(restoresWindows: Bool = true,
+                                          databaseWindowContentSize: NSSize = DatabaseWindow.defaultContentSize) {
+        let focus = self.focus!
+        let prompts = self.prompts!
+        let screen = Self.screen
+        coordinator = MacWindowCoordinator(listViewModel: list, sessionStore: store, registry: registry,
+            quickAccess: quickAccess, presenter: presenter,
+            keyWindow: { focus.key }, mainWindow: { focus.main },
+            persistsLayout: false, restorationStore: restoration, restoresWindows: restoresWindows,
+            screenFrames: { [screen] }, terminationPrompt: { window, _ in prompts.next(window) },
+            databaseWindowContentSize: databaseWindowContentSize,
+            notificationCenter: center, deferredPresentationDelay: .zero)
+    }
+
+    private func record(_ windows: [(UUID, CGRect)], launcher: Bool = false, front: UUID?) {
+        restoration.recordTopology(.init(databaseWindows: windows.map { .init(databaseID: $0.0, frame: $0.1) },
+            databasesWindowOpen: launcher, databasesWindowFrame: CGRect(x: 200, y: 200, width: 640, height: 700),
+            frontmostDatabaseID: front))
+    }
+
+    private func recordedTopology() throws -> MacWindowRestorationStore.Topology {
+        let data = try XCTUnwrap(restorationDefaults.data(forKey: MacWindowRestorationStore.storageKey))
+        return try JSONDecoder().decode(MacWindowRestorationStore.Topology.self, from: data)
+    }
+
+    private func frame(_ index: Int) -> CGRect {
+        CGRect(x: 100 + CGFloat(index) * 200, y: 100, width: 1100, height: 760)
+    }
+
+    private func makeDirty(_ session: DatabaseViewModel, title: String) throws {
+        let root = try XCTUnwrap(session.rootGroup)
+        try session.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: root),
+            draft: EntryDraftPayload(title: title)))
+        XCTAssertTrue(session.isDirty)
+    }
+
+    private func terminate() async throws -> Bool? {
+        let result = ReplyBox()
+        let done = expectation(description: "termination reply")
+        XCTAssertEqual(coordinator.requestTermination { settled in
+            result.value = settled
+            done.fulfill()
+        }, .terminateLater)
+        await fulfillment(of: [done], timeout: 30)
+        return result.value
+    }
+
+    private func start(automaticOpenID: UUID?) {
+        coordinator.start(transitionNotice: false, whatsNewRelease: nil, automaticOpenID: automaticOpenID)
+    }
 
     private func start() {
         coordinator.start(transitionNotice: false, whatsNewRelease: nil, automaticOpenID: nil)
@@ -329,6 +696,11 @@ final class MacWindowCoordinatorTests: XCTestCase {
         try FileManager.default.copyItem(at: source, to: destination)
         return destination
     }
+}
+
+@MainActor
+private final class ReplyBox {
+    var value: Bool?
 }
 
 @MainActor

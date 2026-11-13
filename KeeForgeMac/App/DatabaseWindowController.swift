@@ -9,7 +9,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     let session: DatabaseViewModel
     let workspacePresentation = MacWorkspacePresentation()
     let splitAutosaveName: NSSplitView.AutosaveName?
-    let frameAutosaveName: NSWindow.FrameAutosaveName?
+    private let initialContentSize: NSSize
     private lazy var workspace = MacWindowWorkspace(presentation: workspacePresentation, splitAutosaveName: splitAutosaveName)
     private let titleObservation = MacObservation()
     private let windowRegistry: MacDatabaseWindowRegistry
@@ -39,12 +39,14 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         DatabaseCommands(session: isCommandTarget() ? session : nil, passwordCopyAction: passwordCopyAction)
     }
 
-    /// `persistsLayout` off keeps tests from writing frames or split geometry into the host app's defaults.
+    /// `persistsLayout` off keeps tests from writing split geometry into the host app's defaults.
+    /// The window's frame belongs to `MacWindowRestorationStore`, never to AppKit autosave.
     init(
         session: DatabaseViewModel,
         windowRegistry: MacDatabaseWindowRegistry,
         enrollment: TOTPEnrollmentCoordinator,
         persistsLayout: Bool = true,
+        initialContentSize: NSSize = DatabaseWindow.defaultContentSize,
         passwordCopyAction: EntrySecretAction = EntrySecretAction(),
         requestClose: @escaping @MainActor (NSWindow) -> Void = { $0.performClose(nil) }
     ) {
@@ -53,9 +55,9 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         self.enrollment = enrollment
         self.passwordCopyAction = passwordCopyAction
         self.requestClose = requestClose
+        self.initialContentSize = initialContentSize
         let databaseID = session.databaseReference.id
         splitAutosaveName = persistsLayout ? MacWindowRestorationStore.splitViewAutosaveName(for: databaseID) : nil
-        frameAutosaveName = persistsLayout ? "database.\(databaseID.uuidString)" : nil
         super.init(window: nil)
     }
 
@@ -79,15 +81,16 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
             hosting?.sceneBridgingOptions = bridges ? [.toolbars] : []
         }
         let window = DatabaseWindow(contentViewController: hosting)
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.styleMask = DatabaseWindow.styleMask
         window.title = session.databaseDisplayName
         window.identifier = Self.windowIdentifier(for: databaseID)
         window.isReleasedWhenClosed = false
         window.isRestorable = false
+        window.restorationClass = nil
         window.contentMinSize = DatabaseWindow.minimumContentSize
-        window.setContentSize(NSSize(width: 1080, height: 700))
+        window.setContentSize(NSSize(width: max(initialContentSize.width, DatabaseWindow.minimumContentSize.width),
+            height: max(initialContentSize.height, DatabaseWindow.minimumContentSize.height)))
         window.center()
-        if let frameAutosaveName { window.setFrameAutosaveName(frameAutosaveName) }
         self.window = window
         closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: window, queue: nil
@@ -212,6 +215,8 @@ struct MacHostingAppearance: ViewModifier {
 
 final class DatabaseWindow: NSWindow {
     static let minimumContentSize = NSSize(width: 900, height: 620)
+    nonisolated static let defaultContentSize = NSSize(width: 1080, height: 700)
+    static let styleMask: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
 
     // Hosting resets this during layout even when its sizing options are empty.
     override var contentMinSize: NSSize {

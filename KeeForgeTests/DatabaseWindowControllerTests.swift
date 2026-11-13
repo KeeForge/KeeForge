@@ -4,7 +4,7 @@ import XCTest
 @testable import KeeForge
 
 /// Windows are constructed but never ordered front, and `persistsLayout: false`
-/// keeps frames and split geometry out of the host app's defaults.
+/// keeps split geometry out of the host app's defaults; frames are never autosaved.
 @MainActor
 final class DatabaseWindowControllerTests: XCTestCase {
     private var windows: [NSWindow] = []
@@ -20,7 +20,6 @@ final class DatabaseWindowControllerTests: XCTestCase {
         let id = session.databaseReference.id
         let persisted = DatabaseWindowController(session: session, windowRegistry: registry(), enrollment: TOTPEnrollmentCoordinator())
         XCTAssertEqual(persisted.splitAutosaveName, MacWindowRestorationStore.splitViewAutosaveName(for: id))
-        XCTAssertEqual(persisted.frameAutosaveName, "database.\(id.uuidString)")
         XCTAssertNil(persisted.window, "Construction must not create a window")
 
         let controller = try load(DatabaseWindowController(session: session, windowRegistry: registry(),
@@ -34,6 +33,20 @@ final class DatabaseWindowControllerTests: XCTestCase {
         XCTAssertEqual(window.contentMinSize, NSSize(width: 900, height: 620))
         XCTAssertFalse(window.isReleasedWhenClosed)
         XCTAssertFalse(window.isRestorable)
+        XCTAssertNil(window.restorationClass, "AppKit state restoration stays inert; the restoration store owns the frame")
+        XCTAssertEqual(window.contentRect(forFrameRect: window.frame).size, DatabaseWindow.defaultContentSize)
+    }
+
+    func testInitialContentSizeIsChosenByTheCoordinatorAndNeverBelowTheMinimum() throws {
+        let large = try load(DatabaseWindowController(session: try makeSession(), windowRegistry: registry(),
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false, initialContentSize: NSSize(width: 1440, height: 900)))
+        let largeWindow = try XCTUnwrap(large.window)
+        XCTAssertEqual(largeWindow.contentRect(forFrameRect: largeWindow.frame).size, NSSize(width: 1440, height: 900))
+        XCTAssertEqual(largeWindow.frameAutosaveName, "")
+        let small = try load(DatabaseWindowController(session: try makeSession(), windowRegistry: registry(),
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false, initialContentSize: NSSize(width: 300, height: 200)))
+        let smallWindow = try XCTUnwrap(small.window)
+        XCTAssertEqual(smallWindow.contentRect(forFrameRect: smallWindow.frame).size, DatabaseWindow.minimumContentSize)
     }
 
     func testTwoControllersStayIndependentThroughUnlockLockErrorEditAndTitle() async throws {

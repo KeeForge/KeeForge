@@ -39,8 +39,8 @@ final class MacWindowRestorationStoreTests: XCTestCase {
 
     private func plan(_ references: [DatabaseReference] = [], screens: [CGRect]? = nil, quick: UUID? = nil,
                       explicit: [UUID] = []) -> MacWindowRestorationStore.Plan {
-        store.restorationPlan(knownDatabases: references, screens: screens ?? [screen], minimumSize: minimum,
-            defaultDatabasesWindowFrame: frame, quickLaunchDatabaseID: quick, explicitOpenRequests: explicit)
+        store.restorationPlan(knownDatabases: references, screens: screens ?? [screen],
+            databaseWindowMinimumSize: minimum, databasesWindowMinimumSize: minimum, defaultDatabasesWindowFrame: frame, quickLaunchDatabaseID: quick, explicitOpenRequests: explicit)
     }
 
     func testRoundTripPreservesOrderFramesLauncherAndFrontWithLockedWindows() throws {
@@ -126,6 +126,30 @@ final class MacWindowRestorationStoreTests: XCTestCase {
         XCTAssertFalse(plan([reference]).showDatabasesWindow)
         store.recordTopology(topology([reference.id], launcher: true))
         XCTAssertTrue(plan([reference]).showDatabasesWindow)
+    }
+
+    func testDatabaseAndDatabasesWindowsUseTheirOwnMinimumSizes() {
+        let reference = reference()
+        var saved = topology([reference.id], launcher: true)
+        let tiny = CGRect(x: 10, y: 10, width: 100, height: 100)
+        saved.databaseWindows[0] = .init(databaseID: reference.id, frame: tiny)
+        saved.databasesWindowFrame = tiny
+        store.recordTopology(saved)
+        let result = store.restorationPlan(knownDatabases: [reference], screens: [screen],
+            databaseWindowMinimumSize: CGSize(width: 900, height: 650), databasesWindowMinimumSize: CGSize(width: 600, height: 650),
+            defaultDatabasesWindowFrame: frame, quickLaunchDatabaseID: nil, explicitOpenRequests: [])
+        XCTAssertEqual(result.databaseWindows.first?.frame, CGRect(x: 10, y: 10, width: 900, height: 650))
+        XCTAssertEqual(result.databasesWindowFrame, CGRect(x: 10, y: 10, width: 600, height: 650))
+    }
+
+    func testDatabasesShowsWhenRecordedOpenOrWhenNothingElseOpensAWindow() {
+        let a = reference()
+        XCTAssertTrue(plan([a]).showDatabasesWindow)
+        XCTAssertFalse(plan([a], quick: a.id).showDatabasesWindow, "Quick Launch opens a window")
+        XCTAssertFalse(plan([a], explicit: [a.id]).showDatabasesWindow, "An incoming file opens a window")
+        XCTAssertTrue(plan([a], explicit: [UUID()]).showDatabasesWindow, "An unknown file opens nothing")
+        store.recordTopology(topology([], launcher: true))
+        XCTAssertTrue(plan([a], quick: a.id).showDatabasesWindow)
     }
 
     func testQuickLaunchRequiresNoRestoredWindowAndNoExplicitRequest() {

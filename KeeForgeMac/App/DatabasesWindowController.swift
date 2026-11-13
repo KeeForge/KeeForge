@@ -7,6 +7,10 @@ import SwiftUI
 final class DatabasesWindowController: NSWindowController {
     static let identifier = NSUserInterfaceItemIdentifier("databases")
     static let contentSize = NSSize(width: 600, height: 620)
+    static let styleMask: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .resizable]
+
+    var onWillClose: (@MainActor () -> Void)?
+    private var closeObserver: NSObjectProtocol?
 
     init(coordinator: MacWindowCoordinator) {
         let hosting = NSHostingController(rootView: MacDatabasesLauncherRoot(coordinator: coordinator)
@@ -14,16 +18,22 @@ final class DatabasesWindowController: NSWindowController {
         hosting.sizingOptions = []
         hosting.sceneBridgingOptions = [.toolbars]
         let window = DatabasesWindow(contentViewController: hosting)
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.styleMask = Self.styleMask
         window.title = String(localized: "Databases")
         window.identifier = Self.identifier
         window.setAccessibilityIdentifier(Self.identifier.rawValue)
         window.isReleasedWhenClosed = false
         window.isRestorable = false
+        window.restorationClass = nil
         window.contentMinSize = Self.contentSize
         window.setContentSize(Self.contentSize)
         window.center()
         super.init(window: window)
+        closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: window, queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.onWillClose?() }
+        }
     }
 
     @available(*, unavailable)

@@ -68,7 +68,8 @@ final class MacWindowRestorationStore {
     func restorationPlan(
         knownDatabases: [DatabaseReference],
         screens: [CGRect],
-        minimumSize: CGSize,
+        databaseWindowMinimumSize: CGSize,
+        databasesWindowMinimumSize: CGSize,
         defaultDatabasesWindowFrame: CGRect,
         quickLaunchDatabaseID: UUID?,
         explicitOpenRequests: [UUID]
@@ -84,7 +85,7 @@ final class MacWindowRestorationStore {
         let windows = (topology?.databaseWindows ?? []).compactMap { window -> RestoredDatabaseWindow? in
             guard eligibleIDs.contains(window.databaseID), restoredIDs.insert(window.databaseID).inserted else { return nil }
             return RestoredDatabaseWindow(databaseID: window.databaseID,
-                frame: Self.constrainedFrame(window.frame, screens: screens, minimumSize: minimumSize))
+                frame: Self.constrainedFrame(window.frame, screens: screens, minimumSize: databaseWindowMinimumSize))
         }
         var openedIDs = restoredIDs
         let requests = explicitOpenRequests.filter { eligibleIDs.contains($0) }.map { id in
@@ -92,14 +93,17 @@ final class MacWindowRestorationStore {
         }
         let explicitFront = explicitOpenRequests.last(where: { restoredIDs.contains($0) })
         let savedFront = topology?.frontmostDatabaseID.flatMap { restoredIDs.contains($0) ? $0 : nil }
+        let quickLaunch = windows.isEmpty && explicitOpenRequests.isEmpty
+            ? quickLaunchDatabaseID.flatMap { eligibleIDs.contains($0) ? $0 : nil } : nil
+        // Databases shows when it was open, or when nothing else would open a window.
+        let nothingElseOpens = windows.isEmpty && requests.isEmpty && quickLaunch == nil
         return Plan(
             databaseWindows: windows,
             frontmostDatabaseID: explicitFront ?? savedFront,
-            showDatabasesWindow: topology?.databasesWindowOpen == true || windows.isEmpty,
+            showDatabasesWindow: topology?.databasesWindowOpen == true || nothingElseOpens,
             databasesWindowFrame: Self.constrainedFrame(topology?.databasesWindowFrame ?? defaultDatabasesWindowFrame,
-                screens: screens, minimumSize: minimumSize),
-            quickLaunchDatabaseID: windows.isEmpty && explicitOpenRequests.isEmpty
-                ? quickLaunchDatabaseID.flatMap { eligibleIDs.contains($0) ? $0 : nil } : nil,
+                screens: screens, minimumSize: databasesWindowMinimumSize),
+            quickLaunchDatabaseID: quickLaunch,
             explicitOpenRequests: requests
         )
     }

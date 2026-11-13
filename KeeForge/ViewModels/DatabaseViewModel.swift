@@ -3635,7 +3635,7 @@ final class DatabaseViewModel {
         cloudSyncOutcome = .updated
     }
 
-    private func waitForInFlightSave() async {
+    func waitForInFlightSave() async {
         while isSaving {
             await withCheckedContinuation { saveCompletionWaiters.append($0) }
         }

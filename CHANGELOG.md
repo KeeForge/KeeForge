@@ -4,7 +4,7 @@
 
 ### New Features
 
-- On Mac, open several databases at once, each in its own window. A new Databases window lists your databases and opens, adds, creates, or connects to them; Window ▸ Databases brings it back. Closing a database's window locks that database only.
+- On Mac, open several databases at once, each in its own window. A new Databases window lists your databases and opens, adds, creates, or connects to them; Window ▸ Databases brings it back. Closing a database's window locks that database only. Windows that were open when you quit come back on relaunch, locked, where you left them.
 
 ### Changes
 

@@ -22,6 +22,20 @@ applies the capture policy to each window it creates before showing it, supplies
 Quick Access with the database window the user last made key, and closes a
 window whose session was retired elsewhere (removed from the list).
 
+Window restoration: the coordinator is the only owner of top-level frames and
+records the topology in `MacWindowRestorationStore` (the app's own defaults) as
+windows open, close for good, move, finish resizing, minimize, change order, and as
+the Databases window is shown or closed. A relaunch applies the plan once the launch
+presentations are done (`MacApplicationRouting`'s `restoreWindows` effect, ahead of
+queued and Quick Launch opens): each surviving database comes back locked in its
+own window, registered as restoring so automatic Touch ID waits until the user
+clicks or types in it or opens it explicitly, and the recorded frontmost is
+fronted. Quick Launch runs only when nothing was restored and no file arrived. New
+windows open at the default size; unit tests inject the store's defaults, screen
+frames and the quit prompt. `-ui-testing` turns restoration and recording off, and
+`-ui-testing-database-window-size <w>x<h>` sets the database window's content size
+(`MacWindowLaunchOptions`).
+
 The Databases window (about 600 x 620 pt, so the 540 x 560 pt sheets fit) hosts
 `DatabaseListView`'s macOS branch with `MacDatabasesLauncherViewModel`: the
 local, WebDAV and FTP references, double-click or Return to open, Create New,
@@ -32,7 +46,7 @@ when no database window was targeted.
 
 Each `DatabaseWindowController` owns its session for its whole life and never
 looks one up through `activeSession`. Its window (identifier
-`database.<UUID>`, frame autosave `database.<UUID>`, not restorable) hosts the
+`database.<UUID>`, no frame autosave, not restorable) hosts the
 always-mounted `MacDatabaseRootView`: that session's unlock, opening, error and
 unlocked content, its `MacBiometricAutoUnlockObserver`, and enrollment sheets
 bound to this database. The window title is the database name in every state.
@@ -78,6 +92,15 @@ Close Window, Close Database and Escape on the unlock screen all go through the
 window's guarded close (`MacWindowCloseGuard`). A committed close locks and
 retires exactly that session and releases its controller; cancel or a failed save
 keeps both. Lock keeps the window open on its unlock screen.
+
+Quit (`applicationShouldTerminate`, also on logout and restart) goes through
+`MacWindowCoordinator.requestTermination`: with nothing unsaved it terminates at
+once; otherwise it fronts each window with an unsaved write in turn, front first,
+asks the close prompt, and writes only after every answer is in. Cancel, a failed
+save, or a window whose editor still holds fields (fronted, for the user to
+finish) cancels the quit and leaves every window and session as it was. A quit
+that proceeds records the pre-quit topology, then freezes the record so the closes
+that follow cannot shrink it.
 
 ## Toolbar and search
 

@@ -5,7 +5,7 @@
 ## Ownership
 
 - `SettingsService`: where each preference is stored (app-local or App Group-shared). `AppSettingsViewModel` owns their live effects.
-- `MacWindowRestorationStore`: unwired, data-only Mac window topology and restoration decisions. Inject the app's own defaults, never the App Group suite; records contain only database UUIDs, frames, launcher visibility, and frontmost UUID. Termination freezes recording until cancelled. Split geometry remains AppKit-owned under per-database autosave names.
+- `MacWindowRestorationStore`: data-only Mac window topology and restoration decisions; `MacWindowCoordinator` is its only writer and the only owner of top-level frames (no AppKit frame autosave or state restoration). Inject the app's own defaults, never the App Group suite; records contain only database UUIDs, frames, launcher visibility, and frontmost UUID. Database and Databases windows have separate minimum sizes. Termination freezes recording until cancelled. Split geometry remains AppKit-owned under per-database autosave names and is removed with the database.
 - `MacLockMonitor`: the macOS lock lifecycle. macOS has no "entered background" moment, so its triggers are what locks the vault there.
 - `MacDatabaseWindowRegistry`: app-owned window-identity to database-ID mapping, resolving sheets/children to their database parent. Sessions never retain AppKit objects; unregistering clears callbacks.
 - `MacWindowCloseGuard`: settles each registered database window's unsaved work independently and locks/cancels only its session on committed close. Cancel and save failure retain both.
@@ -72,7 +72,7 @@
 ## Tests
 
 - `SettingsServiceTests`, `FaviconServiceTests`, `FaviconIconEncoderTests`, `FeedbackSubmissionServiceTests`, `AttachmentPreviewFileStoreTests`, `ReviewPromptServiceTests`, `WhatsNewPresentationServiceTests`, `AutoFillStatusServiceTests`.
-- Mac restoration: `MacWindowRestorationStoreTests` covers persistence, allowed JSON fields, supported-reference filtering, frame constraints, launcher/Quick Launch/explicit-open precedence, termination snapshots, and split geometry cleanup.
+- Mac restoration: `MacWindowRestorationStoreTests` covers persistence, allowed JSON fields, supported-reference filtering, frame constraints with separate minimum sizes, launcher/Quick Launch/explicit-open precedence, termination snapshots, and split geometry cleanup. Wiring into real window lifetime is in `MacWindowCoordinatorTests`.
 - Mac: `MacDatabaseWindowRegistryTests`, `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `MacQuickAccessControllerTests`, `MacQuickSearchViewModelTests`, `MacTransitionNoticeServiceTests` (all `KeeForgeMacTests` only).
 - `ClipboardService` has no class of its own; scrubbing on lock is covered in `AutoLockTests`.
 - UI tests suppress the AutoFill tip unless `UI_TEST_SHOW_AUTOFILL_TIP=1` and force the Mac app banner with `UI_TEST_SHOW_MAC_APP_SUGGESTION=1`.
