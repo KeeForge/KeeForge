@@ -681,6 +681,31 @@ struct DatabaseDetailsView: View {
                 if localRecoveryViewModel.targetNeedsRecovery {
                     Text("The current database file does not match the saved key record. Keep the original and new master keys and encrypted backups. Export unsaved changes before closing this session.")
                 }
+                if localRecoveryViewModel.targetNeedsRecovery, localRecovery.keyEvidence?.targetState.isConfirmed == true,
+                   !localRecovery.needsRecovery, localRecovery.entries.isEmpty {
+                    Text("Authenticate the current file and merge it with your unsaved changes. Choose Save separately to write the result.")
+                    if sessionViewModel?.databaseReference.id != reference.id || sessionViewModel?.state != .unlocked {
+                        Text("Unlock this database to enable authentication and merging.")
+                    }
+                    Button("Authenticate and Merge Current File") {
+                        guard let sessionViewModel, sessionViewModel.databaseReference.id == reference.id else { return }
+                        let requestID = UUID()
+                        recoveryActionID = requestID
+                        recoveryActionTask = Task {
+                            do {
+                                try await sessionViewModel.adoptAuthenticatedLocalFile()
+                                guard !Task.isCancelled, recoveryActionID == requestID else { return }
+                                await refreshLocalRecovery()
+                            } catch {
+                                guard !Task.isCancelled, recoveryActionID == requestID else { return }
+                                recoveryExportError = error.localizedDescription
+                                await refreshLocalRecovery()
+                            }
+                        }
+                    }
+                    .disabled(sessionViewModel?.databaseReference.id != reference.id || sessionViewModel?.state != .unlocked || sessionViewModel?.isSaving != false)
+                    .accessibilityIdentifier("database-details.local-recovery.adopt-file")
+                }
                 if let admission = localRecovery.admission, admission.purpose.isMasterKeyChange {
                     Text("This is a verified copy of the intended encrypted output, not proof that the original file was saved. Open it with the key chosen for that operation. Exporting does not resolve recovery.")
                     Button("Export Encrypted Output…") { exportRequest = .keyPublicationIntent(UUID(), admission, currentReference) }
@@ -691,7 +716,7 @@ struct DatabaseDetailsView: View {
                         .accessibilityIdentifier("database-details.local-recovery.export-key-copy")
                 }
                 if localRecovery.keyEvidence?.targetDurabilityUnconfirmed == true {
-                    Text(SaveDurabilityWarning().localizedDescription)
+                    Text("The current file's durability is unconfirmed. Keep an encrypted backup before closing this session.")
                 }
                 if let sessionViewModel, sessionViewModel.databaseReference.id == reference.id, sessionViewModel.isDirty {
                     Text("Export a full encrypted copy of your unsaved changes before closing this session. Open it with the master key used by this unlocked session. Exporting keeps your edits here.")

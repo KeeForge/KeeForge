@@ -77,3 +77,6 @@
 - Local cache refresh coordinates original/cache before flock and rechecks ciphertext, accepted sources and revocation through publication. A stale completion must not recreate a removed cache.
 
 - Key-change association publication holds combined target/registry coordination before owner flock through the registry write. It rereads reference fields and verifies the compatible installed ciphertext before publishing factors; a later settlement check cannot substitute for that protection.
+
+- Target evidence is one confirmed/unconfirmed/planned state. Live completion and recovery share its final transition; planned output cannot inherit the old file’s confirmed durability. Key-file preferences and stale-bookmark renewal use a same-epoch field-specific durable intent/CAS, preserve sources and target evidence, and never use whole-reference update.
+- Explicit external-file adoption accepts only fully confirmed settled ownership with no sources/pending work, after actual authentication of prior and current ciphertext. Revalidate current reference and exact target/owner under list lock → combined target/registry coordination → flock; adoption changes only the witness, never the original file or key epoch.

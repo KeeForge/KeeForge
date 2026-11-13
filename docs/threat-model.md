@@ -103,6 +103,28 @@ The legitimate user selects databases, authorizes unlocks, chooses recipients, a
 - The Mac SSH agent has been exercised unsigned and through unit tests, including OpenSSH's own `ssh-add` and `ssh-keygen` against the socket. Not yet established, and to be treated as open questions rather than known defects: its behavior in a signed, sandboxed build (whether a client outside the container reaches the socket), authentication against a real host, `git`, and a forwarded agent end to end ([Mac security model](../KeeForgeMac/SECURITY.md#ssh-agent)).
 - This source-based model does not verify deployed server settings, installed entitlements, dependency vulnerabilities, release-key custody, or all parser resource bounds. Those require targeted validation when the corresponding boundary changes. A valid encrypted file can still be stale or contain hostile content supplied by someone who knows its key.
 
+### Local replacement and key recovery
+
+Local key-target evidence has explicit confirmed, unconfirmed and planned states;
+final coordination errors and recovery without a new sync proof cannot inherit
+older confirmed durability. Same-epoch key-file preference changes retain a durable
+nonsecret desired-field intent and validate epoch/association generation under
+combined target/registry coordination and owner flock. Automatic bookmark renewal
+uses the same field CAS and cannot restore an older preference after a later choice.
+No key-file bytes or session keys enter these records.
+
+Explicit local interoperability requires an unlocked session to authenticate both
+the exact fully confirmed prior ciphertext and the current file under the same key.
+Only settled ownership without sources or pending work can adopt; target/owner CAS
+is repeated under target coordination and flock. The action merges without writing
+the original or changing the key epoch. Wrong-key rollback, missing prior proof and
+attachment divergence refuse adoption while preserving draft export. Bounded current
+and prior encrypted snapshots may live in RAM until lock/new unlock; they are never
+serialized. Draft export verifies the reopened full document and binary pool with
+the session key off main, leaves the draft intact, and grants no cleanup permission.
+Native action availability, signed file grants and physical durability remain
+separate validation requirements.
+
 ### Effective resource inventory
 
 Container paths below are relative to the OS-resolved location, not fixed device paths. They describe production behavior. Injected unit tests instead use `<temporary directory>/KeeForgeUnitTestAppGroup/group.com.keevault.shared` and the `group.com.keevault.shared.unit-tests` defaults suite. In production, failure to resolve the group directory falls back to the process temporary directory; defaults independently fall back to standard defaults if the suite is unavailable ([AppGroupContainer.swift:28](../KeeForge/Services/Persistence/AppGroupContainer.swift#L28)). Neither fallback guarantees app/extension sharing.

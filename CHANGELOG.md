@@ -4,6 +4,8 @@
 
 ### Changes
 
+- Database Details can authenticate and merge a compatible externally edited local file while preserving unsaved changes. Key-file selections recover separately from master-key changes.
+
 - AutoFill changes waiting for a local database can be exported as their original encrypted snapshots in Database Details. Removing a database preserves these changes until you explicitly discard them.
 
 - AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:

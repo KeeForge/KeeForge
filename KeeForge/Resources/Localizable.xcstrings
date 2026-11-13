@@ -7862,6 +7862,122 @@
         }
       }
     },
+    "Authenticate and Merge Current File" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktuelle Datei authentifizieren und zusammenführen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticate and Merge Current File"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autenticar y combinar archivo actual"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authentifier et fusionner le fichier actuel"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autentica e unisci il file attuale"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のファイルを認証して統合"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверить и объединить текущий файл"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证并合并当前文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "驗證並合併目前檔案"
+          }
+        }
+      }
+    },
+    "Authenticate the current file and merge it with your unsaved changes. Choose Save separately to write the result." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authentifiziere die aktuelle Datei und führe sie mit deinen ungesicherten Änderungen zusammen. Wähle danach Sichern, um das Ergebnis zu schreiben."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticate the current file and merge it with your unsaved changes. Choose Save separately to write the result."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autentica el archivo actual y combínalo con tus cambios sin guardar. Elige Guardar por separado para escribir el resultado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authentifiez le fichier actuel et fusionnez-le avec vos modifications non enregistrées. Choisissez ensuite Enregistrer pour écrire le résultat."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autentica il file attuale e uniscilo alle modifiche non salvate. Scegli Salva separatamente per scrivere il risultato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のファイルを認証して未保存の変更と統合します。結果を書き込むには、別途「保存」を選んでください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверьте текущий файл и объедините его с несохранёнными правками. Отдельно выберите «Сохранить», чтобы записать результат."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证当前文件并将其与你未存储的更改合并。请另行选择“存储”来写入结果。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "驗證目前檔案並將其與你尚未儲存的更改合併。請另外選擇「儲存」來寫入結果。"
+          }
+        }
+      }
+    },
     "Authentication didn't complete. The master key was not changed." : {
       "localizations" : {
         "de" : {
@@ -54039,6 +54155,64 @@
         }
       }
     },
+    "The current file's durability is unconfirmed. Keep an encrypted backup before closing this session." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die dauerhafte Speicherung der aktuellen Datei ist nicht bestätigt. Behalte vor dem Schließen dieser Sitzung eine verschlüsselte Sicherung."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current file's durability is unconfirmed. Keep an encrypted backup before closing this session."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La durabilidad del archivo actual no está confirmada. Conserva una copia de seguridad cifrada antes de cerrar esta sesión."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La persistance du fichier actuel n'est pas confirmée. Conservez une sauvegarde chiffrée avant de fermer cette session."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La persistenza del file attuale non è confermata. Conserva un backup cifrato prima di chiudere questa sessione."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のファイルの永続性を確認できていません。このセッションを閉じる前に暗号化されたバックアップを保管してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Надёжность сохранения текущего файла не подтверждена. Сохраните зашифрованную резервную копию перед закрытием сеанса."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前文件的持久性尚未确认。关闭此会话前，请保留加密备份。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前檔案的持久性尚未確認。關閉此工作階段前，請保留加密備份。"
+          }
+        }
+      }
+    },
     "The current key file could not be read. Select it again or clear it, then try again." : {
       "localizations" : {
         "de" : {
@@ -55734,6 +55908,64 @@
         }
       }
     },
+    "The file was authenticated, but its local record could not be confirmed. Your draft is unchanged. Review Database Details before adopting again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datei wurde authentifiziert, aber ihr lokaler Datensatz konnte nicht bestätigt werden. Dein Entwurf bleibt unverändert. Prüfe die Datenbankdetails vor einer erneuten Übernahme."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file was authenticated, but its local record could not be confirmed. Your draft is unchanged. Review Database Details before adopting again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo se autenticó, pero no se pudo confirmar su registro local. Tu borrador sigue intacto. Revisa los detalles de la base de datos antes de adoptarlo de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier a été authentifié, mais son registre local n'a pas pu être confirmé. Votre brouillon reste inchangé. Consultez les détails de la base de données avant de réessayer l'adoption."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il file è stato autenticato, ma la sua registrazione locale non è stata confermata. La bozza resta invariata. Controlla i dettagli del database prima di adottarlo di nuovo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルは認証されましたが、ローカルの記録を確認できませんでした。下書きは変更されていません。再度取り込む前にデータベースの詳細を確認してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл проверен, но его локальную запись подтвердить не удалось. Ваш черновик не изменён. Проверьте сведения о базе данных перед повторным принятием файла."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件已验证，但无法确认其本地记录。你的草稿未更改。再次采用该文件前，请查看数据库详情。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案已驗證，但無法確認其本機記錄。你的草稿未變更。再次採用該檔案前，請查看資料庫詳細資訊。"
+          }
+        }
+      }
+    },
     "The FTP server has no folder at this path." : {
       "localizations" : {
         "de" : {
@@ -56112,6 +56344,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上次嘗試未能開啟此功能。請前往 iOS 自動填寫設定並在其中啟用 KeeForge。"
+          }
+        }
+      }
+    },
+    "The local record's durability is unconfirmed. Review Database Details before saving." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die dauerhafte Speicherung des lokalen Datensatzes ist nicht bestätigt. Prüfe vor dem Sichern die Datenbankdetails."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The local record's durability is unconfirmed. Review Database Details before saving."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La durabilidad del registro local no está confirmada. Revisa los detalles de la base de datos antes de guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La persistance du registre local n'est pas confirmée. Consultez les détails de la base de données avant d'enregistrer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La persistenza della registrazione locale non è confermata. Controlla i dettagli del database prima di salvare."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの記録の永続性を確認できていません。保存する前にデータベースの詳細を確認してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Надёжность сохранения локальной записи не подтверждена. Проверьте сведения о базе данных перед сохранением."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地记录的持久性尚未确认。存储前请查看数据库详情。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本機記錄的持久性尚未確認。儲存前請查看資料庫詳細資訊。"
           }
         }
       }
@@ -56847,6 +57137,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此要求已無法使用。"
+          }
+        }
+      }
+    },
+    "The saved ciphertext needed to authenticate this file is unavailable. Export your unsaved changes before closing this session." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der zur Authentifizierung benötigte gespeicherte Geheimtext ist nicht verfügbar. Exportiere deine ungesicherten Änderungen, bevor du diese Sitzung schließt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The saved ciphertext needed to authenticate this file is unavailable. Export your unsaved changes before closing this session."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El contenido cifrado guardado necesario para autenticar este archivo no está disponible. Exporta tus cambios sin guardar antes de cerrar esta sesión."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le contenu chiffré enregistré nécessaire à l'authentification de ce fichier est indisponible. Exportez vos modifications non enregistrées avant de fermer cette session."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il contenuto cifrato salvato necessario per autenticare questo file non è disponibile. Esporta le modifiche non salvate prima di chiudere questa sessione."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルの認証に必要な保存済みの暗号文が利用できません。このセッションを閉じる前に、未保存の変更をエクスポートしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранённый шифротекст, необходимый для проверки этого файла, недоступен. Экспортируйте несохранённые изменения перед закрытием сеанса."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法获取验证此文件所需的已存储密文。关闭此会话前，请导出未存储的更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法取得驗證此檔案所需的已儲存密文。關閉此工作階段前，請輸出尚未儲存的更改。"
           }
         }
       }
@@ -57741,6 +58089,64 @@
         }
       }
     },
+    "The two copies store their attachments differently. Your draft is unchanged. Export your unsaved changes before closing this session." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die beiden Kopien speichern ihre Anhänge unterschiedlich. Dein Entwurf bleibt unverändert. Exportiere deine ungesicherten Änderungen, bevor du diese Sitzung schließt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The two copies store their attachments differently. Your draft is unchanged. Export your unsaved changes before closing this session."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las dos copias almacenan sus adjuntos de forma distinta. Tu borrador sigue intacto. Exporta tus cambios sin guardar antes de cerrar esta sesión."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les deux copies stockent leurs pièces jointes différemment. Votre brouillon reste inchangé. Exportez vos modifications non enregistrées avant de fermer cette session."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le due copie memorizzano gli allegati in modo diverso. La bozza resta invariata. Esporta le modifiche non salvate prima di chiudere questa sessione."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2 つのコピーでは添付ファイルの保存方法が異なります。下書きは変更されていません。このセッションを閉じる前に、未保存の変更をエクスポートしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Две копии хранят вложения по-разному. Ваш черновик не изменён. Экспортируйте несохранённые изменения перед закрытием сеанса."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这两个副本的附件存储方式不同。你的草稿未更改。关闭此会话前，请导出未存储的更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這兩個副本的附件儲存方式不同。你的草稿未變更。關閉此工作階段前，請輸出尚未儲存的更改。"
+          }
+        }
+      }
+    },
     "The verification code setup link is invalid or incomplete." : {
       "localizations" : {
         "de" : {
@@ -58361,6 +58767,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此帳號已中斷連線。KeeForge 會保留快取副本，直到你移除該資料庫。"
+          }
+        }
+      }
+    },
+    "This action did not save the database. Save your unsaved changes separately." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Aktion hat die Datenbank nicht gesichert. Sichere deine ungesicherten Änderungen separat."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This action did not save the database. Save your unsaved changes separately."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta acción no guardó la base de datos. Guarda tus cambios pendientes por separado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette action n'a pas enregistré la base de données. Enregistrez vos modifications non enregistrées séparément."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa azione non ha salvato il database. Salva separatamente le modifiche non salvate."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この操作ではデータベースを保存していません。未保存の変更は別途保存してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это действие не сохраняло базу данных. Сохраните несохранённые изменения отдельно."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此操作未存储数据库。请另行存储未保存的更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此操作未儲存資料庫。請另外儲存尚未儲存的更改。"
           }
         }
       }
@@ -64973,6 +65437,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 KeeForge 中解鎖此資料庫，即可在這裡搜尋。"
+          }
+        }
+      }
+    },
+    "Unlock this database to enable authentication and merging." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entsperre diese Datenbank, um Authentifizierung und Zusammenführung zu aktivieren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock this database to enable authentication and merging."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquea esta base de datos para habilitar la autenticación y la combinación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillez cette base de données pour activer l’authentification et la fusion."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sblocca questo database per abilitare autenticazione e unione."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認証と統合を有効にするには、このデータベースのロックを解除してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разблокируйте эту базу данных, чтобы включить проверку и объединение."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁此数据库以启用验证和合并。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖此資料庫以啟用驗證和合併。"
           }
         }
       }

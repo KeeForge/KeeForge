@@ -104,3 +104,5 @@ Designated gates:
 - [../KeeForgeUITests/AGENTS.md](../KeeForgeUITests/AGENTS.md), [../KeeForgeMacUITests/AGENTS.md](../KeeForgeMacUITests/AGENTS.md)
 
 - Local durability coverage spans `LocalDatabaseSaverTests`, `PendingLocalSaveTests`, `DatabaseViewModelTests`, the two settings-form suites and the three credential save/registration/picker suites. Faults cross production filesystem boundaries; a mocked throw alone is not a staging-failure proof. Static typechecks are not runtime test results.
+
+- `DatabaseListViewModelTests` exercises same-epoch preference publication/renewal through the production publisher, including stale selection and post-publication recovery. `DatabaseViewModelTests` exercises exact authenticated external adoption, dirty/discard behavior, source/removal/late-writer fences, lock/cancel/edit invalidation and RAM-backed verified draft export. `DatabaseDraftTests`, `AttachmentTests` and `KDBXCompatibilityTests` pin rebase ownership, real edit logs, pools and full reopen snapshots. These authored assertions still require runtime execution.

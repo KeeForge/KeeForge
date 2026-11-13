@@ -660,6 +660,37 @@ enum PendingLocalSaveStore {
         }
     }
 
+    static func captureExternalAdoption(for reference: DatabaseReference) throws -> RecoverySnapshot {
+        try validateReferenceAssociation(reference)
+        let snapshot = try recovery(for: reference.id)
+        guard !snapshot.needsRecovery, !snapshot.isRevoked, snapshot.entries.isEmpty,
+              snapshot.keyEvidence?.targetState.isConfirmed == true,
+              !snapshot.requiresAssociationRecovery(for: reference) else { throw OwnershipError.recoveryRequired }
+        return snapshot
+    }
+
+    static func adoptAuthenticatedTarget(
+        _ authenticated: LocalDatabaseSaver.AuthenticatedExternalAdoption,
+        observeTarget: () throws -> InstalledTarget, confirmDurability: () -> Bool,
+        canCommit: () -> Bool = { true }, io: StorageIO = .init()
+    ) throws -> (ResolutionOutcome, TargetCommit) {
+        let snapshot = authenticated.owner
+        let target = authenticated.original.installed
+        return try withLock(for: snapshot.databaseID) {
+            try requireNotRemoved(snapshot.databaseID)
+            try validateObservation(snapshot.ownerObservation, at: stateURL(snapshot.databaseID))
+            var state = try loadState(snapshot.databaseID) ?? OwnerState(version: 1, removed: false)
+            guard canCommit(), let evidence = state.keyEvidence, evidence == snapshot.keyEvidence, evidence.targetState.isConfirmed,
+                  state.associationVersion == snapshot.associationVersion, state.operation == .idle,
+                  state.retirementID == nil, state.sources.isEmpty, try sourceURLs(snapshot.databaseID).isEmpty,
+                  target.target.canonicalPath == evidence.target.canonicalPath, target.target.parent == evidence.target.parent,
+                  try observeTarget() == target else { throw OwnershipError.sourceChanged }
+            let commit: TargetCommit = confirmDurability() ? .confirmed(target) : .unconfirmed(target)
+            state.keyEvidence?.targetState = KeyTargetState(commit)
+            return (try resolution(publish(state, databaseID: snapshot.databaseID, io: io)), commit)
+        }
+    }
+
     static func capturePreference(_ observation: PreferenceObservation) throws -> PreferenceToken {
         try withLock(for: observation.databaseID) {
             try requireNotRemoved(observation.databaseID)

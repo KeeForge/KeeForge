@@ -556,13 +556,24 @@ final class DatabaseViewModel {
     /// applies the auto-lock timeout as it does for one already unlocked.
     @ObservationIgnored private var unlockAttemptBackgroundedAt: Date?
     var draft: DatabaseDraft? {
-        didSet { rebuildDerivedState() }
+        didSet {
+            localAdoptionGate?.cancel()
+            rebuildDerivedState()
+        }
     }
     private(set) var contentRevision = 0
     private(set) var searchResults: [KPEntry] = []
     private(set) var openTimeSHA512: Data?
     private(set) var authenticatedLocalCiphertext: Data?
     private var previousLocalCiphertext: Data?
+    private final class LocalAdoptionGate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var invalidated = false
+        func cancel() { lock.lock(); invalidated = true; lock.unlock() }
+        var isCurrent: Bool { lock.lock(); defer { lock.unlock() }; return !invalidated }
+    }
+    @ObservationIgnored private var localAdoptionGate: LocalAdoptionGate?
+
     private(set) var saveError: DatabaseSaveError?
     private(set) var saveConflict: SaveConflict?
     /// Why the last merge attempt wrote nothing, awaiting acknowledgement.
@@ -3008,15 +3019,111 @@ final class DatabaseViewModel {
         authenticatedLocalCiphertext = data
     }
 
+    struct LocalAdoptionRecordFailure: Error, LocalizedError {
+        var errorDescription: String? {
+            String(localized: "The file was authenticated, but its local record could not be confirmed. Your draft is unchanged. Review Database Details before adopting again.")
+        }
+    }
+
+    struct LocalAdoptionWarning: Error, LocalizedError {
+        enum Aspect: Hashable { case file, record }
+        let aspects: Set<Aspect>
+        var errorDescription: String? {
+            var messages: [String] = []
+            if aspects.contains(.file) {
+                messages.append(String(localized: "The current file's durability is unconfirmed. Keep an encrypted backup before closing this session."))
+            }
+            if aspects.contains(.record) {
+                messages.append(String(localized: "The local record's durability is unconfirmed. Review Database Details before saving."))
+            }
+            messages.append(String(localized: "This action did not save the database. Save your unsaved changes separately."))
+            return messages.joined(separator: " ")
+        }
+    }
+
+    struct ExternalAdoptionProofUnavailable: Error, LocalizedError {
+        var errorDescription: String? {
+            String(localized: "The saved ciphertext needed to authenticate this file is unavailable. Export your unsaved changes before closing this session.")
+        }
+    }
+
+    func adoptAuthenticatedLocalFile(
+        beforeCommit: @Sendable () async throws -> Void = {},
+        synchronizeParent: @escaping @Sendable (URL) throws -> Void = synchronizeDirectory,
+        ownerIO: PendingLocalSaveStore.StorageIO = .init()
+    ) async throws {
+        guard !databaseReference.isCloudBacked, !isReadOnly, !isSaving, case .unlocked = state,
+              let compositeKey, let sessionKey else { throw SaveError.saveContextUnavailable }
+        let cycle = lockCycleID
+        let revision = contentRevision
+        let capturedDraft = try makeWorkingDraft()
+        let retained = [authenticatedLocalCiphertext, previousLocalCiphertext].compactMap { $0 }
+        let gate = LocalAdoptionGate()
+        localAdoptionGate = gate
+        isSaving = true
+        defer {
+            if localAdoptionGate === gate {
+                localAdoptionGate = nil
+                isSaving = false
+            }
+        }
+        try await refreshSameEpochKeyFilePreference()
+        let reference = databaseReference
+        try await withTaskCancellationHandler {
+            let prepared = try await Task.detached(priority: .userInitiated) {
+                let owner = try PendingLocalSaveStore.captureExternalAdoption(for: reference)
+                guard let witness = owner.keyEvidence else { throw ExternalAdoptionProofUnavailable() }
+                var prior = retained.first { FileDigest.sha512($0) == witness.sha512 }
+                if prior == nil { prior = try? await LocalDatabaseSaver.exportKeyEpochCopy(witness, for: reference) }
+                if prior == nil {
+                    for backup in DatabaseExportService.backups(for: reference) {
+                        if let copy = try? await DatabaseExportService.exportBackup(backup, for: reference),
+                           FileDigest.sha512(copy.data) == witness.sha512 { prior = copy.data; break }
+                    }
+                }
+                guard let prior, FileDigest.sha512(prior) == witness.sha512 else { throw ExternalAdoptionProofUnavailable() }
+                let original = try LocalDatabaseSaver.readOriginalSnapshot(for: reference)
+                return try LocalDatabaseSaver.prepareAuthenticatedExternalAdoption(owner: owner, priorCiphertext: prior,
+                    original: original, draft: capturedDraft, compositeKey: compositeKey, sessionKey: sessionKey,
+                    lockCycleID: cycle, draftRevision: revision)
+            }.value
+            guard cycle == lockCycleID, revision == contentRevision, gate.isCurrent, case .unlocked = state else {
+                throw CancellationError()
+            }
+            try await beforeCommit()
+            let resolution = try await Task.detached(priority: .userInitiated) {
+                try LocalDatabaseSaver.adoptAuthenticatedTarget(prepared, reference: reference, synchronizeParent: synchronizeParent, ownerIO: ownerIO, canCommit: { gate.isCurrent })
+            }.value
+            guard cycle == lockCycleID, case .unlocked = state else { throw CancellationError() }
+            // Authenticated ciphertext remains useful even when a later edit prevents applying this merge.
+            previousLocalCiphertext = prepared.priorCiphertext
+            authenticatedLocalCiphertext = prepared.original.data
+            guard prepared.draftRevision == contentRevision, prepared.lockCycleID == lockCycleID, gate.isCurrent else { throw CancellationError() }
+            guard resolution.ownership != .retainedForRecovery else { throw LocalAdoptionRecordFailure() }
+            rootGroup = prepared.baseRoot
+            unlockedMeta = prepared.baseMeta
+            binaryPool = BinaryPool(rawFields: prepared.basePool)
+            openTimeSHA512 = prepared.original.installed.sha512
+            draft = prepared.rebased.isDirty ? prepared.rebased : nil
+            saveConflict = nil
+            saveError = nil
+            var aspects: Set<LocalAdoptionWarning.Aspect> = []
+            if resolution.ownership == .resolvedVisibleWithoutConfirmedDurability { aspects.insert(.record) }
+            if !resolution.target.isConfirmed { aspects.insert(.file) }
+            if !aspects.isEmpty { throw LocalAdoptionWarning(aspects: aspects) }
+        } onCancel: { gate.cancel() }
+    }
+
     func makeLocalRecoveryExport() async throws -> DatabaseExportService.ExportPayload {
         guard !isReadOnly else { throw SaveError.databaseIsReadOnly }
         guard !databaseReference.isCloudBacked, case .unlocked = state,
               let draft, draft.isDirty, let compositeKey, !isSaving else { throw SaveError.saveContextUnavailable }
         let cycle = lockCycleID
+        let revision = contentRevision
         let reference = databaseReference
         let encrypt = conflictCopyEncryptionOperation
         func export(using source: Data) async throws -> DatabaseExportService.ExportPayload {
-            guard cycle == lockCycleID, case .unlocked = state else { throw SaveError.saveContextUnavailable }
+            guard !Task.isCancelled, cycle == lockCycleID, revision == contentRevision, case .unlocked = state else { throw SaveError.saveContextUnavailable }
             let bytes = try await encrypt(draft, compositeKey, source)
             try await Task.detached {
                 guard let expectedPool = draft.binaryPoolFields else { throw SaveError.saveContextUnavailable }
@@ -3028,7 +3135,7 @@ final class DatabaseViewModel {
                     throw SaveError.reencryptionVerificationFailed
                 }
             }.value
-            guard cycle == lockCycleID, case .unlocked = state else { throw SaveError.saveContextUnavailable }
+            guard !Task.isCancelled, cycle == lockCycleID, revision == contentRevision, case .unlocked = state else { throw SaveError.saveContextUnavailable }
             let copyName = DatabaseExportService.currentCopyFilename(for: reference, date: conflictCopyDateProvider(), timeZone: .current)
             let stem = (copyName as NSString).deletingPathExtension
             return .init(data: bytes, suggestedFilename: "\(stem) - \(String(localized: "Unsaved Changes")).kdbx")
@@ -3036,7 +3143,7 @@ final class DatabaseViewModel {
         // These are bounded ciphertext references, never serialized session secrets.
         for source in [authenticatedLocalCiphertext, previousLocalCiphertext].compactMap({ $0 }) {
             if let exported = try? await export(using: source) { return exported }
-            guard cycle == lockCycleID, case .unlocked = state else { throw SaveError.saveContextUnavailable }
+            guard !Task.isCancelled, cycle == lockCycleID, revision == contentRevision, case .unlocked = state else { throw SaveError.saveContextUnavailable }
         }
         var candidates: [Data] = []
         if let snapshot = try? await Task.detached(operation: { try PendingLocalSaveStore.recovery(for: reference.id) }).value,
@@ -3048,7 +3155,7 @@ final class DatabaseViewModel {
         }
         for source in candidates {
             if let exported = try? await export(using: source) { return exported }
-            guard cycle == lockCycleID, case .unlocked = state else { throw SaveError.saveContextUnavailable }
+            guard !Task.isCancelled, cycle == lockCycleID, revision == contentRevision, case .unlocked = state else { throw SaveError.saveContextUnavailable }
         }
         throw SaveError.saveContextUnavailable
     }
@@ -4295,6 +4402,7 @@ final class DatabaseViewModel {
     }
 
     private func beginNewLockCycle() {
+        localAdoptionGate?.cancel()
         authenticatedLocalCiphertext = nil
         previousLocalCiphertext = nil
         lockCycleID += 1
@@ -4492,6 +4600,7 @@ final class DatabaseViewModel {
 
     /// Starts an unlock attempt and returns its token for `finishUnlockAttempt`.
     private func prepareForUnlock() -> UUID {
+        localAdoptionGate?.cancel()
         authenticatedLocalCiphertext = nil
         previousLocalCiphertext = nil
         let attempt = UUID()

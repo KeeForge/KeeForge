@@ -489,6 +489,34 @@ enum DatabaseListStore {
         }
     }
 
+    static func withCurrentLocalReference(
+        _ expected: DatabaseReference, target: URL,
+        _ action: (URL) throws -> PendingLocalSaveStore.ResolutionOutcome
+    ) throws -> PendingLocalSaveStore.ResolutionOutcome {
+        try withStateLock {
+            var error: NSError?
+            var result: Result<PendingLocalSaveStore.ResolutionOutcome, Error>?
+            NSFileCoordinator().coordinate(readingItemAt: target, options: [], writingItemAt: databaseListURL,
+                options: [], error: &error) { protectedTarget, registry in
+                result = Result {
+                    let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
+                    guard let current = references.first(where: { $0.id == expected.id }),
+                          PendingLocalSaveStore.PreferenceObservation(expected).matches(current),
+                          current.isReadOnly == expected.isReadOnly else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
+                    return try action(protectedTarget)
+                }
+            }
+            if let error {
+                if case .success(let outcome)? = result {
+                    return outcome == .resolved ? .resolvedVisibleWithoutConfirmedDurability : outcome
+                }
+                throw error
+            }
+            guard let result else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+            return try result.get()
+        }
+    }
+
     static func currentSameEpochPreference(for reference: DatabaseReference) throws -> PendingLocalSaveStore.KeyFilePreference {
         let owner = try PendingLocalSaveStore.recovery(for: reference.id)
         guard !owner.ownerUnavailable, !owner.isRevoked else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
