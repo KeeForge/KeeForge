@@ -47,11 +47,15 @@ final class DatabaseSessionStore {
         return session
     }
 
-    // A deferred lock retains the session and selection; retry retirement after the lock completes.
+    // A deferred lock retains the session and selection; force discards unsaved work.
     @discardableResult
-    func retire(_ id: UUID) -> Bool {
-        if let session = sessionsByID[id] {
-            session.lockForDatabaseTransition()
+    func retire(_ id: UUID, force: Bool = false) -> Bool {
+        if let session = sessionsByID[id], session.state != .locked {
+            if force {
+                session.lock()
+            } else {
+                session.lockForDatabaseTransition()
+            }
             guard session.state == .locked else { return false }
         }
         sessionsByID.removeValue(forKey: id)

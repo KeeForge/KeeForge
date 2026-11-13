@@ -190,6 +190,77 @@ final class DatabaseSessionStoreTests: XCTestCase {
         XCTAssertTrue(store.openSessions.isEmpty)
     }
 
+    func testRetiringAnAlreadyLockedSessionDoesNotStartAnotherLockCycle() throws {
+        let store = DatabaseSessionStore()
+        let session = store.open(try makeReference())
+        store.activeSessionID = session.databaseReference.id
+        let lockCycle = session.lockCycleID
+
+        XCTAssertTrue(store.retire(session.databaseReference.id))
+
+        XCTAssertEqual(session.lockCycleID, lockCycle)
+        XCTAssertTrue(store.openSessions.isEmpty)
+        XCTAssertNil(store.activeSessionID)
+    }
+
+    func testForcedRetirementDiscardsDirtyDraftAndEditorAndClearsSecrets() async throws {
+        let store = DatabaseSessionStore()
+        let session = try await makeUnlockedSession()
+        defer { session.lock() }
+        store.adopt(session)
+        let id = session.databaseReference.id
+        store.activeSessionID = id
+        let root = try XCTUnwrap(session.rootGroup)
+        session.draft = try DatabaseDraft(
+            rootGroup: root,
+            meta: KPMeta(recycleBin: root.recycleBinUUID.map { .group($0) }),
+            sessionKey: XCTUnwrap(session.sessionKey)
+        ).apply(.createEntry(
+            parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: root),
+            draft: EntryDraftPayload(title: "Unsaved", password: "secret")
+        ))
+        session.setEditorHasUnsavedChanges(true, editorID: UUID())
+        XCTAssertFalse(store.retire(id))
+        XCTAssertNotNil(session.pendingLockRequest)
+
+        XCTAssertTrue(store.retire(id, force: true))
+
+        XCTAssertEqual(session.state, .locked)
+        XCTAssertNil(session.sessionKey)
+        XCTAssertNil(session.compositeKey)
+        XCTAssertNil(session.rootGroup)
+        XCTAssertNil(session.draft)
+        XCTAssertFalse(session.hasUnsavedEditor)
+        XCTAssertNil(session.pendingLockRequest)
+        XCTAssertNil(store.session(for: id))
+        XCTAssertTrue(store.openSessions.isEmpty)
+        XCTAssertNil(store.activeSessionID)
+        XCTAssertNil(store.activeSession)
+        XCTAssertTrue(store.retire(id, force: true))
+    }
+
+    func testForcedRetirementLeavesAnotherSessionAndItsSelectionIntact() async throws {
+        let store = DatabaseSessionStore()
+        let removed = try await makeUnlockedSession()
+        let active = try await makeUnlockedSession()
+        defer { removed.lock(); active.lock() }
+        store.adopt(removed)
+        store.adopt(active)
+        store.activeSessionID = active.databaseReference.id
+        removed.setEditorHasUnsavedChanges(true, editorID: UUID())
+        let activeLockCycle = active.lockCycleID
+
+        XCTAssertTrue(store.retire(removed.databaseReference.id, force: true))
+        XCTAssertTrue(store.retire(UUID(), force: true))
+
+        XCTAssertNil(removed.sessionKey)
+        XCTAssertTrue(store.activeSession === active)
+        XCTAssertEqual(store.openSessions.map(\.databaseReference.id), [active.databaseReference.id])
+        XCTAssertEqual(active.state, .unlocked)
+        XCTAssertEqual(active.lockCycleID, activeLockCycle)
+        XCTAssertNotNil(active.sessionKey)
+    }
+
     private func makeReference() throws -> DatabaseReference {
         try TestDatabaseSupport.makeReference(
             for: KDBXTestFixture.test.url(in: Bundle(for: Self.self)),

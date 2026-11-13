@@ -17,7 +17,7 @@ extension FocusedValues {
 
 struct KeeForgeCommands: Commands {
     let listViewModel: DatabaseListViewModel
-    @Binding var activeDatabaseViewModel: DatabaseViewModel?
+    let sessionStore: DatabaseSessionStore
     let routing: AppRoutingCoordinator
     @FocusedValue(\.databaseViewModel) private var focusedDatabaseViewModel
     @State private var passwordCopyAction = EntrySecretAction()
@@ -25,7 +25,7 @@ struct KeeForgeCommands: Commands {
     /// Prefer the focused scene's session; fall back to the app's active
     /// session so commands keep working while auxiliary panels have focus.
     private var viewModel: DatabaseViewModel? {
-        focusedDatabaseViewModel ?? activeDatabaseViewModel
+        focusedDatabaseViewModel ?? sessionStore.activeSession
     }
 
     private var isUnlocked: Bool {
@@ -211,7 +211,7 @@ struct KeeForgeCommands: Commands {
     // MARK: - Actions
 
     private func closeDatabase() {
-        routing.requestDatabaseTransition(to: .close, from: activeDatabaseViewModel)
+        routing.requestDatabaseTransition(to: .close, from: sessionStore.activeSession)
     }
 
     /// ⌘O. The `.fileImporter` that adds a database lives in `DatabaseListView`,
@@ -239,7 +239,7 @@ struct KeeForgeCommands: Commands {
     }
 
     private func openSession(_ reference: DatabaseReference) {
-        routing.requestDatabaseTransition(to: .open(reference), from: activeDatabaseViewModel)
+        routing.requestDatabaseTransition(to: .open(reference), from: sessionStore.activeSession)
     }
 
     private func presentOpenFailure(_ error: Error) {
@@ -256,7 +256,7 @@ struct KeeForgeCommands: Commands {
         Self.copySelectedEntryPassword(
             in: viewModel,
             action: passwordCopyAction,
-            activeSession: { activeDatabaseViewModel }
+            activeSession: { [sessionStore] in sessionStore.activeSession }
         )
     }
 
