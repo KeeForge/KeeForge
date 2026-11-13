@@ -1,27 +1,6 @@
 import StoreKit
 import SwiftUI
 
-#if os(macOS)
-/// Keeps the menu bar quick search on the app's active session, and lets it
-/// hand off changes to the SSH agent. AppDelegate owns window reopening.
-struct MacQuickAccessMainWindowHookup: ViewModifier {
-    let controller: MacQuickAccessController
-    let sshAgent: MacSSHAgentController
-    let activeSession: DatabaseViewModel?
-
-    func body(content: Content) -> some View {
-        content
-            .background(MacWindowReader { window in
-                if let window { controller.mainWindow = window }
-            })
-            .onChange(of: activeSession.map(ObjectIdentifier.init), initial: true) {
-                controller.activeSession = activeSession
-                sshAgent.activeSessionDidChange()
-            }
-    }
-}
-#endif
-
 struct AppRootView: View {
     @Bindable var listViewModel: DatabaseListViewModel
     let sessionStore: DatabaseSessionStore

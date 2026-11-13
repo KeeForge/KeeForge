@@ -90,7 +90,7 @@ struct SettingsView: View {
             }
 
             if let sshAgent {
-                MacSSHAgentSettingsTab(controller: sshAgent, session: viewModel)
+                MacSSHAgentSettingsTab(controller: sshAgent)
                     .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
                     .tabItem {
                         Label("SSH Agent", systemImage: "terminal")

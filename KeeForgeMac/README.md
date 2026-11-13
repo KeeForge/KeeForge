@@ -84,7 +84,9 @@ Setup:
 
    Setting `SSH_AUTH_SOCK` to the same path works too.
 3. Unlock the database and turn on each key under Keys. The choice is stored per
-   database on this Mac only; it is not written into the database.
+   database on this Mac only; it is not written into the database. While more
+   than one database is unlocked, pick the one whose keys the list shows. The
+   agent offers the chosen keys of every unlocked database at once.
 
 Key entries: KeeForge looks at an entry's attachments. If the entry has a
 `KeeAgent.settings` attachment (written by KeeAgent, KeePassXC, and Strongbox)

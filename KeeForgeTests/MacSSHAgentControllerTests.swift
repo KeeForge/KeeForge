@@ -2,12 +2,13 @@
 import AppKit
 import CryptoKit
 import Darwin
+import os
 import XCTest
 @testable import KeeForge
 
-/// The SSH agent against a real unlocked session: which entries it serves,
-/// the lock lifecycle, the per-database selection, and a round trip through
-/// the socket an SSH client connects to.
+/// The SSH agent against real unlocked sessions: which entries it serves from
+/// each open database, the lock lifecycle, the per-database selection, and a
+/// round trip through the socket an SSH client connects to.
 @MainActor
 final class MacSSHAgentControllerTests: XCTestCase {
     private typealias Keys = SSHAgentTestKeys
@@ -24,7 +25,9 @@ final class MacSSHAgentControllerTests: XCTestCase {
     private let protectedEntryID = UUID()
     private let legacyEntryID = UUID()
 
-    private var session: DatabaseViewModel?
+    /// The open sessions, in opening order. Every one made here holds the
+    /// same entries, as two copies of one database do.
+    private var sessions: [DatabaseViewModel] = []
     private var controller: MacSSHAgentController?
     private var socketDirectory: URL?
     private var defaults: UserDefaults?
@@ -38,8 +41,8 @@ final class MacSSHAgentControllerTests: XCTestCase {
     override func tearDown() async throws {
         controller?.stop()
         controller = nil
-        session?.lockRequest(force: true)
-        session = nil
+        for session in sessions { session.lockRequest(force: true) }
+        sessions = []
         if let socketDirectory {
             try? FileManager.default.removeItem(at: socketDirectory)
         }
@@ -151,7 +154,7 @@ final class MacSSHAgentControllerTests: XCTestCase {
         XCTAssertTrue(cache.isEmpty)
     }
 
-    func testActiveSessionChangeEmptiesTheKeyCacheAtOnce() async throws {
+    func testADatabaseThatIsNoLongerOpenLeavesTheKeyCacheAtTheNextRequest() async throws {
         let session = try await makeUnlockedSession()
         let cache = SSHAgentKeyCache()
         let controller = try makeController(keyCache: cache)
@@ -163,8 +166,10 @@ final class MacSSHAgentControllerTests: XCTestCase {
         _ = handler.response(to: Self.requestIdentities)
         XCTAssertFalse(cache.isEmpty)
 
-        controller.activeSessionDidChange()
+        sessions.removeAll()
+        defer { session.lockRequest(force: true) }
 
+        XCTAssertEqual(try Self.identities(in: handler.response(to: Self.requestIdentities)), [])
         XCTAssertTrue(cache.isEmpty)
     }
 
@@ -230,7 +235,8 @@ final class MacSSHAgentControllerTests: XCTestCase {
         controller.setSelected(true, entryID: ed25519EntryID, inDatabase: session.databaseReference.id)
         XCTAssertFalse(controller.keySources().isEmpty)
 
-        controller.sessionProvider = { nil }
+        sessions.removeAll()
+        defer { session.lockRequest(force: true) }
 
         XCTAssertTrue(controller.keySources().isEmpty)
     }
@@ -253,7 +259,229 @@ final class MacSSHAgentControllerTests: XCTestCase {
         XCTAssertTrue(controller.keySources().isEmpty)
     }
 
+    // MARK: - Several open databases
+
+    func testOffersTheChosenKeysOfEveryUnlockedDatabase() async throws {
+        let personal = try await makeUnlockedSession()
+        let work = try await makeUnlockedSession()
+        let controller = try makeController()
+        controller.isEnabled = true
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: personal.databaseReference.id)
+        controller.setSelected(true, entryID: rsaEntryID, inDatabase: work.databaseReference.id)
+        let handler = SSHAgentRequestHandler {
+            MainActor.assumeIsolated { controller.keySources() }
+        }
+
+        let sources = controller.keySources()
+
+        XCTAssertEqual(sources.map(\.entryID), [ed25519EntryID, rsaEntryID])
+        XCTAssertEqual(sources.map(\.lease.session), [ObjectIdentifier(personal), ObjectIdentifier(work)])
+        XCTAssertEqual(
+            try Self.identities(in: handler.response(to: Self.requestIdentities)),
+            [Keys.ed25519.publicKeyData, Keys.rsa.publicKeyData]
+        )
+    }
+
+    /// The same entry, and so the same key, chosen in two copies of one
+    /// database is listed once and signs while either copy is unlocked.
+    func testAKeyChosenInTwoDatabasesIsListedOnceAndSignsWhileEitherOffersIt() async throws {
+        let personal = try await makeUnlockedSession()
+        let work = try await makeUnlockedSession()
+        let cache = SSHAgentKeyCache()
+        let controller = try makeController(keyCache: cache)
+        controller.isEnabled = true
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: personal.databaseReference.id)
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: work.databaseReference.id)
+        let handler = SSHAgentRequestHandler(keySources: {
+            MainActor.assumeIsolated { controller.keySources() }
+        }, keyCache: cache)
+
+        XCTAssertEqual(try Self.identities(in: handler.response(to: Self.requestIdentities)), [Keys.ed25519.publicKeyData])
+        XCTAssertTrue(try Self.isValidEd25519Signature(handler.response(to: Self.signRequest(for: Keys.ed25519.publicKeyData))))
+
+        personal.lockRequest(force: true)
+
+        XCTAssertFalse(cache.holdsKeys(forSession: ObjectIdentifier(personal)))
+        XCTAssertEqual(try Self.identities(in: handler.response(to: Self.requestIdentities)), [Keys.ed25519.publicKeyData])
+        XCTAssertTrue(try Self.isValidEd25519Signature(handler.response(to: Self.signRequest(for: Keys.ed25519.publicKeyData))))
+        XCTAssertTrue(cache.holdsKeys(forSession: ObjectIdentifier(work)))
+
+        work.lockRequest(force: true)
+
+        XCTAssertEqual(try Self.identities(in: handler.response(to: Self.requestIdentities)), [])
+        XCTAssertEqual(handler.response(to: Self.signRequest(for: Keys.ed25519.publicKeyData)), Self.failure)
+        XCTAssertTrue(cache.isEmpty)
+    }
+
+    func testLockingOneDatabaseKeepsTheOtherDatabasesKeys() async throws {
+        let personal = try await makeUnlockedSession()
+        let work = try await makeUnlockedSession()
+        let cache = SSHAgentKeyCache()
+        let controller = try makeController(keyCache: cache)
+        controller.isEnabled = true
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: personal.databaseReference.id)
+        controller.setSelected(true, entryID: rsaEntryID, inDatabase: work.databaseReference.id)
+        let handler = SSHAgentRequestHandler(keySources: {
+            MainActor.assumeIsolated { controller.keySources() }
+        }, keyCache: cache)
+        _ = handler.response(to: Self.requestIdentities)
+        let workSource = try XCTUnwrap(controller.keySources().first { $0.lease.session == ObjectIdentifier(work) })
+
+        personal.lockRequest(force: true)
+
+        XCTAssertFalse(cache.holdsKeys(forSession: ObjectIdentifier(personal)))
+        XCTAssertNotNil(cache.key(for: workSource, privateKeyFile: Keys.rsa.fileData), "The other database's parsed key stays")
+        XCTAssertEqual(try Self.identities(in: handler.response(to: Self.requestIdentities)), [Keys.rsa.publicKeyData])
+    }
+
+    /// A lock that waits on unsaved work withdraws that database's keys the
+    /// moment it is requested, and only that database's.
+    func testALockPendingInOneDatabaseWithdrawsOnlyItsKeysAtOnce() async throws {
+        let personal = try await makeUnlockedSession()
+        let work = try await makeUnlockedSession()
+        let cache = SSHAgentKeyCache()
+        let controller = try makeController(keyCache: cache)
+        controller.isEnabled = true
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: personal.databaseReference.id)
+        controller.setSelected(true, entryID: rsaEntryID, inDatabase: work.databaseReference.id)
+        let handler = SSHAgentRequestHandler(keySources: {
+            MainActor.assumeIsolated { controller.keySources() }
+        }, keyCache: cache)
+        _ = handler.response(to: Self.requestIdentities)
+        XCTAssertTrue(cache.holdsKeys(forSession: ObjectIdentifier(personal)))
+        let editorID = UUID()
+        personal.setEditorHasUnsavedChanges(true, editorID: editorID)
+        defer { personal.setEditorHasUnsavedChanges(false, editorID: editorID) }
+
+        personal.lockRequest()
+
+        XCTAssertEqual(personal.state, .unlocked)
+        XCTAssertTrue(personal.isLockPending)
+        XCTAssertFalse(cache.holdsKeys(forSession: ObjectIdentifier(personal)))
+        XCTAssertTrue(cache.holdsKeys(forSession: ObjectIdentifier(work)))
+        XCTAssertEqual(try Self.identities(in: handler.response(to: Self.requestIdentities)), [Keys.rsa.publicKeyData])
+        XCTAssertEqual(handler.response(to: Self.signRequest(for: Keys.ed25519.publicKeyData)), Self.failure)
+    }
+
+    func testRetiringOneDatabaseWithdrawsOnlyItsKeys() async throws {
+        let personal = try await makeUnlockedSession()
+        let work = try await makeUnlockedSession()
+        let store = DatabaseSessionStore()
+        store.adopt(personal)
+        store.adopt(work)
+        let cache = SSHAgentKeyCache()
+        let controller = try makeController(keyCache: cache)
+        controller.sessionsProvider = { store.openSessions }
+        controller.isEnabled = true
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: personal.databaseReference.id)
+        controller.setSelected(true, entryID: rsaEntryID, inDatabase: work.databaseReference.id)
+        let handler = SSHAgentRequestHandler(keySources: {
+            MainActor.assumeIsolated { controller.keySources() }
+        }, keyCache: cache)
+        _ = handler.response(to: Self.requestIdentities)
+
+        XCTAssertTrue(store.retire(personal.databaseReference.id, force: true))
+
+        XCTAssertFalse(cache.holdsKeys(forSession: ObjectIdentifier(personal)))
+        XCTAssertTrue(cache.holdsKeys(forSession: ObjectIdentifier(work)))
+        XCTAssertEqual(try Self.identities(in: handler.response(to: Self.requestIdentities)), [Keys.rsa.publicKeyData])
+    }
+
+    /// A lock that lands while a key is signing withholds the signature even
+    /// though another database still offers the same key; the next request
+    /// signs with the database that does.
+    func testASignatureInFlightWhenItsDatabaseLocksFails() async throws {
+        let personal = try await makeUnlockedSession()
+        let work = try await makeUnlockedSession()
+        let controller = try makeController()
+        controller.isEnabled = true
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: personal.databaseReference.id)
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: work.databaseReference.id)
+        let reads = OSAllocatedUnfairLock(initialState: 0)
+        let handler = SSHAgentRequestHandler {
+            let read = reads.withLock { count in
+                count += 1
+                return count
+            }
+            return MainActor.assumeIsolated {
+                // The second read is the check after signing.
+                if read == 2 { personal.lockRequest(force: true) }
+                return controller.keySources()
+            }
+        }
+
+        XCTAssertEqual(handler.response(to: Self.signRequest(for: Keys.ed25519.publicKeyData)), Self.failure)
+        XCTAssertEqual(reads.withLock { $0 }, 2)
+        XCTAssertEqual(personal.state, .locked)
+
+        XCTAssertTrue(try Self.isValidEd25519Signature(handler.response(to: Self.signRequest(for: Keys.ed25519.publicKeyData))))
+    }
+
+    func testDeselectingAKeyDropsOnlyThatDatabasesParsedKeys() async throws {
+        let personal = try await makeUnlockedSession()
+        let work = try await makeUnlockedSession()
+        let cache = SSHAgentKeyCache()
+        let controller = try makeController(keyCache: cache)
+        controller.isEnabled = true
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: personal.databaseReference.id)
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: work.databaseReference.id)
+        let handler = SSHAgentRequestHandler(keySources: {
+            MainActor.assumeIsolated { controller.keySources() }
+        }, keyCache: cache)
+        _ = handler.response(to: Self.requestIdentities)
+        XCTAssertTrue(cache.holdsKeys(forSession: ObjectIdentifier(personal)))
+        XCTAssertTrue(cache.holdsKeys(forSession: ObjectIdentifier(work)))
+
+        controller.setSelected(false, entryID: ed25519EntryID, inDatabase: personal.databaseReference.id)
+
+        XCTAssertFalse(cache.holdsKeys(forSession: ObjectIdentifier(personal)))
+        XCTAssertTrue(cache.holdsKeys(forSession: ObjectIdentifier(work)))
+        XCTAssertEqual(controller.keySources().map(\.lease.session), [ObjectIdentifier(work)])
+    }
+
     // MARK: - Settings
+
+    func testSettingsListsTheOnlyUnlockedDatabaseWithoutAChoice() async throws {
+        let personal = try await makeUnlockedSession()
+        let work = try await makeUnlockedSession()
+        work.lockRequest(force: true)
+        let controller = try makeController()
+
+        XCTAssertEqual(controller.settingsSessions.map(ObjectIdentifier.init), [ObjectIdentifier(personal)])
+        XCTAssertTrue(controller.settingsSession === personal)
+
+        personal.lockRequest(force: true)
+
+        XCTAssertTrue(controller.settingsSessions.isEmpty)
+        XCTAssertNil(controller.settingsSession)
+    }
+
+    /// With two unlocked databases Settings shows the one picked, and its
+    /// toggles change only that database's selection.
+    func testSettingsSelectsKeysForThePickedDatabaseOnly() async throws {
+        let personal = try await makeUnlockedSession()
+        let work = try await makeUnlockedSession()
+        let controller = try makeController()
+        controller.isEnabled = true
+        XCTAssertEqual(controller.settingsSessions.count, 2)
+        XCTAssertTrue(controller.settingsSession === personal)
+
+        controller.settingsDatabaseID = work.databaseReference.id
+        let picked = try XCTUnwrap(controller.settingsSession)
+        XCTAssertTrue(picked === work)
+        let candidates = await controller.candidates(in: picked)
+        let rsa = try XCTUnwrap(candidates.first { $0.id == rsaEntryID })
+        controller.setSelected(true, entryID: rsa.id, inDatabase: picked.databaseReference.id)
+
+        XCTAssertTrue(controller.isSelected(entryID: rsaEntryID, inDatabase: work.databaseReference.id))
+        XCTAssertFalse(controller.isSelected(entryID: rsaEntryID, inDatabase: personal.databaseReference.id))
+        XCTAssertEqual(controller.keySources().map(\.lease.session), [ObjectIdentifier(work)])
+
+        work.lockRequest(force: true)
+
+        XCTAssertTrue(controller.settingsSession === personal, "A locked pick gives way to an unlocked database")
+        XCTAssertEqual(controller.settingsSessions.count, 1)
+    }
 
     func testCandidatesDescribeEveryEntryWithAPrivateKey() async throws {
         let session = try await makeUnlockedSession()
@@ -650,7 +878,7 @@ final class MacSSHAgentControllerTests: XCTestCase {
                 )
             }
         )
-        self.session = session
+        sessions.append(session)
         await session.unlock(password: fixturePassword)
         try await session.reloadDiscardingDraft()
         XCTAssertEqual(session.state, .unlocked)
@@ -668,7 +896,7 @@ final class MacSSHAgentControllerTests: XCTestCase {
             defaults: try XCTUnwrap(defaults),
             notificationCenter: notificationCenter,
             keyCache: keyCache,
-            sessionProvider: { [weak self] in self?.session }
+            sessionsProvider: { [weak self] in self?.sessions ?? [] }
         )
         self.controller = controller
         return controller

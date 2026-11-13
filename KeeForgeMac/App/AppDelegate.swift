@@ -15,6 +15,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     private lazy var macWindowCloseGuard = MacWindowCloseGuard(registry: databaseWindowRegistry)
     private let macQuickAccess = MacQuickAccessController()
     private let macSSHAgent = MacSSHAgentController()
+    private let quickAccessFocus = MacObservation()
     private(set) var mainWindowController: MainWindowController?
     private var settingsWindowController: SettingsWindowController?
     private var pendingURLs: [URL] = []
@@ -48,9 +49,14 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         macLockMonitor.onUserActivity = { sessionStore.resetInactivityTimer(for: $0) }
         macLockMonitor.start()
         macWindowCloseGuard.start()
-        macQuickAccess.openMainWindow = { [weak self] in self?.showMainWindow() }
+        let macQuickAccess = self.macQuickAccess
+        macQuickAccess.sessionForDatabase = { sessionStore.session(for: $0) }
+        macQuickAccess.showDatabaseWindow = { [weak self] in self?.mainWindowController?.showWindow(forDatabase: $0) ?? false }
+        macQuickAccess.showDatabaseList = { [weak self] in self?.showMainWindow() }
+        // The main window is the only database window, so its database is the focused one.
+        quickAccessFocus.start(reading: { sessionStore.activeSessionID }, onChange: { macQuickAccess.focusedDatabaseID = $0 })
         macQuickAccess.start()
-        macSSHAgent.sessionProvider = { sessionStore.activeSession }
+        macSSHAgent.sessionsProvider = { sessionStore.openSessions }
         macSSHAgent.start()
         let controller = MainWindowController(listViewModel: listViewModel, sessionStore: sessionStore,
             routing: routing, quickAccess: macQuickAccess, sshAgent: macSSHAgent, windowRegistry: databaseWindowRegistry)

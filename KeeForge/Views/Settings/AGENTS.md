@@ -23,11 +23,12 @@
 
 ### SSH agent tab
 
-- The key list names entries and key fingerprints of the unlocked vault, and the Settings window receives the resign-active privacy cover. Its rows are also hidden while `MacSSHAgentController.concealsKeyList` is true (another app is frontmost); any further vault-derived value on this tab has to honor it too.
+- The key list names entries and key fingerprints of one unlocked vault, and the Settings window receives the resign-active privacy cover. Its rows are also hidden while `MacSSHAgentController.concealsKeyList` is true (another app is frontmost); any further vault-derived value on this tab has to honor it too.
 - While the agent is off the tab shows only the toggle; the Setup and Keys sections appear, and the key list loads, once it is on.
-- The list reloads off the main actor whenever the agent is switched on, or the session, its lock cycle, or its contents change. It clears its rows when a refresh starts and drops a superseded result, and asks the user to unlock while the session is locked.
+- With more than one unlocked database a Database picker chooses the one whose keys the list shows and edits (`MacSSHAgentController.settingsSession`); with one there is no picker. Toggles always write the selection of the database the rows were loaded from.
+- The list reloads off the main actor whenever the agent is switched on, or the listed session, its lock cycle, or its contents change. Rows render only for the session they were loaded from, a superseded result is dropped, and the tab asks the user to unlock while no database is unlocked.
 - Copy SSH Configuration copies without the concealed pasteboard marker: the `IdentityAgent` block holds no secret.
-- Identifiers: `settings.tab.ssh-agent`, `settings.ssh-agent.{toggle,copy-configuration}`, and `settings.ssh-agent.key-toggle.<entry-uuid>`.
+- Identifiers: `settings.tab.ssh-agent`, `settings.ssh-agent.{toggle,copy-configuration,database-picker}`, and `settings.ssh-agent.key-toggle.<entry-uuid>`.
 
 ### Layout
 
@@ -50,7 +51,7 @@
 ## Tests
 
 - `AppSettingsViewModelTests`, `AppSettingsSummaryTests`, `AutoFillStoreInspectorGroupingTests`, `FeedbackSubmissionServiceTests`; `DatabaseListViewModelTests` for the one-database footer condition.
-- `MacSSHAgentControllerTests` (`KeeForgeMacTests` only): the candidate list and its concealment. The tab itself has no UI test.
+- `MacSSHAgentControllerTests` (`KeeForgeMacTests` only): the candidate list, its concealment, and the database the list edits. The tab itself has no UI test.
 - UI: `AutoFillTipUITests`, `MacAppSuggestionUITests`, `WhatsNewUITests`, `AutoFillStoreInspectorSmokeUITests`; `AutoFillStoreUITests` needs a provisioned device.
 
 ## See also

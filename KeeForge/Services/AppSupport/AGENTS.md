@@ -9,7 +9,7 @@
 - `MacLockMonitor`: the macOS lock lifecycle. macOS has no "entered background" moment, so its triggers are what locks the vault there.
 - `MacDatabaseWindowRegistry`: app-owned window-identity to database-ID mapping, resolving sheets/children to their database parent. Sessions never retain AppKit objects; unregistering clears callbacks.
 - `MacWindowCloseGuard`: settles each registered database window's unsaved work independently and locks/cancels only its session on committed close. Cancel and save failure retain both.
-- `MacQuickAccessController`: the opt-in status item, the quick-search panel, and the global shortcut, which exists only while the status item does.
+- `MacQuickAccessController`: the opt-in status item, the quick-search panel, and the global shortcut, which exists only while the status item does. The app supplies its targets: `focusedDatabaseID`, `sessionForDatabase`, `showDatabaseWindow`, and `showDatabaseList`. No service looks up a database through `NSApp`'s key, main, or first window.
 - `WhatsNewPresentationService`: the curated feature catalog. Add one case before each feature-bearing release, written from `CHANGELOG.md` as user-facing copy.
 
 ## Invariants
@@ -54,7 +54,7 @@
 - When the last pending request ends the hold settles: KeeForge is active again within `defaultReactivationGracePeriod`, or it locks.
 - The close guard proxies only registered database windows and preserves their delegates. Prompt grants and answers must match the original registration and session; repeated closes cannot stack prompts. The single-window shell retains its locked selection on close and registers again on reopen.
 - User events reset only their registered database session, throttled per database; sheet/child activity belongs to the parent. Settings and panels reset nothing. Activation evaluates existing deadlines without renewing them; system authentication holds remain app-wide.
-- The quick-search panel is a non-activating `NSPanel` with `canBecomeMain == false`: it is not a registered database host and extends no inactivity deadline. It holds no entry data and only a reference to the active session, cleared when the database closes.
+- The quick-search panel is a non-activating `NSPanel` with `canBecomeMain == false`: it is not a registered database host and extends no inactivity deadline. It holds no entry data and no session, only the focused database's ID. It searches that one database and shows its locked or no-database state rather than falling back to another open database; results and actions carry their database ID.
 - The panel is outside `ScreenProtectionService`'s key-window sweep, so it sets its own `sharingType` from Block Screen Capture.
 - Only the password copy activates KeeForge (LocalAuthentication needs the active app); the previous app is re-activated when the prompt ends, however it ends.
 - The panel's key monitor leaves every key to the field while an input method is composing (`isComposingText(in:)`), because those keys confirm and cancel candidates.

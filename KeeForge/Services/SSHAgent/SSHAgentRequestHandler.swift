@@ -99,12 +99,19 @@ enum KeeAgentSettings {
 
 /// Parsed keys of the entries the agent serves, kept so a request does not
 /// parse an unchanged key file again; for RSA that parse derives the CRT
-/// exponents, builds the `SecKey`, and signs once to validate it. A key is reused only for the same entry under the same lease
+/// exponents, builds the `SecKey`, and signs once to validate it. Keys are
+/// held per session: two open databases can share an entry UUID, so a key is
+/// reused only for the same entry of the same session under the same lease
 /// with byte-identical key file content. Nothing outlives the lease: the
-/// controller empties the cache when the session locks, the selection
-/// changes, or the agent stops, and each request drops what its own read of
-/// the session no longer offers.
+/// controller drops a session's keys when that session locks, has a lock
+/// pending, or loses a selection, empties the cache when the agent stops, and
+/// each request drops what its own read of the sessions no longer offers.
 final class SSHAgentKeyCache: Sendable {
+    private struct Slot: Hashable {
+        let session: ObjectIdentifier
+        let entryID: UUID
+    }
+
     private struct Entry {
         let lease: SSHAgentLease
         let privateKeyFile: Data
@@ -112,14 +119,17 @@ final class SSHAgentKeyCache: Sendable {
     }
 
     private struct State {
-        var entries: [UUID: Entry] = [:]
+        var entries: [Slot: Entry] = [:]
         var generation = 0
+        /// The generation at which everything, or one session's keys, were last dropped.
+        var allDroppedAt = 0
+        var sessionDroppedAt: [ObjectIdentifier: Int] = [:]
     }
 
     private let state = OSAllocatedUnfairLock(uncheckedState: State())
 
-    /// Read before the session is; `store` refuses a key parsed from a read
-    /// that `removeAll` has overtaken since.
+    /// Read before the sessions are; `store` refuses a key parsed from a read
+    /// that a removal covering its session has overtaken since.
     var generation: Int {
         state.withLockUnchecked { $0.generation }
     }
@@ -128,9 +138,13 @@ final class SSHAgentKeyCache: Sendable {
         state.withLockUnchecked { $0.entries.isEmpty }
     }
 
+    func holdsKeys(forSession session: ObjectIdentifier) -> Bool {
+        state.withLockUnchecked { state in state.entries.keys.contains { $0.session == session } }
+    }
+
     func key(for source: SSHAgentKeySource, privateKeyFile: Data) -> SSHAgentKey? {
         state.withLockUnchecked { state in
-            guard let entry = state.entries[source.entryID],
+            guard let entry = state.entries[Self.slot(for: source)],
                   entry.lease == source.lease,
                   entry.privateKeyFile == privateKeyFile
             else { return nil }
@@ -140,18 +154,28 @@ final class SSHAgentKeyCache: Sendable {
 
     func store(_ key: SSHAgentKey, for source: SSHAgentKeySource, privateKeyFile: Data, generation: Int) {
         state.withLockUnchecked { state in
-            guard state.generation == generation else { return }
-            state.entries[source.entryID] = Entry(lease: source.lease, privateKeyFile: privateKeyFile, key: key)
+            guard state.allDroppedAt <= generation,
+                  state.sessionDroppedAt[source.lease.session, default: 0] <= generation
+            else { return }
+            state.entries[Self.slot(for: source)] = Entry(lease: source.lease, privateKeyFile: privateKeyFile, key: key)
         }
     }
 
     func keep(only sources: [SSHAgentKeySource]) {
-        let current = Dictionary(sources.map { ($0.entryID, $0) }, uniquingKeysWith: { first, _ in first })
+        let current = Dictionary(sources.map { (Self.slot(for: $0), $0) }, uniquingKeysWith: { first, _ in first })
         state.withLockUnchecked { state in
-            state.entries = state.entries.filter { id, entry in
-                guard let source = current[id] else { return false }
+            state.entries = state.entries.filter { slot, entry in
+                guard let source = current[slot] else { return false }
                 return source.lease == entry.lease && source.privateKeyFile == entry.privateKeyFile
             }
+        }
+    }
+
+    func removeAll(forSession session: ObjectIdentifier) {
+        state.withLockUnchecked { state in
+            state.entries = state.entries.filter { $0.key.session != session }
+            state.generation += 1
+            state.sessionDroppedAt[session] = state.generation
         }
     }
 
@@ -159,7 +183,13 @@ final class SSHAgentKeyCache: Sendable {
         state.withLockUnchecked { state in
             state.entries = [:]
             state.generation += 1
+            state.allDroppedAt = state.generation
+            state.sessionDroppedAt = [:]
         }
+    }
+
+    private static func slot(for source: SSHAgentKeySource) -> Slot {
+        Slot(session: source.lease.session, entryID: source.entryID)
     }
 }
 
@@ -202,7 +232,7 @@ struct SSHAgentRequestHandler: Sendable {
     private func identitiesAnswer() -> Data {
         var identities: [(publicKeyBlob: Data, comment: Data)] = []
         var length = 1 + 4
-        // A key stored on two entries is offered by the first.
+        // A key stored on two entries, in one database or two, is offered by the first.
         var seen = Set<Data>()
         for available in availableKeys() where seen.insert(available.key.publicKeyBlob).inserted {
             let comment = available.key.comment.isEmpty ? available.source.entryTitle : available.key.comment
@@ -226,13 +256,14 @@ struct SSHAgentRequestHandler: Sendable {
         let publicKeyBlob = try reader.readString()
         let data = try reader.readString()
         let flags = try reader.readUInt32()
-        // Lazy: parsing stops at the entry that holds the requested key.
+        // Lazy: parsing stops at the first eligible entry that holds the requested key.
         guard let available = availableKeys().first(where: { $0.key.publicKeyBlob == publicKeyBlob }) else {
             return Self.failure
         }
         let signature = try available.key.signature(for: data, flags: flags)
         // A lock, deselection, or replaced key attachment that lands while
-        // signing withdraws the key before the signature leaves the process.
+        // signing withdraws the key before the signature leaves the process,
+        // even when another session still offers the same key.
         let source = available.source
         guard currentSources().sources.contains(where: {
             $0.entryID == source.entryID && $0.lease == source.lease && $0.privateKeyFile == available.privateKeyFile
@@ -245,7 +276,7 @@ struct SSHAgentRequestHandler: Sendable {
         return writer.data
     }
 
-    /// One read of the session, with the cache brought in line with it.
+    /// One read of the sessions, with the cache brought in line with it.
     private func currentSources() -> (sources: [SSHAgentKeySource], generation: Int) {
         let generation = keyCache.generation
         let sources = keySources()

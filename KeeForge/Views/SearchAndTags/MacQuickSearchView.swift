@@ -47,7 +47,7 @@ struct MacQuickSearchView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button {
-                model.showMainWindow()
+                model.showDatabase()
             } label: {
                 action
             }
@@ -70,7 +70,20 @@ struct MacQuickSearchView: View {
                     .focused($isSearchFieldFocused)
                     .accessibilityIdentifier("quick-search.field")
             }
-            .padding(12)
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 4)
+
+            Text("Searching \(databaseName)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 36)
+                .padding(.trailing, 12)
+                .padding(.bottom, 8)
+                .accessibilityIdentifier("quick-search.database-name")
 
             Divider()
 
@@ -99,13 +112,13 @@ struct MacQuickSearchView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
         } else {
-            let selectedID = results.first { $0.id == model.selectedEntryID }?.id ?? results.first?.id
+            let selectedID = results.first { $0.id == model.selectedResultID }?.id ?? results.first?.id
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 2) {
-                        ForEach(results) { entry in
-                            row(for: entry, isSelected: entry.id == selectedID)
-                                .id(entry.id)
+                        ForEach(results) { result in
+                            row(for: result, isSelected: result.id == selectedID)
+                                .id(result.id)
                         }
                     }
                     .padding(6)
@@ -123,18 +136,18 @@ struct MacQuickSearchView: View {
         }
     }
 
-    private func row(for entry: KPEntry, isSelected: Bool) -> some View {
+    private func row(for result: MacQuickSearchViewModel.Result, isSelected: Bool) -> some View {
         HStack(spacing: 6) {
             EntryRow(
-                entry: entry,
-                username: model.username(for: entry),
-                customIconData: model.customIconData(for: entry),
-                folderPath: model.folderPath(for: entry)
+                entry: result.entry,
+                username: model.username(for: result),
+                customIconData: model.customIconData(for: result),
+                folderPath: model.folderPath(for: result)
             )
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if isSelected {
-                rowActions(for: entry)
+                rowActions(for: result)
             }
         }
         .padding(.horizontal, 8)
@@ -145,11 +158,11 @@ struct MacQuickSearchView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
-            model.selectedEntryID = entry.id
+            model.selectedResultID = result.id
         }
         .simultaneousGesture(
             TapGesture(count: 2).onEnded {
-                model.selectedEntryID = entry.id
+                model.selectedResultID = result.id
                 model.perform(.primaryAction)
             }
         )
@@ -159,24 +172,24 @@ struct MacQuickSearchView: View {
     }
 
     @ViewBuilder
-    private func rowActions(for entry: KPEntry) -> some View {
-        if model.canCopy(.username, from: entry) {
+    private func rowActions(for result: MacQuickSearchViewModel.Result) -> some View {
+        if model.canCopy(.username, from: result) {
             actionButton("Copy Username", systemImage: "person", identifier: "quick-search.copy-username") {
-                Task { await model.copy(.username, from: entry) }
+                Task { await model.copy(.username, from: result) }
             }
         }
-        if model.canCopy(.password, from: entry) {
+        if model.canCopy(.password, from: result) {
             actionButton("Copy Password", systemImage: "key", identifier: "quick-search.copy-password") {
-                Task { await model.copy(.password, from: entry) }
+                Task { await model.copy(.password, from: result) }
             }
         }
-        if model.canCopy(.verificationCode, from: entry) {
+        if model.canCopy(.verificationCode, from: result) {
             actionButton("Copy Verification Code", systemImage: "clock", identifier: "quick-search.copy-code") {
-                Task { await model.copy(.verificationCode, from: entry) }
+                Task { await model.copy(.verificationCode, from: result) }
             }
         }
         actionButton("Open in KeeForge", systemImage: "arrow.up.forward.app", identifier: "quick-search.open-entry") {
-            model.openInKeeForge(entry)
+            model.openInKeeForge(result)
         }
     }
 

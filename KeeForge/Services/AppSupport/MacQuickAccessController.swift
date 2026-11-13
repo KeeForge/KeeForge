@@ -31,9 +31,10 @@ extension MacGlobalHotKey: MacHotKeyRegistering {}
 /// combination with nothing visible behind it would be hard to trace back to
 /// KeeForge.
 ///
-/// Nothing here changes a lock rule. The panel reads the one active session,
-/// so every existing lock trigger empties it, and a locked or missing session
-/// sends the user to the main window to choose and unlock a database.
+/// Nothing here changes a lock rule. The panel searches only the database the
+/// app reports as focused and reads its session live, so every existing lock
+/// trigger empties it, and a locked or closed target sends the user to
+/// KeeForge to unlock or choose a database. It never searches another one.
 @MainActor
 @Observable
 final class MacQuickAccessController {
@@ -67,16 +68,20 @@ final class MacQuickAccessController {
     /// macOS refused the shortcut, normally because another app holds it.
     private(set) var isShortcutUnavailable = false
 
-    /// The app's active session, kept current by the main window. Observable
+    /// The database window the user last focused, set by the app. Observable
     /// rather than a `Binding` to the app's state: the panel reads it from its
     /// own view update, where a captured binding returns the value it was
-    /// created with. Only the reference is held, and it is cleared with the
-    /// session.
-    var activeSession: DatabaseViewModel?
+    /// created with. Only the ID is held, never the session.
+    var focusedDatabaseID: UUID?
 
-    /// Shows the retained main window; set by the AppKit delegate.
-    @ObservationIgnored var openMainWindow: (() -> Void)?
-    @ObservationIgnored weak var mainWindow: NSWindow?
+    /// The open session of a database, if any; set by the app.
+    @ObservationIgnored var sessionForDatabase: @MainActor (UUID) -> DatabaseViewModel? = { _ in nil }
+    /// Fronts the window showing this database and reports whether one now
+    /// is in front; set by the app.
+    @ObservationIgnored var showDatabaseWindow: ((UUID) -> Bool)?
+    /// Fronts KeeForge to choose a database, reopening its window if it was
+    /// closed; set by the app.
+    @ObservationIgnored var showDatabaseList: (() -> Void)?
 
     @ObservationIgnored private let presenter: MacQuickSearchPanelPresenting
     @ObservationIgnored private let hotKey: MacHotKeyRegistering
@@ -109,7 +114,8 @@ final class MacQuickAccessController {
         self.activateApp = activateApp
         isMenuBarItemEnabled = SettingsService.macMenuBarQuickAccessEnabled
         shortcut = SettingsService.macQuickSearchShortcut
-        searchModel.sessionProvider = { [weak self] in self?.activeSession }
+        searchModel.focusedDatabaseID = { [weak self] in self?.focusedDatabaseID }
+        searchModel.sessionForDatabase = { [weak self] in self?.sessionForDatabase($0) }
     }
 
     func start() {
@@ -127,9 +133,17 @@ final class MacQuickAccessController {
         searchModel.onDismiss = { [weak self] in
             self?.presenter.hidePanel(restoringPreviousApp: true)
         }
-        searchModel.onShowMainWindow = { [weak self] in
-            self?.presenter.hidePanel(restoringPreviousApp: false)
-            self?.showMainWindow()
+        searchModel.onShowDatabase = { [weak self] databaseID in
+            guard let self else { return false }
+            presenter.hidePanel(restoringPreviousApp: false)
+            activateApp()
+            return showDatabaseWindow?(databaseID) ?? false
+        }
+        searchModel.onShowDatabaseList = { [weak self] in
+            guard let self else { return }
+            presenter.hidePanel(restoringPreviousApp: false)
+            activateApp()
+            showDatabaseList?()
         }
         apply()
     }
@@ -158,51 +172,6 @@ final class MacQuickAccessController {
             return
         }
         isShortcutUnavailable = hotKey.register(shortcut) == false
-    }
-
-    /// Fronts the existing main window, or opens one after ⌘W closed it (which
-    /// also locked the database, so the window lands on the unlock screen).
-    private func showMainWindow() {
-        activateApp()
-        if let mainWindow, mainWindow.isVisible || mainWindow.isMiniaturized {
-            if mainWindow.isMiniaturized {
-                mainWindow.deminiaturize(nil)
-            }
-            mainWindow.makeKeyAndOrderFront(nil)
-        } else {
-            openMainWindow?()
-        }
-    }
-}
-
-/// Reports the window it is placed in, so the controller can front the main
-/// window instead of opening a second one.
-struct MacWindowReader: NSViewRepresentable {
-    let onWindowChange: @MainActor (NSWindow?) -> Void
-
-    func makeNSView(context: Context) -> ReportingView {
-        ReportingView(onWindowChange: onWindowChange)
-    }
-
-    func updateNSView(_ nsView: ReportingView, context: Context) {}
-
-    final class ReportingView: NSView {
-        private let onWindowChange: @MainActor (NSWindow?) -> Void
-
-        init(onWindowChange: @escaping @MainActor (NSWindow?) -> Void) {
-            self.onWindowChange = onWindowChange
-            super.init(frame: .zero)
-        }
-
-        @available(*, unavailable)
-        required init?(coder: NSCoder) {
-            fatalError("init(coder:) is not supported")
-        }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            onWindowChange(window)
-        }
     }
 }
 

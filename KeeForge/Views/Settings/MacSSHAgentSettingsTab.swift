@@ -3,11 +3,13 @@ import AppKit
 import SwiftUI
 
 /// Settings ▸ SSH Agent: the opt-in agent, how to point SSH at it, and which
-/// keys of the open database it serves.
+/// keys of each open database it serves. With several unlocked databases the
+/// user picks the one whose keys the list shows.
 struct MacSSHAgentSettingsTab: View {
     @Bindable var controller: MacSSHAgentController
-    let session: DatabaseViewModel?
-    @State private var candidates: [MacSSHAgentCandidate] = []
+    /// Candidates and the session they were read from, so rows never bind to
+    /// another database's selection.
+    @State private var loaded: (session: ObjectIdentifier, candidates: [MacSSHAgentCandidate])?
 
     var body: some View {
         Form {
@@ -48,6 +50,7 @@ struct MacSSHAgentSettingsTab: View {
                 }
 
                 Section {
+                    databasePicker
                     keyRows
                 } header: {
                     Text("Keys")
@@ -58,19 +61,40 @@ struct MacSSHAgentSettingsTab: View {
         }
         .formStyle(.grouped)
         .task(id: RefreshID(session: session, isAgentEnabled: controller.isEnabled)) {
-            // Rows from the previous refresh may name another database's
-            // entries; the toggles would bind them to this one.
-            candidates = []
+            loaded = nil
             guard controller.isEnabled, let session else { return }
             let refreshed = await controller.candidates(in: session)
             guard Task.isCancelled == false else { return }
-            candidates = refreshed
+            loaded = (ObjectIdentifier(session), refreshed)
+        }
+    }
+
+    private var session: DatabaseViewModel? { controller.settingsSession }
+
+    /// Shown only when more than one database is unlocked; with one, the
+    /// list is simply that database's.
+    @ViewBuilder
+    private var databasePicker: some View {
+        let sessions = controller.settingsSessions
+        if sessions.count > 1, controller.concealsKeyList == false {
+            Picker("Database", selection: Binding {
+                session?.databaseReference.id
+            } set: {
+                controller.settingsDatabaseID = $0
+            }) {
+                ForEach(sessions, id: \.databaseReference.id) { session in
+                    Text(verbatim: session.databaseReference.displayName)
+                        .tag(Optional(session.databaseReference.id))
+                }
+            }
+            .accessibilityIdentifier("settings.ssh-agent.database-picker")
         }
     }
 
     @ViewBuilder
     private var keyRows: some View {
         if let session, session.state == .unlocked {
+            let candidates = loaded.flatMap { $0.session == ObjectIdentifier(session) ? $0.candidates : nil } ?? []
             if controller.concealsKeyList {
                 Text(verbatim: "••••••••")
                     .foregroundStyle(.secondary)

@@ -190,17 +190,69 @@ final class MacQuickAccessControllerTests: XCTestCase {
         XCTAssertEqual(presenter.hideCalls, [false, true])
     }
 
-    func testHandingOffToTheMainWindowOpensOneWhenNoneIsLeft() {
+    func testHandingOffWithoutADatabaseOpensKeeForgeToChooseOne() {
         let controller = makeStartedController(menuBarEnabled: true)
-        var openRequests = 0
-        controller.openMainWindow = { openRequests += 1 }
+        var listRequests = 0
+        var windowRequests: [UUID] = []
+        controller.showDatabaseList = { listRequests += 1 }
+        controller.showDatabaseWindow = { windowRequests.append($0); return true }
         controller.togglePanel()
 
-        controller.searchModel.showMainWindow()
+        controller.searchModel.showDatabase()
 
         XCTAssertFalse(presenter.isPanelVisible)
         XCTAssertEqual(presenter.hideCalls.last, false, "KeeForge is the app the user is going to")
-        XCTAssertEqual(openRequests, 1)
+        XCTAssertEqual(listRequests, 1)
+        XCTAssertTrue(windowRequests.isEmpty)
+    }
+
+    func testHandingOffALockedDatabaseFrontsItsWindow() throws {
+        let controller = makeStartedController(menuBarEnabled: true)
+        let store = DatabaseSessionStore()
+        let session = store.adopt(try makeSession())
+        controller.sessionForDatabase = { store.session(for: $0) }
+        controller.focusedDatabaseID = session.databaseReference.id
+        var listRequests = 0
+        var windowRequests: [UUID] = []
+        controller.showDatabaseList = { listRequests += 1 }
+        controller.showDatabaseWindow = { windowRequests.append($0); return true }
+        controller.togglePanel()
+
+        controller.searchModel.showDatabase()
+
+        XCTAssertFalse(presenter.isPanelVisible)
+        XCTAssertEqual(windowRequests, [session.databaseReference.id])
+        XCTAssertEqual(listRequests, 0)
+    }
+
+    /// "Open in KeeForge" asks the app for the window of the result's own
+    /// database, after the focus has moved to another with the same entry.
+    func testOpeningAnEntryAsksForItsDatabasesWindow() async throws {
+        let controller = makeStartedController(menuBarEnabled: true)
+        let store = DatabaseSessionStore()
+        let personal = store.adopt(try makeSession())
+        let work = store.adopt(try makeSession())
+        defer {
+            personal.lockRequest(force: true)
+            work.lockRequest(force: true)
+        }
+        await personal.unlock(password: "testpassword123")
+        await work.unlock(password: "testpassword123")
+        controller.sessionForDatabase = { store.session(for: $0) }
+        controller.focusedDatabaseID = work.databaseReference.id
+        var windowRequests: [UUID] = []
+        controller.showDatabaseWindow = { windowRequests.append($0); return true }
+        controller.togglePanel()
+        controller.searchModel.query = "GitHub"
+        let github = try XCTUnwrap(controller.searchModel.selectedResult)
+
+        controller.focusedDatabaseID = personal.databaseReference.id
+        controller.searchModel.openInKeeForge(github)
+
+        XCTAssertFalse(presenter.isPanelVisible)
+        XCTAssertEqual(windowRequests, [work.databaseReference.id])
+        XCTAssertEqual(work.workspace.selectedEntryID, github.entry.id)
+        XCTAssertNotEqual(personal.workspace.selectedEntryID, github.entry.id)
     }
 
     // MARK: - Recorded shortcuts
@@ -273,13 +325,15 @@ final class MacQuickAccessControllerTests: XCTestCase {
         XCTAssertFalse(MacQuickSearchPanel.isComposingText(in: NSView()))
     }
 
-    // MARK: - Active session
+    // MARK: - Focused database
 
-    /// The panel reads the session from a view body in its own hosting view.
+    /// The panel reads the target from a view body in its own hosting view.
     /// A source that is only current outside a view update, such as a binding
     /// captured from the app's state, renders "No Database Open" forever.
-    func testAHostedViewBodyFollowsTheActiveSession() async throws {
+    func testAHostedViewBodyFollowsTheFocusedDatabase() async throws {
         let controller = makeStartedController(menuBarEnabled: true)
+        let store = DatabaseSessionStore()
+        controller.sessionForDatabase = { store.session(for: $0) }
         let hosting = NSHostingView(rootView: ContentProbe(model: controller.searchModel) { [weak self] in
             self?.renderedContent.append($0)
         })
@@ -287,9 +341,9 @@ final class MacQuickAccessControllerTests: XCTestCase {
         await render(hosting)
         XCTAssertEqual(renderedContent.last, .noDatabase)
 
-        let session = try makeSession()
+        let session = store.adopt(try makeSession())
         let name = session.databaseReference.displayName
-        controller.activeSession = session
+        controller.focusedDatabaseID = session.databaseReference.id
         await render(hosting)
         XCTAssertEqual(renderedContent.last, .locked(databaseName: name))
 
@@ -301,18 +355,55 @@ final class MacQuickAccessControllerTests: XCTestCase {
         await render(hosting)
         XCTAssertEqual(renderedContent.last, .locked(databaseName: name))
 
-        controller.activeSession = nil
+        store.retire(session.databaseReference.id)
         await render(hosting)
         XCTAssertEqual(renderedContent.last, .noDatabase)
     }
 
-    func testClearingTheActiveSessionReleasesIt() throws {
+    /// While the panel is open, the focus moving to another database or the
+    /// focused one locking is shown on the next render.
+    func testAnOpenPanelFollowsFocusChangesAndAFocusedLock() async throws {
         let controller = makeStartedController(menuBarEnabled: true)
+        let store = DatabaseSessionStore()
+        let personal = store.adopt(try makeSession(nickname: "Personal"))
+        let work = store.adopt(try makeSession(nickname: "Work"))
+        defer {
+            personal.lockRequest(force: true)
+            work.lockRequest(force: true)
+        }
+        await personal.unlock(password: "testpassword123")
+        await work.unlock(password: "testpassword123")
+        controller.sessionForDatabase = { store.session(for: $0) }
+        controller.focusedDatabaseID = personal.databaseReference.id
+        controller.togglePanel()
+        let hosting = NSHostingView(rootView: ContentProbe(model: controller.searchModel) { [weak self] in
+            self?.renderedContent.append($0)
+        })
+        hosting.frame = NSRect(x: 0, y: 0, width: 10, height: 10)
+        await render(hosting)
+        XCTAssertEqual(renderedContent.last, .unlocked(databaseName: "Personal"))
+
+        controller.focusedDatabaseID = work.databaseReference.id
+        await render(hosting)
+        XCTAssertEqual(renderedContent.last, .unlocked(databaseName: "Work"))
+
+        work.lockRequest(force: true)
+        await render(hosting)
+        XCTAssertEqual(renderedContent.last, .locked(databaseName: "Work"), "No fallback to the unlocked database")
+        XCTAssertTrue(presenter.isPanelVisible)
+    }
+
+    func testThePanelKeepsNoClosedDatabaseAlive() throws {
+        let controller = makeStartedController(menuBarEnabled: true)
+        let store = DatabaseSessionStore()
+        controller.sessionForDatabase = { store.session(for: $0) }
         weak var released: DatabaseViewModel?
+        var databaseID: UUID?
         try autoreleasepool {
-            let session = try makeSession()
+            let session = store.adopt(try makeSession())
             released = session
-            controller.activeSession = session
+            databaseID = session.databaseReference.id
+            controller.focusedDatabaseID = session.databaseReference.id
             XCTAssertEqual(
                 controller.searchModel.content,
                 .locked(databaseName: session.databaseReference.displayName)
@@ -320,16 +411,17 @@ final class MacQuickAccessControllerTests: XCTestCase {
         }
         XCTAssertNotNil(released)
 
-        controller.activeSession = nil
+        store.retire(try XCTUnwrap(databaseID))
 
         XCTAssertNil(released, "The panel must not keep a closed database alive")
+        XCTAssertEqual(controller.searchModel.content, .noDatabase)
     }
 
     // MARK: - Helpers
 
-    private func makeSession() throws -> DatabaseViewModel {
+    private func makeSession(nickname: String? = nil) throws -> DatabaseViewModel {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
-        return DatabaseViewModel(databaseReference: try TestDatabaseSupport.makeReference(for: url))
+        return DatabaseViewModel(databaseReference: try TestDatabaseSupport.makeReference(for: url, nickname: nickname))
     }
 
     /// Lets SwiftUI act on an observed change, then runs the pending update.

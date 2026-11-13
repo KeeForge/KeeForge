@@ -247,7 +247,7 @@ are not displayed in that list or its drag previews.
 [ScreenProtectionService](../KeeForge/Services/Security/ScreenProtectionService.swift)
 places a blur cover over all app windows, including Settings, when the app
 resigns active and removes it on activation. The SSH Agent tab also removes
-the active session's vault-derived entry titles and key fingerprints from its
+the listed database's vault-derived entry titles and key fingerprints from its
 view while the app is inactive
 ([MacSSHAgentController](../KeeForge/Services/SSHAgent/MacSSHAgentController.swift)
 `concealsKeyList`). This cover is independent of the capture-blocking toggle.
@@ -281,11 +281,21 @@ settings live in the app's own defaults. The shortcut is registered through
 Carbon's `RegisterEventHotKey`, which needs no Accessibility permission and fails
 rather than taking over a combination another app holds.
 
-The panel reads the one active session on every render and holds no entry data
+The panel searches exactly one database: the one whose window the user last
+focused, which the app reports by database ID. It names that database, reads
+its session on every render, and holds no entry data or session reference
 itself. It shows entry titles, user names, and folder paths only while that
-session is unlocked, regardless of other retained sessions; a locked or missing
-session sends the user to the main window. Locking that active session therefore
-empties it. Closing a database window locks its session, so quick search needs that window open or minimized.
+session is unlocked. When it is locked or closed the panel shows its locked or
+no-database state and sends the user to KeeForge; it never falls back to
+another unlocked database. Locking that database therefore empties it. Closing
+a database window locks its session, so quick search needs that window open or
+minimized.
+
+Each result carries the ID of the database it came from. A copy is refused
+unless that database is still the focused one and unlocked. Open in KeeForge
+asks the app to front that database's window and selects the entry only there,
+so an entry UUID that also exists in another open database (a copy of the same
+file) is never selected in the wrong one.
 
 Copying follows the main window's rules: the password waits on the same
 device-owner prompt as ⇧⌘C, skipped only inside the session's authentication
@@ -296,7 +306,8 @@ clear-on-lock.
 
 A new panel presentation invalidates an earlier pending password copy. Losing
 focus to the authentication prompt may hide the panel and clear its query without
-invalidating that copy; the original session and content must still match.
+invalidating that copy; the focused database, its session, lock cycle, and
+content must still match, so a focus change while the prompt is up cancels it.
 
 The panel is a non-activating, borderless `NSPanel`. It cannot become a main
 window and is not registered as a database host. It is
@@ -325,10 +336,13 @@ is not a socket are left alone and reported.
 
 The agent writes no keys anywhere. Which entries it serves is a per-database list of entry
 UUIDs in the app's own defaults, chosen in Settings ▸ SSH Agent. Every request
-reads those entries from the one active session at that moment, so nothing is
-offered while that session is locked, closed, or has a lock pending: one waiting
-on unsaved work or a window-close prompt, or Retry Save and Lock writing before it
-locks.
+reads those entries from every open session at that moment and offers the union.
+A session offers nothing while it is locked, closed, or has a lock pending: one
+waiting on unsaved work or a window-close prompt, or Retry Save and Lock writing
+before it locks. Locking or closing one database never withdraws keys another
+unlocked database offers, and which window has focus plays no part. A key chosen
+in two databases is listed once, and a sign request uses the first session that
+offers it when the request arrives.
 The private key is read from the decrypted attachment pool for each request and
 parsed off the main thread. A key file over 64 KiB, several times the largest
 supported key, is refused before it is decoded, a `KeeAgent.settings` over the same
@@ -336,11 +350,14 @@ size is not parsed, and the list of identities is cut to the 256 KiB message lim
 so what an attachment can make one request do is bounded. A parsed key is kept in
 memory only for the same entry, the same lock cycle of the same session, and
 byte-identical key file content, so an unchanged key is not parsed for every
-request. That cache is emptied the moment the session locks or a lock becomes
-pending, when the selection changes, and when the agent is turned off; a key parsed
-from a read of the session that such an event has overtaken is not kept. After signing, the agent reads the session
-again and withholds the signature if the session's lock cycle, the selection, or the
-entry's key attachment has changed. No key file is written to disk and no key is exported.
+request. Keys are held per session: a session's parsed keys are dropped the moment
+it locks or a lock becomes pending, when its selection changes, and at the next
+request once it is no longer open; everything is dropped when the agent is turned
+off. A key parsed from a read that such an event for its session has overtaken is
+not kept. After signing, the agent reads the sessions again and withholds the
+signature unless the same entry of the same session is still offered under the
+same lock cycle with the same key attachment, even when another session offers the
+same key. No key file is written to disk and no key is exported.
 
 Supported keys are unencrypted OpenSSH private keys (`openssh-key-v1`) for Ed25519,
 ECDSA P-256/P-384/P-521, and RSA. RSA signs only with `rsa-sha2-256` or
@@ -353,8 +370,8 @@ and protocol extensions, fail.
 
 Like `ssh-agent`, the agent cannot tell one local process from another. Any process
 running as the user that can reach the socket can list the chosen public keys and
-obtain signatures while the database is unlocked, and there is no per-signature
-confirmation. That also holds for an entry whose `KeeAgent.settings` asks for a
+obtain signatures while a database that offers them is unlocked, and there is no
+per-signature confirmation. That also holds for an entry whose `KeeAgent.settings` asks for a
 confirmation or a lifetime in KeeAgent or KeePassXC: KeeForge reads only the key's
 attachment name from that file, and choosing the entry in Settings is the consent. Forwarding the agent to a remote host extends the same ability to that
 host for the length of the connection. A signature is not bound to a destination

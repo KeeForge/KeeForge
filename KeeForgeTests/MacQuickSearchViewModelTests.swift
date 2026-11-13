@@ -10,32 +10,39 @@ import XCTest
 final class MacQuickSearchViewModelTests: XCTestCase {
     private let fixturePassword = "testpassword123"
 
-    private var session: DatabaseViewModel?
+    /// The open sessions the model can resolve, and the focused one.
+    private var sessions: [DatabaseViewModel] = []
+    private var focusedDatabaseID: UUID?
     private var copied: [String] = []
     private var authenticationRequests = 0
     private var authenticationGates: [SecretAccessGate] = []
     private var authenticationResult = true
     private var copiedCallbacks = 0
     private var abortedCopies = 0
-    private var mainWindowRequests = 0
+    private var shownDatabases: [UUID] = []
+    private var showsDatabaseWindow = true
+    private var databaseListRequests = 0
     private var dismissRequests = 0
 
     override func setUp() async throws {
         try await super.setUp()
-        session = nil
+        sessions = []
+        focusedDatabaseID = nil
         copied = []
         authenticationRequests = 0
         authenticationGates = []
         authenticationResult = true
         copiedCallbacks = 0
         abortedCopies = 0
-        mainWindowRequests = 0
+        shownDatabases = []
+        showsDatabaseWindow = true
+        databaseListRequests = 0
         dismissRequests = 0
     }
 
     override func tearDown() async throws {
-        session?.lockRequest(force: true)
-        session = nil
+        for session in sessions { session.lockRequest(force: true) }
+        sessions = []
         try await super.tearDown()
     }
 
@@ -49,30 +56,30 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     }
 
     func testLockedSessionShowsNoEntriesEvenWithAQuery() throws {
-        session = try makeSession()
+        let session = open(try makeSession())
         let model = makeModel()
         model.query = "Twitter"
 
-        XCTAssertEqual(model.content, .locked(databaseName: try XCTUnwrap(session).databaseReference.displayName))
+        XCTAssertEqual(model.content, .locked(databaseName: session.databaseReference.displayName))
         XCTAssertTrue(model.results.isEmpty)
-        XCTAssertNil(model.selectedEntry)
+        XCTAssertNil(model.selectedResult)
     }
 
     func testUnlockedSessionSearchesWithTheMainSearchRules() async throws {
-        session = try await makeUnlockedSession()
+        let session = open(try await makeUnlockedSession())
         let model = makeModel()
 
         XCTAssertTrue(model.results.isEmpty, "An empty query lists nothing")
 
         model.query = "  TWITTER "
-        XCTAssertEqual(model.results.map(\.title), ["Twitter"])
+        XCTAssertEqual(model.results.map(\.entry.title), ["Twitter"])
+        XCTAssertEqual(model.results.map(\.databaseID), [session.databaseReference.id])
         XCTAssertEqual(model.username(for: try XCTUnwrap(model.results.first)), "testuser")
         XCTAssertEqual(model.folderPath(for: try XCTUnwrap(model.results.first)), "Social")
     }
 
     func testQuickSearchDoesNotMoveTheMainWindowSearch() async throws {
-        let session = try await makeUnlockedSession()
-        self.session = session
+        let session = open(try await makeUnlockedSession())
         let model = makeModel()
 
         model.query = "Twitter"
@@ -82,8 +89,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     }
 
     func testLockingEmptiesAnOpenPanel() async throws {
-        let session = try await makeUnlockedSession()
-        self.session = session
+        let session = open(try await makeUnlockedSession())
         let model = makeModel()
         model.query = "Twitter"
         XCTAssertFalse(model.results.isEmpty)
@@ -96,7 +102,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
 
     func testResultsAreCappedAtTheResultLimit() async throws {
         let entries = (0..<(MacQuickSearchViewModel.resultLimit + 5)).map { KPEntry(title: "Bulk \($0)") }
-        session = try await makeInjectedSession(rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "Bulk", entries: entries)]))
+        open(try await makeInjectedSession(rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "Bulk", entries: entries)])))
         let model = makeModel()
 
         model.query = "Bulk"
@@ -107,76 +113,75 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     // MARK: - Selection
 
     func testSelectionDefaultsToTheFirstResultAndClampsAtBothEnds() async throws {
-        session = try await makeUnlockedSession()
+        open(try await makeUnlockedSession())
         let model = makeModel()
         model.query = ".com"
         let results = model.results
         XCTAssertGreaterThan(results.count, 1)
 
-        XCTAssertEqual(model.selectedEntry?.id, results.first?.id)
+        XCTAssertEqual(model.selectedResult?.id, results.first?.id)
 
         model.perform(.moveUp)
-        XCTAssertEqual(model.selectedEntry?.id, results.first?.id)
+        XCTAssertEqual(model.selectedResult?.id, results.first?.id)
 
         model.perform(.moveDown)
-        XCTAssertEqual(model.selectedEntry?.id, results[1].id)
+        XCTAssertEqual(model.selectedResult?.id, results[1].id)
 
         for _ in results { model.perform(.moveDown) }
-        XCTAssertEqual(model.selectedEntry?.id, results.last?.id)
+        XCTAssertEqual(model.selectedResult?.id, results.last?.id)
     }
 
     func testChangingTheQueryResetsTheSelection() async throws {
-        session = try await makeUnlockedSession()
+        open(try await makeUnlockedSession())
         let model = makeModel()
         model.query = ".com"
         model.perform(.moveDown)
-        XCTAssertNotNil(model.selectedEntryID)
+        XCTAssertNotNil(model.selectedResultID)
 
         model.query = ".com "
 
-        XCTAssertNil(model.selectedEntryID)
+        XCTAssertNil(model.selectedResultID)
     }
 
     func testMovingSelectionReadsTheLiveSessionOnceAtTheLastResult() async throws {
         let entries = (0..<MacQuickSearchViewModel.resultLimit).map { KPEntry(title: "Bulk \($0)") }
-        let session = try await makeInjectedSession(rootGroup: KPGroup(name: "Root", entries: entries))
-        self.session = session
+        let session = open(try await makeInjectedSession(rootGroup: KPGroup(name: "Root", entries: entries)))
         var sessionReads = 0
-        let model = MacQuickSearchViewModel(sessionProvider: {
+        let model = MacQuickSearchViewModel(focusedDatabaseID: { session.databaseReference.id }, sessionForDatabase: { _ in
             sessionReads += 1
             return session
         })
         model.query = "Bulk"
         let results = model.results
-        model.selectedEntryID = try XCTUnwrap(results.last).id
+        model.selectedResultID = try XCTUnwrap(results.last).id
         sessionReads = 0
 
         model.moveSelection(by: -1)
 
         XCTAssertEqual(sessionReads, 1)
-        XCTAssertEqual(model.selectedEntryID, results[results.count - 2].id)
+        XCTAssertEqual(model.selectedResultID, results[results.count - 2].id)
     }
 
     func testMovingSelectionWithAStaleIDStartsAtTheFirstResult() async throws {
-        session = try await makeUnlockedSession()
+        open(try await makeUnlockedSession())
         let model = makeModel()
         model.query = ".com"
         let results = model.results
         XCTAssertGreaterThan(results.count, 1)
-        let staleID = UUID()
+        let staleID = MacQuickSearchViewModel.Result.ID(databaseID: try XCTUnwrap(results.first).databaseID, entryID: UUID())
         XCTAssertFalse(results.contains { $0.id == staleID })
-        model.selectedEntryID = staleID
+        model.selectedResultID = staleID
 
         model.moveSelection(by: 1)
 
-        XCTAssertEqual(model.selectedEntryID, results[1].id)
-        model.selectedEntryID = staleID
+        XCTAssertEqual(model.selectedResultID, results[1].id)
+        model.selectedResultID = staleID
         model.moveSelection(by: -1)
-        XCTAssertEqual(model.selectedEntryID, results.first?.id)
+        XCTAssertEqual(model.selectedResultID, results.first?.id)
     }
 
     func testPresentingClearsTheLastSearch() async throws {
-        session = try await makeUnlockedSession()
+        open(try await makeUnlockedSession())
         let model = makeModel()
         model.query = "Twitter"
         model.perform(.moveDown)
@@ -185,14 +190,14 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         model.prepareForPresentation()
 
         XCTAssertEqual(model.query, "")
-        XCTAssertNil(model.selectedEntryID)
+        XCTAssertNil(model.selectedResultID)
         XCTAssertEqual(model.presentationID, presentationID + 1)
     }
 
     // MARK: - Copying
 
     func testCopyingAPasswordRequiresDeviceOwnerAuthentication() async throws {
-        session = try await makeUnlockedSession()
+        open(try await makeUnlockedSession())
         let model = makeModel()
         let twitter = try entry(titled: "Twitter", in: model)
 
@@ -201,7 +206,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         XCTAssertTrue(didCopy)
         XCTAssertEqual(authenticationRequests, 1)
         XCTAssertTrue(
-            authenticationGates.first === session?.secretAccess,
+            authenticationGates.first === sessions.first?.secretAccess,
             "The copy must be authorized by the session it reads from"
         )
         XCTAssertEqual(copied, ["twitterpass123"])
@@ -240,7 +245,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     }
 
     func testDeclinedAuthenticationCopiesNothingAndHandsFocusBack() async throws {
-        session = try await makeUnlockedSession()
+        open(try await makeUnlockedSession())
         authenticationResult = false
         let model = makeModel()
         let twitter = try entry(titled: "Twitter", in: model)
@@ -255,10 +260,10 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     }
 
     func testALockDuringTheAuthenticationPromptCopiesNothingAndHandsFocusBack() async throws {
-        let session = try await makeUnlockedSession()
-        self.session = session
+        let session = open(try await makeUnlockedSession())
         let model = MacQuickSearchViewModel(
-            sessionProvider: { session },
+            focusedDatabaseID: { session.databaseReference.id },
+            sessionForDatabase: { _ in session },
             authenticateDeviceOwner: { _ in
                 session.lockRequest(force: true)
                 return true
@@ -278,11 +283,11 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     }
 
     func testAnEntryDeletedDuringTheAuthenticationPromptCopiesNothingAndHandsFocusBack() async throws {
-        let session = try await makeUnlockedSession()
-        self.session = session
+        let session = open(try await makeUnlockedSession())
         let twitterID = try XCTUnwrap(session.entries(matching: "Twitter").first { $0.title == "Twitter" }).id
         let model = MacQuickSearchViewModel(
-            sessionProvider: { session },
+            focusedDatabaseID: { session.databaseReference.id },
+            sessionForDatabase: { _ in session },
             authenticateDeviceOwner: { _ in
                 try? session.deleteEntry(twitterID, sendToRecycleBin: false)
                 return true
@@ -301,18 +306,17 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     }
 
     func testReplacingTheSessionWithTheSameEntryIDsDuringAuthenticationCopiesNothing() async throws {
-        let source = try await makeUnlockedSession()
-        defer { source.lockRequest(force: true) }
-        session = source
+        open(try await makeUnlockedSession())
         let replacement = try await makeUnlockedSession()
+        sessions.append(replacement)
         let authentication = SuspendedAuthentication()
         let model = makeModel(authenticateDeviceOwner: { _ in await authentication.authenticate() })
         let twitter = try entry(titled: "Twitter", in: model)
-        XCTAssertNotNil(replacement.entry(withID: twitter.id))
+        XCTAssertNotNil(replacement.entry(withID: twitter.entry.id))
         let copy = Task { await model.copy(.password, from: twitter) }
         await authentication.waitUntilRequested()
 
-        session = replacement
+        focusedDatabaseID = replacement.databaseReference.id
         authentication.complete()
         let didCopy = await copy.value
 
@@ -322,8 +326,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     }
 
     func testLockingAndReunlockingTheSameSessionDuringAuthenticationCopiesNothing() async throws {
-        let source = try await makeUnlockedSession()
-        session = source
+        let source = open(try await makeUnlockedSession())
         let authentication = SuspendedAuthentication()
         let model = makeModel(authenticateDeviceOwner: { _ in await authentication.authenticate() })
         let twitter = try entry(titled: "Twitter", in: model)
@@ -342,17 +345,16 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     }
 
     func testEditingThePasswordDuringAuthenticationCopiesNothing() async throws {
-        let source = try await makeUnlockedSession()
-        session = source
+        let source = open(try await makeUnlockedSession())
         let authentication = SuspendedAuthentication()
         let model = makeModel(authenticateDeviceOwner: { _ in await authentication.authenticate() })
         let twitter = try entry(titled: "Twitter", in: model)
         let copy = Task { await model.copy(.password, from: twitter) }
         await authentication.waitUntilRequested()
 
-        let form = EntryEditViewModel(editing: twitter, sessionKey: try XCTUnwrap(source.sessionKey))
+        let form = EntryEditViewModel(editing: twitter.entry, sessionKey: try XCTUnwrap(source.sessionKey))
         form.password = "changed during authentication"
-        try source.applyEntryEdit(.updateEntry(entryID: twitter.id, draft: form.entryDraftPayload))
+        try source.applyEntryEdit(.updateEntry(entryID: twitter.entry.id, draft: form.entryDraftPayload))
         authentication.complete()
         let didCopy = await copy.value
 
@@ -362,7 +364,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     }
 
     func testANewPanelPresentationRejectsTheOldCopyWithoutClosingTheNewPanel() async throws {
-        session = try await makeUnlockedSession()
+        open(try await makeUnlockedSession())
         let authentication = SuspendedAuthentication()
         let model = makeModel(authenticateDeviceOwner: { _ in await authentication.authenticate() })
         let twitter = try entry(titled: "Twitter", in: model)
@@ -382,8 +384,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     }
 
     func testAuthenticationCanHideThePanelAndClearItsQueryBeforeCopying() async throws {
-        let source = try await makeUnlockedSession()
-        session = source
+        let source = open(try await makeUnlockedSession())
         let authentication = SuspendedAuthentication()
         let model = makeModel(authenticateDeviceOwner: { _ in await authentication.authenticate() })
         let twitter = try entry(titled: "Twitter", in: model)
@@ -397,18 +398,17 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         let didCopy = await copy.value
 
         XCTAssertTrue(didCopy)
-        XCTAssertNil(model.selectedEntryID)
+        XCTAssertNil(model.selectedResultID)
         XCTAssertEqual(copied, ["twitterpass123"])
         XCTAssertEqual(copiedCallbacks, 1)
         XCTAssertEqual(abortedCopies, 0)
     }
 
     func testUsernameAndVerificationCodeCopyWithoutAuthentication() async throws {
-        let session = try await makeUnlockedSession()
-        self.session = session
+        let session = open(try await makeUnlockedSession())
         let model = makeModel()
         let discord = try entry(titled: "Discord", in: model)
-        let config = try XCTUnwrap(discord.totpConfig)
+        let config = try XCTUnwrap(discord.entry.totpConfig)
         let sessionKey = try XCTUnwrap(session.sessionKey)
 
         let copiedUsername = await model.copy(.username, from: discord)
@@ -427,7 +427,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     }
 
     func testFieldsAnEntryDoesNotHaveCannotBeCopied() async throws {
-        session = try await makeUnlockedSession()
+        open(try await makeUnlockedSession())
         let model = makeModel()
         let offlineKey = try entry(titled: "Offline Key", in: model)
         let publicProfile = try entry(titled: "Public Profile", in: model)
@@ -443,8 +443,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     }
 
     func testCopyingFromALockedSessionIsRefused() async throws {
-        let session = try await makeUnlockedSession()
-        self.session = session
+        let session = open(try await makeUnlockedSession())
         let model = makeModel()
         let twitter = try entry(titled: "Twitter", in: model)
         session.lockRequest(force: true)
@@ -459,24 +458,151 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         XCTAssertEqual(abortedCopies, 0)
     }
 
-    // MARK: - Hand-offs to the main window
+    // MARK: - Several open databases
+
+    /// Two copies of one database share every entry UUID. Only the focused
+    /// one is searched, and its results say which database they came from.
+    func testOnlyTheFocusedOfTwoDatabasesWithTheSameEntriesIsSearched() async throws {
+        let personal = try await makeUnlockedSession(nickname: "Personal")
+        let work = open(try await makeUnlockedSession(nickname: "Work"))
+        sessions.insert(personal, at: 0)
+        let model = makeModel()
+        model.query = "Twitter"
+
+        XCTAssertEqual(model.content, .unlocked(databaseName: "Work"))
+        XCTAssertEqual(model.results.map(\.databaseID), [work.databaseReference.id])
+
+        focusedDatabaseID = personal.databaseReference.id
+
+        XCTAssertEqual(model.content, .unlocked(databaseName: "Personal"))
+        XCTAssertEqual(model.results.map(\.databaseID), [personal.databaseReference.id])
+        XCTAssertEqual(model.results.map(\.entry.id), work.entries(matching: "Twitter").map(\.id))
+    }
+
+    func testAFocusChangeDropsTheSelectionMadeInTheOtherDatabase() async throws {
+        let personal = try await makeUnlockedSession(nickname: "Personal")
+        sessions.append(personal)
+        let work = open(try await makeUnlockedSession(nickname: "Work"))
+        let model = makeModel()
+        model.query = ".com"
+        model.perform(.moveDown)
+        let selectedInWork = try XCTUnwrap(model.selectedResult)
+        XCTAssertEqual(selectedInWork.databaseID, work.databaseReference.id)
+
+        focusedDatabaseID = personal.databaseReference.id
+
+        let selected = try XCTUnwrap(model.selectedResult)
+        XCTAssertEqual(selected.databaseID, personal.databaseReference.id)
+        XCTAssertEqual(selected.id, model.results.first?.id, "The same entry UUID in the other database is not selected")
+    }
+
+    /// The panel never falls back to another unlocked database.
+    func testTheFocusedDatabaseLockingShowsItsLockedStateWhileTheOtherStaysUnlocked() async throws {
+        let personal = try await makeUnlockedSession(nickname: "Personal")
+        sessions.append(personal)
+        let work = open(try await makeUnlockedSession(nickname: "Work"))
+        let model = makeModel()
+        model.query = "Twitter"
+        XCTAssertFalse(model.results.isEmpty)
+
+        work.lockRequest(force: true)
+
+        XCTAssertEqual(personal.state, .unlocked)
+        XCTAssertEqual(model.content, .locked(databaseName: "Work"))
+        XCTAssertTrue(model.results.isEmpty)
+
+        sessions.removeAll { $0 === work }
+
+        XCTAssertEqual(model.content, .noDatabase, "A closed target is not replaced by the other database")
+        XCTAssertTrue(model.results.isEmpty)
+    }
+
+    func testAFocusChangeDuringTheAuthenticationPromptCopiesNothing() async throws {
+        let personal = try await makeUnlockedSession(nickname: "Personal")
+        sessions.append(personal)
+        open(try await makeUnlockedSession(nickname: "Work"))
+        let authentication = SuspendedAuthentication()
+        let model = makeModel(authenticateDeviceOwner: { _ in await authentication.authenticate() })
+        let twitter = try entry(titled: "Twitter", in: model)
+        let copy = Task { await model.copy(.password, from: twitter) }
+        await authentication.waitUntilRequested()
+
+        focusedDatabaseID = personal.databaseReference.id
+        authentication.complete()
+        let didCopy = await copy.value
+
+        XCTAssertFalse(didCopy)
+        XCTAssertTrue(copied.isEmpty)
+        XCTAssertEqual(abortedCopies, 1)
+    }
+
+    /// A result rendered before the focus moved is not copied from the
+    /// newly focused database, even though that one has the same entry.
+    func testAResultFromADatabaseThatLostFocusIsNotCopied() async throws {
+        let personal = try await makeUnlockedSession(nickname: "Personal")
+        sessions.append(personal)
+        open(try await makeUnlockedSession(nickname: "Work"))
+        let model = makeModel()
+        let twitter = try entry(titled: "Twitter", in: model)
+
+        focusedDatabaseID = personal.databaseReference.id
+        let copiedUsername = await model.copy(.username, from: twitter)
+        let copiedPassword = await model.copy(.password, from: twitter)
+
+        XCTAssertFalse(model.canCopy(.username, from: twitter))
+        XCTAssertFalse(copiedUsername)
+        XCTAssertFalse(copiedPassword)
+        XCTAssertEqual(authenticationRequests, 0)
+        XCTAssertTrue(copied.isEmpty)
+    }
+
+    // MARK: - Hand-offs to KeeForge
 
     func testOpenInKeeForgeSelectsTheEntryInItsGroup() async throws {
-        let session = try await makeUnlockedSession()
-        self.session = session
+        let session = open(try await makeUnlockedSession())
         let model = makeModel()
         let github = try entry(titled: "GitHub", in: model)
 
         model.perform(.openInKeeForge)
 
-        XCTAssertEqual(session.workspace.selectedEntryID, github.id)
-        XCTAssertEqual(session.workspace.selectedGroupID, session.parentGroupID(forEntryID: github.id))
-        XCTAssertEqual(mainWindowRequests, 1)
+        XCTAssertEqual(session.workspace.selectedEntryID, github.entry.id)
+        XCTAssertEqual(session.workspace.selectedGroupID, session.parentGroupID(forEntryID: github.entry.id))
+        XCTAssertEqual(shownDatabases, [session.databaseReference.id])
+    }
+
+    /// The entry is selected in the database it was found in, never in
+    /// another open database that holds the same entry UUID.
+    func testOpenInKeeForgeRoutesByTheResultsDatabase() async throws {
+        let personal = try await makeUnlockedSession(nickname: "Personal")
+        sessions.append(personal)
+        let work = open(try await makeUnlockedSession(nickname: "Work"))
+        let model = makeModel()
+        let github = try entry(titled: "GitHub", in: model)
+        let personalSelection = personal.workspace.selectedEntryID
+
+        focusedDatabaseID = personal.databaseReference.id
+        model.openInKeeForge(github)
+
+        XCTAssertEqual(shownDatabases, [work.databaseReference.id])
+        XCTAssertEqual(work.workspace.selectedEntryID, github.entry.id)
+        XCTAssertEqual(personal.workspace.selectedEntryID, personalSelection)
+    }
+
+    func testOpenInKeeForgeSelectsNothingWhenNoWindowShowsTheDatabase() async throws {
+        let session = open(try await makeUnlockedSession())
+        showsDatabaseWindow = false
+        let model = makeModel()
+        let github = try entry(titled: "GitHub", in: model)
+        let selectionBefore = session.workspace.selectedEntryID
+
+        model.openInKeeForge(github)
+
+        XCTAssertEqual(shownDatabases, [session.databaseReference.id])
+        XCTAssertEqual(session.workspace.selectedEntryID, selectionBefore)
     }
 
     func testOpenInKeeForgeLeavesAnOpenEditorAlone() async throws {
-        let session = try await makeUnlockedSession()
-        self.session = session
+        let session = open(try await makeUnlockedSession())
         let model = makeModel()
         let github = try entry(titled: "GitHub", in: model)
         session.setEditorHasUnsavedChanges(true, editorID: UUID())
@@ -485,25 +611,37 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         model.openInKeeForge(github)
 
         XCTAssertEqual(session.workspace.selectedEntryID, selectionBefore)
-        XCTAssertEqual(mainWindowRequests, 1, "The window still comes forward, showing the editor")
+        XCTAssertEqual(shownDatabases, [session.databaseReference.id], "The window still comes forward, showing the editor")
     }
 
-    func testReturnWhileLockedOpensTheMainWindowToUnlock() throws {
-        session = try makeSession()
+    func testReturnWhileLockedFrontsThatDatabaseToUnlock() throws {
+        let session = open(try makeSession())
         let model = makeModel()
 
         model.perform(.primaryAction)
 
-        XCTAssertEqual(mainWindowRequests, 1)
+        XCTAssertEqual(shownDatabases, [session.databaseReference.id])
+        XCTAssertEqual(databaseListRequests, 0)
         XCTAssertTrue(copied.isEmpty)
     }
 
-    func testReturnWithoutADatabaseOpensTheMainWindowToChooseOne() {
+    func testReturnWhileLockedFallsBackToChoosingADatabaseWhenNoWindowShowsIt() throws {
+        open(try makeSession())
+        showsDatabaseWindow = false
         let model = makeModel()
 
         model.perform(.primaryAction)
 
-        XCTAssertEqual(mainWindowRequests, 1)
+        XCTAssertEqual(databaseListRequests, 1)
+    }
+
+    func testReturnWithoutADatabaseOpensKeeForgeToChooseOne() {
+        let model = makeModel()
+
+        model.perform(.primaryAction)
+
+        XCTAssertTrue(shownDatabases.isEmpty)
+        XCTAssertEqual(databaseListRequests, 1)
     }
 
     func testEscapeDismisses() {
@@ -516,11 +654,20 @@ final class MacQuickSearchViewModelTests: XCTestCase {
 
     // MARK: - Helpers
 
+    /// Opens `session` and focuses it.
+    @discardableResult
+    private func open(_ session: DatabaseViewModel) -> DatabaseViewModel {
+        sessions.append(session)
+        focusedDatabaseID = session.databaseReference.id
+        return session
+    }
+
     private func makeModel(
         authenticateDeviceOwner: MacQuickSearchViewModel.DeviceOwnerAuthenticator? = nil
     ) -> MacQuickSearchViewModel {
         let model = MacQuickSearchViewModel(
-            sessionProvider: { [weak self] in self?.session },
+            focusedDatabaseID: { [weak self] in self?.focusedDatabaseID },
+            sessionForDatabase: { [weak self] id in self?.sessions.first { $0.databaseReference.id == id } },
             authenticateDeviceOwner: authenticateDeviceOwner ?? { [weak self] gate in
                 guard let self else { return false }
                 self.authenticationRequests += 1
@@ -531,7 +678,12 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         )
         model.onCopied = { [weak self] in self?.copiedCallbacks += 1 }
         model.onCopyAborted = { [weak self] in self?.abortedCopies += 1 }
-        model.onShowMainWindow = { [weak self] in self?.mainWindowRequests += 1 }
+        model.onShowDatabase = { [weak self] id in
+            guard let self else { return false }
+            self.shownDatabases.append(id)
+            return self.showsDatabaseWindow
+        }
+        model.onShowDatabaseList = { [weak self] in self?.databaseListRequests += 1 }
         model.onDismiss = { [weak self] in self?.dismissRequests += 1 }
         return model
     }
@@ -561,20 +713,20 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     }
 
     /// Searches for `title` and selects the one exact match.
-    private func entry(titled title: String, in model: MacQuickSearchViewModel) throws -> KPEntry {
+    private func entry(titled title: String, in model: MacQuickSearchViewModel) throws -> MacQuickSearchViewModel.Result {
         model.query = title
-        let match = try XCTUnwrap(model.results.first { $0.title == title })
-        model.selectedEntryID = match.id
+        let match = try XCTUnwrap(model.results.first { $0.entry.title == title })
+        model.selectedResultID = match.id
         return match
     }
 
-    private func makeSession() throws -> DatabaseViewModel {
+    private func makeSession(nickname: String? = nil) throws -> DatabaseViewModel {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
-        return DatabaseViewModel(databaseReference: try TestDatabaseSupport.makeReference(for: url))
+        return DatabaseViewModel(databaseReference: try TestDatabaseSupport.makeReference(for: url, nickname: nickname))
     }
 
-    private func makeUnlockedSession() async throws -> DatabaseViewModel {
-        let session = try makeSession()
+    private func makeUnlockedSession(nickname: String? = nil) async throws -> DatabaseViewModel {
+        let session = try makeSession(nickname: nickname)
         await session.unlock(password: fixturePassword)
         guard case .unlocked = session.state else {
             XCTFail("test.kdbx did not unlock")

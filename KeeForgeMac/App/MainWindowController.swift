@@ -61,8 +61,6 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             listViewModel: listViewModel,
             sessionStore: sessionStore,
             routing: routing,
-            quickAccess: quickAccess,
-            sshAgent: sshAgent,
             onReadyForURLs: { [weak self] in self?.rootDidBecomeReady() }
         )
         let hosting = NSHostingController(rootView: content
@@ -89,7 +87,6 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         window.center()
         window.setFrameAutosaveName("main-AppWindow-1")
         self.window = window
-        quickAccess.mainWindow = window
         updateWindowRegistration()
         contentObservation.start(reading: { [weak self] in
             let session = self?.session
@@ -146,6 +143,14 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         } else {
             windowRegistry.unregister(window)
         }
+    }
+
+    /// Fronts the main window when it shows `databaseID`, and reports whether it does.
+    @discardableResult
+    func showWindow(forDatabase databaseID: UUID) -> Bool {
+        guard session?.databaseReference.id == databaseID else { return false }
+        showMainWindow()
+        return true
     }
 
     func showMainWindow() {
@@ -224,13 +229,9 @@ private struct MacMainRoot: View {
     let listViewModel: DatabaseListViewModel
     let sessionStore: DatabaseSessionStore
     let routing: AppRoutingCoordinator
-    let quickAccess: MacQuickAccessController
-    let sshAgent: MacSSHAgentController
     let onReadyForURLs: () -> Void
 
-    var body: some View {
-        content.modifier(MacQuickAccessMainWindowHookup(controller: quickAccess, sshAgent: sshAgent, activeSession: sessionStore.activeSession))
-    }
+    var body: some View { content }
 
     private var root: AppRootView {
         AppRootView(listViewModel: listViewModel, sessionStore: sessionStore, routing: routing, onReadyForURLs: onReadyForURLs)
