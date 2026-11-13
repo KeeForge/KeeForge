@@ -90,6 +90,31 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: url), contents)
     }
 
+    func testRefreshingAndRemovingOneSharedCachePreservesTheOther() async throws {
+        let identityStore = FakeCredentialIdentityStore()
+        identityStore.onMutation = { XCTFail("Empty identities should need no mutation") }
+        CredentialIdentityStoreManager.storeProviderOverride = identityStore
+        let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "A.kdbx"))
+        let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "B.kdbx"))
+        let firstBytes = Data("encrypted A".utf8)
+        let secondBytes = Data("encrypted B".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(firstBytes, for: first.id)
+        try DatabaseListStore.cacheDatabaseCopy(secondBytes, for: second.id)
+        let secondURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: second.id))
+
+        let refreshed = Data("refreshed encrypted A".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(refreshed, for: first.id)
+
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: first.id))), refreshed)
+        XCTAssertEqual(try Data(contentsOf: secondURL), secondBytes)
+        DatabaseListStore.remove(id: first.id)
+        XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: first.id))
+        XCTAssertNotNil(DatabaseListStore.cachedDatabaseURL(for: second.id))
+        XCTAssertEqual(try Data(contentsOf: secondURL), secondBytes)
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [second.id])
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+    }
+
     func testCacheDatabaseCopyUsesPerDatabaseUUIDPath() throws {
         let url = try makeTemporaryFileURL(name: "work.kdbx", contents: Data("fixture".utf8))
         let reference = try DatabaseListStore.add(url: url)

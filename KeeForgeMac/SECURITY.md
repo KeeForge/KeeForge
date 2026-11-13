@@ -9,10 +9,13 @@ release verification belongs in [the direct-distribution release reference](../.
 
 The Mac app uses the shared [EncryptedValue](../KeeForge/Models/EncryptedValue.swift)
 model: passwords, TOTP secrets, and passkey private keys are sealed with a
-per-session AES-GCM key. The passkey PEM is removed from ordinary custom fields
-and decrypted when needed for signing. Lock clears the session key, composite
-key, parsed tree, draft, attachment pool, and retained key-file data from the
-[database session](../KeeForge/ViewModels/DatabaseViewModel.swift).
+per-session AES-GCM key. [DatabaseSessionStore](../KeeForge/ViewModels/DatabaseSessionStore.swift)
+owns sessions by database UUID, each with its own key and authentication grant.
+This is logical isolation within one process; the current interface still opens
+at most one database at a time. The passkey PEM is removed from ordinary custom
+fields and decrypted when needed for signing. Lock clears only the owning
+session's key, composite key, parsed tree, draft, attachment pool, and retained
+key-file data from the [database session](../KeeForge/ViewModels/DatabaseViewModel.swift).
 
 Biometric unlock stores composite keys in the Keychain, not raw master passwords.
 [KeychainService](../KeeForge/Services/Security/KeychainService.swift) uses the
@@ -34,9 +37,10 @@ The model has the same residual limitations on iOS and macOS:
   and encryption intermediates, but does not control framework-owned copies,
   raw key-file data, or every parser/signing temporary.
 
-Session-key encryption does not protect an unlocked vault from an attacker who
-can inspect the process's memory. Clearing session references is not a promise
-that every earlier plaintext copy has been overwritten.
+Session-key encryption does not protect any unlocked vault from an attacker who
+can inspect the process's memory: process compromise exposes every unlocked
+database. Clearing session references is not a promise that every earlier
+plaintext copy has been overwritten.
 
 ## Shared storage
 
@@ -57,7 +61,10 @@ Keep app-only plaintext metadata in the Mac app's own sandbox:
   belong in shared defaults; the extension does not need these account records.
 
 [DatabaseListStore](../KeeForge/Services/Persistence/DatabaseListStore.swift)
-owns production cache writes. [AppGroupGuardrailTests](../KeeForgeTests/AppGroupGuardrailTests.swift)
+owns production cache writes, scoped by database UUID for local caches and by
+provider, account, and file ID for cloud caches. Backups, pending uploads, and
+saved unlock keys are also scoped per database; sessions retain their own save
+baselines and cloud revisions. [AppGroupGuardrailTests](../KeeForgeTests/AppGroupGuardrailTests.swift)
 cover the narrower legacy `SharedVaultStore` cache/bookmark surface; they are not
 an exhaustive audit of every App Group writer.
 [AppGroupIsolationTests](../KeeForgeTests/AppGroupIsolationTests.swift) protect
@@ -68,8 +75,11 @@ unit tests from reaching the user's real shared container.
 [MacLockMonitor](../KeeForge/Services/AppSupport/MacLockMonitor.swift) requests a
 lock on screen lock, screensaver start, system sleep, fast-user-switch session
 resign, and closure of the last UI-hosting window. App deactivation also requests
-a lock under the strict `SettingsService.macLockPolicy` option. These requests
-do not depend on the iOS-only `lockOnBackground` setting.
+a lock under the strict `SettingsService.macLockPolicy` option. These app-global
+requests reach every retained session through DatabaseSessionStore, subject to
+each session's unsaved-work deferral. A session-specific lock leaves other
+sessions unlocked. These requests do not depend on the iOS-only
+`lockOnBackground` setting.
 
 Under the strict option, one deactivation does not lock at once: the one caused
 by KeeForge's own Touch ID, Apple Watch, or login-password prompt. macOS shows
@@ -81,19 +91,20 @@ identifier (`com.apple.LocalAuthentication.UIAgent`) in a bundle on the signed
 system volume. A deactivation with any other application in front locks as
 before, also while a request is pending and its prompt has not appeared yet.
 
-While the deactivation is held, the session stays open behind the prompt. Any
-other application coming forward locks at once. When the request ends, however
-it ends, KeeForge must be the active app again within two seconds, or the
-session locks; the reply can arrive just before the reactivation, so it does not
-lock by itself. The other lock requests above are not held back by a prompt.
+While the deactivation is held, retained sessions stay open behind the prompt.
+Any other application coming forward requests locks for all of them. When the
+request ends, however it ends, KeeForge must be the active app again within two
+seconds, or all sessions receive lock requests; the reply can arrive just before
+the reactivation, so it does not lock by itself. The other lock requests above
+are not held back by a prompt.
 
-This leaves the session open for as long as the prompt stays unanswered with
+This leaves those sessions open for as long as the prompt stays unanswered with
 nothing else brought forward, the same exposure as leaving KeeForge itself in
 front. Auto-Lock Timeout and the other lock requests still apply then.
 
-The separate Auto-Lock Timeout controls inactivity. The monitor resets that timer
-on deliberate keyboard, click, and scroll activity inside KeeForge; mouse movement
-and activity in other apps do not count.
+The separate Auto-Lock Timeout controls inactivity. The monitor resets every
+retained session's timer on deliberate keyboard, click, and scroll activity
+inside KeeForge; mouse movement and activity in other apps do not count.
 
 **Unsaved work can defer a lock indefinitely.** An open editor or dirty draft
 keeps the session and decrypted tree available while the Save / Discard / Keep
@@ -115,7 +126,8 @@ authentication through the session's
 the Authentication Grace Period setting at its default, Always Ask, every such
 action prompts. A longer setting (at most five minutes) skips the prompt for that
 long after an unlock or a successful authentication. The grant is held in memory
-only, ends on every lock request above, including one that unsaved work defers,
+only and belongs to its session; invalidating it leaves other sessions' grants
+intact. It ends on every lock request above, including one that unsaved work defers,
 and on a failed or cancelled prompt, and is not extended by using it. Under the
 default lock policy, switching to another app does not lock and therefore does
 not end the period either; the strict policy ends it with the lock.
@@ -198,8 +210,8 @@ are not displayed in that list or its drag previews.
 [ScreenProtectionService](../KeeForge/Services/Security/ScreenProtectionService.swift)
 places a blur cover over all app windows, including Settings, when the app
 resigns active and removes it on activation. The SSH Agent tab also removes
-its vault-derived entry titles and key fingerprints from its view while the app
-is inactive
+the active session's vault-derived entry titles and key fingerprints from its
+view while the app is inactive
 ([MacSSHAgentController](../KeeForge/Services/SSHAgent/MacSSHAgentController.swift)
 `concealsKeyList`). This cover is independent of the capture-blocking toggle.
 
@@ -212,9 +224,10 @@ signal on which to base a guarantee.
 
 [ClipboardService](../KeeForge/Services/AppSupport/ClipboardService.swift) marks
 copies with `org.nspasteboard.ConcealedType`, a convention for cooperating clipboard
-managers rather than an access restriction. A timer and completed database locks
-clear the copy only when the pasteboard's `changeCount` still matches KeeForge's
-write, preserving anything copied subsequently.
+managers rather than an access restriction. Clipboard ownership is app-global:
+a timer and a completed lock of any database clear the copy only when the
+pasteboard's `changeCount` still matches KeeForge's write, preserving anything
+copied subsequently.
 
 macOS has no equivalent of the iOS `.localOnly` and `.expirationDate` copy options.
 Copied secrets can follow the user's Universal Clipboard setting, and KeeForge's
@@ -233,9 +246,9 @@ rather than taking over a combination another app holds.
 
 The panel reads the one active session on every render and holds no entry data
 itself. It shows entry titles, user names, and folder paths only while that
-session is unlocked; a locked or missing session sends the user to the main
-window. Every existing lock trigger therefore empties it. Closing the last main
-window still locks, so quick search needs that window open or minimized.
+session is unlocked, regardless of other retained sessions; a locked or missing
+session sends the user to the main window. Locking that active session therefore
+empties it. Closing the last main window still locks, so quick search needs that window open or minimized.
 
 Copying follows the main window's rules: the password waits on the same
 device-owner prompt as ⇧⌘C, skipped only inside the session's authentication
@@ -322,7 +335,8 @@ another user.
 
 [AttachmentPreviewFileStore](../KeeForge/Services/AppSupport/AttachmentPreviewFileStore.swift)
 writes plaintext temporary files for preview/share, removes them on dismissal and
-completed database lock, and purges orphaned files at launch. Quick Look or another
+completed lock of their owning session, and purges orphaned files at launch
+while no session has tracked previews. Quick Look or another
 receiving application may retain its own copies outside KeeForge's control.
 
 The preview consumer validates its request and session after asynchronous loading

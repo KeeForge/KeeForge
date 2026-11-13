@@ -5,6 +5,23 @@ import XCTest
 /// it lasts, and what ends it.
 @MainActor
 final class SecretAccessGateTests: XCTestCase {
+    func testAuthenticationAndInvalidationAreIndependentAcrossGates() async throws {
+        let first = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
+        let second = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
+
+        try await first.gate.authenticate(reason: "View A password")
+        XCTAssertFalse(first.gate.requiresAuthentication)
+        XCTAssertTrue(second.gate.requiresAuthentication)
+        XCTAssertTrue(second.promptReasons.isEmpty)
+
+        try await second.gate.authenticate(reason: "View B password")
+        first.gate.invalidate()
+
+        XCTAssertTrue(first.gate.requiresAuthentication)
+        XCTAssertFalse(second.gate.requiresAuthentication)
+        XCTAssertEqual(second.promptReasons, ["View B password"])
+    }
+
     func testAlwaysAskRequiresAuthenticationRightAfterAnAuthentication() {
         let harness = SecretAccessGateHarness(gracePeriod: .alwaysAsk)
 
