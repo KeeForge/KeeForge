@@ -363,6 +363,42 @@ final class MacLockMonitorTests: XCTestCase {
         XCTAssertEqual(receivedTriggers, [.appResignedActive])
     }
 
+    func testHeldDeactivationSettlesOnlyAfterTheLastOverlappingRequestEnds() {
+        XCTAssertFalse(BiometricService.isBiometricAuthInProgress)
+        // Mirrors the service's state onto the injected center only when it flips.
+        func mirrorServiceState() {
+            let pending = BiometricService.isBiometricAuthInProgress
+            guard pending != isAuthenticationPromptPending else { return }
+            isAuthenticationPromptPending = pending
+            appCenter.post(name: BiometricService.authenticationInProgressDidChangeNotification, object: nil)
+        }
+        let first = BiometricService.beginAuthenticationRequest()
+        let second = BiometricService.beginAuthenticationRequest()
+        mirrorServiceState()
+        defer {
+            BiometricService.endAuthenticationRequest(first)
+            BiometricService.endAuthenticationRequest(second)
+        }
+        policy = .appDeactivates
+        frontmostApplication = promptHost
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+
+        BiometricService.endAuthenticationRequest(first)
+        BiometricService.endAuthenticationRequest(first)
+        mirrorServiceState()
+        XCTAssertTrue(scheduledDeadlines.isEmpty)
+        letScheduledDeadlinesPass()
+        XCTAssertTrue(receivedTriggers.isEmpty)
+
+        BiometricService.endAuthenticationRequest(second)
+        mirrorServiceState()
+        XCTAssertFalse(BiometricService.isBiometricAuthInProgress)
+        XCTAssertTrue(receivedTriggers.isEmpty)
+        XCTAssertEqual(scheduledDeadlines.map(\.delay), [reactivationGracePeriod])
+        letScheduledDeadlinesPass()
+        XCTAssertEqual(receivedTriggers, [.appResignedActive])
+    }
+
     /// A request that ended without the prompt ever taking the foreground
     /// from anyone the workspace reported is settled the same way.
     func testAPromptThatNeverCameForwardFiresLockAtTheDeadline() {

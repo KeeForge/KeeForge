@@ -10,7 +10,7 @@ import AppKit
 @main
 struct KeeForgeApp: App {
     @State private var listViewModel = DatabaseListViewModel()
-    @State private var activeDatabaseViewModel: DatabaseViewModel?
+    @State private var sessionStore = DatabaseSessionStore()
     @State private var routing = AppRoutingCoordinator()
     @State private var pendingUploadDrainer = PendingUploadDrainer()
     @State private var screenProtectionService = ScreenProtectionService()
@@ -39,7 +39,8 @@ struct KeeForgeApp: App {
 
         #if os(macOS)
         Settings {
-            SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
+            SettingsView(viewModel: sessionStore.activeSession, listViewModel: listViewModel)
+                .environment(sessionStore)
                 .environment(macQuickAccess)
                 .environment(macSSHAgent)
                 .tint(appAccentColor)
@@ -66,7 +67,7 @@ struct KeeForgeApp: App {
             .commands {
                 KeeForgeCommands(
                     listViewModel: listViewModel,
-                    activeDatabaseViewModel: $activeDatabaseViewModel,
+                    sessionStore: sessionStore,
                     routing: routing
                 )
                 #if KEEFORGE_DIRECT_DOWNLOAD
@@ -90,22 +91,22 @@ struct KeeForgeApp: App {
         // `MacSheetMetrics.maxHeight` — a sheet is anchored under the
         // toolbar and would otherwise sit flush with the window's bottom.
         .frame(minWidth: 900, minHeight: 620)
-        .focusedSceneValue(\.databaseViewModel, activeDatabaseViewModel)
+        .focusedSceneValue(\.databaseViewModel, sessionStore.activeSession)
         .environment(macQuickAccess)
         .environment(macSSHAgent)
-        .modifier(MacQuickAccessMainWindowHookup(controller: macQuickAccess, sshAgent: macSSHAgent, activeSession: activeDatabaseViewModel))
+        .modifier(MacQuickAccessMainWindowHookup(controller: macQuickAccess, sshAgent: macSSHAgent, activeSession: sessionStore.activeSession))
         #else
         // App-owned Settings sheet (⌘, / the Mac-compat toolbar gear),
         // above the root so it survives the lock/unlock root swap.
         .environment(appSettingsPresentation)
         .background {
-            let activeViewModel = $activeDatabaseViewModel
+            let sessionStore = self.sessionStore
             IOSUserActivityObserver {
-                activeViewModel.wrappedValue?.resetInactivityTimer()
+                sessionStore.resetInactivityTimers()
             }
         }
         .sheet(isPresented: $appSettingsPresentation.isPresented) {
-            SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
+            SettingsView(viewModel: sessionStore.activeSession, listViewModel: listViewModel)
         }
         #endif
         .tint(appAccentColor)
@@ -114,9 +115,7 @@ struct KeeForgeApp: App {
             switch newPhase {
             case .active:
                 screenProtectionService.update(sceneIsActive: true)
-                activeDatabaseViewModel?.didManuallyLock = false
-                activeDatabaseViewModel?.handleSceneDidBecomeActive()
-                activeDatabaseViewModel?.refreshSharedDatabaseCacheIfPossible()
+                sessionStore.handleAppDidBecomeActive()
                 scanDocumentsForSharedDatabases()
                 Task {
                     await listViewModel.drainPendingUploadsOnAppActive()
@@ -130,7 +129,7 @@ struct KeeForgeApp: App {
                 // default policy. MacLockMonitor is the sole lock driver
                 // on the Mac; see startMacLockMonitoringIfNeeded().
                 #if os(iOS)
-                activeDatabaseViewModel?.handleSceneDidEnterBackground()
+                sessionStore.handleAppDidEnterBackground()
                 #endif
             @unknown default:
                 screenProtectionService.update(sceneIsActive: false)
@@ -157,6 +156,7 @@ struct KeeForgeApp: App {
             }
             startMacLockMonitoringIfNeeded()
         }
+        .environment(sessionStore)
     }
 
     /// Root content for the main window. In DEBUG builds the
@@ -174,14 +174,14 @@ struct KeeForgeApp: App {
         } else {
             AppRootView(
                 listViewModel: listViewModel,
-                activeDatabaseViewModel: $activeDatabaseViewModel,
+                sessionStore: sessionStore,
                 routing: routing
             )
         }
         #else
         AppRootView(
             listViewModel: listViewModel,
-            activeDatabaseViewModel: $activeDatabaseViewModel,
+            sessionStore: sessionStore,
             routing: routing
         )
         #endif
@@ -205,41 +205,33 @@ struct KeeForgeApp: App {
 
     private func startMacLockMonitoringIfNeeded() {
         #if os(macOS)
-        // A captured binding reads live @State everywhere except inside a
-        // view update, where it returns the value it was created with (nil,
-        // here). These closures run from notifications, event monitors and
-        // timers, never from a view body.
-        let activeViewModel = $activeDatabaseViewModel
+        let sessionStore = self.sessionStore
         let listViewModel = self.listViewModel
 
         macLockMonitor.onLockTriggered = { _ in
             NotificationCenter.default.post(name: MacBiometricAutoUnlockController.lockRequestedNotification, object: nil)
-            activeViewModel.wrappedValue?.handleSceneDidEnterBackground()
+            sessionStore.handleAppDidEnterBackground()
         }
         macLockMonitor.onDidBecomeActive = {
-            activeViewModel.wrappedValue?.didManuallyLock = false
-            activeViewModel.wrappedValue?.handleSceneDidBecomeActive()
-            activeViewModel.wrappedValue?.refreshSharedDatabaseCacheIfPossible()
+            sessionStore.handleAppDidBecomeActive()
             Task {
                 await listViewModel.drainPendingUploadsOnAppActive()
             }
         }
         macLockMonitor.onUserActivity = {
-            // Only meaningful while a vault is open; resetInactivityTimer()
-            // already no-ops in every other state.
-            activeViewModel.wrappedValue?.resetInactivityTimer()
+            sessionStore.resetInactivityTimers()
         }
         macLockMonitor.start()
 
         // The monitor's window-close trigger fires after the close is
         // committed, which is too late to ask about unsaved work; the guard
         // runs before it.
-        macWindowCloseGuard.vaultProvider = { activeViewModel.wrappedValue }
+        macWindowCloseGuard.vaultProvider = { sessionStore.activeSession }
         macWindowCloseGuard.start()
 
         macQuickAccess.start()
 
-        macSSHAgent.sessionProvider = { activeViewModel.wrappedValue }
+        macSSHAgent.sessionProvider = { sessionStore.activeSession }
         macSSHAgent.start()
         #endif
     }
@@ -294,7 +286,7 @@ private extension SettingsService.AppearanceMode {
 
 private struct AppRootView: View {
     @Bindable var listViewModel: DatabaseListViewModel
-    @Binding var activeDatabaseViewModel: DatabaseViewModel?
+    let sessionStore: DatabaseSessionStore
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #elseif !KEEFORGE_DIRECT_DOWNLOAD
@@ -337,16 +329,9 @@ private struct AppRootView: View {
         }
         #endif
         .task {
-            // The list view model owns the AutoFill toggle but only this root
-            // knows the active session, so it installs the bridge. The handler
-            // runs from a toggle's action, not a view body, so the captured
-            // binding reads the current session (see
-            // startMacLockMonitoringIfNeeded).
-            let activeViewModel = $activeDatabaseViewModel
+            let sessionStore = self.sessionStore
             listViewModel.autoFillEnabledRefreshHandler = { databaseID in
-                guard let databaseViewModel = activeViewModel.wrappedValue,
-                      databaseViewModel.databaseReference.id == databaseID else { return }
-                databaseViewModel.populateCredentialStoreIfUnlocked()
+                sessionStore.session(for: databaseID)?.populateCredentialStoreIfUnlocked()
             }
             #if os(macOS) && !KEEFORGE_DIRECT_DOWNLOAD
             // macOS has no scene-based StoreKit review entry point; inject the
@@ -363,9 +348,9 @@ private struct AppRootView: View {
         // Above the locked/unlocked switch: a lock must not remount it, since
         // mounting counts as opening the session and prompts.
         .background {
-            if let activeDatabaseViewModel {
-                MacBiometricAutoUnlockObserver(viewModel: activeDatabaseViewModel)
-                    .id(ObjectIdentifier(activeDatabaseViewModel))
+            if let activeSession = sessionStore.activeSession {
+                MacBiometricAutoUnlockObserver(viewModel: activeSession)
+                    .id(ObjectIdentifier(activeSession))
             }
         }
         .sheet(isPresented: $showsMacTransitionNotice) {
@@ -397,14 +382,14 @@ private struct AppRootView: View {
         .sheet(item: enrollmentPresentation) { enrollment in
             // The session is re-read at presentation time; when it vanished in
             // between (locked or closed), the `onChange` below re-parks.
-            if let activeDatabaseViewModel {
+            if let activeSession = sessionStore.activeSession {
                 let enrollmentSession = AppRoutingCoordinator.Session(
-                    identity: ObjectIdentifier(activeDatabaseViewModel),
-                    lockCycleID: activeDatabaseViewModel.lockCycleID,
-                    isUnlocked: activeDatabaseViewModel.state == .unlocked
+                    identity: ObjectIdentifier(activeSession),
+                    lockCycleID: activeSession.lockCycleID,
+                    isUnlocked: activeSession.state == .unlocked
                 )
                 TOTPEnrollmentDestinationView(
-                    databaseViewModel: activeDatabaseViewModel,
+                    databaseViewModel: activeSession,
                     uri: enrollment.uri
                 ) {
                     routing.updateSession(routingSession)
@@ -460,18 +445,13 @@ private struct AppRootView: View {
             routing.discardExpiredEnrollment()
         }
         .onChange(of: listViewModel.databases.map(\.id)) { _, identifiers in
-            // The split layout keeps the sidebar list live next to the detail
-            // column, so a database can be removed while its own session is
-            // the one on screen. Drop the session with it.
-            guard let activeID = activeDatabaseViewModel?.databaseReference.id,
-                  identifiers.contains(activeID) == false else { return }
-            activeDatabaseViewModel = nil
+            sessionStore.retireSessionsMissingFromDatabaseList(identifiers)
         }
         .alert(item: $routing.enrollmentAlert, content: totpEnrollmentAlertContent)
     }
 
     private var routingSession: AppRoutingCoordinator.Session? {
-        activeDatabaseViewModel.map {
+        sessionStore.activeSession.map {
             AppRoutingCoordinator.Session(
                 identity: ObjectIdentifier($0), lockCycleID: $0.lockCycleID, isUnlocked: $0.state == .unlocked
             )
@@ -479,7 +459,7 @@ private struct AppRootView: View {
     }
 
     private var databaseTransitionState: AppRoutingCoordinator.DatabaseTransitionState? {
-        activeDatabaseViewModel.map(AppRoutingCoordinator.DatabaseTransitionState.init)
+        sessionStore.activeSession.map(AppRoutingCoordinator.DatabaseTransitionState.init)
     }
 
     private var enrollmentPresentation: Binding<PendingTOTPEnrollment?> {
@@ -527,23 +507,23 @@ private struct AppRootView: View {
     @ViewBuilder
     private var rootContent: some View {
         if usesRegularLayout {
-            if let activeDatabaseViewModel, case .unlocked = activeDatabaseViewModel.state {
-                RegularDatabaseWorkspaceView(viewModel: activeDatabaseViewModel)
+            if let activeSession = sessionStore.activeSession, case .unlocked = activeSession.state {
+                RegularDatabaseWorkspaceView(viewModel: activeSession)
             } else {
                 NavigationSplitView {
                     DatabaseListView(
                         viewModel: listViewModel,
                         onSelectDatabase: openDatabase,
                         onCreateDatabase: openCreatedDatabase,
-                        selectedDatabaseID: activeDatabaseViewModel?.databaseReference.id,
+                        selectedDatabaseID: sessionStore.activeSession?.databaseReference.id,
                         isSidebarColumn: true
                     )
                     .navigationSplitViewColumnWidth(min: 300, ideal: 340, max: 380)
                 } detail: {
                     Group {
-                        if let activeDatabaseViewModel {
+                        if let activeSession = sessionStore.activeSession {
                             RegularDatabaseScene(
-                                viewModel: activeDatabaseViewModel,
+                                viewModel: activeSession,
                                 onReturnToList: returnToDatabaseList
                             )
                         } else {
@@ -566,10 +546,10 @@ private struct AppRootView: View {
                 #endif
             }
         } else {
-            if let activeDatabaseViewModel {
+            if let activeSession = sessionStore.activeSession {
                 CompactDatabaseHost(
                     listViewModel: listViewModel,
-                    viewModel: activeDatabaseViewModel,
+                    viewModel: activeSession,
                     onSelectDatabase: openDatabase,
                     onCreateDatabase: openCreatedDatabase,
                     onReturnToList: returnToDatabaseList
@@ -598,7 +578,7 @@ private struct AppRootView: View {
     /// iPhone Duo opening or closing, or an iPad window resizing.
     private func applyLayout(regular: Bool) {
         guard regular != usesRegularLayout else { return }
-        activeDatabaseViewModel?.workspace.adaptNavigation(toRegularLayout: regular)
+        sessionStore.activeSession?.workspace.adaptNavigation(toRegularLayout: regular)
         appliedRegularLayout = regular
     }
 
@@ -614,14 +594,14 @@ private struct AppRootView: View {
         guard !routing.didResolveInitialRoute else { return }
         var showsTransitionNotice = false
         #if os(macOS)
-        if activeDatabaseViewModel == nil {
+        if sessionStore.activeSession == nil {
             showsTransitionNotice = MacTransitionNoticeService.claimPresentation()
             showsMacTransitionNotice = showsTransitionNotice
         }
         #endif
-        let mayAutoOpen = activeDatabaseViewModel == nil && !showsTransitionNotice
+        let mayAutoOpen = sessionStore.activeSession == nil && !showsTransitionNotice
         if let reference = routing.resolveInitialRoute(
-            hasActiveSession: activeDatabaseViewModel != nil,
+            hasActiveSession: sessionStore.activeSession != nil,
             showsTransitionNotice: showsTransitionNotice,
             release: mayAutoOpen ? WhatsNewPresentationService.releaseToPresent() : nil,
             autoOpenReference: mayAutoOpen ? listViewModel.databaseToAutoOpenOnLaunch() : nil
@@ -631,14 +611,18 @@ private struct AppRootView: View {
     }
 
     private func openDatabase(_ reference: DatabaseReference) {
-        routing.requestDatabaseTransition(to: .open(reference), from: activeDatabaseViewModel)
+        routing.requestDatabaseTransition(to: .open(reference), from: sessionStore.activeSession)
     }
 
     private func finishDatabaseTransitionIfReady() {
-        guard let destination = routing.completeDatabaseTransition(from: activeDatabaseViewModel) else { return }
+        guard let destination = routing.completeDatabaseTransition(from: sessionStore.activeSession) else { return }
         switch destination {
         case .open(let reference):
-            activeDatabaseViewModel = DatabaseViewModel(databaseReference: reference)
+            if let id = sessionStore.activeSessionID {
+                guard sessionStore.retire(id) else { return }
+            }
+            let session = sessionStore.open(reference)
+            sessionStore.activeSessionID = session.databaseReference.id
         case .close:
             returnToDatabaseList()
         }
@@ -661,11 +645,17 @@ private struct AppRootView: View {
 
     private func openCreatedDatabase(_ createdDatabase: CreatedDatabase) {
         listViewModel.reload()
-        activeDatabaseViewModel = DatabaseViewModel(createdDatabase: createdDatabase)
+        if let id = sessionStore.activeSessionID {
+            sessionStore.retire(id, force: true)
+        }
+        let session = sessionStore.adopt(DatabaseViewModel(createdDatabase: createdDatabase))
+        sessionStore.activeSessionID = session.databaseReference.id
     }
 
     private func returnToDatabaseList() {
-        activeDatabaseViewModel = nil
+        if let id = sessionStore.activeSessionID {
+            sessionStore.retire(id, force: true)
+        }
         listViewModel.reload()
     }
 

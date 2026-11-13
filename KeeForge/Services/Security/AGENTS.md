@@ -33,7 +33,7 @@
 - An invalidation that lands while a prompt is up makes `authenticate(reason:)` throw `CancellationError`: the late answer grants neither the disclosure nor a grace period. When the session invalidates is in `../../ViewModels/AGENTS.md`.
 - The app's quick-unlock action evaluates `quickUnlockPolicy` (biometrics, or biometrics-or-companion on the Mac). AutoFill always passes the biometric-only default, so its prompt never offers Apple Watch.
 - Reveal/copy gating uses `canAuthenticateDeviceOwner`, not `isAvailable`: a device without biometrics still prompts for the passcode or login password instead of skipping authentication.
-- `isBiometricAuthInProgress` is raised before the system prompt appears and by some callers around their own work. It does not mean a prompt is on screen; consumers must not treat it as one.
+- `isBiometricAuthInProgress` is read-only and stays true until every request token has ended; ending a token again has no effect. Requests begin before the system prompt appears and some callers wrap their own work. It does not mean a prompt is on screen; consumers must not treat it as one.
 
 ### Hardware key and passkeys
 

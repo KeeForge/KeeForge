@@ -227,9 +227,11 @@ struct MasterKeyChangeView: View {
 
         if BiometricService.canAuthenticateDeviceOwner {
             isAuthenticating = true
-            Task {
-                await MainActor.run {
-                    BiometricService.isBiometricAuthInProgress = true
+            Task { @MainActor in
+                let request = BiometricService.beginAuthenticationRequest()
+                defer {
+                    BiometricService.endAuthenticationRequest(request)
+                    isAuthenticating = false
                 }
                 do {
                     try await sessionViewModel.secretAccess.authenticate(
@@ -244,10 +246,6 @@ struct MasterKeyChangeView: View {
                             viewModel.changeError = String(localized: "Authentication didn't complete. The master key was not changed.")
                         }
                     }
-                }
-                await MainActor.run {
-                    BiometricService.isBiometricAuthInProgress = false
-                    isAuthenticating = false
                 }
             }
         } else {

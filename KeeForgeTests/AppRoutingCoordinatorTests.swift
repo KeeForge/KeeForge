@@ -96,23 +96,42 @@ final class AppRoutingCoordinatorTests: XCTestCase {
         form.title = "Unsaved editor"
         let editor = DatabaseEditorCoordinator(entry: form, database: database)
         editor.activate()
+        let store = DatabaseSessionStore()
+        store.adopt(database)
+        store.activeSessionID = database.databaseReference.id
         let routing = AppRoutingCoordinator()
         let destination = reference()
 
-        routing.requestDatabaseTransition(to: .open(destination), from: database)
+        routing.requestDatabaseTransition(to: .open(destination), from: store.activeSession)
 
         XCTAssertFalse(database.isDirty)
         XCTAssertEqual(database.state, .unlocked)
         XCTAssertEqual(database.pendingLockRequest?.reason, .openEditor)
-        XCTAssertNil(routing.completeDatabaseTransition(from: database))
+        XCTAssertNil(routing.completeDatabaseTransition(from: store.activeSession))
+        XCTAssertTrue(store.activeSession === database)
+        XCTAssertEqual(store.openSessions.count, 1)
+        XCTAssertNotNil(database.sessionKey)
         let request = try XCTUnwrap(editor.pendingLockRequest)
         editor.discard(resuming: request) { _ in }
 
         XCTAssertEqual(database.state, .locked)
-        guard case .open(let opened)? = routing.completeDatabaseTransition(from: database) else {
+        guard case .open(let opened)? = routing.completeDatabaseTransition(from: store.activeSession) else {
             return XCTFail("Discard should resume the original open request")
         }
         XCTAssertEqual(opened.id, destination.id)
+        let lockCycle = database.lockCycleID
+        XCTAssertTrue(store.retire(database.databaseReference.id))
+        let replacement = store.open(opened)
+        store.activeSessionID = replacement.databaseReference.id
+
+        XCTAssertEqual(database.lockCycleID, lockCycle)
+        XCTAssertNil(database.sessionKey)
+        XCTAssertNil(database.compositeKey)
+        XCTAssertNil(database.rootGroup)
+        XCTAssertNil(store.session(for: database.databaseReference.id))
+        XCTAssertTrue(store.activeSession === replacement)
+        XCTAssertEqual(store.openSessions.map(\.databaseReference.id), [destination.id])
+        XCTAssertEqual(replacement.state, .locked)
     }
 
     func testCloseDatabaseWaitsForDirtyEditorSaveBeforeClosingTheSession() async throws {

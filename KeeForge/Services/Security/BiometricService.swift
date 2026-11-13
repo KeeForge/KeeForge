@@ -2,20 +2,42 @@ import Foundation
 import LocalAuthentication
 
 enum BiometricService {
-    /// True from just before the app asks the system for an authentication
-    /// prompt until that request has ended. Some callers raise it earlier,
-    /// around their own work, so it does not mean a prompt is on screen.
+    struct AuthenticationRequest: Hashable, Sendable {
+        fileprivate let id: UUID
+    }
+
     @MainActor
-    static var isBiometricAuthInProgress = false {
-        didSet {
-            guard isBiometricAuthInProgress != oldValue else { return }
+    private static var authenticationRequests: Set<AuthenticationRequest> = []
+
+    /// True while any request is pending, including callers' surrounding work.
+    /// This does not mean a system prompt is on screen.
+    @MainActor
+    static var isBiometricAuthInProgress: Bool {
+        !authenticationRequests.isEmpty
+    }
+
+    @MainActor
+    static func beginAuthenticationRequest() -> AuthenticationRequest {
+        let request = AuthenticationRequest(id: UUID())
+        let wasInProgress = isBiometricAuthInProgress
+        authenticationRequests.insert(request)
+        if !wasInProgress {
+            NotificationCenter.default.post(name: authenticationInProgressDidChangeNotification, object: nil)
+        }
+        return request
+    }
+
+    @MainActor
+    static func endAuthenticationRequest(_ request: AuthenticationRequest) {
+        guard authenticationRequests.remove(request) != nil else { return }
+        if !isBiometricAuthInProgress {
             NotificationCenter.default.post(name: authenticationInProgressDidChangeNotification, object: nil)
         }
     }
 
     /// Posted on the main thread when `isBiometricAuthInProgress` changes.
     /// `MacLockMonitor` settles a deactivation it held for the prompt when the
-    /// request ends.
+    /// last request ends.
     static let authenticationInProgressDidChangeNotification = Notification.Name(
         "BiometricService.authenticationInProgressDidChange"
     )
@@ -85,13 +107,13 @@ enum BiometricService {
     ) async throws -> LAContext {
         let context = LAContext()
         context.localizedFallbackTitle = String(localized: "Use Password")
-        await MainActor.run { isBiometricAuthInProgress = true }
+        let request = await beginAuthenticationRequest()
         do {
             try await context.evaluatePolicy(policy, localizedReason: reason)
-            await MainActor.run { isBiometricAuthInProgress = false }
+            await endAuthenticationRequest(request)
             return context
         } catch {
-            await MainActor.run { isBiometricAuthInProgress = false }
+            await endAuthenticationRequest(request)
             throw error
         }
     }
@@ -144,16 +166,16 @@ enum BiometricService {
         }
         #endif
         let context = LAContext()
-        await MainActor.run { isBiometricAuthInProgress = true }
+        let request = await beginAuthenticationRequest()
         do {
             try await context.evaluatePolicy(
                 .deviceOwnerAuthentication,
                 localizedReason: reason
             )
-            await MainActor.run { isBiometricAuthInProgress = false }
+            await endAuthenticationRequest(request)
             return context
         } catch {
-            await MainActor.run { isBiometricAuthInProgress = false }
+            await endAuthenticationRequest(request)
             throw error
         }
     }

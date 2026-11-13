@@ -1,6 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import LocalAuthentication
+import os
 import Security
 import SwiftUI
 import XCTest
@@ -4725,6 +4726,76 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.workspace.navigationPath.isEmpty)
     }
 
+    func testInterleavedSavesKeepTwoOpenDatabasesIndependent() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixture = KDBXTestFixture.test
+        let bytes = try fixture.data(in: Bundle(for: Self.self))
+        var sessions: [DatabaseViewModel] = []
+        let store = DatabaseSessionStore()
+        defer { sessions.forEach { $0.lock() } }
+        for name in ["A", "B"] {
+            let url = directory.appendingPathComponent("\(name).kdbx")
+            try bytes.write(to: url)
+            let reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
+            let session = try makeViewModel(reference: reference)
+            await session.unlock(password: fixture.password)
+            XCTAssertEqual(session.state, .unlocked)
+            store.adopt(session)
+            sessions.append(session)
+        }
+        sessions[1].draft = try makeDirtyDraft(from: sessions[1], entryTitle: "B pending")
+
+        for index in [0, 1, 0, 1] {
+            let edited = sessions[index]
+            let other = sessions[1 - index]
+            let otherRoot = try XCTUnwrap(other.rootGroup)
+            let otherDraft = other.draft
+            let otherDraftRoot = otherDraft?.rootGroup.deepCopy()
+            let otherDirty = other.isDirty
+            let otherHash = other.openTimeSHA512
+            let otherURL = try XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: other.databaseReference))
+            let otherBytes = try Data(contentsOf: otherURL)
+            let otherBackups = DatabaseListStore.recentBackups(for: other.databaseReference)
+            let otherBackupBytes = try otherBackups.map { try Data(contentsOf: $0) }
+            let otherKey = try XCTUnwrap(other.sessionKey)
+            let baseline = otherRoot.deepCopy()
+            let title = "Only \(index): \(UUID().uuidString)"
+            try edited.applyEntryEdit(.createEntry(
+                parentGroupID: XCTUnwrap(edited.visibleRootGroupID),
+                draft: EntryDraftPayload(title: title, password: "secret")
+            ))
+            XCTAssertTrue(edited.isDirty)
+            try await edited.save()
+
+            XCTAssertNil(edited.saveConflict)
+            XCTAssertNil(edited.draft)
+            XCTAssertFalse(edited.isDirty)
+            let savedURL = try XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: edited.databaseReference))
+            let savedBytes = try Data(contentsOf: savedURL)
+            XCTAssertEqual(edited.openTimeSHA512, FileDigest.sha512(savedBytes))
+            let saved = try KDBXParser.parseWithMeta(
+                data: savedBytes, password: fixture.password, sessionKey: XCTUnwrap(edited.sessionKey)
+            )
+            XCTAssertTrue(saved.rootGroup.allEntries.contains { $0.title == title })
+            XCTAssertFalse(other.rootGroup?.allEntries.contains { $0.title == title } ?? true)
+            XCTAssertTrue(other.rootGroup === otherRoot)
+            try KDBXTreeAssertions.assertGroupsEqual(otherRoot, baseline, sessionKey: otherKey)
+            XCTAssertEqual(other.draft?.pendingEdits, otherDraft?.pendingEdits)
+            if let otherDraftRoot {
+                try KDBXTreeAssertions.assertGroupsEqual(
+                    XCTUnwrap(other.draft?.rootGroup), otherDraftRoot, sessionKey: otherKey
+                )
+            }
+            XCTAssertEqual(other.isDirty, otherDirty)
+            XCTAssertEqual(other.openTimeSHA512, otherHash)
+            XCTAssertEqual(try Data(contentsOf: otherURL), otherBytes)
+            XCTAssertEqual(DatabaseListStore.recentBackups(for: other.databaseReference), otherBackups)
+            XCTAssertEqual(try otherBackups.map { try Data(contentsOf: $0) }, otherBackupBytes)
+        }
+    }
+
     func testSaveOnCleanDraftIsNoOp() async throws {
         let localSaverCalls = CallTracker()
         let vm = try makeViewModel(
@@ -6797,6 +6868,82 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.saveConflict, "A rekey conflict must not enter the conflict-copy machinery.")
         XCTAssertFalse(vm.isSaving)
         XCTAssertFalse(storedKeyStores.didCall)
+    }
+
+    func testRekeyOfOneSessionPreservesTheOthersSavedKeyAndQuickUnlock() async throws {
+        let previousInterval = SettingsService.quickUnlockPasswordInterval
+        SettingsService.quickUnlockPasswordInterval = .never
+        defer { SettingsService.quickUnlockPasswordInterval = previousInterval }
+        let firstReference = try makeReference(autoFillEnabled: false)
+        let secondURL = try makeRelinkTarget(copying: fixtureURL())
+        defer { try? FileManager.default.removeItem(at: secondURL.deletingLastPathComponent()) }
+        let secondReference = try TestDatabaseSupport.makeReference(for: secondURL, autoFillEnabled: false)
+        defer {
+            QuickUnlockKeychain.removeMasterKeyEntry(for: firstReference.id)
+            QuickUnlockKeychain.removeMasterKeyEntry(for: secondReference.id)
+        }
+        let originalKey = try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
+        let keys = OSAllocatedUnfairLock(initialState: [
+            firstReference.id: originalKey, secondReference.id: originalKey
+        ])
+        let expressRemovals = OSAllocatedUnfairLock(initialState: [UUID]())
+        let makeSession: @MainActor (DatabaseReference) -> DatabaseViewModel = { reference in
+            DatabaseViewModel(
+                databaseReference: reference,
+                localSaveOperation: { _, _, _, _, _, _, _ in
+                    .saved(newSHA512: Data("rekeyed".utf8))
+                },
+                biometricCompositeKeyOperation: { reference, _ in
+                    QuickUnlockKeys(storedKey: try XCTUnwrap(keys.withLock { $0[reference.id] }))
+                },
+                quickUnlockKeyPersistOperation: { _, _, _ in false },
+                expressUnlockKeySaveOperation: { _, reference in
+                    expressRemovals.withLock { $0.append(reference.id) }
+                },
+                storedKeyPresenceCheck: { reference in keys.withLock { $0[reference.id] != nil } },
+                storedKeyStoreOperation: { key, reference in keys.withLock { $0[reference.id] = key } },
+                storedKeyDeleteOperation: { reference in
+                    keys.withLock { _ = $0.removeValue(forKey: reference.id) }
+                }
+            )
+        }
+        let first = makeSession(firstReference)
+        let second = makeSession(secondReference)
+        defer { first.lock(); second.lock() }
+        let store = DatabaseSessionStore()
+        store.adopt(first)
+        store.adopt(second)
+        await first.unlock(password: fixturePassword)
+        await second.unlock(password: fixturePassword)
+        XCTAssertEqual(first.state, .unlocked)
+        XCTAssertEqual(second.state, .unlocked)
+        let secondKey = second.compositeKey
+        let secondCycle = second.lockCycleID
+        let secondHash = second.openTimeSHA512
+        let enteredAt = Date.now.addingTimeInterval(-7 * 86_400)
+        QuickUnlockKeychain.recordMasterKeyEntry(for: secondReference.id, at: enteredAt)
+        expressRemovals.withLock { $0.removeAll() }
+
+        try await first.changeMasterKey(
+            newPassword: "rotated-master", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil
+        )
+
+        XCTAssertEqual(keys.withLock { $0[firstReference.id] },
+                       try KDBXCrypto.compositeKey(password: "rotated-master", keyFileData: nil))
+        XCTAssertEqual(keys.withLock { $0[secondReference.id] }, originalKey)
+        XCTAssertEqual(expressRemovals.withLock { $0 }, [firstReference.id])
+        XCTAssertEqual(second.state, .unlocked)
+        XCTAssertEqual(second.compositeKey, secondKey)
+        XCTAssertEqual(second.lockCycleID, secondCycle)
+        XCTAssertEqual(second.openTimeSHA512, secondHash)
+        XCTAssertTrue(QuickUnlockKeychain.isMasterKeyDue(
+            for: secondReference.id, interval: .fourteenDays, now: enteredAt.addingTimeInterval(15 * 86_400)
+        ))
+        second.lock()
+        let outcome = await second.unlockWithBiometrics()
+        XCTAssertEqual(outcome, .unlocked)
+        XCTAssertEqual(second.compositeKey, originalKey)
     }
 
     func testChangeMasterKeyRefreshesStoredKeyOnlyWhenOneWasStored() async throws {

@@ -43,13 +43,13 @@
 
 - `FeedbackSubmissionService` sends only on explicit submit, only to `feedback.keeforge.com`: the message, optional contact email with consent, an optional photo up to 5 MiB, and the error context of the failure being reported (category, code, details).
 - That context comes from `DatabaseOpenFailure` and carries no file names, paths, or vault data. Do not attach anything else automatically.
-- `AttachmentPreviewFileStore` files are plaintext attachment contents. They are removed on preview dismissal and on database lock, and `purgeOrphanedFiles()` at launch cleans up after a crash. A new consumer must call `remove(_:)`.
+- `AttachmentPreviewFileStore` files are plaintext attachment contents tracked by the owning database session's preview owner ID. Consumers pass that owner to `write` and `remove`; lock and reload clear only that owner's files. App-global `purgeOrphanedFiles()` at launch cleans up after a crash and is a no-op while any owner has tracked previews.
 
 ### Mac lock, window close, quick access
 
 - Screen lock, screensaver, sleep, session resign, and the last host window closing lock unconditionally. App deactivation locks only under the strict `MacLockPolicy`.
 - Under the strict policy, a deactivation caused by the app's own authentication prompt is held, not excused: it needs both a pending request (`BiometricService.isBiometricAuthInProgress`) and the system authentication UI in front (`ForegroundApplication.isSystemAuthenticationPrompt`). Any other application coming forward locks.
-- When the request ends the hold settles: KeeForge is active again within `defaultReactivationGracePeriod`, or it locks.
+- When the last pending request ends the hold settles: KeeForge is active again within `defaultReactivationGracePeriod`, or it locks.
 - `MacLockMonitor.countRemainingHostWindows` is the one definition of a host window; `MacWindowCloseGuard` shares it. The guard proxies each window's delegate instead of replacing it.
 - The quick-search panel is a non-activating `NSPanel` with `canBecomeMain == false`: it neither keeps a vault unlocked nor counts as the last window. It holds no entry data and only a reference to the active session, cleared when the database closes.
 - The panel is outside `ScreenProtectionService`'s key-window sweep, so it sets its own `sharingType` from Block Screen Capture.

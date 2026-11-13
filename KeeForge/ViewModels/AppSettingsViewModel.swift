@@ -173,11 +173,11 @@ final class AppSettingsViewModel {
         cloudAccounts = loadCloudAccounts()
     }
 
-    func connect(to database: DatabaseViewModel?) {
-        resetInactivityTimer = { [weak database] in database?.resetInactivityTimer() }
-        refreshCredentials = { [weak database] in database?.populateCredentialStoreIfUnlocked() }
-        sortOrderChanged = { [weak database] in database?.sortOrder = $0 }
-        sortDirectionChanged = { [weak database] in database?.sortAscending = $0 }
+    func connect(to store: DatabaseSessionStore?) {
+        resetInactivityTimer = { [weak store] in store?.resetInactivityTimers() }
+        refreshCredentials = { [weak store] in store?.refreshCredentials() }
+        sortOrderChanged = { [weak store] in store?.setSortOrder($0) }
+        sortDirectionChanged = { [weak store] in store?.setSortAscending($0) }
     }
 
     func reload() {

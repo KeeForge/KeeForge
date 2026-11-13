@@ -6,6 +6,7 @@ struct SettingsView: View {
     /// `autoFillEnabledRefreshHandler` AppRootView installed, so the
     /// per-database AutoFill toggles hit that hook.
     let listViewModel: DatabaseListViewModel
+    @Environment(DatabaseSessionStore.self) private var sessionStore: DatabaseSessionStore?
     @Environment(\.dismiss) private var dismiss
 
     @State private var settings = AppSettingsViewModel()
@@ -28,11 +29,8 @@ struct SettingsView: View {
         .tint(resolvedAppAccentColor)
         .preferredColorScheme(preferredColorScheme)
         .onAppear {
-            settings.connect(to: viewModel)
+            settings.connect(to: sessionStore)
             settings.reload()
-        }
-        .onChange(of: viewModel.map(ObjectIdentifier.init)) { _, _ in
-            settings.connect(to: viewModel)
         }
         .sheet(item: $feedbackContext) { context in
             FeedbackComposerView(context: context)

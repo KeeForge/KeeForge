@@ -26,6 +26,76 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testSyncAndConflictOnOneDatabasePreserveTheOtherSessionsCloudState() async throws {
+        let openedData = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        let newerData = try KDBXTestFixture.kitchenSink.data(in: Bundle(for: Self.self))
+        let firstReference = try makeStoredManualReference(fileID: "/Vaults/A.kdbx", autoFillEnabled: false)
+        let secondReference = try makeStoredManualReference(fileID: "/Vaults/B.kdbx", autoFillEnabled: false)
+        XCTAssertNotEqual(firstReference.id, secondReference.id)
+        try DatabaseListStore.cacheDatabaseCopy(openedData, for: firstReference)
+        try DatabaseListStore.cacheDatabaseCopy(openedData, for: secondReference)
+        let remote = InMemoryRemoteProvider(bytes: openedData, rev: "rev-B")
+        let first = makeViewModelOnTheRealCache(reference: firstReference, remote: remote)
+        let second = makeViewModel(
+            reference: secondReference,
+            openedData: openedData,
+            cloudRefreshOperation: { reference, _ in
+                Self.resolution(reference, data: openedData, status: .offlineCached)
+            },
+            pendingUploadMarkerCheck: { _ in true }
+        )
+        defer { first.lock(); second.lock() }
+        let store = DatabaseSessionStore()
+        store.adopt(first)
+        store.adopt(second)
+        await first.unlock(password: fixturePassword)
+        await second.unlock(password: fixturePassword)
+        await second.syncCloudNow()
+        XCTAssertEqual(first.state, .unlocked)
+        XCTAssertEqual(second.state, .unlocked)
+        XCTAssertTrue(second.hasPendingCloudUploads)
+        XCTAssertTrue(CloudSyncControls.showsWarning(for: second))
+        let secondMetadata = second.databaseReference.cloudSyncMetadata
+        let secondStoredMetadata = DatabaseListStore.databases.first { $0.id == secondReference.id }?.cloudSyncMetadata
+        let secondOutcome = second.cloudSyncOutcome
+        let secondBanner = second.cloudSyncBannerText
+        let secondRefreshPending = second.isCloudRefreshPending
+        let secondRoot = second.rootGroup
+        let secondHash = second.openTimeSHA512
+        let secondCache = DatabaseListStore.cacheLocation(for: secondReference)
+        let secondBytes = try Data(contentsOf: secondCache)
+
+        for conflict in [false, true] {
+            if conflict {
+                _ = try remote.store(newerData, expectedRev: nil)
+                try first.applyEntryEdit(.createEntry(
+                    parentGroupID: XCTUnwrap(first.visibleRootGroupID),
+                    draft: EntryDraftPayload(title: "A conflict", password: "secret")
+                ))
+                try await first.save()
+                XCTAssertNotNil(first.saveConflict)
+            } else {
+                await first.syncCloudNow()
+                XCTAssertEqual(first.cloudSyncOutcome, .upToDate)
+                XCTAssertEqual(first.databaseReference.cloudSyncMetadata?.remoteRev, "rev-B")
+            }
+
+            XCTAssertEqual(second.databaseReference.cloudSyncMetadata, secondMetadata)
+            XCTAssertEqual(DatabaseListStore.databases.first { $0.id == secondReference.id }?.cloudSyncMetadata,
+                           secondStoredMetadata)
+            XCTAssertTrue(second.hasPendingCloudUploads)
+            XCTAssertEqual(second.isCloudRefreshPending, secondRefreshPending)
+            XCTAssertEqual(second.cloudSyncOutcome, secondOutcome)
+            XCTAssertEqual(second.cloudSyncBannerText, secondBanner)
+            XCTAssertTrue(CloudSyncControls.showsWarning(for: second))
+            XCTAssertFalse(second.isSyncingCloud)
+            XCTAssertNil(second.saveConflict)
+            XCTAssertTrue(second.rootGroup === secondRoot)
+            XCTAssertEqual(second.openTimeSHA512, secondHash)
+            XCTAssertEqual(try Data(contentsOf: secondCache), secondBytes)
+        }
+    }
+
     func testManualPolicyOpenFlagsTheSkippedRefreshWithoutAWarning() async throws {
         let openedData = try fixtureData()
         let vm = makeViewModel(reference: try makeStoredManualReference(), openedData: openedData)
@@ -1007,17 +1077,22 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         )
     }
 
-    private func makeStoredManualReference(provider: CloudProviderKind = .dropbox) throws -> DatabaseReference {
+    private func makeStoredManualReference(
+        provider: CloudProviderKind = .dropbox,
+        fileID: String = "/Vaults/manual.kdbx",
+        autoFillEnabled: Bool = true
+    ) throws -> DatabaseReference {
         let file = CloudFile(
-            id: "/Vaults/manual.kdbx",
-            name: "manual.kdbx",
-            path: "/Vaults/manual.kdbx",
+            id: fileID,
+            name: URL(fileURLWithPath: fileID).lastPathComponent,
+            path: fileID,
             isFolder: false,
             modifiedDate: Date(timeIntervalSince1970: 100),
             size: 128
         )
         var reference = DatabaseListStore.addCloud(provider: provider.rawValue, accountId: "acct-1", file: file)
         reference.cloudSyncPolicy = .manual
+        reference.autoFillEnabled = autoFillEnabled
         reference.updateCloudSyncMetadata { metadata in
             metadata.remoteRev = "rev-A"
             metadata.lastSyncedAt = Date(timeIntervalSince1970: 1_000)

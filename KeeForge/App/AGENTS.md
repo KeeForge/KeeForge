@@ -6,7 +6,7 @@
 
 Keep scene and platform adapters here and lifecycle decisions in the owning view model or service. Do not hide an app-wide state transition inside a view.
 
-- `KeeForgeApp` owns the optional active `DatabaseViewModel`, the shared `DatabaseListViewModel` and `AppRoutingCoordinator`, and the compact vs regular root choice. macOS always uses the regular layout.
+- `KeeForgeApp` owns the `DatabaseSessionStore` with explicit active selection, the shared `DatabaseListViewModel` and `AppRoutingCoordinator`, and the compact vs regular root choice. macOS always uses the regular layout.
 - Launch order, incoming URLs, pending TOTP enrollment, and Open/Close Database transitions are decided by `../ViewModels/AppRoutingCoordinator.swift` (see `../ViewModels/AGENTS.md`). `AppRootView` only adapts the result to SwiftUI presentation.
 - Auto-unlock is attempted in one place per platform: `.biometricAutoUnlock(_:)` on the iOS scene shells, and `MacBiometricAutoUnlockObserver` hosted once per active session by `AppRootView` on macOS. Eligibility is `DatabaseViewModel.isEligibleForBiometricAutoUnlock`.
 - `RegularDatabaseWorkspaceView` owns the regular-width unlocked workspace: a two-column split on iPad, the three-column `macSplitView` on macOS. It hosts every sheet and confirmation its rows raise.
@@ -19,6 +19,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 - Backgrounding always shows the capture shield. On iOS it locks only when `SettingsService.lockOnBackground` is on; otherwise the `autoLockTimeout` check runs on the next activation.
 - The scene-phase `.background` lock path is iOS-only. macOS backgrounds a scene on window minimize and app hide, which must not lock; `MacLockMonitor` applies the Mac policy instead.
+- Scene activation, iOS backgrounding, Mac lock/activation callbacks, and foreground user activity forward through `DatabaseSessionStore` to every stored session. The app supplies that store to all Settings entry points through the environment; per-database AutoFill refresh looks up the toggled database's session by ID.
 - iOS observes touches across the main window (including sheets) and text-field/text-view edits through `IOSUserActivityObserver`. Only foreground activity resets the inactivity timer; its passive recognizer must never delay, cancel, or prevent normal controls and scrolling.
 - On the compact shell only a manual lock calls `VaultCloseTransition.coverCurrentFrame()`, immediately before the closing state change. An automatic lock can coincide with backgrounding, and a snapshot added then is what iOS would capture for the app switcher.
 - Pending AutoFill uploads drain on foreground activation (scene phase, and `MacLockMonitor.onDidBecomeActive` on macOS) and on the extension's Darwin notification. Both go through `DatabaseListViewModel.drainPendingUploadsOnAppActive()`.
@@ -31,7 +32,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 - Quick Launch waits until the What's New sheet (and the Mac transition notice) is dismissed, so two launch presentations never compete.
 - SwiftUI drops a presentation raised while another sheet is dismissing. That is why deferred presentations wait 450 ms and why the conflicted-upload notice is a banner, not an alert: it is due at unlock, while the compact unlock sheet is dismissing.
 - The iOS Settings sheet is attached above the root so it survives the lock/unlock root swap. It exists for the iPad app running on a Mac, where the sidebar gear is hidden and the system Settings item opens a compatibility window.
-- Never hand a view a closure over a captured `$activeDatabaseViewModel`. A `Binding` read inside a view update returns the value it was created with, so the closure reads `nil` from a view body or `updateNSView`. Closures that run only from notifications, timers, event monitors, or control actions may capture it.
+- Session-provider closures capture the reference-type session store and read `activeSession` when invoked. The app keeps at most one session: replacement retires the locked source before opening the destination; creation, returning to the list, and list removal force retirement at the point the session is dropped.
 - The main window's minimum height (620) must stay clear of `MacSheetMetrics.maxHeight` (560, `../Extensions/PlatformCompat.swift`): a sheet is anchored under the toolbar. Raise them together.
 
 ### Auto-unlock
@@ -80,7 +81,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 - Persistent cloud sync controls, repeated syncs, policy changes, and warning state: `DatabaseViewModelCloudSyncTests`. The status popover workflow is covered by `CloudUnlockSmokeUITests` and `MacWebDAVSmokeUITests`.
 - Mac automatic prompts, their trigger notifications, and queued-event invalidation: `MacBiometricAutoUnlockTests`.
-- Routing and launch order: `AppRoutingCoordinatorTests`. Menu password copy: `EntrySecretActionTests`. Lock triggers: `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `AutoLockTests`. iOS window activity forwarding: `IOSUserActivityTests`; real editor typing, scrolling, button taps, and subsequent idle locking: `AutoLockActivityUITests`.
+- Routing and launch order: `AppRoutingCoordinatorTests`. Menu password copy: `EntrySecretActionTests`. Lock triggers: `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `AutoLockTests`. Multi-session event delivery and database-list retirement: `DatabaseSessionStoreTests`; Settings effects: `AppSettingsViewModelTests`. iOS window activity forwarding: `IOSUserActivityTests`; real editor typing, scrolling, button taps, and subsequent idle locking: `AutoLockActivityUITests`.
 - Mac list selection and keyboard wiring exists only as UI: `MacSmokeUITests` (the `testDownArrow…` and double-click cases) and `MacListKeyboardNavigationUITests`.
 - Sidebar custom-icon data and recycle-bin icon projection: the macOS cases in `GroupIconViewTests`.
 - Which sidebar widths count as the preference: `MacSidebarWidthSamplerTests`. Divider restoration across repeated lock/unlock cycles: `MacSmokeUITests.testSidebarWidthSurvivesRepeatedLockUnlockCycles`; native split-view layout requires the UI test.

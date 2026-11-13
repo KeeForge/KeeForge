@@ -168,7 +168,7 @@ final class AppSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(observedDirections, [false])
     }
 
-    func testConnectingAnotherSessionAndDisconnectingStopsUpdatingThePreviousSession() {
+    func testConnectingAnotherStoreAndDisconnectingStopsUpdatingThePreviousSessions() {
         let reference = DatabaseReference(
             id: UUID(), nickname: nil, filename: "settings-test.kdbx", bookmarkData: nil,
             keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false,
@@ -176,12 +176,16 @@ final class AppSettingsViewModelTests: XCTestCase {
         )
         let first = DatabaseViewModel(databaseReference: reference)
         let second = DatabaseViewModel(databaseReference: reference)
+        let firstStore = DatabaseSessionStore()
+        firstStore.adopt(first)
+        let secondStore = DatabaseSessionStore()
+        secondStore.adopt(second)
         let model = AppSettingsViewModel()
-        model.connect(to: first)
+        model.connect(to: firstStore)
         model.sortOrder = .createdDate
         XCTAssertEqual(first.sortOrder, .createdDate)
 
-        model.connect(to: second)
+        model.connect(to: secondStore)
         model.sortOrder = .modifiedDate
         model.sortAscending = false
         XCTAssertEqual(first.sortOrder, .createdDate)
@@ -193,6 +197,43 @@ final class AppSettingsViewModelTests: XCTestCase {
         model.sortOrder = .title
         XCTAssertEqual(second.sortOrder, .modifiedDate)
         XCTAssertEqual(DatabaseViewModel.savedSortOrder(), .title)
+    }
+
+    func testSettingsEffectsReachEverySessionOpenedAfterConnecting() async throws {
+        SettingsService.autoLockTimeout = .fiveMinutes
+        let store = DatabaseSessionStore()
+        defer { for session in store.openSessions { session.lock() } }
+        let model = AppSettingsViewModel()
+        model.connect(to: store)
+        let now = Date(timeIntervalSince1970: 1_000)
+        for _ in 0..<2 {
+            let reference = try TestDatabaseSupport.makeReference(
+                for: KDBXTestFixture.test.url(in: Bundle(for: Self.self)),
+                autoFillEnabled: false
+            )
+            let session = DatabaseViewModel(
+                databaseReference: reference,
+                quickUnlockKeyPersistOperation: { _, _, _ in false },
+                storedKeyPresenceCheck: { _ in false },
+                nowProvider: { now }
+            )
+            store.adopt(session)
+            await session.unlock(password: KDBXTestFixture.test.password)
+            XCTAssertEqual(session.state, .unlocked)
+            XCTAssertEqual(session.inactivityDeadline, Date(timeIntervalSince1970: 1_300))
+        }
+        store.activeSessionID = store.openSessions.last?.databaseReference.id
+
+        model.autoLockTimeout = .thirtySeconds
+        model.sortOrder = .createdDate
+        model.sortAscending = false
+
+        XCTAssertEqual(store.openSessions.count, 2)
+        for session in store.openSessions {
+            XCTAssertEqual(session.inactivityDeadline, Date(timeIntervalSince1970: 1_030))
+            XCTAssertEqual(session.sortOrder, .createdDate)
+            XCTAssertFalse(session.sortAscending)
+        }
     }
 
     func testDisplayPrivacyAndExtensionPreferencesPersistWithoutAView() {

@@ -35,7 +35,6 @@ final class AutoLockTests: XCTestCase {
         SettingsService.lockOnBackground = savedLockOnBackground
         SettingsService.macLockPolicy = savedMacLockPolicy
         SettingsService.clipboardTimeout = savedClipboardTimeout
-        BiometricService.isBiometricAuthInProgress = false
         // These tests write to the real system pasteboard; do not leave a probe
         // value behind for the rest of the suite (or the simulator).
         clearPasteboard()
@@ -633,8 +632,9 @@ final class AutoLockTests: XCTestCase {
         let harness = MacTriggerHarness(viewModel: vm)
         defer { harness.monitor.stop() }
 
-        Self.deactivateBehindAuthenticationPrompt(harness.appCenter)
-        Self.endAuthenticationPrompt(harness.appCenter)
+        let request = Self.deactivateBehindAuthenticationPrompt(harness.appCenter)
+        defer { BiometricService.endAuthenticationRequest(request) }
+        Self.endAuthenticationPrompt(request, harness.appCenter)
         harness.appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
         harness.deadlines.pass()
 
@@ -652,7 +652,8 @@ final class AutoLockTests: XCTestCase {
         let harness = MacTriggerHarness(viewModel: vm)
         defer { harness.monitor.stop() }
 
-        Self.deactivateBehindAuthenticationPrompt(harness.appCenter)
+        let request = Self.deactivateBehindAuthenticationPrompt(harness.appCenter)
+        defer { BiometricService.endAuthenticationRequest(request) }
         harness.monitor.handleApplicationDidActivate(MacTriggerHarness.otherApplication)
 
         assertLocked(vm, "Expected .locked after another app took over during the prompt")
@@ -666,8 +667,9 @@ final class AutoLockTests: XCTestCase {
         let harness = MacTriggerHarness(viewModel: vm)
         defer { harness.monitor.stop() }
 
-        Self.deactivateBehindAuthenticationPrompt(harness.appCenter)
-        Self.endAuthenticationPrompt(harness.appCenter)
+        let request = Self.deactivateBehindAuthenticationPrompt(harness.appCenter)
+        defer { BiometricService.endAuthenticationRequest(request) }
+        Self.endAuthenticationPrompt(request, harness.appCenter)
         guard case .unlocked = vm.state else {
             XCTFail("The reply can arrive just before the reactivation, so it must not lock by itself")
             return
@@ -686,8 +688,9 @@ final class AutoLockTests: XCTestCase {
             databaseReference: try TestDatabaseSupport.makeReference(for: fixtureURL()),
             biometricCompositeKeyOperation: { [fixturePassword] _, _ in
                 await MainActor.run {
-                    Self.deactivateBehindAuthenticationPrompt(appCenter)
-                    Self.endAuthenticationPrompt(appCenter)
+                    let request = Self.deactivateBehindAuthenticationPrompt(appCenter)
+                    defer { BiometricService.endAuthenticationRequest(request) }
+                    Self.endAuthenticationPrompt(request, appCenter)
                     appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
                 }
                 return QuickUnlockKeys(
@@ -712,44 +715,23 @@ final class AutoLockTests: XCTestCase {
     /// request is marked before the prompt takes the foreground from the app.
     /// The harness listens on its own center, so the change the service posts
     /// on the default one is repeated there.
-    private static func deactivateBehindAuthenticationPrompt(_ appCenter: NotificationCenter) {
-        BiometricService.isBiometricAuthInProgress = true
+    private static func deactivateBehindAuthenticationPrompt(
+        _ appCenter: NotificationCenter
+    ) -> BiometricService.AuthenticationRequest {
+        let request = BiometricService.beginAuthenticationRequest()
         appCenter.post(name: BiometricService.authenticationInProgressDidChangeNotification, object: nil)
         appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        return request
     }
 
-    private static func endAuthenticationPrompt(_ appCenter: NotificationCenter) {
-        BiometricService.isBiometricAuthInProgress = false
+    private static func endAuthenticationPrompt(
+        _ request: BiometricService.AuthenticationRequest,
+        _ appCenter: NotificationCenter
+    ) {
+        BiometricService.endAuthenticationRequest(request)
         appCenter.post(name: BiometricService.authenticationInProgressDidChangeNotification, object: nil)
     }
     #endif
-
-    /// `BiometricService` posts every change of its flag on the default
-    /// center, which is where the Mac app's lock monitor listens for the end
-    /// of a request.
-    func testAuthenticationRequestPostsItsBeginningAndEnd() {
-        let recorder = AuthenticationRequestRecorder()
-        let token = NotificationCenter.default.addObserver(
-            forName: BiometricService.authenticationInProgressDidChangeNotification,
-            object: nil,
-            queue: nil
-        ) { _ in
-            MainActor.assumeIsolated { recorder.changes.append(BiometricService.isBiometricAuthInProgress) }
-        }
-        defer { NotificationCenter.default.removeObserver(token) }
-
-        BiometricService.isBiometricAuthInProgress = true
-        BiometricService.isBiometricAuthInProgress = true
-        BiometricService.isBiometricAuthInProgress = false
-        BiometricService.isBiometricAuthInProgress = false
-
-        XCTAssertEqual(recorder.changes, [true, false])
-    }
-
-    @MainActor
-    private final class AuthenticationRequestRecorder {
-        var changes: [Bool] = []
-    }
 
     private func makeUnlockedViewModel() async throws -> DatabaseViewModel {
         try await makeUnlockedViewModel(nowProvider: { .now })
