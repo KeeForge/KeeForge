@@ -69,7 +69,6 @@ struct DatabaseCommands {
     }
     func editEntry() { session?.requestEntryEdit() }
     func deleteSelection() { session?.requestDeleteSelection() }
-    func find() { session?.requestSearchFocus() }
     func lock() { session?.lockRequest(manuallyTriggered: true) }
 
     /// Same device-owner gate as reveal/copy in the entry detail view, skipped only inside the

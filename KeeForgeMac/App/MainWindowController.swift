@@ -17,8 +17,10 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     private let passwordCopyAction: EntrySecretAction
     private var pendingURLs: [URL] = []
     private var isRootReady = false
+    private var setRootToolbarBridging: (@MainActor (Bool) -> Void)?
 
     var workspaceSplitViewController: MacWorkspaceSplitViewController? { workspace.splitViewController }
+    var workspaceToolbar: MacWorkspaceToolbar? { workspace.toolbar }
 
     var session: DatabaseViewModel? { sessionStore.activeSession }
     private var commands: DatabaseCommands {
@@ -69,6 +71,9 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         // AppKit owns the size limits; hosted toolbar safe areas must not raise them.
         hosting.sizingOptions = []
         hosting.sceneBridgingOptions = [.toolbars]
+        setRootToolbarBridging = { [weak hosting] bridges in
+            hosting?.sceneBridgingOptions = bridges ? [.toolbars] : []
+        }
         let window = MainWindow(contentViewController: hosting)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.title = "KeeForge"
@@ -87,6 +92,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         }, onChange: { [weak self] session, title, subtitle in
             guard let self else { return }
             self.workspace.show(session)
+            self.installToolbar()
             self.window?.title = title
             self.window?.subtitle = subtitle
         })
@@ -96,6 +102,20 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             AppStore.requestReview(in: hosting)
         }
         #endif
+    }
+
+    /// The locked screens keep the root's bridged SwiftUI toolbar; the unlocked
+    /// workspace replaces it with its own, so exactly one source owns the bar.
+    private func installToolbar() {
+        guard let window else { return }
+        if let toolbar = workspace.toolbar?.toolbar {
+            guard window.toolbar !== toolbar else { return }
+            setRootToolbarBridging?(false)
+            window.toolbar = toolbar
+        } else if window.toolbar?.identifier == MacWorkspaceToolbar.identifier {
+            window.toolbar = nil
+            setRootToolbarBridging?(true)
+        }
     }
 
     func handleOpenURL(_ url: URL) {
@@ -140,7 +160,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     @objc func copyVerificationCode(_ sender: Any?) { commands.copyVerificationCode() }
     @objc func editEntry(_ sender: Any?) { commands.editEntry() }
     @objc func deleteSelection(_ sender: Any?) { commands.deleteSelection() }
-    @objc func findEntry(_ sender: Any?) { commands.find() }
+    @objc func findEntry(_ sender: Any?) { workspace.toolbar?.focusSearch() }
     @objc func lockDatabase(_ sender: Any?) { commands.lock() }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {

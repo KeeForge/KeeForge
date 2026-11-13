@@ -23,6 +23,8 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         sidebar.isCollapsed = false
         controller.toggleSidebar(nil)
         XCTAssertTrue(sidebar.isCollapsed)
+        controller.toggleSidebar(nil)
+        XCTAssertFalse(sidebar.isCollapsed)
     }
 
     func testWindowKeepsControllerUntilSessionChangesThenReleasesIt() throws {
@@ -39,13 +41,18 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         }
         XCTAssertNil(original)
         XCTAssertTrue(workspace.splitViewController?.session === second)
+        XCTAssertTrue(workspace.toolbar?.session === second)
         weak var replacement: MacWorkspaceSplitViewController?
+        weak var toolbar: MacWorkspaceToolbar?
         autoreleasepool {
             replacement = workspace.splitViewController
+            toolbar = workspace.toolbar
             workspace.show(nil)
         }
         XCTAssertNil(workspace.splitViewController)
+        XCTAssertNil(workspace.toolbar)
         XCTAssertNil(replacement)
+        XCTAssertNil(toolbar)
     }
 
     private func makeSession() throws -> DatabaseViewModel {

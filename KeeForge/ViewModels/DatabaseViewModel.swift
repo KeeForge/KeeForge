@@ -2197,12 +2197,6 @@ final class DatabaseViewModel {
         workspace.request(.newEntry)
     }
 
-    /// Requests focusing the search field. Used by the macOS Find command.
-    func requestSearchFocus() {
-        guard case .unlocked = state else { return }
-        workspace.request(.searchFocus)
-    }
-
     /// Requests presenting the new-group sheet under the selected group. Used
     /// by the macOS menu-bar New Group command.
     func requestNewGroup() {

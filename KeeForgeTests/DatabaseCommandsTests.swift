@@ -11,7 +11,6 @@ final class DatabaseCommandsTests: XCTestCase {
         let commands = DatabaseCommands(session: session)
         commands.newEntry()
         commands.newGroup()
-        commands.find()
         commands.editEntry()
         commands.deleteSelection()
         assertRequests(session, expected: 0)
@@ -30,12 +29,10 @@ final class DatabaseCommandsTests: XCTestCase {
             assertEnablement(commands, unlocked: true, writable: !readOnly)
             commands.newEntry()
             commands.newGroup()
-            commands.find()
             commands.editEntry()
             commands.deleteSelection()
             XCTAssertEqual(session.workspace.newEntryRequestID, readOnly ? 0 : 1)
             XCTAssertEqual(session.workspace.newGroupRequestID, readOnly ? 0 : 1)
-            XCTAssertEqual(session.workspace.searchFocusRequestID, 1)
             XCTAssertEqual(session.workspace.editEntryRequestID, 0)
             XCTAssertEqual(session.workspace.deleteSelectionRequestID, 0)
 
@@ -184,7 +181,6 @@ final class DatabaseCommandsTests: XCTestCase {
     private func assertRequests(_ session: DatabaseViewModel, expected: Int) {
         XCTAssertEqual(session.workspace.newEntryRequestID, expected)
         XCTAssertEqual(session.workspace.newGroupRequestID, expected)
-        XCTAssertEqual(session.workspace.searchFocusRequestID, expected)
         XCTAssertEqual(session.workspace.editEntryRequestID, expected)
         XCTAssertEqual(session.workspace.deleteSelectionRequestID, expected)
     }

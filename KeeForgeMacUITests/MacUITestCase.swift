@@ -40,8 +40,11 @@ class MacUITestCase: XCTestCase {
         // "zero windows" session (e.g. after a killed run), leaving the app
         // with no main window at all; every UI test needs a fresh window.
         // Auto-unlock would raise a Touch ID prompt XCUITest cannot answer.
+        // The empty split-view frames keep a sidebar collapsed by an earlier
+        // run from being restored.
         app.launchArguments += [
             "-ApplePersistenceIgnoreState", "YES",
+            "-NSSplitView Subview Frames MacDatabaseWorkspace", "()",
             "-KeeForge.autoUnlockWithFaceID", "NO",
             "-ui-testing",
         ]

@@ -4,14 +4,15 @@ Native macOS app configuration and AppKit lifecycle sources. `App/` owns startup
 the app delegate, the retained main window, menus, and Settings. The main window
 keeps its `AppRootView` hosting controller mounted for the lifetime of the window.
 Unlocked content embeds an AppKit `NSSplitViewController` with three independent
-SwiftUI hosting controllers. Locked, opening, error, and list content still use
-the existing SwiftUI root. Toolbar and search still bridge from SwiftUI.
+SwiftUI hosting controllers, and the window shows a native `NSToolbar` with an
+`NSSearchToolbarItem`. Locked, opening, error, and list content still use the
+existing SwiftUI root and its bridged SwiftUI toolbar.
 
 ## Workspace presentation
 
 `MainWindowController` owns one `MacWorkspacePresentation` and `MacWindowWorkspace`.
 A `MacObservation` tracks the active unlocked session and database title, then
-updates the native controller and window title. It re-arms on the main actor,
+updates the native controller, toolbar, and window title. It re-arms on the main actor,
 rejects queued callbacks after replacement/cancellation, and captures the window
 controller weakly. A session lock drops the native controller; content revisions
 and selection changes keep the same controller and hosting roots.
@@ -32,13 +33,30 @@ The former measured-width defaults key is no longer used. View → Show Sidebar
 is forwarded to the active native split controller. The main window's identity,
 close guard, and host-window counting remain unchanged.
 
-This is P2-5 subset (b). Subset (c) still replaces the SwiftUI toolbar/search
-with `NSToolbar` / `NSSearchToolbarItem`. Until then retain the Find request
-counter and toolbar scene bridging on the root only. Native column hosts disable
-scene bridging; the outer SwiftUI toolbar supplies the selected entry’s Edit
-action through the shared presentation host. Title
-bridging is disabled; AppKit observation owns the database title and group/tag/search subtitle. Column roots apply
-saving disablement and appearance explicitly across hosting boundaries.
+## Toolbar and search
+
+`MacWindowWorkspace` creates one `MacWorkspaceToolbar` per unlocked session,
+beside the split controller, and drops it on lock or replacement. When it
+exists, `MainWindowController` turns the root host's `.toolbars` scene bridging
+off and installs it as the window toolbar; on lock it removes it and turns
+bridging back on, so the list screen's Add Database and Settings items come back
+from SwiftUI. One source owns the bar in each state. Column hosts never bridge.
+
+The items keep the former SwiftUI toolbar's order, labels, tooltips, and
+accessibility identifiers (each item identifier is also its view's
+accessibility identifier). The database-scoped items are navigational, so they
+lead before the window title; Edit and the search field sit at the trailing
+edge. Each item has a menu form for the overflow menu. The cloud sync controls
+are the shared SwiftUI view in a hosting view; the others are AppKit controls.
+Enablement comes from `DatabaseCommands` where a rule exists, and the whole bar
+is disabled while saving, as the SwiftUI bar was.
+
+The search field and `DatabaseViewModel.searchText` are bound both ways through
+the toolbar's observation. Edit ▸ Find (`findEntry:`) calls
+`MacWorkspaceToolbar.focusSearch()`, which begins the search item's interaction;
+there is no Find request counter. Title bridging is off; AppKit observation owns
+the database title and group/tag/search subtitle. Column roots apply saving
+disablement and appearance explicitly across hosting boundaries.
 
 ## Status
 

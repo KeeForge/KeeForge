@@ -4172,14 +4172,12 @@ final class DatabaseViewModelTests: XCTestCase {
             vm.requestNewGroup()
             vm.requestEntryEdit()
             vm.requestDeleteSelection()
-            vm.requestSearchFocus()
         }
         requestCommands()
         XCTAssertEqual(vm.workspace.newEntryRequestID, 1)
         XCTAssertEqual(vm.workspace.newGroupRequestID, 1)
         XCTAssertEqual(vm.workspace.editEntryRequestID, 1)
         XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 1)
-        XCTAssertEqual(vm.workspace.searchFocusRequestID, 1)
 
         DatabaseListStore.update(vm.databaseReference)
         vm.setReadOnly(true)
@@ -4189,7 +4187,6 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.workspace.newGroupRequestID, 1)
         XCTAssertEqual(vm.workspace.editEntryRequestID, 1)
         XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 1)
-        XCTAssertEqual(vm.workspace.searchFocusRequestID, 2)
 
         vm.lock()
         requestCommands()
@@ -4197,7 +4194,6 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.workspace.newGroupRequestID, 1)
         XCTAssertEqual(vm.workspace.editEntryRequestID, 1)
         XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 1)
-        XCTAssertEqual(vm.workspace.searchFocusRequestID, 2)
     }
 
     func testSelectedTagAndSelectedGroupAreMutuallyExclusive() async throws {

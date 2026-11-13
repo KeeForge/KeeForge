@@ -150,7 +150,6 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         workspace.isSearchActive = true
         workspace.request(.newEntry)
         workspace.request(.newEntry)
-        workspace.request(.searchFocus)
         workspace.request(.newGroup)
         workspace.request(.editEntry)
         workspace.request(.deleteSelection)
@@ -164,7 +163,6 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         XCTAssertNil(workspace.entrySelection)
         XCTAssertFalse(workspace.isSearchActive)
         XCTAssertEqual(workspace.newEntryRequestID, 2)
-        XCTAssertEqual(workspace.searchFocusRequestID, 1)
         XCTAssertEqual(workspace.newGroupRequestID, 1)
         XCTAssertEqual(workspace.editEntryRequestID, 1)
         XCTAssertEqual(workspace.deleteSelectionRequestID, 1)

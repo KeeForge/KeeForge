@@ -79,7 +79,6 @@ struct DatabaseCollectionCounts: Equatable, Sendable {
 final class DatabaseWorkspaceState {
     enum Command {
         case newEntry
-        case searchFocus
         case newGroup
         case editEntry
         case deleteSelection
@@ -145,7 +144,6 @@ final class DatabaseWorkspaceState {
         didSet { onInteraction?() }
     }
     private(set) var newEntryRequestID = 0
-    private(set) var searchFocusRequestID = 0
     private(set) var newGroupRequestID = 0
     private(set) var editEntryRequestID = 0
     private(set) var deleteSelectionRequestID = 0
@@ -153,7 +151,6 @@ final class DatabaseWorkspaceState {
     func request(_ command: Command) {
         switch command {
         case .newEntry: newEntryRequestID += 1
-        case .searchFocus: searchFocusRequestID += 1
         case .newGroup: newGroupRequestID += 1
         case .editEntry: editEntryRequestID += 1
         case .deleteSelection: deleteSelectionRequestID += 1

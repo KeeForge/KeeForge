@@ -192,6 +192,9 @@ final class MacMainMenuTests: XCTestCase {
             await Task { @MainActor in }.value
             let split = try XCTUnwrap(controller.workspaceSplitViewController)
             XCTAssertTrue(split.session === session)
+            let toolbar = try XCTUnwrap(controller.workspaceToolbar)
+            XCTAssertTrue(toolbar.session === session)
+            XCTAssertTrue(window.toolbar === toolbar.toolbar)
             XCTAssertEqual(window.title, session.databaseDisplayName)
             let group = try XCTUnwrap(session.group(withID: try XCTUnwrap(session.visibleRootGroupID)))
             XCTAssertEqual(window.subtitle, group.name)
@@ -209,9 +212,14 @@ final class MacMainMenuTests: XCTestCase {
             split.splitViewItems[0].isCollapsed = false
             controller.toggleSidebar(nil)
             XCTAssertTrue(split.splitViewItems[0].isCollapsed)
+            // Split autosave writes to the host app's defaults, which the UI tests launch with.
+            controller.toggleSidebar(nil)
+            XCTAssertFalse(split.splitViewItems[0].isCollapsed)
             session.lock()
             await Task { @MainActor in }.value
             XCTAssertNil(controller.workspaceSplitViewController)
+            XCTAssertNil(controller.workspaceToolbar)
+            XCTAssertNotEqual(window.toolbar?.identifier, MacWorkspaceToolbar.identifier)
             XCTAssertEqual(window.title, "KeeForge")
             XCTAssertEqual(window.subtitle, "")
             XCTAssertTrue(window.contentViewController === root)

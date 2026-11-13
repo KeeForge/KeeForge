@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor @Observable
 final class MacWindowWorkspace {
     private(set) var splitViewController: MacWorkspaceSplitViewController?
+    private(set) var toolbar: MacWorkspaceToolbar?
     private let presentation: MacWorkspacePresentation
 
     init(presentation: MacWorkspacePresentation) {
@@ -21,9 +22,9 @@ final class MacWindowWorkspace {
 
     func show(_ session: DatabaseViewModel?) {
         guard splitViewController?.session !== session else { return }
-        splitViewController = session.map {
-            MacWorkspaceSplitViewController(session: $0, presentation: presentation)
-        }
+        let controller = session.map { MacWorkspaceSplitViewController(session: $0, presentation: presentation) }
+        toolbar = controller.map { MacWorkspaceToolbar(session: $0.session, presentation: presentation) }
+        splitViewController = controller
     }
 }
 
