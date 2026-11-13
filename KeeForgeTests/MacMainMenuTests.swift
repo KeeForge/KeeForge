@@ -116,16 +116,16 @@ final class MacMainMenuTests: XCTestCase {
         let invalid = try XCTUnwrap(URL(string: "otpauth://totp/Test"))
         controller.handleOpenURL(unsupported)
         controller.handleOpenURL(invalid)
-        XCTAssertNil(routing.enrollmentAlert)
+        XCTAssertNil(routing.enrollment.enrollmentAlert)
         XCTAssertFalse(routing.didResolveInitialRoute)
         _ = routing.resolveInitialRoute(hasActiveSession: false, showsTransitionNotice: false, release: nil, autoOpenReference: nil)
         controller.rootDidBecomeReady()
-        XCTAssertEqual(routing.enrollmentAlert, .invalidLink)
-        routing.enrollmentAlert = nil
+        XCTAssertEqual(routing.enrollment.enrollmentAlert, .invalidLink)
+        routing.enrollment.enrollmentAlert = nil
         controller.rootDidBecomeReady()
-        XCTAssertNil(routing.enrollmentAlert)
+        XCTAssertNil(routing.enrollment.enrollmentAlert)
         controller.handleOpenURL(unsupported)
-        XCTAssertEqual(routing.enrollmentAlert, .unsupportedLink)
+        XCTAssertEqual(routing.enrollment.enrollmentAlert, .unsupportedLink)
         XCTAssertNil(controller.window)
     }
 

@@ -41,6 +41,7 @@ struct AppRootView: View {
 
     var body: some View {
         @Bindable var routing = routing
+        @Bindable var enrollmentCoordinator = routing.enrollment
         Group {
             if !routing.didResolveInitialRoute {
                 LaunchRoutingView()
@@ -112,18 +113,15 @@ struct AppRootView: View {
         .sheet(item: enrollmentPresentation) { enrollment in
             // The session is re-read at presentation time; when it vanished in
             // between (locked or closed), the `onChange` below re-parks.
-            if let activeSession = sessionStore.activeSession {
-                let enrollmentSession = AppRoutingCoordinator.Session(
-                    identity: ObjectIdentifier(activeSession),
-                    lockCycleID: activeSession.lockCycleID,
-                    isUnlocked: activeSession.state == .unlocked
-                )
+            if let activeSession = sessionStore.activeSession,
+               let enrollmentSession = routingSession,
+               routing.enrollment.canApplyEnrollment(id: enrollment.id, session: enrollmentSession) {
                 TOTPEnrollmentDestinationView(
                     databaseViewModel: activeSession,
                     uri: enrollment.uri
                 ) {
-                    routing.updateSession(routingSession)
-                    routing.cancelEnrollment(
+                    routing.enrollment.updateSession(routingSession)
+                    routing.enrollment.cancelEnrollment(
                         id: enrollment.id,
                         session: enrollmentSession
                     )
@@ -131,8 +129,8 @@ struct AppRootView: View {
                 // The parked copy is only released once the sheet is actually
                 // on screen; until then it is the retry path.
                 .onAppear {
-                    routing.updateSession(routingSession)
-                    routing.enrollmentDidAppear(
+                    routing.enrollment.updateSession(routingSession)
+                    routing.enrollment.enrollmentDidAppear(
                         id: enrollment.id,
                         session: enrollmentSession
                     )
@@ -153,7 +151,7 @@ struct AppRootView: View {
             }
         }
         .onChange(of: routingSession, initial: true) { _, session in
-            routing.updateSession(session)
+            routing.enrollment.updateSession(session)
         }
         .onChange(of: routing.databaseTransition?.id, initial: true) { _, _ in
             finishDatabaseTransitionIfReady()
@@ -161,35 +159,35 @@ struct AppRootView: View {
         .onChange(of: databaseTransitionState) { _, _ in
             finishDatabaseTransitionIfReady()
         }
-        .task(id: routing.deferredPresentation?.id) {
-            guard let requestID = routing.deferredPresentation?.id else { return }
+        .task(id: routing.enrollment.deferredPresentation?.id) {
+            guard let requestID = routing.enrollment.deferredPresentation?.id else { return }
             // SwiftUI drops presentations raised during another sheet's dismissal.
             do {
                 try await Task.sleep(for: .milliseconds(450))
             } catch {
                 return
             }
-            routing.completeDeferredPresentation(id: requestID)
+            routing.enrollment.completeDeferredPresentation(id: requestID)
         }
         #if os(iOS)
         .onChange(of: scenePhase) { _, _ in
-            routing.discardExpiredEnrollment()
+            routing.enrollment.discardExpiredEnrollment()
         }
         #else
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            routing.discardExpiredEnrollment()
+            routing.enrollment.discardExpiredEnrollment()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            routing.discardExpiredEnrollment()
+            routing.enrollment.discardExpiredEnrollment()
         }
         #endif
-        .alert(item: $routing.enrollmentAlert, content: totpEnrollmentAlertContent)
+        .alert(item: $enrollmentCoordinator.enrollmentAlert, content: totpEnrollmentAlertContent)
     }
 
-    private var routingSession: AppRoutingCoordinator.Session? {
+    private var routingSession: TOTPEnrollmentCoordinator.Session? {
         sessionStore.activeSession.map {
-            AppRoutingCoordinator.Session(
-                identity: ObjectIdentifier($0), lockCycleID: $0.lockCycleID, isUnlocked: $0.state == .unlocked
+            TOTPEnrollmentCoordinator.Session(
+                databaseID: $0.databaseReference.id, identity: ObjectIdentifier($0), lockCycleID: $0.lockCycleID, isUnlocked: $0.state == .unlocked
             )
         }
     }
@@ -199,14 +197,14 @@ struct AppRootView: View {
     }
 
     private var enrollmentPresentation: Binding<PendingTOTPEnrollment?> {
-        let enrollmentID = routing.presentedEnrollment?.id
+        let enrollmentID = routing.enrollment.presentedEnrollment?.id
         let session = routingSession
         return Binding(
-            get: { routing.presentedEnrollment },
+            get: { routing.enrollment.presentedEnrollment },
             set: { enrollment in
                 guard enrollment == nil, let enrollmentID else { return }
-                routing.updateSession(routingSession)
-                routing.cancelEnrollment(id: enrollmentID, session: session)
+                routing.enrollment.updateSession(routingSession)
+                routing.enrollment.cancelEnrollment(id: enrollmentID, session: session)
             }
         )
     }
@@ -362,7 +360,7 @@ struct AppRootView: View {
         case .close:
             returnToDatabaseList()
         }
-        routing.updateSession(routingSession)
+        routing.enrollment.updateSession(routingSession)
     }
 
     private func openDatabaseAfterLaunchPresentation(_ reference: DatabaseReference) {
@@ -375,8 +373,8 @@ struct AppRootView: View {
         if let reference = routing.finishLaunchPresentation() {
             openDatabase(reference)
         }
-        routing.updateSession(routingSession)
-        routing.resumeEnrollmentAfterLaunchPresentation()
+        routing.enrollment.updateSession(routingSession)
+        routing.enrollment.resumeEnrollmentAfterLaunchPresentation()
     }
 
     private func openCreatedDatabase(_ createdDatabase: CreatedDatabase) {
@@ -401,13 +399,13 @@ struct AppRootView: View {
             return
         }
 
-        routing.updateSession(routingSession)
+        routing.enrollment.updateSession(routingSession)
         switch AppRoutingCoordinator.classify(url) {
         case .enrollment(let uri):
-            routing.receiveEnrollment(uri)
+            routing.enrollment.receiveEnrollment(uri, destination: routingSession)
             return
         case .invalidEnrollment(let alert):
-            routing.enrollmentAlert = alert
+            routing.enrollment.enrollmentAlert = alert
             return
         case .database:
             break
