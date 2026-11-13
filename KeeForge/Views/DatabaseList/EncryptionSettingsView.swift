@@ -31,13 +31,13 @@ struct EncryptionSettingsView: View {
             compressionSection
         }
         .macGroupedForm()
-        .disabled(viewModel.isWorking)
+        .disabled(viewModel.isWorking || viewModel.hasCompleted)
         .navigationTitle("Encryption Settings")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(viewModel.isWorking)
         .interactiveDismissDisabled(viewModel.isWorking)
         .safeAreaInset(edge: .top, spacing: 0) {
-            if let changeError = viewModel.changeError {
+            if let changeError = viewModel.completedWarning ?? viewModel.changeError {
                 errorBanner(changeError)
                     .padding(.horizontal)
                     .padding(.top, 8)
@@ -53,6 +53,10 @@ struct EncryptionSettingsView: View {
         }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
+                if viewModel.hasCompleted {
+                    Button("OK") { dismiss() }
+                        .accessibilityIdentifier("encryption-settings.warning-ok")
+                } else {
                 Button("Save") {
                     Task {
                         if await viewModel.performChange() {
@@ -63,6 +67,7 @@ struct EncryptionSettingsView: View {
                 }
                 .disabled(viewModel.isWorking || viewModel.canSave == false)
                 .accessibilityIdentifier("encryption-settings.save")
+                }
             }
         }
     }
