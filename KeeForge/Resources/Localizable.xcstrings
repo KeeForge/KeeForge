@@ -61597,6 +61597,58 @@
         }
       }
     },
+    "This local save has an unresolved outcome. Export the database and any unsaved changes before discarding this recovery record. Discarding does not undo a replacement and deletes only the snapshots listed here; later snapshots and your open draft are kept." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Ergebnis dieses lokalen Speichervorgangs ist ungeklärt. Exportieren Sie die Datenbank und alle ungespeicherten Änderungen, bevor Sie diesen Wiederherstellungseintrag verwerfen. Dadurch wird kein Dateiaustausch rückgängig gemacht und es werden nur die hier aufgeführten Momentaufnahmen gelöscht; spätere Momentaufnahmen und Ihr geöffneter Entwurf bleiben erhalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El resultado de este guardado local no está resuelto. Exporta la base de datos y los cambios sin guardar antes de descartar este registro de recuperación. Descartarlo no revierte un reemplazo y solo elimina las instantáneas que se muestran aquí; se conservan las instantáneas posteriores y el borrador abierto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le résultat de cet enregistrement local est indéterminé. Exportez la base et les modifications non enregistrées avant de supprimer ce suivi de récupération. Cette suppression n’annule pas le remplacement d’un fichier et ne supprime que les instantanés affichés ici ; les instantanés ultérieurs et votre brouillon ouvert sont conservés."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’esito di questo salvataggio locale non è definito. Esporta il database e le modifiche non salvate prima di eliminare questo record di recupero. L’eliminazione non annulla una sostituzione e rimuove solo gli snapshot elencati qui; quelli successivi e la bozza aperta vengono conservati."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このローカル保存の結果は未確定です。この復旧記録を破棄する前に、データベースと未保存の変更を書き出してください。破棄してもファイルの置換は取り消されず、ここに表示されたスナップショットのみが削除されます。後から追加されたスナップショットと開いている下書きは保持されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Результат этого локального сохранения не определён. Экспортируйте базу данных и несохранённые изменения, прежде чем удалить эту запись восстановления. Удаление не отменяет замену файла и затрагивает только перечисленные здесь снимки; более поздние снимки и открытый черновик сохраняются."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此次本地保存的结果尚未确定。丢弃此恢复记录前，请导出数据库及所有未保存的更改。丢弃操作不会撤销文件替换，只会删除此处列出的快照；之后的快照和当前打开的草稿将保留。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此次本機儲存的結果尚未確定。捨棄此復原記錄前，請匯出資料庫及所有未儲存的更改。捨棄操作不會撤銷檔案取代，只會刪除此處列出的快照；之後的快照和目前開啟的草稿將保留。"
+          }
+        }
+      }
+    },
     "This location has no subfolders." : {
       "localizations" : {
         "de" : {

@@ -587,7 +587,8 @@ final class PendingLocalSaveTests: XCTestCase {
             )
             XCTFail("A save aimed at the bookmarked file cannot succeed without access to it")
         } catch {
-            XCTAssertEqual((error as? CocoaError)?.code, .fileReadNoPermission)
+            let failure = try XCTUnwrap(error as? LocalSaveBeforeReplacementFailure)
+            XCTAssertEqual((failure.underlying as? CocoaError)?.code, .fileReadNoPermission)
         }
         XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
 

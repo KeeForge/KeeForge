@@ -357,7 +357,8 @@ final class CredentialProviderCoordinator {
     /// Writes an unlock's keys back and returns whether the quick-unlock item
     /// now holds the stored key. Injectable so tests can observe the write.
     var persistQuickUnlockKeys: @MainActor (QuickUnlockKeys, DatabaseReference, Bool) -> Bool = { keys, reference, masterKeyEntered in
-        QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered)
+        if reference.isCloudBacked { return QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered) }
+        return QuickUnlockKeychain.persistKeychainItems(keys, for: reference, masterKeyEntered: masterKeyEntered) == .stored
     }
 
     /// Save environment for every write this extension makes; injectable so
@@ -1417,13 +1418,24 @@ final class CredentialProviderCoordinator {
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
     }
 
+    private var localReadKeyPublication: PendingLocalSaveStore.ReadKeyPublication?
+
     private func persistQuickUnlockKeysIfPossible(
         _ keys: QuickUnlockKeys,
         for databaseReference: DatabaseReference,
         masterKeyEntered: Bool
     ) {
-        guard persistQuickUnlockKeys(keys, databaseReference, masterKeyEntered),
-              databaseReference.legacyKeychainFilename != nil else { return }
+        let persisted: Bool
+        if databaseReference.isCloudBacked {
+            persisted = persistQuickUnlockKeys(keys, databaseReference, masterKeyEntered)
+        } else {
+            guard let read = localReadKeyPublication, read.lease.reference.matches(databaseReference) else { return }
+            persisted = (try? DatabaseListStore.withLocalReadKeyPublication(for: databaseReference, read: read) {
+                persistQuickUnlockKeys(keys, databaseReference, masterKeyEntered)
+            }) ?? false
+        }
+        guard persisted, databaseReference.legacyKeychainFilename != nil else { return }
+        DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference)
         // The store dropped the legacy item. Re-read the pinned reference by
         // id so the in-session copy drops its legacy keychain filename too.
         // The active pointer may legitimately be a different database now
@@ -1467,12 +1479,17 @@ final class CredentialProviderCoordinator {
         databaseReference: DatabaseReference,
         generation: Int
     ) async throws -> ExpressUnlockKey? {
+        localReadKeyPublication = nil
+        let lease = databaseReference.isCloudBacked ? nil : await Task.detached {
+            try? PendingLocalSaveStore.captureCacheReadLease(for: databaseReference)
+        }.value
         let loaded = try await loadDatabaseData(for: databaseReference)
         let data = loaded.data
         try AutoFillMemoryLimit.check(
             summary: KDBXFileSummary.inspect(data: data),
             remainingBytes: remainingMemoryBytes
         )
+        let dataSHA512 = await Task.detached { FileDigest.sha512(data) }.value
         let key = SymmetricKey(size: .bits256)
         // A hardware-key database never takes part: an express key would open
         // it without the YubiKey.
@@ -1495,9 +1512,12 @@ final class CredentialProviderCoordinator {
             throw RequestNoLongerActive()
         }
 
+        if let lease, let target = loaded.target {
+            localReadKeyPublication = .init(lease: lease, target: target, sha512: dataSHA512, sharedCopy: loaded.sharedCopy)
+        }
         self.sessionKey = key
         self.compositeKey = compositeKey
-        self.openTimeSHA512 = FileDigest.sha512(data)
+        self.openTimeSHA512 = dataSHA512
         self.sharedCopyDate = loaded.sharedCopyDate
         self.parsedRootGroup = parsed.rootGroup
         self.parsedMeta = parsed.meta
@@ -1538,9 +1558,25 @@ final class CredentialProviderCoordinator {
         return AutoFillMemoryLimit.remainingBytes()
     }
 
-    private struct LoadedDatabaseData {
+    private struct LoadedDatabaseData: Sendable {
         let data: Data
         let sharedCopyDate: Date?
+        let target: PendingLocalSaveStore.TargetIdentity?
+        let sharedCopy: Bool
+    }
+
+    nonisolated private static func readDatabaseSnapshot(at url: URL, sharedCopyDate: Date?, sharedCopy: Bool) throws -> LoadedDatabaseData {
+        var error: NSError?
+        var result: Result<LoadedDatabaseData, Error>?
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &error) { source in
+            result = Result {
+                LoadedDatabaseData(data: try Data(contentsOf: source), sharedCopyDate: sharedCopyDate,
+                    target: try PendingLocalSaveStore.targetIdentity(at: source), sharedCopy: sharedCopy)
+            }
+        }
+        if let error { throw error }
+        guard let result else { throw CocoaError(.fileReadUnknown) }
+        return try result.get()
     }
 
     /// A bookmarked local database is read from its file, as the app and this
@@ -1556,8 +1592,7 @@ final class CredentialProviderCoordinator {
            databaseReference.isDocumentsResident == false,
            databaseReference.bookmarkData != nil {
             do {
-                let data = try await Self.readBookmarkedDatabase(databaseReference)
-                return LoadedDatabaseData(data: data, sharedCopyDate: nil)
+                return try await Self.readBookmarkedDatabase(databaseReference)
             } catch let timeout as CoordinatedFileReader.TimeoutError {
                 bookmarkedReadTimeout = timeout
             } catch {
@@ -1569,10 +1604,11 @@ final class CredentialProviderCoordinator {
         #endif
 
         if let cachedURL = DatabaseListStore.cachedDatabaseURL(for: databaseReference) {
-            return LoadedDatabaseData(
-                data: try CoordinatedFileReader.readData(from: cachedURL),
-                sharedCopyDate: Self.sharedCopyDate(for: databaseReference, cachedURL: cachedURL)
-            )
+            let date = Self.sharedCopyDate(for: databaseReference, cachedURL: cachedURL)
+            if databaseReference.isCloudBacked {
+                return LoadedDatabaseData(data: try CoordinatedFileReader.readData(from: cachedURL), sharedCopyDate: date, target: nil, sharedCopy: true)
+            }
+            return try await Task.detached { try Self.readDatabaseSnapshot(at: cachedURL, sharedCopyDate: date, sharedCopy: true) }.value
         }
 
         // Waiting on an unresponsive file provider a second time, unbounded,
@@ -1585,7 +1621,9 @@ final class CredentialProviderCoordinator {
             throw NSError(domain: ASExtensionErrorDomain, code: ASExtensionError.failed.rawValue)
         }
 
-        return LoadedDatabaseData(data: try readSecurityScoped(url: bookmarkedURL), sharedCopyDate: nil)
+        let access = bookmarkedURL.startAccessingSecurityScopedResource()
+        defer { if access { bookmarkedURL.stopAccessingSecurityScopedResource() } }
+        return try await Task.detached { try Self.readDatabaseSnapshot(at: bookmarkedURL, sharedCopyDate: nil, sharedCopy: false) }.value
     }
 
     #if os(iOS)
@@ -1593,7 +1631,7 @@ final class CredentialProviderCoordinator {
     /// falls back to the shared copy instead of stalling the request. A stale
     /// or trashed bookmark falls back too: re-minting it is the app's job, not
     /// a read path's.
-    nonisolated private static func readBookmarkedDatabase(_ reference: DatabaseReference) async throws -> Data {
+    nonisolated private static func readBookmarkedDatabase(_ reference: DatabaseReference) async throws -> LoadedDatabaseData {
         try await CoordinatedFileReader.performBlocking(timeout: .seconds(10)) {
             guard let bookmarkData = reference.bookmarkData,
                   let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData),
@@ -1610,7 +1648,7 @@ final class CredentialProviderCoordinator {
             guard SecurityScopedBookmarkManager.isInTrashDirectory(url) == false else {
                 throw CocoaError(.fileReadNoSuchFile)
             }
-            return try CoordinatedFileReader.readData(from: url)
+            return try readDatabaseSnapshot(at: url, sharedCopyDate: nil, sharedCopy: false)
         }
     }
     #endif
@@ -2658,6 +2696,7 @@ final class CredentialProviderCoordinator {
         parsedFormatVersion = nil
         kdfWriteRefusalMessage = nil
         sessionKey = nil
+        localReadKeyPublication = nil
         compositeKey = nil
         openTimeSHA512 = nil
         sharedCopyDate = nil

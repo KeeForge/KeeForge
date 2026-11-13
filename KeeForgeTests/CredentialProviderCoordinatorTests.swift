@@ -3,6 +3,7 @@
 // `API_UNAVAILABLE(macos)`, one-time codes need macOS 15.
 import AuthenticationServices
 import CryptoKit
+import os
 import XCTest
 import KDBXKit
 @testable import KeeForge
@@ -3309,6 +3310,112 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertEqual(keyReads, 0)
         XCTAssertNil(persisted.last)
         XCTAssertNil(presenter.searchView)
+    }
+
+    func testLocalLegacyUnlockUsesRealKeychainOnlyWriterWithoutReenteringOwner() async throws {
+        var database = try seedResolvableDefaultDatabase()
+        database.legacyKeychainFilename = "legacy-unlock-\(UUID().uuidString).kdbx"
+        DatabaseListStore.update(database)
+        let original = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        try seedDatabaseBytes(original, for: database)
+        let key = KDBXCrypto.compositeKey(password: "testpassword123")
+        do { try KeychainService.storeCompositeKey(key, for: database.id) }
+        catch { throw XCTSkip("Real Keychain writes unavailable: \(error)") }
+        defer { KeychainService.deleteCompositeKey(for: database.id) }
+        guard KeychainService.shouldStoreQuickUnlockKey(for: database.id, legacyFilename: database.legacyKeychainFilename) else {
+            throw XCTSkip("This host cannot refresh a real quick-unlock item")
+        }
+        let previous = SettingsService.quickUnlockPasswordInterval
+        SettingsService.quickUnlockPasswordInterval = .never
+        defer { SettingsService.quickUnlockPasswordInterval = previous }
+        let (coordinator, presenter) = makeCoordinator()
+        _ = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
+        XCTAssertTrue(KeychainService.hasStoredKey(for: database.id))
+        XCTAssertTrue(KeychainService.hasExpressUnlockKey(for: database.id))
+        XCTAssertNil(DatabaseListStore.databases.first { $0.id == database.id }?.legacyKeychainFilename)
+        XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: database.id))
+        coordinator.cleanup()
+    }
+
+    func testLateOldLocalUnlockCannotOverwriteRekeyKeysAndStillFillsCredentials() async throws {
+        for unconfirmed in [true, false] {
+            var database = try seedResolvableDefaultDatabase()
+            database.legacyKeychainFilename = "late-legacy-\(UUID().uuidString).kdbx"
+            DatabaseListStore.update(database)
+            let original = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+            try seedDatabaseBytes(original, for: database)
+            let (coordinator, presenter) = makeCoordinator()
+            let parsedOldRead = expectation(description: "old snapshot reaches KDF")
+            let resume = DispatchSemaphore(value: 0)
+            defer { resume.signal() }
+            coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+            coordinator.keyDerivationOverride = { key, parameters, policy in
+                parsedOldRead.fulfill()
+                guard resume.wait(timeout: .now() + 60) == .success else { throw CancellationError() }
+                return try KDBXKeyDerivation.deriveKey(compositeKey: key, parameters: parameters, policy: policy)
+            }
+            let stored = OSAllocatedUnfairLock(initialState: (composite: Optional<SymmetricKey>.none, express: Optional<ExpressUnlockKey>.none))
+            var latePublications = 0
+            coordinator.persistQuickUnlockKeys = { keys, _, _ in
+                latePublications += 1; stored.withLock { $0.composite = keys.storedKey; $0.express = keys.expressKey }
+                return true
+            }
+            coordinator.prepareCredentialList(for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)])
+            try XCTUnwrap(presenter.unlockPrompt).onSubmitPassword("testpassword123")
+            await fulfillment(of: [parsedOldRead], timeout: 60)
+            let live = LocalDatabaseSaver.Environment.live
+            let app = DatabaseViewModel(databaseReference: database, localSaveOperation: { draft, ref, key, hash, reconciled, newKey, settings in
+                var environment = live
+                environment.replaceFileAtomically = { bytes, target, baseline, authorization in
+                    var io = LocalDatabaseSaver.ReplacementIO()
+                    if unconfirmed { io.synchronize = { _ in throw POSIXError(.EIO) } }
+                    return try LocalDatabaseSaver.replaceFileAtomically(bytes, at: target, expectedSHA512: baseline, authorization: authorization, io: io)
+                }
+                return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                    openTimeSHA512: hash, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                    newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+            }, quickUnlockKeyPersistOperation: { keys, _, _ in
+                stored.withLock { $0.composite = keys.storedKey; $0.express = keys.expressKey }; return true
+            }, expressUnlockKeySaveOperation: { key, _ in stored.withLock { $0.express = key } }, storedKeyPresenceCheck: { _ in true },
+                storedKeyStoreOperation: { key, _ in stored.withLock { $0.composite = key } })
+            defer { app.lock() }
+            await app.unlock(password: "testpassword123")
+            do {
+                try await app.changeMasterKey(newPassword: "new late-unlock key", newKeyFileData: nil,
+                    newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+                XCTAssertFalse(unconfirmed)
+            } catch { XCTAssertTrue(unconfirmed && error is SaveDurabilityWarning) }
+            let newComposite = KDBXCrypto.compositeKey(password: "new late-unlock key")
+            XCTAssertEqual(stored.withLock { $0.composite }, newComposite)
+            XCTAssertNil(stored.withLock { $0.express })
+            let shown = expectation(description: "old authenticated credentials remain fillable")
+            presenter.onSearchViewPresented = { shown.fulfill() }
+            resume.signal()
+            await fulfillment(of: [shown], timeout: 60)
+            XCTAssertEqual(latePublications, 0)
+            XCTAssertEqual(stored.withLock { $0.composite }, newComposite)
+            XCTAssertNil(stored.withLock { $0.express })
+            let search = try XCTUnwrap(presenter.searchView)
+            let entry = try XCTUnwrap(search.searchEntries.first { $0.hasPassword && !$0.isExpired() })
+            search.onSelect(entry)
+            XCTAssertNotNil(presenter.completedCredential)
+            if !unconfirmed {
+                let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == database.id })
+                XCTAssertNil(try PendingLocalSaveStore.recovery(for: database.id).keyEvidence)
+                try original.write(to: XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: current)), options: .atomic)
+                try LocalDatabaseSaver.cacheLocalSnapshot(original, for: current)
+                let (fresh, freshPresenter) = makeCoordinator()
+                var freshWrites = 0
+                fresh.persistQuickUnlockKeys = { keys, _, _ in
+                    freshWrites += 1; stored.withLock { $0.composite = keys.storedKey; $0.express = keys.expressKey }; return true
+                }
+                _ = try await unlockDefaultDatabaseAndPresentSearch(fresh, freshPresenter)
+                XCTAssertEqual(freshWrites, 1, "A new read after complete settlement follows main without a permanent witness")
+                XCTAssertEqual(stored.withLock { $0.composite }, KDBXCrypto.compositeKey(password: "testpassword123"))
+                XCTAssertNotNil(stored.withLock { $0.express })
+                fresh.cleanup()
+            }
+        }
     }
 
     // MARK: - Shared copy freshness (issue #167)

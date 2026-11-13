@@ -1,5 +1,6 @@
 import CryptoKit
 import LocalAuthentication
+import Security
 import XCTest
 @testable import KeeForge
 
@@ -106,6 +107,53 @@ final class QuickUnlockPasswordIntervalTests: XCTestCase {
 
         QuickUnlockKeychain.recordMasterKeyEntry(for: databaseID, at: .now.addingTimeInterval(-15 * day))
         XCTAssertTrue(QuickUnlockKeychain.expireIfDue(reference))
+        XCTAssertFalse(KeychainService.hasStoredKey(for: databaseID))
+        XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: databaseID))
+    }
+
+    func testKeychainOnlyAndAppWrapperPreservePolicyAndSeparateLegacyMetadataCleanup() throws {
+        var reference = DatabaseReference(id: databaseID, nickname: "Keep metadata", filename: "Legacy.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
+            addedAt: .now, colorTag: nil, legacyKeychainFilename: "legacy-\(UUID().uuidString).kdbx")
+        DatabaseListStore.update(reference)
+        defer { DatabaseListStore.clearAll() }
+        let key = SymmetricKey(size: .bits256)
+        do { try KeychainService.storeCompositeKey(key, for: databaseID) }
+        catch { throw XCTSkip("Keychain writes unavailable: \(error)") }
+        guard KeychainService.shouldStoreQuickUnlockKey(for: databaseID, legacyFilename: reference.legacyKeychainFilename) else {
+            throw XCTSkip("No available quick-unlock mechanism on this host")
+        }
+        let legacy = try XCTUnwrap(reference.legacyKeychainFilename)
+        let legacyItem: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.keevault.app",
+            kSecAttrAccount as String: "compositeKey:\(legacy)",
+            kSecUseDataProtectionKeychain as String: true,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            kSecValueData as String: key.withUnsafeBytes { Data($0) },
+        ]
+        let status = SecItemAdd(legacyItem as CFDictionary, nil)
+        guard status == errSecSuccess else { throw XCTSkip("Legacy fixture item unavailable: \(status)") }
+        defer { KeychainService.deleteLegacyCompositeKey(forFilename: legacy) }
+        XCTAssertTrue(KeychainService.hasLegacyStoredKey(forFilename: legacy))
+        let express = ExpressUnlockKey(binding: Data(repeating: 0x44, count: 32), transformedKey: SymmetricKey(data: Data(repeating: 0x33, count: 32)))
+        SettingsService.quickUnlockPasswordInterval = .never
+        let oldEntry = Date(timeIntervalSince1970: 1_600_000_000)
+        QuickUnlockKeychain.recordMasterKeyEntry(for: databaseID, at: oldEntry)
+        XCTAssertEqual(QuickUnlockKeychain.persistKeychainItems(QuickUnlockKeys(storedKey: key, expressKey: express),
+            for: reference, masterKeyEntered: false), .stored)
+        XCTAssertTrue(KeychainService.hasStoredKey(for: databaseID))
+        XCTAssertTrue(KeychainService.hasExpressUnlockKey(for: databaseID))
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == databaseID }, reference)
+        XCTAssertFalse(KeychainService.hasLegacyStoredKey(forFilename: legacy))
+        XCTAssertEqual((AppGroupContainer.defaults.dictionary(forKey: "KeeForge.quickUnlockMasterKeyEntries")?[databaseID.uuidString] as? Date), oldEntry)
+        XCTAssertTrue(QuickUnlockKeychain.persist(QuickUnlockKeys(storedKey: key, expressKey: express), for: reference, masterKeyEntered: true))
+        reference.legacyKeychainFilename = nil
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == databaseID }, reference)
+        XCTAssertGreaterThan(try XCTUnwrap(AppGroupContainer.defaults.dictionary(forKey: "KeeForge.quickUnlockMasterKeyEntries")?[databaseID.uuidString] as? Date), oldEntry)
+        SettingsService.quickUnlockPasswordInterval = .always
+        XCTAssertEqual(QuickUnlockKeychain.persistKeychainItems(QuickUnlockKeys(storedKey: key, expressKey: express),
+            for: reference, masterKeyEntered: true), .notStored)
         XCTAssertFalse(KeychainService.hasStoredKey(for: databaseID))
         XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: databaseID))
     }

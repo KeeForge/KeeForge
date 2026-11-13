@@ -43,9 +43,18 @@ enum QuickUnlockKeychain {
     /// starts it for an item stored before the interval existed.
     @discardableResult
     static func persist(_ keys: QuickUnlockKeys, for reference: DatabaseReference, masterKeyEntered: Bool) -> Bool {
+        let outcome = persistKeychainItems(keys, for: reference, masterKeyEntered: masterKeyEntered)
+        if outcome != .notStored { DatabaseListStore.clearLegacyKeychainFilename(for: reference) }
+        return outcome == .stored
+    }
+
+    enum PersistenceOutcome { case notStored, stored, expiredAfterStoring }
+
+    @discardableResult
+    static func persistKeychainItems(_ keys: QuickUnlockKeys, for reference: DatabaseReference, masterKeyEntered: Bool) -> PersistenceOutcome {
         guard SettingsService.quickUnlockPasswordInterval != .always else {
             expireIfDue(reference)
-            return false
+            return .notStored
         }
         // Silently skip when nothing could satisfy the item's access control:
         // no enrolled biometrics (and, on the Mac, no authorized Apple Watch)
@@ -56,17 +65,16 @@ enum QuickUnlockKeychain {
         guard KeychainService.shouldStoreQuickUnlockKey(
             for: reference.id,
             legacyFilename: reference.legacyKeychainFilename
-        ) else { return false }
+        ) else { return .notStored }
 
         do {
             try KeychainService.storeCompositeKey(keys.storedKey, for: reference.id)
 
             if let legacyFilename = reference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
-                DatabaseListStore.clearLegacyKeychainFilename(for: reference.id)
             }
         } catch {
-            return false
+            return .notStored
         }
 
         recordMasterKeyEntry(for: reference.id, replacingExisting: masterKeyEntered)
@@ -80,9 +88,9 @@ enum QuickUnlockKeychain {
         // its sweep sees these items or this read sees the setting.
         guard SettingsService.quickUnlockPasswordInterval != .always else {
             expireIfDue(reference)
-            return false
+            return .expiredAfterStoring
         }
-        return true
+        return .stored
     }
 
     // MARK: - Password interval

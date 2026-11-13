@@ -466,7 +466,7 @@ enum DatabaseListStore {
         io: PendingLocalSaveStore.StorageIO = .init()
     ) -> PendingLocalSaveStore.ResolutionOutcome {
         withStateLock {
-            guard let anchor = AppGroupContainer.resolvedURL, let target = resolveDatabaseURL(for: expected) else { return .retainedForRecovery }
+            guard let anchor = AppGroupContainer.resolvedURL, let target = LocalDatabaseSaver.resolveLocation(for: expected)?.url else { return .retainedForRecovery }
             let access = target.startAccessingSecurityScopedResource()
             defer { if access { target.stopAccessingSecurityScopedResource() } }
             var error: NSError?
@@ -885,6 +885,34 @@ enum DatabaseListStore {
         }
     }
 
+    @discardableResult
+    static func clearLegacyKeychainFilename(for expected: DatabaseReference) -> Bool {
+        withStateLock {
+            do {
+                guard let legacy = expected.legacyKeychainFilename, !PendingLocalSaveStore.isRevoked(expected.id) else { return false }
+                var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
+                guard let index = references.firstIndex(where: { $0.id == expected.id }),
+                      references[index].legacyKeychainFilename == legacy,
+                      PendingLocalSaveStore.PreferenceObservation(expected).matches(references[index]) else { return false }
+                references[index].legacyKeychainFilename = nil
+                return saveDatabases(references)
+            } catch { return false }
+        }
+    }
+
+    static func withLocalReadKeyPublication<T>(
+        for expected: DatabaseReference, read: PendingLocalSaveStore.ReadKeyPublication, _ publish: () throws -> T
+    ) throws -> T {
+        try withStateLock {
+            let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
+            guard let current = references.first(where: { $0.id == expected.id }),
+                  read.lease.reference.matches(current), current.legacyKeychainFilename == expected.legacyKeychainFilename else {
+                throw PendingLocalSaveStore.OwnershipError.sourceChanged
+            }
+            return try PendingLocalSaveStore.withReadKeyPublicationAuthorization(read, publish)
+        }
+    }
+
     static func withLocalCacheReference<T>(
         _ expected: DatabaseReference, allowNewReference: Bool, _ publish: () throws -> T
     ) throws -> T {
@@ -967,9 +995,14 @@ enum DatabaseListStore {
     /// path `Documents/<filename>` (Finder replace over USB is delete+recopy,
     /// stranding the old bookmark), so a failed or trashed resolution rebinds
     /// to the file currently at that path when one exists.
-    static func locateDatabaseFile(for reference: DatabaseReference) -> LocalDatabaseFileLocation? {
+    static func locateDatabaseFile(
+        for reference: DatabaseReference,
+        resolveBookmark: (Data) -> (url: URL, isStale: Bool)? = SecurityScopedBookmarkManager.resolveURL,
+        beforeBookmarkRenewal: () throws -> Void = {}
+    ) -> LocalDatabaseFileLocation? {
+        let lease = try? PendingLocalSaveStore.captureCacheReadLease(for: reference)
         guard let bookmarkData = reference.bookmarkData,
-              let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData) else {
+              let resolved = resolveBookmark(bookmarkData) else {
             return reboundDocumentsResidentLocation(for: reference)
         }
 
@@ -990,12 +1023,39 @@ enum DatabaseListStore {
 
         if resolved.isStale,
            let refreshedBookmarkData = try? SecurityScopedBookmarkManager.makeBookmarkData(for: url) {
-            var refreshedReference = reference
-            refreshedReference.bookmarkData = refreshedBookmarkData
-            update(refreshedReference)
+            do {
+                try beforeBookmarkRenewal()
+                if let lease { renewDatabaseBookmark(refreshedBookmarkData, expected: reference, lease: lease) }
+            } catch {}
         }
 
         return .available(url)
+    }
+
+    @discardableResult
+    private static func renewDatabaseBookmark(
+        _ bookmark: Data, expected: DatabaseReference, lease: PendingLocalSaveStore.CacheReadLease
+    ) -> Bool {
+        withStateLock {
+            guard let anchor = AppGroupContainer.resolvedURL else { return false }
+            var error: NSError?
+            var saved = false
+            NSFileCoordinator().coordinate(writingItemAt: databaseListURL, options: .forReplacing, error: &error) { registry in
+                do {
+                    var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
+                    guard let index = references.firstIndex(where: { $0.id == expected.id }),
+                          !references[index].isCloudBacked, references[index].bookmarkData == expected.bookmarkData,
+                          references[index].lastMasterKeyChangeAt == expected.lastMasterKeyChangeAt else { return }
+                    try PendingLocalSaveStore.withReferenceEpochAuthorization(lease) {
+                        references[index].bookmarkData = bookmark
+                        let encoder = JSONEncoder()
+                        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                        if case .durable = writeWithDurabilityOutcome(try encoder.encode(references), to: registry, directoryAnchor: anchor) { saved = true }
+                    }
+                } catch {}
+            }
+            return saved && error == nil
+        }
     }
 
     static func resolveDatabaseURL(for reference: DatabaseReference) -> URL? {

@@ -107,6 +107,15 @@ Ownership, source publication, admission and truthful local save outcomes form o
 integrated guarantee. A helper or ownership subcommit alone does not implement this
 contract and is not a complete candidate.
 
+Ordinary local saves use this same admission with an explicit ordinary-save purpose
+and empty source receipts. Admission is durable before encryption and the final
+coordinated accessor validates its token, baseline, epoch and revocation. Opaque
+adapter errors, interrupted/cancelled operations and uncertain completion retain
+recovery even when the old target is still observable; observing old bytes is not
+permission to resend. Durable completion releases the empty admission, while an
+affirmative pre-replacement proof permits a future retry. Explicit snapshot-scoped
+discard remains separate from export and never discards an unlocked draft.
+
 ## Effect boundaries for source publication
 
 | Event | Shared copy | Bookmarked original | Source ownership / caller |
@@ -261,3 +270,17 @@ compatibility scenario reopens installed bytes and compares the full snapshot.
 Static checks and build-for-testing cannot establish runtime assertions. Signed
 native layout, Keychain/device grants and physical power loss require separate
 validation; no test host/app/runtime is executed by this worker.
+
+Database-bookmark renewal captures the reference/owner epoch before resolution and
+updates only that bookmark using reread/CAS; it cannot roll back newer factors,
+master-key dates, preferences or removal. Replacement and witness retirement share
+the same primary-target resolver, including a KeeForge-only database in the cache.
+
+Local AutoFill reads bind ciphertext and source identity under coordination. Final
+quick/express-key publication holds list-lock then owner flock through the
+keychain-only helper, validating the pre-read epoch, current reference, read SHA
+and active target evidence. Blocked publication still permits filling valid parsed
+credentials. The helper's policy/interval/Keychain callees never enter the database
+list or owner; expected legacy metadata is cleaned separately by field CAS after
+release. A cleanup failure retains metadata and cannot undo keychain effects. A new
+read after full durable retirement follows main, without a permanent target pin.

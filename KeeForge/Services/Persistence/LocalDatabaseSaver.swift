@@ -420,6 +420,18 @@ enum LocalDatabaseSaver {
         if let encryptionSettings {
             header = encryptionSettings.applied(to: header)
         }
+        let ordinaryToken: PendingLocalSaveStore.Token?
+        if authorization.enforcesEpoch, authorization.token == nil, !authorization.isMasterKeyChange, !location.awaitsWriteBack {
+            do { ordinaryToken = try admitOrdinarySave(reference: reference, location: location,
+                baseline: currentSHA512, io: environment.pendingLocalStorageIO) }
+            catch let conflict as CoordinatedConflict { return .conflict(remoteSHA512: FileDigest.sha512(conflict.currentData), remoteData: conflict.currentData) }
+        } else { ordinaryToken = nil }
+        var replacementMayHaveStarted = false
+        defer {
+            if let ordinaryToken, !replacementMayHaveStarted {
+                _ = PendingLocalSaveStore.releaseAfterProvenNoReplacement(ordinaryToken, io: environment.pendingLocalStorageIO)
+            }
+        }
         let writeKey = newCompositeKey ?? compositeKey
         let written = try environment.encryptDraft(draft, writeKey, header, kdfPolicy)
         let newData = written.data
@@ -446,26 +458,37 @@ enum LocalDatabaseSaver {
             : nil
         var writeAuthorization = authorization
         writeAuthorization.prepared = prepared
+        if let ordinaryToken { writeAuthorization.token = ordinaryToken }
         writeAuthorization.targetIsSharedCopy = location.awaitsWriteBack || reference.isCloudBacked
         let replaceOutcome: ReplaceOutcome
         do {
+            replacementMayHaveStarted = true
             replaceOutcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512, writeAuthorization)
-        } catch let failure as LocalSaveBeforeReplacementFailure { throw failure }
+        } catch let failure as LocalSaveBeforeReplacementFailure {
+            replacementMayHaveStarted = false
+            throw failure
+        }
         catch {
             // An opaque adapter error after entering replacement is not proof of no effect.
             return .indeterminate(scope: scope)
         }
         let localCommit: PendingLocalSaveStore.CommitReceipt?
-        let unconfirmed: Bool
+        var unconfirmed: Bool
         var warningScope = scope
         switch replaceOutcome {
         case .changed(let changedData):
+            replacementMayHaveStarted = false
             return .conflict(remoteSHA512: FileDigest.sha512(changedData), remoteData: changedData)
         case .indeterminate: return .indeterminate(scope: scope)
         case .replaced(let receipt): localCommit = receipt; unconfirmed = false
         case .replacedWithoutConfirmedDurability(let receipt): localCommit = receipt; unconfirmed = true
         case .replacedWithUnconfirmedBookkeeping(let receipt):
             localCommit = receipt; unconfirmed = true; warningScope = .recoveryRecord
+        }
+        if ordinaryToken != nil, !unconfirmed {
+            let completion = localCommit.map { completePendingMerge($0, reference: reference, io: environment.pendingLocalStorageIO) }
+                ?? .retainedForRecovery
+            if completion != .resolved { unconfirmed = true; warningScope = .recoveryRecord }
         }
         var sourceAcceptanceUnconfirmed = false
         if let prepared, unconfirmed == false {
@@ -510,7 +533,26 @@ enum LocalDatabaseSaver {
         )
     }
 
-    private static func resolveLocation(for reference: DatabaseReference) -> ResolvedLocation? {
+    private static func admitOrdinarySave(
+        reference: DatabaseReference, location: ResolvedLocation, baseline: Data, io: PendingLocalSaveStore.StorageIO
+    ) throws -> PendingLocalSaveStore.Token {
+        var error: NSError?
+        var result: Result<PendingLocalSaveStore.Token, Error>?
+        NSFileCoordinator().coordinate(readingItemAt: location.url, options: [], error: &error) { target in
+            result = Result {
+                let bytes = try Data(contentsOf: target)
+                guard FileDigest.sha512(bytes) == baseline else { throw CoordinatedConflict(currentData: bytes) }
+                return try PendingLocalSaveStore.admit([], for: reference.id,
+                    target: PendingLocalSaveStore.targetIdentity(at: target), baseline: baseline,
+                    masterKeyChangedAt: reference.lastMasterKeyChangeAt, purpose: .ordinarySave, io: io)
+            }
+        }
+        if let error { throw error }
+        guard let result else { throw SaveError.databaseLocationUnavailable }
+        return try result.get()
+    }
+
+    static func resolveLocation(for reference: DatabaseReference) -> ResolvedLocation? {
         if let url = DatabaseListStore.resolveDatabaseURL(for: reference) {
             return ResolvedLocation(url: url, usesSecurityScope: true)
         }
@@ -521,11 +563,6 @@ enum LocalDatabaseSaver {
 
         let cachedURL = DatabaseListStore.cachedDatabaseURL(for: reference) ?? DatabaseListStore.cacheLocation(for: reference)
         return ResolvedLocation(url: cachedURL, usesSecurityScope: false)
-    }
-
-    static func refreshLocalCache(_ data: Data, for reference: DatabaseReference) {
-        do { try cacheLocalSnapshot(data, for: reference) }
-        catch { invalidateOlderLocalCache(for: reference, installedSHA512: FileDigest.sha512(data)) }
     }
 
     static func cacheLocalSnapshot(

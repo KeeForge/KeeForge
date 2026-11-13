@@ -143,6 +143,8 @@ struct DatabaseDetailsView: View {
             let snapshot = request.snapshot
             if snapshot.preferenceIntent != nil {
                 Text("Abandoning this key-file preference recovery disables local writes. It does not change the database master key. Keep any snapshots and unsaved edits you need, then remove and add the database again.")
+            } else if snapshot.admission?.purpose == .ordinarySave, snapshot.keyEvidence?.pending == nil, !request.abandonKeyRecord, !snapshot.ownerUnavailable {
+                Text("This local save has an unresolved outcome. Export the database and any unsaved changes before discarding this recovery record. Discarding does not undo a replacement and deletes only the snapshots listed here; later snapshots and your open draft are kept.")
             } else if request.abandonKeyRecord || snapshot.ownerUnavailable || snapshot.admission?.purpose.isMasterKeyChange == true || snapshot.keyEvidence?.pending != nil {
                 Text("Discarding this recovery record disables local writes. It does not undo a saved master-key change. Export any snapshots and unsaved edits you need first, then remove and add the database again using the correct master key. Changes not saved elsewhere will be lost.")
             } else {
@@ -705,6 +707,9 @@ struct DatabaseDetailsView: View {
         }
         if let localRecovery = localRecoveryViewModel.snapshot, !localRecovery.entries.isEmpty || localRecovery.needsRecovery || localRecovery.keyEvidence?.targetDurabilityUnconfirmed == true || localRecovery.requiresAssociationRecovery(for: currentReference) || localRecoveryViewModel.targetNeedsRecovery {
             Section("Local Save Recovery") {
+                if localRecovery.admission?.purpose == .ordinarySave {
+                    Text("This local save has an unresolved outcome. Export the database and any unsaved changes before discarding this recovery record. Discarding does not undo a replacement and deletes only the snapshots listed here; later snapshots and your open draft are kept.")
+                }
                 if !localRecovery.entries.isEmpty {
                     Text("Each source is a full encrypted database snapshot. Open exported files with their original master key. Exporting does not discard the source.")
                 }

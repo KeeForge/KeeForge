@@ -62,6 +62,7 @@ enum PendingLocalSaveStore {
 
     enum Purpose: Codable, Sendable, Equatable {
         case merge
+        case ordinarySave
         case masterKeyChange(KeyFileAssociation?)
         var isMasterKeyChange: Bool {
             if case .masterKeyChange = self { return true }
@@ -495,7 +496,7 @@ enum PendingLocalSaveStore {
 
     static func admit(
         _ receipts: [Receipt], for databaseID: UUID, target: TargetIdentity,
-        baseline: Data, masterKeyChangedAt: Date?, io: StorageIO = .init()
+        baseline: Data, masterKeyChangedAt: Date?, purpose: Purpose = .merge, io: StorageIO = .init()
     ) throws -> Token {
         try withLock(for: databaseID) {
             try requireNotRemoved(databaseID)
@@ -504,7 +505,8 @@ enum PendingLocalSaveStore {
                   !state.sources.contains(where: { $0.phase == .provisional || $0.epochID != state.epoch.id }) else { throw OwnershipError.recoveryRequired }
             try checkEpoch(&state, expected: masterKeyChangedAt)
             for receipt in receipts { try validateEligible(receipt, state: state, databaseID: databaseID) }
-            let admission = Admission(operationID: UUID(), purpose: .merge, sources: receipts,
+            guard purpose == .merge || (purpose == .ordinarySave && receipts.isEmpty) else { throw OwnershipError.recoveryRequired }
+            let admission = Admission(operationID: UUID(), purpose: purpose, sources: receipts,
                 target: target, baseline: baseline, observedMasterKeyChangeAt: masterKeyChangedAt)
             state.operation = .admitted(admission)
             try persist(state, databaseID: databaseID, io: io)
@@ -617,7 +619,7 @@ enum PendingLocalSaveStore {
                 var state = try loadState(commit.databaseID) ?? OwnerState(version: 1, removed: false)
                 guard commit.targetDurabilityConfirmed, state.version == commit.ownerVersion,
                       case .recoveryRequired(let admission) = state.operation, admission == commit.admission,
-                      admission.intendedSHA512 == commit.sha512, admission.purpose == .merge,
+                      admission.intendedSHA512 == commit.sha512, (admission.purpose == .merge || admission.purpose == .ordinarySave),
                       let installed = commit.installedTarget else { throw OwnershipError.sourceChanged }
                 let (target, sha) = try observeTarget()
                 guard target == installed, sha == commit.sha512, target.canonicalPath == admission.target.canonicalPath,
@@ -648,6 +650,38 @@ enum PendingLocalSaveStore {
             let state = try loadState(reference.id) ?? OwnerState(version: 1, removed: false)
             if case .known(let date, _) = state.epoch, date != reference.lastMasterKeyChangeAt { throw OwnershipError.sourceChanged }
             return CacheReadLease(databaseID: reference.id, epochID: state.epoch.id, masterKeyChangedAt: reference.lastMasterKeyChangeAt, reference: PreferenceObservation(reference))
+        }
+    }
+
+    struct ReadKeyPublication: Sendable {
+        let lease: CacheReadLease
+        let target: TargetIdentity
+        let sha512: Data
+        let sharedCopy: Bool
+    }
+
+    static func withReadKeyPublicationAuthorization<T>(_ read: ReadKeyPublication, _ publish: () throws -> T) throws -> T {
+        try withLock(for: read.lease.databaseID) {
+            try requireNotRemoved(read.lease.databaseID)
+            let state = try loadState(read.lease.databaseID) ?? OwnerState(version: 1, removed: false)
+            guard state.epoch.id == read.lease.epochID, state.operation == .idle, state.retirementID == nil else { throw OwnershipError.recoveryRequired }
+            if case .known(let date, _) = state.epoch, date != read.lease.masterKeyChangedAt { throw OwnershipError.sourceChanged }
+            if let evidence = state.keyEvidence {
+                guard evidence.pending == nil else { throw OwnershipError.recoveryRequired }
+                try validateKeyTarget(evidence, target: read.target, sha512: read.sha512, sharedCopy: read.sharedCopy, state: state)
+            }
+            return try publish()
+        }
+    }
+
+    static func withReferenceEpochAuthorization<T>(_ lease: CacheReadLease, _ publish: () throws -> T) throws -> T {
+        try withLock(for: lease.databaseID) {
+            try requireNotRemoved(lease.databaseID)
+            let state = try loadState(lease.databaseID) ?? OwnerState(version: 1, removed: false)
+            guard state.epoch.id == lease.epochID, state.operation == .idle, state.retirementID == nil,
+                  state.keyEvidence?.pending == nil else { throw OwnershipError.recoveryRequired }
+            if case .known(let date, _) = state.epoch, date != lease.masterKeyChangedAt { throw OwnershipError.sourceChanged }
+            return try publish()
         }
     }
 

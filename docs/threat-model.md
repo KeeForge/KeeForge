@@ -215,3 +215,14 @@ Severity applies to a validated failure with a demonstrated trust-boundary cross
 | Low | Limited unintended non-secret disclosure or a minor security-relevant behavior with constrained impact | Authorized copying, expected optional favicon disclosure, and documented platform behavior alone are not vulnerabilities. |
 
 Maintain this model when unlock factors, shared storage, provider transports, AutoFill authority, SSH agent authority, plaintext outputs, or distribution trust change. Keep detailed platform contracts next to their implementation and historical audit results in `docs/audits/`.
+
+Ordinary local saves share the pending-local typed admission, with no source
+receipts, before encryption. Unknown effects or interruption block another
+automatic attempt across sessions until explicit recovery; old observable bytes
+are not proof of no replacement. Durable completion or affirmative pre-replacement
+proof releases that operation. Database-bookmark renewal is field-specific and
+bound to its observed epoch, so a stale resolver cannot restore old factors.
+Local AutoFill final key publication validates the read-bound ciphertext/identity,
+reference epoch and revocation under the owner lock through keychain-only writes.
+Legacy registry cleanup occurs afterwards by field CAS, without list-lock inversion;
+refusing key publication does not prevent filling authenticated credentials.

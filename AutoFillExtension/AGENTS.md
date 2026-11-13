@@ -89,3 +89,5 @@ In `../KeeForgeTests/` (run on iOS, and on macOS through `KeeForgeMacTests`, whi
 - `../KeeForge/AGENTS.md`: KDBX compatibility; `../KeeForgeMac/SECURITY.md`, `../docs/threat-model.md`
 
 - Password save, picker creation, website addition and passkey registration end committed/unknown save outcomes with a warning and cancellation. Known outcomes update installed tree/SHA without completing or republishing successful credentials; lock/request-identity guards still reject obsolete callbacks.
+
+- A local unlock binds encrypted bytes and source identity in one coordinated read and captures the owner epoch before IO. Final quick/express-key publication validates that proof and the current reference/revocation under list-lock then owner flock, held through keychain-only writes. Blocking publication does not discard valid parsed credentials or fail filling. Legacy registry cleanup occurs separately outside flock; cleanup clears the in-memory read proof.

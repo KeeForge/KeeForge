@@ -248,6 +248,59 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try PendingLocalSaveStore.export(XCTUnwrap(snapshot.receipts.first), for: reference.id), installed)
     }
 
+    func testLegacyReferenceCleanupRejectsStaleAliasEpochAndRemovalWithoutOverwritingFields() throws {
+        let url = try makeScratchDatabaseCopy()
+        var reference = try makeRegisteredReference(for: url)
+        reference.legacyKeychainFilename = "original-legacy.kdbx"
+        DatabaseListStore.update(reference)
+        var newer = reference
+        newer.legacyKeychainFilename = "new-legacy.kdbx"
+        newer.nickname = "Keep current nickname"
+        newer.lastMasterKeyChangeAt = Date(timeIntervalSince1970: 1_900_000_000)
+        DatabaseListStore.update(newer)
+        XCTAssertFalse(DatabaseListStore.clearLegacyKeychainFilename(for: reference))
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }, newer)
+        XCTAssertTrue(DatabaseListStore.clearLegacyKeychainFilename(for: newer))
+        var cleared = newer
+        cleared.legacyKeychainFilename = nil
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }, cleared)
+        XCTAssertFalse(DatabaseListStore.clearLegacyKeychainFilename(for: newer), "Field cleanup is idempotent")
+        XCTAssertTrue(DatabaseListStore.remove(id: reference.id))
+        XCTAssertFalse(DatabaseListStore.clearLegacyKeychainFilename(for: newer))
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
+    }
+
+    func testStaleDatabaseBookmarkRenewalCannotRestorePreRekeyFields() async throws {
+        let setup = try await makePendingKeyChangeWithDistinctKeyFiles()
+        defer { try? FileManager.default.removeItem(at: setup.directory) }
+        guard case .masterKeyChange(let desired)? = setup.commit.purpose, let desired else { return XCTFail("Expected key receipt") }
+        let location = DatabaseListStore.locateDatabaseFile(for: setup.reference,
+            resolveBookmark: { _ in (setup.url, true) }, beforeBookmarkRenewal: {
+                guard case .durable(let proof) = DatabaseListStore.publishKeyFileAssociation(for: setup.reference.id,
+                    operationID: setup.commit.operationID, association: desired) else { throw SaveAssociationWarning() }
+                XCTAssertEqual(try LocalDatabaseSaver.settleInstalledKeyChange(setup.commit, reference: setup.reference, associationProof: proof), .resolved)
+            })
+        guard case .available? = location else { return XCTFail("Read URL must remain usable") }
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == setup.reference.id })
+        XCTAssertEqual(current.keyFileBookmarkData, desired.bookmarkData)
+        XCTAssertEqual(current.keyFileFilename, desired.filename)
+        XCTAssertEqual(current.lastMasterKeyChangeAt, desired.changedAt)
+        XCTAssertEqual(current.bookmarkData, setup.reference.bookmarkData)
+        XCTAssertNil(try PendingLocalSaveStore.recovery(for: current.id).keyEvidence)
+        let newKeyFile = Data(repeating: 0x52, count: 32)
+        let newKey = try KDBXCrypto.compositeKey(password: "new key-confirmation password", keyFileData: newKeyFile)
+        let session = SymmetricKey(size: .bits256)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(data: setup.newData, compositeKey: newKey, sessionKey: session)
+        let draft = try DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: session,
+            binaryPoolFields: parsed.header.innerHeaderBinaryFields).apply(.createEntry(
+                parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: parsed.rootGroup), draft: EntryDraftPayload(title: "After Renewal Race", password: "kept")))
+        let saved = try await LocalDatabaseSaver.save(draft: draft, reference: current, compositeKey: newKey,
+            openTimeSHA512: FileDigest.sha512(setup.newData), kdfPolicy: .mainApp)
+        guard case .saved = saved else { return XCTFail("Field-only renewal must leave future saves usable") }
+        let reopened = try KDBXParser.parse(data: Data(contentsOf: setup.url), compositeKey: newKey, sessionKey: session)
+        XCTAssertTrue(reopened.allEntries.contains { $0.title == "After Renewal Race" })
+    }
+
     func testReadyCertificateReplayRetiresWithoutPinningLaterExternalRestorationAndPreservesNewSources() async throws {
         let setup = try await makePendingKeyChangeWithDistinctKeyFiles()
         defer { try? FileManager.default.removeItem(at: setup.directory) }
@@ -1141,7 +1194,12 @@ final class LocalDatabaseSaverTests: XCTestCase {
             databaseURL: databaseURL,
             entryTitle: "Failure Entry"
         )
-        var environment = LocalDatabaseSaver.Environment.live
+        let encryptions = WriteCounter()
+        let live = LocalDatabaseSaver.Environment.live
+        var environment = live
+        environment.encryptDraft = { draft, key, header, policy in
+            encryptions.increment(); return try live.encryptDraft(draft, key, header, policy)
+        }
         environment.replaceFileAtomically = { data, url, baseline, authorization in
             var io = LocalDatabaseSaver.ReplacementIO()
             io.stage = { bytes, staging in
@@ -1161,8 +1219,20 @@ final class LocalDatabaseSaverTests: XCTestCase {
             )
             XCTFail("Expected save to fail when the replace step throws.")
         } catch {
+            XCTAssertTrue(error is LocalSaveBeforeReplacementFailure)
             XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
         }
+        XCTAssertNil(try PendingLocalSaveStore.recovery(for: reference.id).admission)
+        XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
+        environment.replaceFileAtomically = live.replaceFileAtomically
+        let retried = try await LocalDatabaseSaver.save(draft: context.draft, reference: reference,
+            compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512, environment: environment)
+        guard case .saved = retried else { return XCTFail("A proven staging failure permits one explicit successful retry") }
+        XCTAssertEqual(encryptions.count, 2)
+        XCTAssertNil(try PendingLocalSaveStore.recovery(for: reference.id).admission)
+        XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
+        let reopened = try KDBXParser.parse(data: Data(contentsOf: databaseURL), password: fixturePassword, sessionKey: context.draft.writerSessionKey)
+        XCTAssertTrue(reopened.allEntries.contains { $0.title == "Failure Entry" })
     }
 
     func testSaveUnderNSFileCoordinatorDoesNotDeadlockWhenOtherCoordinatorActive() async throws {
