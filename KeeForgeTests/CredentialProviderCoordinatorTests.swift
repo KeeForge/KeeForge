@@ -211,7 +211,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let original = try makeFixtureWithRichTwitterEntry()
         try seedDatabaseBytes(original, for: database)
         defer {
-            PendingLocalSaveStore.removeAll(for: database.id)
             try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: database))
         }
 
@@ -292,7 +291,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let database = try seedResolvableDefaultDatabase()
         let fixture = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
         try seedDatabaseBytes(fixture, for: database)
-        defer { PendingLocalSaveStore.removeAll(for: database.id) }
 
         let searchView = try await unlockDefaultDatabaseAndPresentSearch(
             coordinator,
@@ -321,7 +319,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let (coordinator, presenter) = makeCoordinator()
         let database = try seedResolvableDefaultDatabase()
         try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
-        defer { PendingLocalSaveStore.removeAll(for: database.id) }
         var failingSave = AutoFillSaveCoordinator.Environment.live
         failingSave.saveDraft = { _, _, _, _ in throw SaveError.databaseLocationUnavailable }
         coordinator.saveEnvironment = failingSave
