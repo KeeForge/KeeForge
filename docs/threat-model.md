@@ -53,6 +53,8 @@ flowchart LR
 
 Arrows mark data or authority crossings, not blanket trust. Cloud storage, imported files, and requesting clients are untrusted. The OS mediates authentication, entitlements, and requesting-client identity; KeeForge owns credential selection, session handling, and encrypted writes. The Mac extension cannot use the app's external-file or network entitlements, so its file arrow is iOS-only.
 
+App-global activation, background/system-lock requests, user activity, and live Settings effects reach every session retained by [DatabaseSessionStore](../KeeForge/ViewModels/DatabaseSessionStore.swift), regardless of active selection. Each session applies its existing lock policy and unsaved-work deferral. Activity resets every session's inactivity timer until monitors have window identity; removing a database from the list force-retires its session and clears its secrets.
+
 ## Threat model, trust boundaries, and assumptions
 
 ### Assets and objectives

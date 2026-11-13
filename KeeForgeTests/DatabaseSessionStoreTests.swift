@@ -1,4 +1,5 @@
 import CryptoKit
+import os
 import XCTest
 @testable import KeeForge
 
@@ -261,6 +262,106 @@ final class DatabaseSessionStoreTests: XCTestCase {
         XCTAssertNotNil(active.sessionKey)
     }
 
+    func testSystemLockReachesEveryOpenSession() async throws {
+        let previousLockOnBackground = SettingsService.lockOnBackground
+        defer { SettingsService.lockOnBackground = previousLockOnBackground }
+        #if os(macOS)
+        SettingsService.lockOnBackground = false
+        #else
+        SettingsService.lockOnBackground = true
+        #endif
+        let store = DatabaseSessionStore()
+        let first = try await makeUnlockedSession()
+        let second = try await makeUnlockedSession()
+        defer { first.lock(); second.lock() }
+        store.adopt(first)
+        store.adopt(second)
+        store.activeSessionID = second.databaseReference.id
+
+        store.handleAppDidEnterBackground()
+
+        for session in [first, second] {
+            XCTAssertEqual(session.state, .locked)
+            XCTAssertNil(session.sessionKey)
+            XCTAssertNil(session.compositeKey)
+        }
+        XCTAssertEqual(store.openSessions.count, 2)
+        XCTAssertTrue(store.activeSession === second)
+    }
+
+    func testActivationReachesEveryOpenSession() async throws {
+        let previousTimeout = SettingsService.autoLockTimeout
+        defer { SettingsService.autoLockTimeout = previousTimeout }
+        SettingsService.autoLockTimeout = .fiveMinutes
+        let store = DatabaseSessionStore()
+        let first = try await makeUnlockedSession()
+        let second = try await makeUnlockedSession()
+        defer { first.lock(); second.lock() }
+        for session in [first, second] {
+            store.adopt(session)
+            session.cancelInactivityTimer()
+            session.didManuallyLock = true
+        }
+        store.activeSessionID = second.databaseReference.id
+
+        store.handleAppDidBecomeActive()
+
+        for session in [first, second] {
+            XCTAssertEqual(session.state, .unlocked)
+            XCTAssertFalse(session.didManuallyLock)
+            XCTAssertNotNil(session.inactivityTimer)
+            XCTAssertNotNil(session.inactivityDeadline)
+        }
+    }
+
+    func testUserActivityResetsEveryOpenSessionsInactivityDeadline() async throws {
+        let previousTimeout = SettingsService.autoLockTimeout
+        defer { SettingsService.autoLockTimeout = previousTimeout }
+        SettingsService.autoLockTimeout = .thirtySeconds
+        let clock = OSAllocatedUnfairLock(initialState: Date(timeIntervalSince1970: 1_000))
+        let store = DatabaseSessionStore()
+        let first = try await makeUnlockedSession(nowProvider: { clock.withLock { $0 } })
+        let second = try await makeUnlockedSession(nowProvider: { clock.withLock { $0 } })
+        defer { first.lock(); second.lock() }
+        store.adopt(first)
+        store.adopt(second)
+        store.activeSessionID = second.databaseReference.id
+        XCTAssertEqual(first.inactivityDeadline, Date(timeIntervalSince1970: 1_030))
+        XCTAssertEqual(second.inactivityDeadline, Date(timeIntervalSince1970: 1_030))
+        clock.withLock { $0.addTimeInterval(20) }
+
+        store.resetInactivityTimers()
+
+        XCTAssertEqual(first.inactivityDeadline, Date(timeIntervalSince1970: 1_050))
+        XCTAssertEqual(second.inactivityDeadline, Date(timeIntervalSince1970: 1_050))
+        XCTAssertNotNil(first.inactivityTimer)
+        XCTAssertNotNil(second.inactivityTimer)
+    }
+
+    func testDatabaseListRemovalForcesRetirementOfOnlyTheMissingSession() async throws {
+        let store = DatabaseSessionStore()
+        let removed = try await makeUnlockedSession()
+        let retained = try await makeUnlockedSession()
+        defer { removed.lock(); retained.lock() }
+        store.adopt(removed)
+        store.adopt(retained)
+        store.activeSessionID = retained.databaseReference.id
+        removed.setEditorHasUnsavedChanges(true, editorID: UUID())
+        let retainedLockCycle = retained.lockCycleID
+
+        store.retireSessionsMissingFromDatabaseList([retained.databaseReference.id])
+
+        XCTAssertNil(store.session(for: removed.databaseReference.id))
+        XCTAssertEqual(removed.state, .locked)
+        XCTAssertNil(removed.sessionKey)
+        XCTAssertFalse(removed.hasUnsavedEditor)
+        XCTAssertEqual(store.openSessions.map(\.databaseReference.id), [retained.databaseReference.id])
+        XCTAssertTrue(store.activeSession === retained)
+        XCTAssertEqual(retained.state, .unlocked)
+        XCTAssertEqual(retained.lockCycleID, retainedLockCycle)
+        XCTAssertNotNil(retained.sessionKey)
+    }
+
     private func makeReference() throws -> DatabaseReference {
         try TestDatabaseSupport.makeReference(
             for: KDBXTestFixture.test.url(in: Bundle(for: Self.self)),
@@ -268,11 +369,14 @@ final class DatabaseSessionStoreTests: XCTestCase {
         )
     }
 
-    private func makeUnlockedSession() async throws -> DatabaseViewModel {
+    private func makeUnlockedSession(
+        nowProvider: @escaping @Sendable () -> Date = { .now }
+    ) async throws -> DatabaseViewModel {
         let session = DatabaseViewModel(
             databaseReference: try makeReference(),
             quickUnlockKeyPersistOperation: { _, _, _ in false },
-            storedKeyPresenceCheck: { _ in false }
+            storedKeyPresenceCheck: { _ in false },
+            nowProvider: nowProvider
         )
         await session.unlock(password: KDBXTestFixture.test.password)
         XCTAssertEqual(session.state, .unlocked)

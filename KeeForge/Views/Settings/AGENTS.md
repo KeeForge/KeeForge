@@ -4,7 +4,7 @@
 
 ## Ownership
 
-- `AppSettingsViewModel` owns preference persistence and live effects, account loading and sign-out, and favicon cache clearing. `SettingsView` connects it to the current session on appearance and session change, then calls `reload()`, which does not replay effects.
+- `AppSettingsViewModel` owns preference persistence and live effects, account loading and sign-out, and favicon cache clearing. `SettingsView` connects it to the app-owned `DatabaseSessionStore` from the environment on appearance, then calls `reload()`, which does not replay effects. Effects reach every stored session; database-specific content still uses the supplied session.
 - Add a preference effect to the model with a headless test, not to a view `onChange`. `ci_scripts/validate_architecture.py` fails any `SettingsService.<property> =` assignment in `SettingsView.swift`.
 - Every per-database AutoFill toggle goes through the `DatabaseListViewModel` passed in as `listViewModel` (`setAutoFillEnabled`), never `DatabaseListStore`. That instance carries the `autoFillEnabledRefreshHandler` bridge and the system-provider state, so this screen and the list's tip card cannot disagree.
 - `MacSSHAgentSettingsTab` (macOS) renders over `MacSSHAgentController` and is shown only when the app put one in the environment (`../../Services/SSHAgent/AGENTS.md`).

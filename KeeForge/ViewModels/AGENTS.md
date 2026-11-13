@@ -8,6 +8,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 
 - `DatabaseViewModel`: one database session. Authoritative for unlock/lock, save/conflict/merge, rekey, re-encryption, the authentication grace period (`secretAccess`), and the derived search/tag/AutoFill-exclusion indexes.
 - `DatabaseSessionStore`, owned by `KeeForgeApp`, retains sessions until retirement completes their transition lock; a deferred retirement must be retried, and active selection is always explicit. Forced retirement discards unsaved work and clears secrets when the app drops a session unconditionally.
+- App activation, background/system lock, inactivity resets, and live Settings effects fan out through `DatabaseSessionStore` to every stored session, regardless of active selection. Database-list removal force-retires every missing session.
 - `DatabaseWorkspaceState` (`DatabaseViewModel.workspace`): selection, typed `DatabaseRoute` navigation, the open iOS editor with its coordinator, search activation, menu request counters. No tree or secret data, no navigation objects or view references.
 - `DatabaseEditorCoordinator`: editor activation, dirty-editor registration, draft submission, save/delete completion, Save and Lock. `EntryEditViewModel` / `GroupEditViewModel` own only field state, validation, and the payload they emit.
 - `AppSettingsViewModel`: preference persistence and its live effects on open sessions.

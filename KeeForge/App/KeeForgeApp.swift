@@ -40,6 +40,7 @@ struct KeeForgeApp: App {
         #if os(macOS)
         Settings {
             SettingsView(viewModel: sessionStore.activeSession, listViewModel: listViewModel)
+                .environment(sessionStore)
                 .environment(macQuickAccess)
                 .environment(macSSHAgent)
                 .tint(appAccentColor)
@@ -101,7 +102,7 @@ struct KeeForgeApp: App {
         .background {
             let sessionStore = self.sessionStore
             IOSUserActivityObserver {
-                sessionStore.activeSession?.resetInactivityTimer()
+                sessionStore.resetInactivityTimers()
             }
         }
         .sheet(isPresented: $appSettingsPresentation.isPresented) {
@@ -114,9 +115,7 @@ struct KeeForgeApp: App {
             switch newPhase {
             case .active:
                 screenProtectionService.update(sceneIsActive: true)
-                sessionStore.activeSession?.didManuallyLock = false
-                sessionStore.activeSession?.handleSceneDidBecomeActive()
-                sessionStore.activeSession?.refreshSharedDatabaseCacheIfPossible()
+                sessionStore.handleAppDidBecomeActive()
                 scanDocumentsForSharedDatabases()
                 Task {
                     await listViewModel.drainPendingUploadsOnAppActive()
@@ -130,7 +129,7 @@ struct KeeForgeApp: App {
                 // default policy. MacLockMonitor is the sole lock driver
                 // on the Mac; see startMacLockMonitoringIfNeeded().
                 #if os(iOS)
-                sessionStore.activeSession?.handleSceneDidEnterBackground()
+                sessionStore.handleAppDidEnterBackground()
                 #endif
             @unknown default:
                 screenProtectionService.update(sceneIsActive: false)
@@ -157,6 +156,7 @@ struct KeeForgeApp: App {
             }
             startMacLockMonitoringIfNeeded()
         }
+        .environment(sessionStore)
     }
 
     /// Root content for the main window. In DEBUG builds the
@@ -210,20 +210,16 @@ struct KeeForgeApp: App {
 
         macLockMonitor.onLockTriggered = { _ in
             NotificationCenter.default.post(name: MacBiometricAutoUnlockController.lockRequestedNotification, object: nil)
-            sessionStore.activeSession?.handleSceneDidEnterBackground()
+            sessionStore.handleAppDidEnterBackground()
         }
         macLockMonitor.onDidBecomeActive = {
-            sessionStore.activeSession?.didManuallyLock = false
-            sessionStore.activeSession?.handleSceneDidBecomeActive()
-            sessionStore.activeSession?.refreshSharedDatabaseCacheIfPossible()
+            sessionStore.handleAppDidBecomeActive()
             Task {
                 await listViewModel.drainPendingUploadsOnAppActive()
             }
         }
         macLockMonitor.onUserActivity = {
-            // Only meaningful while a vault is open; resetInactivityTimer()
-            // already no-ops in every other state.
-            sessionStore.activeSession?.resetInactivityTimer()
+            sessionStore.resetInactivityTimers()
         }
         macLockMonitor.start()
 
@@ -335,9 +331,7 @@ private struct AppRootView: View {
         .task {
             let sessionStore = self.sessionStore
             listViewModel.autoFillEnabledRefreshHandler = { databaseID in
-                guard let databaseViewModel = sessionStore.activeSession,
-                      databaseViewModel.databaseReference.id == databaseID else { return }
-                databaseViewModel.populateCredentialStoreIfUnlocked()
+                sessionStore.session(for: databaseID)?.populateCredentialStoreIfUnlocked()
             }
             #if os(macOS) && !KEEFORGE_DIRECT_DOWNLOAD
             // macOS has no scene-based StoreKit review entry point; inject the
@@ -451,12 +445,7 @@ private struct AppRootView: View {
             routing.discardExpiredEnrollment()
         }
         .onChange(of: listViewModel.databases.map(\.id)) { _, identifiers in
-            // The split layout keeps the sidebar list live next to the detail
-            // column, so a database can be removed while its own session is
-            // the one on screen. Drop the session with it.
-            guard let activeID = sessionStore.activeSession?.databaseReference.id,
-                  identifiers.contains(activeID) == false else { return }
-            sessionStore.retire(activeID, force: true)
+            sessionStore.retireSessionsMissingFromDatabaseList(identifiers)
         }
         .alert(item: $routing.enrollmentAlert, content: totpEnrollmentAlertContent)
     }

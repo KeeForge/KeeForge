@@ -19,6 +19,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 - Backgrounding always shows the capture shield. On iOS it locks only when `SettingsService.lockOnBackground` is on; otherwise the `autoLockTimeout` check runs on the next activation.
 - The scene-phase `.background` lock path is iOS-only. macOS backgrounds a scene on window minimize and app hide, which must not lock; `MacLockMonitor` applies the Mac policy instead.
+- Scene activation, iOS backgrounding, Mac lock/activation callbacks, and foreground user activity forward through `DatabaseSessionStore` to every stored session. The app supplies that store to all Settings entry points through the environment; per-database AutoFill refresh looks up the toggled database's session by ID.
 - iOS observes touches across the main window (including sheets) and text-field/text-view edits through `IOSUserActivityObserver`. Only foreground activity resets the inactivity timer; its passive recognizer must never delay, cancel, or prevent normal controls and scrolling.
 - On the compact shell only a manual lock calls `VaultCloseTransition.coverCurrentFrame()`, immediately before the closing state change. An automatic lock can coincide with backgrounding, and a snapshot added then is what iOS would capture for the app switcher.
 - Pending AutoFill uploads drain on foreground activation (scene phase, and `MacLockMonitor.onDidBecomeActive` on macOS) and on the extension's Darwin notification. Both go through `DatabaseListViewModel.drainPendingUploadsOnAppActive()`.
@@ -80,7 +81,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 - Persistent cloud sync controls, repeated syncs, policy changes, and warning state: `DatabaseViewModelCloudSyncTests`. The status popover workflow is covered by `CloudUnlockSmokeUITests` and `MacWebDAVSmokeUITests`.
 - Mac automatic prompts, their trigger notifications, and queued-event invalidation: `MacBiometricAutoUnlockTests`.
-- Routing and launch order: `AppRoutingCoordinatorTests`. Menu password copy: `EntrySecretActionTests`. Lock triggers: `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `AutoLockTests`. iOS window activity forwarding: `IOSUserActivityTests`; real editor typing, scrolling, button taps, and subsequent idle locking: `AutoLockActivityUITests`.
+- Routing and launch order: `AppRoutingCoordinatorTests`. Menu password copy: `EntrySecretActionTests`. Lock triggers: `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `AutoLockTests`. Multi-session event delivery and database-list retirement: `DatabaseSessionStoreTests`; Settings effects: `AppSettingsViewModelTests`. iOS window activity forwarding: `IOSUserActivityTests`; real editor typing, scrolling, button taps, and subsequent idle locking: `AutoLockActivityUITests`.
 - Mac list selection and keyboard wiring exists only as UI: `MacSmokeUITests` (the `testDownArrow…` and double-click cases) and `MacListKeyboardNavigationUITests`.
 - Sidebar custom-icon data and recycle-bin icon projection: the macOS cases in `GroupIconViewTests`.
 - Which sidebar widths count as the preference: `MacSidebarWidthSamplerTests`. Divider restoration across repeated lock/unlock cycles: `MacSmokeUITests.testSidebarWidthSurvivesRepeatedLockUnlockCycles`; native split-view layout requires the UI test.
