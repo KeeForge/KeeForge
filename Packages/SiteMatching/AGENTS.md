@@ -15,7 +15,7 @@ Each rule has a test whose name starts with its ID (`testH4…`); `Specification
 
 ### Hosts
 
-- **H1 Parsing.** A stored value or request is trimmed of surrounding whitespace and parsed with Foundation's `URL` (RFC 3986). A value with no host is parsed again as `https://<value>`, so bare hosts, `host:port`, and `host/path` work. The host of any scheme counts. User info, path, query, and fragment are ignored. A value with no host, or an empty one, names no site.
+- **H1 Parsing.** A stored value or request is trimmed of surrounding whitespace and parsed with Foundation's `URL` (RFC 3986). Only `http` and `https` URLs name a site; a value without a scheme is read as `https://<value>`, so bare hosts, `host:port`, and `host/path` work. Any other scheme names no site: `androidapp://com.mybank.app`, as Android KeePass clients store apps, would otherwise be a subdomain of the unrelated `mybank.app`, and the same holds for `ftp://`, `ssh://`, `otpauth://`, `file://`, and `cmd://`. A backslash counts as a slash, as browsers read http and https URLs, so `https://example.com\@other.example` names `example.com`. User info, path, query, and fragment are ignored. A value that does not parse, or parses to an empty host, names no site; it is never parsed a second time.
 - **H2 Schemes and ports.** Matching compares hosts only. `http` and `https` name the same site, and a port does not separate sites.
 - **H3 Case, trailing dots, internationalized names.** Hosts are lowercased and lose trailing dots. Internationalized names are compared in the ASCII (punycode) form Foundation produces, which is the form browsers request.
 - **H4 Leading `www`.** One leading `www.` label is dropped when the rest has a registrable domain (H5) and kept otherwise: `www.example.co.uk` is `example.co.uk`, while `www.co.uk`, `www.localhost`, and `www.1.1` stay as they are.
@@ -47,13 +47,13 @@ Passwords and one-time codes use the same tiers; the app decides which tier a fl
 ### Passkeys
 
 - **K1 Relying-party key.** Two relying-party identifiers compare equal when their hosts are equal under H1–H7, so `www.example.com` equals `example.com` but `www.co.uk` does not equal `co.uk`. There is no subdomain relation: a passkey for `login.example.com` is not offered to `example.com`.
-- **K2 Unparsable relying parties.** An identifier with no host is compared as given, trimmed, lowercased, without trailing dots, and with H4 applied.
+- **K2 Unparsable relying parties.** An identifier that names no site is compared as given, trimmed, lowercased, without trailing dots, and with H4 applied.
 
 ### Publishing
 
 - **P1 Publishable.** A host may stand for a site outside the vault only when it has a registrable domain (H5). The check runs on the normalized host, after H4.
-- **P2 Password identities.** A password identity publishes the publishable host of each URL field, whatever its scheme.
-- **P3 One-time-code identities.** A one-time-code identity publishes `SiteHost(publishableWebURL:)`: the publishable host of each `http` or `https` URL or bare host. An `otpauth://` or other non-web URL publishes nothing.
+- **P2 Password identities.** A password identity publishes the publishable host of each URL field that names a site (H1).
+- **P3 One-time-code identities.** A one-time-code identity publishes `SiteHost(publishableWebURL:)` for each URL field: the same host P2 publishes.
 - **P4 Published equals matched.** A host published to the system identity store always equals the host matching computes from the same stored value. Both come from `SiteHost` parsing; nothing else derives a host.
 
 A rule change that alters published identities takes effect at each database's next unlock, which republishes its identities. The app owns that refresh and its test (`../../KeeForge/Services/AutoFill/AGENTS.md`).
@@ -64,7 +64,7 @@ The known-answer suites list only these, each with its reason in the test. A vec
 
 - **Public Suffix List** (`PublicSuffixListVectorTests`): a leading empty label (`.example.com`) is ignored rather than rejected, so the host counts as part of the domain that follows. Matching and publishing agree on it (P4).
 - **WHATWG host parsing** (`WHATWGHostVectorTests`). Foundation follows RFC 3986, not the URL Standard browsers use. Every accepted difference but the last fails closed: the stored value names no host a browser requests, so it matches nothing a browser asks for.
-  - Embedded tab or newline, backslashes, and characters RFC 3986 forbids in a host: Foundation rejects the URL.
+  - Embedded tab or newline, and characters RFC 3986 forbids in a host: Foundation rejects the URL, so it names no site.
   - IPv4 number forms (hex, octal, shortened) and IPv6 serialization: kept as written instead of rewritten to the canonical address, so they match only the same spelling. Those whose last label is a number are still IP addresses under H6.
   - Percent-encoded and fullwidth host characters: not decoded, so the host is one no browser requests.
   - Brackets around a domain (`http://[google.com]`): Foundation reads the domain inside. Matching and publishing agree on it (P4).

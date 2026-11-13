@@ -33,7 +33,7 @@ SiteHost("https://WWW.Example.co.uk:8443/login")?.name   // "example.co.uk"
 SiteHost("https://www.co.uk")?.name                      // "www.co.uk": www is the registrable label
 SiteHost("https://192.168.1.1")?.isPublishable           // false: an IP address
 SiteHost("https://www.www.example.com")?.name            // "www.example.com": one www, once
-SiteHost(publishableWebURL: "otpauth://totp/x")          // nil: not a web URL
+SiteHost("androidapp://com.mybank.app")                  // nil: only http, https, or no scheme
 SiteRequest.url("https://example.com/a?b").website?.url  // "https://example.com"
 ```
 

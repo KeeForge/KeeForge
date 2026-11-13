@@ -6,7 +6,7 @@ final class SiteHostTests: XCTestCase {
 
     // MARK: - Hosts
 
-    func testH1ParsesURLsAndBareHostsOfAnyScheme() {
+    func testH1ParsesWebURLsAndBareHosts() {
         let cases: [(input: String, host: String)] = [
             ("https://github.com/login", "github.com"),
             ("https://example.com/path?q=1#section", "example.com"),
@@ -14,8 +14,9 @@ final class SiteHostTests: XCTestCase {
             ("http://account:secret@wiki.example.com/login?token=abc#top", "wiki.example.com"),
             ("example.com", "example.com"),
             ("example.com/login", "example.com"),
-            ("ftp://files.example.com", "files.example.com"),
-            ("otpauth://totp/x", "totp"),
+            ("example.com/redirect?to=https://other.example", "example.com"),
+            ("1password.com/login?next=https://other.example", "1password.com"),
+            ("localhost:3000", "localhost"),
         ]
         for testCase in cases {
             XCTAssertEqual(SiteHost(testCase.input)?.name, testCase.host, testCase.input)
@@ -35,18 +36,40 @@ final class SiteHostTests: XCTestCase {
         XCTAssertEqual(SiteHost.parse("https://."), "")
     }
 
-    /// Foundation rejects these, and the `https://` retry reads the original
-    /// scheme as the host: a single label, which matches only itself (T3).
-    func testH1URLFoundationRejectsIsReadAsItsSchemeLabel() {
-        XCTAssertEqual(SiteHost("http://ho st/")?.name, "http")
-        XCTAssertEqual(SiteHost("https://")?.name, "https")
-        XCTAssertEqual(SiteHost("http://ho st/")?.isPublishable, false)
+    /// Android KeePass clients store apps as `androidapp://<package>`, whose
+    /// host would otherwise be a subdomain of an unrelated website.
+    func testH1OtherSchemesNameNoSite() {
+        for input in [
+            "androidapp://com.mybank.app", "ftp://files.example.com", "ssh://server.example.com:22", "otpauth://totp/x",
+            "file:///Users/x/notes.txt", "cmd://open https://example.com", "kdbx://other.kdbx",
+        ] {
+            XCTAssertNil(SiteHost(input), input)
+        }
+    }
+
+    /// A value with a scheme is never parsed a second time, so a URL
+    /// Foundation rejects is not read as a host named after its scheme.
+    func testH1URLFoundationRejectsNamesNoSite() {
+        for input in ["http://ho st/", "https://my site.com", "https://", "https://example\t.com"] {
+            XCTAssertNil(SiteHost(input), input.debugDescription)
+        }
+    }
+
+    func testH1BackslashIsReadAsASlashAsInBrowsers() {
+        let cases: [(input: String, host: String)] = [
+            ("https://example.com\\@evil.example", "example.com"),
+            ("https:\\\\example.com\\login", "example.com"),
+            ("example.com\\login", "example.com"),
+        ]
+        for testCase in cases {
+            XCTAssertEqual(SiteHost(testCase.input)?.name, testCase.host, testCase.input)
+        }
     }
 
     func testH2SchemesAndPortsDoNotSeparateHosts() {
         let hosts = [
             "https://example.com", "http://example.com", "https://example.com:8443/login",
-            "example.com:8080", "http://example.com:80", "ftp://example.com",
+            "example.com:8080", "http://example.com:80", "HTTPS://example.com",
         ].map { SiteHost($0) }
         XCTAssertEqual(Set(hosts), [SiteHost("example.com")])
     }
@@ -197,11 +220,14 @@ final class SiteHostTests: XCTestCase {
         }
     }
 
-    func testP2PasswordIdentityPublishesTheHostOfAnyScheme() {
+    func testP2PasswordIdentityPublishesOnlyWebHosts() {
         let cases: [(input: String, host: String?)] = [
             ("https://login.example.com/a", "login.example.com"),
-            ("ftp://files.example.com", "files.example.com"),
-            ("ssh://server.example.com:22", "server.example.com"),
+            ("http://login.example.com/a", "login.example.com"),
+            ("login.example.com", "login.example.com"),
+            ("ftp://files.example.com", nil),
+            ("ssh://server.example.com:22", nil),
+            ("androidapp://com.mybank.app", nil),
             ("otpauth://totp/example:user", nil),
             ("A1B2C3D4E5.com.mybank.app/login", "a1b2c3d4e5.com.mybank.app"),
         ]
@@ -273,7 +299,7 @@ final class SiteHostTests: XCTestCase {
     }
 
     func testK2UnparsableRelyingPartyIsNormalizedAsGiven() {
-        XCTAssertEqual(SiteHost.relyingPartyKey("http://ho st"), "http", "Falls back like SiteHost parsing")
+        XCTAssertEqual(SiteHost.relyingPartyKey("http://ho st"), "http://ho st")
         XCTAssertEqual(SiteHost.relyingPartyKey("WWW.A B."), "www.a b")
         XCTAssertEqual(SiteHost.relyingPartyKey("A B"), "a b")
     }

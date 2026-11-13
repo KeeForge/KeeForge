@@ -8,26 +8,19 @@ import PublicSuffixList
 public struct SiteHost: Hashable, Sendable, CustomStringConvertible {
     public let name: String
 
-    /// The host of a URL, or of a bare host with an optional port and path.
-    /// Nil when nothing parses to a non-empty host. Any scheme is accepted.
+    /// The host of an `http` or `https` URL, or of a bare host with an
+    /// optional port and path. Nil for any other scheme and when nothing
+    /// parses to a non-empty host: `androidapp://com.example.app` and
+    /// `otpauth://totp/…` name no website.
     public init?(_ urlOrHost: String) {
         guard let name = Self.parse(urlOrHost), !name.isEmpty else { return nil }
         self.name = name
     }
 
-    /// The host of an `http` or `https` URL, or of a bare host, when it is
-    /// publishable. Other schemes carry no web host and are dropped rather
-    /// than coerced into one: an `otpauth://totp/…` authority is not a domain.
+    /// The host `init?(_:)` reads, when it is publishable.
     public init?(publishableWebURL value: String) {
-        guard let url = Self.url(value),
-              let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https",
-              let host = url.host
-        else { return nil }
-
-        let name = Self.normalize(host)
-        guard Self.registrableDomain(of: name) != nil else { return nil }
-        self.name = name
+        guard let host = SiteHost(value), host.isPublishable else { return nil }
+        self = host
     }
 
     public var description: String { name }
@@ -67,8 +60,8 @@ public struct SiteHost: Hashable, Sendable, CustomStringConvertible {
     /// registrable domain. A parent without one has no subdomains, so neither
     /// `co.uk` nor an IP address stands for the hosts beneath it.
     func isSubdomain(of parent: SiteHost) -> Bool {
-        guard let domain = parent.registrableDomain else { return false }
-        return name.hasSuffix(".\(parent.name)") && registrableDomain == domain
+        guard name.hasSuffix(".\(parent.name)"), let domain = parent.registrableDomain else { return false }
+        return registrableDomain == domain
     }
 
     /// URL-or-host parsing. Unlike `init?(_:)` it can return an empty host
@@ -77,13 +70,27 @@ public struct SiteHost: Hashable, Sendable, CustomStringConvertible {
         url(value)?.host.map(normalize)
     }
 
-    /// The URL a stored value names. A value with no host is retried as
-    /// `https://<value>`: `example.com:8080` parses with `example.com` as its
-    /// scheme and no host at all.
+    /// The `http` or `https` URL a value names. A value without a scheme is
+    /// read as `https://<value>`; `example.com:8080` would otherwise parse
+    /// with `example.com` as its scheme.
     static func url(_ value: String) -> URL? {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let url = URL(string: trimmed), url.host != nil { return url }
-        return URL(string: "https://\(trimmed)").flatMap { $0.host == nil ? nil : $0 }
+        // Browsers read `\` as `/` in http and https URLs, so the host of
+        // `https://a.com\@b.com` is `a.com`; Foundation would read `b.com`.
+        var text = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.contains("\\") { text = text.replacingOccurrences(of: "\\", with: "/") }
+        if !hasScheme(text) { text = "https://\(text)" }
+        guard let url = URL(string: text), url.host != nil,
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https"
+        else { return nil }
+        return url
+    }
+
+    /// Whether the value starts with an RFC 3986 scheme and `://`.
+    static func hasScheme(_ value: String) -> Bool {
+        guard let separator = value.range(of: "://") else { return false }
+        let scheme = value[..<separator.lowerBound]
+        guard let first = scheme.first, first.isASCII, first.isLetter else { return false }
+        return scheme.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "+-.".contains($0)) }
     }
 
     /// Applied exactly once to every host, stored or requested.

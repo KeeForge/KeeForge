@@ -209,6 +209,20 @@ final class SiteMatcherTests: XCTestCase {
         )
     }
 
+    // MARK: - Web URLs only (H1)
+
+    func testH1NonWebStoredURLDoesNotMatchAWebsite() {
+        let android = candidate("androidapp://com.mybank.app")
+        let ftp = candidate("ftp://files.mybank.app")
+        let site = candidate("https://login.mybank.app")
+        for request in [SiteRequest.domain("mybank.app"), .url("https://mybank.app/login"), .domain("com.mybank.app")] {
+            XCTAssertFalse(SiteMatcher.strictMatches([android, ftp, site], for: [request]).contains(android.id), "\(request)")
+            XCTAssertTrue(SiteMatcher.possibleCandidates([android, ftp], for: [request]).isEmpty, "\(request)")
+        }
+        XCTAssertEqual(SiteMatcher.strictMatches([android, ftp, site], for: [.domain("mybank.app")]), [site.id])
+        XCTAssertTrue(SiteMatcher.strictMatches([candidate("https://my site.com")], for: [.domain("https")]).isEmpty)
+    }
+
     // MARK: - Requests
 
     func testR1RequestWithoutAHostMatchesNothingAndHidesNothing() {

@@ -11,15 +11,12 @@ import XCTest
 final class WHATWGHostVectorTests: XCTestCase {
     private static let hostDivergences: [String: String] = [
         // WHATWG strips ASCII tab and newline anywhere; Foundation rejects
-        // the URL and the `https://` retry yields the scheme as host.
+        // the URL, so it names no host.
         "http://example\t.\norg": "tab or newline",
         "http://f:\n/c": "tab or newline",
         "http://ho\tst/": "tab or newline",
         "http://ho\nst/": "tab or newline",
         "http://ho\rst/": "tab or newline",
-        // WHATWG reads `\` as `/` in special URLs.
-        "http://a:b@c\\": "backslash",
-        "http://example.com\\\\foo\\\\bar": "backslash",
         // WHATWG accepts characters RFC 3986 forbids in a host.
         "http://!\"$&'()*+,-.;=_`{}~/": "host code points",
         // WHATWG reads hex, octal, and shortened IPv4 forms as addresses and
@@ -65,8 +62,13 @@ final class WHATWGHostVectorTests: XCTestCase {
         let fixture = try Self.fixture()
         XCTAssertEqual(fixture.hosts.count, 167, "Fixture changed; review the divergence list")
 
-        for vector in fixture.hosts where Self.hostDivergences[vector.input] == nil {
-            XCTAssertEqual(SiteHost.parse(vector.input), Self.siteForm(of: vector.hostname), vector.input.debugDescription)
+        for vector in fixture.hosts {
+            let host = SiteHost.parse(vector.input), expected = Self.siteForm(of: vector.hostname)
+            if Self.hostDivergences[vector.input] != nil {
+                XCTAssertNotEqual(host, expected, "\(vector.input.debugDescription) now agrees; drop it from the list")
+            } else {
+                XCTAssertEqual(host, expected, vector.input.debugDescription)
+            }
         }
         let inputs = Set(fixture.hosts.map(\.input))
         XCTAssertEqual(Set(Self.hostDivergences.keys).subtracting(inputs), [], "Divergence listed for a missing vector")

@@ -885,7 +885,8 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
     /// change that alters them reaches the store at each database's next
     /// unlock, whose refresh must drop what the earlier rules published. Here
     /// those rules published `foo.1.2.3.4` and `www.1.1` (as `1.1`), which
-    /// the URL Standard reads as IP addresses (`Packages/SiteMatching`, H6, P1).
+    /// the URL Standard reads as IP addresses, and the host of an Android app
+    /// URL (`Packages/SiteMatching`, H1, H6, P1).
     func testRefreshAfterASiteMatchingRuleChangeDropsIdentitiesTheEarlierRulesPublished() async throws {
         guard #available(iOS 18.0, macOS 15.0, *) else {
             throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
@@ -903,12 +904,21 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
                 username: "admin",
                 hasPassword: true,
                 hasTOTP: true,
-                customFields: ["KP2A_URL_1": "https://www.1.1", "KP2A_URL_2": "https://login.example.com"]
+                customFields: [
+                    "KP2A_URL_1": "https://www.1.1",
+                    "KP2A_URL_2": "https://login.example.com",
+                    "KP2A_URL_3": "androidapp://com.mybank.app",
+                ]
             )
             let recordIdentifier = CredentialRecordIdentifier(databaseID: databaseID, entryID: entry.id).encoded
             let earlierIdentities: [any ASCredentialIdentity] = [
                 ASPasswordCredentialIdentity(
                     serviceIdentifier: ASCredentialServiceIdentifier(identifier: "https://foo.1.2.3.4", type: .URL),
+                    user: "admin",
+                    recordIdentifier: recordIdentifier
+                ),
+                ASPasswordCredentialIdentity(
+                    serviceIdentifier: ASCredentialServiceIdentifier(identifier: "https://com.mybank.app", type: .URL),
                     user: "admin",
                     recordIdentifier: recordIdentifier
                 ),

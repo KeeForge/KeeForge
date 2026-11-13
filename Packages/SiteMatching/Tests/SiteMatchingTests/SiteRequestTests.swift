@@ -12,6 +12,8 @@ final class SiteRequestTests: XCTestCase {
         XCTAssertEqual(SiteRequest.url("https://github.com/login").host?.name, "github.com")
         XCTAssertEqual(SiteRequest.url("https://www.www.example.com/a").host?.name, "www.example.com")
         XCTAssertNil(SiteRequest.url("not a url").host)
+        XCTAssertNil(SiteRequest.url("ftp://files.example.com").host)
+        XCTAssertNil(SiteRequest.url("https://my site.com").host)
         XCTAssertNil(SiteRequest.domain("").host)
     }
 
