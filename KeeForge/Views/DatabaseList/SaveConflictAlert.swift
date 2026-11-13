@@ -2,54 +2,71 @@ import SwiftUI
 
 struct SaveConflictAlertModifier: ViewModifier {
     @Bindable var viewModel: DatabaseViewModel
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isPresented = false
     @State private var showsLocalRecovery = false
 
     func body(content: Content) -> some View {
         content
+            .onReceive(NotificationCenter.default.publisher(for: PendingLocalSaveStore.didChange)) { _ in
+                Task { await viewModel.refreshLocalConflictRecovery() }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await viewModel.refreshLocalConflictRecovery() } }
+            }
             .onChange(of: viewModel.saveConflict) { _, newValue in
                 if newValue != nil {
                     isPresented = true
                 }
             }
             .alert("Save Conflict", isPresented: $isPresented) {
-                Button("Merge Changes") {
-                    Task {
-                        do {
-                            try await viewModel.mergeAndSave()
-                        } catch {
-                            viewModel.presentSaveError(error)
+                if viewModel.saveConflict?.requiresLocalRecovery == true {
+                    Button("Database Details") { showsLocalRecovery = true }
+                        .accessibilityIdentifier("save-conflict.recovery")
+                } else {
+                    Button("Merge Changes") {
+                        Task {
+                            do {
+                                try await viewModel.mergeAndSave()
+                            } catch {
+                                viewModel.presentSaveError(error)
+                            }
                         }
                     }
-                }
-                .accessibilityIdentifier("save-conflict.merge")
+                    .accessibilityIdentifier("save-conflict.merge")
 
-                Button("Reload and Re-edit") {
-                    Task {
-                        do {
-                            try await viewModel.reloadDiscardingDraft()
-                        } catch {
-                            viewModel.presentSaveError(error)
+                    Button("Reload and Re-edit") {
+                        Task {
+                            do {
+                                try await viewModel.reloadDiscardingDraft()
+                            } catch {
+                                viewModel.presentSaveError(error)
+                            }
                         }
                     }
-                }
-                .accessibilityIdentifier("save-conflict.reload")
+                    .accessibilityIdentifier("save-conflict.reload")
 
-                Button("Save as Conflict Copy") {
-                    Task {
-                        do {
-                            try await viewModel.saveAsConflictCopy()
-                        } catch {
-                            viewModel.presentSaveError(error)
+                    Button("Save as Conflict Copy") {
+                        Task {
+                            do {
+                                try await viewModel.saveAsConflictCopy()
+                            } catch {
+                                viewModel.presentSaveError(error)
+                            }
                         }
                     }
+                    .accessibilityIdentifier("save-conflict.save-as-copy")
+
                 }
-                .accessibilityIdentifier("save-conflict.save-as-copy")
 
                 Button("Cancel", role: .cancel) {}
                     .accessibilityIdentifier("save-conflict.cancel")
             } message: {
-                Text("The database changed outside KeeForge. Merge both sets of changes, reload it, or save your draft as a sibling conflict copy.")
+                if viewModel.saveConflict?.requiresLocalRecovery == true {
+                    Text("Local recovery is still pending. Keep your draft and open Database Details to export unsaved changes and review recovery actions.")
+                } else {
+                    Text("The database changed outside KeeForge. Merge both sets of changes, reload it, or save your draft as a sibling conflict copy.")
+                }
             }
             .alert(
                 "Changes Merged",

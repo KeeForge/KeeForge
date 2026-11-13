@@ -566,7 +566,7 @@ final class DatabaseViewModelTests: XCTestCase {
         var reference = try makeReference()
         reference.bookmarkData = Data("invalid-bookmark".utf8)
 
-        try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: fixtureURL()), for: reference.id)
+        try writeAtomicallyAndDurably(Data(contentsOf: fixtureURL()), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
 
         await vm.unlock(password: fixturePassword)
@@ -767,7 +767,7 @@ final class DatabaseViewModelTests: XCTestCase {
         var reference = try TestDatabaseSupport.makeReference(for: fixtureURL(), nickname: "Synced")
         reference.bookmarkData = Data("unresolvable-bookmark".utf8)
         DatabaseListStore.update(reference)
-        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: reference.id)
+        try writeAtomicallyAndDurably(fixtureData, to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
 
         await vm.unlock(password: fixturePassword)
@@ -3668,7 +3668,7 @@ final class DatabaseViewModelTests: XCTestCase {
         var reference = try makeReference()
         reference.bookmarkData = Data("invalid-bookmark".utf8)
 
-        try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: fixtureURL()), for: reference.id)
+        try writeAtomicallyAndDurably(Data(contentsOf: fixtureURL()), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
 
         await vm.unlock(password: fixturePassword)
@@ -6773,14 +6773,236 @@ final class DatabaseViewModelTests: XCTestCase {
         vm.lock()
     }
 
-    func testRestartRollbackKeepsProvenNewKeyCopyReadableWithoutAuthorizingOldTargetWrites() async throws {
+    func testDurableSettlementWithdrawsWitnessAndAnExplicitOlderRestoreUsesMainSemantics() async throws {
+        let setup = try await makeLocalInteropSetup()
+        let settled = setup.vm.databaseReference
+        XCTAssertNil(try PendingLocalSaveStore.recovery(for: settled.id).keyEvidence)
+        let epoch = try PendingLocalSaveStore.captureCacheReadLease(for: settled).epochID
+        setup.vm.lock()
+        try setup.original.write(to: setup.url, options: .atomic)
+        try await DatabaseListViewModel().setKeyFile(url: nil, for: settled)
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == settled.id })
+        let reopened = try makeViewModel(reference: current)
+        defer { reopened.lock() }
+        await reopened.unlock(password: fixturePassword)
+        XCTAssertEqual(reopened.state, .unlocked)
+        let details = PendingLocalRecoveryViewModel(databaseID: current.id, reference: current)
+        await details.refresh()
+        XCTAssertFalse(details.targetNeedsRecovery)
+        try reopened.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(reopened.rootGroup)),
+            draft: EntryDraftPayload(title: "Explicitly Restored Old Vault", password: "user choice")))
+        try await reopened.save()
+        let saved = try Data(contentsOf: setup.url)
+        let parsed = try KDBXParser.parse(data: saved, password: fixturePassword, sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertTrue(parsed.allEntries.contains { $0.title == "Explicitly Restored Old Vault" })
+        XCTAssertNil(try PendingLocalSaveStore.recovery(for: current.id).keyEvidence)
+        XCTAssertEqual(try PendingLocalSaveStore.captureCacheReadLease(for: current).epochID, epoch)
+        var stale = current
+        stale.lastMasterKeyChangeAt = nil
+        XCTAssertThrowsError(try PendingLocalSaveStore.captureCacheReadLease(for: stale))
+        XCTAssertThrowsError(try PendingLocalSaveStore.prepareSource(saved, for: current.id,
+            masterKeyChangedAt: nil, baseCacheSHA512: FileDigest.sha512(saved)))
+        let pending = try PendingLocalSaveStore.recovery(for: current.id)
+        XCTAssertTrue(PendingLocalSaveStore.saves(for: current.id).isEmpty)
+        XCTAssertEqual(try PendingLocalSaveStore.export(XCTUnwrap(pending.receipts.first), for: current.id), saved)
+    }
+
+    private func writeSameKeyExternalChange(_ setup: LocalInteropSetup, title: String) async throws {
+        let key = try XCTUnwrap(setup.vm.compositeKey)
+        try await Task.detached {
+            let session = SymmetricKey(size: .bits256)
+            let opened = try KDBXParser.parse(data: Data(contentsOf: setup.url), compositeKey: key, sessionKey: session, kdfPolicy: .mainApp)
+            let dirty = try DatabaseDraft(rootGroup: opened.rootGroup, meta: opened.meta, sessionKey: session,
+                binaryPoolFields: opened.header.innerHeaderBinaryFields).apply(.createEntry(
+                    parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: opened.rootGroup),
+                    draft: EntryDraftPayload(title: title, password: "external change")))
+            try CoordinatedFileReader.writeData(dirty.write(compositeKey: key, header: opened.header, kdfPolicy: .mainApp),
+                to: setup.url, options: .atomicProtected)
+        }.value
+    }
+
+    func testSettledExternalSameKeyConflictUsesExistingMergeReloadAndSaveWithoutAdoption() async throws {
+        let setup = try await makeLocalInteropSetup()
+        defer { setup.vm.lock() }
+        try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
+            draft: EntryDraftPayload(title: "Local Before Merge", password: "local")))
+        try await writeSameKeyExternalChange(setup, title: "External Before Merge")
+        try await setup.vm.save()
+        XCTAssertEqual(setup.vm.saveConflict?.requiresLocalRecovery, false)
+        try await setup.vm.mergeAndSave()
+        XCTAssertTrue(setup.vm.rootGroup?.allEntries.contains { $0.title == "Local Before Merge" } == true)
+        XCTAssertTrue(setup.vm.rootGroup?.allEntries.contains { $0.title == "External Before Merge" } == true)
+        XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id).keyEvidence)
+        try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
+            draft: EntryDraftPayload(title: "Deliberately Discard This Draft", password: "discard")))
+        try await writeSameKeyExternalChange(setup, title: "External Before Reload")
+        try await setup.vm.save()
+        XCTAssertEqual(setup.vm.saveConflict?.requiresLocalRecovery, false)
+        try await setup.vm.reloadDiscardingDraft()
+        XCTAssertFalse(setup.vm.isDirty)
+        XCTAssertFalse(setup.vm.rootGroup?.allEntries.contains { $0.title == "Deliberately Discard This Draft" } == true)
+        XCTAssertTrue(setup.vm.rootGroup?.allEntries.contains { $0.title == "External Before Reload" } == true)
+        try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
+            draft: EntryDraftPayload(title: "Explicit After Reload", password: "save")))
+        try await setup.vm.save()
+        let parsed = try KDBXParser.parse(data: Data(contentsOf: setup.url), compositeKey: XCTUnwrap(setup.vm.compositeKey),
+            sessionKey: XCTUnwrap(setup.vm.sessionKey), kdfPolicy: .mainApp)
+        XCTAssertTrue(parsed.rootGroup.allEntries.contains { $0.title == "Explicit After Reload" })
+        XCTAssertTrue(parsed.rootGroup.allEntries.contains { $0.title == "External Before Merge" })
+        XCTAssertTrue(parsed.rootGroup.allEntries.contains { $0.title == "Local Before Merge" })
+        XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id).keyEvidence)
+    }
+
+    func testActiveUnconfirmedConflictCannotReloadDiscardOrMergeAwayTheDraft() async throws {
+        let setup = try await makeLocalInteropSetup(unconfirmed: true)
+        defer { setup.vm.lock() }
+        try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
+            draft: EntryDraftPayload(title: "Keep During Recovery", password: "preserve")))
+        let draft = try XCTUnwrap(setup.vm.draft)
+        try setup.original.write(to: setup.url, options: .atomic)
+        try await setup.vm.save()
+        XCTAssertEqual(setup.vm.saveConflict?.requiresLocalRecovery, true)
+        do { try await setup.vm.reloadDiscardingDraft(); XCTFail("Active recovery cannot discard edits through Reload") }
+        catch { XCTAssertTrue(error is PendingLocalSaveStore.OwnershipError) }
+        do { try await setup.vm.mergeAndSave(); XCTFail("Active recovery cannot promise normal merge permission") }
+        catch { XCTAssertTrue(error is PendingLocalSaveStore.OwnershipError) }
+        XCTAssertEqual(setup.vm.draft?.pendingEdits, draft.pendingEdits)
+        XCTAssertEqual(setup.vm.state, .unlocked)
+        XCTAssertTrue(setup.vm.pendingUploadMergeFailure?.offersLocalRecovery == true)
+        XCTAssertTrue(setup.vm.canExportLocalRecoveryDraft)
+        XCTAssertEqual(setup.effects.withLock { $0.crypto }, 1)
+        XCTAssertEqual(try Data(contentsOf: setup.url), setup.original)
+        let copy = try await setup.vm.makeLocalRecoveryExport()
+        let opened = try KDBXParser.parse(data: copy.data, compositeKey: XCTUnwrap(setup.vm.compositeKey),
+            sessionKey: XCTUnwrap(setup.vm.sessionKey), kdfPolicy: .mainApp)
+        XCTAssertTrue(opened.rootGroup.allEntries.contains { $0.title == "Keep During Recovery" })
+        let snapshot = try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id)
+        let cache = DatabaseListStore.cacheLocation(for: setup.vm.databaseReference)
+        let ciphertext = try Data(contentsOf: cache)
+        XCTAssertEqual(try PendingLocalSaveStore.discard(snapshot, abandonKeyRecord: true), .resolved)
+        XCTAssertTrue(PendingLocalSaveStore.isRevoked(setup.vm.databaseReference.id))
+        XCTAssertEqual(try Data(contentsOf: cache), ciphertext)
+        XCTAssertEqual(setup.vm.draft?.pendingEdits, draft.pendingEdits)
+    }
+
+    func testRecoveryStartingDuringReloadCannotDiscardTheExistingDraft() async throws {
+        let setup = try await makeLocalInteropSetup()
+        let reference = setup.vm.databaseReference
+        setup.vm.lock()
+        let gate = InFlightSaveGate()
+        let vm = try makeViewModel(reference: reference, reloadOperation: { reference, key in
+            let bytes = try Data(contentsOf: setup.url)
+            let sessionKey = SymmetricKey(size: .bits256)
+            let parsed = try await Task.detached {
+                try KDBXParser.parse(data: bytes, compositeKey: key, sessionKey: sessionKey, kdfPolicy: .mainApp)
+            }.value
+            await gate.parkFirstCall()
+            return DatabaseViewModel.ReloadedDatabase(reference: reference, rootGroup: parsed.rootGroup,
+                meta: parsed.meta, formatVersion: parsed.header.formatVersion, sessionKey: sessionKey,
+                openTimeSHA512: FileDigest.sha512(bytes), binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields),
+                encryptedSnapshot: bytes)
+        })
+        defer { vm.lock() }
+        await vm.unlock(password: "interop epoch key")
+        XCTAssertEqual(vm.state, .unlocked)
+        try vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(vm.rootGroup)),
+            draft: EntryDraftPayload(title: "Retain Across Reload Read", password: "keep")))
+        let draft = try XCTUnwrap(vm.draft)
+        let reload = Task { try await vm.reloadDiscardingDraft() }
+        await gate.firstCallStarted()
+        let bytes = try Data(contentsOf: setup.url)
+        let source = try PendingLocalSaveStore.prepareSource(bytes, for: reference.id,
+            masterKeyChangedAt: reference.lastMasterKeyChangeAt, baseCacheSHA512: FileDigest.sha512(bytes))
+        await gate.releaseFirstCall()
+        do { try await reload.value; XCTFail("Recovery that arrived during the read must prevent draft discard") }
+        catch { XCTAssertTrue(error is PendingLocalSaveStore.OwnershipError) }
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertEqual(vm.draft?.pendingEdits, draft.pendingEdits)
+        XCTAssertTrue(vm.rootGroup?.allEntries.contains { $0.title == "Retain Across Reload Read" } == true)
+        XCTAssertTrue(vm.pendingUploadMergeFailure?.offersLocalRecovery == true)
+        let recovery = try PendingLocalSaveStore.recovery(for: reference.id)
+        XCTAssertTrue(recovery.needsRecovery)
+        XCTAssertEqual(recovery.entries.count, 1)
+        XCTAssertEqual(try PendingLocalSaveStore.export(source.receipt, for: reference.id), bytes)
+    }
+
+    func testOrdinaryWarningWithGrownDraftExportsWithoutWitnessDiskOrReadableOwner() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("ordinary-draft-recovery.kdbx")
+        try Data(contentsOf: fixtureURL()).write(to: url)
+        let reference = try DatabaseListStore.add(url: url)
+        let gate = InFlightSaveGate()
+        let counts = OSAllocatedUnfairLock(initialState: (crypto: 0, replaces: 0))
+        let live = LocalDatabaseSaver.Environment.live
+        let vm = try makeViewModel(reference: reference, localSaveOperation: { draft, ref, key, hash, reconciled, newKey, settings in
+            await gate.parkFirstCall()
+            var environment = live
+            environment.encryptDraft = { draft, key, header, policy in
+                counts.withLock { $0.crypto += 1 }; return try live.encryptDraft(draft, key, header, policy)
+            }
+            environment.replaceFileAtomically = { data, target, baseline, authorization in
+                counts.withLock { $0.replaces += 1 }
+                var io = LocalDatabaseSaver.ReplacementIO()
+                io.synchronize = { _ in throw POSIXError(.EIO) }
+                return try LocalDatabaseSaver.replaceFileAtomically(data, at: target, expectedSHA512: baseline,
+                    authorization: authorization, io: io)
+            }
+            return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                openTimeSHA512: hash, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+        })
+        defer { vm.lock() }
+        await vm.unlock(password: fixturePassword)
+        let root = TestDatabaseSupport.visibleRootGroupID(in: try XCTUnwrap(vm.rootGroup))
+        try vm.applyEntryEdit(.createEntry(parentGroupID: root, draft: EntryDraftPayload(title: "Written Before Warning", password: "first")))
+        let save = Task { try await vm.save() }
+        await gate.firstCallStarted()
+        try vm.applyEntryEdit(.createEntry(parentGroupID: root, draft: EntryDraftPayload(title: "Only In Grown Draft", password: "second",
+            attachments: [.new(name: "draft.bin", data: Data("retained binary".utf8))])))
+        await gate.releaseFirstCall()
+        do { try await save.value; XCTFail("Expected final file sync warning") } catch { XCTAssertTrue(error is SaveDurabilityWarning) }
+        XCTAssertNil(try PendingLocalSaveStore.recovery(for: reference.id).keyEvidence)
+        XCTAssertEqual(counts.withLock { $0.crypto }, 1)
+        XCTAssertEqual(counts.withLock { $0.replaces }, 1)
+        let draft = try XCTUnwrap(vm.draft)
+        let expected = try CompatibilitySnapshot(rootGroup: draft.rootGroup, meta: draft.meta, sessionKey: draft.writerSessionKey,
+            binaryPool: BinaryPool(rawFields: draft.binaryPoolFields ?? []))
+        try FileManager.default.removeItem(at: url)
+        try FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
+        try FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
+        let owner = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(reference.id.uuidString)/owner.json")
+        try writeAtomicallyAndDurably(Data("{unreadable owner".utf8), to: owner)
+        XCTAssertTrue(try PendingLocalSaveStore.recovery(for: reference.id).ownerUnavailable)
+        XCTAssertTrue(vm.canExportLocalRecoveryDraft)
+        XCTAssertTrue(DatabaseDetailsView(reference: reference, sessionViewModel: vm).showsLocalDraftExport)
+        let exported = try await vm.makeLocalRecoveryExport()
+        let parsed = try KDBXParser.parse(data: exported.data, compositeKey: XCTUnwrap(vm.compositeKey),
+            sessionKey: draft.writerSessionKey, kdfPolicy: .mainApp)
+        let actual = try CompatibilitySnapshot(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: draft.writerSessionKey,
+            binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields))
+        try KDBXCompatibilitySupport.assertWholeTreeUnchanged(before: expected, after: actual)
+        XCTAssertEqual(expected.binaryPoolDigest, actual.binaryPoolDigest)
+        XCTAssertEqual(vm.draft?.pendingEdits, draft.pendingEdits)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+        vm.lock()
+        XCTAssertFalse(vm.canExportLocalRecoveryDraft)
+        XCTAssertFalse(DatabaseDetailsView(reference: reference, sessionViewModel: vm).showsLocalDraftExport)
+    }
+
+    func testRestartUnconfirmedKeyPublicationKeepsProvenNewKeyCopyWithoutAuthorizingOldTargetWrites() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("rollback-recovery.kdbx")
         let oldBytes = try Data(contentsOf: fixtureURL())
         try oldBytes.write(to: url)
-        let reference = try DatabaseListStore.add(url: url)
+        var reference = try DatabaseListStore.add(url: url)
+        reference.isDocumentsResident = true
+        DatabaseListStore.update(reference)
+        DatabaseListStore.documentsDirectoryOverride = folder
+        defer { DatabaseListStore.documentsDirectoryOverride = nil }
         let encryptions = OSAllocatedUnfairLock(initialState: 0)
         let live = LocalDatabaseSaver.Environment.live
         let operation: DatabaseViewModel.LocalSaveOperation = { draft, ref, key, hash, reconciled, newKey, settings in
@@ -6788,18 +7010,27 @@ final class DatabaseViewModelTests: XCTestCase {
             environment.encryptDraft = { draft, key, header, policy in
                 encryptions.withLock { $0 += 1 }; return try live.encryptDraft(draft, key, header, policy)
             }
+            environment.replaceFileAtomically = { data, target, baseline, authorization in
+                var io = LocalDatabaseSaver.ReplacementIO()
+                io.synchronize = { _ in throw POSIXError(.EACCES) }
+                return try LocalDatabaseSaver.replaceFileAtomically(data, at: target, expectedSHA512: baseline, authorization: authorization, io: io)
+            }
             return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
                 openTimeSHA512: hash, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
                 newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
         }
         let first = try makeViewModel(reference: reference, localSaveOperation: operation)
         await first.unlock(password: fixturePassword)
-        try await first.changeMasterKey(newPassword: "proven new key", newKeyFileData: nil,
-            newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+        do { try await first.changeMasterKey(newPassword: "proven new key", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil); XCTFail("Expected unconfirmed file durability") }
+        catch { XCTAssertTrue(error is SaveDurabilityWarning) }
         let installed = try Data(contentsOf: url)
         let updated = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
         first.lock()
         try oldBytes.write(to: url, options: .atomic)
+        DocumentsVaultScanner.scan(directory: folder)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: updated)), installed,
+            "Finder replacement and scan cannot overwrite the only proven new-key ciphertext during active uncertainty")
         let snapshot = try PendingLocalSaveStore.recovery(for: reference.id)
         let witness = try XCTUnwrap(snapshot.keyEvidence)
         let exportedWhileLocked = try await LocalDatabaseSaver.exportKeyEpochCopy(witness, for: updated)
@@ -6891,254 +7122,6 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     @discardableResult
-    private func writeExternalInteropEdit(_ setup: LocalInteropSetup, title: String = "External KeePass Edit",
-        wrongKey: Bool = false, attachment: Bool = false) async throws -> Data {
-        let key = try XCTUnwrap(setup.vm.compositeKey)
-        return try await Task.detached {
-            let session = SymmetricKey(size: .bits256)
-            let current = try KDBXParser.parse(data: setup.prior, compositeKey: key, sessionKey: session, kdfPolicy: .mainApp)
-            let rootID = TestDatabaseSupport.visibleRootGroupID(in: current.rootGroup)
-            let draft = try DatabaseDraft(rootGroup: current.rootGroup, meta: current.meta, sessionKey: session,
-                binaryPoolFields: current.header.innerHeaderBinaryFields).apply(.createEntry(parentGroupID: rootID,
-                    draft: EntryDraftPayload(title: title, password: "external password",
-                        attachments: attachment ? [.new(name: "external.bin", data: Data("different remote pool".utf8))] : [])))
-            let bytes = try draft.write(compositeKey: wrongKey ? SymmetricKey(size: .bits256) : key,
-                header: current.header, kdfPolicy: .mainApp)
-            try CoordinatedFileReader.writeData(bytes, to: setup.url, options: .atomicProtected)
-            return bytes
-        }.value
-    }
-
-    func testAuthenticatedExternalAdoptionPreservesDirtyLogThenRealSaveReopensFullMergedSnapshot() async throws {
-        let setup = try await makeLocalInteropSetup()
-        defer { setup.vm.lock() }
-        try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
-            draft: EntryDraftPayload(title: "Unsaved Local Edit", password: "local password",
-                attachments: [.new(name: "local.bin", data: Data("draft attachment".utf8))])))
-        let captured = try XCTUnwrap(setup.vm.draft)
-        let external = try await writeExternalInteropEdit(setup)
-        let before = try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id)
-        try await setup.vm.adoptAuthenticatedLocalFile()
-        XCTAssertEqual(try Data(contentsOf: setup.url), external)
-        XCTAssertEqual(setup.effects.withLock { $0.crypto }, 1)
-        XCTAssertEqual(setup.effects.withLock { $0.replace }, 1)
-        XCTAssertEqual(setup.vm.draft?.pendingEdits, captured.pendingEdits)
-        XCTAssertTrue(setup.vm.isDirty)
-        let adopted = try XCTUnwrap(setup.vm.draft)
-        XCTAssertTrue(adopted.rootGroup.allEntries.contains { $0.title == "External KeePass Edit" })
-        XCTAssertEqual(adopted.rootGroup.allEntries.filter { $0.title == "Unsaved Local Edit" }.count, 1)
-        let after = try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id)
-        XCTAssertEqual(after.keyEvidence?.epochID, before.keyEvidence?.epochID)
-        XCTAssertEqual(after.keyEvidence?.association, before.keyEvidence?.association)
-        XCTAssertEqual(after.associationVersion, before.associationVersion)
-        XCTAssertEqual(after.keyEvidence?.sha512, FileDigest.sha512(external))
-        let expected = try CompatibilitySnapshot(rootGroup: adopted.rootGroup, meta: adopted.meta,
-            sessionKey: adopted.writerSessionKey, binaryPool: BinaryPool(rawFields: adopted.binaryPoolFields ?? []))
-        try await setup.vm.save()
-        let reopened = try KDBXParser.parse(data: Data(contentsOf: setup.url), compositeKey: XCTUnwrap(setup.vm.compositeKey),
-            sessionKey: adopted.writerSessionKey, kdfPolicy: .mainApp)
-        let actual = try CompatibilitySnapshot(rootGroup: reopened.rootGroup, meta: reopened.meta,
-            sessionKey: adopted.writerSessionKey, binaryPool: BinaryPool(rawFields: reopened.header.innerHeaderBinaryFields))
-        try KDBXCompatibilitySupport.assertWholeTreeUnchanged(before: expected, after: actual)
-        XCTAssertEqual(actual.binaryPoolDigest, expected.binaryPoolDigest)
-        XCTAssertFalse(setup.vm.isDirty)
-        XCTAssertEqual(setup.effects.withLock { $0.crypto }, 2)
-        XCTAssertEqual(setup.effects.withLock { $0.replace }, 2)
-    }
-
-    func testAuthenticatedAdoptionDiscardKeepsExactExternalTreeMetaAndPool() async throws {
-        let setup = try await makeLocalInteropSetup()
-        defer { setup.vm.lock() }
-        try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
-            draft: EntryDraftPayload(title: "Discard Only This Draft", password: "unsaved")))
-        let external = try await writeExternalInteropEdit(setup)
-        try await setup.vm.adoptAuthenticatedLocalFile()
-        setup.vm.discardDraft()
-        XCTAssertTrue(setup.vm.rootGroup?.allEntries.contains { $0.title == "External KeePass Edit" } == true)
-        XCTAssertFalse(setup.vm.currentRootGroup?.allEntries.contains { $0.title == "Discard Only This Draft" } == true)
-        let parsed = try KDBXParser.parse(data: external, compositeKey: XCTUnwrap(setup.vm.compositeKey),
-            sessionKey: XCTUnwrap(setup.vm.sessionKey), kdfPolicy: .mainApp)
-        XCTAssertEqual(setup.vm.currentMeta, parsed.meta)
-        XCTAssertEqual(setup.vm.binaryPool?.rawFields, parsed.header.innerHeaderBinaryFields)
-        XCTAssertEqual(try Data(contentsOf: setup.url), external)
-        XCTAssertEqual(setup.effects.withLock { $0.crypto }, 1)
-    }
-
-    func testFailedAdoptionPublicationRetainsExactPriorRAMProofAcrossExplicitRecoveryAttempts() async throws {
-        let setup = try await makeLocalInteropSetup()
-        defer { setup.vm.lock() }
-        try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
-            draft: EntryDraftPayload(title: "Keep Through Publication Failure", password: "keep")))
-        let external = try await writeExternalInteropEdit(setup)
-        try FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: setup.vm.databaseReference))
-        try FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: setup.vm.databaseReference))
-        let witness = try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id)
-        var io = PendingLocalSaveStore.StorageIO()
-        io.fileIO = { _ in var writer = DurableFileWriteIO(); writer.write = { _, _, _ in 0 }; return writer }
-        for _ in 0..<2 {
-            do { try await setup.vm.adoptAuthenticatedLocalFile(ownerIO: io); XCTFail("Expected owner publication failure") }
-            catch { XCTAssertTrue(error is DatabaseViewModel.LocalAdoptionRecordFailure) }
-            XCTAssertTrue(setup.vm.isDirty)
-            XCTAssertEqual(try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id).keyEvidence, witness.keyEvidence)
-            XCTAssertEqual(try Data(contentsOf: setup.url), external)
-        }
-        try await setup.vm.adoptAuthenticatedLocalFile()
-        XCTAssertTrue(setup.vm.isDirty)
-        XCTAssertTrue(setup.vm.currentRootGroup?.allEntries.contains { $0.title == "Keep Through Publication Failure" } == true)
-        XCTAssertTrue(setup.vm.currentRootGroup?.allEntries.contains { $0.title == "External KeePass Edit" } == true)
-        XCTAssertEqual(setup.effects.withLock { $0.crypto }, 1)
-        XCTAssertEqual(setup.effects.withLock { $0.replace }, 1)
-    }
-
-    func testAdoptionAttachmentDivergencePreservesDraftLogPoolAndWitness() async throws {
-        let setup = try await makeLocalInteropSetup()
-        defer { setup.vm.lock() }
-        try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
-            draft: EntryDraftPayload(title: "Local Attachment", password: "keep",
-                attachments: [.new(name: "local.bin", data: Data("local pool".utf8))])))
-        let draft = try XCTUnwrap(setup.vm.draft)
-        try await writeExternalInteropEdit(setup, attachment: true)
-        let witness = try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id)
-        do { try await setup.vm.adoptAuthenticatedLocalFile(); XCTFail("Divergent attachment pools must decline") }
-        catch { XCTAssertEqual(error as? LocalDatabaseSaver.ExternalAdoptionFailure, .attachmentsDiverged) }
-        XCTAssertEqual(setup.vm.draft?.pendingEdits, draft.pendingEdits)
-        XCTAssertEqual(setup.vm.draft?.binaryPoolFields, draft.binaryPoolFields)
-        XCTAssertEqual(try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id).keyEvidence, witness.keyEvidence)
-        XCTAssertEqual(setup.effects.withLock { $0.crypto }, 1)
-    }
-
-    func testAdoptionRejectsWrongKeyOldKeyRollbackAndUnconfirmedWitnessWithoutMutation() async throws {
-        for fault in ["wrong-key", "old-key", "unconfirmed"] {
-            let setup = try await makeLocalInteropSetup(unconfirmed: fault == "unconfirmed")
-            defer { setup.vm.lock() }
-            if fault == "old-key" { try CoordinatedFileReader.writeData(setup.original, to: setup.url, options: .atomicProtected) }
-            else { try await writeExternalInteropEdit(setup, wrongKey: fault == "wrong-key") }
-            let before = try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id)
-            let registry = try Data(contentsOf: AppGroupContainer.url.appendingPathComponent("database-list.json"))
-            let target = try Data(contentsOf: setup.url)
-            do { try await setup.vm.adoptAuthenticatedLocalFile(); XCTFail("Unsafe adoption must reject") } catch {}
-            let after = try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id)
-            XCTAssertEqual(after.keyEvidence, before.keyEvidence)
-            XCTAssertEqual(after.ownerObservation, before.ownerObservation)
-            XCTAssertEqual(try Data(contentsOf: AppGroupContainer.url.appendingPathComponent("database-list.json")), registry)
-            XCTAssertEqual(try Data(contentsOf: setup.url), target)
-            XCTAssertEqual(setup.effects.withLock { $0.crypto }, 1)
-            XCTAssertEqual(setup.effects.withLock { $0.replace }, 1)
-        }
-    }
-
-    func testAdoptionFinalFenceRejectsLateWriterSourceAndRemoval() async throws {
-        for event in ["writer", "source", "removal", "relink"] {
-            let setup = try await makeLocalInteropSetup()
-            defer { setup.vm.lock() }
-            try await writeExternalInteropEdit(setup)
-            let witness = try XCTUnwrap(PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id).keyEvidence)
-            let beforeSHA = setup.vm.openTimeSHA512
-            let gate = InFlightSaveGate()
-            let operation = Task { try await setup.vm.adoptAuthenticatedLocalFile(beforeCommit: { await gate.parkFirstCall() }) }
-            await gate.firstCallStarted()
-            if event == "writer" { try await writeExternalInteropEdit(setup, title: "Later Writer") }
-            else if event == "source" {
-                _ = try PendingLocalSaveStore.prepareSource(setup.prior, for: setup.vm.databaseReference.id,
-                    masterKeyChangedAt: setup.vm.databaseReference.lastMasterKeyChangeAt, baseCacheSHA512: witness.sha512)
-            } else if event == "relink" {
-                let other = setup.url.deletingLastPathComponent().appendingPathComponent("relinked.kdbx")
-                try Data(contentsOf: setup.url).write(to: other)
-                XCTAssertNotNil(try DatabaseListStore.relinkLocalDatabase(id: setup.vm.databaseReference.id, to: other))
-            } else { XCTAssertTrue(DatabaseListStore.remove(id: setup.vm.databaseReference.id)) }
-            await gate.releaseFirstCall()
-            do { try await operation.value; XCTFail("Stale ownership must reject") } catch {}
-            XCTAssertEqual(setup.vm.openTimeSHA512, beforeSHA)
-            XCTAssertEqual(setup.effects.withLock { $0.crypto }, 1)
-            XCTAssertEqual(setup.effects.withLock { $0.replace }, 1)
-            if event == "source" { XCTAssertTrue(PendingLocalSaveStore.hasSaves(for: setup.vm.databaseReference.id)) }
-            if event == "removal" { XCTAssertTrue(try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id).isRevoked) }
-        }
-    }
-
-    func testNewEditLockAndCancellationDuringAdoptionPreserveDraftAndNeverResurrectSession() async throws {
-        for event in ["edit", "lock", "cancel"] {
-            let setup = try await makeLocalInteropSetup()
-            defer { setup.vm.lock() }
-            try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
-                draft: EntryDraftPayload(title: "Captured Draft", password: "keep")))
-            try await writeExternalInteropEdit(setup)
-            let before = try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id)
-            let gate = InFlightSaveGate()
-            let operation = Task { try await setup.vm.adoptAuthenticatedLocalFile(beforeCommit: { await gate.parkFirstCall() }) }
-            await gate.firstCallStarted()
-            if event == "edit" {
-                try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
-                    draft: EntryDraftPayload(title: "Newer Draft", password: "also keep")))
-            } else if event == "lock" { setup.vm.lock() }
-            else { operation.cancel() }
-            await gate.releaseFirstCall()
-            do { try await operation.value; XCTFail("Invalidated session must reject") } catch {}
-            XCTAssertEqual(try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id).keyEvidence, before.keyEvidence)
-            if event == "lock" {
-                XCTAssertEqual(setup.vm.state, .locked)
-                XCTAssertNil(setup.vm.authenticatedLocalCiphertext)
-                XCTAssertNil(setup.vm.draft)
-            } else {
-                XCTAssertTrue(setup.vm.isDirty)
-                XCTAssertTrue(setup.vm.currentRootGroup?.allEntries.contains { $0.title == "Captured Draft" } == true)
-                if event == "edit" { XCTAssertTrue(setup.vm.currentRootGroup?.allEntries.contains { $0.title == "Newer Draft" } == true) }
-            }
-            XCTAssertEqual(setup.effects.withLock { $0.crypto }, 1)
-        }
-    }
-
-    func testSaveDuringAdoptionCannotClearSameLogAndParentDenialStillAllowsFutureExplicitSave() async throws {
-        let setup = try await makeLocalInteropSetup()
-        defer { setup.vm.lock() }
-        try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
-            draft: EntryDraftPayload(title: "Dirty Through Adoption", password: "keep")))
-        let log = setup.vm.draft?.pendingEdits
-        try await writeExternalInteropEdit(setup)
-        let gate = InFlightSaveGate()
-        let operation = Task { try await setup.vm.adoptAuthenticatedLocalFile(beforeCommit: { await gate.parkFirstCall() },
-            synchronizeParent: { _ in throw POSIXError(.EACCES) }) }
-        await gate.firstCallStarted()
-        try await setup.vm.save()
-        XCTAssertEqual(setup.effects.withLock { $0.crypto }, 1)
-        await gate.releaseFirstCall()
-        do { try await operation.value; XCTFail("Expected known target durability warning") }
-        catch { XCTAssertTrue((error as? DatabaseViewModel.LocalAdoptionWarning)?.aspects.contains(.file) == true) }
-        XCTAssertEqual(setup.vm.draft?.pendingEdits, log)
-        XCTAssertTrue(setup.vm.isDirty)
-        XCTAssertTrue(try XCTUnwrap(PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id).keyEvidence).targetDurabilityUnconfirmed)
-        try await setup.vm.save()
-        XCTAssertFalse(setup.vm.isDirty)
-        XCTAssertTrue(setup.vm.rootGroup?.allEntries.contains { $0.title == "External KeePass Edit" } == true)
-        XCTAssertTrue(setup.vm.rootGroup?.allEntries.contains { $0.title == "Dirty Through Adoption" } == true)
-        XCTAssertEqual(setup.effects.withLock { $0.crypto }, 2)
-    }
-
-    func testMissingPriorWitnessRefusesAdoptionButAuthenticatedCurrentRAMExportsDraftWithoutDiskCopies() async throws {
-        let setup = try await makeLocalInteropSetup()
-        setup.vm.lock()
-        let external = try await writeExternalInteropEditAfterLock(setup)
-        let currentRef = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == setup.vm.databaseReference.id })
-        try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: currentRef))
-        try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: currentRef))
-        let vm = try makeViewModel(reference: currentRef)
-        defer { vm.lock() }
-        await vm.unlock(password: "interop epoch key")
-        XCTAssertEqual(vm.state, .unlocked)
-        try vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(vm.rootGroup)),
-            draft: EntryDraftPayload(title: "RAM Draft Escape", password: "keep")))
-        do { try await vm.adoptAuthenticatedLocalFile(); XCTFail("No previous authenticated witness") }
-        catch { XCTAssertTrue(error is DatabaseViewModel.ExternalAdoptionProofUnavailable) }
-        try FileManager.default.removeItem(at: setup.url)
-        let exported = try await vm.makeLocalRecoveryExport()
-        let opened = try KDBXParser.parse(data: exported.data, compositeKey: XCTUnwrap(vm.compositeKey),
-            sessionKey: XCTUnwrap(vm.sessionKey), kdfPolicy: .mainApp)
-        XCTAssertTrue(opened.rootGroup.allEntries.contains { $0.title == "External KeePass Edit" })
-        XCTAssertTrue(opened.rootGroup.allEntries.contains { $0.title == "RAM Draft Escape" })
-        XCTAssertTrue(vm.isDirty)
-        XCTAssertEqual(FileDigest.sha512(try XCTUnwrap(vm.authenticatedLocalCiphertext)), FileDigest.sha512(external))
-    }
-
     func testDraftRecoveryExportRejectsMissingEditsAndEncoderFailureWithoutClearingDraft() async throws {
         for fault in ["missing-edits", "encoder-error"] {
             let setup = try await makeLocalInteropSetup()
@@ -7202,15 +7185,6 @@ final class DatabaseViewModelTests: XCTestCase {
         }
     }
 
-    private func writeExternalInteropEditAfterLock(_ setup: LocalInteropSetup) async throws -> Data {
-        let reference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == setup.vm.databaseReference.id })
-        let vm = try makeViewModel(reference: reference)
-        await vm.unlock(password: "interop epoch key")
-        let reopened = LocalInteropSetup(vm: vm, url: setup.url, original: setup.original, prior: setup.prior, effects: setup.effects)
-        defer { vm.lock() }
-        return try await writeExternalInteropEdit(reopened)
-    }
-
     func testCoordinatorFailureAfterRealRekeyPersistsUnconfirmedTargetAcrossDetailsAndRestart() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -7264,6 +7238,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let url = folder.appendingPathComponent("planned-recovery.kdbx")
         try Data(contentsOf: fixtureURL()).write(to: url)
         let reference = try DatabaseListStore.add(url: url)
+        let originalBytes = try Data(contentsOf: fixtureURL())
         let calls = OSAllocatedUnfairLock(initialState: 0)
         let ownerWrites = OSAllocatedUnfairLock(initialState: 0)
         let live = LocalDatabaseSaver.Environment.live
@@ -7286,9 +7261,15 @@ final class DatabaseViewModelTests: XCTestCase {
                     return writer
                 }
             }
-            return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+            let outcome = try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
                 openTimeSHA512: hash, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
                 newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+            if call == 1 {
+                // An old-epoch arrival keeps publication unresolved instead of creating a permanent idle pin.
+                XCTAssertThrowsError(try PendingLocalSaveStore.prepareSource(originalBytes,
+                    for: ref.id, masterKeyChangedAt: ref.lastMasterKeyChangeAt, baseCacheSHA512: hash))
+            }
+            return outcome
         }
         let vm = try makeViewModel(reference: reference, localSaveOperation: operation)
         await vm.unlock(password: fixturePassword)

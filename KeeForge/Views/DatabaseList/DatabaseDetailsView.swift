@@ -43,7 +43,11 @@ struct DatabaseDetailsView: View {
     @State private var recoveryActionTask: Task<Void, Never>?
     @State private var recoveryActionID = UUID()
     @State private var localRecoveryViewModel: PendingLocalRecoveryViewModel
-    @State private var pendingLocalDiscard: PendingLocalSaveStore.RecoverySnapshot?
+    private struct LocalDiscardRequest {
+        let snapshot: PendingLocalSaveStore.RecoverySnapshot
+        let abandonKeyRecord: Bool
+    }
+    @State private var pendingLocalDiscard: LocalDiscardRequest?
 
     /// True when this view created its own `DatabaseListViewModel` because the
     /// caller could not reach the app's, and therefore has to install the
@@ -124,20 +128,22 @@ struct DatabaseDetailsView: View {
         }
         .confirmationDialog("Discard Local Recovery?", isPresented: Binding(
             get: { pendingLocalDiscard != nil }, set: { if !$0 { pendingLocalDiscard = nil } }
-        ), presenting: pendingLocalDiscard) { snapshot in
+        ), presenting: pendingLocalDiscard) { request in
+            let snapshot = request.snapshot
             Button("Discard Local Recovery", role: .destructive) {
                 Task {
-                    await localRecoveryViewModel.discard(snapshot)
+                    await localRecoveryViewModel.discard(snapshot, abandonKeyRecord: request.abandonKeyRecord)
                     pendingLocalDiscard = nil
                     backups = DatabaseExportService.backups(for: currentReference)
                 }
             }
             .accessibilityIdentifier("database-details.local-recovery.confirm-discard")
             Button("Cancel", role: .cancel) { pendingLocalDiscard = nil }
-        } message: { snapshot in
+        } message: { request in
+            let snapshot = request.snapshot
             if snapshot.preferenceIntent != nil {
                 Text("Abandoning this key-file preference recovery disables local writes. It does not change the database master key. Keep any snapshots and unsaved edits you need, then remove and add the database again.")
-            } else if snapshot.ownerUnavailable || snapshot.admission?.purpose.isMasterKeyChange == true || snapshot.keyEvidence?.pending != nil {
+            } else if request.abandonKeyRecord || snapshot.ownerUnavailable || snapshot.admission?.purpose.isMasterKeyChange == true || snapshot.keyEvidence?.pending != nil {
                 Text("Discarding this recovery record disables local writes. It does not undo a saved master-key change. Export any snapshots and unsaved edits you need first, then remove and add the database again using the correct master key. Changes not saved elsewhere will be lost.")
             } else {
                 Text("This permanently deletes the selected AutoFill snapshots and their recovery record. Changes not saved elsewhere will be lost. New snapshots added after this confirmation was opened are kept.")
@@ -668,8 +674,35 @@ struct DatabaseDetailsView: View {
         #endif
     }
 
+    var showsLocalDraftExport: Bool {
+        sessionViewModel?.databaseReference.id == reference.id && sessionViewModel?.canExportLocalRecoveryDraft == true
+    }
+
     @ViewBuilder
     private var localRecoverySection: some View {
+        if showsLocalDraftExport, let sessionViewModel {
+            Section {
+                Text("Export a full encrypted copy of your unsaved changes before closing this session. Open it with the master key used by this unlocked session. Exporting keeps your edits here.")
+                Button("Export Unsaved Changes…") {
+                    isExportingRecoveryDraft = true
+                    let requestID = UUID()
+                    recoveryActionID = requestID
+                    recoveryActionTask = Task {
+                        defer { if recoveryActionID == requestID { isExportingRecoveryDraft = false } }
+                        do {
+                            let payload = try await sessionViewModel.makeLocalRecoveryExport()
+                            guard !Task.isCancelled, recoveryActionID == requestID else { return }
+                            exportRequest = .localRecovery(UUID(), payload.data, payload.suggestedFilename)
+                        } catch {
+                            guard !Task.isCancelled, recoveryActionID == requestID else { return }
+                            recoveryExportError = error.localizedDescription
+                        }
+                    }
+                }
+                .disabled(sessionViewModel.isSaving || isExportingRecoveryDraft)
+                .accessibilityIdentifier("database-details.local-recovery.export-draft")
+            }
+        }
         if let localRecovery = localRecoveryViewModel.snapshot, !localRecovery.entries.isEmpty || localRecovery.needsRecovery || localRecovery.keyEvidence?.targetDurabilityUnconfirmed == true || localRecovery.requiresAssociationRecovery(for: currentReference) || localRecoveryViewModel.targetNeedsRecovery {
             Section("Local Save Recovery") {
                 if !localRecovery.entries.isEmpty {
@@ -680,31 +713,6 @@ struct DatabaseDetailsView: View {
                 }
                 if localRecoveryViewModel.targetNeedsRecovery {
                     Text("The current database file does not match the saved key record. Keep the original and new master keys and encrypted backups. Export unsaved changes before closing this session.")
-                }
-                if localRecoveryViewModel.targetNeedsRecovery, localRecovery.keyEvidence?.targetState.isConfirmed == true,
-                   !localRecovery.needsRecovery, localRecovery.entries.isEmpty {
-                    Text("Authenticate the current file and merge it with your unsaved changes. Choose Save separately to write the result.")
-                    if sessionViewModel?.databaseReference.id != reference.id || sessionViewModel?.state != .unlocked {
-                        Text("Unlock this database to enable authentication and merging.")
-                    }
-                    Button("Authenticate and Merge Current File") {
-                        guard let sessionViewModel, sessionViewModel.databaseReference.id == reference.id else { return }
-                        let requestID = UUID()
-                        recoveryActionID = requestID
-                        recoveryActionTask = Task {
-                            do {
-                                try await sessionViewModel.adoptAuthenticatedLocalFile()
-                                guard !Task.isCancelled, recoveryActionID == requestID else { return }
-                                await refreshLocalRecovery()
-                            } catch {
-                                guard !Task.isCancelled, recoveryActionID == requestID else { return }
-                                recoveryExportError = error.localizedDescription
-                                await refreshLocalRecovery()
-                            }
-                        }
-                    }
-                    .disabled(sessionViewModel?.databaseReference.id != reference.id || sessionViewModel?.state != .unlocked || sessionViewModel?.isSaving != false)
-                    .accessibilityIdentifier("database-details.local-recovery.adopt-file")
                 }
                 if let admission = localRecovery.admission, admission.purpose.isMasterKeyChange {
                     Text("This is a verified copy of the intended encrypted output, not proof that the original file was saved. Open it with the key chosen for that operation. Exporting does not resolve recovery.")
@@ -717,27 +725,6 @@ struct DatabaseDetailsView: View {
                 }
                 if localRecovery.keyEvidence?.targetDurabilityUnconfirmed == true {
                     Text("The current file's durability is unconfirmed. Keep an encrypted backup before closing this session.")
-                }
-                if let sessionViewModel, sessionViewModel.databaseReference.id == reference.id, sessionViewModel.isDirty {
-                    Text("Export a full encrypted copy of your unsaved changes before closing this session. Open it with the master key used by this unlocked session. Exporting keeps your edits here.")
-                    Button("Export Unsaved Changes…") {
-                        isExportingRecoveryDraft = true
-                        let requestID = UUID()
-                        recoveryActionID = requestID
-                        recoveryActionTask = Task {
-                            defer { if recoveryActionID == requestID { isExportingRecoveryDraft = false } }
-                            do {
-                                let payload = try await sessionViewModel.makeLocalRecoveryExport()
-                                guard !Task.isCancelled, recoveryActionID == requestID else { return }
-                                exportRequest = .localRecovery(UUID(), payload.data, payload.suggestedFilename)
-                            } catch {
-                                guard !Task.isCancelled, recoveryActionID == requestID else { return }
-                                recoveryExportError = error.localizedDescription
-                            }
-                        }
-                    }
-                    .disabled(sessionViewModel.isSaving || isExportingRecoveryDraft)
-                    .accessibilityIdentifier("database-details.local-recovery.export-draft")
                 }
                 ForEach(localRecovery.entries) { source in
                     LabeledContent {
@@ -766,9 +753,9 @@ struct DatabaseDetailsView: View {
                     }
                     .accessibilityIdentifier("database-details.local-recovery.confirm-key")
                 }
-                if !localRecovery.entries.isEmpty || localRecovery.admission != nil || localRecovery.ownerUnavailable || localRecovery.retirementID != nil || localRecovery.keyEvidence?.pending != nil || localRecovery.preferenceIntent != nil {
+                if !localRecovery.entries.isEmpty || localRecovery.admission != nil || localRecovery.ownerUnavailable || localRecovery.retirementID != nil || (localRecovery.keyEvidence != nil && localRecoveryViewModel.targetNeedsRecovery) || localRecovery.preferenceIntent != nil {
                     Button("Discard Local Recovery…", role: .destructive) {
-                        pendingLocalDiscard = localRecovery
+                        pendingLocalDiscard = LocalDiscardRequest(snapshot: localRecovery, abandonKeyRecord: localRecovery.keyEvidence != nil && localRecoveryViewModel.targetNeedsRecovery)
                     }
                     .accessibilityIdentifier("database-details.local-recovery.discard")
                 }

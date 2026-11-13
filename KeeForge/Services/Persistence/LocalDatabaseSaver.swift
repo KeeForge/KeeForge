@@ -1,7 +1,6 @@
 import CryptoKit
 import Foundation
 import KDBXKit
-import KDBXXML
 
 enum SaveEffectScope: Sendable, Equatable { case databaseFile, sharedCopy, recoveryRecord }
 
@@ -78,7 +77,7 @@ struct SaveBookkeepingWarning: Error, LocalizedError, Sendable {
 struct SaveAssociationWarning: Error, LocalizedError, Sendable {
     var durabilityUnconfirmed = false
     var errorDescription: String? {
-        let association = String(localized: "The database already uses the new master key, but its key-file association could not be saved. Keep the new password and key file. Select the key file when unlocking, then set it again in Database Details.")
+        let association = String(localized: "The database already uses the new master key, but KeeForge could not confirm its key-file association or local key record. Keep the new password and key file and open Database Details to recover.")
         return durabilityUnconfirmed ? association + " " + SaveDurabilityWarning().localizedDescription : association
     }
 }
@@ -86,6 +85,7 @@ struct SaveAssociationWarning: Error, LocalizedError, Sendable {
 struct SaveConflict: Sendable, Equatable {
     let remoteSHA512: Data
     let remoteData: Data
+    var requiresLocalRecovery = false
 }
 
 /// The stored states a save is allowed to overwrite.
@@ -528,52 +528,92 @@ enum LocalDatabaseSaver {
         catch { invalidateOlderLocalCache(for: reference, installedSHA512: FileDigest.sha512(data)) }
     }
 
-    static func cacheLocalSnapshot(_ data: Data, for reference: DatabaseReference) throws {
-        guard let location = resolveLocation(for: reference), let anchor = AppGroupContainer.resolvedURL else {
-            throw SaveError.databaseLocationUnavailable
-        }
+    static func cacheLocalSnapshot(
+        _ data: Data, for reference: DatabaseReference, lease capturedLease: PendingLocalSaveStore.CacheReadLease? = nil,
+        allowNewReference: Bool = false, legacyMigrationSource: URL? = nil
+    ) throws {
+        let lease = try capturedLease ?? PendingLocalSaveStore.captureCacheReadLease(for: reference)
+        guard lease.reference.matches(reference) else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
+        let resolved: ResolvedLocation?
+        if let legacyMigrationSource {
+            guard lease.epochID == nil, let legacy = SharedVaultStore.legacyCachedDatabaseURL,
+                  canonicalPath(of: legacy) == canonicalPath(of: legacyMigrationSource) else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
+            resolved = ResolvedLocation(url: legacyMigrationSource, usesSecurityScope: false)
+        } else { resolved = resolveLocation(for: reference) }
+        guard let location = resolved, let anchor = AppGroupContainer.resolvedURL else { throw SaveError.databaseLocationUnavailable }
         let cache = DatabaseListStore.cacheLocation(for: reference)
-        guard canonicalPath(of: cache) != canonicalPath(of: location.url) else { return }
+        let primary = canonicalPath(of: cache) == canonicalPath(of: location.url)
+        if primary && !allowNewReference { return }
         let access = location.usesSecurityScope && location.url.startAccessingSecurityScopedResource()
         defer { if access { location.url.stopAccessingSecurityScopedResource() } }
         let sha = FileDigest.sha512(data)
-        var coordinatorError: NSError?
-        var result: Result<Void, Error>?
-        NSFileCoordinator().coordinate(readingItemAt: location.url, options: [], writingItemAt: cache,
-            options: .forReplacing, error: &coordinatorError) { original, destination in
-            result = Result {
-                try PendingLocalSaveStore.withCachePublicationAuthorization(for: reference.id, sha512: sha) {
-                    guard FileDigest.sha512(try Data(contentsOf: original)) == sha else { throw PendingLocalSaveStore.OwnershipError.targetChanged }
-                    try writeAtomicallyAndDurably(data, to: destination, directoryAnchor: anchor)
+        try DatabaseListStore.withLocalCacheReference(reference, allowNewReference: allowNewReference) {
+            var error: NSError?
+            var result: Result<Void, Error>?
+            func publish(original: URL?, destination: URL) {
+                result = Result {
+                    try PendingLocalSaveStore.withCachePublicationAuthorization(for: reference.id, sha512: sha, lease: lease) {
+                        if let original {
+                            guard FileDigest.sha512(try Data(contentsOf: original)) == sha else { throw PendingLocalSaveStore.OwnershipError.targetChanged }
+                        } else {
+                            guard !FileManager.default.fileExists(atPath: destination.path) else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
+                        }
+                        try writeAtomicallyAndDurably(data, to: destination, directoryAnchor: anchor)
+                    }
                 }
             }
+            let coordinator = NSFileCoordinator()
+            if primary {
+                coordinator.coordinate(writingItemAt: cache, options: .forReplacing, error: &error) { publish(original: nil, destination: $0) }
+            } else {
+                coordinator.coordinate(readingItemAt: location.url, options: [], writingItemAt: cache, options: .forReplacing,
+                    error: &error) { publish(original: $0, destination: $1) }
+            }
+            if let error { throw error }
+            guard let result else { throw SaveError.databaseLocationUnavailable }
+            try result.get()
         }
-        if let coordinatorError { throw coordinatorError }
-        guard let result else { throw SaveError.databaseLocationUnavailable }
-        try result.get()
     }
 
     private static func invalidateOlderLocalCache(for reference: DatabaseReference, installedSHA512: Data) {
-        guard let location = resolveLocation(for: reference) else { return }
+        guard let lease = try? PendingLocalSaveStore.captureCacheReadLease(for: reference),
+              let location = resolveLocation(for: reference) else { return }
         let cache = DatabaseListStore.cacheLocation(for: reference)
         guard canonicalPath(of: cache) != canonicalPath(of: location.url) else { return }
         let access = location.usesSecurityScope && location.url.startAccessingSecurityScopedResource()
         defer { if access { location.url.stopAccessingSecurityScopedResource() } }
         var coordinatorError: NSError?
-        NSFileCoordinator().coordinate(readingItemAt: location.url, options: [], writingItemAt: cache,
-            options: .forDeleting, error: &coordinatorError) { original, destination in
-            try? PendingLocalSaveStore.withCachePublicationAuthorization(for: reference.id, sha512: installedSHA512) {
-                guard FileDigest.sha512(try Data(contentsOf: original)) == installedSHA512 else { return }
-                let data = try Data(contentsOf: destination)
-                guard FileDigest.sha512(data) != installedSHA512 else { return }
-                try FileManager.default.removeItem(at: destination)
-                try synchronizeDirectory(destination.deletingLastPathComponent())
+        try? DatabaseListStore.withLocalCacheReference(reference, allowNewReference: false) {
+            NSFileCoordinator().coordinate(readingItemAt: location.url, options: [], writingItemAt: cache,
+                options: .forDeleting, error: &coordinatorError) { original, destination in
+                try? PendingLocalSaveStore.withCachePublicationAuthorization(for: reference.id, sha512: installedSHA512, lease: lease) {
+                    guard FileDigest.sha512(try Data(contentsOf: original)) == installedSHA512 else { return }
+                    let data = try Data(contentsOf: destination)
+                    guard FileDigest.sha512(data) != installedSHA512 else { return }
+                    try FileManager.default.removeItem(at: destination)
+                    try synchronizeDirectory(destination.deletingLastPathComponent())
+                }
             }
         }
     }
 
+    static func retireSettledKeyWitness(for reference: DatabaseReference, io: PendingLocalSaveStore.StorageIO = .init()) -> PendingLocalSaveStore.ResolutionOutcome {
+        do {
+            let snapshot = try PendingLocalSaveStore.recovery(for: reference.id)
+            guard let evidence = snapshot.keyEvidence else { return .resolved }
+            if evidence.targetState.isReadyToRetire {
+                return PendingLocalSaveStore.resumeCertifiedRetirement(evidence, for: reference.id)
+            }
+            guard evidence.targetState.isConfirmed, !snapshot.needsRecovery, snapshot.entries.isEmpty else { return .resolved }
+            return DatabaseListStore.certifySettledKeyWitness(for: reference, evidence: evidence, io: io)
+        } catch { return .retainedForRecovery }
+    }
+
     static func keyTargetNeedsRecovery(for reference: DatabaseReference, snapshot: PendingLocalSaveStore.RecoverySnapshot) async -> Bool {
-        guard snapshot.keyEvidence != nil else { return false }
+        guard let evidence = snapshot.keyEvidence else { return false }
+        if evidence.targetState.isReadyToRetire {
+            return await Task.detached { PendingLocalSaveStore.resumeCertifiedRetirement(evidence, for: reference.id) == .retainedForRecovery }.value
+        }
         do {
             return try await CoordinatedFileReader.performBlocking(timeout: .seconds(15)) {
                 let outcome = try observeOriginal(reference) { url in
@@ -619,127 +659,6 @@ enum LocalDatabaseSaver {
         }
     }
 
-    struct OriginalSnapshot: Sendable {
-        let data: Data
-        let target: PendingLocalSaveStore.TargetIdentity
-        let sha512: Data
-        init(data: Data, target: PendingLocalSaveStore.TargetIdentity) {
-            self.data = data
-            self.target = target
-            sha512 = FileDigest.sha512(data)
-        }
-        var installed: PendingLocalSaveStore.InstalledTarget { .init(target: target, sha512: sha512) }
-    }
-
-    enum ExternalAdoptionFailure: Error, LocalizedError, Equatable {
-        case attachmentsDiverged
-        var errorDescription: String? {
-            String(localized: "The two copies store their attachments differently. Your draft is unchanged. Export your unsaved changes before closing this session.")
-        }
-    }
-
-    struct AuthenticatedExternalAdoption: Sendable {
-        let owner: PendingLocalSaveStore.RecoverySnapshot
-        let original: OriginalSnapshot
-        let priorCiphertext: Data
-        let rebased: DatabaseDraft
-        let baseRoot: KPGroup
-        let baseMeta: KPMeta
-        let basePool: [Data]
-        let lockCycleID: Int
-        let draftRevision: Int
-        fileprivate init(owner: PendingLocalSaveStore.RecoverySnapshot, original: OriginalSnapshot, priorCiphertext: Data,
-            rebased: DatabaseDraft, baseRoot: KPGroup, baseMeta: KPMeta, basePool: [Data], lockCycleID: Int, draftRevision: Int) {
-            self.owner = owner
-            self.original = original
-            self.priorCiphertext = priorCiphertext
-            self.rebased = rebased
-            self.baseRoot = baseRoot
-            self.baseMeta = baseMeta
-            self.basePool = basePool
-            self.lockCycleID = lockCycleID
-            self.draftRevision = draftRevision
-        }
-    }
-
-    static func prepareAuthenticatedExternalAdoption(
-        owner: PendingLocalSaveStore.RecoverySnapshot, priorCiphertext: Data, original: OriginalSnapshot,
-        draft: DatabaseDraft, compositeKey: SymmetricKey, sessionKey: SymmetricKey, lockCycleID: Int, draftRevision: Int
-    ) throws -> AuthenticatedExternalAdoption {
-        guard let witness = owner.keyEvidence, witness.targetState.isConfirmed, !owner.needsRecovery,
-              owner.entries.isEmpty, FileDigest.sha512(priorCiphertext) == witness.sha512 else {
-            throw PendingLocalSaveStore.OwnershipError.recoveryRequired
-        }
-        _ = try KDBXParser.parse(data: priorCiphertext, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: .mainApp)
-        let current = try KDBXParser.parse(data: original.data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: .mainApp)
-        guard !current.header.formatVersion.requiresReadOnlyMode else { throw SaveError.databaseIsReadOnly }
-        let rebased: DatabaseDraft
-        if draft.isDirty {
-            guard let localPool = draft.binaryPoolFields else { throw SaveError.saveContextUnavailable }
-            let result = try KDBXMerger.merge(local: .init(rootGroup: draft.rootGroup, meta: draft.meta, binaryPoolFields: localPool),
-                remote: .init(rootGroup: current.rootGroup, meta: current.meta, binaryPoolFields: current.header.innerHeaderBinaryFields), sessionKey: sessionKey)
-            guard case .merged(let merged) = result else { throw ExternalAdoptionFailure.attachmentsDiverged }
-            rebased = draft.rebased(baseRootGroup: current.rootGroup, baseMeta: current.meta,
-                baseBinaryPoolFields: current.header.innerHeaderBinaryFields, mergedRootGroup: merged.rootGroup,
-                mergedMeta: merged.meta, mergedBinaryPoolFields: localPool)
-        } else {
-            rebased = DatabaseDraft(rootGroup: current.rootGroup, meta: current.meta, sessionKey: sessionKey,
-                binaryPoolFields: current.header.innerHeaderBinaryFields)
-        }
-        return AuthenticatedExternalAdoption(owner: owner, original: original, priorCiphertext: priorCiphertext, rebased: rebased,
-            baseRoot: current.rootGroup, baseMeta: current.meta, basePool: current.header.innerHeaderBinaryFields,
-            lockCycleID: lockCycleID, draftRevision: draftRevision)
-    }
-
-    static func readOriginalSnapshot(for reference: DatabaseReference) throws -> OriginalSnapshot {
-        guard let location = resolveLocation(for: reference), !location.awaitsWriteBack else { throw SaveError.databaseLocationUnavailable }
-        let access = location.usesSecurityScope && location.url.startAccessingSecurityScopedResource()
-        defer { if access { location.url.stopAccessingSecurityScopedResource() } }
-        var error: NSError?
-        var result: Result<OriginalSnapshot, Error>?
-        NSFileCoordinator().coordinate(readingItemAt: location.url, options: [], error: &error) { url in
-            result = Result { OriginalSnapshot(data: try Data(contentsOf: url), target: try PendingLocalSaveStore.targetIdentity(at: url)) }
-        }
-        if let error { throw error }
-        guard let result else { throw SaveError.databaseLocationUnavailable }
-        return try result.get()
-    }
-
-    struct ExternalAdoptionCompletion: Sendable {
-        let ownership: PendingLocalSaveStore.ResolutionOutcome
-        let target: PendingLocalSaveStore.TargetCommit
-    }
-
-    static func adoptAuthenticatedTarget(
-        _ authenticated: AuthenticatedExternalAdoption, reference: DatabaseReference,
-        synchronizeParent: @Sendable (URL) throws -> Void = synchronizeDirectory,
-        ownerIO: PendingLocalSaveStore.StorageIO = .init(), canCommit: @Sendable () -> Bool = { true }
-    ) throws -> ExternalAdoptionCompletion {
-        guard let location = resolveLocation(for: reference), !location.awaitsWriteBack else { throw SaveError.databaseLocationUnavailable }
-        let access = location.usesSecurityScope && location.url.startAccessingSecurityScopedResource()
-        defer { if access { location.url.stopAccessingSecurityScopedResource() } }
-        var observed: PendingLocalSaveStore.TargetCommit?
-        let resolution = try DatabaseListStore.withCurrentLocalReference(reference, target: location.url) { url in
-            guard canCommit() else { throw CancellationError() }
-            guard authenticated.owner.databaseID == reference.id else { throw SaveError.saveContextUnavailable }
-            let (resolution, commit) = try PendingLocalSaveStore.adoptAuthenticatedTarget(authenticated,
-                observeTarget: { .init(target: try PendingLocalSaveStore.targetIdentity(at: url), sha512: FileDigest.sha512(try Data(contentsOf: url))) },
-                confirmDurability: {
-                    do {
-                        let handle = try FileHandle(forReadingFrom: url)
-                        defer { try? handle.close() }
-                        try handle.synchronize()
-                        try synchronizeParent(url.deletingLastPathComponent())
-                        return true
-                    } catch { return false }
-                }, canCommit: canCommit, io: ownerIO)
-            observed = commit
-            return resolution
-        }
-        guard let observed else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
-        return ExternalAdoptionCompletion(ownership: resolution, target: observed)
-    }
-
     static func captureTarget(for reference: DatabaseReference) throws -> PendingLocalSaveStore.TargetIdentity {
         guard let location = resolveLocation(for: reference) else { throw SaveError.databaseLocationUnavailable }
         let access = location.usesSecurityScope && location.url.startAccessingSecurityScopedResource()
@@ -759,11 +678,13 @@ enum LocalDatabaseSaver {
         io: PendingLocalSaveStore.StorageIO = .init()
     ) -> PendingLocalSaveStore.ResolutionOutcome {
         do {
-            return try observeOriginal(reference) { url in
+            let completion = try observeOriginal(reference) { url in
                 PendingLocalSaveStore.complete(receipt, observeTarget: {
                     (try PendingLocalSaveStore.targetIdentity(at: url), FileDigest.sha512(try Data(contentsOf: url)))
                 }, io: io)
             }
+            guard completion == .resolved else { return completion }
+            return retireSettledKeyWitness(for: reference, io: io)
         } catch { return .retainedForRecovery }
     }
 
@@ -782,6 +703,9 @@ enum LocalDatabaseSaver {
         for reference: DatabaseReference, snapshot: PendingLocalSaveStore.RecoverySnapshot,
         beforePublication: @Sendable () throws -> Void = {}
     ) throws -> PendingLocalSaveStore.ResolutionOutcome {
+        if let evidence = snapshot.keyEvidence, evidence.targetState.isReadyToRetire {
+            return PendingLocalSaveStore.resumeCertifiedRetirement(evidence, for: reference.id)
+        }
         if let admission = snapshot.admission, case .masterKeyChange(let association) = admission.purpose,
            let association, let intended = admission.intendedSHA512 {
             var inspectedTarget: PendingLocalSaveStore.TargetIdentity?
@@ -1050,6 +974,10 @@ enum LocalDatabaseSaver {
                     resolution = PendingLocalSaveStore.finishTargetWrite(targetWrite, commit: observedEffect, observeTarget: {
                         (try PendingLocalSaveStore.targetIdentity(at: target), FileDigest.sha512(try Data(contentsOf: target)))
                     }, io: authorization?.storageIO ?? .init())
+                }
+                if resolution == .resolved, confirmationError == nil, observedEffect.isConfirmed,
+                   let reference = DatabaseListStore.databases.first(where: { $0.id == targetWrite.databaseID }) {
+                    resolution = retireSettledKeyWitness(for: reference, io: authorization?.storageIO ?? .init())
                 }
                 if resolution != .resolved || confirmationError != nil, case .replaced(let receipt) = finalOutcome {
                     return .replacedWithUnconfirmedBookkeeping(receipt)

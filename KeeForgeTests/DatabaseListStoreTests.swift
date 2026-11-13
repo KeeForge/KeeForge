@@ -72,7 +72,7 @@ final class DatabaseListStoreTests: XCTestCase {
         let contents = Data("fixture".utf8)
         let url = try makeTemporaryFileURL(name: "transition.kdbx", contents: contents)
         let original = try DatabaseListStore.add(url: url)
-        try DatabaseListStore.cacheDatabaseCopy(Data("cached".utf8), for: original.id)
+        try writeAtomicallyAndDurably(Data("cached".utf8), to: DatabaseListStore.cacheLocation(for: original), directoryAnchor: AppGroupContainer.url)
 
         DatabaseListStore.remove(id: original.id)
 

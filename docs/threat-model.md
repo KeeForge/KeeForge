@@ -105,25 +105,29 @@ The legitimate user selects databases, authorizes unlocks, chooses recipients, a
 
 ### Local replacement and key recovery
 
-Local key-target evidence has explicit confirmed, unconfirmed and planned states;
-final coordination errors and recovery without a new sync proof cannot inherit
-older confirmed durability. Same-epoch key-file preference changes retain a durable
-nonsecret desired-field intent and validate epoch/association generation under
-combined target/registry coordination and owner flock. Automatic bookmark renewal
-uses the same field CAS and cannot restore an older preference after a later choice.
-No key-file bytes or session keys enter these records.
+Unconfirmed/planned target evidence, source admission, key publication, retirement
+and revocation remain fail-closed. A ready-to-retire certificate is established only
+after target/association/required-source settlement, with durable new owner epoch
+before withdrawal. Certified replay can finish owner CAS without a permanent target
+SHA check; planned/unconfirmed replay cannot. Fully durable retirement deliberately
+restores main's external restore/open/conflict behavior: no permanent cryptographic
+antirollback protection is claimed. Source epochs and tombstones still fence stale
+actors and preserve later ciphertext.
 
-Explicit local interoperability requires an unlocked session to authenticate both
-the exact fully confirmed prior ciphertext and the current file under the same key.
-Only settled ownership without sources or pending work can adopt; target/owner CAS
-is repeated under target coordination and flock. The action merges without writing
-the original or changing the key epoch. Wrong-key rollback, missing prior proof and
-attachment divergence refuse adoption while preserving draft export. Bounded current
-and prior encrypted snapshots may live in RAM until lock/new unlock; they are never
-serialized. Draft export verifies the reopened full document and binary pool with
-the session key off main, leaves the draft intact, and grants no cleanup permission.
-Native action availability, signed file grants and physical durability remain
-separate validation requirements.
+Local cache reads capture reference/epoch before IO. Scanner, healing/relink,
+migration, creation and VM publication recheck current reference, actual bytes,
+epoch and revocation under list lock → original/cache coordination → owner flock.
+Recovery ciphertext and pending sources cannot be replaced by an older read or
+recreated after removal. Idle key-file preferences update only current registry
+fields; actual pending association intents retain their exact desired-field CAS.
+No password/key-file bytes/session key/XML enter owner records.
+
+A single authenticated ciphertext may remain in session RAM and clears on lock or
+new unlock. Explicit encrypted draft export is independent of owner availability,
+verifies the reopened full document/pool off main and never clears edits or grants
+cleanup permission. Active recovery prevents destructive conflict reload/merge;
+normal conflict actions resume after settlement. Native file grants, UI and physical
+durability remain separate validation requirements.
 
 ### Effective resource inventory
 

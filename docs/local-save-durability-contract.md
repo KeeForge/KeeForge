@@ -150,152 +150,114 @@ for its missing receipts. Sources outside the admitted set remain owned and inta
 The caller acknowledges a cleanup-record warning, without claiming target-file
 uncertainty when the output itself was durably saved.
 
-## Key publication is separate from source retirement
+## Key publication and witness retirement
 
-A local master-key change starts only with no pending sources or admission. Its
-last coordinated accessor repeats that check while holding flock, then persists
-a key-publication barrier before replacement. A source arriving during this barrier
-can retain its ciphertext but cannot become eligible under the new key epoch.
-Settlement never consumes such a source.
+A local master-key change starts with no pending sources/admission. Its last
+coordinated accessor repeats that check under the owner lock and publishes the
+key barrier before replacement. Sources arriving during it keep their original
+ciphertext/epoch and cannot automatically drain under the new key.
 
-| Key publication state | Mutation permission / supported recovery |
+Target evidence is one typed state: confirmed, unconfirmed, planned or
+ready-to-retire. Live completion and recovery share the same final transition;
+a planned write cannot inherit the previous file's confirmed durability. The final
+coordination decision must downgrade the returned receipt and stored evidence
+consistently. No generic exception establishes pre-replacement failure.
+
+| State | Permission / completion |
 | --- | --- |
-| Barrier before replace, or unknown replace effect | Block another save/rekey; inspect the exact original target and intended SHA explicitly |
-| Exact new ciphertext installed, association or epoch publication unconfirmed | Keep installed keys/SHA and barrier; confirm the installed key change in Details, or export the unlocked draft before closing |
-| Exact new target, field-specific association durably published, owner epoch durable | A future explicit operation can use the new epoch and exact baseline; never repeat the rekey automatically |
-| Epoch publication visible but its final sync unconfirmed | Terminal record warning; a later mutation must reconfirm the visible owner file and namespace under flock before using it |
-| Epoch settled, target durability still unconfirmed | Retain target identity/SHA and this uncertainty in the owner record; warn about the file, permit a future explicit save against that exact new target |
-| Restart with old, missing, foreign or differently associated target | Do not infer settlement or permit an old-key drain; safe reads remain independent and recovery requires an explicit action |
+| Unknown, planned, admitted, key publication or retirement unresolved | Preserve ownership; never infer idle from timeout, mismatch, missing payload or owner read/decode/permission failure |
+| Known installed unconfirmed target with durable key epoch/association | Keep exact target/baseline evidence; permit a future explicit same-epoch save, stop automatic repeat/rekey and warn about file durability |
+| Target and current association durable, required receipts consumed durably, no remaining sources | Publish ready-to-retire certificate with the new epoch; synchronize that owner record before withdrawing the witness |
+| Ready certificate | Retire by owner/epoch/revocation CAS, preserving later work; replay does not require the same target SHA again |
+| Minimal owner publication visible but final sync fails | Terminal bookkeeping warning; other processes may see idle, so do not simulate rollback or claim every reader retains the witness |
+| Fully durable retirement | Resume main's ordinary open-time baseline/conflict/merge/reload behavior; no permanent key-target pin remains |
 
-Association publication rereads and changes only the key-file fields on the
-registered reference. Its durable receipt requires the coordinated writer's actual
-file and in-anchor directory sync; a Boolean result from the ordinary list writer
-is not this proof. Publication validates the operation/epoch under flock, without
-acquiring the list lock from inside the owner. Database-list global transactions,
-read-failure handling and cross-process CAS remain outside this cut.
+The ready certificate is minted only after actual target durability, a durable
+field-specific association proof, source namespace/receipt retirement and the
+correct owner operation/epoch have been established. Its owner epoch must be
+synchronized before witness withdrawal. A surviving certified record may reconfirm
+its own file/namespace and resume withdrawal without rereading an externally edited
+or restored target. A planned/unconfirmed record without that certificate cannot
+use this path. Mutation still rejects stale epochs, revoked identities and unknown
+owner state. Withdrawal removes only target evidence, never new sources/admissions,
+source epochs or the stable lock/tombstone.
 
-Every future mutation reconfirms visible owner metadata under flock, checks the
-current epoch/association, and revalidates the target identity and SHA in the final
-coordinated accessor. A planned subsequent write is recorded before replacement;
-an unknown result or failed metadata update cannot leave an older witness authorizing
-another mutation. Read, fill and receipt-verified encrypted export do not require
-that mutation permission. An incompatible original read must not replace a proven
-new-key cache or republish an older quick-unlock key.
+This cut deliberately provides no permanent cryptographic antirollback guarantee
+against external restoration after fully durable settlement. A user who restores
+an older database and opens it with its correct key gets main's normal behavior.
+The retained epoch continues to reject old actors and source receipts; it is not
+an assertion that the externally selected file must always use the last key.
 
-Details reuses the native local export presenter for a full encrypted copy of an
-unlocked session's unsaved draft. It uses that session's composite key and an
-authenticated ciphertext held for the session or a compatible original/backup header,
-verifies reopening and the complete writer document/binary pool off the main thread,
-checks the lock cycle, and never clears the draft. The copy requires the key of
-that unlocked session, which can be the original key after an unknown rekey outcome.
-The session holds at most its current authenticated ciphertext and one prior witness;
-known save receipts can supply the installed encrypted bytes without another encryption.
-These references are not serialized and clear on lock or a new unlock attempt. If no
-compatible authenticated ciphertext is available, export fails and the edits remain
-in the session. Export is not rollback, association settlement or consent to discard.
-Abandoning an unresolved key-publication record explicitly revokes future writes;
-it does not undo a master-key change already installed in the file.
+Key-change association publication holds list lock, combined original/registry
+coordination, then owner flock through the field write. It validates the exact
+installed target before publishing factors. Ready certification rechecks current
+reference/association under the same order and synchronizes the actual registry
+file/namespace before publishing the certificate. No owner-lock to list-lock path,
+await, KDF or parsing is allowed under flock.
 
-Local cache refresh coordinates the original and cache before taking owner flock.
-It rechecks the original ciphertext and revocation, preserves accepted AutoFill
-sources and refuses stale completion after removal. Failed cache refresh invalidates
-only an older copy when ownership still permits it. The lock orders are list lock
-→ registry coordination → owner flock, and target/cache coordination → owner flock;
-there is no flock → list lock/coordination path and no await/KDF under flock.
+## Preferences and cache publication
 
-## Target evidence and mutable key-file preference
+Idle Select/Clear uses a field-specific reread/CAS setter, not a stale whole-reference
+update or a new persisted owner workflow for identical-value preference ordering.
+UI generation/cancellation guards reject late actions. Automatic stale bookmark
+renewal uses the same field setter. During actual key/preference recovery, exact
+desired association intent/proof and operation/epoch CAS remain; an active admission
+or key barrier cannot be overwritten. No preference changes the master-key date,
+crypto key, source epoch or pending source ownership. Cloud preferences affect only
+the local registry and do not create pending-local ownership or provider work.
 
-The owner stores one typed target state: `confirmed(snapshot)`,
-`unconfirmed(snapshot)`, or `planned(previous, operationUUID, intendedSHA)`.
-The same final-outcome transition handles live writes and explicit recovery.
-Final coordination failure downgrades both the receipt and owner evidence;
-a planned write recovered without a synchronization proof stays unconfirmed,
-even when the previous target was confirmed. A confirmed receipt is never inferred
-from a generic throw or from the older target's durability.
+All local cache entry points, including scanner, add, heal/relink, migration,
+creation and VM unlock/refresh, use the local publication fence. External reads
+capture reference/epoch before IO and cannot adopt newer ownership afterwards.
+Publication holds the current reference lock, original/cache coordination and owner
+flock; it rechecks actual bytes, epoch and revocation. During recovery only matching
+proven output can be published, and pending snapshots/unique recovery ciphertext
+must survive rejection. Late reads after remove cannot recreate the old cache.
+Scanner fingerprints advance only after accepted cache publication. The legacy
+migration path is limited to the shipped legacy cache and an unobserved epoch;
+new-reference initial publication cannot bypass tombstones or active ownership.
 
-Select/Clear and automatic stale key-file bookmark renewal are same-epoch preference
-changes. They never encrypt, change master-key dates, or reclassify sources. Under
-list lock → combined target/registry coordination → owner flock, publication checks
-the captured reference, epoch, full target witness and association generation.
-A durable nonsecret preference intent records the exact desired bookmark/name
-before registry publication; an active admission or key barrier rejects a new
-selection. Unknown owner state is unavailable. Legacy references without a witness
-keep that legitimate preference path without gaining invented key/target evidence.
-Cloud references change only their local registry preference with phase-aware publication;
-they never create a pending-local owner intent, admission or key epoch and make no
-provider calls. Cloud save/rekey semantics remain with the existing cloud saver.
+Fully settled ordinary external file restoration uses main's cache semantics;
+this fence does not reintroduce permanent rollback protection after retirement.
+Cloud provider caching remains on its existing path. Global database-list read
+failure redesign/transactions and cloud engines remain outside this cut.
 
-| Preference result | Ownership and presentation |
-| --- | --- |
-| Proven registry write not published | Release only its exact intent durably; previous preference is intact |
-| Intent publication unconfirmed | Retain exact desired preference for explicit confirmation; no claim the registry changed |
-| Registry publication observed, completion unconfirmed | Keep observed preference; terminal warning and explicit recovery of that exact choice, without rollback |
-| Registry and owner publication durable | Update only bookmark/name/field proof and association generation; epoch, target evidence, dates, sources and admissions remain intact |
+## Recovery presentation and draft export
 
-Automatic renewal captures the old field generation before resolving a fresh
-bookmark and uses this same publisher. A later Select/Clear/rekey/removal invalidates
-it. Read-only resolution can still return its URL when renewal cannot be persisted.
-An open session refreshes only the nonsecret same-epoch preference before an explicit
-save; it never adopts a new master-key epoch or restores key-file bytes from this field.
+Database Details exposes Export Unsaved Changes for the same unlocked local dirty
+session independently of owner/witness availability, including unreadable ownership.
+One authenticated encrypted context may remain in RAM until lock/new unlock; known
+commit receipts can provide the already-produced ciphertext. There is no prior
+witness history or external-adoption operation. Export uses the existing local
+encoder/native presenter, verifies the reopened full document/binary pool off main,
+checks cycle/revision/cancellation and preserves the draft on every outcome. The
+copy requires the session's key and is distinct from a retained encrypted source.
+Read-only formats retain their existing restrictions. Missing compatible context
+or failed verification reports failure and never produces a fake copy.
 
-## Explicit authenticated local interoperability
+Source exports remain exact identity/hash-verified ciphertext and work with the
+vault locked when the OS permits file access. A surviving key-publication admission
+can export only a matching intended-output cache copy; that is not proof the
+original was saved and never releases admission. Export never authorizes deletion.
+A separate destructive confirmation covers only its captured snapshot and may
+resolve irreparable entries honestly without claiming an export succeeded.
+Abandoning a mismatched key record is a separately captured destructive choice
+that revokes future writes; source-only discard does not silently abandon a known
+key epoch. Neither action discards the unlocked draft or consumes later sources.
 
-A fully confirmed settled witness, with no source, admission, retirement, preference
-intent or planned target, may be explicitly reconciled with a same-key external edit.
-Unknown/unconfirmed target evidence cannot use this action to bypass rollback checks.
-The unlocked session must authenticate both the exact prior witness ciphertext and
-the current coordinated original with its composite key. SHA selects the exact bytes;
-only successful parsing authenticates their key. Missing prior proof, a wrong key,
-old-key rollback, read-only format or attachment-pool divergence preserves the draft
-and refuses adoption. Safe reads and explicit encrypted draft export remain available.
-
-Preparation parses/merges off the main actor without writing the target. The prepared
-result binds the owner observation, epoch, association generation, exact target
-identity/hash, lock cycle and draft revision. Commit holds list lock and combined target/registry coordination
-before flock, revalidates the current reference, captured owner and absence of sources/pending work,
-and holds coordination and flock through witness publication. Incoming sources,
-preferences, removal or another writer invalidate this proof. Target synchronization
-failure records a known unconfirmed target; it does not trigger an automatic save.
-
-The session serializes adoption with save/rekey/settings. New edits, cancellation,
-lock or dismissal invalidate the request. If edits arrive after owner commit, keep
-them and refuse to install the stale merge. The authenticated ciphertext may remain
-as bounded session context, but no late callback restores secrets after lock.
-Adoption updates the target witness/baseline without changing the key epoch, factors
-or master-key date. A dirty draft keeps its exact real edit log without replay;
-its base is the authenticated current-file tree/meta/pool and its current state is
-the validated merged tree. Discard restores that current file; a later explicit Save
-writes both sides. With no edits, adoption keeps a clean current-file session.
-Neither adoption nor its warning encrypts or replaces the database.
+After durable retirement, normal Merge/Reload/conflict-copy actions work as in main.
+During active local recovery their VM entry guards run before merge or draft discard;
+the alert offers Database Details/recovery and encrypted draft export instead of
+promising a successful write or discarding edits into an unresolved mutation gate.
+Safe reading and recovery export remain independent of mutation permission.
 
 ## Validation boundary
 
-Authored regression tests exercise real filesystem publication and replacement
-with external write/fsync/coordination faults, source ownership, explicit export and
-discard, session lock and draft growth, terminal forms, and AutoFill callers. The
-password-only compatibility artifact uses the real local saver and reopens its
-installed output with the new key before comparing the full semantic snapshot.
-Static parse/typechecking cannot establish these runtime assertions. Signed native
-layout, Keychain/device behavior and physical power-loss behavior require separate
-validation; no local app or test-host execution is part of this implementation run.
-
-Details also checks a key witness against the current original independently of
-unlock/SHA notifications. A readable older file may open without gaining mutation
-permission. A saved encrypted cache copy is exportable while locked only when its
-hash matches the captured key witness (or its pending same-epoch write) and its
-identity stays unchanged across the read under coordination/flock. This is an
-explicit verified copy of known ciphertext, never a substitute for a pending-source
-receipt or permission to consume it. A surviving master-key admission can similarly
-export only a cache copy matching its exact intended SHA and current operation.
-That encrypted output is not proof that the original was saved; it requires the
-key chosen for that operation and never resolves admission. A missing, foreign or unreadable copy reports
-export failure and grants no discard permission.
-
-Publishing a key-change association coordinates the registry and original target
-in one accessor before taking owner flock. The accessor rereads the current
-reference, validates operation/epoch and the exact compatible installed target,
-and holds both resources through association publication. A preliminary inspection
-is not publication authority; a cooperating replacement between inspection and
-publication is either excluded by coordination or rejected without changing the
-registry. Recovery never publishes new factors to discover whether they fit an
-old, missing or foreign target. Settlement independently revalidates afterwards.
+Authored filesystem and caller regressions cover real publication/replacement
+faults, admission/receipt ownership, certificate replay/withdrawal, stale cache reads,
+scanner/heal/relink paths, ordinary no-witness draft export, active conflict guards,
+terminal forms and normal post-settlement interoperation. The local new-key
+compatibility scenario reopens installed bytes and compares the full snapshot.
+Static checks and build-for-testing cannot establish runtime assertions. Signed
+native layout, Keychain/device grants and physical power loss require separate
+validation; no test host/app/runtime is executed by this worker.

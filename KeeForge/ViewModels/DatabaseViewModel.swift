@@ -556,24 +556,12 @@ final class DatabaseViewModel {
     /// applies the auto-lock timeout as it does for one already unlocked.
     @ObservationIgnored private var unlockAttemptBackgroundedAt: Date?
     var draft: DatabaseDraft? {
-        didSet {
-            localAdoptionGate?.cancel()
-            rebuildDerivedState()
-        }
+        didSet { rebuildDerivedState() }
     }
     private(set) var contentRevision = 0
     private(set) var searchResults: [KPEntry] = []
     private(set) var openTimeSHA512: Data?
     private(set) var authenticatedLocalCiphertext: Data?
-    private var previousLocalCiphertext: Data?
-    private final class LocalAdoptionGate: @unchecked Sendable {
-        private let lock = NSLock()
-        private var invalidated = false
-        func cancel() { lock.lock(); invalidated = true; lock.unlock() }
-        var isCurrent: Bool { lock.lock(); defer { lock.unlock() }; return !invalidated }
-    }
-    @ObservationIgnored private var localAdoptionGate: LocalAdoptionGate?
-
     private(set) var saveError: DatabaseSaveError?
     private(set) var saveConflict: SaveConflict?
     /// Why the last merge attempt wrote nothing, awaiting acknowledgement.
@@ -1164,7 +1152,7 @@ final class DatabaseViewModel {
             let data = readResult.data
             encryptedData = data
             cloudSyncStatus = readResult.cloudSyncStatus
-            try cacheDatabaseCopyForLocalDatabase(data)
+            await cacheDatabaseCopyForLocalDatabase(data, lease: readResult.cacheLease)
 
             let hardwareKey = databaseReference.hardwareKey
             let compositeKey: SymmetricKey
@@ -1259,7 +1247,7 @@ final class DatabaseViewModel {
             let data = readResult.data
             encryptedData = data
             cloudSyncStatus = readResult.cloudSyncStatus
-            try cacheDatabaseCopyForLocalDatabase(data)
+            await cacheDatabaseCopyForLocalDatabase(data, lease: readResult.cacheLease)
             let compositeKey = if let hardwareKey {
                 try await hardwareKeyCompositeKey(
                     preKey: storedKey,
@@ -2692,10 +2680,10 @@ final class DatabaseViewModel {
             case .indeterminate(let scope):
                 throw SaveUnknownOutcomeWarning(scope: scope)
             case .conflict(let remoteSHA512, let remoteData):
-                saveConflict = SaveConflict(
-                    remoteSHA512: remoteSHA512,
-                    remoteData: remoteData
-                )
+                let requiresRecovery = await localConflictRequiresRecovery()
+                guard expectedLockCycleID == lockCycleID else { return }
+                saveConflict = SaveConflict(remoteSHA512: remoteSHA512, remoteData: remoteData,
+                    requiresLocalRecovery: requiresRecovery)
                 lastSaveAttemptFailed = true
                 return
             }
@@ -3015,103 +3003,37 @@ final class DatabaseViewModel {
 
     private func rememberCommittedCiphertext(_ receipt: PendingLocalSaveStore.CommitReceipt?) {
         guard !databaseReference.isCloudBacked, let data = receipt?.encryptedSnapshot else { return }
-        previousLocalCiphertext = authenticatedLocalCiphertext
         authenticatedLocalCiphertext = data
     }
 
-    struct LocalAdoptionRecordFailure: Error, LocalizedError {
-        var errorDescription: String? {
-            String(localized: "The file was authenticated, but its local record could not be confirmed. Your draft is unchanged. Review Database Details before adopting again.")
-        }
+    var canExportLocalRecoveryDraft: Bool {
+        !databaseReference.isCloudBacked && state == .unlocked && !isReadOnly && isDirty && compositeKey != nil && !isSaving
     }
 
-    struct LocalAdoptionWarning: Error, LocalizedError {
-        enum Aspect: Hashable { case file, record }
-        let aspects: Set<Aspect>
-        var errorDescription: String? {
-            var messages: [String] = []
-            if aspects.contains(.file) {
-                messages.append(String(localized: "The current file's durability is unconfirmed. Keep an encrypted backup before closing this session."))
-            }
-            if aspects.contains(.record) {
-                messages.append(String(localized: "The local record's durability is unconfirmed. Review Database Details before saving."))
-            }
-            messages.append(String(localized: "This action did not save the database. Save your unsaved changes separately."))
-            return messages.joined(separator: " ")
-        }
-    }
-
-    struct ExternalAdoptionProofUnavailable: Error, LocalizedError {
-        var errorDescription: String? {
-            String(localized: "The saved ciphertext needed to authenticate this file is unavailable. Export your unsaved changes before closing this session.")
-        }
-    }
-
-    func adoptAuthenticatedLocalFile(
-        beforeCommit: @Sendable () async throws -> Void = {},
-        synchronizeParent: @escaping @Sendable (URL) throws -> Void = synchronizeDirectory,
-        ownerIO: PendingLocalSaveStore.StorageIO = .init()
-    ) async throws {
-        guard !databaseReference.isCloudBacked, !isReadOnly, !isSaving, case .unlocked = state,
-              let compositeKey, let sessionKey else { throw SaveError.saveContextUnavailable }
-        let cycle = lockCycleID
-        let revision = contentRevision
-        let capturedDraft = try makeWorkingDraft()
-        let retained = [authenticatedLocalCiphertext, previousLocalCiphertext].compactMap { $0 }
-        let gate = LocalAdoptionGate()
-        localAdoptionGate = gate
-        isSaving = true
-        defer {
-            if localAdoptionGate === gate {
-                localAdoptionGate = nil
-                isSaving = false
-            }
-        }
-        try await refreshSameEpochKeyFilePreference()
+    private func localConflictRequiresRecovery() async -> Bool {
+        guard !databaseReference.isCloudBacked else { return false }
         let reference = databaseReference
-        try await withTaskCancellationHandler {
-            let prepared = try await Task.detached(priority: .userInitiated) {
-                let owner = try PendingLocalSaveStore.captureExternalAdoption(for: reference)
-                guard let witness = owner.keyEvidence else { throw ExternalAdoptionProofUnavailable() }
-                var prior = retained.first { FileDigest.sha512($0) == witness.sha512 }
-                if prior == nil { prior = try? await LocalDatabaseSaver.exportKeyEpochCopy(witness, for: reference) }
-                if prior == nil {
-                    for backup in DatabaseExportService.backups(for: reference) {
-                        if let copy = try? await DatabaseExportService.exportBackup(backup, for: reference),
-                           FileDigest.sha512(copy.data) == witness.sha512 { prior = copy.data; break }
-                    }
-                }
-                guard let prior, FileDigest.sha512(prior) == witness.sha512 else { throw ExternalAdoptionProofUnavailable() }
-                let original = try LocalDatabaseSaver.readOriginalSnapshot(for: reference)
-                return try LocalDatabaseSaver.prepareAuthenticatedExternalAdoption(owner: owner, priorCiphertext: prior,
-                    original: original, draft: capturedDraft, compositeKey: compositeKey, sessionKey: sessionKey,
-                    lockCycleID: cycle, draftRevision: revision)
-            }.value
-            guard cycle == lockCycleID, revision == contentRevision, gate.isCurrent, case .unlocked = state else {
-                throw CancellationError()
-            }
-            try await beforeCommit()
-            let resolution = try await Task.detached(priority: .userInitiated) {
-                try LocalDatabaseSaver.adoptAuthenticatedTarget(prepared, reference: reference, synchronizeParent: synchronizeParent, ownerIO: ownerIO, canCommit: { gate.isCurrent })
-            }.value
-            guard cycle == lockCycleID, case .unlocked = state else { throw CancellationError() }
-            // Authenticated ciphertext remains useful even when a later edit prevents applying this merge.
-            previousLocalCiphertext = prepared.priorCiphertext
-            authenticatedLocalCiphertext = prepared.original.data
-            guard prepared.draftRevision == contentRevision, prepared.lockCycleID == lockCycleID, gate.isCurrent else { throw CancellationError() }
-            guard resolution.ownership != .retainedForRecovery else { throw LocalAdoptionRecordFailure() }
-            rootGroup = prepared.baseRoot
-            unlockedMeta = prepared.baseMeta
-            binaryPool = BinaryPool(rawFields: prepared.basePool)
-            openTimeSHA512 = prepared.original.installed.sha512
-            draft = prepared.rebased.isDirty ? prepared.rebased : nil
-            saveConflict = nil
-            saveError = nil
-            var aspects: Set<LocalAdoptionWarning.Aspect> = []
-            if resolution.ownership == .resolvedVisibleWithoutConfirmedDurability { aspects.insert(.record) }
-            if !resolution.target.isConfirmed { aspects.insert(.file) }
-            if !aspects.isEmpty { throw LocalAdoptionWarning(aspects: aspects) }
-        } onCancel: { gate.cancel() }
+        return await Task.detached { PendingLocalSaveStore.requiresConflictRecovery(for: reference) }.value
+    }
+
+    func refreshLocalConflictRecovery() async {
+        guard let observed = saveConflict, !databaseReference.isCloudBacked else { return }
+        let cycle = lockCycleID
+        let required = await localConflictRequiresRecovery()
+        guard cycle == lockCycleID, saveConflict == observed else { return }
+        var current = observed
+        current.requiresLocalRecovery = required
+        saveConflict = current
+    }
+
+    private func guardLocalConflictAction() async throws {
+        let cycle = lockCycleID
+        let recovery = await localConflictRequiresRecovery()
+        guard cycle == lockCycleID else { throw CancellationError() }
+        if recovery {
+            pendingUploadMergeFailure = .localSourceRecovery
+            throw PendingLocalSaveStore.OwnershipError.recoveryRequired
+        }
     }
 
     func makeLocalRecoveryExport() async throws -> DatabaseExportService.ExportPayload {
@@ -3141,7 +3063,7 @@ final class DatabaseViewModel {
             return .init(data: bytes, suggestedFilename: "\(stem) - \(String(localized: "Unsaved Changes")).kdbx")
         }
         // These are bounded ciphertext references, never serialized session secrets.
-        for source in [authenticatedLocalCiphertext, previousLocalCiphertext].compactMap({ $0 }) {
+        for source in [authenticatedLocalCiphertext].compactMap({ $0 }) {
             if let exported = try? await export(using: source) { return exported }
             guard !Task.isCancelled, cycle == lockCycleID, revision == contentRevision, case .unlocked = state else { throw SaveError.saveContextUnavailable }
         }
@@ -3199,6 +3121,7 @@ final class DatabaseViewModel {
     /// Nothing here is destructive on failure: the draft, the conflict, and
     /// the fallback options all survive every early return.
     func mergeAndSave() async throws {
+        try await guardLocalConflictAction()
         if isReadOnly {
             throw SaveError.databaseIsReadOnly
         }
@@ -3309,7 +3232,10 @@ final class DatabaseViewModel {
         case .conflict(let remoteSHA512, let remoteData):
             // Strictly different bytes from the conflict just merged — the gate
             // accepted those — so this is a value change the alert observes.
-            saveConflict = SaveConflict(remoteSHA512: remoteSHA512, remoteData: remoteData)
+            let requiresRecovery = await localConflictRequiresRecovery()
+            guard expectedLockCycleID == lockCycleID else { return }
+            saveConflict = SaveConflict(remoteSHA512: remoteSHA512, remoteData: remoteData,
+                requiresLocalRecovery: requiresRecovery)
         }
     }
 
@@ -3624,11 +3550,12 @@ final class DatabaseViewModel {
         // arrived in the meantime.
         await Task.detached(priority: .userInitiated) {
             guard PendingLocalSaveStore.hasSaves(for: reference.id) == false,
+                  let lease = try? PendingLocalSaveStore.captureCacheReadLease(for: reference),
                   let url = DatabaseListStore.resolveDatabaseURL(for: reference),
                   let data = try? Self.readSecurityScopedData(from: url) else {
                 return
             }
-            LocalDatabaseSaver.refreshLocalCache(data, for: reference)
+            try? LocalDatabaseSaver.cacheLocalSnapshot(data, for: reference, lease: lease)
         }.value
         return .settledOrDeferred
     }
@@ -3746,10 +3673,13 @@ final class DatabaseViewModel {
     }
 
     func reloadDiscardingDraft() async throws {
+        try await guardLocalConflictAction()
         guard let compositeKey else {
             throw SaveError.saveContextUnavailable
         }
 
+        let previousConflict = saveConflict
+        let revision = contentRevision
         saveError = nil
         saveConflict = nil
         mergeFailure = nil
@@ -3776,6 +3706,19 @@ final class DatabaseViewModel {
         }
         guard lockCycleID == expectedLockCycleID else { return }
 
+        do {
+            try await guardLocalConflictAction()
+            guard lockCycleID == expectedLockCycleID else { return }
+            if !databaseReference.isCloudBacked, contentRevision != revision { throw CancellationError() }
+        } catch {
+            guard lockCycleID == expectedLockCycleID else { return }
+            isReplacingOpenDatabase = false
+            state = .unlocked
+            var retainedConflict = previousConflict
+            if pendingUploadMergeFailure?.offersLocalRecovery == true { retainedConflict?.requiresLocalRecovery = true }
+            saveConflict = retainedConflict
+            throw error
+        }
         isReplacingOpenDatabase = false
         applyReloadedDatabase(reloaded)
         saveConflict = nil
@@ -3801,7 +3744,6 @@ final class DatabaseViewModel {
         sessionKey = reloaded.sessionKey
         unlockedMeta = reloaded.meta
         openTimeSHA512 = reloaded.openTimeSHA512
-        previousLocalCiphertext = authenticatedLocalCiphertext
         authenticatedLocalCiphertext = reloaded.reference.isCloudBacked ? nil : reloaded.encryptedSnapshot
         binaryPool = reloaded.binaryPool
         AttachmentPreviewFileStore.clear(owner: attachmentPreviewOwnerID)
@@ -4213,9 +4155,10 @@ final class DatabaseViewModel {
                     }
                 } else {
                     guard let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) else { return }
+                    let lease = try PendingLocalSaveStore.captureCacheReadLease(for: databaseReference)
                     data = try Self.readSecurityScopedData(from: url)
                     guard PendingLocalSaveStore.permitsPublishingReadCopy(sha512: FileDigest.sha512(data), for: databaseReference.id) else { return }
-                    try LocalDatabaseSaver.cacheLocalSnapshot(data, for: databaseReference)
+                    try LocalDatabaseSaver.cacheLocalSnapshot(data, for: databaseReference, lease: lease)
                 }
 
                 if let compositeKeyForStoreRefresh {
@@ -4402,9 +4345,7 @@ final class DatabaseViewModel {
     }
 
     private func beginNewLockCycle() {
-        localAdoptionGate?.cancel()
         authenticatedLocalCiphertext = nil
-        previousLocalCiphertext = nil
         lockCycleID += 1
     }
 
@@ -4600,9 +4541,7 @@ final class DatabaseViewModel {
 
     /// Starts an unlock attempt and returns its token for `finishUnlockAttempt`.
     private func prepareForUnlock() -> UUID {
-        localAdoptionGate?.cancel()
         authenticatedLocalCiphertext = nil
-        previousLocalCiphertext = nil
         let attempt = UUID()
         secretAccess.invalidate()
         activeUnlockAttempt = attempt
@@ -4661,7 +4600,6 @@ final class DatabaseViewModel {
         self.openedFormatVersion = payload.formatVersion
         self.openTimeSHA512 = payload.openTimeSHA512
         authenticatedLocalCiphertext = databaseReference.isCloudBacked ? nil : payload.encryptedSnapshot
-        previousLocalCiphertext = nil
         self.binaryPool = payload.binaryPool
         self.draft = nil
         self.saveError = nil
@@ -4901,7 +4839,7 @@ final class DatabaseViewModel {
 
     private func readDatabaseData(
         prefetchedCloudResolution: CloudSyncResolution? = nil
-    ) async throws -> (url: URL, data: Data, cloudSyncStatus: CloudSyncResolution.Status?) {
+    ) async throws -> (url: URL, data: Data, cloudSyncStatus: CloudSyncResolution.Status?, cacheLease: PendingLocalSaveStore.CacheReadLease?) {
         if databaseReference.isCloudBacked {
             let resolution = if let prefetchedCloudResolution {
                 prefetchedCloudResolution
@@ -4917,14 +4855,16 @@ final class DatabaseViewModel {
             unlockStatusMessage = Self.decryptingStatusMessage
             DatabaseListStore.update(resolution.reference)
             databaseReference = resolution.reference
-            return (resolution.localURL, resolution.data, resolution.status)
+            return (resolution.localURL, resolution.data, resolution.status, nil)
         }
 
         cloudSyncBannerText = nil
         unlockStatusMessage = Self.decryptingStatusMessage
 
-        let result = try await localDatabaseReadOperation(databaseReference)
-        return (result.url, result.data, nil)
+        let reference = databaseReference
+        let lease = await Task.detached { try? PendingLocalSaveStore.captureCacheReadLease(for: reference) }.value
+        let result = try await localDatabaseReadOperation(reference)
+        return (result.url, result.data, nil, lease)
     }
 
     nonisolated private static func readLocalDatabase(
@@ -4983,14 +4923,10 @@ final class DatabaseViewModel {
     /// AutoFill save the file does not, and replacing it would hide that save
     /// from AutoFill until it is merged. `mergePendingLocalSaves` refreshes it
     /// once the file holds the save.
-    private func cacheDatabaseCopyForLocalDatabase(_ data: Data) throws {
-        guard databaseReference.isCloudBacked == false,
-              PendingLocalSaveStore.hasSaves(for: databaseReference.id) == false else {
-            return
-        }
-        guard PendingLocalSaveStore.permitsPublishingReadCopy(sha512: FileDigest.sha512(data), for: databaseReference.id) else { return }
-        // Recovery metadata must not prevent reading an otherwise valid encrypted file.
-        try? LocalDatabaseSaver.cacheLocalSnapshot(data, for: databaseReference)
+    private func cacheDatabaseCopyForLocalDatabase(_ data: Data, lease: PendingLocalSaveStore.CacheReadLease?) async {
+        guard !databaseReference.isCloudBacked, let lease else { return }
+        let reference = databaseReference
+        await Task.detached { try? LocalDatabaseSaver.cacheLocalSnapshot(data, for: reference, lease: lease) }.value
     }
 
     private func refreshCredentialStoreIfStillUnlocked(with root: KPGroup, expectedLockCycleID: Int) {

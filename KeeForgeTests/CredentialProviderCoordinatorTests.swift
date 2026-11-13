@@ -3323,7 +3323,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let database = try seedResolvableDefaultDatabase()
         let fileData = try KDBXTestFixture.kitchenSink.data(in: bundle)
         try fileData.write(to: XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: database)))
-        try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: bundle), for: database)
+        try writeAtomicallyAndDurably(KDBXTestFixture.test.data(in: bundle), to: DatabaseListStore.cacheLocation(for: database), directoryAnchor: AppGroupContainer.url)
 
         let searchView = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
 
@@ -3348,7 +3348,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let (coordinator, presenter) = makeCoordinator()
         let database = try seedResolvableDefaultDatabase()
         try FileManager.default.removeItem(at: XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: database)))
-        try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
+        try writeAtomicallyAndDurably(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), to: DatabaseListStore.cacheLocation(for: database), directoryAnchor: AppGroupContainer.url)
         let copyDate = try XCTUnwrap(
             DatabaseListStore.cacheLocation(for: database)
                 .resourceValues(forKeys: [.contentModificationDateKey])
@@ -3379,7 +3379,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let database = try TestDatabaseSupport.makeReference(for: trashedURL)
         DatabaseListStore.update(database)
         DatabaseListStore.activeAutoFillDatabaseID = database.id
-        try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: bundle), for: database)
+        try writeAtomicallyAndDurably(KDBXTestFixture.test.data(in: bundle), to: DatabaseListStore.cacheLocation(for: database), directoryAnchor: AppGroupContainer.url)
 
         let searchView = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
 

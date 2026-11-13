@@ -1,5 +1,6 @@
 import CryptoKit
 import Darwin
+import os
 import XCTest
 import KDBXKit
 import KDBXXML
@@ -10,7 +11,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveRejectsInvalidXMLWithoutReplacingFileCacheOrBackups() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let context = try makeDirtySaveContext(databaseURL: databaseURL, entryTitle: "Pending Valid Entry")
         let original = try Data(contentsOf: databaseURL)
         try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
@@ -59,7 +60,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     private func assertPostReplacementWarning(coordinationFailure: Bool) async throws {
         let url = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: url)
+        let reference = try makeRegisteredReference(for: url)
         let original = try Data(contentsOf: url)
         let context = try makeDirtySaveContext(databaseURL: url, entryTitle: "Committed Once")
         let encryptions = WriteCounter()
@@ -94,7 +95,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSourcePayloadPostRenameFaultKeepsRecoverableCiphertextAndNeverCallsCacheReplacement() async throws {
         let url = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: url)
+        let reference = try makeRegisteredReference(for: url)
         let original = try Data(contentsOf: url)
         try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
         let context = try makeDirtySaveContext(databaseURL: url, entryTitle: "Retained Provisional")
@@ -214,7 +215,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testOpaqueAdapterErrorAfterRealSharedReplaceIsUnknownAndCannotActivateOrResendSource() async throws {
         let url = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: url)
+        let reference = try makeRegisteredReference(for: url)
         let original = try Data(contentsOf: url)
         try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
         let context = try makeDirtySaveContext(databaseURL: url, entryTitle: "Opaque Adapter Commit")
@@ -245,6 +246,106 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertTrue(snapshot.needsRecovery)
         XCTAssertTrue(PendingLocalSaveStore.saves(for: reference.id).isEmpty)
         XCTAssertEqual(try PendingLocalSaveStore.export(XCTUnwrap(snapshot.receipts.first), for: reference.id), installed)
+    }
+
+    func testReadyCertificateReplayRetiresWithoutPinningLaterExternalRestorationAndPreservesNewSources() async throws {
+        let setup = try await makePendingKeyChangeWithDistinctKeyFiles()
+        defer { try? FileManager.default.removeItem(at: setup.directory) }
+        guard case .masterKeyChange(let desired)? = setup.commit.purpose, let desired else { return XCTFail("Expected real key-change receipt") }
+        guard case .durable(let proof) = DatabaseListStore.publishKeyFileAssociation(for: setup.reference.id,
+            operationID: setup.commit.operationID, association: desired) else { return XCTFail("Expected durable factors") }
+        let writes = OSAllocatedUnfairLock(initialState: 0)
+        let certificate = OSAllocatedUnfairLock<Data?>(initialState: nil)
+        var io = PendingLocalSaveStore.StorageIO()
+        io.fileIO = { url in
+            var writer = DurableFileWriteIO()
+            let n = writes.withLock { value in value += 1; return value }
+            if n == 1 { writer.afterPublication = { _ in certificate.withLock { $0 = try? Data(contentsOf: url) } } }
+            if n == 2 {
+                let published = OSAllocatedUnfairLock(initialState: false)
+                writer.afterPublication = { _ in published.withLock { $0 = true } }
+                writer.synchronizeParent = { directory in
+                    if published.withLock({ $0 }) { throw POSIXError(.EIO) }
+                    try synchronizeDirectory(directory)
+                }
+            }
+            return writer
+        }
+        let completion = try LocalDatabaseSaver.settleInstalledKeyChange(setup.commit, reference: setup.reference,
+            associationProof: proof, io: io)
+        XCTAssertEqual(completion, .resolvedVisibleWithoutConfirmedDurability)
+        let ready = try XCTUnwrap(certificate.withLock { $0 })
+        let ownerURL = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(setup.reference.id.uuidString)/owner.json")
+        // A crash may recover the already-durable certificate after a visible withdrawal.
+        try setup.oldData.write(to: setup.url, options: .atomic)
+        try writeAtomicallyAndDurably(ready, to: ownerURL)
+        let snapshot = try PendingLocalSaveStore.recovery(for: setup.reference.id)
+        let evidence = try XCTUnwrap(snapshot.keyEvidence)
+        XCTAssertTrue(evidence.targetState.isReadyToRetire)
+        XCTAssertEqual(PendingLocalSaveStore.resumeCertifiedRetirement(evidence, for: setup.reference.id), .resolved)
+        XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.reference.id).keyEvidence)
+        XCTAssertEqual(try Data(contentsOf: setup.url), setup.oldData, "Retirement does not rewrite or permanently pin the target")
+        let source = try PendingLocalSaveStore.prepareSource(setup.newData, for: setup.reference.id,
+            masterKeyChangedAt: desired.changedAt, baseCacheSHA512: FileDigest.sha512(setup.newData))
+        XCTAssertEqual(PendingLocalSaveStore.resumeCertifiedRetirement(evidence, for: setup.reference.id), .retainedForRecovery)
+        let later = try PendingLocalSaveStore.recovery(for: setup.reference.id)
+        XCTAssertEqual(later.receipts, [source.receipt])
+        XCTAssertEqual(try PendingLocalSaveStore.export(source.receipt, for: setup.reference.id), setup.newData)
+    }
+
+    func testScannerHealRelinkAndBothRawCacheWritersPreserveActiveKeyRecoveryCiphertext() async throws {
+        let setup = try await makePendingKeyChangeWithDistinctKeyFiles()
+        defer { try? FileManager.default.removeItem(at: setup.directory); DatabaseListStore.documentsDirectoryOverride = nil }
+        DatabaseListStore.documentsDirectoryOverride = setup.directory
+        var resident = setup.reference
+        resident.isDocumentsResident = true
+        DatabaseListStore.update(resident)
+        try setup.oldData.write(to: setup.url, options: .atomic)
+        let cache = DatabaseListStore.cacheLocation(for: resident)
+        let before = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: cache.path)[.systemFileNumber] as? NSNumber)
+        DocumentsVaultScanner.scan(directory: setup.directory)
+        XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
+        XCTAssertThrowsError(try DatabaseListStore.cacheDatabaseCopy(setup.oldData, for: resident.id))
+        XCTAssertThrowsError(try DatabaseListStore.cacheDatabaseCopy(setup.oldData, for: resident))
+        DatabaseListStore.cacheInitialCopyIfPossible(from: setup.url, for: resident.id)
+        XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
+        resident.bookmarkData = Data("invalid Documents bookmark".utf8)
+        DatabaseListStore.update(resident)
+        _ = DatabaseListStore.locateDatabaseFile(for: resident)
+        XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
+        let other = setup.directory.appendingPathComponent("relinked.kdbx")
+        try setup.oldData.write(to: other)
+        XCTAssertNotNil(try DatabaseListStore.relinkLocalDatabase(id: resident.id, to: other))
+        XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
+        XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: cache.path)[.systemFileNumber] as? NSNumber, before)
+        let copy = try await LocalDatabaseSaver.exportKeyEpochCopy(XCTUnwrap(setup.snapshot.admission), for: resident)
+        XCTAssertEqual(copy, setup.newData)
+        XCTAssertEqual(try PendingLocalSaveStore.recovery(for: resident.id).admission, setup.snapshot.admission)
+    }
+
+    func testInitialCacheReadCannotPublishAfterRemovalOrEpochSettlement() async throws {
+        for event in ["remove", "epoch"] {
+            let setup = try await makePendingKeyChangeWithDistinctKeyFiles()
+            defer { try? FileManager.default.removeItem(at: setup.directory) }
+            let cache = DatabaseListStore.cacheLocation(for: setup.reference)
+            let before = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: cache.path)[.systemFileNumber] as? NSNumber)
+            DatabaseListStore.cacheInitialCopyIfPossible(from: setup.url, for: setup.reference.id, read: { url in
+                let bytes = try CoordinatedFileReader.readData(from: url)
+                if event == "remove" { XCTAssertFalse(DatabaseListStore.remove(id: setup.reference.id)) }
+                else {
+                    guard case .masterKeyChange(let desired)? = setup.commit.purpose, let desired,
+                          case .durable(let proof) = DatabaseListStore.publishKeyFileAssociation(for: setup.reference.id,
+                            operationID: setup.commit.operationID, association: desired) else { throw SaveError.saveContextUnavailable }
+                    XCTAssertEqual(try LocalDatabaseSaver.settleInstalledKeyChange(setup.commit, reference: setup.reference,
+                        associationProof: proof), .resolved)
+                }
+                return bytes
+            })
+            XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
+            XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: cache.path)[.systemFileNumber] as? NSNumber, before)
+            if event == "remove" { XCTAssertTrue(PendingLocalSaveStore.isRevoked(setup.reference.id)) }
+            else { XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.reference.id).keyEvidence) }
+        }
     }
 
     func testKeyConfirmationRejectsOldMissingAndForeignTargetsBeforePublishingNewFactors() async throws {
@@ -290,9 +391,16 @@ final class LocalDatabaseSaverTests: XCTestCase {
             setup.snapshot.admission?.operationID)
     }
 
+    private func makeRegisteredReference(for url: URL) throws -> DatabaseReference {
+        let reference = try TestDatabaseSupport.makeReference(for: url)
+        DatabaseListStore.update(reference)
+        return reference
+    }
+
     private func makePendingKeyChangeWithDistinctKeyFiles() async throws -> (
         directory: URL, url: URL, reference: DatabaseReference, oldData: Data, newData: Data,
-        oldKey: SymmetricKey, oldKeyFile: Data, snapshot: PendingLocalSaveStore.RecoverySnapshot
+        oldKey: SymmetricKey, oldKeyFile: Data, snapshot: PendingLocalSaveStore.RecoverySnapshot,
+        commit: PendingLocalSaveStore.CommitReceipt
     ) {
         let loaded = try KDBXCompatibilitySupport.load(.passwordKeyfile, bundle: Bundle(for: Self.self))
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -319,14 +427,14 @@ final class LocalDatabaseSaverTests: XCTestCase {
             try await LocalDatabaseSaver.save(draft: draft, reference: reference, compositeKey: loaded.compositeKey,
                 openTimeSHA512: FileDigest.sha512(loaded.sourceData), kdfPolicy: .mainApp, newCompositeKey: newKey)
         }
-        guard case .saved = outcome else { throw SaveError.saveContextUnavailable }
+        guard case .saved(_, _, let commit) = outcome, let commit else { throw SaveError.saveContextUnavailable }
         return (directory, url, reference, loaded.sourceData, try Data(contentsOf: url), loaded.compositeKey, oldKeyFile,
-            try PendingLocalSaveStore.recovery(for: reference.id))
+            try PendingLocalSaveStore.recovery(for: reference.id), commit)
     }
 
     func testSaveWritesValidKDBXThatReParsesEqualToDraft() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
             entryTitle: "Slice 04 Added Entry"
@@ -365,7 +473,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveTwofishDatabasePreservesCipherAndRefreshesCache() async throws {
         let databaseURL = try makeScratchTwofishDatabase()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
             entryTitle: "Twofish Saved Entry"
@@ -393,7 +501,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveTakesBackupOfPreviousBytesIntoBackupDirectory() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let originalData = try Data(contentsOf: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
@@ -417,7 +525,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         // written aside are a decryptable KDBX file that still holds the
         // pre-edit entry state, i.e. that a restore would actually recover it.
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let originalData = try Data(contentsOf: databaseURL)
         let sessionKey = SymmetricKey(size: .bits256)
         let parsed = try KDBXParser.parseWithMeta(
@@ -485,7 +593,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSavePrunesBackupsToFiveNewest() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let dates = DateSequence(
             dates: (0..<7).map { Date(timeIntervalSince1970: 1_000 + Double($0)) }
         )
@@ -521,7 +629,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveReturnsSavedSHA512ThatMatchesNewBytes() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
             entryTitle: "Hash Entry"
@@ -545,7 +653,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveRefreshesSharedCachedCopyWithSavedBytes() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
             entryTitle: "Cached Entry"
@@ -579,7 +687,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveWhoseSharedCopyRefreshFailsRemovesTheOlderCopy() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: databaseURL), for: reference)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
@@ -623,7 +731,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testRekeySaveWhoseSharedCopyRefreshFailsRemovesTheCopyUnderTheOldKey() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: databaseURL), for: reference)
         let context = try makeCleanSaveContext(databaseURL: databaseURL)
         let newPassword = "rotated-master-123"
@@ -663,7 +771,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveWhoseSharedCopyRefreshFailsSucceedsWithoutAnOlderCopy() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
             entryTitle: "Never Cached Entry"
@@ -744,7 +852,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveFinishingWhileAnotherEncryptsConflictsInsteadOfOverwritingIt() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let pausedContext = try makeDirtySaveContext(databaseURL: databaseURL, entryTitle: "Paused Writer Entry")
         let finishingContext = try makeDirtySaveContext(databaseURL: databaseURL, entryTitle: "Finishing Writer Entry")
 
@@ -804,7 +912,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveRemoteChangedSinceOpenReturnsConflictDoesNotWrite() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
             entryTitle: "Conflict Entry"
@@ -834,7 +942,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveWithReconciledRemoteHashReplacesThatFileButNoOtherState() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
             entryTitle: "Merged Entry"
@@ -884,7 +992,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
     func testSaveOnReadOnlyFilesystemThrowsAndLeavesOriginalIntact() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let directoryURL = databaseURL.deletingLastPathComponent()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let originalData = try Data(contentsOf: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
@@ -1005,7 +1113,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveAtomicReplaceDoesNotLeaveTempFilesOnSuccess() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
             entryTitle: "Temp Cleanup Entry"
@@ -1027,7 +1135,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveAtomicReplaceFailureLeavesOriginalIntact() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let originalData = try Data(contentsOf: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
@@ -1059,7 +1167,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveUnderNSFileCoordinatorDoesNotDeadlockWhenOtherCoordinatorActive() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
             entryTitle: "Coordinated Entry"
@@ -1097,7 +1205,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveLegacyKDBX31ThrowsDatabaseIsReadOnly() async throws {
         let databaseURL = try makeScratchDatabaseCopy(fixtureName: "legacy-kdbx31")
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
             entryTitle: "Legacy Save Attempt"
@@ -1122,7 +1230,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testRekeySaveWritesFileThatOpensWithNewKeyAndRejectsOldKey() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
             entryTitle: "Rekeyed Entry"
@@ -1166,7 +1274,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testRekeySaveBackupStillOpensWithOldCredentials() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let originalData = try Data(contentsOf: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
@@ -1197,7 +1305,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testRekeySaveConflictLeavesFileUntouched() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
             entryTitle: "Rekey Conflict Entry"
@@ -1224,7 +1332,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testRekeySaveVerificationFailureLeavesFileUntouched() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let originalData = try Data(contentsOf: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,
@@ -1263,7 +1371,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testEncryptionSettingsSaveRewritesHeaderUnderTheSameKey() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let originalData = try Data(contentsOf: databaseURL)
         let original = try KDBXFileSummary.inspect(data: originalData)
         XCTAssertEqual(original.cipher, .aes256CBC, "Fixture precondition")
@@ -1325,7 +1433,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testEncryptionSettingsSaveMovesToAESKDFAndReopensUnderTheSameKey() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let original = try KDBXFileSummary.inspect(data: Data(contentsOf: databaseURL))
         guard case .argon2d = original.keyDerivation else {
             XCTFail("Fixture precondition: Argon2d, got \(original.keyDerivation)")
@@ -1370,7 +1478,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testEncryptionSettingsSaveKeepsUnchangedFields() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let original = try KDBXFileSummary.inspect(data: Data(contentsOf: databaseURL))
         let context = try makeCleanSaveContext(databaseURL: databaseURL)
 
@@ -1391,7 +1499,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testEncryptionSettingsSaveVerificationFailureLeavesFileUntouched() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let originalData = try Data(contentsOf: databaseURL)
         let context = try makeCleanSaveContext(databaseURL: databaseURL)
         let originalSHA512 = FileDigest.sha512(originalData)
@@ -1429,7 +1537,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveWithALargeAttachmentThatFitsReopensWithItsBytes() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         // A megabyte under the limit leaves room for the fixture's XML.
         let added = try makeAttachmentSaveContext(
             databaseURL: databaseURL,
@@ -1449,7 +1557,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveRefusesAnAttachmentThatLeavesNoRoomForTheXMLAndLeavesTheFileUntouched() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let originalData = try Data(contentsOf: databaseURL)
         // The draft accepts a pool that reaches the limit by itself; the XML
         // then takes the payload past what the reader inflates.
@@ -1466,7 +1574,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveRefusesAttachmentsThatOnlyTogetherExceedTheReadLimit() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try makeRegisteredReference(for: databaseURL)
         let first = try makeAttachmentSaveContext(
             databaseURL: databaseURL,
             name: "first.bin",

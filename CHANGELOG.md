@@ -4,7 +4,7 @@
 
 ### Changes
 
-- Database Details can authenticate and merge a compatible externally edited local file while preserving unsaved changes. Key-file selections recover separately from master-key changes.
+- Unsaved local changes can be exported as an encrypted snapshot from Database Details, including during save recovery.
 
 - AutoFill changes waiting for a local database can be exported as their original encrypted snapshots in Database Details. Removing a database preserves these changes until you explicitly discard them.
 

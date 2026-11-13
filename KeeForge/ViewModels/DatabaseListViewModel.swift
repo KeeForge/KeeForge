@@ -223,7 +223,7 @@ final class DatabaseListViewModel {
                 if let token {
                     return DatabaseListStore.publishKeyFilePreference(token, desired: desired, io: io, canPublish: { !request.isCancelled })
                 }
-                return DatabaseListStore.publishCloudKeyFilePreference(for: observed, desired: desired,
+                return DatabaseListStore.publishRegistryKeyFilePreference(for: observed, desired: desired,
                     io: io.registry, canPublish: { !request.isCancelled })
             }.value
         } onCancel: { request.cancel() }
@@ -545,11 +545,16 @@ final class PendingLocalRecoveryViewModel {
         await refresh()
     }
 
-    func discard(_ confirmed: PendingLocalSaveStore.RecoverySnapshot) async {
+    func discard(_ confirmed: PendingLocalSaveStore.RecoverySnapshot, abandonKeyRecord: Bool = false) async {
         do {
-            let outcome = try await Task.detached { try PendingLocalSaveStore.discard(confirmed) }.value
+            let outcome = try await Task.detached { try PendingLocalSaveStore.discard(confirmed, abandonKeyRecord: abandonKeyRecord) }.value
             switch outcome {
-            case .resolved: actionError = nil
+            case .resolved:
+                actionError = nil
+                if !abandonKeyRecord, let reference {
+                    let retirement = await Task.detached { LocalDatabaseSaver.retireSettledKeyWitness(for: reference) }.value
+                    if retirement != .resolved { actionError = RecoveryRecordWarning().localizedDescription }
+                }
             case .resolvedVisibleWithoutConfirmedDurability: actionError = RecoveryRecordWarning().localizedDescription
             case .retainedForRecovery: actionError = PendingLocalSaveStore.OwnershipError.recoveryRequired.localizedDescription
             }

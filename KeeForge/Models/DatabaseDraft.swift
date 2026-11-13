@@ -116,25 +116,6 @@ struct DatabaseDraft: Sendable {
         self.pendingEdits = pendingEdits
     }
 
-    func rebased(
-        baseRootGroup: KPGroup, baseMeta: KPMeta, baseBinaryPoolFields: [Data]?,
-        mergedRootGroup: KPGroup, mergedMeta: KPMeta, mergedBinaryPoolFields: [Data]?
-    ) -> DatabaseDraft {
-        guard !pendingEdits.isEmpty else {
-            return DatabaseDraft(rootGroup: baseRootGroup, meta: baseMeta, sessionKey: sessionKey,
-                binaryPoolFields: baseBinaryPoolFields)
-        }
-        let base = baseRootGroup.deepCopy()
-        base.recycleBinUUID = baseMeta.recycleBinUUID
-        let merged = mergedRootGroup.deepCopy()
-        merged.recycleBinUUID = mergedMeta.recycleBinUUID
-        // Keep the real edit log; replay would duplicate creations and attachment additions.
-        return DatabaseDraft(originalRootGroupStorage: base, currentRootGroupStorage: merged,
-            originalMetaStorage: baseMeta, currentMetaStorage: mergedMeta,
-            originalBinaryPoolFields: baseBinaryPoolFields, currentBinaryPoolFields: mergedBinaryPoolFields,
-            sessionKey: sessionKey, pendingEdits: pendingEdits)
-    }
-
     var rootGroup: KPGroup {
         let rootGroup = currentRootGroupStorage.deepCopy()
         rootGroup.recycleBinUUID = currentMetaStorage.recycleBinUUID

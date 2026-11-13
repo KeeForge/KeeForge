@@ -40,7 +40,7 @@ final class DatabaseListViewModelTests: XCTestCase {
         try await super.tearDown()
     }
 
-    func testSameEpochSelectClearPreservesKeyTargetThenAllowsExplicitSave() async throws {
+    func testSettledSelectClearUsesOnlyFieldCASAndAllowsExplicitSave() async throws {
         let setup = try await makePreferenceDatabase()
         defer { setup.database.lock() }
         let before = try PendingLocalSaveStore.recovery(for: setup.reference.id)
@@ -58,7 +58,9 @@ final class DatabaseListViewModelTests: XCTestCase {
         let afterSelect = try PendingLocalSaveStore.recovery(for: selected.id)
         XCTAssertEqual(afterSelect.keyEvidence?.targetState, before.keyEvidence?.targetState)
         XCTAssertEqual(afterSelect.keyEvidence?.epochID, before.keyEvidence?.epochID)
-        XCTAssertNotEqual(afterSelect.associationVersion, before.associationVersion)
+        XCTAssertNil(afterSelect.keyEvidence)
+        XCTAssertNil(afterSelect.preferenceIntent)
+        XCTAssertEqual(afterSelect.ownerObservation, before.ownerObservation)
         XCTAssertEqual(afterSelect.receipts, before.receipts)
         try await preferences.setKeyFile(url: nil, for: selected)
         let cleared = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == selected.id })
@@ -100,7 +102,7 @@ final class DatabaseListViewModelTests: XCTestCase {
 
     func testPreferencePublicationFaultsRetainExactDesiredChoiceForExplicitRestartRecovery() async throws {
         for phase in ["before-registry", "after-registry", "owner-completion"] {
-            let setup = try await makePreferenceDatabase()
+            let setup = try await makePreferenceDatabase(denyTargetDirectorySync: true)
             defer { setup.database.lock() }
             let before = try PendingLocalSaveStore.recovery(for: setup.reference.id)
             let registry = AppGroupContainer.url.appendingPathComponent("database-list.json")
@@ -221,25 +223,6 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertNil(owner.admission)
         guard case .missing = owner.ownerObservation else { return XCTFail("Cloud selection must not publish local owner state") }
         XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
-    }
-
-    func testSameValuePreferencePublicationStillInvalidatesAnOlderAssociationGeneration() async throws {
-        let setup = try await makePreferenceDatabase()
-        defer { setup.database.lock() }
-        let reference = setup.reference
-        let token = try await Task.detached { try DatabaseListStore.prepareKeyFilePreference(for: reference) }.value
-        let desired = PendingLocalSaveStore.KeyFilePreference(reference)
-        let newer = try await Task.detached { try DatabaseListStore.prepareKeyFilePreference(for: reference) }.value
-        let published = await Task.detached { DatabaseListStore.publishKeyFilePreference(newer, desired: desired) }.value
-        XCTAssertEqual(published, .saved)
-        let before = try PendingLocalSaveStore.recovery(for: reference.id)
-        let registry = try Data(contentsOf: AppGroupContainer.url.appendingPathComponent("database-list.json"))
-        let stale = await Task.detached { DatabaseListStore.publishKeyFilePreference(token,
-            desired: .init(bookmarkData: nil, filename: nil)) }.value
-        XCTAssertEqual(stale, .rejected)
-        XCTAssertEqual(try Data(contentsOf: AppGroupContainer.url.appendingPathComponent("database-list.json")), registry)
-        XCTAssertEqual(try PendingLocalSaveStore.recovery(for: reference.id).associationVersion, before.associationVersion)
-        XCTAssertEqual(setup.effects.withLock { $0.encryptions }, 1)
     }
 
     func testCancelledSelectionCannotPublishAfterANewerSelectionInTheSameWindow() async throws {

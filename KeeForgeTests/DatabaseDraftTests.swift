@@ -5,57 +5,6 @@ import KDBXXML
 @testable import KeeForge
 
 final class DatabaseDraftTests: XCTestCase {
-    func testAuthenticatedRebaseRetainsRealEditsAndOwnsBothTreesWhileDiscardRestoresExactBase() throws {
-        let key = SymmetricKey(size: .bits256)
-        let local = KPGroup(name: "Local")
-        let original = DatabaseDraft(rootGroup: local, meta: KPMeta(), sessionKey: key, binaryPoolFields: [])
-        let dirty = try original.apply(.createEntry(parentGroupID: local.id,
-            draft: EntryDraftPayload(title: "Unsaved", password: "secret")))
-        let base = KPGroup(id: local.id, name: "External", entries: [KPEntry(title: "External")])
-        let merged = dirty.rootGroup
-        merged.entries += base.entries
-        let basePool = [Data([0, 7])]
-        let mergedPool = [Data([0, 7]), Data([1, 8])]
-        var baseMeta = KPMeta()
-        baseMeta.recycleBin = .group(UUID())
-        var mergedMeta = baseMeta
-        mergedMeta.recycleBin = .group(UUID())
-        let rebased = dirty.rebased(baseRootGroup: base, baseMeta: baseMeta, baseBinaryPoolFields: basePool,
-            mergedRootGroup: merged, mergedMeta: mergedMeta, mergedBinaryPoolFields: mergedPool)
-        XCTAssertEqual(rebased.pendingEdits, dirty.pendingEdits)
-        XCTAssertTrue(rebased.isDirty)
-        XCTAssertEqual(rebased.rootGroup.entries.map(\.title).sorted(), ["External", "Unsaved"])
-        XCTAssertEqual(rebased.meta, mergedMeta)
-        XCTAssertEqual(rebased.binaryPoolFields, mergedPool)
-        base.entries.removeAll()
-        merged.entries.removeAll()
-        XCTAssertEqual(rebased.rootGroup.entries.count, 2)
-        let discarded = rebased.discardingEdits()
-        XCTAssertFalse(discarded.isDirty)
-        XCTAssertEqual(discarded.rootGroup.entries.map(\.title), ["External"])
-        XCTAssertEqual(discarded.meta, baseMeta)
-        XCTAssertEqual(discarded.rootGroup.recycleBinUUID, baseMeta.recycleBinUUID)
-        XCTAssertEqual(discarded.binaryPoolFields, basePool)
-        let grown = try rebased.apply(.createEntry(parentGroupID: local.id,
-            draft: EntryDraftPayload(title: "Later", password: "later")))
-        XCTAssertEqual(Array(grown.pendingEdits.prefix(dirty.pendingEdits.count)), dirty.pendingEdits)
-        XCTAssertEqual(grown.pendingEdits.count, dirty.pendingEdits.count + 1)
-        XCTAssertEqual(grown.rootGroup.entries.map(\.title).sorted(), ["External", "Later", "Unsaved"])
-    }
-
-    func testAuthenticatedRebaseWithNoEditsUsesCleanCurrentFileWithoutInventingPoolOrDirtyLog() {
-        let key = SymmetricKey(size: .bits256)
-        let clean = DatabaseDraft(rootGroup: KPGroup(name: "Old"), meta: KPMeta(), sessionKey: key)
-        let current = KPGroup(name: "Authenticated", entries: [KPEntry(title: "Current")])
-        let rebased = clean.rebased(baseRootGroup: current, baseMeta: KPMeta(), baseBinaryPoolFields: nil,
-            mergedRootGroup: KPGroup(name: "Ignored"), mergedMeta: KPMeta(), mergedBinaryPoolFields: [])
-        XCTAssertFalse(rebased.isDirty)
-        XCTAssertTrue(rebased.pendingEdits.isEmpty)
-        XCTAssertNil(rebased.binaryPoolFields)
-        current.entries.removeAll()
-        XCTAssertEqual(rebased.rootGroup.entries.map(\.title), ["Current"])
-    }
-
     func testDeletingCustomIconResetsEntriesGroupsAndHistoryWithoutChangingTheirContent() throws {
         let uuid = UUID()
         var unknown = OpaqueXMLNodes()

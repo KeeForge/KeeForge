@@ -662,7 +662,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
         let refreshed = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "App Refresh")) }
-        try DatabaseListStore.cacheDatabaseCopy(refreshed, for: reference)
+        try writeAtomicallyAndDurably(refreshed, to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let context = try makeDirtySaveContext(data: original, entryTitle: "Stale Save")
 
         var environment = LocalDatabaseSaver.Environment.live
@@ -870,7 +870,8 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        try DatabaseListStore.cacheDatabaseCopy(Data("stale".utf8), for: reference)
+        DatabaseListStore.update(reference)
+        try writeAtomicallyAndDurably(Data("stale".utf8), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
 
         await vm.unlock(password: fixturePassword)
@@ -1202,6 +1203,7 @@ final class PendingLocalSaveTests: XCTestCase {
     /// What the extension leaves behind: the saved bytes in the shared copy
     /// and the same bytes as a pending save.
     private func seedPendingSave(_ data: Data, for reference: DatabaseReference, now: Date = .now) throws {
+        DatabaseListStore.update(reference)
         _ = try seedAcceptedSource(data, for: reference.id, now: now, masterKeyChangedAt: reference.lastMasterKeyChangeAt)
     }
 

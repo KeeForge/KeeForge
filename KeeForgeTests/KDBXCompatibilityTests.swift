@@ -35,51 +35,6 @@ final class KDBXCompatibilityTests: XCTestCase {
         Bundle(for: Self.self)
     }
 
-    func test_authenticatedRebaseAndRealLocalSaveReopenFullForeignSnapshotAndDraftAttachmentPool() async throws {
-        let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle)
-        let baseDraft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
-            binaryPoolFields: loaded.header.innerHeaderBinaryFields)
-        let local = try baseDraft.apply(.createEntry(parentGroupID: loaded.rootGroup.id,
-            draft: EntryDraftPayload(title: "Local Rebased Attachment", password: "local secret",
-                attachments: [.new(name: "local.dat", data: Data("rebased attachment".utf8))])))
-        let external = try baseDraft.apply(.createEntry(parentGroupID: loaded.rootGroup.id,
-            draft: EntryDraftPayload(title: "External Authenticated Change", password: "external secret")))
-        let bytes = try external.write(compositeKey: loaded.compositeKey, header: loaded.header, kdfPolicy: .mainApp)
-        let authenticated = try KDBXParser.parse(data: bytes, compositeKey: loaded.compositeKey, sessionKey: loaded.sessionKey, kdfPolicy: .mainApp)
-        let result = try KDBXMerger.merge(local: .init(rootGroup: local.rootGroup, meta: local.meta,
-            binaryPoolFields: local.binaryPoolFields ?? []), remote: .init(rootGroup: authenticated.rootGroup,
-                meta: authenticated.meta, binaryPoolFields: authenticated.header.innerHeaderBinaryFields), sessionKey: loaded.sessionKey)
-        guard case .merged(let merged) = result else { return XCTFail("Compatible pools must merge") }
-        let rebased = local.rebased(baseRootGroup: authenticated.rootGroup, baseMeta: authenticated.meta,
-            baseBinaryPoolFields: authenticated.header.innerHeaderBinaryFields, mergedRootGroup: merged.rootGroup,
-            mergedMeta: merged.meta, mergedBinaryPoolFields: local.binaryPoolFields)
-        XCTAssertEqual(rebased.pendingEdits, local.pendingEdits)
-        let expected = try CompatibilitySnapshot(rootGroup: rebased.rootGroup, meta: rebased.meta,
-            sessionKey: loaded.sessionKey, binaryPool: BinaryPool(rawFields: rebased.binaryPoolFields ?? []))
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let url = directory.appendingPathComponent("authenticated-rebase.kdbx")
-        try bytes.write(to: url)
-        let reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
-        defer {
-            try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
-            try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
-        }
-        let outcome = try await LocalDatabaseSaver.save(draft: rebased, reference: reference, compositeKey: loaded.compositeKey,
-            openTimeSHA512: FileDigest.sha512(bytes), kdfPolicy: .mainApp)
-        guard case .saved(let sha, _, _) = outcome else { return XCTFail("Expected a durable local save") }
-        let installed = try Data(contentsOf: url)
-        XCTAssertEqual(sha, FileDigest.sha512(installed))
-        let reopened = try KDBXParser.parse(data: installed, compositeKey: loaded.compositeKey, sessionKey: loaded.sessionKey, kdfPolicy: .mainApp)
-        let actual = try CompatibilitySnapshot(rootGroup: reopened.rootGroup, meta: reopened.meta,
-            sessionKey: loaded.sessionKey, binaryPool: BinaryPool(rawFields: reopened.header.innerHeaderBinaryFields))
-        try KDBXCompatibilitySupport.assertWholeTreeUnchanged(before: expected, after: actual)
-        XCTAssertEqual(actual.binaryPoolDigest, expected.binaryPoolDigest)
-        XCTAssertEqual(reopened.rootGroup.allEntries.filter { $0.title == "Local Rebased Attachment" }.count, 1)
-        XCTAssertTrue(reopened.rootGroup.allEntries.contains { $0.title == "External Authenticated Change" })
-    }
-
     func test_createdPercentRootNameSurvivesWriteAndReopen() async throws {
         let name = "new%20db 100%"
         let prepared = try await DatabaseCreationService.prepare(request: DatabasePreparationRequest(

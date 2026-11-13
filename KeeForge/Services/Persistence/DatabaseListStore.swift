@@ -461,6 +461,40 @@ enum DatabaseListStore {
         }
     }
 
+    static func certifySettledKeyWitness(
+        for expected: DatabaseReference, evidence: PendingLocalSaveStore.KeyEpochEvidence,
+        io: PendingLocalSaveStore.StorageIO = .init()
+    ) -> PendingLocalSaveStore.ResolutionOutcome {
+        withStateLock {
+            guard let anchor = AppGroupContainer.resolvedURL, let target = resolveDatabaseURL(for: expected) else { return .retainedForRecovery }
+            let access = target.startAccessingSecurityScopedResource()
+            defer { if access { target.stopAccessingSecurityScopedResource() } }
+            var error: NSError?
+            var resolution = PendingLocalSaveStore.ResolutionOutcome.retainedForRecovery
+            NSFileCoordinator().coordinate(readingItemAt: target, options: [], writingItemAt: databaseListURL,
+                options: [], error: &error) { original, registry in
+                do {
+                    let data = try Data(contentsOf: registry)
+                    let references = try JSONDecoder().decode([DatabaseReference].self, from: data)
+                    guard let current = references.first(where: { $0.id == expected.id }),
+                          PendingLocalSaveStore.PreferenceObservation(expected).matches(current),
+                          current.keyFileBookmarkData == evidence.association.bookmarkData,
+                          current.keyFileFilename == evidence.association.filename,
+                          current.lastMasterKeyChangeAt == evidence.association.changedAt else { return }
+                    let handle = try FileHandle(forUpdating: registry)
+                    defer { try? handle.close() }
+                    try handle.synchronize()
+                    try createDurableDirectory(at: registry.deletingLastPathComponent(), anchor: anchor)
+                    let proof = DurableKeyFileAssociationReceipt(databaseID: expected.id, operationID: evidence.epochID,
+                        association: evidence.association, registrySHA512: FileDigest.sha512(data))
+                    resolution = PendingLocalSaveStore.certifySettledWitness(evidence, for: expected.id, associationProof: proof,
+                        observeTarget: { (try PendingLocalSaveStore.targetIdentity(at: original), FileDigest.sha512(try Data(contentsOf: original))) }, io: io)
+                } catch {}
+            }
+            return error != nil && resolution == .resolved ? .resolvedVisibleWithoutConfirmedDurability : resolution
+        }
+    }
+
     enum KeyFilePreferenceOutcome: Sendable, Equatable {
         case saved, notPublished, recoveryRequired, publishedWithoutConfirmedDurability, rejected
     }
@@ -489,38 +523,17 @@ enum DatabaseListStore {
         }
     }
 
-    static func withCurrentLocalReference(
-        _ expected: DatabaseReference, target: URL,
-        _ action: (URL) throws -> PendingLocalSaveStore.ResolutionOutcome
-    ) throws -> PendingLocalSaveStore.ResolutionOutcome {
-        try withStateLock {
-            var error: NSError?
-            var result: Result<PendingLocalSaveStore.ResolutionOutcome, Error>?
-            NSFileCoordinator().coordinate(readingItemAt: target, options: [], writingItemAt: databaseListURL,
-                options: [], error: &error) { protectedTarget, registry in
-                result = Result {
-                    let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
-                    guard let current = references.first(where: { $0.id == expected.id }),
-                          PendingLocalSaveStore.PreferenceObservation(expected).matches(current),
-                          current.isReadOnly == expected.isReadOnly else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
-                    return try action(protectedTarget)
-                }
-            }
-            if let error {
-                if case .success(let outcome)? = result {
-                    return outcome == .resolved ? .resolvedVisibleWithoutConfirmedDurability : outcome
-                }
-                throw error
-            }
-            guard let result else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
-            return try result.get()
-        }
-    }
-
     static func currentSameEpochPreference(for reference: DatabaseReference) throws -> PendingLocalSaveStore.KeyFilePreference {
         let owner = try PendingLocalSaveStore.recovery(for: reference.id)
         guard !owner.ownerUnavailable, !owner.isRevoked else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
-        guard owner.keyEvidence != nil else { return PendingLocalSaveStore.KeyFilePreference(reference) }
+        if owner.keyEvidence == nil {
+            guard let current = databases.first(where: { $0.id == reference.id }) else { return PendingLocalSaveStore.KeyFilePreference(reference) }
+            let preference = PendingLocalSaveStore.KeyFilePreference(current)
+            guard PendingLocalSaveStore.PreferenceObservation(reference).matches(current, preference: preference) else {
+                throw PendingLocalSaveStore.OwnershipError.sourceChanged
+            }
+            return preference
+        }
         return try withStateLock {
             var error: NSError?
             var result: Result<PendingLocalSaveStore.KeyFilePreference, Error>?
@@ -542,11 +555,12 @@ enum DatabaseListStore {
         }
     }
 
-    static func publishCloudKeyFilePreference(
+    static func publishRegistryKeyFilePreference(
         for expected: DatabaseReference, desired: PendingLocalSaveStore.KeyFilePreference,
-        io: DurableFileWriteIO = .init(), canPublish: @Sendable () -> Bool = { true }
+        io: DurableFileWriteIO = .init(), localToken: PendingLocalSaveStore.PreferenceToken? = nil,
+        canPublish: @Sendable () -> Bool = { true }
     ) -> KeyFilePreferenceOutcome {
-        guard expected.isCloudBacked, let anchor = AppGroupContainer.resolvedURL else { return .rejected }
+        guard expected.isCloudBacked || localToken != nil, let anchor = AppGroupContainer.resolvedURL else { return .rejected }
         return withStateLock {
             var error: NSError?
             var outcome: DurableWriteOutcome?
@@ -560,7 +574,12 @@ enum DatabaseListStore {
                     references[index].keyFileFilename = desired.filename
                     let encoder = JSONEncoder()
                     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                    outcome = writeWithDurabilityOutcome(try encoder.encode(references), to: registry, directoryAnchor: anchor, io: io)
+                    let bytes = try encoder.encode(references)
+                    if let localToken {
+                        outcome = try PendingLocalSaveStore.withIdlePreferenceAuthorization(localToken) {
+                            writeWithDurabilityOutcome(bytes, to: registry, directoryAnchor: anchor, io: io)
+                        }
+                    } else { outcome = writeWithDurabilityOutcome(bytes, to: registry, directoryAnchor: anchor, io: io) }
                 } catch { outcome = .notPublished(error) }
             }
             switch outcome {
@@ -606,7 +625,11 @@ enum DatabaseListStore {
         _ token: PendingLocalSaveStore.PreferenceToken, desired: PendingLocalSaveStore.KeyFilePreference,
         recovering: Bool = false, io: KeyFilePreferenceIO = .init(), canPublish: @Sendable () -> Bool = { true }
     ) -> KeyFilePreferenceOutcome {
-        withStateLock {
+        if token.witness == nil {
+            guard let reference = databases.first(where: { token.observation.matches($0) }) else { return .rejected }
+            return publishRegistryKeyFilePreference(for: reference, desired: desired, io: io.registry, localToken: token, canPublish: canPublish)
+        }
+        return withStateLock {
             guard let anchor = AppGroupContainer.resolvedURL else { return .rejected }
             let target: URL?
             if token.witness != nil {
@@ -862,36 +885,38 @@ enum DatabaseListStore {
         }
     }
 
-    static func cacheDatabaseCopy(_ data: Data, for databaseID: UUID) throws {
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: SharedVaultStore.databaseCacheDirectory.path) {
-            try fm.createDirectory(
-                at: SharedVaultStore.databaseCacheDirectory,
-                withIntermediateDirectories: true,
-                attributes: nil
-            )
+    static func withLocalCacheReference<T>(
+        _ expected: DatabaseReference, allowNewReference: Bool, _ publish: () throws -> T
+    ) throws -> T {
+        try withStateLock {
+            let references: [DatabaseReference]
+            do { references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL)) }
+            catch let error as CocoaError where allowNewReference && error.code == .fileReadNoSuchFile { references = [] }
+            if let current = references.first(where: { $0.id == expected.id }) {
+                guard PendingLocalSaveStore.PreferenceObservation(expected).matches(current),
+                      current.filename == expected.filename else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
+            } else if !allowNewReference { throw PendingLocalSaveStore.OwnershipError.removed }
+            return try publish()
         }
+    }
 
-        try CoordinatedFileReader.writeData(
-            data,
-            to: cacheURL(for: databaseID),
-            options: .atomicProtected
-        )
+    static func cacheDatabaseCopy(_ data: Data, for databaseID: UUID) throws {
+        guard let reference = databases.first(where: { $0.id == databaseID }) else { throw PendingLocalSaveStore.OwnershipError.removed }
+        if reference.isCloudBacked { try cacheDatabaseCopy(data, for: reference); return }
+        let lease = try PendingLocalSaveStore.captureCacheReadLease(for: reference)
+        // UUID-only callers cannot upgrade an old read to an observed key epoch.
+        guard lease.epochID == nil else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+        try LocalDatabaseSaver.cacheLocalSnapshot(data, for: reference, lease: lease)
     }
 
     static func cacheDatabaseCopy(_ data: Data, for reference: DatabaseReference) throws {
+        if !reference.isCloudBacked {
+            try LocalDatabaseSaver.cacheLocalSnapshot(data, for: reference, allowNewReference: true)
+            return
+        }
         let url = cacheLocation(for: reference)
-        let fm = FileManager.default
-        try fm.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true,
-            attributes: nil
-        )
-        try CoordinatedFileReader.writeData(
-            data,
-            to: url,
-            options: .atomicProtected
-        )
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try CoordinatedFileReader.writeData(data, to: url, options: .atomicProtected)
     }
 
     static func cachedDatabaseURL(for databaseID: UUID) -> URL? {
@@ -1051,7 +1076,7 @@ enum DatabaseListStore {
             let desired = PendingLocalSaveStore.KeyFilePreference(bookmarkData: refreshed,
                 filename: reference.keyFileFilename ?? resolved.url.lastPathComponent)
             if let token { return publishKeyFilePreference(token, desired: desired) }
-            return publishCloudKeyFilePreference(for: reference, desired: desired)
+            return publishRegistryKeyFilePreference(for: reference, desired: desired)
         } catch { return .rejected }
     }
 
@@ -1647,8 +1672,10 @@ enum DatabaseListStore {
         guard FileManager.default.fileExists(atPath: cacheURL(for: databaseID).path) == false else { return }
 
         do {
+            guard let reference = databases.first(where: { $0.id == databaseID }) else { return }
+            let lease = try PendingLocalSaveStore.captureCacheReadLease(for: reference)
             let data = try CoordinatedFileReader.readData(from: legacyCachedURL)
-            try cacheDatabaseCopy(data, for: databaseID)
+            try LocalDatabaseSaver.cacheLocalSnapshot(data, for: reference, lease: lease, legacyMigrationSource: legacyCachedURL)
         } catch {
             return
         }
@@ -1768,9 +1795,13 @@ enum DatabaseListStore {
         url.resolvingSymlinksInPath().standardizedFileURL.path
     }
 
-    static func cacheInitialCopyIfPossible(from url: URL, for databaseID: UUID) {
-        guard let data = try? readSecurityScopedData(from: url) else { return }
-        try? cacheDatabaseCopy(data, for: databaseID)
+    static func cacheInitialCopyIfPossible(from url: URL, for databaseID: UUID,
+        read: (URL) throws -> Data = readSecurityScopedData
+    ) {
+        guard let reference = databases.first(where: { $0.id == databaseID }),
+              let lease = try? PendingLocalSaveStore.captureCacheReadLease(for: reference),
+              let data = try? read(url) else { return }
+        try? LocalDatabaseSaver.cacheLocalSnapshot(data, for: reference, lease: lease)
     }
 
     private static func readSecurityScopedData(from url: URL) throws -> Data {
