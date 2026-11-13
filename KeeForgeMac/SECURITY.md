@@ -60,6 +60,17 @@ Keep app-only plaintext metadata in the Mac app's own sandbox:
   app-local defaults on macOS. Account display names and server paths do not
   belong in shared defaults; the extension does not need these account records.
 
+[MacWindowRestorationStore](../KeeForge/Services/AppSupport/MacWindowRestorationStore.swift)
+defines versionless JSON storage under `MacWindowRestoration` in injected app-local
+UserDefaults, outside the App Group suite. It stores ordered database UUIDs and
+window frames, Databases-window visibility and frame, and an optional frontmost
+database UUID. It has no fields for sessions, unlocked state, keys, authentication
+grants, passwords, search text, selected entries/groups/tags, editor drafts,
+enrollment URIs, database titles, paths, or bookmarks. UUIDs are resolved against
+the database list and planned windows are always locked. This storage service
+exists but is not yet used by any window. Its per-database split autosave naming
+and cleanup helpers are also unwired; AppKit still owns split geometry.
+
 [DatabaseListStore](../KeeForge/Services/Persistence/DatabaseListStore.swift)
 owns production cache writes, scoped by database UUID for local caches and by
 provider, account, and file ID for cloud caches. Backups, pending uploads, and

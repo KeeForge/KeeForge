@@ -5,6 +5,7 @@
 ## Ownership
 
 - `SettingsService`: where each preference is stored (app-local or App Group-shared). `AppSettingsViewModel` owns their live effects.
+- `MacWindowRestorationStore`: unwired, data-only Mac window topology and restoration decisions. Inject the app's own defaults, never the App Group suite; records contain only database UUIDs, frames, launcher visibility, and frontmost UUID. Termination freezes recording until cancelled. Split geometry remains AppKit-owned under per-database autosave names.
 - `MacLockMonitor`: the macOS lock lifecycle. macOS has no "entered background" moment, so its triggers are what locks the vault there.
 - `MacWindowCloseGuard`: settles unsaved work before a close that would leave no host window. `MacLockMonitor`'s last-window trigger fires after the close commits, too late to prompt.
 - `MacQuickAccessController`: the opt-in status item, the quick-search panel, and the global shortcut, which exists only while the status item does.
@@ -69,6 +70,7 @@
 ## Tests
 
 - `SettingsServiceTests`, `FaviconServiceTests`, `FaviconIconEncoderTests`, `FeedbackSubmissionServiceTests`, `AttachmentPreviewFileStoreTests`, `ReviewPromptServiceTests`, `WhatsNewPresentationServiceTests`, `AutoFillStatusServiceTests`.
+- Mac restoration: `MacWindowRestorationStoreTests` covers persistence, allowed JSON fields, supported-reference filtering, frame constraints, launcher/Quick Launch/explicit-open precedence, termination snapshots, and split geometry cleanup.
 - Mac: `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `MacQuickAccessControllerTests`, `MacQuickSearchViewModelTests`, `MacTransitionNoticeServiceTests` (all `KeeForgeMacTests` only).
 - `ClipboardService` has no class of its own; scrubbing on lock is covered in `AutoLockTests`.
 - UI tests suppress the AutoFill tip unless `UI_TEST_SHOW_AUTOFILL_TIP=1` and force the Mac app banner with `UI_TEST_SHOW_MAC_APP_SUGGESTION=1`.
