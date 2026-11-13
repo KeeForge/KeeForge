@@ -6,7 +6,7 @@ import Foundation
 /// guarantee and forwards them to the app as lock/became-active callbacks.
 ///
 /// macOS has no single "scene entered background" moment the way iOS does, so
-/// this monitor IS the lock lifecycle on the Mac:
+/// this monitor IS the app-wide lock lifecycle on the Mac:
 /// - screen lock (`com.apple.screenIsLocked`, distributed)
 /// - screensaver start (`com.apple.screensaver.didstart`, distributed)
 /// - system sleep (`NSWorkspace.willSleepNotification`)
@@ -22,22 +22,19 @@ import Foundation
 ///   requested does not excuse any other application coming forward
 ///   (`NSWorkspace.didActivateApplicationNotification`). When the prompt ends
 ///   the hold is settled: KeeForge is active again shortly after, or it locks.
-/// - the last window closing (`NSWindow.willCloseNotification`). ⌘W closes the
-///   only window without quitting, and the session lives in app-level state,
-///   so without this an unlocked vault would sit decrypted in memory with no
-///   window to lock it from. Like the triggers above it is unconditional.
-///   Unsaved work is settled before the close commits, by
-///   `MacWindowCloseGuard` — this notification arrives too late to prompt in,
-///   so by the time it fires nothing is left to defer.
+///
+/// Closing a database window locks only its session, through
+/// `MacWindowCloseGuard`; it is not an app-wide trigger.
 ///
 /// `NSApplication.didBecomeActiveNotification` drives the became-active
-/// callback (pending-upload drain + inactivity-timer resume).
+/// callback (pending-upload drain + inactivity-deadline check).
 ///
 /// It also watches deliberate user interaction so the Auto-Lock Timeout means
 /// idleness rather than "time since the selection last changed". Without this
 /// the timer is only reset by view-model mutations, so typing a long note —
 /// which lives in `EntryEditViewModel` and touches none of them — would trip a
-/// 1- or 5-minute timeout mid-edit.
+/// 1- or 5-minute timeout mid-edit. An event counts only for the database
+/// session whose registered window (or sheet parent) received it.
 ///
 /// Notification centers are injected so unit tests can post notifications
 /// without really locking the screen.
@@ -49,17 +46,12 @@ final class MacLockMonitor {
         case systemWillSleep
         case sessionResignedActive
         case appResignedActive
-        case lastWindowClosed
     }
 
     static let screenIsLockedNotification = Notification.Name("com.apple.screenIsLocked")
     static let screensaverDidStartNotification = Notification.Name("com.apple.screensaver.didstart")
 
     typealias LockPolicyProvider = @MainActor () -> SettingsService.MacLockPolicy
-    /// How many windows that could still host the app's UI remain, ignoring the
-    /// one that is closing. Injected so tests can drive the trigger without
-    /// real windows.
-    typealias RemainingWindowCounter = @MainActor (_ excluding: NSWindow?) -> Int
     /// Whether the app has asked the system for an authentication prompt that
     /// has not ended yet. True from before the prompt appears, so on its own
     /// it does not say what a deactivation was caused by.
@@ -121,13 +113,13 @@ final class MacLockMonitor {
     /// Deliberate interaction with this app; resets the inactivity timer only.
     /// It can never extend a vault past a lock trigger — those lock immediately
     /// regardless of how active the user is.
-    var onUserActivity: (() -> Void)?
+    var onUserActivity: ((UUID) -> Void)?
+    var windowRegistry: MacDatabaseWindowRegistry?
 
     private let notificationCenter: NotificationCenter
     private let workspaceNotificationCenter: NotificationCenter
     private let distributedNotificationCenter: NotificationCenter
     private let lockPolicyProvider: LockPolicyProvider
-    private let remainingWindowCounter: RemainingWindowCounter
     private let isAuthenticationPromptPending: AuthenticationPromptProvider
     private let frontmostApplication: FrontmostApplicationProvider
     private let reactivationGracePeriod: TimeInterval
@@ -137,7 +129,7 @@ final class MacLockMonitor {
     private let activityThrottle: TimeInterval
     private var observers: [(center: NotificationCenter, token: NSObjectProtocol)] = []
     private var activityMonitor: Any?
-    private var lastActivityForwardedAt: Date?
+    private var lastActivityForwardedAt: [UUID: Date] = [:]
     /// True while the strict policy holds a deactivation behind the app's own
     /// authentication prompt instead of locking on it.
     private var isHoldingDeactivation = false
@@ -150,7 +142,6 @@ final class MacLockMonitor {
         workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
         distributedNotificationCenter: NotificationCenter = DistributedNotificationCenter.default(),
         lockPolicyProvider: @escaping LockPolicyProvider = { SettingsService.macLockPolicy },
-        remainingWindowCounter: @escaping RemainingWindowCounter = MacLockMonitor.countRemainingHostWindows,
         authenticationPromptProvider: @escaping AuthenticationPromptProvider = {
             BiometricService.isBiometricAuthInProgress
         },
@@ -166,7 +157,6 @@ final class MacLockMonitor {
         self.workspaceNotificationCenter = workspaceNotificationCenter
         self.distributedNotificationCenter = distributedNotificationCenter
         self.lockPolicyProvider = lockPolicyProvider
-        self.remainingWindowCounter = remainingWindowCounter
         self.isAuthenticationPromptPending = authenticationPromptProvider
         self.frontmostApplication = frontmostApplicationProvider
         self.reactivationGracePeriod = reactivationGracePeriod
@@ -200,7 +190,6 @@ final class MacLockMonitor {
         observe(notificationCenter, BiometricService.authenticationInProgressDidChangeNotification) { monitor in
             monitor.handleAuthenticationPromptStateChange()
         }
-        observeWindowClose()
         observeApplicationActivation()
 
         startActivityMonitor()
@@ -218,7 +207,7 @@ final class MacLockMonitor {
         ]
         activityMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
             MainActor.assumeIsolated {
-                self?.handleUserActivity()
+                self?.handleUserActivity(in: event.window)
             }
             // Never consume the event; the app still has to receive it.
             return event
@@ -228,14 +217,12 @@ final class MacLockMonitor {
     /// Throttled so a scroll or key-repeat burst resets the timer once rather
     /// than rescheduling it hundreds of times. Exposed for tests, which cannot
     /// synthesize real `NSEvent`s.
-    func handleUserActivity() {
+    func handleUserActivity(in window: NSWindow?) {
+        guard let id = windowRegistry?.registration(for: window)?.databaseID else { return }
         let timestamp = now()
-        if let lastActivityForwardedAt,
-           timestamp.timeIntervalSince(lastActivityForwardedAt) < activityThrottle {
-            return
-        }
-        lastActivityForwardedAt = timestamp
-        onUserActivity?()
+        if let last = lastActivityForwardedAt[id], timestamp.timeIntervalSince(last) < activityThrottle { return }
+        lastActivityForwardedAt[id] = timestamp
+        onUserActivity?(id)
     }
 
     /// Removes all observers. The app keeps one monitor alive for its whole
@@ -249,49 +236,8 @@ final class MacLockMonitor {
             NSEvent.removeMonitor(activityMonitor)
         }
         activityMonitor = nil
-        lastActivityForwardedAt = nil
+        lastActivityForwardedAt.removeAll()
         endHeldDeactivation()
-    }
-
-    /// Sheets, panels (the About panel, open/save panels) and closed-but-alive
-    /// windows cannot host the app's UI, so they never keep a vault unlocked.
-    /// `MacWindowCloseGuard` shares this count, so both halves of the
-    /// window-close trigger agree on what a host window is.
-    /// A *minimized* window does — it is one Dock click from being on screen —
-    /// and so does Settings, which the user is still working in; closing that
-    /// one later runs this check again.
-    static func countRemainingHostWindows(excluding closingWindow: NSWindow?) -> Int {
-        NSApplication.shared.windows.filter { window in
-            window !== closingWindow
-                && (window.isVisible || window.isMiniaturized)
-                && window.canBecomeMain
-                && window.isSheet == false
-        }.count
-    }
-
-    /// Exposed for tests, which cannot close a real window.
-    func handleWindowWillClose(_ closingWindow: NSWindow?) {
-        guard remainingWindowCounter(closingWindow) == 0 else { return }
-        onLockTriggered?(.lastWindowClosed)
-    }
-
-    /// Registered on its own rather than through `observe`, which drops the
-    /// notification: this is the one observer that needs the posting object,
-    /// and `Notification` is not `Sendable`, so the object is read on the
-    /// posting thread — always the main thread for a window notification.
-    private func observeWindowClose() {
-        let token = notificationCenter.addObserver(
-            forName: NSWindow.willCloseNotification,
-            object: nil,
-            queue: nil
-        ) { [weak self] notification in
-            guard Thread.isMainThread else { return }
-            let window = notification.object as? NSWindow
-            MainActor.assumeIsolated {
-                self?.handleWindowWillClose(window)
-            }
-        }
-        observers.append((center: notificationCenter, token: token))
     }
 
     /// An application came to the front. Only matters while a deactivation is
@@ -369,8 +315,8 @@ final class MacLockMonitor {
         }
     }
 
-    /// Registered on its own for the same reason as `observeWindowClose`: the
-    /// activated application is in the notification's `userInfo`. Only a
+    /// Registered on its own rather than through `observe`, which drops the
+    /// notification: the activated application is in its `userInfo`. Only a
     /// value describing it leaves the posting thread.
     private func observeApplicationActivation() {
         let token = workspaceNotificationCenter.addObserver(

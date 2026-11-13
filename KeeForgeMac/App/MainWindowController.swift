@@ -6,6 +6,7 @@ import SwiftUI
 
 @MainActor
 final class MainWindowController: NSWindowController, NSMenuItemValidation {
+    let windowRegistry: MacDatabaseWindowRegistry
     let sessionStore: DatabaseSessionStore
     let workspacePresentation = MacWorkspacePresentation()
     private lazy var workspace = MacWindowWorkspace(presentation: workspacePresentation)
@@ -33,8 +34,10 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         routing: AppRoutingCoordinator,
         quickAccess: MacQuickAccessController,
         sshAgent: MacSSHAgentController,
-        passwordCopyAction: EntrySecretAction = EntrySecretAction()
+        passwordCopyAction: EntrySecretAction = EntrySecretAction(),
+        windowRegistry: MacDatabaseWindowRegistry? = nil
     ) {
+        self.windowRegistry = windowRegistry ?? MacDatabaseWindowRegistry(sessionStore: sessionStore)
         self.listViewModel = listViewModel
         self.sessionStore = sessionStore
         self.routing = routing
@@ -42,6 +45,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         self.sshAgent = sshAgent
         self.passwordCopyAction = passwordCopyAction
         super.init(window: nil)
+        sessionStore.onActiveSessionChanged = { [weak self] in self?.updateWindowRegistration() }
     }
 
     @available(*, unavailable)
@@ -62,6 +66,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             onReadyForURLs: { [weak self] in self?.rootDidBecomeReady() }
         )
         let hosting = NSHostingController(rootView: content
+            .environment(windowRegistry)
             .environment(sessionStore)
             .environment(workspacePresentation)
             .environment(workspace)
@@ -85,6 +90,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         window.setFrameAutosaveName("main-AppWindow-1")
         self.window = window
         quickAccess.mainWindow = window
+        updateWindowRegistration()
         contentObservation.start(reading: { [weak self] in
             let session = self?.session
             let unlocked = session?.state == .unlocked ? session : nil
@@ -133,8 +139,18 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         pendingURLs.removeAll()
     }
 
+    private func updateWindowRegistration() {
+        guard let window else { return }
+        if let id = session?.databaseReference.id {
+            windowRegistry.register(window, databaseID: id)
+        } else {
+            windowRegistry.unregister(window)
+        }
+    }
+
     func showMainWindow() {
         if window == nil { loadWindow() }
+        updateWindowRegistration()
         if NSApp.isHidden { NSApp.unhide(nil) }
         showWindow(nil)
         if window?.isMiniaturized == true { window?.deminiaturize(nil) }

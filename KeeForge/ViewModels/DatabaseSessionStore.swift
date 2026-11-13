@@ -5,7 +5,10 @@ import Observation
 final class DatabaseSessionStore {
     private var sessionsByID: [UUID: DatabaseViewModel] = [:]
     private var openingOrder: [UUID] = []
-    var activeSessionID: UUID?
+    var activeSessionID: UUID? {
+        didSet { onActiveSessionChanged?() }
+    }
+    @ObservationIgnored var onActiveSessionChanged: (() -> Void)?
 
     @ObservationIgnored private let makeSession: @MainActor (DatabaseReference) -> DatabaseViewModel
 
@@ -54,7 +57,11 @@ final class DatabaseSessionStore {
     func handleAppDidBecomeActive() {
         for session in openSessions {
             session.didManuallyLock = false
+            #if os(macOS)
+            session.handleMacAppDidBecomeActive()
+            #else
             session.handleSceneDidBecomeActive()
+            #endif
             session.refreshSharedDatabaseCacheIfPossible()
         }
     }

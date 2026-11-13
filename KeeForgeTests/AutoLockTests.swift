@@ -490,20 +490,24 @@ final class AutoLockTests: XCTestCase {
             activityThrottle: 2
         )
         defer { monitor.stop() }
-        monitor.onUserActivity = { forwarded += 1 }
+        let window = NSWindow()
+        let registry = MacDatabaseWindowRegistry(sessionStore: DatabaseSessionStore())
+        registry.register(window, databaseID: UUID())
+        monitor.windowRegistry = registry
+        monitor.onUserActivity = { _ in forwarded += 1 }
 
-        monitor.handleUserActivity()
+        monitor.handleUserActivity(in: window)
         XCTAssertEqual(forwarded, 1, "first interaction should forward immediately")
 
         // A key-repeat or scroll burst inside the throttle window.
         clock = clock.addingTimeInterval(0.5)
-        monitor.handleUserActivity()
+        monitor.handleUserActivity(in: window)
         clock = clock.addingTimeInterval(0.5)
-        monitor.handleUserActivity()
+        monitor.handleUserActivity(in: window)
         XCTAssertEqual(forwarded, 1, "bursts inside the throttle window must not reschedule the timer")
 
         clock = clock.addingTimeInterval(2)
-        monitor.handleUserActivity()
+        monitor.handleUserActivity(in: window)
         XCTAssertEqual(forwarded, 2, "interaction after the throttle window should forward again")
     }
 
@@ -514,12 +518,70 @@ final class AutoLockTests: XCTestCase {
         let vm = try await makeUnlockedViewModel()
         let harness = MacTriggerHarness(viewModel: vm)
         defer { harness.monitor.stop() }
-        harness.monitor.onUserActivity = { vm.resetInactivityTimer() }
+        let window = NSWindow()
+        let store = DatabaseSessionStore()
+        store.adopt(vm)
+        let registry = MacDatabaseWindowRegistry(sessionStore: store)
+        registry.register(window, databaseID: vm.databaseReference.id)
+        harness.monitor.windowRegistry = registry
+        harness.monitor.onUserActivity = { store.resetInactivityTimer(for: $0) }
 
-        harness.monitor.handleUserActivity()
+        harness.monitor.handleUserActivity(in: window)
         harness.distributedCenter.post(name: MacLockMonitor.screenIsLockedNotification, object: nil)
 
         assertLocked(vm, "Activity must not defeat the screen-lock guarantee")
+    }
+
+    func testMacWindowActivityAndActivationPreserveOtherSessionsDeadline() async throws {
+        SettingsService.autoLockTimeout = .thirtySeconds
+        let clock = MutableNowProvider(now: Date(timeIntervalSince1970: 1_000))
+        let first = try await makeUnlockedViewModel(nowProvider: { clock.now })
+        let second = try await makeUnlockedViewModel(nowProvider: { clock.now })
+        defer { first.lock(); second.lock() }
+        let store = DatabaseSessionStore()
+        store.adopt(first)
+        store.adopt(second)
+        store.activeSessionID = second.databaseReference.id
+        let registry = MacDatabaseWindowRegistry(sessionStore: store)
+        let a = NSWindow()
+        let b = NSWindow()
+        let sheet = NSWindow()
+        a.addChildWindow(sheet, ordered: .above)
+        defer { a.removeChildWindow(sheet) }
+        registry.register(a, databaseID: first.databaseReference.id)
+        registry.register(b, databaseID: second.databaseReference.id)
+        let monitor = MacLockMonitor(now: { clock.now })
+        defer { monitor.stop() }
+        monitor.windowRegistry = registry
+        monitor.onUserActivity = { store.resetInactivityTimer(for: $0) }
+        clock.now.addTimeInterval(20)
+        monitor.handleUserActivity(in: sheet)
+        XCTAssertEqual(first.inactivityDeadline, Date(timeIntervalSince1970: 1_050))
+        XCTAssertEqual(second.inactivityDeadline, Date(timeIntervalSince1970: 1_030))
+        monitor.handleUserActivity(in: NSWindow())
+        clock.now.addTimeInterval(5)
+        store.handleAppDidBecomeActive()
+        XCTAssertEqual(first.inactivityDeadline, Date(timeIntervalSince1970: 1_050))
+        XCTAssertEqual(second.inactivityDeadline, Date(timeIntervalSince1970: 1_030))
+        clock.now.addTimeInterval(6)
+        store.handleAppDidBecomeActive()
+        XCTAssertEqual(first.state, .unlocked)
+        XCTAssertEqual(second.state, .locked)
+    }
+
+    func testMacActivationKeepsImmediatelyTimeoutSessionOpen() async throws {
+        SettingsService.autoLockTimeout = .immediately
+        let clock = MutableNowProvider(now: Date(timeIntervalSince1970: 1_000))
+        let vm = try await makeUnlockedViewModel(nowProvider: { clock.now })
+        defer { vm.lock() }
+        let store = DatabaseSessionStore()
+        store.adopt(vm)
+        clock.advance(by: 60)
+
+        store.handleAppDidBecomeActive()
+
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNil(vm.inactivityTimer)
     }
 
     private func assertLocked(

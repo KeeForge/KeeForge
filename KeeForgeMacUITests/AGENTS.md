@@ -49,7 +49,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - XCUITest drags do not move split-view dividers on macOS 27, so resizing a column is a manual check. Unit tests cover native split-item constraints and collapse; autosave restoration requires the repeated-lock/unlock UI test and manual divider resizing.
 - Toolbar buttons, `lock.button` included, can collapse into the "more toolbar items" overflow, where they are menu items matched by label. Use `clickToolbarButton(identifier:overflowLabel:)`, and detect the unlocked state from vault rows as `waitForVaultToUnlock` does.
 - The retained AppKit Settings window reopens on the tab used last in this process; a fresh root starts on Security. Select the tab with `selectSettingsTab(named:)`; the `settings.tab.*` identifiers sit on tab content, not on the switching control.
-- Closing the last window locks the vault (`MacLockMonitor.Trigger.lastWindowClosed`). A test pressing Command-W must leave another window open.
+- Closing the main window locks its database session (`MacWindowCloseGuard`), even with other windows open. A test pressing Command-W in the main window must expect the lock.
 
 ### Screenshot audit
 

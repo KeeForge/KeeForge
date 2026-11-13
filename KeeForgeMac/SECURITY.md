@@ -98,7 +98,7 @@ Closing and reopening it preserves the selected tab within the process.
 
 [MacLockMonitor](../KeeForge/Services/AppSupport/MacLockMonitor.swift) requests a
 lock on screen lock, screensaver start, system sleep, fast-user-switch session
-resign, and closure of the last UI-hosting window. App deactivation also requests
+resign. App deactivation also requests
 a lock under the strict `SettingsService.macLockPolicy` option. These app-global
 requests reach every retained session through DatabaseSessionStore, subject to
 each session's unsaved-work deferral. A session-specific lock leaves other
@@ -126,9 +126,12 @@ This leaves those sessions open for as long as the prompt stays unanswered with
 nothing else brought forward, the same exposure as leaving KeeForge itself in
 front. Auto-Lock Timeout and the other lock requests still apply then.
 
-The separate Auto-Lock Timeout controls inactivity. The monitor resets every
-retained session's timer on deliberate keyboard, click, and scroll activity
-inside KeeForge; mouse movement and activity in other apps do not count.
+The separate Auto-Lock Timeout controls inactivity. Deliberate keyboard, click,
+and scroll activity resets only the receiving database window's session timer,
+throttled per database. Sheets and child windows resolve to their database parent.
+Settings, panels, unregistered windows, mouse movement, and other apps do not
+extend database deadlines. App activation evaluates existing timed deadlines
+without renewing them (Immediately and Never set none on Mac); AutoFill cache refresh and pending-upload draining remain global.
 
 **Unsaved work can defer a lock indefinitely.** An open editor or dirty draft
 keeps the session and decrypted tree available while the Save / Discard / Keep
@@ -139,10 +142,18 @@ unsaved work. That authentication does not remove the memory exposure while the
 prompt remains unanswered.
 
 [MacWindowCloseGuard](../KeeForge/Services/AppSupport/MacWindowCloseGuard.swift)
-resolves unsaved work before allowing the last host window to close, so a deferred
-prompt cannot be stranded after its window disappears. Sheets and panels do not
-count as host windows; Settings and minimized main windows do. Cancel keeps the
-window and session open.
+resolves unsaved work independently for each registered database window. Repeated
+close requests share its pending prompt; cancel and failed save retain the window
+and session. A committed close locks exactly that session, regardless of other open
+windows; an opening or unlock still in flight is superseded, so its late result
+cannot open the database. The app stays running with zero windows and retains the
+locked selection for reopening its single main window.
+
+[MacDatabaseWindowRegistry](../KeeForge/Services/AppSupport/MacDatabaseWindowRegistry.swift),
+owned by AppDelegate, maps window object identity to database UUIDs. The main
+controller updates its registration when its selected database changes and when
+reopened. Unregistering invalidates pending close callbacks; sessions hold no
+AppKit objects. Settings and panels are not registered database hosts.
 
 Revealing or copying a password or protected field asks for device-owner
 authentication through the session's
@@ -162,7 +173,9 @@ activation, or the screen unlocking or login session returning while KeeForge
 stays the active app. Those events, rather than scene phase or a new lock cycle,
 drive this flow. It needs Touch ID itself; an Apple Watch alone never prompts on
 its own, matching the setting, which appears only with Touch ID.
-The queued attempt rechecks the foreground window, eligibility, and lock cycle;
+Automatic attempts share one prompt gate across windows. The queued attempt
+rechecks the registered key window's session, visibility, attached sheets,
+restoration suppression, eligibility, and lock cycle;
 a screen-lock, sleep, or other lock arriving first invalidates it. A manual lock
 stays locked until a later activation or an explicit unlock. Each lock cycle has
 at most one presented automatic prompt, so cancellation or password fallback does
@@ -272,7 +285,7 @@ The panel reads the one active session on every render and holds no entry data
 itself. It shows entry titles, user names, and folder paths only while that
 session is unlocked, regardless of other retained sessions; a locked or missing
 session sends the user to the main window. Locking that active session therefore
-empties it. Closing the last main window still locks, so quick search needs that window open or minimized.
+empties it. Closing a database window locks its session, so quick search needs that window open or minimized.
 
 Copying follows the main window's rules: the password waits on the same
 device-owner prompt as ⇧⌘C, skipped only inside the session's authentication
@@ -286,7 +299,7 @@ focus to the authentication prompt may hide the panel and clear its query withou
 invalidating that copy; the original session and content must still match.
 
 The panel is a non-activating, borderless `NSPanel`. It cannot become a main
-window, so it never counts as a UI-hosting window for the lock monitor. It is
+window and is not registered as a database host. It is
 not titled, so the resign-active blur cover skips it. Because a search usually
 starts while another app is active, the panel closes when it loses key status
 and does not rely on that cover. It applies the Block Screen Capture setting to

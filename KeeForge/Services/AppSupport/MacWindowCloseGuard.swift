@@ -17,30 +17,28 @@ protocol MacWindowCloseVault: AnyObject {
 
 extension DatabaseViewModel: MacWindowCloseVault {}
 
-/// Holds a window close open until the vault behind it has answered for its
-/// unsaved work.
+/// Holds a database window's close open until the session behind it has
+/// answered for its unsaved work, then locks that session once the close
+/// commits.
 ///
-/// `MacLockMonitor` locks on `NSWindow.willCloseNotification`, which arrives
-/// once the close is already committed. That is late enough for a lock that
-/// takes effect immediately, and too late for the two states that defer one
-/// instead: an editor holding fields the draft has not seen, and a draft whose
-/// write already failed. Both prompts live in views that go away with the
-/// window, so ⌘W used to leave the vault decrypted in memory with nothing on
-/// screen to resolve it and no timer that would ever fire.
+/// Two states defer a lock instead of taking it: an editor holding fields the
+/// draft has not seen, and a draft whose write already failed. Both prompts
+/// live in views that go away with the window, so a close that committed first
+/// would leave the vault decrypted with nothing on screen to resolve it.
 ///
-/// This guard is the seam that runs *before* the close commits. It answers
-/// `windowShouldClose(_:)` for the close that would leave no window behind,
-/// and:
+/// For each window registered in `MacDatabaseWindowRegistry` the guard answers
+/// `windowShouldClose(_:)` from that window's own session, and:
 /// - lets it through when nothing is unsaved;
 /// - hands an open editor its own prompt, because only the editor can save the
 ///   fields it is holding, and closes the window once that resolves into a lock;
 /// - asks the standard Save / Don't Save / Cancel itself for a dirty draft,
 ///   whose save it can drive.
 ///
-/// Cancel leaves the window open and the session exactly as it was.
+/// Cancel leaves the window open and the session exactly as it was. Other
+/// windows and their sessions are never consulted or locked.
 ///
-/// The prompt, the counter and the close itself are injected so tests can drive
-/// the whole decision without real windows or a modal alert.
+/// The prompt, the session lookup and the close itself are injected so tests
+/// can drive the whole decision without showing windows or a modal alert.
 @MainActor
 final class MacWindowCloseGuard {
     enum Choice: Equatable {
@@ -50,47 +48,50 @@ final class MacWindowCloseGuard {
     }
 
     /// The session the window is showing, if any.
-    typealias VaultProvider = @MainActor () -> MacWindowCloseVault?
+    typealias VaultProvider = @MainActor (NSWindow?) -> MacWindowCloseVault?
     /// `offersSave` is false on a read-only database, where saving is not a
     /// legal operation.
     typealias UnsavedWorkPrompt = @MainActor (_ window: NSWindow?, _ offersSave: Bool) async -> Choice
     typealias WindowCloser = @MainActor (NSWindow?) -> Void
 
-    var vaultProvider: VaultProvider?
+    private let registry: MacDatabaseWindowRegistry
+    private let vaultProvider: VaultProvider
 
     private let prompt: UnsavedWorkPrompt
     private let closeWindow: WindowCloser
-    private let remainingWindowCounter: MacLockMonitor.RemainingWindowCounter
     private let notificationCenter: NotificationCenter
     private var observers: [NSObjectProtocol] = []
+    private var generation = 0
     /// One proxy per adopted window, held here because `NSWindow.delegate` is
     /// weak.
     private var proxies: [ObjectIdentifier: WindowCloseDelegateProxy] = [:]
 
     init(
+        registry: MacDatabaseWindowRegistry,
+        vaultProvider: VaultProvider? = nil,
         prompt: @escaping UnsavedWorkPrompt = MacWindowCloseGuard.presentUnsavedWorkAlert,
         closeWindow: @escaping WindowCloser = { $0?.close() },
-        remainingWindowCounter: @escaping MacLockMonitor.RemainingWindowCounter
-            = MacLockMonitor.countRemainingHostWindows,
         notificationCenter: NotificationCenter = .default
     ) {
         self.prompt = prompt
         self.closeWindow = closeWindow
-        self.remainingWindowCounter = remainingWindowCounter
+        self.registry = registry
+        self.vaultProvider = vaultProvider ?? { [weak registry] in registry?.session(for: $0) }
         self.notificationCenter = notificationCenter
     }
 
     func start() {
         guard observers.isEmpty else { return }
+        registry.onRegister = { [weak self] in self?.adopt($0) }
 
         // A window that has just become key or main is one the app is using,
         // and re-adopting is cheap, so this also recovers if SwiftUI installs a
         // fresh delegate of its own later in a window's life.
         observeWindows(NSWindow.didBecomeKeyNotification) { $0.adopt($1) }
         observeWindows(NSWindow.didBecomeMainNotification) { $0.adopt($1) }
-        observeWindows(NSWindow.willCloseNotification) { $0.forget($1) }
+        observeWindows(NSWindow.willCloseNotification) { $0.windowWillClose($1) }
 
-        for window in NSApplication.shared.windows {
+        for window in registry.registeredWindows {
             adopt(window)
         }
     }
@@ -98,6 +99,11 @@ final class MacWindowCloseGuard {
     /// Restores the delegates the app had before. The app keeps one guard alive
     /// for its whole lifetime; tests must call this in teardown.
     func stop() {
+        generation += 1
+        registry.onRegister = nil
+        for window in registry.registeredWindows {
+            registry.registration(for: window)?.onUnregister = nil
+        }
         for observer in observers {
             notificationCenter.removeObserver(observer)
         }
@@ -110,11 +116,9 @@ final class MacWindowCloseGuard {
 
     /// Exposed for tests, which cannot close a real window.
     func windowShouldClose(_ window: NSWindow?) -> Bool {
-        // Only the close that leaves the app with no window to lock from is a
-        // lock trigger, so only that one has to be answered for. Closing the
-        // Settings window while the vault's window stays open is not one.
-        guard remainingWindowCounter(window) == 0 else { return true }
-        guard let vault = vaultProvider?() else { return true }
+        guard let registration = registry.registration(for: window), registration.window === window,
+              let vault = vaultProvider(window) else { return true }
+        guard vault.onWindowCloseGranted == nil else { return false }
 
         switch vault.requestWindowClose() {
         case .close:
@@ -125,7 +129,7 @@ final class MacWindowCloseGuard {
             waitForGrant(from: vault, closing: window)
         case .promptForUnsavedDraft:
             waitForGrant(from: vault, closing: window)
-            Task { await self.resolveUnsavedDraft(for: vault, window: window) }
+            Task { await self.resolveUnsavedDraft(for: vault, window: window, registration: registration) }
         }
 
         return false
@@ -168,18 +172,46 @@ final class MacWindowCloseGuard {
         return choices[index]
     }
 
-    private func waitForGrant(from vault: MacWindowCloseVault, closing window: NSWindow?) {
-        vault.onWindowCloseGranted = { [weak self, weak vault, weak window] in
-            vault?.onWindowCloseGranted = nil
-            self?.closeWindow(window)
+    /// A committed close locks only this window's session; a lock that already
+    /// granted the close, or a session that is not open, is left alone.
+    func windowWillClose(_ window: NSWindow?) {
+        guard let window, registry.registration(for: window)?.window === window else { return }
+        let session = registry.session(for: window)
+        registry.unregister(window)
+        forget(window)
+        if let session, session.state == .unlocked || session.state == .unlocking {
+            session.lock()
         }
     }
 
-    private func resolveUnsavedDraft(for vault: MacWindowCloseVault, window: NSWindow?) async {
-        switch await prompt(window, vault.isReadOnly == false) {
+    private func waitForGrant(from vault: MacWindowCloseVault, closing window: NSWindow?) {
+        guard let registration = registry.registration(for: window) else { return }
+        registration.onUnregister = { [weak self, weak vault, weak window] in
+            if vault?.onWindowCloseGranted != nil { vault?.cancelWindowClose() }
+            self?.forget(window)
+        }
+        let generation = generation
+        vault.onWindowCloseGranted = { [weak self, weak vault, weak window, weak registration] in
+            vault?.onWindowCloseGranted = nil
+            guard let self, self.generation == generation, let registration, self.registry.isCurrent(registration),
+                  let window, self.vaultProvider(window) === vault else { return }
+            self.closeWindow(window)
+        }
+    }
+
+    private func resolveUnsavedDraft(
+        for vault: MacWindowCloseVault, window: NSWindow?,
+        registration: MacDatabaseWindowRegistry.Registration
+    ) async {
+        let generation = generation
+        func isCurrent() -> Bool {
+            self.generation == generation && registry.isCurrent(registration) && vaultProvider(window) === vault
+        }
+        guard isCurrent() else { return vault.cancelWindowClose() }
+        let choice = await prompt(window, vault.isReadOnly == false)
+        guard isCurrent() else { return vault.cancelWindowClose() }
+        switch choice {
         case .save:
-            // A retry that fails again re-defers to the workspace prompt with
-            // the close still waiting on it.
             await vault.saveAndCloseWindow()
         case .discard:
             vault.discardAndCloseWindow()
@@ -190,12 +222,7 @@ final class MacWindowCloseGuard {
     }
 
     private func adopt(_ window: NSWindow?) {
-        // Deliberately not filtered down to windows that could host the app's
-        // UI: which close matters is decided by the window counter at close
-        // time, and adopting one window too many costs a proxy that always
-        // answers true. Sheets are skipped only because they cannot be the
-        // last window standing.
-        guard let window, window.isSheet == false else { return }
+        guard let window, registry.registration(for: window)?.window === window else { return }
 
         let key = ObjectIdentifier(window)
         if let existing = proxies[key], window.delegate === existing { return }
@@ -206,6 +233,10 @@ final class MacWindowCloseGuard {
         }
         proxies[key] = proxy
         window.delegate = proxy
+        // A pending close installed its own handler, which also forgets the window.
+        if let registration = registry.registration(for: window), registration.onUnregister == nil {
+            registration.onUnregister = { [weak self, weak window] in self?.forget(window) }
+        }
     }
 
     private func forget(_ window: NSWindow?) {

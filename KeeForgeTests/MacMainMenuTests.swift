@@ -108,6 +108,29 @@ final class MacMainMenuTests: XCTestCase {
         }
     }
 
+    func testWindowRegistrationTracksSelectionSynchronously() throws {
+        let store = DatabaseSessionStore()
+        let registry = MacDatabaseWindowRegistry(sessionStore: store)
+        let controller = MainWindowController(listViewModel: DatabaseListViewModel(), sessionStore: store,
+            routing: AppRoutingCoordinator(), quickAccess: MacQuickAccessController(), sshAgent: MacSSHAgentController(),
+            windowRegistry: registry)
+        controller.loadWindow()
+        let window = try XCTUnwrap(controller.window)
+        XCTAssertNil(registry.registration(for: window))
+        let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        let first = store.open(try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false))
+        let second = store.open(try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false))
+        store.activeSessionID = first.databaseReference.id
+        XCTAssertTrue(registry.session(for: window) === first)
+        var cancelled = false
+        registry.registration(for: window)?.onUnregister = { cancelled = true }
+        store.activeSessionID = second.databaseReference.id
+        XCTAssertTrue(cancelled)
+        XCTAssertTrue(registry.session(for: window) === second)
+        store.activeSessionID = nil
+        XCTAssertNil(registry.registration(for: window))
+    }
+
     func testIncomingURLsWaitForInitialRoutingAndDrainOnceInOrder() throws {
         let routing = AppRoutingCoordinator()
         let controller = MainWindowController(listViewModel: DatabaseListViewModel(), sessionStore: DatabaseSessionStore(),

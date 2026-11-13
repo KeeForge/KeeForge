@@ -11,7 +11,8 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     private let pendingUploadDrainer = PendingUploadDrainer()
     private let screenProtectionService = ScreenProtectionService()
     private let macLockMonitor = MacLockMonitor()
-    private let macWindowCloseGuard = MacWindowCloseGuard()
+    lazy var databaseWindowRegistry = MacDatabaseWindowRegistry(sessionStore: sessionStore)
+    private lazy var macWindowCloseGuard = MacWindowCloseGuard(registry: databaseWindowRegistry)
     private let macQuickAccess = MacQuickAccessController()
     private let macSSHAgent = MacSSHAgentController()
     private(set) var mainWindowController: MainWindowController?
@@ -43,16 +44,16 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
             sessionStore.handleAppDidBecomeActive()
             Task { await listViewModel.drainPendingUploadsOnAppActive() }
         }
-        macLockMonitor.onUserActivity = { sessionStore.resetInactivityTimers() }
+        macLockMonitor.windowRegistry = databaseWindowRegistry
+        macLockMonitor.onUserActivity = { sessionStore.resetInactivityTimer(for: $0) }
         macLockMonitor.start()
-        macWindowCloseGuard.vaultProvider = { sessionStore.activeSession }
         macWindowCloseGuard.start()
         macQuickAccess.openMainWindow = { [weak self] in self?.showMainWindow() }
         macQuickAccess.start()
         macSSHAgent.sessionProvider = { sessionStore.activeSession }
         macSSHAgent.start()
         let controller = MainWindowController(listViewModel: listViewModel, sessionStore: sessionStore,
-            routing: routing, quickAccess: macQuickAccess, sshAgent: macSSHAgent)
+            routing: routing, quickAccess: macQuickAccess, sshAgent: macSSHAgent, windowRegistry: databaseWindowRegistry)
         mainWindowController = controller
         // Keep database commands reachable while an auxiliary window has focus.
         nextResponder = NSApp.nextResponder

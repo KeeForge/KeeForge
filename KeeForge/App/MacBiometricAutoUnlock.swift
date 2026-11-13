@@ -2,6 +2,21 @@
 import AppKit
 import SwiftUI
 
+/// Admits one automatic Touch ID prompt at a time across all windows.
+@MainActor
+final class MacBiometricAutoUnlockGate {
+    static let shared = MacBiometricAutoUnlockGate()
+    private var isPrompting = false
+
+    func claim() -> Bool {
+        guard !isPrompting else { return false }
+        isPrompting = true
+        return true
+    }
+
+    func release() { isPrompting = false }
+}
+
 @MainActor
 final class MacBiometricAutoUnlockController {
     struct NotificationCenters {
@@ -18,6 +33,7 @@ final class MacBiometricAutoUnlockController {
     private let isEligible: () -> Bool
     private let lockCycleID: () -> Int
     private let isForeground: () -> Bool
+    private let gate: MacBiometricAutoUnlockGate
     private let unlock: () async -> DatabaseViewModel.BiometricUnlockOutcome
     private var attemptedLockCycle: Int?
     private var pendingRequest = 0
@@ -27,11 +43,13 @@ final class MacBiometricAutoUnlockController {
         isEligible: @escaping () -> Bool,
         lockCycleID: @escaping () -> Int,
         isForeground: @escaping () -> Bool,
+        gate: MacBiometricAutoUnlockGate = .shared,
         unlock: @escaping () async -> DatabaseViewModel.BiometricUnlockOutcome
     ) {
         self.isEligible = isEligible
         self.lockCycleID = lockCycleID
         self.isForeground = isForeground
+        self.gate = gate
         self.unlock = unlock
     }
 
@@ -44,7 +62,9 @@ final class MacBiometricAutoUnlockController {
         let attempt = Task { @MainActor [weak self] in
             guard let self, self.pendingRequest == request,
                   self.lockCycleID() == cycle, self.isForeground(), self.isEligible(),
-                  self.attemptedLockCycle != cycle, !self.isUnlocking else { return }
+                  self.attemptedLockCycle != cycle, !self.isUnlocking,
+                  self.gate.claim() else { return }
+            defer { self.gate.release() }
             self.attemptedLockCycle = cycle
             self.isUnlocking = true
             let outcome = await self.unlock()
@@ -107,9 +127,10 @@ final class MacBiometricAutoUnlockController {
 
 struct MacBiometricAutoUnlockObserver: NSViewRepresentable {
     let viewModel: DatabaseViewModel
+    @Environment(MacDatabaseWindowRegistry.self) private var registry: MacDatabaseWindowRegistry?
 
     func makeNSView(context: Context) -> ObserverView {
-        ObserverView(viewModel: viewModel)
+        ObserverView(viewModel: viewModel, registry: registry)
     }
 
     func updateNSView(_ nsView: ObserverView, context: Context) {}
@@ -120,11 +141,13 @@ struct MacBiometricAutoUnlockObserver: NSViewRepresentable {
 
     final class ObserverView: NSView {
         private let viewModel: DatabaseViewModel
+        private let registry: MacDatabaseWindowRegistry?
         private lazy var controller = MacBiometricAutoUnlockController(
             isEligible: { [weak self] in self?.viewModel.isEligibleForBiometricAutoUnlock == true },
             lockCycleID: { [weak self] in self?.viewModel.lockCycleID ?? -1 },
             isForeground: { [weak self] in
-                guard let window = self?.window else { return false }
+                guard let self, let window = self.window,
+                      self.registry?.admitsAutomaticUnlock(for: self.viewModel, in: window) == true else { return false }
                 return NSApp.isActive && window.isKeyWindow && window.isVisible
                     && !window.isMiniaturized && window.attachedSheet == nil
                     && NSWorkspace.shared.frontmostApplication?.processIdentifier
@@ -136,7 +159,8 @@ struct MacBiometricAutoUnlockObserver: NSViewRepresentable {
             }
         )
 
-        init(viewModel: DatabaseViewModel) {
+        init(viewModel: DatabaseViewModel, registry: MacDatabaseWindowRegistry?) {
+            self.registry = registry
             self.viewModel = viewModel
             super.init(frame: .zero)
         }

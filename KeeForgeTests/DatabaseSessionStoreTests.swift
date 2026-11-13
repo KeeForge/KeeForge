@@ -300,7 +300,7 @@ final class DatabaseSessionStoreTests: XCTestCase {
         defer { first.lock(); second.lock() }
         for session in [first, second] {
             store.adopt(session)
-            session.cancelInactivityTimer()
+            session.cancelInactivityTimer(clearDeadline: false)
             session.didManuallyLock = true
         }
         store.activeSessionID = second.databaseReference.id

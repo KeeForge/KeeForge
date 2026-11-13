@@ -179,6 +179,26 @@ final class MacBiometricAutoUnlockTests: XCTestCase {
         XCTAssertTrue(controller.latestAttempt == finished)
     }
 
+    func testTwoControllersCannotOverlapAutomaticPrompts() async {
+        let gate = MacBiometricAutoUnlockGate()
+        let started = expectation(description: "First prompt started")
+        var finish: CheckedContinuation<DatabaseViewModel.BiometricUnlockOutcome, Never>?
+        let first = MacBiometricAutoUnlockController(
+            isEligible: { true }, lockCycleID: { 0 }, isForeground: { true }, gate: gate,
+            unlock: { await withCheckedContinuation { finish = $0; started.fulfill() } })
+        let second = MacBiometricAutoUnlockController(
+            isEligible: { true }, lockCycleID: { 0 }, isForeground: { true }, gate: gate,
+            unlock: { self.attempts += 1; return .cancelled })
+        let pending = first.requestAttempt()
+        await fulfillment(of: [started], timeout: 2)
+        await second.requestAttempt().value
+        XCTAssertEqual(attempts, 0)
+        finish?.resume(returning: .cancelled)
+        await pending.value
+        await second.requestAttempt().value
+        XCTAssertEqual(attempts, 1)
+    }
+
     private func makeCenters() -> MacBiometricAutoUnlockController.NotificationCenters {
         MacBiometricAutoUnlockController.NotificationCenters(
             app: NotificationCenter(),

@@ -14,7 +14,6 @@ final class MacLockMonitorTests: XCTestCase {
     private var policy: SettingsService.MacLockPolicy = .screenLockOrSleep
     private var receivedTriggers: [MacLockMonitor.Trigger] = []
     private var becameActiveCount = 0
-    private var remainingHostWindows = 0
     private var isAuthenticationPromptPending = false
     private var frontmostApplication: MacLockMonitor.ForegroundApplication?
     private var scheduledDeadlines: [(delay: TimeInterval, work: @MainActor @Sendable () -> Void)] = []
@@ -52,7 +51,6 @@ final class MacLockMonitorTests: XCTestCase {
         policy = .screenLockOrSleep
         receivedTriggers = []
         becameActiveCount = 0
-        remainingHostWindows = 0
         isAuthenticationPromptPending = false
         frontmostApplication = nil
         scheduledDeadlines = []
@@ -62,7 +60,6 @@ final class MacLockMonitorTests: XCTestCase {
             workspaceNotificationCenter: workspaceCenter,
             distributedNotificationCenter: distributedCenter,
             lockPolicyProvider: { [weak self] in self?.policy ?? .screenLockOrSleep },
-            remainingWindowCounter: { [weak self] _ in self?.remainingHostWindows ?? 0 },
             authenticationPromptProvider: { [weak self] in self?.isAuthenticationPromptPending ?? false },
             frontmostApplicationProvider: { [weak self] in self?.frontmostApplication },
             reactivationGracePeriod: reactivationGracePeriod,
@@ -518,36 +515,42 @@ final class MacLockMonitorTests: XCTestCase {
 
     // MARK: - Became active
 
-    // MARK: - Window close
-
-    func testClosingTheLastHostWindowFiresLock() {
-        remainingHostWindows = 0
-        monitor.handleWindowWillClose(nil)
-        XCTAssertEqual(receivedTriggers, [.lastWindowClosed])
-    }
-
-    func testClosingAWindowWhileAnotherRemainsDoesNotFireLock() {
-        remainingHostWindows = 1
-        monitor.handleWindowWillClose(nil)
+    func testWindowCloseIsNotAnAppWideLockTrigger() {
+        appCenter.post(name: NSWindow.willCloseNotification, object: NSWindow())
         XCTAssertTrue(receivedTriggers.isEmpty)
-    }
-
-    /// Unlike app deactivation, this trigger is unconditional: the vault has no
-    /// window left to lock it from under any policy.
-    func testWindowCloseFiresLockUnderEveryPolicy() {
-        for candidate in [SettingsService.MacLockPolicy.screenLockOrSleep, .appDeactivates] {
-            policy = candidate
-            receivedTriggers = []
-            remainingHostWindows = 0
-            monitor.handleWindowWillClose(nil)
-            XCTAssertEqual(receivedTriggers, [.lastWindowClosed], "policy \(candidate)")
-        }
     }
 
     func testDidBecomeActiveNotificationFiresBecameActiveCallback() {
         appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
         XCTAssertEqual(becameActiveCount, 1)
         XCTAssertTrue(receivedTriggers.isEmpty)
+    }
+
+    func testActivityThrottleIsPerDatabaseAndIgnoresUnregisteredWindows() {
+        let registry = MacDatabaseWindowRegistry(sessionStore: DatabaseSessionStore())
+        let first = NSWindow()
+        let second = NSWindow()
+        let a = UUID()
+        let b = UUID()
+        registry.register(first, databaseID: a)
+        registry.register(second, databaseID: b)
+        var clock = Date(timeIntervalSince1970: 1_000)
+        let activityMonitor = MacLockMonitor(now: { clock })
+        defer { activityMonitor.stop() }
+        activityMonitor.windowRegistry = registry
+        var received: [UUID] = []
+        activityMonitor.onUserActivity = { received.append($0) }
+        activityMonitor.handleUserActivity(in: NSWindow())
+        activityMonitor.handleUserActivity(in: NSPanel())
+        activityMonitor.handleUserActivity(in: nil)
+        XCTAssertTrue(received.isEmpty)
+        activityMonitor.handleUserActivity(in: first)
+        activityMonitor.handleUserActivity(in: second)
+        activityMonitor.handleUserActivity(in: first)
+        XCTAssertEqual(received, [a, b])
+        clock.addTimeInterval(3)
+        activityMonitor.handleUserActivity(in: first)
+        XCTAssertEqual(received, [a, b, a])
     }
 
     // MARK: - Lifecycle

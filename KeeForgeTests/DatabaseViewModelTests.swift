@@ -6400,6 +6400,111 @@ final class DatabaseViewModelTests: XCTestCase {
 
     // MARK: - Window Close (macOS)
 
+    func testCommittedWindowCloseEndsOpeningAndLocksOnlyItsSession() async throws {
+        let held = HeldQuickUnlockKeys()
+        let keys = QuickUnlockKeys(storedKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil))
+        let opening = try makeViewModel(biometricCompositeKeyOperation: { _, _ in try await held.keys() })
+        let other = try makeViewModel()
+        await other.unlock(password: fixturePassword)
+        defer { opening.lock(); other.lock() }
+        let store = DatabaseSessionStore()
+        store.adopt(opening)
+        store.adopt(other)
+        store.activeSessionID = other.databaseReference.id
+        let registry = MacDatabaseWindowRegistry(sessionStore: store)
+        let window = NSWindow()
+        let otherWindow = NSWindow()
+        registry.register(window, databaseID: opening.databaseReference.id)
+        registry.register(otherWindow, databaseID: other.databaseReference.id)
+        let guardUnderTest = MacWindowCloseGuard(registry: registry)
+        let attempt = Task { await opening.unlockWithBiometrics() }
+        var waiting = false
+        for _ in 0..<100 {
+            waiting = await held.isWaiting
+            if waiting { break }
+            await Task.yield()
+        }
+        XCTAssertTrue(waiting)
+        XCTAssertEqual(opening.state, .unlocking)
+
+        XCTAssertTrue(guardUnderTest.windowShouldClose(window))
+        guardUnderTest.windowWillClose(window)
+        XCTAssertEqual(opening.state, .locked)
+
+        // The prompt answering after the close must not open the database.
+        await held.finish(with: keys)
+        let result = await attempt.value
+        XCTAssertEqual(result, .failed)
+        XCTAssertEqual(opening.state, .locked)
+        XCTAssertNil(opening.sessionKey)
+        XCTAssertNil(opening.rootGroup)
+        XCTAssertNil(registry.registration(for: window))
+        XCTAssertTrue(store.session(for: opening.databaseReference.id) === opening)
+        XCTAssertEqual(other.state, .unlocked)
+        XCTAssertNotNil(other.sessionKey)
+        XCTAssertTrue(registry.session(for: otherWindow) === other)
+    }
+
+    func testFailedWindowCloseSaveKeepsRegistrationSessionAndSecrets() async throws {
+        let vm = try makeViewModel(localSaveOperation: { _, _, _, _, _, _, _ in
+            throw SaveError.saveContextUnavailable
+        })
+        await vm.unlock(password: fixturePassword)
+        defer { vm.lock() }
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unsaved")
+        let store = DatabaseSessionStore()
+        store.adopt(vm)
+        let registry = MacDatabaseWindowRegistry(sessionStore: store)
+        let window = NSWindow()
+        registry.register(window, databaseID: vm.databaseReference.id)
+        var closed = false
+        let guardUnderTest = MacWindowCloseGuard(registry: registry,
+            prompt: { _, _ in .save }, closeWindow: { _ in closed = true })
+        XCTAssertFalse(guardUnderTest.windowShouldClose(window))
+        for _ in 0..<100 where vm.pendingLockRequest == nil { await Task.yield() }
+        XCTAssertNotNil(vm.pendingLockRequest)
+        XCTAssertFalse(closed)
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNotNil(vm.sessionKey)
+        XCTAssertTrue(registry.session(for: window) === vm)
+        XCTAssertTrue(store.session(for: vm.databaseReference.id) === vm)
+        registry.unregister(window)
+    }
+
+    func testCancelledCloseDoesNotLockAfterAnInFlightSaveFinishes() async throws {
+        actor HeldSave {
+            var continuation: CheckedContinuation<SaveResult, Never>?
+            var waiting: Bool { continuation != nil }
+            func save() async -> SaveResult {
+                await withCheckedContinuation { continuation = $0 }
+            }
+            func finish() {
+                continuation?.resume(returning: .saved(newSHA512: Data("saved".utf8)))
+                continuation = nil
+            }
+        }
+        let held = HeldSave()
+        let vm = try makeViewModel(localSaveOperation: { _, _, _, _, _, _, _ in await held.save() })
+        await vm.unlock(password: fixturePassword)
+        defer { vm.lock() }
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Saving")
+        XCTAssertEqual(vm.requestWindowClose(), .promptForUnsavedDraft)
+        let save = Task { await vm.saveAndCloseWindow() }
+        var waiting = false
+        for _ in 0..<100 {
+            waiting = await held.waiting
+            if waiting { break }
+            await Task.yield()
+        }
+        XCTAssertTrue(waiting)
+        vm.cancelWindowClose()
+        await held.finish()
+        await save.value
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNotNil(vm.sessionKey)
+        XCTAssertFalse(vm.isLockPending)
+    }
+
     func testWindowCloseIsAllowedWhileLocked() throws {
         let vm = try makeViewModel()
 
@@ -8390,3 +8495,19 @@ private actor SaveOutcomeSwitch {
         return failNext
     }
 }
+
+#if os(macOS)
+private actor HeldQuickUnlockKeys {
+    private var continuation: CheckedContinuation<QuickUnlockKeys, Error>?
+    var isWaiting: Bool { continuation != nil }
+
+    func keys() async throws -> QuickUnlockKeys {
+        try await withCheckedThrowingContinuation { continuation = $0 }
+    }
+
+    func finish(with keys: QuickUnlockKeys) {
+        continuation?.resume(returning: keys)
+        continuation = nil
+    }
+}
+#endif

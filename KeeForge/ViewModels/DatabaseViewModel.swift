@@ -2407,8 +2407,7 @@ final class DatabaseViewModel {
     #if os(macOS)
     /// What the Mac window delegate has to do about a close it is holding.
     enum WindowCloseDecision: Equatable {
-        /// Nothing is unsaved: let the close commit. The last window going
-        /// away locks the vault through `MacLockMonitor` as usual.
+        /// Nothing is unsaved: the window adapter may commit and lock this session.
         case close
         /// An open editor owns the decision, and is now showing the prompt it
         /// already has for a deferred lock. The close waits for
@@ -2427,8 +2426,7 @@ final class DatabaseViewModel {
     /// that answers it can let the window go.
     private var isWindowClosePending = false
 
-    /// Called before a window close commits. It never locks by itself — the
-    /// lock is the ordinary last-window one, taken once the close is granted.
+    /// Called before a window close commits; the adapter locks this session on commit.
     func requestWindowClose() -> WindowCloseDecision {
         guard case .unlocked = state else { return .close }
 
@@ -2451,6 +2449,7 @@ final class DatabaseViewModel {
     func saveAndCloseWindow() async {
         guard isWindowClosePending else { return }
         await saveHandlingError()
+        guard isWindowClosePending else { return }
         lockRequest(manuallyTriggered: true)
     }
 
@@ -2463,6 +2462,7 @@ final class DatabaseViewModel {
     /// Cancel, chosen in the close prompt or in whichever prompt the close was
     /// waiting on: the window stays open and the session is untouched.
     func cancelWindowClose() {
+        onWindowCloseGranted = nil
         isWindowClosePending = false
     }
 
@@ -3763,6 +3763,23 @@ final class DatabaseViewModel {
         lockRequest()
         #endif
     }
+
+    #if os(macOS)
+    func handleMacAppDidBecomeActive() {
+        guard isSessionOpen, let inactivityDeadline else { return }
+        switch SettingsService.autoLockTimeout {
+        // Immediately has no foreground timer on Mac; its deadline is always due.
+        case .immediately, .never:
+            return
+        case .thirtySeconds, .oneMinute, .fiveMinutes:
+            if nowProvider() >= inactivityDeadline {
+                lockRequest()
+            } else {
+                scheduleInactivityTimer(until: inactivityDeadline)
+            }
+        }
+    }
+    #endif
 
     func handleSceneDidBecomeActive() {
         guard isSessionOpen else {

@@ -30,7 +30,9 @@ The sidebar is collapsible (200–340 pt), the entries column is 260–460 pt, a
 the detail takes the remaining width. `NSSplitView` autosave owns widths and
 collapse state under `MacDatabaseWorkspace`, including across lock/unlock.
 View → Show Sidebar is forwarded to the active native split controller.
-The close guard settles unsaved work before the last host window closes.
+The close guard settles unsaved work per registered database window, then locks
+only its session. The app-owned registry follows the single main window's active
+database and attributes activity from its sheets and children to that session.
 
 ## Toolbar and search
 
