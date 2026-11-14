@@ -1103,7 +1103,7 @@ final class PendingLocalSaveTests: XCTestCase {
         defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
         let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
-        try seedPendingSave(pending, for: reference)
+        try seedPendingSave(pending, for: vm.databaseReference)
 
         do {
             try await vm.changeMasterKey(
@@ -1137,7 +1137,7 @@ final class PendingLocalSaveTests: XCTestCase {
         defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
         let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
-        try seedPendingSave(pending, for: reference)
+        try seedPendingSave(pending, for: vm.databaseReference)
         let changedElsewhere = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "Added In Another App")) }
         try changedElsewhere.write(to: databaseURL, options: .atomic)
 
@@ -1311,7 +1311,7 @@ final class PendingLocalSaveTests: XCTestCase {
     /// What the extension leaves behind: the saved bytes in the shared copy
     /// and the same bytes as a pending save.
     private func seedPendingSave(_ data: Data, for reference: DatabaseReference, now: Date = .now) throws {
-        DatabaseListStore.update(reference)
+        if !DatabaseListStore.databases.contains(where: { $0.id == reference.id }) { DatabaseListStore.update(reference) }
         _ = try seedAcceptedSource(data, for: reference.id, now: now, masterKeyChangedAt: reference.lastMasterKeyChangeAt)
     }
 
