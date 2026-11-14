@@ -405,60 +405,39 @@ private struct MacGroupTreeRow: View {
         .help(node.name)
         .accessibilityIdentifier("group.navlink")
         .contextMenu {
-            if canEdit {
+            let actions = MacSidebarGroupActions(groupID: node.id, session: viewModel)
+            if actions.canAddSubgroup {
                 Button("New Subgroup") {
                     onRequestNewSubgroup(node.id)
                 }
-                .accessibilityIdentifier("group-row.new-subgroup")
+                .accessibilityIdentifier(MacSidebarGroupActions.newSubgroupIdentifier)
+            }
 
+            if actions.canEdit {
                 Button("Edit Group") {
                     onEditGroup(node.id)
                 }
-                .accessibilityIdentifier("group-row.edit-context")
+                .accessibilityIdentifier(MacSidebarGroupActions.editIdentifier)
             }
 
-            RestoreRowAction(item: .group(node.id), viewModel: viewModel, onChooseDestination: onRequestMove)
+            if actions.canRestore {
+                RestoreRowAction(item: .group(node.id), viewModel: viewModel, onChooseDestination: onRequestMove)
+            }
 
-            if canMove {
+            if actions.canMove {
                 Button("Move to Group") {
                     onRequestMove(.group(node.id))
                 }
-                .accessibilityIdentifier("group-row.move-context")
+                .accessibilityIdentifier(MacSidebarGroupActions.moveIdentifier)
             }
 
-            if canDelete {
-                Button(deleteTitle, role: .destructive) {
+            if actions.canDelete {
+                Button(actions.deleteTitle, role: .destructive) {
                     requestDeletion()
                 }
-                .accessibilityIdentifier(
-                    viewModel.isGroupInRecycleBin(groupID: node.id)
-                        ? "group-row.delete-permanent"
-                        : "group-row.delete-context"
-                )
+                .accessibilityIdentifier(actions.deleteAccessibilityIdentifier)
             }
         }
-    }
-
-    /// Same predicate as the iOS row's `canEditGroup`: the Recycle Bin and
-    /// everything inside it stay non-editable, as does a read-only database.
-    private var canEdit: Bool {
-        viewModel.isReadOnly == false
-            && viewModel.currentRootGroup?.recycleBinUUID != node.id
-            && viewModel.isGroupInRecycleBin(groupID: node.id) == false
-    }
-
-    private var canDelete: Bool {
-        viewModel.isReadOnly == false && viewModel.isGroupProtectedFromDeletion(groupID: node.id) == false
-    }
-
-    /// The iOS row's `canMoveGroup`: editable, plus the deletion-protection
-    /// screen that also covers the roots the draft would refuse to reparent.
-    private var canMove: Bool {
-        canEdit && viewModel.isGroupProtectedFromDeletion(groupID: node.id) == false
-    }
-
-    private var deleteTitle: String {
-        viewModel.isGroupInRecycleBin(groupID: node.id) ? String(localized: "Delete Permanently") : String(localized: "Delete")
     }
 
     private func requestDeletion() {
