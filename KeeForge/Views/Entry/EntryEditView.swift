@@ -1,6 +1,8 @@
+#if os(iOS)
 import OneTimeCodes
 import SwiftUI
 
+/// The iOS entry editor. The Mac editor is `MacEntryEditorView`, inline in the detail column.
 struct EntryEditView: View {
     typealias Completion = EntryEditCompletion
 
@@ -154,7 +156,6 @@ struct EntryEditView: View {
 
     private var presentedForm: some View {
         editorForm
-        .macGroupedForm()
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -205,17 +206,12 @@ struct EntryEditView: View {
             PasswordGeneratorSheet { password in
                 formViewModel.password = password
             }
-            // Shorter than the default: the generator is a compact control
-            // stack, not a form.
-            .macSheetFrame(minHeight: 420)
         }
-        #if os(iOS)
         .sheet(isPresented: $showTOTPScanner) {
             TOTPQRScannerSheet { uri in
                 formViewModel.applyOTPAuthURI(uri)
             }
         }
-        #endif
         .modifier(EntryCustomFieldOrderSheet(
             isPresented: $showCustomFieldOrder,
             form: formViewModel
@@ -445,7 +441,6 @@ struct EntryEditView: View {
                 .buttonStyle(.borderless)
                 .accessibilityLabel(removeLabel)
                 .accessibilityIdentifier("entry-edit.additional-url.remove.\(index)")
-                .macHelp(removeLabel)
             }
         }
     }
@@ -529,7 +524,6 @@ struct EntryEditView: View {
             }
             .disabled(index == 0)
             .accessibilityLabel(Text("Move Up"))
-            .macHelp(String(localized: "Move Up"))
             .accessibilityIdentifier("entry-edit.custom-field.move-up.\(index)")
             Button {
                 formViewModel.moveCustomField(id: id, offset: 1)
@@ -538,7 +532,6 @@ struct EntryEditView: View {
             }
             .disabled(index + 1 >= formViewModel.customFields.count)
             .accessibilityLabel(Text("Move Down"))
-            .macHelp(String(localized: "Move Down"))
             .accessibilityIdentifier("entry-edit.custom-field.move-down.\(index)")
         }
         .labelStyle(.iconOnly)
@@ -601,14 +594,12 @@ struct EntryEditView: View {
 
     @ViewBuilder
     private var totpEntryPathRows: some View {
-        #if os(iOS)
         Button {
             showTOTPScanner = true
         } label: {
             Label("Scan QR Code", systemImage: "qrcode.viewfinder")
         }
         .accessibilityIdentifier("entry-edit.totp.scan-qr")
-        #endif
 
         Button {
             showTOTPSetupLink = true
@@ -867,7 +858,6 @@ struct EntryEditView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("entry-edit.group")
-        .macHoverHighlight()
     }
 
     private var destinationGroupName: String {
@@ -875,26 +865,17 @@ struct EntryEditView: View {
         return databaseViewModel.group(withID: groupID)?.name ?? ""
     }
 
-    /// iOS splits Basics into the design's cards: the fields, the URLs, and the
-    /// tags; macOS keeps one section.
+    /// Basics in the design's cards: the fields, the URLs, and the tags.
     @ViewBuilder
     private var basicsSections: some View {
-        if PlatformDesign.followsIOSDesign {
-            Section("Basics") {
-                identityFields
-            }
-            Section {
-                urlFields
-            }
-            Section("Tags") {
-                tagFields
-            }
-        } else {
-            Section("Basics") {
-                identityFields
-                urlFields
-                tagFields
-            }
+        Section("Basics") {
+            identityFields
+        }
+        Section {
+            urlFields
+        }
+        Section("Tags") {
+            tagFieldContent
         }
     }
 
@@ -925,13 +906,12 @@ struct EntryEditView: View {
                 Button {
                     showPasswordGenerator = true
                 } label: {
-                    Image(systemName: PlatformDesign.followsIOSDesign ? "wand.and.stars" : "dice.fill")
+                    Image(systemName: "wand.and.stars")
                         .frame(width: 30, height: 30)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Generate password")
                 .accessibilityIdentifier("entry-edit.password-generator-button")
-                .macHelp(String(localized: "Generate password"))
             }
 
             PasswordStrengthIndicator(password: formViewModel.password)
@@ -952,18 +932,6 @@ struct EntryEditView: View {
         additionalURLRows
     }
 
-    /// The field's own label stays on macOS, where the section is shared.
-    @ViewBuilder
-    private var tagFields: some View {
-        if PlatformDesign.followsIOSDesign {
-            tagFieldContent
-        } else {
-            basicFieldRow("Tags") {
-                tagFieldContent
-            }
-        }
-    }
-
     @ViewBuilder
     private var tagFieldContent: some View {
         appliedTagStrip
@@ -980,8 +948,7 @@ struct EntryEditView: View {
         tagSuggestionStrip
     }
 
-    /// iOS puts Reorder in the section header, as the design does; macOS keeps
-    /// it as the section's last row.
+    /// Reorder sits in the section header, as the design does.
     @ViewBuilder
     private var customFieldsSection: some View {
         let reorder = Button("Reorder Fields") { showCustomFieldOrder = true }
@@ -998,34 +965,26 @@ struct EntryEditView: View {
                 Label("Add Field", systemImage: "plus")
             }
             .accessibilityIdentifier("entry-edit.custom-field.add")
-
-            if PlatformDesign.followsIOSDesign == false {
-                reorder
-            }
         } header: {
-            if PlatformDesign.followsIOSDesign {
-                HStack {
-                    Text("Custom Fields")
-                    Spacer()
-                    reorder
-                        .font(Theme.Font.subhead)
-                        .textCase(nil)
-                }
-            } else {
+            HStack {
                 Text("Custom Fields")
+                Spacer()
+                reorder
+                    .font(Theme.Font.subhead)
+                    .textCase(nil)
             }
         }
     }
 
-    /// `inline` sets a short field as a label/value row on iOS, the design's
-    /// row for a fact with a short value.
+    /// `inline` sets a short field as a label/value row, the design's row for
+    /// a fact with a short value.
     @ViewBuilder
     private func basicFieldRow<Content: View>(
         _ title: LocalizedStringKey,
         inline: Bool = false,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        if inline, PlatformDesign.followsIOSDesign {
+        if inline {
             LabeledContent {
                 content()
                     .multilineTextAlignment(.trailing)
@@ -1040,8 +999,6 @@ struct EntryEditView: View {
                     .foregroundStyle(.secondary)
 
                 content()
-                    .macLabelsHidden()
-                    .macFormFieldStyle()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 2)
@@ -1082,43 +1039,23 @@ private struct TOTPPreviewRow: View {
         TimelineView(.periodic(from: tickStart, by: 1)) { context in
             let code = preview.code(at: context.date)
             let secondsRemaining = preview.secondsRemaining(at: context.date)
-            if PlatformDesign.followsIOSDesign {
-                HStack(spacing: Theme.Spacing.tileGap) {
-                    CountdownRing(
-                        progress: Double(secondsRemaining) / Double(preview.period),
-                        seconds: secondsRemaining,
-                        showsSeconds: false
-                    )
-                    .frame(width: ringSize, height: ringSize)
-                    .accessibilityLabel(Text("\(secondsRemaining) seconds remaining"))
+            HStack(spacing: Theme.Spacing.tileGap) {
+                CountdownRing(
+                    progress: Double(secondsRemaining) / Double(preview.period),
+                    seconds: secondsRemaining,
+                    showsSeconds: false
+                )
+                .frame(width: ringSize, height: ringSize)
+                .accessibilityLabel(Text("\(secondsRemaining) seconds remaining"))
 
-                    Text(code)
-                        .font(Theme.Font.codeRow)
-                        .foregroundStyle(.tint)
-                        .contentTransition(.numericText())
-                        .accessibilityIdentifier("entry-edit.totp.preview-code")
+                Text(code)
+                    .font(Theme.Font.codeRow)
+                    .foregroundStyle(.tint)
+                    .contentTransition(.numericText())
+                    .accessibilityIdentifier("entry-edit.totp.preview-code")
 
-                    CopyButton(text: code, accessibilityID: "entry-edit.totp.preview-copy")
-                        .accessibilityLabel("Copy Verification Code")
-                }
-            } else {
-                HStack {
-                    CountdownRing(
-                        progress: Double(secondsRemaining) / Double(preview.period),
-                        seconds: secondsRemaining
-                    )
-                    .frame(width: 40, height: 40)
-
-                    Text(code)
-                        .font(.title.monospaced().bold())
-                        .contentTransition(.numericText())
-                        .accessibilityIdentifier("entry-edit.totp.preview-code")
-
-                    Spacer()
-
-                    CopyButton(text: code, accessibilityID: "entry-edit.totp.preview-copy")
-                        .accessibilityLabel("Copy Verification Code")
-                }
+                CopyButton(text: code, accessibilityID: "entry-edit.totp.preview-copy")
+                    .accessibilityLabel("Copy Verification Code")
             }
         }
     }
@@ -1137,23 +1074,7 @@ private struct TOTPSetupLinkSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                #if os(macOS)
-                // A labelled field shares its row with the label until the
-                // text outgrows it, then drops beneath; a caption keeps both
-                // in one place.
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Setup Link")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    linkField
-                        .labelsHidden()
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 2)
-                #else
                 linkField
-                #endif
 
                 if let errorMessage {
                     Text(errorMessage)
@@ -1162,7 +1083,6 @@ private struct TOTPSetupLinkSheet: View {
                         .accessibilityIdentifier("entry-edit.totp.link-error")
                 }
             }
-            .macGroupedForm()
             .navigationTitle("Enter Setup Link")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1182,10 +1102,7 @@ private struct TOTPSetupLinkSheet: View {
                 }
             }
         }
-        #if os(iOS)
         .presentationDetents([.medium])
-        #endif
-        .macSheetFrame(minWidth: 460, minHeight: 220)
     }
 
     private var linkField: some View {
@@ -1195,7 +1112,6 @@ private struct TOTPSetupLinkSheet: View {
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .keyboardType(.URL)
-        .macFormFieldStyle()
         .accessibilityIdentifier("entry-edit.totp.link-field")
     }
 
@@ -1207,3 +1123,4 @@ private struct TOTPSetupLinkSheet: View {
         }
     }
 }
+#endif

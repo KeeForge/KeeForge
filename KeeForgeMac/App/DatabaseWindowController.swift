@@ -49,7 +49,8 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     }
 
     private var commands: DatabaseCommands {
-        DatabaseCommands(session: isCommandTarget() ? session : nil, passwordCopyAction: passwordCopyAction)
+        DatabaseCommands(session: isCommandTarget() ? session : nil, passwordCopyAction: passwordCopyAction,
+                         openEditor: workspacePresentation.openEditor(in: session))
     }
 
     private var workspaceCommands: MacWorkspaceCommands {
@@ -129,6 +130,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
             return (unlocked, session.databaseDisplayName, MacWindowWorkspace.subtitle(for: unlocked))
         }, onChange: { [weak self] unlocked, title, subtitle in
             guard let self else { return }
+            if unlocked == nil { self.workspacePresentation.closeEntryEditor() }
             self.workspace.show(unlocked)
             self.installToolbar()
             self.window?.title = title
@@ -176,7 +178,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
 
     @objc func newEntry(_ sender: Any?) { commands.newEntry() }
     @objc func newGroup(_ sender: Any?) { commands.newGroup() }
-    @objc func saveDatabase(_ sender: Any?) { commands.save() }
+    @objc func saveDatabase(_ sender: Any?) { workspaceCommands.save() }
     @objc func closeDatabase(_ sender: Any?) {
         guard commands.canCloseDatabase else { return }
         requestGuardedClose()
@@ -194,7 +196,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
 
     /// The menu-bar copies act on `commandEntryID` and leave the tick on its row.
     private var commandEntryID: UUID? {
-        isCommandTarget() ? session.workspace.commandEntryID : nil
+        commands.commandEntryID
     }
     private var copyFeedback: MacCopyFeedback { workspacePresentation.copyFeedback }
 
@@ -254,7 +256,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
             return isCommandTarget() && workspace.splitViewController != nil
         case #selector(newEntry): return commands.canNewEntry
         case #selector(newGroup): return commands.canNewGroup
-        case #selector(saveDatabase): return commands.canSave
+        case #selector(saveDatabase): return workspaceCommands.canSave
         case #selector(closeDatabase): return commands.canCloseDatabase
         case #selector(copyUsername): return commands.canCopyUsername
         case #selector(copyPassword): return commands.canCopyPassword

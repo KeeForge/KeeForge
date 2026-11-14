@@ -110,6 +110,7 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
 
     private struct State {
         var isSaving: Bool
+        var isFrozen: Bool
         var isReadOnly: Bool
         var status: MacDatabaseStatus
         var isSidebarCollapsed: Bool
@@ -119,9 +120,10 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
     }
 
     private func readState() -> State {
-        let commands = DatabaseCommands(session: session)
+        let commands = DatabaseCommands(session: session, openEditor: presentation.openEditor(in: session))
         return State(
             isSaving: session.isSaving,
+            isFrozen: presentation.freezesWorkspace(session),
             isReadOnly: session.isReadOnly,
             status: MacDatabaseStatus.make(session: session, presentation: presentation),
             isSidebarCollapsed: presentation.isSidebarCollapsed,
@@ -133,8 +135,8 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
 
     private func apply(_ state: State) {
         for control in controls { control.isEnabled = state.isSaving == false }
-        searchItem.searchField.isEnabled = state.isSaving == false
-        enable(Item.add, state.canNewEntry && state.isSaving == false)
+        searchItem.searchField.isEnabled = state.isFrozen == false
+        enable(Item.add, state.canNewEntry && state.isFrozen == false)
         enable(Item.databaseSettings, state.status.canShowSettings)
         enable(Item.syncNow, state.status.canSyncNow)
         enable(Item.lock, state.status.canLock)
@@ -185,7 +187,9 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
     }
 
     @objc private func lockDatabase(_ sender: Any?) { statusActions.lock() }
-    @objc private func newEntry(_ sender: Any?) { DatabaseCommands(session: session).newEntry() }
+    @objc private func newEntry(_ sender: Any?) {
+        DatabaseCommands(session: session, openEditor: presentation.openEditor(in: session)).newEntry()
+    }
     @objc private func showDatabaseSettings(_ sender: Any?) { statusActions.showSettings() }
     @objc private func syncCloudNow(_ sender: Any?) { statusActions.syncNow() }
 

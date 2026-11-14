@@ -2,12 +2,27 @@ import Foundation
 
 @MainActor
 struct DatabaseCommands {
+    /// The Mac window's inline entry editor. While one is open, the commands that would start
+    /// another edit or move the selection out from under it are off, and the entry commands act
+    /// on the edited entry (none while a new entry is being created).
+    enum OpenEditor: Equatable {
+        case none
+        case entry(UUID)
+        case newEntry
+    }
+
     let session: DatabaseViewModel?
     let passwordCopyAction: EntrySecretAction
+    let openEditor: OpenEditor
 
-    init(session: DatabaseViewModel?, passwordCopyAction: EntrySecretAction = EntrySecretAction()) {
+    init(
+        session: DatabaseViewModel?,
+        passwordCopyAction: EntrySecretAction = EntrySecretAction(),
+        openEditor: OpenEditor = .none
+    ) {
         self.session = session
         self.passwordCopyAction = passwordCopyAction
+        self.openEditor = openEditor
     }
 
     var isUnlocked: Bool { session?.state == .unlocked }
@@ -16,12 +31,19 @@ struct DatabaseCommands {
         guard isUnlocked else { return nil }
         return session?.entry(withID: entryID)
     }
-    private var commandEntryID: UUID? {
-        session?.workspace.commandEntryID
+    /// The entry the copy and Large Type commands act on.
+    var commandEntryID: UUID? {
+        guard let session else { return nil }
+        return switch openEditor {
+        case .none: session.workspace.commandEntryID
+        case .entry(let entryID): entryID
+        case .newEntry: nil
+        }
     }
+    private var isEditorClosed: Bool { openEditor == .none }
 
-    var canNewEntry: Bool { isEditable }
-    var canNewGroup: Bool { isEditable }
+    var canNewEntry: Bool { isEditable && isEditorClosed }
+    var canNewGroup: Bool { isEditable && isEditorClosed }
     // The draft stays dirty until the save lands, so `isSaving` is what stops a repeated save.
     var canSave: Bool {
         isUnlocked && session?.isDirty == true && session?.isReadOnly == false && session?.isSaving == false
@@ -41,9 +63,9 @@ struct DatabaseCommands {
     func canCopyVerificationCode(entryID: UUID) -> Bool {
         entry(withID: entryID)?.totpConfig != nil && session?.sessionKey != nil
     }
-    var canEditEntry: Bool { session?.canEditSelectedEntry == true }
-    var canDelete: Bool { session?.deletableSelection != nil }
-    var canFind: Bool { isUnlocked }
+    var canEditEntry: Bool { isEditorClosed && session?.canEditSelectedEntry == true }
+    var canDelete: Bool { isEditorClosed && session?.deletableSelection != nil }
+    var canFind: Bool { isUnlocked && isEditorClosed }
     var canLock: Bool { isUnlocked }
 
     /// Mirrors the row context menus: a permanent delete has to say so in the menu bar too.
@@ -56,8 +78,14 @@ struct DatabaseCommands {
         }
     }
 
-    func newEntry() { session?.requestNewEntry() }
-    func newGroup() { session?.requestNewGroup() }
+    func newEntry() {
+        guard isEditorClosed else { return }
+        session?.requestNewEntry()
+    }
+    func newGroup() {
+        guard isEditorClosed else { return }
+        session?.requestNewGroup()
+    }
     @discardableResult
     func save() -> Task<Void, Never>? {
         guard let session else { return nil }
@@ -116,8 +144,14 @@ struct DatabaseCommands {
                                                  currentSession: currentSession, authenticate: authenticate,
                                                  present: present)
     }
-    func editEntry() { session?.requestEntryEdit() }
-    func deleteSelection() { session?.requestDeleteSelection() }
+    func editEntry() {
+        guard isEditorClosed else { return }
+        session?.requestEntryEdit()
+    }
+    func deleteSelection() {
+        guard isEditorClosed else { return }
+        session?.requestDeleteSelection()
+    }
     func lock() { session?.lockRequest(manuallyTriggered: true) }
 
     /// Same device-owner gate as reveal/copy in the entry detail view, skipped only inside the

@@ -19,7 +19,10 @@ struct MacWorkspaceDetailColumn: View {
     @ViewBuilder
     private var selectionDetail: some View {
         Group {
-            if let summary = MacEntrySelectionSummary.make(session: viewModel) {
+            if let editor = presentation.currentEntryEditor(in: viewModel) {
+                MacEntryEditorView(session: editor, viewModel: viewModel)
+                    .id(editor.id)
+            } else if let summary = MacEntrySelectionSummary.make(session: viewModel) {
                 MacEntrySelectionSummaryView(summary: summary, viewModel: viewModel, presentation: presentation)
             } else if let selectedEntryID = viewModel.workspace.selectedEntryID {
                 MacEntryDetailView(

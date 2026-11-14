@@ -46,6 +46,49 @@ final class DatabaseCommandsTests: XCTestCase {
         }
     }
 
+    func testAnOpenInlineEditorFreezesCreationEditDeleteAndFindAndTargetsTheEditedEntry() async throws {
+        let session = try makeSession()
+        await session.unlock(password: "testpassword123")
+        defer { session.lockRequest(force: true) }
+        let entries = try XCTUnwrap(session.rootGroup?.allEntries.filter(\.hasPassword))
+        let selected = try XCTUnwrap(entries.first)
+        session.workspace.selectedEntryID = selected.id
+
+        for editor in [DatabaseCommands.OpenEditor.entry(selected.id), .newEntry] {
+            let commands = DatabaseCommands(session: session, openEditor: editor)
+            XCTAssertFalse(commands.canNewEntry)
+            XCTAssertFalse(commands.canNewGroup)
+            XCTAssertFalse(commands.canEditEntry)
+            XCTAssertFalse(commands.canDelete)
+            XCTAssertFalse(commands.canFind)
+            XCTAssertTrue(commands.canLock, "Lock asks the editor first")
+            XCTAssertTrue(commands.canCloseDatabase)
+            commands.newEntry()
+            commands.newGroup()
+            commands.editEntry()
+            commands.deleteSelection()
+            XCTAssertEqual(session.workspace.newEntryRequestID, 0)
+            XCTAssertEqual(session.workspace.newGroupRequestID, 0)
+            XCTAssertEqual(session.workspace.editEntryRequestID, 0)
+            XCTAssertEqual(session.workspace.deleteSelectionRequestID, 0)
+        }
+
+        let editing = DatabaseCommands(session: session, openEditor: .entry(selected.id))
+        XCTAssertEqual(editing.commandEntryID, selected.id)
+        XCTAssertTrue(editing.canCopyPassword, "Copies act on the edited entry")
+        let creating = DatabaseCommands(session: session, openEditor: .newEntry)
+        XCTAssertNil(creating.commandEntryID, "A new entry has nothing stored to copy")
+        XCTAssertFalse(creating.canCopyPassword)
+        XCTAssertFalse(creating.canCopyUsername)
+        XCTAssertFalse(creating.canShowPasswordInLargeType)
+        XCTAssertNil(DatabaseCommands(session: nil, openEditor: .entry(selected.id)).commandEntryID)
+
+        let closed = DatabaseCommands(session: session)
+        XCTAssertTrue(closed.canNewEntry)
+        XCTAssertTrue(closed.canEditEntry)
+        XCTAssertTrue(closed.canFind)
+    }
+
     func testCopyEnablementFollowsFieldsAndBulkSelectionEvenWhenReadOnly() async throws {
         let key = SymmetricKey(size: .bits256)
         let entries = [

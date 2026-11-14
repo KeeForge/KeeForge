@@ -228,7 +228,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         var snapshot: MacEntryListSnapshot
         var selectedEntryID: UUID?
         var entrySelection: Set<UUID>?
-        var isSaving: Bool
+        var isFrozen: Bool
         var isUnlocked: Bool
         var contentRevision: Int
         var copied: MacCopyFeedback.Copied?
@@ -241,7 +241,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
             snapshot: MacEntryListSnapshot.make(session: session, isSidebarCollapsed: presentation.isSidebarCollapsed),
             selectedEntryID: session.workspace.selectedEntryID,
             entrySelection: session.workspace.entrySelection,
-            isSaving: session.isSaving,
+            isFrozen: presentation.freezesWorkspace(session),
             isUnlocked: session.state == .unlocked,
             contentRevision: session.contentRevision,
             copied: presentation.copyFeedback.copied,
@@ -281,7 +281,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         }
         if state.isUnlocked == false, state.copied != nil { presentation.copyFeedback.clear() }
         selectModelRows()
-        tableView.isEnabled = state.isSaving == false
+        tableView.isEnabled = state.isFrozen == false
         updateChrome(state)
         updateVerificationCodeTimer()
     }
@@ -402,7 +402,8 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         let showsEmpty = snapshot.rows.isEmpty && snapshot.emptyState != nil
         scrollView.isHidden = showsEmpty
         emptyView.isHidden = showsEmpty == false
-        emptyView.update(showsEmpty ? snapshot.emptyState : nil, offersNewEntry: showsEmpty && snapshot.offersNewEntry)
+        emptyView.update(showsEmpty ? snapshot.emptyState : nil,
+                         offersNewEntry: showsEmpty && snapshot.offersNewEntry && state.isFrozen == false)
         tableView.setAccessibilityIdentifier(snapshot.containerIdentifier)
         if showsResultCount, let count = snapshot.resultCount {
             resultCountField.stringValue = String(localized: "results:\(count)")
@@ -414,7 +415,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         footerField.setAccessibilityIdentifier(snapshot.footer?.accessibilityIdentifier)
         footerField.superview?.isHidden = snapshot.footer == nil
         header.update(snapshot.header, sortOrder: state.sortOrder, sortAscending: state.sortAscending,
-                      canSort: snapshot.rows.isEmpty == false && state.isSaving == false)
+                      canSort: snapshot.rows.isEmpty == false && state.isFrozen == false)
     }
 
     /// Sort applies to the window's whole list, as View ▸ Sort By does.
@@ -440,14 +441,15 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
 
     /// Double-click opens the clicked row in the workspace's one editor, but not while several are picked.
     func openEntry(atRow row: Int) {
-        guard rows.indices.contains(row), session.workspace.entrySelection == nil else { return }
+        guard rows.indices.contains(row), session.workspace.entrySelection == nil,
+              presentation.freezesWorkspace(session) == false else { return }
         session.workspace.selectedEntryID = rows[row].id
         session.requestEntryEdit()
     }
 
     /// Return and Enter open the selected entry in the workspace's one editor, as ⌘E does.
     private func openSelectedEntry() -> Bool {
-        guard session.workspace.commandEntryID != nil, session.isSaving == false else { return false }
+        guard session.workspace.commandEntryID != nil, presentation.freezesWorkspace(session) == false else { return false }
         session.requestEntryEdit()
         return true
     }
@@ -461,7 +463,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     private func moveEntrySelection() {
         MacEntryListSelection.dropHiddenPicks(session: session)
         guard let selection = session.workspace.entrySelection, selection.isEmpty == false,
-              session.isReadOnly == false, session.isSaving == false else { return }
+              session.isReadOnly == false, presentation.freezesWorkspace(session) == false else { return }
         presentation.pendingMove = .entries(selection)
     }
 
@@ -545,7 +547,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let row = tableView.clickedRow
-        guard rows.indices.contains(row) else { return }
+        guard rows.indices.contains(row), presentation.freezesWorkspace(session) == false else { return }
         for item in contextMenuItems(forRow: row) { menu.addItem(item) }
     }
 
@@ -621,7 +623,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        guard session.state == .unlocked, session.isSaving == false else { return false }
+        guard session.state == .unlocked, presentation.freezesWorkspace(session) == false else { return false }
         if menuItem.action == #selector(moveSelection(_:)) {
             return session.isReadOnly == false && session.workspace.entrySelection?.isEmpty == false
         }
@@ -690,7 +692,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         case .search, .tag: true
         default: false
         }
-        presentation.beginEntryDuplicate(editor, selectingInPlace: selectsInPlace)
+        presentation.beginEntryDuplicate(editor, in: session, selectingInPlace: selectsInPlace)
     }
 
     @objc private func restoreEntry(_ sender: NSMenuItem) {

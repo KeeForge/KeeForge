@@ -72,6 +72,25 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         }
     }
 
+    func testTheInlineEditorDisablesSearchAndNewEntryButKeepsLock() async throws {
+        let presentation = MacWorkspacePresentation()
+        let (toolbar, window, _) = try await makeToolbarAndSplitView(presentation: presentation)
+        defer { window.close() }
+        let session = toolbar.session
+        let add = try XCTUnwrap(toolbar.items[MacWorkspaceToolbar.Item.add]?.view as? NSControl)
+        let lock = try XCTUnwrap(toolbar.items[MacWorkspaceToolbar.Item.lock]?.view as? NSControl)
+        presentation.beginNewEntry(in: session)
+        await Task { @MainActor in }.value
+        XCTAssertFalse(toolbar.searchItem.searchField.isEnabled)
+        XCTAssertFalse(add.isEnabled)
+        XCTAssertTrue(lock.isEnabled, "Lock stays: it asks the editor first")
+
+        presentation.closeEntryEditor()
+        await Task { @MainActor in }.value
+        XCTAssertTrue(toolbar.searchItem.searchField.isEnabled)
+        XCTAssertTrue(add.isEnabled)
+    }
+
     func testTheStatusItemsShowOnlyWhileTheSidebarIsHidden() async throws {
         let presentation = MacWorkspacePresentation()
         let (toolbar, window, _) = try await makeToolbarAndSplitView(presentation: presentation)

@@ -12,31 +12,31 @@ final class MacWorkspacePresentationTests: XCTestCase {
         let presentation = MacWorkspacePresentation()
         database.workspace.selectedGroupID = group.id
         presentation.beginNewEntry(in: database)
-        XCTAssertEqual(presentation.commandEditor?.mode, .create(parentGroupID: group.id))
+        XCTAssertEqual(presentation.entryEditor?.form.mode, .create(parentGroupID: group.id))
 
-        presentation.commandEditor = nil
+        presentation.closeEntryEditor()
         database.workspace.selectedGroupID = nil
         let rootID = try XCTUnwrap(database.visibleRootGroupID)
         presentation.beginNewEntry(in: database)
-        XCTAssertEqual(presentation.commandEditor?.mode, .create(parentGroupID: rootID))
+        XCTAssertEqual(presentation.entryEditor?.form.mode, .create(parentGroupID: rootID))
 
-        presentation.commandEditor = nil
+        presentation.closeEntryEditor()
         database.workspace.selectedCollection = .verificationCodes
         presentation.beginNewEntry(in: database)
-        XCTAssertEqual(presentation.commandEditor?.mode, .create(parentGroupID: rootID), "A collection creates in the root")
+        XCTAssertEqual(presentation.entryEditor?.form.mode, .create(parentGroupID: rootID), "A collection creates in the root")
 
-        presentation.commandEditor = nil
+        presentation.closeEntryEditor()
         database.workspace.selectedGroupID = UUID()
         presentation.beginNewEntry(in: database)
-        XCTAssertNil(presentation.commandEditor, "A vanished target must not open an unusable editor")
+        XCTAssertNil(presentation.entryEditor, "A vanished target must not open an unusable editor")
 
         database.lock()
         presentation.beginNewEntry(in: database)
-        XCTAssertNil(presentation.commandEditor)
+        XCTAssertNil(presentation.entryEditor)
         let readOnly = try await makeDatabase(readOnly: true)
         defer { readOnly.lock() }
         presentation.beginNewEntry(in: readOnly)
-        XCTAssertNil(presentation.commandEditor)
+        XCTAssertNil(presentation.entryEditor)
     }
 
     func testEntryRequestsKeepTheOpenEditorAndItsUnsavedFields() async throws {
@@ -46,24 +46,24 @@ final class MacWorkspacePresentationTests: XCTestCase {
         let presentation = MacWorkspacePresentation()
         database.workspace.selectedEntryID = entry.id
         presentation.beginSelectedEntryEdit(in: database)
-        let editor = try XCTUnwrap(presentation.commandEditor)
+        let editor = try XCTUnwrap(presentation.entryEditor?.form)
         XCTAssertEqual(editor.mode, .edit(entryID: entry.id))
         editor.title = "Unsaved edit"
 
         presentation.beginNewEntry(in: database)
         presentation.beginEntryEdit(entryID: entry.id, in: database)
         let duplicate = EntryEditViewModel(createIn: try XCTUnwrap(database.visibleRootGroupID))
-        presentation.beginEntryDuplicate(duplicate)
-        XCTAssertTrue(presentation.commandEditor === editor)
+        presentation.beginEntryDuplicate(duplicate, in: database)
+        XCTAssertTrue(presentation.entryEditor?.form === editor)
         XCTAssertEqual(editor.title, "Unsaved edit")
 
-        presentation.commandEditor = nil
+        presentation.closeEntryEditor()
         database.workspace.beginEntrySelection(with: entry.id)
         presentation.beginSelectedEntryEdit(in: database)
-        XCTAssertNil(presentation.commandEditor, "Bulk selection has no single-entry edit target")
+        XCTAssertNil(presentation.entryEditor, "Bulk selection has no single-entry edit target")
         database.workspace.endEntrySelection()
-        presentation.beginEntryDuplicate(duplicate)
-        XCTAssertTrue(presentation.commandEditor === duplicate)
+        presentation.beginEntryDuplicate(duplicate, in: database)
+        XCTAssertTrue(presentation.entryEditor?.form === duplicate)
     }
 
     func testADuplicateFromAListAcrossGroupsSelectsTheCopyInPlaceAndOthersRevealIt() async throws {
@@ -75,20 +75,221 @@ final class MacWorkspacePresentationTests: XCTestCase {
         let duplicate = EntryEditViewModel(createIn: group.id)
 
         database.workspace.selectedTag = "Shared"
-        presentation.beginEntryDuplicate(duplicate, selectingInPlace: true)
+        presentation.beginEntryDuplicate(duplicate, in: database, selectingInPlace: true)
         XCTAssertTrue(presentation.selectsCreatedEntryInPlace)
         presentation.showCreatedEntry(entry.id, in: database)
         XCTAssertEqual(database.workspace.selectedTag, "Shared", "The tag browser stays")
         XCTAssertEqual(database.workspace.selectedEntryID, entry.id)
-        presentation.commandEditor = nil
+        presentation.closeEntryEditor()
         XCTAssertFalse(presentation.selectsCreatedEntryInPlace, "The placement ends with its editor")
 
-        presentation.beginEntryDuplicate(duplicate)
+        presentation.beginEntryDuplicate(duplicate, in: database)
         XCTAssertFalse(presentation.selectsCreatedEntryInPlace)
         presentation.showCreatedEntry(entry.id, in: database)
         XCTAssertNil(database.workspace.selectedTag)
         XCTAssertEqual(database.workspace.selectedGroupID, group.id, "A group-column duplicate is revealed")
         XCTAssertEqual(database.workspace.selectedEntryID, entry.id)
+    }
+
+    // MARK: - Inline editor
+
+    func testTheInlineEditorKeepsItsRegistrationAcrossRedrawsUntilCancelOrReset() async throws {
+        let entry = KPEntry(title: "Original")
+        let database = try await makeDatabase(root: KPGroup(name: "Root", entries: [entry]))
+        defer { database.lock() }
+        let presentation = MacWorkspacePresentation()
+        database.workspace.selectedEntryID = entry.id
+        XCTAssertFalse(presentation.freezesWorkspace(database))
+        XCTAssertEqual(presentation.openEditor(in: database), .none)
+
+        presentation.beginSelectedEntryEdit(in: database)
+        let editor = try XCTUnwrap(presentation.currentEntryEditor(in: database))
+        XCTAssertTrue(presentation.freezesWorkspace(database))
+        XCTAssertEqual(presentation.openEditor(in: database), .entry(entry.id))
+        editor.form.title = "Unsaved"
+        editor.coordinator.synchronizeUnsavedChanges()
+        XCTAssertTrue(database.hasUnsavedEditor, "The presentation activated the coordinator; no view is needed")
+        XCTAssertTrue(presentation.currentEntryEditor(in: database) === editor, "A redraw finds the same editor")
+        XCTAssertEqual(presentation.currentEntryEditor(in: database)?.form.title, "Unsaved")
+
+        editor.discard()
+        XCTAssertNil(presentation.entryEditor, "Discard Changes closes the editor")
+        XCTAssertFalse(database.hasUnsavedEditor)
+        XCTAssertFalse(presentation.freezesWorkspace(database))
+        XCTAssertEqual(database.entry(withID: entry.id)?.title, "Original")
+        XCTAssertEqual(database.workspace.selectedEntryID, entry.id, "Cancel returns to the same entry")
+
+        presentation.beginNewEntry(in: database)
+        XCTAssertEqual(presentation.openEditor(in: database), .newEntry)
+        let creator = try XCTUnwrap(presentation.entryEditor)
+        creator.form.title = "Draft"
+        creator.coordinator.synchronizeUnsavedChanges()
+        XCTAssertTrue(database.hasUnsavedEditor)
+        presentation.reset()
+        XCTAssertNil(presentation.entryEditor)
+        XCTAssertFalse(database.hasUnsavedEditor, "Reset deactivates the coordinator")
+        XCTAssertFalse(presentation.freezesWorkspace(database))
+    }
+
+    func testSaveAndFileSaveWriteTheEditorCloseItAndSelectACreatedEntry() async throws {
+        let entry = KPEntry(title: "Original")
+        let database = try await makeDatabase(root: KPGroup(name: "Root", entries: [entry]))
+        defer { database.lock() }
+        let presentation = MacWorkspacePresentation()
+        let commands = MacWorkspaceCommands(session: database, presentation: presentation)
+        database.workspace.selectedEntryID = entry.id
+        XCTAssertFalse(commands.canSave, "A clean database with no editor has nothing to save")
+
+        presentation.beginEntryEdit(entryID: entry.id, in: database)
+        let editor = try XCTUnwrap(presentation.entryEditor)
+        XCTAssertFalse(commands.canSave, "An unchanged editor has nothing to save")
+        editor.form.title = "Renamed"
+        XCTAssertTrue(commands.canSave)
+        await commands.save()?.value
+        XCTAssertNil(presentation.entryEditor)
+        XCTAssertEqual(database.entry(withID: entry.id)?.title, "Renamed")
+        XCTAssertFalse(database.isDirty)
+        XCTAssertFalse(presentation.freezesWorkspace(database))
+        XCTAssertEqual(database.workspace.selectedEntryID, entry.id)
+
+        presentation.beginNewEntry(in: database)
+        let creator = try XCTUnwrap(presentation.entryEditor)
+        XCTAssertFalse(presentation.canSaveEntryEditor, "Create waits for something to be entered")
+        creator.form.title = "Fresh"
+        await presentation.saveEntryEditor()?.value
+        let fresh = try XCTUnwrap(database.rootGroup?.allEntries.first { $0.title == "Fresh" })
+        XCTAssertEqual(database.workspace.selectedEntryID, fresh.id, "The created entry is selected")
+        XCTAssertNil(presentation.entryEditor)
+    }
+
+    func testAFailedSaveOrAConflictKeepsTheEditorItsFieldsAndTheFreezeUntilCancel() async throws {
+        let entry = KPEntry(title: "Original")
+        let outcomes = SaveOutcomes([.fail, .conflict])
+        let database = try await makeDatabase(root: KPGroup(name: "Root", entries: [entry])) { _, _, _, hash, _, _, _ in
+            try await outcomes.next(hash: hash)
+        }
+        defer { database.lock() }
+        let presentation = MacWorkspacePresentation()
+        database.workspace.selectedEntryID = entry.id
+        presentation.beginEntryEdit(entryID: entry.id, in: database)
+        let editor = try XCTUnwrap(presentation.entryEditor)
+        editor.form.title = "Kept"
+
+        await editor.save().value
+        XCTAssertTrue(presentation.entryEditor === editor, "A failed save keeps the editor open")
+        XCTAssertNotNil(editor.coordinator.errorMessage)
+        XCTAssertTrue(presentation.freezesWorkspace(database))
+        XCTAssertTrue(database.hasUnsavedEditor, "A later lock still asks this editor")
+
+        editor.coordinator.errorMessage = nil
+        await editor.save().value
+        XCTAssertNotNil(database.saveConflict)
+        XCTAssertTrue(presentation.entryEditor === editor, "The conflict holds the editor; Cancel returns to it")
+        XCTAssertEqual(editor.form.title, "Kept")
+        XCTAssertTrue(presentation.freezesWorkspace(database))
+
+        editor.discard()
+        XCTAssertNil(presentation.entryEditor)
+        XCTAssertFalse(presentation.freezesWorkspace(database), "Cancel releases the freeze after a failed save")
+    }
+
+    func testLockPromptAnswersAndLockItselfAlwaysReleaseTheFreeze() async throws {
+        let entry = KPEntry(title: "Original")
+        let root = KPGroup(name: "Root", entries: [entry])
+        for answer in ["save", "discard", "keep", "close"] {
+            let database = try await makeDatabase(root: root)
+            defer { database.lock() }
+            let presentation = MacWorkspacePresentation()
+            database.workspace.selectedEntryID = entry.id
+            presentation.beginEntryEdit(entryID: entry.id, in: database)
+            let editor = try XCTUnwrap(presentation.entryEditor)
+            editor.form.title = "Edited before \(answer)"
+            editor.coordinator.synchronizeUnsavedChanges()
+
+            if answer == "close" {
+                XCTAssertEqual(database.requestWindowClose(), .waitForEditorPrompt, "⌘W asks the inline editor")
+            } else {
+                database.lockRequest(manuallyTriggered: true)
+            }
+            XCTAssertEqual(database.state, .unlocked)
+            let request = try XCTUnwrap(editor.coordinator.pendingLockRequest, answer)
+            switch answer {
+            case "save", "close":
+                await editor.save(resuming: request).value
+                XCTAssertEqual(database.state, .locked, answer)
+            case "discard":
+                editor.discard(resuming: request)
+                XCTAssertEqual(database.state, .locked)
+            default:
+                await editor.coordinator.continueEditingAfterLockRequest()
+                XCTAssertEqual(database.state, .unlocked)
+                XCTAssertTrue(presentation.entryEditor === editor, "Keep Editing keeps the editor")
+                XCTAssertTrue(presentation.freezesWorkspace(database))
+                database.lockRequest(force: true)
+            }
+            XCTAssertNil(presentation.currentEntryEditor(in: database), "\(answer): a locked session has no editor")
+            XCTAssertFalse(presentation.freezesWorkspace(database), answer)
+            presentation.closeEntryEditor()
+            XCTAssertNil(presentation.entryEditor)
+        }
+    }
+
+    func testEnrollmentOpensTheInlineEditorOnItsEntryAndRefusesWhileOneIsOpen() async throws {
+        let entry = KPEntry(title: "Mail")
+        let work = KPGroup(name: "Work", entries: [entry])
+        let database = try await makeDatabase(root: KPGroup(name: "Root", groups: [work, KPGroup(name: "Home")]))
+        defer { database.lock() }
+        let presentation = MacWorkspacePresentation()
+        let key = try XCTUnwrap(database.sessionKey)
+        let form = EntryEditViewModel(editing: try XCTUnwrap(database.entry(withID: entry.id)), sessionKey: key)
+        form.title = "Mail with a code"
+
+        XCTAssertTrue(presentation.beginEnrollmentEditor(form, in: database))
+        XCTAssertTrue(presentation.entryEditor?.form === form)
+        XCTAssertEqual(database.workspace.selectedGroupID, work.id)
+        XCTAssertEqual(database.workspace.selectedEntryID, entry.id, "The edited entry is selected under the editor")
+        let other = EntryEditViewModel(createIn: work.id)
+        XCTAssertFalse(presentation.beginEnrollmentEditor(other, in: database), "One editor per window")
+        XCTAssertTrue(presentation.entryEditor?.form === form)
+        presentation.closeEntryEditor()
+
+        let readOnly = try await makeDatabase(readOnly: true)
+        defer { readOnly.lock() }
+        XCTAssertFalse(presentation.beginEnrollmentEditor(EntryEditViewModel(createIn: try XCTUnwrap(readOnly.visibleRootGroupID)),
+                                                          in: readOnly))
+    }
+
+    func testTheGroupPathWalksUpTheDepthFirstOptions() {
+        let ids = (0..<4).map { _ in UUID() }
+        let options = [
+            DatabaseViewModel.MoveDestinationOption(id: ids[0], name: "Root", depth: 0, isCurrentParent: false),
+            DatabaseViewModel.MoveDestinationOption(id: ids[1], name: "Work", depth: 1, isCurrentParent: false),
+            DatabaseViewModel.MoveDestinationOption(id: ids[2], name: "Development", depth: 2, isCurrentParent: false),
+            DatabaseViewModel.MoveDestinationOption(id: ids[3], name: "Home", depth: 1, isCurrentParent: false),
+        ]
+        XCTAssertEqual(MacEntryEditorSession.groupPath(of: ids[2], in: options), ["Work", "Development"])
+        XCTAssertEqual(MacEntryEditorSession.groupPath(of: ids[3], in: options), ["Home"])
+        XCTAssertEqual(MacEntryEditorSession.groupPath(of: ids[0], in: options), [], "Paths start below the root")
+        XCTAssertEqual(MacEntryEditorSession.groupLabel(of: ids[0], in: options), "Root")
+        XCTAssertEqual(MacEntryEditorSession.groupLabel(of: ids[2], in: options), "Work › Development")
+        XCTAssertEqual(MacEntryEditorSession.groupPath(of: UUID(), in: options), [])
+    }
+
+    func testTheEditorGroupPathMatchesTheDetailPaneFolderPath() async throws {
+        let nested = KPEntry(title: "Nested")
+        let top = KPEntry(title: "Top")
+        let development = KPGroup(name: "Development", entries: [nested])
+        let session = try await TestDatabaseSupport.makeUnlockedSession(
+            root: KPGroup(name: "Personal", entries: [top],
+                          groups: [KPGroup(name: "Work", groups: [development]), KPGroup(name: "Home")]),
+            bundle: Bundle(for: Self.self)
+        )
+        defer { session.lockRequest(force: true) }
+        for entryID in [nested.id, top.id] {
+            let groupID = try XCTUnwrap(session.parentGroupID(forEntryID: entryID))
+            XCTAssertEqual(MacEntryEditorSession.groupPath(of: groupID, in: session.groupDestinationOptions(currentGroupID: groupID)),
+                           session.folderPathComponents(forEntryID: entryID) ?? [])
+        }
     }
 
     func testDeletionSnapshotsTheSelectedEntryOrGroupWithoutMutatingTheDraft() async throws {
@@ -246,7 +447,7 @@ final class MacWorkspacePresentationTests: XCTestCase {
         XCTAssertEqual(database.group(withID: root.id)?.groups.map(\.name).sorted(), ["Fresh", "Recycle Bin"])
         XCTAssertEqual(database.group(withID: recycleBin.id)?.groups.isEmpty, true)
         presentation.beginNewEntry(in: database)
-        XCTAssertEqual(presentation.commandEditor?.mode, .create(parentGroupID: root.id))
+        XCTAssertEqual(presentation.entryEditor?.form.mode, .create(parentGroupID: root.id))
 
         let fresh = try XCTUnwrap(database.group(withID: root.id)?.groups.first { $0.name == "Fresh" })
         database.workspace.selectedGroupID = fresh.id
@@ -295,7 +496,7 @@ final class MacWorkspacePresentationTests: XCTestCase {
         let lifetimeID = presentation.lifetimeID
         presentation.beginNewEntry(in: database)
         presentation.beginGroupEdit(groupID: group.id, in: database)
-        XCTAssertNotNil(presentation.commandEditor)
+        XCTAssertNotNil(presentation.entryEditor)
         XCTAssertNotNil(presentation.groupEditor)
         presentation.beginNewGroup(parentID: group.id)
         presentation.newGroupName = "Unsaved"
@@ -315,7 +516,7 @@ final class MacWorkspacePresentationTests: XCTestCase {
         presentation.reset()
 
         XCTAssertNotEqual(presentation.lifetimeID, lifetimeID)
-        XCTAssertNil(presentation.commandEditor)
+        XCTAssertNil(presentation.entryEditor)
         XCTAssertNil(presentation.groupEditor)
         XCTAssertFalse(presentation.isShowingNewGroupSheet)
         XCTAssertNil(presentation.newGroupParentID)
@@ -404,8 +605,24 @@ final class MacWorkspacePresentationTests: XCTestCase {
         XCTAssertFalse(presentation.isCloudReconnectInFlight)
     }
 
+    private actor SaveOutcomes {
+        enum Outcome { case fail, conflict }
+        private var outcomes: [Outcome]
+
+        init(_ outcomes: [Outcome]) { self.outcomes = outcomes }
+
+        func next(hash: Data) throws -> SaveResult {
+            guard outcomes.isEmpty == false else { return .saved(newSHA512: hash) }
+            switch outcomes.removeFirst() {
+            case .fail: throw DatabaseSaveError.networkUnavailable
+            case .conflict: return .conflict(remoteSHA512: Data([1]), remoteData: Data([2]))
+            }
+        }
+    }
+
     private func makeDatabase(
-        root: KPGroup = KPGroup(name: "Root"), readOnly: Bool = false
+        root: KPGroup = KPGroup(name: "Root"), readOnly: Bool = false,
+        save: @escaping DatabaseViewModel.LocalSaveOperation = { _, _, _, hash, _, _, _ in .saved(newSHA512: hash) }
     ) async throws -> DatabaseViewModel {
         let fixture = KDBXTestFixture.test
         var reference = try TestDatabaseSupport.makeReference(for: fixture.url(in: Bundle(for: Self.self)), autoFillEnabled: false)
@@ -413,7 +630,7 @@ final class MacWorkspacePresentationTests: XCTestCase {
         let key = SymmetricKey(size: .bits256)
         let database = DatabaseViewModel(
             databaseReference: reference,
-            localSaveOperation: { _, _, _, hash, _, _, _ in .saved(newSHA512: hash) },
+            localSaveOperation: save,
             reloadOperation: { reference, _ in
                 DatabaseViewModel.ReloadedDatabase(
                     reference: reference, rootGroup: root,

@@ -451,6 +451,34 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertTrue(card.lockButton.isEnabled)
     }
 
+    func testTheInlineEditorFreezesTheOutlineItsMenusAndDropsButNotTheCard() async throws {
+        let tree = Tree()
+        let (controller, session, presentation) = try await makeController(tree)
+        let outline = controller.outlineView
+        let family = controller.item(for: .group(tree.family.id))
+        let drag = try dragging([tree.ssh.id], session: session, presentation: presentation)
+        defer { drag.draggingPasteboard.releaseGlobally() }
+        let menuItems = controller.contextMenuItems(forGroupID: tree.work.id)
+        XCTAssertFalse(menuItems.isEmpty)
+
+        presentation.beginNewEntry(in: session)
+        await settle()
+        XCTAssertFalse(outline.isEnabled)
+        XCTAssertTrue(menuItems.allSatisfy { controller.validateMenuItem($0) == false })
+        XCTAssertEqual(controller.outlineView(outline, validateDrop: drag, proposedItem: family,
+                                              proposedChildIndex: NSOutlineViewDropOnItemIndex), [])
+        XCTAssertNil(MacEntryDrop(session: session, presentation: presentation).pasteboardData(forEntryID: tree.ssh.id),
+                     "The list starts no drag under the editor")
+        XCTAssertTrue(controller.statusCard.lockButton.isEnabled, "Lock stays: it asks the editor first")
+
+        presentation.closeEntryEditor()
+        await settle()
+        XCTAssertTrue(outline.isEnabled)
+        XCTAssertTrue(menuItems.filter { $0.isSeparatorItem == false }.allSatisfy { controller.validateMenuItem($0) })
+        XCTAssertEqual(controller.outlineView(outline, validateDrop: drag, proposedItem: family,
+                                              proposedChildIndex: NSOutlineViewDropOnItemIndex), .move)
+    }
+
     func testCardButtonsKeepTheirIdentifiersAndActOnTheSession() async throws {
         let tree = Tree()
         let (controller, session, presentation) = try await makeController(tree)

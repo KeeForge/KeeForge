@@ -135,7 +135,8 @@ nothing. A password copy re-checks after authentication that the same controller
 still owns that session. Each database window keeps its root host mounted across
 lock and unlock. A completed lock drops the native split controller and toolbar;
 the workspace presentation host resets editors and pending actions on
-disappearance. Split-view autosave retains only column geometry and collapse
+disappearance, and the window controller closes the inline entry editor, which
+drops its form, imports and reveals. Split-view autosave retains only column geometry and collapse
 state in defaults, one name per database UUID.
 
 The Databases window lists and manages database references and never shows a

@@ -1,7 +1,9 @@
+#if os(iOS)
 import SwiftUI
 
+/// The iOS generator sheet. The Mac editor uses `MacPasswordGeneratorPopover`.
 struct PasswordGeneratorSheet: View {
-    private var secondaryLabel: Color { PlatformDesign.followsIOSDesign ? Theme.labelSecondary : .secondary }
+    private var secondaryLabel: Color { Theme.labelSecondary }
 
     let onUse: (String) -> Void
 
@@ -53,9 +55,7 @@ struct PasswordGeneratorSheet: View {
                             TextField("Separator", text: $model.options.separator)
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
-                                .macFormFieldStyle()
-                                .macLabelsHidden()
-                                .multilineTextAlignment(PlatformDesign.followsIOSDesign ? .trailing : .leading)
+                                .multilineTextAlignment(.trailing)
                                 .accessibilityIdentifier("password-generator.separator")
                         }
                     }
@@ -92,16 +92,15 @@ struct PasswordGeneratorSheet: View {
                                       isOn: charsetBinding(\.includeUppercase), id: "uppercase")
                         charsetToggle("Lowercase", sample: "a–z", sampleColor: secondaryLabel,
                                       isOn: charsetBinding(\.includeLowercase), id: "lowercase")
-                        charsetToggle("Digits", sample: "0–9", sampleColor: PlatformDesign.followsIOSDesign ? Theme.digit : .blue,
+                        charsetToggle("Digits", sample: "0–9", sampleColor: Theme.digit,
                                       isOn: charsetBinding(\.includeDigits), id: "digits")
-                        charsetToggle("Symbols", sample: "!#$&", sampleColor: PlatformDesign.followsIOSDesign ? Theme.symbol : .orange,
+                        charsetToggle("Symbols", sample: "!#$&", sampleColor: Theme.symbol,
                                       isOn: charsetBinding(\.includeSymbols), id: "symbols")
                         Toggle("Exclude Ambiguous Characters", isOn: $model.options.excludeAmbiguous)
                             .accessibilityIdentifier("password-generator.charset-toggle.ambiguous")
                     }
                 }
             }
-            .macGroupedForm()
             .navigationTitle("Password Generator")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -156,14 +155,6 @@ struct PasswordGeneratorSheet: View {
             }
             .buttonStyle(.borderless)
             .accessibilityIdentifier("password-generator.regenerate")
-            .macHelp(String(localized: "Regenerate"))
-
-            #if os(macOS)
-            CopyButton(
-                text: model.suggestion,
-                accessibilityID: "password-generator.copy"
-            )
-            #endif
         }
     }
 
@@ -194,3 +185,4 @@ struct PasswordGeneratorSheet: View {
         )
     }
 }
+#endif

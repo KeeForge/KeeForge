@@ -240,8 +240,11 @@ final class MacWindowCoordinatorTests: XCTestCase {
         await dirty.session.unlock(password: "testpassword123")
         await editing.session.unlock(password: "testpassword123")
         try makeDirty(dirty.session, title: "Keep me")
-        let editorID = UUID()
-        editing.session.setEditorHasUnsavedChanges(true, editorID: editorID)
+        editing.workspacePresentation.beginNewEntry(in: editing.session)
+        let editor = try XCTUnwrap(editing.workspacePresentation.entryEditor)
+        editor.form.title = "Held by the inline editor"
+        editor.coordinator.synchronizeUnsavedChanges()
+        XCTAssertTrue(editing.session.hasUnsavedEditor)
 
         for controller in [dirty, editing] {
             let reference = try XCTUnwrap(references.first { $0.id == controller.databaseID })
@@ -256,7 +259,7 @@ final class MacWindowCoordinatorTests: XCTestCase {
         }
         XCTAssertTrue(dirty.session.isDirty)
 
-        editing.session.setEditorHasUnsavedChanges(false, editorID: editorID)
+        editing.workspacePresentation.closeEntryEditor()
         coordinator.launcher.remove(references[1])
         await Task { @MainActor in }.value
         XCTAssertNil(coordinator.launcher.refusedRemoval)

@@ -74,6 +74,32 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         XCTAssertFalse(commands.isShowing(.allEntries))
     }
 
+    func testTheInlineEditorFreezesListChangingCommandsButNotSortOrSettings() async throws {
+        let (session, presentation, tree) = try await makeSession()
+        let commands = MacWorkspaceCommands(session: session, presentation: presentation)
+        session.workspace.selectedEntryID = tree.first.id
+        XCTAssertTrue(commands.canShowCollection)
+        XCTAssertTrue(commands.canDuplicate)
+        XCTAssertTrue(commands.canMoveToGroup)
+
+        presentation.beginEntryEdit(entryID: tree.first.id, in: session)
+        XCTAssertNotNil(presentation.entryEditor)
+        XCTAssertFalse(commands.canShowCollection, "Switching lists would clear the edited selection")
+        XCTAssertFalse(commands.canDuplicate)
+        XCTAssertFalse(commands.canMoveToGroup)
+        commands.show(.allEntries)
+        XCTAssertNil(session.workspace.selectedCollection)
+        commands.moveToGroup()
+        XCTAssertNil(presentation.pendingMove)
+        XCTAssertTrue(commands.canSort)
+        XCTAssertTrue(commands.canShowDatabaseSettings)
+
+        presentation.closeEntryEditor()
+        XCTAssertTrue(commands.canShowCollection)
+        XCTAssertTrue(commands.canMoveToGroup)
+        XCTAssertNil(MacWorkspaceCommands(session: nil, presentation: presentation).save(), "Not the command target")
+    }
+
     func testDuplicateFollowsTheRowMenuGateAndSelectsInPlaceInSearch() async throws {
         let (session, presentation, tree) = try await makeSession()
         let commands = MacWorkspaceCommands(session: session, presentation: presentation)
@@ -82,16 +108,16 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         session.workspace.selectedEntryID = tree.first.id
         XCTAssertTrue(commands.canDuplicate)
         commands.duplicate()
-        XCTAssertNotNil(presentation.commandEditor)
+        XCTAssertNotNil(presentation.entryEditor)
         XCTAssertFalse(presentation.selectsCreatedEntryInPlace, "The group column reveals the copy")
         XCTAssertFalse(commands.canDuplicate, "One editor at a time")
-        presentation.commandEditor = nil
+        presentation.closeEntryEditor()
 
         session.searchText = "First"
         session.workspace.selectedEntryID = tree.first.id
         commands.duplicate()
         XCTAssertTrue(presentation.selectsCreatedEntryInPlace)
-        presentation.commandEditor = nil
+        presentation.closeEntryEditor()
         session.searchText = ""
 
         session.workspace.setEntrySelection([tree.first.id, tree.second.id])
@@ -101,7 +127,7 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         session.workspace.selectedEntryID = tree.gone.id
         XCTAssertFalse(commands.canDuplicate, "A deleted entry comes back through Restore")
         commands.duplicate()
-        XCTAssertNil(presentation.commandEditor)
+        XCTAssertNil(presentation.entryEditor)
 
         let (readOnly, readOnlyPresentation, readOnlyTree) = try await makeSession(readOnly: true)
         readOnly.workspace.selectedEntryID = readOnlyTree.first.id

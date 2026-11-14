@@ -434,5 +434,13 @@ enum MacEntryFormatting {
         formatter.unitsStyle = .full
         return formatter.localizedString(for: date, relativeTo: now)
     }
+
+    /// "In 4 months" beside the editor's expiry date: the relative distance as a caption of its own.
+    static func expiryCaption(_ date: Date, now: Date = .now) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        formatter.formattingContext = .beginningOfSentence
+        return formatter.localizedString(for: date, relativeTo: now)
+    }
 }
 #endif

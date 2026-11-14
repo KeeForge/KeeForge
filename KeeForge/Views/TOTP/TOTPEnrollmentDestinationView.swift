@@ -5,8 +5,9 @@ import SwiftUI
 /// the verification code to an existing entry, or create a new entry in a
 /// chosen group. Either path opens the normal entry editor with the code
 /// already applied, so the user reviews and saves through the standard flow.
-/// Saving finishes the whole flow; cancelling the editor returns here so a
-/// wrong destination pick does not destroy the incoming code.
+/// On iOS saving finishes the whole flow and cancelling the editor returns
+/// here, so a wrong destination pick does not destroy the incoming code. On
+/// Mac the pick finishes this sheet and opens the window's inline editor.
 struct TOTPEnrollmentDestinationView: View {
     /// Navigation inside the sheet, driven by one path: group picker →
     /// editor is a normal two-element stack. The editor payload hashes by
@@ -22,7 +23,7 @@ struct TOTPEnrollmentDestinationView: View {
     @State private var model: TOTPEnrollmentViewModel
     @State private var path: [EnrollmentStep] = []
     #if os(macOS)
-    @State private var sheetEditor: EntryEditViewModel?
+    @Environment(MacWorkspacePresentation.self) private var presentation: MacWorkspacePresentation?
     #endif
     @State private var replaceCandidate: TOTPEnrollmentViewModel.EntryCandidate?
 
@@ -57,8 +58,13 @@ struct TOTPEnrollmentDestinationView: View {
                 switch step {
                 case .groupPicker:
                     groupPicker
+                #if os(iOS)
                 case .editor(let formViewModel):
                     editor(formViewModel)
+                #else
+                case .editor:
+                    EmptyView()
+                #endif
                 }
             }
             // Anchored to the stack content, not a row: rows scroll away under
@@ -85,15 +91,14 @@ struct TOTPEnrollmentDestinationView: View {
                 Text("This entry already has a verification code. Saving will replace it.")
             }
         }
+    }
+
+    /// The Mac window has one inline editor; another one already open there keeps its unsaved work.
+    private var isBlockedByOpenEditor: Bool {
         #if os(macOS)
-        // Same split as every other editor site: macOS presents the entry
-        // editor as a sheet, only iOS pushes it.
-        .sheet(item: $sheetEditor) { formViewModel in
-            NavigationStack {
-                editor(formViewModel)
-            }
-            .macSheetFrame()
-        }
+        presentation?.currentEntryEditor(in: databaseViewModel) != nil
+        #else
+        false
         #endif
     }
 
@@ -113,6 +118,7 @@ struct TOTPEnrollmentDestinationView: View {
                 }
                 .accessibilityIdentifier("totp-enroll.new-entry")
                 .macHoverHighlight()
+                .disabled(isBlockedByOpenEditor)
             }
 
             Section("Entries") {
@@ -161,6 +167,11 @@ struct TOTPEnrollmentDestinationView: View {
                 Text("Choose where to save this verification code.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if isBlockedByOpenEditor {
+                    Text("Finish editing the open entry first.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.State.warning)
+                }
             }
         }
         .accessibilityElement(children: .combine)
@@ -201,6 +212,7 @@ struct TOTPEnrollmentDestinationView: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("totp-enroll.entry.\(candidate.id.uuidString)")
         .macHoverHighlight()
+        .disabled(isBlockedByOpenEditor)
     }
 
     private var groupPicker: some View {
@@ -229,6 +241,7 @@ struct TOTPEnrollmentDestinationView: View {
         }
     }
 
+    #if os(iOS)
     private func editor(_ formViewModel: EntryEditViewModel) -> some View {
         EntryEditView(
             formViewModel: formViewModel,
@@ -236,13 +249,9 @@ struct TOTPEnrollmentDestinationView: View {
         ) { completion in
             // Clear the editor's presentation state first, so nothing stale
             // survives whichever way the editor completed.
-            #if os(macOS)
-            sheetEditor = nil
-            #else
             if case .editor = path.last {
                 path.removeLast()
             }
-            #endif
             // Save (or delete) finishes the flow; cancel returns to the
             // destination list so a wrong pick does not destroy the code.
             if completion != .cancelled {
@@ -250,10 +259,12 @@ struct TOTPEnrollmentDestinationView: View {
             }
         }
     }
+    #endif
 
     private func present(editor: EntryEditViewModel) {
         #if os(macOS)
-        sheetEditor = editor
+        guard presentation?.beginEnrollmentEditor(editor, in: databaseViewModel) == true else { return }
+        onFinished()
         #else
         path.append(.editor(editor))
         #endif

@@ -4,7 +4,7 @@
 
 ## Ownership
 
-- `EntryEditViewModel` owns fields and payloads; `DatabaseEditorCoordinator` owns dirty registration, submission, completion, and Save and Lock (`../../ViewModels/AGENTS.md`). `EntryEditView` forwards appearance, dirty, and conflict changes and turns completion into dismissal. Every presenter closes through `onComplete`.
+- `EntryEditViewModel` owns fields and payloads; `DatabaseEditorCoordinator` owns dirty registration, submission, completion, and Save and Lock (`../../ViewModels/AGENTS.md`). `EntryEditView` (iOS) forwards appearance, dirty, and conflict changes and turns completion into dismissal. Every presenter closes through `onComplete`. On Mac, `Mac/MacEntryEditorView` draws the window presentation's `MacEntryEditorSession` (`../../ViewModels/`) inline in the detail column; the session owns the coordinator, so the view only forwards dirty and conflict changes, and its completion closes the session.
 - `RestoreRowAction` (iOS) shares entry/group recovery through `PendingMove.restoreOrChooseDestination`, which the Mac sidebar and entry list menus also call; `PendingMove.restore` hosts the fallback destination picker with a recovery title. Cancellation stages nothing.
 - `PendingRowActions.swift` is the one source of delete-confirmation wording and move state for the iOS group list, `EntryListView`, and the macOS workspace. The Mac menu-bar Delete builds the same `PendingDeletion`; no path deletes without it.
 - Entry-row context-menu gates and effects live in `EntryRowActions` (`../../ViewModels/`); `EntryRowCopyActions`, `EntryRowDuplicateAction`, `EntryRowMoveAction`, and `EntryRowSelectAction` are thin iOS SwiftUI items over it; the Mac entry table builds its AppKit menu from it directly. Add or change an item there, not per shell. They hand an editor or `PendingMove` back to the caller instead of presenting, because the host differs per shell.
@@ -15,7 +15,7 @@
 ## Invariants
 
 - `EntryDetailView` is iOS only. It shows entry actions and any sync warning in its toolbar; on iPhone it also offers Lock (`lock.button`) beside Edit; at regular width the sidebar's Lock sits beside it, so the detail adds none.
-- The Mac detail is `Mac/MacEntryDetailView` on `MacEntryDetailModel` (`../../ViewModels/`): header (icon, title, path, Edit), cards of label/value rows, footer (dates, History link). It reads values, reveals and copies only through the model, never an `EncryptedValue`; the copy tick is `MacCopyFeedback`, whichever path copied. Edit (`entry-detail.edit`) sits in its header and opens the presentation host's editor; the detail reads that editor state to defer closing a deleted entry. History and the icon picker are still sheets from the detail.
+- The Mac detail is `Mac/MacEntryDetailView` on `MacEntryDetailModel` (`../../ViewModels/`): header (icon, title, path, Edit), cards of label/value rows, footer (dates, History link). It reads values, reveals and copies only through the model, never an `EncryptedValue`; the copy tick is `MacCopyFeedback`, whichever path copied. Edit (`entry-detail.edit`) sits in its header and opens the inline editor, which replaces the detail in the column until it closes. History and the icon picker are still sheets from the detail.
 - On iOS the detail puts its fields in one `EntryFieldsCard` of label/value rows (`isCardRow` on the field rows). The Mac history viewer still uses those rows' section branch (`../Components/EntryFieldRows.swift`).
 - Below the fields, iOS gathers Group, Tags, Created, Expires and History in one card; the Group row pushes the group only in the compact stack. A row whose content switches with state (the password reveal) keeps one top-level container: in a `List` a changed top-level view is a new row, and its `onDisappear`/`onAppear` would clear and reload the reveal without end.
 - Entry rows in `EntryListView` and the group list are buttons, not `NavigationLink`s, so they carry no chevron; they still push `DatabaseRoute.entry` in compact and select in the regular shells.
@@ -24,7 +24,7 @@
 
 - `EntryDetailView` closes itself through `finishClose()` when its entry leaves the index. It runs at most once: both `onAppear`s can fire on one reveal and each `dismiss()` pops a level.
 - While its editor is up, the entry-unavailable branch does not close: the vanished entry is the editor's own permanent delete, and the editor's `.deleted` completion drives the close. On the iPad detail root that branch's `onAppear` fires even under the pushed editor.
-- On iOS the close waits for the `onAppear` that follows the editor pop. Popping the editor and the detail in one transaction drops the second pop on iOS 26. A macOS sheet never re-fires the presenter's `onAppear`, so it closes directly.
+- On iOS the close waits for the `onAppear` that follows the editor pop. Popping the editor and the detail in one transaction drops the second pop on iOS 26. On Mac the inline editor replaces the detail, which mounts again once the editor closes and clears a vanished entry then.
 - The iPad detail column passes `popsOnClose: false` and clears the selection in `onClose`. Its `dismiss` has nothing of this screen to pop and would pop the sidebar's stack instead. `MacEntryDetailView` clears the selection itself, once, while the session is unlocked and no editor is open.
 - A deletion handed to a container passes the finished `PendingDeletion`, never the entry, so the per-entry soft/permanent choice is not recomputed against the wrong group.
 
@@ -35,7 +35,7 @@
 
 ### Mac lists
 
-- The Mac entry table's Return and double-click go through `DatabaseViewModel.requestEntryEdit()` so they open the one editor the workspace hosts, not a second sheet.
+- The Mac entry table's Return and double-click go through `DatabaseViewModel.requestEntryEdit()` so they open the window's one inline editor; while it is open they do nothing.
 - The Mac history browser exists because pushing inside that sheet loses its toolbar. Its `init`-seeded selection and `.id(selection)` list are both load-bearing; the reasons are at the sites in `EntryHistoryView.swift`.
 
 ### Custom icons
@@ -54,19 +54,26 @@
 
 ### Editor
 
-- Custom field reordering uses a native List sheet containing field names only, plus named move controls in the form. Field values never appear in reorder rows. The view model owns order, including dirty tracking and save payloads.
+- Custom field reordering uses a native List sheet containing field names only, plus named move controls in the iOS form; the Mac editor offers Reorder Fields… and keeps move up/down as VoiceOver actions on each row. Field values never appear in reorder rows. The view model owns order, including dirty tracking and save payloads.
 
 - `EntryEditView` draws additional URL rows in Basics using `EntryEditViewModel.additionalURLs`, with a named remove action for VoiceOver. Field names are stored as `KP2A_URL_<n>` but are not shown to the user; `EntryDetailView` displays those URLs once, outside Custom Fields.
-- On iOS the editor splits Basics into the fields, the URLs and the tags, and short fields are label/value rows (`basicFieldRow(_:inline:)`); macOS keeps one Basics section.
+- On iOS the editor splits Basics into the fields, the URLs and the tags, and short fields are label/value rows (`basicFieldRow(_:inline:)`).
 - `EntryEditView.body` is at the limit of what the CI Xcode type-checks. Put a new presentation in a `ViewModifier` (as `EntryAttachmentImporter` does), not inline, or the build fails only on CI.
 - Every site that builds an `EntryEditViewModel` passes `knownTags` and the location's inherited tags. Both default to empty, so a missed site compiles and silently loses tag suggestions.
 - Save and Save and Lock stay disabled while attachment files are being read, and while `canSave` is false; the lock prompt must never write an invalid form.
-- Edit-mode reveals and turning off custom-field protection are gated by `secretAccess`; a create-mode value was typed this session and stays ungated. Turning protection on conceals any revealed value.
+- Edit-mode reveals and turning off custom-field protection are gated by `secretAccess`; a create-mode value was typed this session and stays ungated. Turning protection on conceals any revealed value. On Mac these gates are `MacEntryEditorSession`'s, and closing or locking drops every reveal.
+
+### Mac inline editor
+
+- The editor follows the EditEntry, NewEntry and CodeSetup boards: a header with the title field, Cancel (Esc) and Save / Create, then cards. ⌘S is File ▸ Save, which saves the open editor through the presentation; Return stays in the fields. The title takes focus once, when the editor opens (`hasFocusedTitle`); a redraw never moves the window's first responder.
+- The group is a pop-up only for a new entry; an edited entry shows its path and moves through Move to Group…. There is no Delete Entry, and Change Icon stays on the detail header.
+- The Generate popover owns its own `PasswordGeneratorModel` and drops the suggestion when it closes. Set Up… opens `Mac/MacTOTPSetupSheet` on `applySetupInput` and keeps `entry-edit.totp.enter-link`; a configured code shows its live value, Advanced Options (`entry-edit.totp.advanced`) and a remove button. The Mac editor has no `entry-edit.totp.enter-key`, `entry-edit.delete`, `entry-edit.custom-field.move-up/down.N` or `entry-edit.totp.preview-copy`.
+- Anything presented above the editor (popover, sheets, alerts, the file importer) is dismissed when a lock prompt arrives, so "Save your changes before locking?" is never hidden.
 
 ## Tests
 
 - Search-results delete and move: `SearchResultsDeleteUITests` and `SearchResultsMoveUITests`, both in `KeeForgeUITests/EntryEditUITests.swift`. The move gate itself: `testEntryRowMove...` in `DatabaseViewModelTests`, the other row gates `testEntryRowActions...` there.
-- Row menu: `EntryRowCopyUITests`, `EntryDuplicateUITests`. Editor: `EntryEditSmokeUITests`; its custom-field cases cover moving, protection toggles, and reopening, with counterparts in `MacSmokeUITests`. `ProtectedCustomFieldEditorAuthUITests` covers the reveal and protection-removal authentication gates. Tags shown on detail: `InheritedTagsUITests`.
+- Mac inline editor lifecycle and freeze: `MacWorkspacePresentationTests`, `MacEntryEditorSessionTests`, and the controller classes for the frozen sidebar, table and toolbar. Row menu: `EntryRowCopyUITests`, `EntryDuplicateUITests`. Editor: `EntryEditSmokeUITests`; its custom-field cases cover moving, protection toggles, and reopening, with counterparts in `MacSmokeUITests`. `ProtectedCustomFieldEditorAuthUITests` covers the reveal and protection-removal authentication gates. Tags shown on detail: `InheritedTagsUITests`.
 - Attachments: `EntryAttachmentsSmokeUITests` and `EntryAttachmentFileLoaderTests` (size budget). The system file picker is exercised by hand. Mac Quick Look and Share: `MacAttachmentPreviewControllerTests` (panel control, data source, share picker completion, every close trigger, responder-chain placement); the system panel and picker themselves are checked by hand. Large Type: `MacLargeTypePanelControllerTests` (content, every close trigger, plaintext released, sharing type at creation, never shown) and `DatabaseWindowControllerTests` (the menu command through the gate).
 - History: `EntryHistoryUITests` on iOS. The Mac shell is only captured, as `08b-entry-history` in `MacScreenshotAuditUITests`.
 - Held completion behind a save conflict: `SaveConflictMergeUITests`.

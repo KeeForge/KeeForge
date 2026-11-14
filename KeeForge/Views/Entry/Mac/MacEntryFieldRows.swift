@@ -384,6 +384,8 @@ struct MacEntryFieldRow: View {
 /// Four bars and the rating, shown only beside a revealed password.
 struct MacStrengthMeter: View {
     let estimate: PasswordStrengthEstimate
+    /// The editor draws the bars alone beside its field.
+    var showsWord = true
     @Environment(\.macDetailMetrics) private var metrics
 
     var body: some View {
@@ -395,7 +397,7 @@ struct MacStrengthMeter: View {
                         .frame(width: metrics.showsStrengthWord ? 16 : 9, height: 4)
                 }
             }
-            if metrics.showsStrengthWord {
+            if metrics.showsStrengthWord && showsWord {
                 Text(estimate.level.title)
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(color)

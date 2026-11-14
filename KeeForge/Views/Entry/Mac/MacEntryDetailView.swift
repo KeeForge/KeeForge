@@ -47,7 +47,7 @@ struct MacEntryDetailView: View {
         }
         .onDisappear { model.disappeared() }
         .onChange(of: isEntryGone) { closeIfGone() }
-        .onChange(of: presentation.commandEditor == nil) { closeIfGone() }
+        .onChange(of: presentation.entryEditor == nil) { closeIfGone() }
         .onChange(of: presentation.copyFeedback.copied) { _, copied in
             guard let copied, copied.entryID == entryID else { return }
             AccessibilityNotification.Announcement(copied.field.copiedLabel).post()
@@ -244,7 +244,7 @@ struct MacEntryDetailView: View {
     /// (a permanent delete) closes it once the editor is gone.
     private func closeIfGone() {
         guard hasClosed == false, viewModel.state == .unlocked, isEntryGone,
-              presentation.commandEditor == nil else { return }
+              presentation.entryEditor == nil else { return }
         hasClosed = true
         if viewModel.workspace.selectedEntryID == entryID {
             viewModel.workspace.selectedEntryID = nil

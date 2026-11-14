@@ -10,7 +10,7 @@ Views compose state, collect input, and forward intent and lifecycle events. Wor
 - All three shells are first-class. A change to navigation, chrome, editing, or status UI has to be checked in each; prefer sharing the row/detail/editor view over forking per shell.
 - Compact pushes one session from the database list. iPad keeps the list visible and renders the session in a detail workspace. macOS always uses the regular layout (`usesRegularLayout` is hardcoded there).
 - macOS never mounts `Group/GroupListView.swift` or the compact stack: it browses through the AppKit sidebar and entry list (`../../KeeForgeMac/App/MacSidebarViewController.swift`, `MacEntryListViewController.swift`) and the detail column root in `../App/MacWorkspaceColumns.swift`, composed by `MacDatabaseWorkspaceView`. Anything wired only into `GroupListView` is invisible on macOS and needs a counterpart there.
-- `EntryEditView` and `GroupEditView` carry no `NavigationStack`. The presenter supplies one: a push on iOS, a sheet on macOS, where pushes inside split-view columns misrender.
+- `EntryEditView` (iOS only) and `GroupEditView` carry no `NavigationStack`. The presenter supplies one: a push on iOS, a sheet on macOS for `GroupEditView`, where pushes inside split-view columns misrender. The Mac entry editor is `Entry/Mac/MacEntryEditorView`, inline in the detail column.
 - On iOS a vault editor is the workspace's (`workspace.present(_:)`), never a list's or detail's own `@State`: a layout switch (iPhone Duo open/close, iPad resize) rebuilds every view and would drop the draft. The host passes the editor `workspace.editorCoordinator(database:)` for the same reason: a view-owned coordinator forgets a staged creation and a save in flight.
 
 ## Invariants

@@ -155,7 +155,7 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         var snapshot: MacSidebarSnapshot
         var collapsedGroupIDs: Set<UUID>
         var collapsedSections: Set<MacSidebarSnapshot.SectionKind>
-        var isSaving: Bool
+        var isFrozen: Bool
         var status: MacDatabaseStatus
         var selection: MacSidebarSelection?
     }
@@ -165,7 +165,7 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
             snapshot: MacSidebarSnapshot.make(session: session),
             collapsedGroupIDs: presentation.collapsedGroupIDs,
             collapsedSections: presentation.collapsedSidebarSections,
-            isSaving: session.isSaving,
+            isFrozen: presentation.freezesWorkspace(session),
             status: MacDatabaseStatus.make(session: session, presentation: presentation),
             selection: MacSidebarSelection(workspace: session.workspace)
         )
@@ -184,7 +184,7 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         appliedSelection = state.selection
         hasAppliedSelection = true
         selectModelRow(revealing: isNewSelection)
-        outlineView.isEnabled = state.isSaving == false
+        outlineView.isEnabled = state.isFrozen == false
         statusCard.update(state.status)
     }
 
@@ -603,7 +603,7 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let row = outlineView.clickedRow
-        guard row >= 0, let item = outlineView.item(atRow: row) as? MacSidebarOutlineItem,
+        guard row >= 0, presentation.freezesWorkspace(session) == false, let item = outlineView.item(atRow: row) as? MacSidebarOutlineItem,
               case .group(let groupID) = item.id else { return }
         for menuItem in contextMenuItems(forGroupID: groupID) { menu.addItem(menuItem) }
     }
@@ -638,7 +638,8 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        guard let groupID = menuItem.representedObject as? UUID else { return false }
+        guard presentation.freezesWorkspace(session) == false,
+              let groupID = menuItem.representedObject as? UUID else { return false }
         let actions = MacSidebarGroupActions(groupID: groupID, session: session)
         switch menuItem.action {
         case #selector(newSubgroup(_:)): return actions.canAddSubgroup

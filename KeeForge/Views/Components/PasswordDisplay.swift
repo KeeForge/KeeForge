@@ -69,15 +69,18 @@ struct PasswordDisplayRow<Actions: View>: View {
 struct PasswordDisplayText: View {
     let password: String
     var isProminent = false
+    /// Replaces the default monospaced body font (the Mac generator's large suggestion).
+    var font: Font?
 
-    init(_ password: String, isProminent: Bool = false) {
+    init(_ password: String, isProminent: Bool = false, font: Font? = nil) {
         self.password = password
         self.isProminent = isProminent
+        self.font = font
     }
 
     var body: some View {
         Text(styledPassword)
-            .font(isProminent && PlatformDesign.followsIOSDesign ? Theme.Font.password : .body.monospaced())
+            .font(font ?? (isProminent && PlatformDesign.followsIOSDesign ? Theme.Font.password : .body.monospaced()))
             .accessibilityLabel(Text(verbatim: password))
     }
 

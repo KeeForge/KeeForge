@@ -4,8 +4,10 @@ import Observation
 
 @MainActor @Observable
 final class MacWorkspacePresentation {
-    var commandEditor: EntryEditViewModel? {
-        didSet { if commandEditor == nil { selectsCreatedEntryInPlace = false } }
+    /// The inline entry editor in the detail column. While it is open the lists, search, New
+    /// Entry and the commands that would leave it are frozen (`freezesWorkspace`).
+    private(set) var entryEditor: MacEntryEditorSession? {
+        didSet { if entryEditor == nil { selectsCreatedEntryInPlace = false } }
     }
     /// A duplicate made from search results or a tag selects the copy where the
     /// list is, instead of revealing it in its group.
@@ -43,24 +45,24 @@ final class MacWorkspacePresentation {
     private(set) var lifetimeID = UUID()
 
     func beginNewEntry(in database: DatabaseViewModel) {
-        guard commandEditor == nil, DatabaseCommands(session: database).canNewEntry,
+        guard entryEditor == nil, DatabaseCommands(session: database).canNewEntry,
               let targetID = database.workspace.selectedGroupID ?? database.workspaceRootGroupID,
               database.group(withID: targetID) != nil else { return }
-        commandEditor = EntryEditViewModel(
+        openEntryEditor(EntryEditViewModel(
             createIn: targetID,
             knownTags: database.tagsInDisplayOrder,
             inheritedTags: database.inheritedTags(forGroupID: targetID)
-        )
+        ), in: database)
     }
 
     func beginEntryEdit(entryID: UUID, in database: DatabaseViewModel) {
-        guard commandEditor == nil, database.state == .unlocked, !database.isReadOnly,
+        guard entryEditor == nil, database.state == .unlocked, !database.isReadOnly,
               let entry = database.entry(withID: entryID), let key = database.sessionKey else { return }
-        commandEditor = EntryEditViewModel(
+        openEntryEditor(EntryEditViewModel(
             editing: entry, sessionKey: key,
             knownTags: database.tagsInDisplayOrder,
             inheritedTags: database.inheritedTags(forEntryID: entryID)
-        )
+        ), in: database)
     }
 
     func beginSelectedEntryEdit(in database: DatabaseViewModel) {
@@ -68,10 +70,81 @@ final class MacWorkspacePresentation {
         beginEntryEdit(entryID: entryID, in: database)
     }
 
-    func beginEntryDuplicate(_ editor: EntryEditViewModel, selectingInPlace: Bool = false) {
-        guard commandEditor == nil else { return }
-        commandEditor = editor
+    func beginEntryDuplicate(_ editor: EntryEditViewModel, in database: DatabaseViewModel, selectingInPlace: Bool = false) {
+        guard entryEditor == nil, openEntryEditor(editor, in: database) else { return }
         selectsCreatedEntryInPlace = selectingInPlace
+    }
+
+    /// A verification code from an `otpauth://` link, applied to a form the enrollment sheet
+    /// built: an edit selects its entry first, so the column and the commands agree on it.
+    @discardableResult
+    func beginEnrollmentEditor(_ editor: EntryEditViewModel, in database: DatabaseViewModel) -> Bool {
+        guard entryEditor == nil, database.state == .unlocked, database.isReadOnly == false else { return false }
+        if case .edit(let entryID) = editor.mode {
+            guard database.entry(withID: entryID) != nil else { return false }
+            database.workspace.endEntrySelection()
+            database.revealEntry(entryID)
+        }
+        return openEntryEditor(editor, in: database)
+    }
+
+    @discardableResult
+    private func openEntryEditor(_ form: EntryEditViewModel, in database: DatabaseViewModel) -> Bool {
+        guard entryEditor == nil, database.state == .unlocked, database.isReadOnly == false else { return false }
+        let editor = MacEntryEditorSession(form: form, database: database) { [weak self, weak database] completion in
+            guard let self, let database else { return }
+            finishEntryEditor(completion, in: database)
+        }
+        editor.activate()
+        entryEditor = editor
+        return true
+    }
+
+    /// The editor's completion: a created entry is selected, an edited entry that is gone clears
+    /// the selection, and the column goes back to the detail.
+    private func finishEntryEditor(_ completion: EntryEditCompletion, in database: DatabaseViewModel) {
+        guard let editor = entryEditor else { return }
+        if case .created(let entryID) = completion { showCreatedEntry(entryID, in: database) }
+        if case .edit(let entryID) = editor.form.mode, database.workspace.selectedEntryID == entryID,
+           database.entry(withID: entryID) == nil {
+            database.workspace.selectedEntryID = nil
+        }
+        closeEntryEditor()
+    }
+
+    /// Closes the editor without saving, dropping its registration, imports and reveals.
+    func closeEntryEditor() {
+        guard let editor = entryEditor else { return }
+        entryEditor = nil
+        editor.deactivate()
+    }
+
+    /// The open editor while it still belongs to `session` as it is now.
+    func currentEntryEditor(in session: DatabaseViewModel) -> MacEntryEditorSession? {
+        guard let entryEditor, entryEditor.isCurrent(in: session) else { return nil }
+        return entryEditor
+    }
+
+    /// What the commands see of the editor.
+    func openEditor(in session: DatabaseViewModel) -> DatabaseCommands.OpenEditor {
+        guard let editor = currentEntryEditor(in: session) else { return .none }
+        if case .edit(let entryID) = editor.form.mode { return .entry(entryID) }
+        return .newEntry
+    }
+
+    /// The lists, search and New Entry are disabled while a save runs or the editor is open,
+    /// so neither can change the selection out from under them.
+    func freezesWorkspace(_ session: DatabaseViewModel) -> Bool {
+        session.isSaving || currentEntryEditor(in: session) != nil
+    }
+
+    var canSaveEntryEditor: Bool { entryEditor?.canSave == true }
+
+    /// File ▸ Save while the editor is open: the editor's Save, which writes the database too.
+    @discardableResult
+    func saveEntryEditor() -> Task<Void, Never>? {
+        guard let entryEditor, entryEditor.canSave else { return nil }
+        return entryEditor.save()
     }
 
     /// Where a saved New Entry or Duplicate lands once the editor sheet completes.
@@ -207,7 +280,7 @@ final class MacWorkspacePresentation {
 
     func reset() {
         lifetimeID = UUID()
-        commandEditor = nil
+        closeEntryEditor()
         groupEditor = nil
         dismissNewGroup()
         pendingDeletion = nil

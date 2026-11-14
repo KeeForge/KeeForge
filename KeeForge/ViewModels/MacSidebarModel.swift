@@ -300,14 +300,16 @@ struct MacEntryDrop {
     let session: DatabaseViewModel
     /// The window presentation's lifetime, which a lock renews.
     let windowID: UUID
+    private let isFrozen: Bool
 
     init(session: DatabaseViewModel, presentation: MacWorkspacePresentation) {
         self.session = session
         windowID = presentation.lifetimeID
+        isFrozen = presentation.freezesWorkspace(session)
     }
 
     private var isWritable: Bool {
-        session.state == .unlocked && session.isSaving == false && session.isReadOnly == false
+        session.state == .unlocked && isFrozen == false && session.isReadOnly == false
     }
 
     private func isMovable(_ entryID: UUID) -> Bool {

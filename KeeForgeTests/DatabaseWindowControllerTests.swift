@@ -259,6 +259,44 @@ final class DatabaseWindowControllerTests: XCTestCase {
     }
 
     /// View ▸ Hide Sidebar reads Show Sidebar while the sidebar is collapsed.
+    func testTheInlineEditorFreezesMenuCommandsTakesFileSaveAndClosesOnLock() async throws {
+        let entry = KPEntry(title: "Mail", username: "me")
+        let session = try await TestDatabaseSupport.makeUnlockedSession(
+            root: KPGroup(name: "Root", entries: [entry]), bundle: Bundle(for: Self.self)
+        )
+        addTeardownBlock { @MainActor in session.lockRequest(force: true) }
+        let controller = try load(DatabaseWindowController(session: session, windowRegistry: registry(),
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false))
+        await settle()
+        session.workspace.selectedEntryID = entry.id
+        let presentation = controller.workspacePresentation
+        presentation.beginEntryEdit(entryID: entry.id, in: session)
+        let editor = try XCTUnwrap(presentation.entryEditor)
+        for selector in ["newEntry:", "newGroup:", "editEntry:", "deleteSelection:", "findEntry:",
+                         "duplicateSelectedEntry:", "moveSelectedEntries:", "showAllEntries:"] {
+            XCTAssertFalse(controller.validateMenuItem(item(selector)), selector)
+        }
+        XCTAssertTrue(controller.validateMenuItem(item("lockDatabase:")))
+        XCTAssertTrue(controller.validateMenuItem(item("copyUsername:")), "Copies act on the edited entry")
+        XCTAssertFalse(controller.validateMenuItem(item("saveDatabase:")), "Nothing changed in the editor")
+
+        editor.form.notes = "Saved with File ▸ Save"
+        XCTAssertTrue(controller.validateMenuItem(item("saveDatabase:")))
+        controller.saveDatabase(nil)
+        for _ in 0..<200 where presentation.entryEditor != nil { await Task.yield() }
+        XCTAssertNil(presentation.entryEditor)
+        XCTAssertEqual(session.entry(withID: entry.id)?.notes, "Saved with File ▸ Save")
+        XCTAssertFalse(session.isDirty, "The editor's save writes the database")
+        XCTAssertTrue(controller.validateMenuItem(item("newEntry:")), "Closing releases the freeze")
+
+        presentation.beginEntryEdit(entryID: entry.id, in: session)
+        XCTAssertNotNil(presentation.entryEditor)
+        session.lockRequest(manuallyTriggered: true)
+        XCTAssertEqual(session.state, .locked, "An unchanged editor holds nothing back")
+        await settle()
+        XCTAssertNil(presentation.entryEditor, "The lock closes the window's editor")
+    }
+
     func testSidebarMenuTitleFollowsTheCollapsedSidebar() throws {
         let controller = DatabaseWindowController(session: try makeSession(), windowRegistry: registry(),
             enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false)

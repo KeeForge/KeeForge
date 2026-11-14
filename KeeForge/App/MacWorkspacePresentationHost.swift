@@ -44,23 +44,6 @@ struct MacWorkspacePresentationHost<Content: View>: View {
                 guard newValue != oldValue else { return }
                 presentation.beginSelectionDeletion(in: viewModel)
             }
-            .sheet(item: $presentation.commandEditor) { formViewModel in
-                NavigationStack {
-                    EntryEditView(
-                        formViewModel: formViewModel,
-                        databaseViewModel: viewModel
-                    ) { completion in
-                        if case .created(let entryID) = completion { presentation.showCreatedEntry(entryID, in: viewModel) }
-                        if case .edit(let entryID) = formViewModel.mode,
-                           viewModel.workspace.selectedEntryID == entryID,
-                           viewModel.entry(withID: entryID) == nil {
-                            viewModel.workspace.selectedEntryID = nil
-                        }
-                        presentation.commandEditor = nil
-                    }
-                }
-                .macSheetFrame()
-            }
             .alert(item: $presentation.presentedSaveError) { error in
                 Alert(
                     title: Text("Couldn't Save Database"),

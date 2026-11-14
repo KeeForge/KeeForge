@@ -13,24 +13,45 @@ struct MacWorkspaceCommands {
         session?.state == .unlocked ? session : nil
     }
 
+    /// Unlocked, with no save running and no inline editor open.
+    private var unfrozen: DatabaseViewModel? {
+        guard let session = unlocked, presentation.freezesWorkspace(session) == false else { return nil }
+        return session
+    }
+
+    // MARK: - File
+
+    /// File ▸ Save saves the open inline editor, which writes the database with it; otherwise the database.
+    var canSave: Bool {
+        guard let session = unlocked else { return false }
+        if let editor = presentation.currentEntryEditor(in: session) { return editor.canSave }
+        return DatabaseCommands(session: session).canSave
+    }
+
+    @discardableResult
+    func save() -> Task<Void, Never>? {
+        guard canSave, let session else { return nil }
+        if presentation.currentEntryEditor(in: session) != nil { return presentation.saveEntryEditor() }
+        return DatabaseCommands(session: session).save()
+    }
+
     // MARK: - Library
 
-    var canShowCollection: Bool { unlocked != nil }
+    var canShowCollection: Bool { unfrozen != nil }
 
     func isShowing(_ collection: DatabaseCollection) -> Bool {
         unlocked?.workspace.selectedCollection == collection
     }
 
     func show(_ collection: DatabaseCollection) {
-        guard let session = unlocked else { return }
+        guard let session = unfrozen else { return }
         session.workspace.selectedCollection = collection
     }
 
     // MARK: - Duplicate and Move
 
     var canDuplicate: Bool {
-        guard let session = unlocked, session.isSaving == false, presentation.commandEditor == nil,
-              let entryID = session.workspace.commandEntryID, session.entry(withID: entryID) != nil else { return false }
+        guard let session = unfrozen, let entryID = session.workspace.commandEntryID, session.entry(withID: entryID) != nil else { return false }
         return EntryRowActions(entryID: entryID, session: session).canDuplicate
     }
 
@@ -42,12 +63,12 @@ struct MacWorkspaceCommands {
         case .search, .tag: true
         default: false
         }
-        presentation.beginEntryDuplicate(editor, selectingInPlace: selectsInPlace)
+        presentation.beginEntryDuplicate(editor, in: session, selectingInPlace: selectsInPlace)
     }
 
     /// The picked entries while several are selected, else the selected entry.
     var pendingMove: PendingMove? {
-        guard let session = unlocked, session.isSaving == false, session.isReadOnly == false else { return nil }
+        guard let session = unfrozen, session.isReadOnly == false else { return nil }
         if let selection = session.workspace.entrySelection {
             return selection.isEmpty ? nil : .entries(selection)
         }

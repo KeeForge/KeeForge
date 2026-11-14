@@ -418,16 +418,16 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         presentation.pendingMove = nil
 
         try perform(item(EntryRowActions.duplicateIdentifier))
-        XCTAssertNotNil(presentation.commandEditor)
+        XCTAssertNotNil(presentation.entryEditor)
         XCTAssertFalse(presentation.selectsCreatedEntryInPlace, "The group column reveals the copy")
-        presentation.commandEditor = nil
+        presentation.closeEntryEditor()
 
         session.searchText = "Account"
         await settle()
         try perform(item(EntryRowActions.duplicateIdentifier))
-        XCTAssertNotNil(presentation.commandEditor)
+        XCTAssertNotNil(presentation.entryEditor)
         XCTAssertTrue(presentation.selectsCreatedEntryInPlace, "Search keeps the list and selects the copy in place")
-        presentation.commandEditor = nil
+        presentation.closeEntryEditor()
 
         session.searchText = ""
         session.workspace.selectedTag = "Shared"
@@ -604,8 +604,8 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertEqual(newEntry.accessibilityIdentifier(), "entry-list.empty.new-entry")
         XCTAssertEqual(newEntry.attributedTitle.string, String(localized: "New Entry") + "  ⌘N")
         newEntry.performClick(nil)
-        XCTAssertEqual(presentation.commandEditor?.createDestinationGroupID, tree.other.id, "New Entry is created in the empty group")
-        presentation.commandEditor = nil
+        XCTAssertEqual(presentation.entryEditor?.form.createDestinationGroupID, tree.other.id, "New Entry is created in the empty group")
+        presentation.closeEntryEditor()
 
         session.searchText = "zzz"
         await settle()
@@ -685,6 +685,31 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         await settle()
         XCTAssertTrue(controller.tableView.isEnabled)
         XCTAssertTrue(controller.header.sortButton.isEnabled)
+    }
+
+    func testTheInlineEditorFreezesTheTableItsMenuAndOpenUntilItCloses() async throws {
+        let (controller, session, presentation, tree) = try await makeController()
+        let entryID = tree.work.entries[0].id
+        session.workspace.selectedEntryID = entryID
+        presentation.beginEntryEdit(entryID: entryID, in: session)
+        await settle()
+        XCTAssertFalse(controller.tableView.isEnabled)
+        XCTAssertFalse(controller.header.sortButton.isEnabled)
+        XCTAssertTrue(controller.contextMenuItems(forRow: 0).allSatisfy { controller.validateMenuItem($0) == false })
+        let menu = NSMenu()
+        controller.menuNeedsUpdate(menu)
+        XCTAssertTrue(menu.items.isEmpty, "No row menu under the editor")
+        let requests = session.workspace.editEntryRequestID
+        controller.openEntry(atRow: 1)
+        XCTAssertEqual(session.workspace.editEntryRequestID, requests, "Double-click asks for nothing under the editor")
+        XCTAssertEqual(session.workspace.selectedEntryID, entryID, "and keeps its selection")
+
+        presentation.closeEntryEditor()
+        await settle()
+        XCTAssertTrue(controller.tableView.isEnabled)
+        XCTAssertTrue(controller.header.sortButton.isEnabled)
+        controller.openEntry(atRow: 1)
+        XCTAssertEqual(session.workspace.editEntryRequestID, requests + 1, "Double-click opens once the editor is closed")
     }
 
     // MARK: - Verification codes

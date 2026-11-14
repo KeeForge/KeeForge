@@ -159,7 +159,8 @@ path with this window's `isCurrent` recheck. Row-menu shortcuts are display
 only: the main menu answers the key first, and row and sidebar menu selectors
 never match a main-menu selector, or the controller in the responder chain
 would catch the nil-targeted command. Return and double-click open the
-editor through the workspace request; the table is disabled while saving.
+inline editor through the workspace request; the table is disabled while saving
+and while that editor is open.
 In Verification Codes each row keeps the usual title and username and shows the
 live code trailing, dimmed with an orange ring in its last five seconds; clicking
 the code copies it (the per-entry command, no prompt). One timer redraws the
