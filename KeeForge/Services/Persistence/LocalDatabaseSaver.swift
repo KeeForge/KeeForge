@@ -505,9 +505,11 @@ enum LocalDatabaseSaver {
                     ?? .retainedForRecovery
                 if completion != .resolved { unconfirmed = true; warningScope = .recoveryRecord }
             }
-            if ordinaryToken != nil, unconfirmed, let localCommit {
-                _ = try? observeOriginal(reference) { target in
-                    PendingLocalSaveStore.recordKnownOrdinaryCommit(localCommit, observeTarget: {
+            if ordinaryToken != nil, unconfirmed, let localCommit, let installed = localCommit.installedTarget {
+                var observationError: NSError?
+                NSFileCoordinator().coordinate(readingItemAt: URL(fileURLWithPath: installed.canonicalPath),
+                    options: [], error: &observationError) { target in
+                    _ = PendingLocalSaveStore.recordKnownOrdinaryCommit(localCommit, observeTarget: {
                         (try PendingLocalSaveStore.targetIdentity(at: target), FileDigest.sha512(try Data(contentsOf: target)))
                     }, io: environment.pendingLocalStorageIO)
                 }
