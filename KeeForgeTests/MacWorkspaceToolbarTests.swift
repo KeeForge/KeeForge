@@ -10,10 +10,13 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         defer { window.close() }
         XCTAssertEqual(toolbar.toolbar.items.map(\.itemIdentifier.rawValue), [
             "sidebar.left", "workspace.sidebar-separator", "workspace.search", "entry-list.add-entry",
-            "database.read-only-indicator", "workspace.list-separator", "workspace.database-status",
-            NSToolbarItem.Identifier.flexibleSpace.rawValue, "entry-detail.edit", "database-details.button",
-            "database.cloud-sync-now", "lock.button",
+            "database.read-only-indicator", "workspace.list-separator",
+            NSToolbarItem.Identifier.flexibleSpace.rawValue, "entry-detail.edit", "workspace.database-status",
+            "database-details.button", "database.cloud-sync-now", "lock.button",
         ])
+        let statusInsets = toolbar.statusLineView.edgeInsets
+        XCTAssertGreaterThanOrEqual(min(statusInsets.left, statusInsets.right), 8,
+                                    "The status text keeps clear of the item's rounded background")
         XCTAssertNil(toolbar.items[NSToolbarItem.Identifier("settings.button")], "App Settings is ⌘, and the app menu")
         let separators = [MacWorkspaceToolbar.Item.sidebarSeparator, MacWorkspaceToolbar.Item.listSeparator]
             .compactMap { toolbar.items[$0] as? NSTrackingSeparatorToolbarItem }

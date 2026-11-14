@@ -756,7 +756,7 @@ final class MacSidebarCaptionCellView: NSTableCellView {
         field.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         field.textColor = .secondaryLabelColor
         field.maximumNumberOfLines = 2
-        field.lineBreakMode = .byTruncatingTail
+        field.cell?.truncatesLastVisibleLine = true
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         field.translatesAutoresizingMaskIntoConstraints = false
         addSubview(field)

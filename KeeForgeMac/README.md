@@ -219,7 +219,7 @@ separators on the split's two dividers put the search field and New Entry (the
 read-only glasses instead in a read-only database) over the entry list and Edit
 over the detail; the window title is hidden while this toolbar is installed, as
 the list header shows it. The status card's line, Database Settings, Sync Now
-and Lock join the detail only while the sidebar is collapsed. Each item has a
+and Lock join the trailing end of the detail only while the sidebar is collapsed. Each item has a
 menu form for the overflow menu. Enablement comes from `DatabaseCommands` and
 `MacDatabaseStatus`, and the whole bar is disabled while saving.
 

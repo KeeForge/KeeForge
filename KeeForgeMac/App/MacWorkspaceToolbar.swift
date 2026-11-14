@@ -27,7 +27,7 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
     /// card's line and buttons join the detail only while the sidebar is hidden.
     static let itemIdentifiers: [NSToolbarItem.Identifier] = [
         Item.toggleSidebar, Item.sidebarSeparator, Item.search, Item.add, Item.readOnly, Item.listSeparator,
-        Item.databaseStatus, .flexibleSpace, Item.edit, Item.databaseSettings, Item.syncNow, Item.lock,
+        .flexibleSpace, Item.edit, Item.databaseStatus, Item.databaseSettings, Item.syncNow, Item.lock,
     ]
     static let statusItemIdentifiers: [NSToolbarItem.Identifier] = [
         Item.databaseStatus, Item.databaseSettings, Item.syncNow, Item.lock,
@@ -188,6 +188,8 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
                   target: nil, action: #selector(NSSplitViewController.toggleSidebar(_:)))
 
         let statusItem = NSToolbarItem(itemIdentifier: Item.databaseStatus)
+        // The toolbar draws its item background to the view's edges.
+        statusLineView.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
         statusItem.view = statusLineView
         statusItem.label = String(localized: "Status")
         statusLineView.setAccessibilityIdentifier(Item.databaseStatus.rawValue)

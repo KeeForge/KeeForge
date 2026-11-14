@@ -81,6 +81,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         if name.contains("ServerDatabases") {
             app.launchEnvironment["UI_TEST_CLOUD_ACCOUNTS_JSON"] = Self.serverAccountsJSON
             app.launchEnvironment["UI_TEST_CLOUD_DATABASES_JSON"] = Self.serverDatabasesJSON
+            app.launchEnvironment["UI_TEST_WEBDAV_PAYLOAD_JSON"] = try webDAVPayloadJSON()
         }
 
         // The `results:N` overlay is a UI-test hook, not app UI.
@@ -113,6 +114,24 @@ final class MacScreenshotAuditUITests: MacUITestCase {
      {"provider":"ftp","accountId":"ftp-acct-1","file":{"id":"/backup/Archive.kdbx","name":"Archive.kdbx",
       "path":"/backup/Archive.kdbx","isFolder":false,"modifiedDate":"2023-11-14T22:13:20Z","size":4096}}]
     """
+
+    /// Family.kdbx is the test fixture behind a mock WebDAV server whose uploads
+    /// need write access, so the first save asks to reconnect.
+    private func webDAVPayloadJSON() throws -> String {
+        let data = try fixtureData(resourceName: "test", resourceExtension: "kdbx")
+        let payload: [String: Any] = [
+            "accounts": [["id": "webdav-acct-1", "displayName": "alex@cloud.example.com", "provider": "webdav"]],
+            "directories": [["path": "/Vaults", "files": [[
+                "id": "/Vaults/Family.kdbx", "name": "Family.kdbx", "path": "/Vaults/Family.kdbx",
+                "isFolder": false, "modifiedDate": "2023-11-14T22:13:20Z", "size": data.count,
+            ]]]],
+            "fileContentsByID": ["/Vaults/Family.kdbx": data.base64EncodedString()],
+            "contentHashByFileID": [String: String](),
+            "revByFileID": ["/Vaults/Family.kdbx": "\"etag-family\""],
+            "uploadError": "writeScopeRequired",
+        ]
+        return String(decoding: try JSONSerialization.data(withJSONObject: payload), as: UTF8.self)
+    }
 
     /// PID of the running app-under-test.
     private var appProcessID: pid_t? {
@@ -375,6 +394,31 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     func testCaptureServerDatabasesInTheDatabasesWindow() async {
         settle(2)
         await snapWindow(databasesWindow, "00b-databases-with-servers")
+
+        // 13. A WebDAV database whose save needs write access: the reconnect
+        //     notice above the list and the status card's problem line.
+        let name = "13-notice-reconnect"
+        let window = openDatabase(named: "Family")
+        unlockSuccessfully(in: window)
+        openGroup(named: "Social")
+        if deleteGroup(named: "Empty", skipping: name) {
+            if window.buttons["cloud-reauth-banner.reconnect"].firstMatch.waitForExistence(timeout: 15) {
+                settle(0.6)
+                await snapWindow(window, name)
+            } else {
+                noteSkip(name, reason: "the reconnect notice never appeared")
+                let hierarchy = XCTAttachment(string: app.debugDescription)
+                hierarchy.name = "\(name)-hierarchy"
+                hierarchy.lifetime = .keepAlways
+                add(hierarchy)
+            }
+            // Quitting with the unsaved draft would ask first and stall the teardown.
+            if typeAppShortcut("w") {
+                let dontSave = window.sheets.buttons["Don’t Save"].firstMatch
+                if dontSave.waitForExistence(timeout: 5) { dontSave.click() }
+                _ = window.waitForNonExistence(timeout: 10)
+            }
+        }
         attachCaptureReport()
     }
 
@@ -411,9 +455,11 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         // 1c. Connect to Server > WebDAV sheet on the Databases window.
         await captureLauncherSheet(
             opening: {
-                self.databasesWindow.descendants(matching: .any)["databases.connect-server"].firstMatch.click()
-                let webDAV = self.app.menuItems["database.add.webdav"].firstMatch
+                self.databasesWindow.buttons["databases.connect-server"].firstMatch.click()
+                // Two server types: a chooser asks first.
+                let webDAV = self.app.buttons["database.add.webdav"].firstMatch
                 if webDAV.waitForExistence(timeout: 3) { webDAV.click() }
+                _ = webDAV.waitForNonExistence(timeout: 3)
             },
             hosting: nil,
             "01c-databases-connect-webdav"
@@ -445,13 +491,22 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             noteSkip("03c-verification-codes", reason: "no verification-code row appeared")
         }
 
+        // 3e. Library > Passkeys: the fixture has none, so its empty state.
+        clickFirstRow(identifier: "sidebar.collection.passkeys")
+        if waitForDisplayText("Passkeys", identifier: "entry-list.header.title", timeout: 8) {
+            settle()
+            await snap("03e-passkeys")
+        } else {
+            noteSkip("03e-passkeys", reason: "the Passkeys list never showed")
+        }
+
         // 4. A group with an entry selected, so all three columns have content.
         openGroup(named: "Social")
         openEntry(named: "Discord")
         settle()
         await snap("04-group-selected")
 
-        // 4b. A native multiple selection (⌘-click) with the selection bar; Escape ends it.
+        // 4b. A native multiple selection (⌘-click) with the detail summary; Escape ends it.
         let twitter = rowQuery(identifier: "entry.navlink").matching(NSPredicate(format: "value == 'Twitter'"))
             .allElementsBoundByIndex.first { $0.isHittable && $0.frame.height > 1 }
         if waitForStableForeground(), let twitter {
@@ -460,7 +515,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
                 settle()
                 await snap("04b-multi-select")
             } else {
-                noteSkip("04b-multi-select", reason: "the selection bar never appeared")
+                noteSkip("04b-multi-select", reason: "the selection summary never appeared")
             }
             app.typeKey(.escape, modifierFlags: [])
             settle(0.4)
@@ -654,19 +709,19 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             noteSkip("10a-minimum-width-codes", reason: "no verification-code row appeared")
         }
 
-        // 4a. The unsaved-changes banner at the top of the detail column. Last,
-        //     because it relaunches writable with a save conflict injected.
-        await captureUnsavedBanner()
+        // 4a, 4c. The Save Conflict alert and the status card's problem states.
+        //     Last, because it relaunches writable with a save conflict injected.
+        await captureSaveConflict()
 
         attachCaptureReport()
     }
 
     /// Relaunches writable at the default size with one injected save conflict
-    /// and deletes a group with an entry open. The conflict alert leaves the
-    /// draft unsaved, so the banner shows at the top of the detail column
-    /// behind it. The macOS alert offers no Cancel, so Reload ends it.
-    private func captureUnsavedBanner() async {
-        let name = "04a-unsaved-banner"
+    /// and deletes a group with an entry open. The native alert shows over the
+    /// window with the status card behind it; Cancel leaves the draft unsaved,
+    /// and the card's action saves it again (the conflict was injected once).
+    private func captureSaveConflict() async {
+        let name = "04a-save-conflict-alert"
         app.terminate()
         app.launchEnvironment["UI_TEST_DATABASE_READ_ONLY"] = nil
         app.launchEnvironment["UI_TEST_LOCAL_SAVE_CONFLICT_COUNT"] = "1"
@@ -678,41 +733,63 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         unlockSuccessfully(in: openDatabase(named: "Personal"))
         openGroup(named: "Social")
         openEntry(named: "Twitter")
-        guard waitForStableForeground(),
-              let emptyGroup = rowQuery(identifier: "group.navlink").matching(NSPredicate(format: "value == 'Empty'"))
-                .allElementsBoundByIndex.first(where: { $0.isHittable && $0.frame.height > 1 }) else {
-            noteSkip(name, reason: "the 'Empty' group row was not available")
+        guard deleteGroup(named: "Empty", skipping: name) else { return }
+        let cancel = personalWindow.buttons["save-conflict.cancel"].firstMatch
+        guard cancel.waitForExistence(timeout: 10) else {
+            noteSkip(name, reason: "the injected save conflict never appeared")
             return
         }
-        emptyGroup.rightClick()
+        settle(0.6)
+        await snap(name)
+        cancel.click()
+        let problem = "04c-status-card-unsaved"
+        if cancel.waitForNonExistence(timeout: 5) {
+            settle(0.6)
+            await snap(problem)
+        } else {
+            noteSkip(problem, reason: "Cancel did not dismiss the Save Conflict alert")
+            app.typeKey(.escape, modifierFlags: [])
+        }
+        // Quitting with an unsaved draft asks first, which would stall the teardown.
+        for identifier in ["database.unsaved-indicator", "save-conflict.resolve"] {
+            let action = personalWindow.buttons[identifier].firstMatch
+            guard action.exists, action.isHittable else { continue }
+            action.click()
+            let reload = personalWindow.buttons["save-conflict.reload"].firstMatch
+            if reload.waitForExistence(timeout: 3) { reload.click() }
+            break
+        }
+        let line = personalWindow.staticTexts["sidebar.status-card.line"].firstMatch
+        let deadline = Date().addingTimeInterval(15)
+        while displayText(of: line).hasSuffix("On This Mac") == false, Date() < deadline { settle(0.25) }
+        if displayText(of: line).hasSuffix("On This Mac") == false {
+            noteSkip("\(name)-cleanup", reason: "the draft stayed unsaved: \(displayText(of: line))")
+        }
+    }
+
+    /// Deletes a sidebar group through its row menu and the confirmation.
+    private func deleteGroup(named group: String, skipping name: String) -> Bool {
+        guard waitForStableForeground(),
+              let row = rowQuery(identifier: "group.navlink").matching(NSPredicate(format: "value == %@", group))
+                .allElementsBoundByIndex.first(where: { $0.isHittable && $0.frame.height > 1 }) else {
+            noteSkip(name, reason: "the '\(group)' group row was not available")
+            return false
+        }
+        row.rightClick()
         let delete = app.menuItems.matching(identifier: "group-row.delete-context").firstMatch
         guard delete.waitForExistence(timeout: 3) else {
             app.typeKey(.escape, modifierFlags: [])
             noteSkip(name, reason: "the group context menu never opened")
-            return
+            return false
         }
         delete.click()
-        let confirm = personalWindow.buttons["Delete"].firstMatch
+        let confirm = app.windows.buttons["Delete"].firstMatch
         guard confirm.waitForExistence(timeout: 5) else {
             noteSkip(name, reason: "the delete confirmation never appeared")
-            return
+            return false
         }
         confirm.click()
-        guard personalWindow.staticTexts["Save Conflict"].waitForExistence(timeout: 10) else {
-            noteSkip(name, reason: "the injected save conflict never appeared")
-            return
-        }
-        if rowQuery(identifier: "database.unsaved-indicator").firstMatch.waitForExistence(timeout: 5) == false {
-            noteSkip(name, reason: "the unsaved-changes banner never appeared")
-        }
-        settle(0.6)
-        await snap(name)
-        // Quitting with an unsaved draft asks first, which would stall the teardown.
-        let reload = personalWindow.buttons["save-conflict.reload"].firstMatch
-        if reload.waitForExistence(timeout: 3) { reload.click() }
-        if rowQuery(identifier: "database.unsaved-indicator").firstMatch.waitForNonExistence(timeout: 10) == false {
-            noteSkip("\(name)-cleanup", reason: "the draft stayed unsaved")
-        }
+        return true
     }
 
     func testCaptureTOTPSetupLink() async {
@@ -825,6 +902,30 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     private func captureSidebarStates() async {
         let menuName = "08d-group-context-menu"
         let binName = "08e-recycle-bin-selected"
+
+        // 8h. An entry's row menu; its Delete fills the bin's Deleted Entries.
+        let rowMenuName = "08h-entry-row-menu"
+        openGroup(named: "Social")
+        let profile = rowQuery(identifier: "entry.navlink").matching(NSPredicate(format: "value == 'Public Profile'"))
+            .allElementsBoundByIndex.first { $0.isHittable && $0.frame.height > 1 }
+        if waitForStableForeground(), let profile {
+            profile.rightClick()
+            let delete = app.menuItems.matching(identifier: "entry-row.delete-context").firstMatch
+            if delete.waitForExistence(timeout: 3) {
+                settle(0.4)
+                await snapWindow(app.menus.containing(.menuItem, identifier: "entry-row.delete-context").firstMatch, rowMenuName)
+                delete.click()
+                let confirm = personalWindow.buttons["Delete"].firstMatch
+                if confirm.waitForExistence(timeout: 5) { confirm.click() }
+                waitUntilEnabled(personalWindow.searchFields.firstMatch, timeout: 15)
+            } else {
+                noteSkip(rowMenuName, reason: "the entry row menu never opened")
+                app.typeKey(.escape, modifierFlags: [])
+            }
+        } else {
+            noteSkip(rowMenuName, reason: "the 'Public Profile' row was not available")
+        }
+
         let emptyGroup = rowQuery(identifier: "group.navlink").matching(NSPredicate(format: "value == 'Empty'"))
             .allElementsBoundByIndex.first { $0.isHittable && $0.frame.height > 1 }
         if waitForStableForeground(), let emptyGroup {
@@ -841,7 +942,8 @@ final class MacScreenshotAuditUITests: MacUITestCase {
                 let confirm = personalWindow.buttons["Delete"].firstMatch
                 if confirm.waitForExistence(timeout: 5) {
                     confirm.click()
-                    openGroup(named: "Recycle Bin")
+                    // The bin's own row is Deleted Entries, under the Recycle Bin header.
+                    openGroup(named: "Deleted Entries")
                     settle()
                     await snap(binName)
                 } else {
@@ -856,6 +958,25 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             noteSkip("03d-empty-group", reason: "the app or the 'Empty' group row was not available")
             noteSkip(menuName, reason: "the app or the 'Empty' group row was not available")
             noteSkip(binName, reason: "no group was deleted")
+        }
+
+        // 8g. A folded sidebar section.
+        let foldName = "08g-sidebar-section-folded"
+        // The chevron reads Hide or Show; Library's is in the outline's first row.
+        let outline = personalWindow.outlines[Self.sidebarOutlineIdentifier]
+        let libraryChevron = outline.outlineRows.element(boundBy: 0).buttons.firstMatch
+        if libraryChevron.waitForExistence(timeout: 3), libraryChevron.isHittable {
+            libraryChevron.click()
+            settle()
+            await snap(foldName)
+            libraryChevron.click()
+            settle(0.4)
+        } else {
+            noteSkip(foldName, reason: "the Library header has no chevron")
+            let hierarchy = XCTAttachment(string: personalWindow.debugDescription)
+            hierarchy.name = "\(foldName)-hierarchy"
+            hierarchy.lifetime = .keepAlways
+            add(hierarchy)
         }
 
         clickToolbarButton(identifier: "sidebar.left", overflowLabel: "Show Sidebar")

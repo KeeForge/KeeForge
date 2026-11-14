@@ -54,7 +54,7 @@ final class MacSmokeUITests: MacUITestCase {
         let delete = databaseWindow.buttons["Delete"].firstMatch
         XCTAssertTrue(delete.waitForExistence(timeout: 5))
         delete.click()
-        openGroup(named: "Recycle Bin")
+        openGroup(named: "Deleted Entries")
         titledRow(identifier: "entry.navlink", named: "Discord").rightClick()
         clickRestoreTestMenu("entry-row.restore-context")
         openGroup(named: "Social")
@@ -68,7 +68,16 @@ final class MacSmokeUITests: MacUITestCase {
         let delete = databaseWindow.buttons["Delete"].firstMatch
         XCTAssertTrue(delete.waitForExistence(timeout: 5))
         delete.click()
-        openGroup(named: "Recycle Bin")
+        // A deleted group is a row of its own in the sidebar's Recycle Bin section,
+        // which appears once the delete has rebuilt the sidebar.
+        let outline = databaseWindow.outlines[Self.sidebarOutlineIdentifier]
+        let binHeader = outline.staticTexts.matching(NSPredicate(format: "value == 'Recycle Bin'")).firstMatch
+        XCTAssertTrue(binHeader.waitForExistence(timeout: 10), "The delete did not add a Recycle Bin section")
+        let deletedWork = NSPredicate { [self] _, _ in
+            titledRow(identifier: "group.navlink", named: "Work").frame.minY > binHeader.frame.minY
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: deletedWork, object: nil)], timeout: 10),
+                       .completed, "The deleted group has no row in the Recycle Bin section")
         titledRow(identifier: "group.navlink", named: "Work").rightClick()
         clickRestoreTestMenu("group-row.restore-context")
         openGroup(named: "Work")
@@ -109,13 +118,32 @@ final class MacSmokeUITests: MacUITestCase {
                       "The saved entry is not the selected one")
     }
 
-    // MARK: - Unlock
-
-    func testUnlockSucceedsWithCorrectPassword() {
+    /// A live drag session has no unit seam: `MacEntryDropTests` and the
+    /// controller tests cover the payload and the drop decision, but only the
+    /// running app starts a drag from the table and drops it on an outline row.
+    func testDraggingAnEntryOntoASidebarGroupMovesIt() {
         unlockSuccessfully()
-        let groupLink = app.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
-        XCTAssertTrue(groupLink.exists, "Unlocked vault did not show the root group list")
+        openGroup(named: "Social")
+        let discord = titledRow(identifier: "entry.navlink", named: "Discord")
+        XCTAssertTrue(discord.waitForExistence(timeout: 10), "Entry 'Discord' is not listed")
+        let work = titledRow(identifier: "group.navlink", named: "Work")
+        XCTAssertTrue(work.waitForExistence(timeout: 5), "Group 'Work' has no sidebar row")
+
+        discord.click(forDuration: 0.6, thenDragTo: work)
+
+        XCTAssertTrue(waitForRowToDisappear("Discord"), "Dropping 'Discord' on 'Work' left it in 'Social'")
+        openGroup(named: "Work")
+        XCTAssertTrue(waitForDisplayText("Discord", identifier: "entry.navlink"), "'Discord' did not reach 'Work'")
     }
+
+    private func waitForRowToDisappear(_ title: String, timeout: TimeInterval = 15) -> Bool {
+        let gone = NSPredicate { [self] _, _ in
+            rowQuery(identifier: "entry.navlink").allElementsBoundByIndex.contains { displayText(of: $0) == title } == false
+        }
+        return XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: gone, object: nil)], timeout: timeout) == .completed
+    }
+
+    // MARK: - Unlock
 
     func testUnlockFailsWithWrongPassword() {
         unlock(password: "definitely-wrong-password")
@@ -170,24 +198,29 @@ final class MacSmokeUITests: MacUITestCase {
         let outline = databaseWindow.outlines[Self.sidebarOutlineIdentifier]
         XCTAssertTrue(outline.waitForExistence(timeout: 10), "The sidebar outline is missing")
 
-        for header in ["Library", "Groups", "Tags"] {
-            XCTAssertTrue(outline.staticTexts.matching(NSPredicate(format: "value == %@", header)).firstMatch.exists,
-                          "Section header '\(header)' is missing")
+        func header(_ title: String) -> XCUIElement {
+            outline.staticTexts.matching(NSPredicate(format: "value == %@", title)).firstMatch
         }
-        for identifier in ["sidebar.collection.allEntries", "sidebar.collection.verificationCodes", "tag-list.row.shared"] {
+        for title in ["Library", "Groups", "Tags", "Recycle Bin"] {
+            XCTAssertTrue(header(title).exists, "Section header '\(title)' is missing")
+        }
+        for identifier in ["sidebar.collection.allEntries", "sidebar.collection.verificationCodes",
+                           "sidebar.collection.passkeys", "tag-list.row.shared"] {
             XCTAssertTrue(outline.descendants(matching: .any)[identifier].exists, "Sidebar row '\(identifier)' is missing")
         }
         let groupRows = outline.descendants(matching: .any).matching(identifier: "group.navlink")
-        for group in ["Tagged", "Projects", "Client Work", "Recycle Bin"] {
+        for group in ["Tagged", "Projects", "Client Work", "Deleted Entries"] {
             XCTAssertTrue(groupRows.matching(NSPredicate(format: "value == %@", group)).firstMatch.exists,
                           "Group row '\(group)' is missing")
         }
-        // The bin is the last row, outside the Groups tree, with no header of its own.
+        // The bin's own row sits under the Recycle Bin header, after every group.
+        let binRow = try XCTUnwrap(groupRows.matching(NSPredicate(format: "value == 'Deleted Entries'"))
+            .allElementsBoundByIndex.first)
         let lastRow = try XCTUnwrap(groupRows.allElementsBoundByIndex.max { $0.frame.minY < $1.frame.minY })
-        XCTAssertEqual(displayText(of: lastRow), "Recycle Bin", "The Recycle Bin is not the last sidebar row")
-        XCTAssertFalse(outline.staticTexts.matching(NSPredicate(format: "value == 'Recycle Bin'"))
-            .allElementsBoundByIndex.contains { $0.frame.height > 1 && $0.frame.minY < lastRow.frame.minY - 1 },
-                       "The Recycle Bin has a section header")
+        XCTAssertEqual(displayText(of: lastRow), "Deleted Entries", "Deleted Entries is not the last sidebar row")
+        XCTAssertLessThan(header("Recycle Bin").frame.minY, binRow.frame.minY, "Deleted Entries is above its header")
+        XCTAssertGreaterThan(header("Recycle Bin").frame.minY, header("Tags").frame.minY,
+                             "The Recycle Bin section is not the last one")
 
         clickFirstRow(identifier: "sidebar.collection.allEntries")
         for entry in ["Alpha Login", "Beta Login", "Custom Badge"] {
@@ -196,6 +229,8 @@ final class MacSmokeUITests: MacUITestCase {
         XCTAssertFalse(rowQuery(identifier: "entry.navlink").allElementsBoundByIndex.contains {
             displayText(of: $0) == "Trashed Login"
         }, "All Entries listed a recycled entry")
+        XCTAssertTrue(waitForDisplayText("All Entries", identifier: "entry-list.header.title"),
+                      "The list header does not name All Entries")
     }
 
     func testEntryDetailShowsFieldsAndCopyUsernamePutsValueOnPasteboard() {
@@ -327,6 +362,8 @@ final class MacSmokeUITests: MacUITestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         XCTAssertEqual(countText(), "results:1", "Expected exactly one result for 'GitHub'")
+        XCTAssertTrue(waitForDisplayText("Search", identifier: "entry-list.header.title"),
+                      "The list header does not show the search")
     }
 
     // MARK: - Edit + save
@@ -485,36 +522,6 @@ final class MacSmokeUITests: MacUITestCase {
     }
 
     // MARK: - Menu-bar commands
-
-    func testLockViaCommandLReturnsToUnlockScreen() {
-        unlockSuccessfully()
-
-        typeCommandShortcut("l")
-
-        let passwordField = app.secureTextFields["unlock.password.field"]
-        XCTAssertTrue(passwordField.waitForExistence(timeout: 15), "⌘L did not lock the database")
-        let groupLink = app.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
-        XCTAssertFalse(groupLink.exists, "Vault content should be gone after ⌘L")
-    }
-
-    func testNewEntryCommandOpensEditor() {
-        unlockSuccessfully()
-
-        typeCommandShortcut("n")
-
-        let titleField = app.textFields["entry-edit.title-field"]
-        XCTAssertTrue(titleField.waitForExistence(timeout: 15), "⌘N did not open the entry editor")
-
-        let cancelButton = app.buttons["entry-edit.cancel"].firstMatch
-        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "Entry editor cancel button missing")
-        cancelButton.click()
-
-        let deadline = Date().addingTimeInterval(10)
-        while titleField.exists, Date() < deadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        }
-        XCTAssertFalse(titleField.exists, "Entry editor did not dismiss after Cancel")
-    }
 
     /// ⌘W closes the database window when nothing is unsaved, and its vault
     /// locks without the app quitting: the Databases window reopens it on the
@@ -777,13 +784,13 @@ final class MacDatabaseListUITests: MacUITestCase {
         showDatabasesWindow()
         selectDatabaseRow(containing: "demo")?.rightClick()
 
-        let removeMenuItem = app.menuItems["Remove"].firstMatch
+        let removeMenuItem = app.menuItems.matching(identifier: "database-row.remove").firstMatch
         XCTAssertTrue(removeMenuItem.waitForExistence(timeout: 10), "Remove context-menu item missing")
         removeMenuItem.click()
 
         // Scope to the window so the query cannot match Touch Bar elements
         // (which XCUITest refuses to click).
-        let confirmRemove = databasesWindow.buttons["Remove"].firstMatch
+        let confirmRemove = databasesWindow.buttons["databases.remove.confirm"].firstMatch
         XCTAssertTrue(confirmRemove.waitForExistence(timeout: 10), "Remove confirmation did not appear")
         confirmRemove.click()
 

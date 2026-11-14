@@ -77,6 +77,12 @@ final class MacDatabasesLauncherViewController: NSViewController, NSTableViewDat
         })
     }
 
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        // The one column follows the table's width; without it the column keeps its 100 pt default.
+        tableView.sizeLastColumnToFit()
+    }
+
     override func viewDidAppear() {
         super.viewDidAppear()
         // Return opens the selection only while the list has focus.
@@ -389,7 +395,7 @@ final class MacLauncherActionButton: NSButton {
     private let titleField = NSTextField(labelWithString: "")
     private let captionField = NSTextField(labelWithString: "")
     private let shortcutField = NSTextField(labelWithString: "")
-    private let tile = NSView()
+    let tile = NSView()
     /// The command's name; the button draws it itself, so its own title stays empty.
     let commandTitle: String
 
@@ -424,9 +430,8 @@ final class MacLauncherActionButton: NSButton {
 
         tile.wantsLayer = true
         tile.layer?.cornerRadius = 7
-        tile.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
         tile.layer?.borderWidth = 0.5
-        tile.layer?.borderColor = NSColor.separatorColor.cgColor
+        refreshTileColors()
         let glyph = NSImageView(image: NSImage(systemSymbolName: symbol, accessibilityDescription: nil) ?? NSImage())
         glyph.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
         glyph.contentTintColor = .controlAccentColor
@@ -466,6 +471,19 @@ final class MacLauncherActionButton: NSButton {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        refreshTileColors()
+    }
+
+    /// Layer colours are fixed when set, so they are resolved again for each appearance.
+    private func refreshTileColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            tile.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+            tile.layer?.borderColor = NSColor.separatorColor.cgColor
+        }
+    }
 
     /// The labels inside are decoration: every click belongs to the button.
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -643,9 +661,16 @@ final class MacLauncherRowCellView: NSTableCellView {
         refreshColors()
     }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        refreshColors()
+    }
+
     private func refreshColors() {
         let emphasized = isEmphasized
-        tile.layer?.backgroundColor = (emphasized ? NSColor.white.withAlphaComponent(0.22) : NSColor.quaternaryLabelColor).cgColor
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            tile.layer?.backgroundColor = (emphasized ? NSColor.white.withAlphaComponent(0.22) : NSColor.quaternaryLabelColor).cgColor
+        }
         glyph.contentTintColor = emphasized ? .white : .secondaryLabelColor
         titleField.textColor = emphasized ? .white : .labelColor
         subtitleField.textColor = emphasized ? .white.withAlphaComponent(0.82) : .secondaryLabelColor

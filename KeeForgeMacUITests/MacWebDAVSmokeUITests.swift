@@ -48,25 +48,30 @@ final class MacWebDAVSmokeUITests: MacUITestCase {
         XCTAssertTrue(passwordField.waitForExistence(timeout: 15), "⌘L did not lock the WebDAV-backed vault")
     }
 
-    func testSyncShortcutAndStatusPopoverRemainAvailableAfterSync() {
+    /// The status card's Sync Now reaches the cloud sync and its line reports
+    /// the outcome; the wording and gates are unit-tested in `MacDatabaseStatusTests`.
+    func testSyncNowFromTheStatusCardReportsTheDatabaseSynced() {
         unlockSuccessfully()
-        XCTAssertFalse(app.staticTexts["database.cloud-sync-status.title"].exists)
+        let window = databaseWindow
+        let syncNow = window.buttons["database.cloud-sync-now"].firstMatch
+        XCTAssertTrue(syncNow.waitForExistence(timeout: 10), "The status card offers no Sync Now for a WebDAV database")
 
         for _ in 0..<2 {
-            clickToolbarButton(identifier: "database.cloud-sync-now", overflowLabel: "Sync Now")
-            clickToolbarButton(identifier: "database.cloud-sync-status.details", overflowLabel: "Cloud Sync")
-            XCTAssertTrue(waitForSyncStatusTitle(containing: "up to date"), "Sync Now did not report the database as up to date")
-            app.buttons["database.cloud-sync-status.dismiss"].firstMatch.click()
+            waitUntilEnabled(syncNow, timeout: 15)
+            XCTAssertTrue(syncNow.isEnabled, "Sync Now stayed dimmed")
+            syncNow.click()
+            XCTAssertTrue(waitForStatusLine(containing: "Synced just now"), "Sync Now did not report the database as synced")
+            XCTAssertFalse(window.buttons["cloud-sync-failure.ok"].exists, "Sync Now reported a failure")
         }
+        XCTAssertTrue(waitForStatusLine(containing: "WebDAV"), "The status line does not name the storage")
     }
 
-    /// Re-queries the popover's title every pass: a sync outcome rebuilds the
-    /// toolbar controls and the popover with them.
-    private func waitForSyncStatusTitle(containing expected: String, timeout: TimeInterval = 15) -> Bool {
+    /// Re-queries the line every pass: a sync outcome rebuilds the card.
+    private func waitForStatusLine(containing expected: String, timeout: TimeInterval = 15) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
-            let titles = app.staticTexts.matching(identifier: "database.cloud-sync-status.title").allElementsBoundByIndex
-            if titles.contains(where: { displayText(of: $0).contains(expected) }) {
+            let lines = databaseWindow.staticTexts.matching(identifier: "sidebar.status-card.line").allElementsBoundByIndex
+            if lines.contains(where: { displayText(of: $0).contains(expected) }) {
                 return true
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))

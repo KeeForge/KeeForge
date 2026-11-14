@@ -581,6 +581,11 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         let view = try XCTUnwrap(cell(outline, caption) as? MacSidebarCaptionCellView)
         XCTAssertEqual(view.textField?.stringValue, String(localized: "No tags yet. Tags you add to entries appear here."))
         XCTAssertEqual(view.textField?.accessibilityIdentifier(), "sidebar.tags.empty")
+        let field = try XCTUnwrap(view.textField)
+        view.setFrameSize(NSSize(width: 180, height: MacSidebarViewController.captionRowHeight))
+        view.layoutSubtreeIfNeeded()
+        let lineHeight = try XCTUnwrap(field.font).boundingRectForFont.height
+        XCTAssertGreaterThan(field.frame.height, lineHeight * 1.5, "The caption wraps instead of truncating its first line")
         let groupRow = outline.row(forItem: controller.item(for: .group(tree.work.id)))
         let captionHeight = outline.rect(ofRow: outline.row(forItem: caption)).height
         let groupHeight = outline.rect(ofRow: groupRow).height

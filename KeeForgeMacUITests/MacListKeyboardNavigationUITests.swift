@@ -86,9 +86,9 @@ final class MacSearchResultsDeleteUITests: MacUITestCase {
         typeCommandShortcut("a")
         app.typeKey(XCUIKeyboardKey.delete, modifierFlags: [])
         XCTAssertTrue(app.staticTexts["search.results.count"].waitForNonExistence(timeout: 10), "The search did not clear")
-        // The bin is the sidebar's last row, below the fold of this tall sidebar.
+        // The bin's Deleted Entries is the sidebar's last row, below the fold of this tall sidebar.
         databaseWindow.outlines[Self.sidebarOutlineIdentifier].scroll(byDeltaX: 0, deltaY: -2000)
-        openGroup(named: "Recycle Bin")
+        openGroup(named: "Deleted Entries")
         XCTAssertTrue(waitForDisplayText(title, identifier: "entry.navlink"), "'\(title)' did not reach the Recycle Bin")
     }
 

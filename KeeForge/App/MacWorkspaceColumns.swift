@@ -35,6 +35,7 @@ struct MacWorkspaceDetailColumn: View {
                     systemImage: "key.horizontal",
                     description: Text("Choose an entry to view or edit its details.")
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityIdentifier("regular-workspace.select-entry-placeholder")
             }
         }

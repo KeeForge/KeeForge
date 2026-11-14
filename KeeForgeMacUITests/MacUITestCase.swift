@@ -129,14 +129,19 @@ class MacUITestCase: XCTestCase {
 
     // MARK: - Database list
 
-    /// A Databases-window row showing `text`. Rows are list cells, not
-    /// buttons, and SwiftUI copies the identifier onto the row's text.
+    /// The launcher's database table.
+    var databaseTable: XCUIElement {
+        databasesWindow.tables["databases.list"].firstMatch
+    }
+
+    /// A Databases-window row's title text showing `text`. Rows are table
+    /// cells; XCUITest drops a cell's identifier, so it sits on the title.
     func databaseRow(containing text: String) -> XCUIElement {
         databaseRowQuery(containing: text).firstMatch
     }
 
     private func databaseRowQuery(containing text: String?) -> XCUIElementQuery {
-        let rows = databasesWindow.descendants(matching: .any)
+        let rows = databasesWindow.staticTexts
         guard let text else { return rows.matching(identifier: "database.row") }
         return rows.matching(NSPredicate(
             format: "identifier == 'database.row' AND (label CONTAINS[c] %@ OR value CONTAINS[c] %@)", text, text
@@ -144,7 +149,8 @@ class MacUITestCase: XCTestCase {
     }
 
     /// Selects a Databases-window row with a single click, which never opens
-    /// it, and waits until the Open button reflects the selection.
+    /// it, and waits until the table reports that row selected. Returns the
+    /// row's title text.
     @discardableResult
     func selectDatabaseRow(
         containing text: String? = nil,
@@ -152,18 +158,19 @@ class MacUITestCase: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> XCUIElement? {
-        // The row's name text, not its icon, which shares the identifier.
-        let query = databaseRowQuery(containing: text).matching(NSPredicate(format: "elementType == %d",
-            XCUIElement.ElementType.staticText.rawValue))
-        let open = databasesWindow.buttons["databases.open"].firstMatch
+        let query = databaseRowQuery(containing: text)
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
-            if let row = query.allElementsBoundByIndex.first(where: {
+            if let title = query.allElementsBoundByIndex.first(where: {
                 $0.exists && $0.isHittable && $0.frame.height > 1
             }) {
-                row.click()
-                let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: open)
-                if XCTWaiter.wait(for: [selected], timeout: 2) == .completed { return row }
+                let name = displayText(of: title)
+                title.click()
+                let row = databaseTable.tableRows.containing(NSPredicate(
+                    format: "identifier == 'database.row' AND (value == %@ OR label == %@)", name, name
+                )).firstMatch
+                let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: row)
+                if XCTWaiter.wait(for: [selected], timeout: 2) == .completed { return title }
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         } while Date() < deadline
@@ -176,7 +183,7 @@ class MacUITestCase: XCTestCase {
         app.dialogs["settings"].firstMatch
     }
 
-    /// Opens a database from the Databases window (select, then Open) and
+    /// Opens a database from the Databases window (select, then Return) and
     /// returns its window once it shows the unlock screen.
     @discardableResult
     func openDatabase(
@@ -189,11 +196,8 @@ class MacUITestCase: XCTestCase {
         // An open database window can cover the Databases window's rows.
         if databaseWindows.count > 0 { showDatabasesWindow(file: file, line: line) }
         guard selectDatabaseRow(containing: name, timeout: timeout, file: file, line: line) != nil else { return window }
-        let open = databasesWindow.buttons["databases.open"].firstMatch
-        XCTAssertTrue(open.waitForExistence(timeout: 5), "The Databases window has no Open button", file: file, line: line)
-        waitUntilEnabled(open)
-        open.click()
-        XCTAssertTrue(window.waitForExistence(timeout: timeout), "No window opened for '\(name)'", file: file, line: line)
+        app.typeKey(.return, modifierFlags: [])
+        XCTAssertTrue(window.waitForExistence(timeout: timeout), "Return opened no window for '\(name)'", file: file, line: line)
         XCTAssertTrue(
             window.secureTextFields["unlock.password.field"].waitForExistence(timeout: timeout),
             "The window for '\(name)' did not show the unlock screen",
@@ -216,10 +220,7 @@ class MacUITestCase: XCTestCase {
             return true
         }
         guard selectDatabaseRow(timeout: timeout, file: file, line: line) != nil else { return false }
-        let open = databasesWindow.buttons["databases.open"].firstMatch
-        XCTAssertTrue(open.waitForExistence(timeout: 5), "The Databases window has no Open button", file: file, line: line)
-        waitUntilEnabled(open)
-        open.click()
+        app.typeKey(.return, modifierFlags: [])
         XCTAssertTrue(
             passwordField.waitForExistence(timeout: timeout),
             "Password field did not appear after opening the database",

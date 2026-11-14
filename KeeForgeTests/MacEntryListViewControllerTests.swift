@@ -55,6 +55,10 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertNil(table.headerView)
         XCTAssertTrue(table.allowsMultipleSelection)
         XCTAssertTrue(table.allowsEmptySelection)
+        let background = try XCTUnwrap(controller.view as? MacListBackgroundView,
+                                       "The notices, header and footer share the rows' background")
+        XCTAssertEqual(background.fillColor, .controlBackgroundColor)
+        XCTAssertEqual(table.backgroundColor, .clear, "The table draws no band of its own over the fill")
         XCTAssertEqual(titles(controller), tree.work.entries.map(\.title))
         XCTAssertEqual(controller.snapshot, MacEntryListSnapshot.make(session: session))
 

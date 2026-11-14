@@ -88,6 +88,8 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         tableView.addTableColumn(column)
         tableView.headerView = nil
         tableView.style = .inset
+        // The container fills behind the header, rows and footer alike.
+        tableView.backgroundColor = .clear
         tableView.allowsMultipleSelection = true
         tableView.allowsEmptySelection = true
         tableView.usesAutomaticRowHeights = false
@@ -170,7 +172,8 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         footer.setContentHuggingPriority(.required, for: .vertical)
 
         // The notices and header sit under the toolbar, so the rows below need no titlebar inset.
-        let container = NSView()
+        // One fill behind the notices, header, rows and footer, so no band shows between them.
+        let container = MacListBackgroundView(fillColor: .controlBackgroundColor)
         for view in [notices, header, stack] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             container.addSubview(view)
@@ -1121,6 +1124,24 @@ final class MacVerificationCodeCellView: MacEntryCellView {
     @objc private func copyCode(_ sender: Any?) {
         guard let entryID else { return }
         onCopy?(entryID)
+    }
+}
+
+/// Fills itself with one colour, resolved for each appearance as it draws.
+final class MacListBackgroundView: NSView {
+    let fillColor: NSColor
+
+    init(fillColor: NSColor) {
+        self.fillColor = fillColor
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func draw(_ dirtyRect: NSRect) {
+        fillColor.setFill()
+        dirtyRect.fill()
     }
 }
 

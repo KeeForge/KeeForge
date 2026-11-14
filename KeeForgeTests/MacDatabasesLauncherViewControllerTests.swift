@@ -41,6 +41,24 @@ final class MacDatabasesLauncherViewControllerTests: XCTestCase {
     }
 
     /// FirstRun: the brand panel keeps the actions; the list says it is empty, once, with no buttons of its own.
+    func testBrandActionTilesResolveTheirColoursForTheWindowAppearance() async throws {
+        let (controller, _, _) = await makeController([])
+        let tile = controller.newDatabaseButton.tile
+        func background(_ name: NSAppearance.Name) throws -> CGColor {
+            var color: CGColor?
+            try XCTUnwrap(NSAppearance(named: name)).performAsCurrentDrawingAppearance {
+                color = NSColor.controlBackgroundColor.cgColor
+            }
+            return try XCTUnwrap(color)
+        }
+        controller.view.window?.appearance = NSAppearance(named: .aqua)
+        await settle()
+        XCTAssertEqual(tile.layer?.backgroundColor, try background(.aqua))
+        controller.view.window?.appearance = NSAppearance(named: .darkAqua)
+        await settle()
+        XCTAssertEqual(tile.layer?.backgroundColor, try background(.darkAqua))
+    }
+
     func testFirstRunShowsTheEmptyStateWithoutRepeatingTheActions() async throws {
         let (controller, store, launcher) = await makeController([])
         XCTAssertFalse(controller.emptyStateView.isHidden)
@@ -78,6 +96,10 @@ final class MacDatabasesLauncherViewControllerTests: XCTestCase {
 
         XCTAssertEqual(controller.tableView.numberOfRows, 2)
         let first = try cell(controller, 0)
+        XCTAssertGreaterThan(controller.tableView.tableColumns[0].width, 400, "The column fills the list panel")
+        first.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThanOrEqual(first.titleField.frame.width, first.titleField.intrinsicContentSize.width,
+                                    "The name is not squeezed out of the row")
         XCTAssertEqual(first.titleField.stringValue, "archive")
         XCTAssertEqual(first.titleField.accessibilityIdentifier(), "database.row")
         XCTAssertEqual(first.subtitleField.stringValue, "archive.kdbx · \(String(localized: "On This Mac"))")

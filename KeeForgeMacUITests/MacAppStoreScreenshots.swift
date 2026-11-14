@@ -130,7 +130,7 @@ final class MacAppStoreScreenshots: MacUITestCase {
         }
 
         // 03: database details hub (format and Encryption rows).
-        clickToolbarButton(identifier: "database-details.button", overflowLabel: "Database Details")
+        clickToolbarButton(identifier: "database-details.button", overflowLabel: "Database Settings")
         if app.buttons["database-details.close"].waitForExistence(timeout: 8) {
             // The header's format summary loads asynchronously.
             settle(2)
@@ -156,9 +156,8 @@ final class MacAppStoreScreenshots: MacUITestCase {
 
     private func captureSecuritySettings() async {
         let name = "06-settings-security"
-        clickToolbarButton(identifier: "settings.button", overflowLabel: "Settings")
         let settingsWindow = self.settingsWindow
-        guard settingsWindow.waitForExistence(timeout: 8) else {
+        guard typeAppShortcut(","), settingsWindow.waitForExistence(timeout: 8) else {
             noteSkip(name, reason: "the Settings window never opened")
             return
         }

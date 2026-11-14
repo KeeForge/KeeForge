@@ -71,7 +71,7 @@ final class MacWindowLifecycleUITests: MacUITestCase {
 
     /// A save that hits an injected conflict leaves Alpha with an unsaved
     /// draft and no sheet, the state in which ⌘W asks before closing.
-    func testCommandWWithUnsavedWorkPromptsOnThatWindowAndCancelKeepsItUsable() throws {
+    func testCommandWWithUnsavedWorkPromptsOnThatWindowAndCancelKeepsItUsable() {
         unlockSuccessfully(in: openDatabase(named: "Alpha"))
         unlockSuccessfully(in: openDatabase(named: "Bravo"))
         makeKey("Alpha")
@@ -81,7 +81,13 @@ final class MacWindowLifecycleUITests: MacUITestCase {
         titleField.click()
         app.typeText("Unsaved Draft")
         alpha.buttons["entry-edit.save"].firstMatch.click()
-        // The failed save keeps the editor open; its conflict alert waits for the editor to close.
+        // The failed save keeps the editor open, and the Save Conflict alert attaches to it.
+        let merge = alpha.buttons["save-conflict.merge"].firstMatch
+        XCTAssertTrue(merge.waitForExistence(timeout: 15), "The injected save conflict did not appear")
+        XCTAssertTrue(alpha.buttons["save-conflict.cancel"].exists, "The Save Conflict alert offers no Cancel")
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(merge.waitForNonExistence(timeout: 5), "Escape did not cancel the Save Conflict alert")
+
         // Cancel is ignored until the failed save settles, so retry it.
         let editorCancel = alpha.buttons["entry-edit.cancel"].firstMatch
         let discard = alpha.buttons["Discard Changes"].firstMatch
@@ -95,14 +101,12 @@ final class MacWindowLifecycleUITests: MacUITestCase {
             _ = discard.waitForExistence(timeout: 2)
         }
         XCTAssertFalse(titleField.exists, "The editor did not close")
-        let merge = alpha.buttons["save-conflict.merge"].firstMatch
-        XCTAssertTrue(merge.waitForExistence(timeout: 15), "The injected save conflict did not appear")
-        let conflictCancel = alpha.buttons["save-conflict.cancel"].firstMatch
-        guard conflictCancel.exists else {
-            throw XCTSkip("Known defect: the macOS Save Conflict alert shows no Cancel and ignores Escape, so no unsaved draft without a sheet is reachable")
+        if merge.waitForExistence(timeout: 2) {
+            alpha.buttons["save-conflict.cancel"].firstMatch.click()
+            XCTAssertTrue(merge.waitForNonExistence(timeout: 5), "Cancel did not dismiss the Save Conflict alert")
         }
-        conflictCancel.click()
-        XCTAssertTrue(merge.waitForNonExistence(timeout: 5), "Cancel did not dismiss the save-conflict alert")
+        XCTAssertTrue(alpha.buttons["save-conflict.resolve"].waitForExistence(timeout: 5),
+                      "The status card does not offer Resolve… for the unsaved draft")
 
         typeCommandShortcut("w")
         let cancel = alpha.sheets.buttons["Cancel"].firstMatch
