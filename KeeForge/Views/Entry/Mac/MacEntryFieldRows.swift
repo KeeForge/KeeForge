@@ -236,6 +236,8 @@ struct MacEntryFieldRow: View {
             } trailing: {
                 trailingButtons
             }
+            // The boards set the password row on a faint band, as the editor does.
+            .background(field.kind == .password ? Color.primary.opacity(0.025) : Color.clear)
         }
     }
 

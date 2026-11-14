@@ -133,9 +133,7 @@ struct EntryDetailView: View {
                                 FieldRow(
                                     label: String(localized: "Username"),
                                     value: username,
-                                    icon: "person.fill",
-                                    accessibilityKey: "username",
-                                    isCardRow: true
+                                    accessibilityKey: "username"
                                 )
                             }
                         }
@@ -146,8 +144,7 @@ struct EntryDetailView: View {
                                 sessionKey: sessionKey,
                                 secretAccess: viewModel.secretAccess,
                                 resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
-                                isCurrent: secretActionIsCurrent,
-                                isCardRow: true
+                                isCurrent: secretActionIsCurrent
                             )
                         }
 
@@ -168,8 +165,7 @@ struct EntryDetailView: View {
                         if let totpConfig = entry.totpConfig {
                             TOTPSection(
                                 config: totpConfig,
-                                sessionKey: sessionKey,
-                                isCardRow: true
+                                sessionKey: sessionKey
                             )
                         }
                     }
@@ -186,8 +182,8 @@ struct EntryDetailView: View {
 
                     if let passkey = entry.passkeyCredential {
                         Section("Passkey") {
-                            FieldRow(label: String(localized: "Relying Party"), value: passkey.relyingParty, icon: "person.badge.key.fill", accessibilityKey: "relying_party", isCardRow: true)
-                            FieldRow(label: String(localized: "Username"), value: passkey.username, icon: "person.fill", accessibilityKey: "username", isCardRow: true)
+                            FieldRow(label: String(localized: "Relying Party"), value: passkey.relyingParty, accessibilityKey: "relying_party")
+                            FieldRow(label: String(localized: "Username"), value: passkey.username, accessibilityKey: "username")
                         }
                     }
 
@@ -201,20 +197,14 @@ struct EntryDetailView: View {
                                         value: value,
                                         secretAccess: viewModel.secretAccess,
                                         resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
-                                        showsInlineLabel: true,
-                                        isCardRow: true,
                                         isCurrent: secretActionIsCurrent
                                     )
                                 } else {
                                     ReferenceAwareFieldRow(label: key, raw: value, viewModel: viewModel,
-                                                           showsInlineLabel: true,
                                                            isCurrent: secretActionIsCurrent) { value in
                                         FieldRow(
                                             label: key,
-                                            value: value,
-                                            icon: "text.justify.left",
-                                            showsInlineLabel: true,
-                                            isCardRow: true
+                                            value: value
                                         )
                                     }
                                 }

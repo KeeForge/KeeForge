@@ -137,6 +137,84 @@ final class MacEntryEditorSessionTests: XCTestCase {
         XCTAssertEqual(saved.history.first?.unknownXML, before.unknownXML, "The replaced version keeps it too")
     }
 
+    /// The same edit saved through the real saver to a KDBX file and parsed back: the writer keeps
+    /// the passkey fields, the private key and the unknown XML, in the entry and its new version.
+    func testAnInlineEditorSaveWritesPasskeyDataAndUnknownXMLToTheFile() async throws {
+        let bundle = Bundle(for: Self.self)
+        let writeKey = SymmetricKey(size: .bits256)
+        let loaded = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: bundle, sessionKey: writeKey)
+        var unknownXML = OpaqueXMLNodes()
+        unknownXML.append(xml: "<CustomData><Item><Key>Plugin</Key><Value>kept</Value></Item></CustomData>", insertionIndex: 2)
+        let passkeyFields = [
+            PasskeyCredential.credentialIDKey: "Y3JlZA",
+            PasskeyCredential.relyingPartyKey: "github.com",
+            PasskeyCredential.usernameKey: "alexrivers",
+            PasskeyCredential.userHandleKey: "dXNlcg",
+        ]
+        let entry = KPEntry(
+            title: "GitHub", username: "alice", password: try EncryptedValue.encrypt("secret", using: writeKey),
+            customFields: passkeyFields, passkeyPrivateKey: try EncryptedValue.encrypt("-----BEGIN PRIVATE KEY-----", using: writeKey),
+            unknownXML: unknownXML
+        )
+        let root = loaded.rootGroup
+        root.entries.append(entry)
+        let sourceData = try KDBXWriter.write(rootGroup: root, meta: loaded.meta, compositeKey: loaded.compositeKey,
+                                              header: loaded.header, sessionKey: writeKey)
+        let originalKey = SymmetricKey(size: .bits256)
+        let original = try XCTUnwrap(KDBXParser.parse(data: sourceData, compositeKey: loaded.compositeKey, sessionKey: originalKey)
+            .allEntries.first { $0.id == entry.id })
+        XCTAssertFalse(original.unknownXML.isEmpty, "The source file carries the unknown XML")
+        XCTAssertNotNil(original.passkeyPrivateKey, "The source file carries the passkey")
+
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let databaseURL = directory.appendingPathComponent("inline-editor-passkey.kdbx")
+        try sourceData.write(to: databaseURL)
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL, autoFillEnabled: false)
+        defer {
+            try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
+            try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
+        }
+        let database = DatabaseViewModel(
+            databaseReference: reference,
+            localSaveOperation: { draft, reference, key, hash, reconciledHash, newKey, settings in
+                try await LocalDatabaseSaver.save(
+                    draft: draft, reference: reference, compositeKey: key, openTimeSHA512: hash,
+                    reconciledRemoteSHA512: reconciledHash, kdfPolicy: .mainApp,
+                    newCompositeKey: newKey, encryptionSettings: settings
+                )
+            },
+            storedKeyPresenceCheck: { _ in false }
+        )
+        defer { database.lock() }
+        await database.unlock(password: loaded.fixture.password)
+        let presentation = MacWorkspacePresentation()
+        database.workspace.selectedEntryID = entry.id
+        presentation.beginEntryEdit(entryID: entry.id, in: database)
+        let editor = try XCTUnwrap(presentation.entryEditor)
+
+        editor.form.title = "GitHub (work)"
+        await editor.save().value
+
+        XCTAssertNil(presentation.entryEditor, "The save completed")
+        let readKey = SymmetricKey(size: .bits256)
+        let saved = try XCTUnwrap(KDBXParser.parse(data: Data(contentsOf: databaseURL), compositeKey: loaded.compositeKey,
+                                                   sessionKey: readKey).allEntries.first { $0.id == entry.id })
+        XCTAssertEqual(saved.title, "GitHub (work)")
+        XCTAssertEqual(saved.unknownXML, original.unknownXML)
+        XCTAssertEqual(saved.customFields.filter { PasskeyCredential.allFieldKeys.contains($0.key) },
+                       original.customFields.filter { PasskeyCredential.allFieldKeys.contains($0.key) })
+        XCTAssertEqual(try saved.passkeyPrivateKey?.decryptData(using: readKey),
+                       try original.passkeyPrivateKey?.decryptData(using: originalKey))
+        XCTAssertEqual(saved.protectedStringKeys, original.protectedStringKeys)
+        XCTAssertEqual(saved.passkeyCredential?.relyingParty, "github.com")
+        XCTAssertEqual(saved.history.first?.title, "GitHub")
+        XCTAssertEqual(saved.history.first?.unknownXML, original.unknownXML, "The replaced version keeps it too")
+        XCTAssertEqual(try saved.history.first?.passkeyPrivateKey?.decryptData(using: readKey),
+                       try original.passkeyPrivateKey?.decryptData(using: originalKey))
+    }
+
     private func settle(_ editor: MacEntryEditorSession) async {
         for _ in 0..<200 where editor.isAuthenticating { await Task.yield() }
         await Task { @MainActor in }.value

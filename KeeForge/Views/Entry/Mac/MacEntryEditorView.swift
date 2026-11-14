@@ -70,7 +70,8 @@ struct MacEntryEditorView: View {
         .onAppear {
             guard session.hasFocusedTitle == false else { return }
             session.hasFocusedTitle = true
-            isTitleFocused = true
+            // On appear the field is not in the window yet, so a focus request then is dropped.
+            Task { @MainActor in isTitleFocused = true }
         }
     }
 
@@ -294,10 +295,12 @@ struct MacEntryEditorView: View {
     }
 
     private var addURLLink: some View {
-        Button("Add Another URL") { form.addAdditionalURL() }
-            .buttonStyle(.link)
-            .font(.callout)
-            .accessibilityIdentifier("entry-edit.additional-url.add")
+        Button { form.addAdditionalURL() } label: {
+            Label("Add Another URL", systemImage: "plus")
+        }
+        .buttonStyle(.plain)
+        .font(.callout)
+        .accessibilityIdentifier("entry-edit.additional-url.add")
     }
 
     // MARK: - Verification code
@@ -606,11 +609,15 @@ struct MacEntryEditorView: View {
 
     private var addButtons: some View {
         HStack(spacing: 8) {
-            Button("Add Field") { form.addCustomField() }
-                .accessibilityIdentifier("entry-edit.custom-field.add")
-            Button("Add Attachment…") { showAttachmentImporter = true }
-                .disabled(session.attachmentLoads.isLoading)
-                .accessibilityIdentifier("entry-edit.attachment.add")
+            Button { form.addCustomField() } label: {
+                Label("Add Field", systemImage: "plus")
+            }
+            .accessibilityIdentifier("entry-edit.custom-field.add")
+            Button { showAttachmentImporter = true } label: {
+                Label("Add Attachment…", systemImage: "plus")
+            }
+            .disabled(session.attachmentLoads.isLoading)
+            .accessibilityIdentifier("entry-edit.attachment.add")
             if session.attachmentLoads.isLoading {
                 ProgressView()
                     .controlSize(.small)

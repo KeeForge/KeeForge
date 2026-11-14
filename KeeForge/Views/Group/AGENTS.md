@@ -31,7 +31,7 @@
 
 ## Tests
 
-- New-entry detail after save: `EntryCreateFocusUITests` on iPhone and iPad; the Mac selection and sheet case is `MacSmokeUITests.testNewEntryIsSelectedAfterSaving`.
+- New-entry detail after save: `EntryCreateFocusUITests` on iPhone and iPad; the Mac selection and inline-editor case is `MacSmokeUITests.testNewEntryIsSelectedAfterSaving`.
 - `VaultHomeUITests`, `VaultLargeTextUITests`, `TagBrowserUITests` for the root and its collections; `GroupEditUITests`, `GroupIconPickerUITests` for the editor and picker.
 - `KeeForgeUITestCase.selectDatabaseView` is the supported way to open a collection, or return to the root, in a test.
 - The iPad cloud title, the iPhone sync warning and its Sync Now, pull to refresh, and the status popover: `CloudUnlockSmokeUITests`.

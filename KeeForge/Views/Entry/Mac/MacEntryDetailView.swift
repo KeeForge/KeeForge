@@ -218,6 +218,8 @@ struct MacEntryDetailView: View {
                     presentation.showEntryHistory(entryID: entryID, in: viewModel, currentSession: model.currentSession)
                 }
                 .buttonStyle(.link)
+                // The footer's secondary style would otherwise grey out the link.
+                .foregroundStyle(.tint)
                 .accessibilityIdentifier("entry-detail.history")
                 .accessibilityValue(String(model.historyCount))
             }

@@ -212,10 +212,8 @@ private struct EntryHistoryVersionFields: View {
                     FieldRow(
                         label: String(localized: "Title"),
                         value: version.title,
-                        icon: "textformat",
                         accessibilityKey: "title",
-                        accessibilityPrefix: "entry-history",
-                        isCardRow: true
+                        accessibilityPrefix: "entry-history"
                     )
                 }
                 if !version.username.isEmpty {
@@ -225,10 +223,8 @@ private struct EntryHistoryVersionFields: View {
                         FieldRow(
                             label: String(localized: "Username"),
                             value: username,
-                            icon: "person",
                             accessibilityKey: "username",
-                            accessibilityPrefix: "entry-history",
-                            isCardRow: true
+                            accessibilityPrefix: "entry-history"
                         )
                     }
                 }
@@ -239,8 +235,7 @@ private struct EntryHistoryVersionFields: View {
                         secretAccess: viewModel.secretAccess,
                         resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
                         accessibilityPrefix: "entry-history",
-                        isCurrent: secretActionIsCurrent,
-                        isCardRow: true
+                        isCurrent: secretActionIsCurrent
                     )
                 }
                 if !version.url.isEmpty {
@@ -250,10 +245,8 @@ private struct EntryHistoryVersionFields: View {
                         FieldRow(
                             label: String(localized: "URL"),
                             value: url,
-                            icon: "link",
                             accessibilityKey: "url",
-                            accessibilityPrefix: "entry-history",
-                            isCardRow: true
+                            accessibilityPrefix: "entry-history"
                         )
                     }
                 }
@@ -261,8 +254,7 @@ private struct EntryHistoryVersionFields: View {
                     TOTPSection(
                         config: totpConfig,
                         sessionKey: sessionKey,
-                        accessibilityPrefix: "entry-history",
-                        isCardRow: true
+                        accessibilityPrefix: "entry-history"
                     )
                 }
             }
@@ -291,21 +283,16 @@ private struct EntryHistoryVersionFields: View {
                                 secretAccess: viewModel.secretAccess,
                                 resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
                                 accessibilityPrefix: "entry-history",
-                                showsInlineLabel: true,
-                                isCardRow: true,
                                 isCurrent: secretActionIsCurrent
                             )
                         } else {
                             ReferenceAwareFieldRow(label: key, raw: value, viewModel: viewModel,
-                                                   accessibilityPrefix: "entry-history", showsInlineLabel: true,
+                                                   accessibilityPrefix: "entry-history",
                                                    isCurrent: secretActionIsCurrent) { value in
                                 FieldRow(
                                     label: key,
                                     value: value,
-                                    icon: "text.justify.left",
-                                    accessibilityPrefix: "entry-history",
-                                    showsInlineLabel: true,
-                                    isCardRow: true
+                                    accessibilityPrefix: "entry-history"
                                 )
                             }
                         }

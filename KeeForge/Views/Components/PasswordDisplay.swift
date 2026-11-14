@@ -6,66 +6,6 @@ enum PasswordVisualStyle {
     static let segmentCount = 4
 }
 
-struct PasswordDisplayRow<Actions: View>: View {
-    let revealedText: String?
-    private let passwordAccessibilityIdentifier: String?
-    private let maximumEntropyBits: Double
-    /// The generator's suggestion: the design's larger password style on iOS.
-    private let isProminent: Bool
-    private let actions: Actions
-
-    init(
-        revealedText: String?,
-        passwordAccessibilityIdentifier: String? = nil,
-        maximumEntropyBits: Double = .infinity,
-        isProminent: Bool = false,
-        @ViewBuilder actions: () -> Actions
-    ) {
-        self.revealedText = revealedText
-        self.passwordAccessibilityIdentifier = passwordAccessibilityIdentifier
-        self.maximumEntropyBits = maximumEntropyBits
-        self.isProminent = isProminent
-        self.actions = actions()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "lock.fill")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24)
-
-                if let revealedText {
-                    // Deliberately no `.textSelection(.enabled)` here: the system
-                    // copy path would bypass ClipboardService (no expiry, no
-                    // localOnly/ConcealedType, no clear-on-lock). The sanctioned
-                    // CopyButton -> ClipboardService.copy is the only copy path.
-                    Group {
-                        if let passwordAccessibilityIdentifier {
-                            PasswordDisplayText(revealedText, isProminent: isProminent)
-                                .accessibilityIdentifier(passwordAccessibilityIdentifier)
-                        } else {
-                            PasswordDisplayText(revealedText, isProminent: isProminent)
-                        }
-                    }
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    PasswordConcealedText()
-                }
-
-                Spacer(minLength: 12)
-                actions
-            }
-
-            if let revealedText {
-                PasswordStrengthIndicator(password: revealedText, maximumEntropyBits: maximumEntropyBits)
-                    .padding(.leading, 36)
-            }
-        }
-    }
-}
-
 struct PasswordDisplayText: View {
     let password: String
     var isProminent = false

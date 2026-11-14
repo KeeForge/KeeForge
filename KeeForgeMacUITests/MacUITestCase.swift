@@ -489,6 +489,43 @@ class MacUITestCase: XCTestCase {
         return 0
     }
 
+    /// Scrolls the innermost scroll view holding `element` (the detail's or the inline editor's)
+    /// until it sits clear of `window`'s bottom edge, where a click misses. The sidebar's AppKit
+    /// scroll view can report holding a detail control, so a candidate must also span the element
+    /// horizontally. Returns whether it got there; `failing` turns a miss into a failure.
+    @discardableResult
+    func scrollIntoView(
+        _ element: XCUIElement,
+        in window: XCUIElement? = nil,
+        failing: Bool = true,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Bool {
+        let window = window ?? databaseWindow
+        for _ in 0..<18 {
+            guard element.exists else {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+                continue
+            }
+            let identifier = element.identifier
+            let column = element.frame
+            let scrollView = window.scrollViews.allElementsBoundByIndex
+                .filter { $0.frame.minX <= column.minX && $0.frame.maxX >= column.maxX }
+                .filter { $0.descendants(matching: .any).matching(identifier: identifier).firstMatch.exists }
+                .min { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
+                ?? window.scrollViews.firstMatch
+            let visible = scrollView.frame.intersection(window.frame)
+            if element.isHittable, element.frame.minY >= visible.minY,
+               element.frame.maxY < visible.maxY - 60 { return true }
+            scrollView.scroll(byDeltaX: 0, deltaY: element.frame.minY < visible.minY ? 250 : -250)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        }
+        if failing {
+            XCTAssertTrue(element.isHittable, "'\(element.identifier)' never scrolled into view", file: file, line: line)
+        }
+        return element.isHittable
+    }
+
     // MARK: - Menu commands
 
     func typeCommandShortcut(_ key: String, modifiers: XCUIElement.KeyModifierFlags = [.command]) {

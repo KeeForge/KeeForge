@@ -44,6 +44,10 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     // list and window titles show the injected filename in listing captures.
     override var databaseFixtures: [DatabaseFixture] {
         if name.contains("EmptyDatabasesWindow") { return [] }
+        // Attachments, custom fields, tags and a version that differs live only in kitchen-sink.
+        if name.contains("EntryVariants") {
+            return [DatabaseFixture(resourceName: "kitchen-sink", injectedFilename: "Personal.kdbx")]
+        }
         return [
             DatabaseFixture(resourceName: "test", injectedFilename: "Personal.kdbx"),
             DatabaseFixture(resourceName: "test", injectedFilename: "Work.kdbx"),
@@ -287,8 +291,10 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     }
 
     /// Attaches a capture of one app window, or records why it was skipped.
-    private func snapWindow(_ window: @autoclosure () -> XCUIElement?, _ name: String) async {
-        guard waitForStableForeground(), let element = window(), element.exists,
+    /// `waitsForForeground: false` skips the foreground wait (about a second) for a state that
+    /// lasts only briefly, such as the copy tick; the caller has just raised the app.
+    private func snapWindow(_ window: @autoclosure () -> XCUIElement?, _ name: String, waitsForForeground: Bool = true) async {
+        guard !waitsForForeground || waitForStableForeground(), let element = window(), element.exists,
               element.frame.width > 1, element.frame.height > 1 else {
             noteSkip(name, reason: "app never held the foreground")
             return
@@ -602,26 +608,9 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             noteSkip("12-front-personal", reason: "the Window menu did not list Personal")
         }
 
-        // 8. Entry edit sheet (⌘N) — last, because presenting/dismissing it can
-        //    drop the app out of the foreground. Best effort: re-focus an entry,
-        //    open the editor, snap the sheet, then cancel.
-        waitForStableForeground()
-        let editorEntry = rowQuery(identifier: "entry.navlink").firstMatch
-        if editorEntry.waitForExistence(timeout: 5), editorEntry.isHittable {
-            editorEntry.click()
-        }
-        if typeAppShortcut("n"), app.textFields["entry-edit.title-field"].waitForExistence(timeout: 8) {
-            settle(0.6)
-            await snapSurface(hosting: "entry-edit.title-field", "08-entry-editor-sheet")
-            _ = await captureTOTPSetupLink()
-            let cancelButton = app.buttons["entry-edit.cancel"].firstMatch
-            if cancelButton.waitForExistence(timeout: 3), cancelButton.isHittable {
-                cancelButton.click()
-            }
-            settle()
-        } else {
-            noteSkip("08-entry-editor-sheet", reason: "the editor never opened")
-        }
+        // 8. The inline editor, its generator popover, a new entry with the Set Up sheet,
+        //    the discard prompt, and the Password Generator panel.
+        await captureEditor()
 
         // 8a. Database details sheet — the tallest form the app sheets, and the
         //     one where a sheet taller than the window shows first.
@@ -662,26 +651,6 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             noteSkip("08a-database-details", reason: "the details toolbar button was not hittable")
         }
 
-        // 8b. Entry history browser — the Mac shell is a versions/detail split
-        //     rather than the iOS push, so it is its own screen to eyeball.
-        //     Needs a fixture entry that ships stored versions.
-        openGroup(named: "Social")
-        openEntry(named: "Twitter")
-        let historyRow = app.buttons["entry-detail.history"].firstMatch
-        if historyRow.waitForExistence(timeout: 5), historyRow.isHittable {
-            historyRow.click()
-            if app.buttons["entry-history.done"].waitForExistence(timeout: 8) {
-                settle(0.6)
-                await snapSurface(hosting: "entry-history.done", "08b-entry-history")
-                app.buttons["entry-history.done"].firstMatch.click()
-                settle()
-            } else {
-                noteSkip("08b-entry-history", reason: "the history sheet never opened")
-            }
-        } else {
-            noteSkip("08b-entry-history", reason: "the history row was not hittable")
-        }
-
         // 8d-8f. A group's context menu, the Recycle Bin its delete creates,
         //        and the window with the sidebar hidden.
         await captureSidebarStates()
@@ -692,10 +661,15 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         settle()
         await snap("09-final-state")
 
+        // 10b. A read-only database's detail: no Edit, no icon picker.
+        relaunch(readOnly: true, contentSize: Self.databaseWindowSize)
+        settle()
+        await snap("10b-read-only-detail")
+
         // 10. The three columns and native toolbar at the window's
         //     minimum size (900x620), where crowding and truncation show up,
         //     with the sidebar's status card showing for a read-only database.
-        shrinkMainWindowToMinimum()
+        relaunch(readOnly: true, contentSize: Self.minimumContentSize)
         settle()
         await snap("10-minimum-width")
 
@@ -767,6 +741,173 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         }
     }
 
+    /// Work/Email in the inline editor (header Edit) and its generator popover, then a new entry
+    /// with the Set Up sheet and the discard prompt, then Database > Password Generator.
+    /// Quick Look is a system panel and is checked by the smoke suite, not captured.
+    private func captureEditor() async {
+        waitForStableForeground()
+        openGroup(named: "Work")
+        openEntry(named: "Email")
+        let titleField = personalWindow.textFields["entry-edit.title-field"].firstMatch
+        let cancel = personalWindow.buttons["entry-edit.cancel"].firstMatch
+        let edit = personalWindow.buttons["entry-detail.edit"].firstMatch
+        if edit.waitForExistence(timeout: 5), edit.isHittable {
+            edit.click()
+        }
+        if titleField.waitForExistence(timeout: 8) {
+            settle(0.6)
+            await snap("08-entry-editor-inline")
+            let generator = personalWindow.buttons["entry-edit.password-generator-button"].firstMatch
+            let popover = app.popovers.containing(.button, identifier: "password-generator.use").firstMatch
+            if generator.exists, generator.isHittable {
+                generator.click()
+                if popover.waitForExistence(timeout: 5) {
+                    settle(0.6)
+                    await snapWindow(popover, "08k-generator-popover")
+                    app.typeKey(.escape, modifierFlags: [])
+                    _ = popover.waitForNonExistence(timeout: 5)
+                } else {
+                    noteSkip("08k-generator-popover", reason: "Generate opened no popover")
+                }
+            } else {
+                noteSkip("08k-generator-popover", reason: "the Generate button was not hittable")
+            }
+            if cancel.exists { cancel.click() }
+            _ = titleField.waitForNonExistence(timeout: 5)
+        } else {
+            noteSkip("08-entry-editor-inline", reason: "the header's Edit opened no editor")
+            noteSkip("08k-generator-popover", reason: "the editor never opened")
+        }
+
+        if typeAppShortcut("n"), titleField.waitForExistence(timeout: 8) {
+            settle(0.6)
+            await snap("08i-new-entry")
+            _ = await captureTOTPSetupLink()
+            titleField.click()
+            app.typeText("Draft Entry")
+            cancel.click()
+            let discard = personalWindow.sheets.buttons["Discard Changes"].firstMatch
+            if discard.waitForExistence(timeout: 5) {
+                settle(0.6)
+                await snap("08j-discard-changes")
+                discard.click()
+            } else {
+                noteSkip("08j-discard-changes", reason: "Cancel on a changed entry did not ask")
+                if cancel.exists { cancel.click() }
+            }
+            _ = titleField.waitForNonExistence(timeout: 5)
+            settle()
+        } else {
+            noteSkip("08i-new-entry", reason: "⌘N opened no editor")
+        }
+
+        let panelName = "08l-generator-panel"
+        guard waitForStableForeground() else {
+            noteSkip(panelName, reason: "app never held the foreground")
+            return
+        }
+        chooseMenuItem("Password Generator", inMenu: "Database")
+        let panel = app.descendants(matching: .any).matching(identifier: "password-generator.panel").firstMatch
+        if panel.waitForExistence(timeout: 5) {
+            settle(0.6)
+            await snapWindow(panel, panelName)
+            app.typeKey(.escape, modifierFlags: [])
+            _ = panel.waitForNonExistence(timeout: 5)
+        } else {
+            noteSkip(panelName, reason: "Database > Password Generator opened no panel")
+        }
+    }
+
+    /// Detail variants from kitchen-sink: attachments, a protected custom field, tags, Large Type,
+    /// the copy tick and History with differences; then the detail and the editor at the minimum width.
+    func testCaptureEntryVariants() async {
+        unlockSuccessfully(in: openDatabase(named: "Personal"))
+
+        openGroup(named: "Attachments")
+        openEntry(named: "Multi Attachment Entry")
+        settle()
+        await snap("05a-entry-detail-attachments")
+
+        openGroup(named: "Secrets")
+        openEntry(named: "Protected Custom")
+        settle()
+        await snap("05a2-entry-detail-custom-field")
+
+        let largeType = personalWindow.buttons["entry.password.large-type"].firstMatch
+        let panel = app.descendants(matching: .any).matching(identifier: "large-type.panel").firstMatch
+        if largeType.exists, largeType.isHittable {
+            largeType.click()
+            if panel.waitForExistence(timeout: 5) {
+                settle(0.6)
+                // The panel closes when the app resigns active, so no foreground dance.
+                await snapWindow(panel, "05b-large-type", waitsForForeground: false)
+                app.typeKey(.escape, modifierFlags: [])
+                _ = panel.waitForNonExistence(timeout: 5)
+            } else {
+                noteSkip("05b-large-type", reason: "Show in Large Type opened no panel")
+            }
+        } else {
+            noteSkip("05b-large-type", reason: "the Large Type button was not hittable")
+        }
+
+        let copyName = "05c-copy-feedback"
+        let copyUsername = personalWindow.buttons["entry.copy.username"].firstMatch
+        if waitForStableForeground(), copyUsername.exists, copyUsername.isHittable {
+            copyUsername.click()
+            settle(0.2)
+            await snapWindow(personalWindow, copyName, waitsForForeground: false)
+        } else {
+            noteSkip(copyName, reason: "the username's copy button was not hittable")
+        }
+
+        openGroup(named: "Tagged")
+        openEntry(named: "Router Admin")
+        settle()
+        await snap("05d-entry-detail-tags")
+
+        // Its one earlier version has another password and other notes.
+        let historyName = "08b-entry-history"
+        openGroup(named: "Round Trip")
+        openEntry(named: "Controlled Unknowns")
+        let historyLink = personalWindow.links["entry-detail.history"].firstMatch
+        if historyLink.waitForExistence(timeout: 5) {
+            scrollIntoView(historyLink, in: personalWindow, failing: false)
+            historyLink.click()
+            let done = app.buttons["entry-history.done"].firstMatch
+            if done.waitForExistence(timeout: 8) {
+                settle(0.6)
+                await snapSurface(hosting: "entry-history.done", historyName)
+                done.click()
+                settle()
+            } else {
+                noteSkip(historyName, reason: "the History sheet never opened")
+                attachHierarchy(named: "\(historyName)-hierarchy")
+            }
+        } else {
+            noteSkip(historyName, reason: "the entry has no Earlier Versions link")
+            attachHierarchy(named: "\(historyName)-hierarchy")
+        }
+
+        relaunch(readOnly: false, contentSize: Self.minimumContentSize,
+                 group: "Attachments", entry: "Multi Attachment Entry")
+        settle()
+        await snap("10c-minimum-width-detail")
+        let edit = personalWindow.buttons["entry-detail.edit"].firstMatch
+        if edit.waitForExistence(timeout: 5), edit.isHittable {
+            edit.click()
+            if personalWindow.textFields["entry-edit.title-field"].waitForExistence(timeout: 8) {
+                settle(0.6)
+                await snap("10d-minimum-width-editor")
+                personalWindow.buttons["entry-edit.cancel"].firstMatch.click()
+            } else {
+                noteSkip("10d-minimum-width-editor", reason: "Edit opened no editor")
+            }
+        } else {
+            noteSkip("10d-minimum-width-editor", reason: "the header's Edit was not hittable")
+        }
+        attachCaptureReport()
+    }
+
     /// Deletes a sidebar group through its row menu and the confirmation.
     private func deleteGroup(named group: String, skipping name: String) -> Bool {
         guard waitForStableForeground(),
@@ -795,106 +936,81 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     func testCaptureTOTPSetupLink() async {
         unlockSuccessfully(in: openDatabase(named: "Personal"))
         guard typeAppShortcut("n"),
-              app.textFields["entry-edit.title-field"].waitForExistence(timeout: 8) else {
+              personalWindow.textFields["entry-edit.title-field"].waitForExistence(timeout: 8) else {
             XCTFail("The entry editor did not open")
             return
         }
         settle(0.6)
         let captured = await captureTOTPSetupLink()
         attachCaptureReport()
-        XCTAssertTrue(captured, "The TOTP setup-link form was not captured in both states")
-        if let editor = surface(hosting: "entry-edit.title-field"),
-           let cancel = visibleControl(editor.buttons.matching(identifier: "entry-edit.cancel"), in: editor) {
-            cancel.click()
-        }
+        XCTAssertTrue(captured, "The Set Up sheet was not captured in both states")
+        let cancel = personalWindow.buttons["entry-edit.cancel"].firstMatch
+        if cancel.exists, cancel.isHittable { cancel.click() }
     }
 
-    private func visibleControl(_ query: XCUIElementQuery, in surface: XCUIElement) -> XCUIElement? {
-        query.allElementsBoundByIndex.first { element in
-            let frame = element.frame
-            return frame.origin.x.isFinite && frame.origin.y.isFinite
-                && frame.width > 1 && frame.height > 1
-                && surface.frame.contains(frame) && element.isHittable
-        }
-    }
-
+    /// The Set Up sheet over the inline editor, empty and then with a link it refuses.
     private func captureTOTPSetupLink() async -> Bool {
         let name = "08c-totp-setup-link"
         func fail(_ reason: String) -> Bool {
             noteSkip(name, reason: reason)
-            let attachment = XCTAttachment(string: app.debugDescription)
-            attachment.name = "\(name)-hierarchy"
-            attachment.lifetime = .keepAlways
-            add(attachment)
+            attachHierarchy(named: "\(name)-hierarchy")
             return false
         }
-        guard let editor = surface(hosting: "entry-edit.title-field") else {
-            return fail("the editor surface was missing")
+        let setUp = personalWindow.buttons["entry-edit.totp.enter-link"].firstMatch
+        guard setUp.waitForExistence(timeout: 5), scrollIntoView(setUp, in: personalWindow, failing: false) else {
+            return fail("the Set Up… button was not visible")
         }
-        guard let scrollView = visibleControl(editor.scrollViews, in: editor) else {
-            return fail("the editor scroll view was not visible")
-        }
-        var setupLink = visibleControl(editor.buttons.matching(identifier: "entry-edit.totp.enter-link"), in: scrollView)
-        var scrollDelta: CGFloat = 300
-        for _ in 0..<6 {
-            if setupLink != nil { break }
-            let previousY = editor.buttons["entry-edit.totp.enter-link"].frame.minY
-            scrollView.scroll(byDeltaX: 0, deltaY: scrollDelta)
-            settle(0.3)
-            setupLink = visibleControl(editor.buttons.matching(identifier: "entry-edit.totp.enter-link"), in: scrollView)
-            if setupLink == nil, editor.buttons["entry-edit.totp.enter-link"].frame.minY >= previousY {
-                scrollDelta = -scrollDelta
-            }
-        }
-        guard let setupLink else { return fail("the setup-link button was not visible after scrolling") }
-        setupLink.click()
-        guard app.textFields["entry-edit.totp.link-field"].waitForExistence(timeout: 5),
-              surface(hosting: "entry-edit.totp.link-field") != nil else {
-            return fail("the setup-link sheet never opened")
-        }
+        setUp.click()
+        let sheet = personalWindow.sheets.firstMatch
+        let linkField = sheet.textViews["entry-edit.totp.link-field"].firstMatch
+        guard linkField.waitForExistence(timeout: 5) else { return fail("the Set Up sheet never opened") }
         settle(0.3)
-        await snapSurface(hosting: "entry-edit.totp.link-field", "\(name)-empty")
-        guard let linkSheet = surface(hosting: "entry-edit.totp.link-field"),
-              let linkField = visibleControl(linkSheet.textFields.matching(identifier: "entry-edit.totp.link-field"), in: linkSheet) else {
-            return fail("the setup-link field was not visible")
-        }
+        await snapWindow(sheet, "\(name)-empty")
         linkField.click()
-        // Long enough to outgrow the row, so the pair of captures shows whether
-        // the field keeps its place once it has a pasted-length value.
+        // Long enough to wrap in the field, so the capture shows how a pasted link sits.
         linkField.typeText("otpauth://totp/Example:alice@example.com?issuer=Example&algorithm=SHA1&digits=6&period=30")
-        guard let apply = visibleControl(linkSheet.buttons.matching(identifier: "entry-edit.totp.link-apply"), in: linkSheet),
-              apply.isEnabled else { return fail("the setup-link Apply button was unavailable") }
+        let apply = sheet.buttons["entry-edit.totp.link-apply"].firstMatch
+        guard apply.exists, apply.isEnabled else { return fail("the Set Up sheet's Apply button was unavailable") }
         apply.click()
-        guard linkSheet.staticTexts["entry-edit.totp.link-error"].waitForExistence(timeout: 5) else {
+        guard sheet.descendants(matching: .any)["entry-edit.totp.link-error"].waitForExistence(timeout: 5) else {
             return fail("the setup-link validation error never appeared")
         }
         settle(0.3)
-        await snapSurface(hosting: "entry-edit.totp.link-field", name)
-        guard let cancel = visibleControl(linkSheet.buttons.matching(identifier: "entry-edit.totp.link-cancel"), in: linkSheet) else {
-            return fail("the setup-link Cancel button was unavailable")
-        }
+        await snapWindow(sheet, name)
+        let cancel = sheet.buttons["entry-edit.totp.link-cancel"].firstMatch
+        guard cancel.exists else { return fail("the Set Up sheet's Cancel button was unavailable") }
         cancel.click()
+        _ = sheet.waitForNonExistence(timeout: 5)
         settle(0.3)
         return skippedCaptures.contains(where: { $0.hasPrefix(name) }) == false
     }
 
-    private func shrinkMainWindowToMinimum() {
-        // Corner drags do not resize windows on macOS 27.
-        let content = NSSize(width: 900, height: 620)
+    private func attachHierarchy(named name: String) {
+        let attachment = XCTAttachment(string: app.debugDescription)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private static let minimumContentSize = NSSize(width: 900, height: 620)
+
+    /// Relaunches with Personal's window at `contentSize` (corner drags do not resize windows on
+    /// macOS 27), unlocks it and opens `entry` in `group`.
+    private func relaunch(readOnly: Bool, contentSize: NSSize, group: String = "Social", entry: String = "Twitter") {
         let size = NSWindow.frameRect(
-            forContentRect: NSRect(origin: .zero, size: content),
+            forContentRect: NSRect(origin: .zero, size: contentSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         ).size
         app.terminate()
-        app.launchEnvironment["UI_TEST_DATABASE_READ_ONLY"] = "1"
+        app.launchEnvironment["UI_TEST_DATABASE_READ_ONLY"] = readOnly ? "1" : nil
         if let index = app.launchArguments.firstIndex(of: Self.windowSizeArgument) {
-            app.launchArguments[index + 1] = Self.sizeValue(content)
+            app.launchArguments[index + 1] = Self.sizeValue(contentSize)
         }
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
         unlockSuccessfully(in: openDatabase(named: "Personal"))
-        openGroup(named: "Social")
-        openEntry(named: "Twitter")
+        openGroup(named: group)
+        openEntry(named: entry)
         XCTAssertEqual(personalWindow.frame.width, size.width, accuracy: 2)
         XCTAssertEqual(personalWindow.frame.height, size.height, accuracy: 2)
     }

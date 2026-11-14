@@ -3,17 +3,12 @@ import SwiftUI
 
 // MARK: - Field Rows
 
-/// iOS gathers an entry's fields into one card of label/value rows; the Mac
-/// history viewer keeps a section per field.
+/// Gathers an entry's fields into one card of label/value rows.
 struct EntryFieldsCard<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        if PlatformDesign.followsIOSDesign {
-            Section {
-                content
-            }
-        } else {
+        Section {
             content
         }
     }
@@ -22,59 +17,22 @@ struct EntryFieldsCard<Content: View>: View {
 struct FieldRow: View {
     let label: String
     let value: String
-    let icon: String
     // Locale-independent copy-button ID; defaults to the normalized label so
     // user-defined custom field keys keep their existing identifiers.
     var accessibilityKey: String?
     /// Identifier namespace for the copy control, matching `PasswordFieldRow`.
     var accessibilityPrefix: String = "entry"
-    /// Custom fields already sit inside a shared section. Keeping their label
-    /// in the row avoids nesting `Section` views, which gives SwiftUI
-    /// inconsistent separator insets.
-    var showsInlineLabel: Bool = false
-    /// A label/value row inside a card the caller supplies (iOS).
-    var isCardRow: Bool = false
 
-    @ViewBuilder
     var body: some View {
-        if isCardRow {
-            LabeledContent {
-                HStack(spacing: 0) {
-                    Text(value)
-                        .foregroundStyle(Theme.labelSecondary)
-                        .textSelection(.enabled)
-                    CopyButton(text: value, accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)")
-                }
-            } label: {
-                Text(label)
+        LabeledContent {
+            HStack(spacing: 0) {
+                Text(value)
+                    .foregroundStyle(Theme.labelSecondary)
+                    .textSelection(.enabled)
+                CopyButton(text: value, accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)")
             }
-        } else if showsInlineLabel {
-            VStack(alignment: .leading, spacing: 6) {
-                inlineLabel
-                fieldContent
-            }
-        } else {
-            Section(label) {
-                fieldContent
-            }
-        }
-    }
-
-    private var inlineLabel: some View {
-        Text(label)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-    }
-
-    private var fieldContent: some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
-            Text(value)
-                .textSelection(.enabled)
-            Spacer()
-            CopyButton(text: value, accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)")
+        } label: {
+            Text(label)
         }
     }
 
@@ -91,7 +49,6 @@ struct ReferenceAwareFieldRow<Plain: View>: View {
     let raw: String
     let viewModel: DatabaseViewModel
     var accessibilityPrefix: String = "entry"
-    var showsInlineLabel: Bool = false
     let isCurrent: @MainActor () -> Bool
     @ViewBuilder let plain: (String) -> Plain
 
@@ -106,8 +63,6 @@ struct ReferenceAwareFieldRow<Plain: View>: View {
                 secretAccess: viewModel.secretAccess,
                 resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
                 accessibilityPrefix: accessibilityPrefix,
-                showsInlineLabel: showsInlineLabel,
-                isCardRow: PlatformDesign.followsIOSDesign,
                 isCurrent: isCurrent
             )
         }
@@ -122,31 +77,12 @@ struct ProtectedFieldRow: View {
     /// `{REF:…}` shows and copies as what it points at.
     var resolveReferences: (String) -> String = { $0 }
     var accessibilityPrefix: String = "entry"
-    var showsInlineLabel: Bool = false
-    /// A label/value row inside a card the caller supplies (iOS).
-    var isCardRow: Bool = false
     var isCurrent: @MainActor () -> Bool
     @State private var revealed = false
     @State private var secretAction = EntrySecretAction()
 
-    @ViewBuilder
     var body: some View {
-        Group {
-            if isCardRow {
-                cardRow
-            } else if showsInlineLabel {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(label)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    fieldContent
-                }
-            } else {
-                Section(label) {
-                    fieldContent
-                }
-            }
-        }
+        cardRow
         .onChange(of: value) { invalidateReveal() }
         .onDisappear { invalidateReveal() }
     }
@@ -177,27 +113,6 @@ struct ProtectedFieldRow: View {
                     Text(label)
                 }
             }
-        }
-    }
-
-    private var fieldContent: some View {
-        HStack {
-            Image(systemName: "lock.fill")
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
-
-            if revealed {
-                Text(resolveReferences(value))
-                    .font(.body.monospaced())
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                PasswordConcealedText(accessibilityLabel: String(localized: "Hidden protected field"))
-            }
-
-            Spacer(minLength: 12)
-
-            controls
         }
     }
 
@@ -270,24 +185,12 @@ struct PasswordFieldRow: View {
     /// so the two screens never contribute the same identifier to one hierarchy.
     var accessibilityPrefix: String = "entry"
     var isCurrent: @MainActor () -> Bool
-    /// A label/value row inside a card the caller supplies (iOS).
-    var isCardRow: Bool = false
     @State private var revealed = false
     @State private var revealedText: String?
     @State private var secretAction = EntrySecretAction()
 
     var body: some View {
-        Group {
-            if isCardRow {
-                cardRow
-            } else {
-                Section("Password") {
-                    PasswordDisplayRow(revealedText: revealed ? revealedText : nil) {
-                        actions
-                    }
-                }
-            }
-        }
+        cardRow
         .onChange(of: password) {
             secretAction.invalidate()
             refreshRevealedPassword()
@@ -527,54 +430,31 @@ struct TOTPSection: View {
     let sessionKey: SymmetricKey
     /// Identifier namespace, matching `FieldRow` / `PasswordFieldRow`.
     var accessibilityPrefix: String = "entry"
-    /// A label/value row inside a card the caller supplies (iOS).
-    var isCardRow: Bool = false
     @State private var totpVM: TOTPViewModel
     @ScaledMetric(relativeTo: .title3) private var cardRingSize = Theme.Size.badge
 
-    init(config: TOTPConfig, sessionKey: SymmetricKey, accessibilityPrefix: String = "entry", isCardRow: Bool = false) {
+    init(config: TOTPConfig, sessionKey: SymmetricKey, accessibilityPrefix: String = "entry") {
         self.config = config
         self.sessionKey = sessionKey
         self.accessibilityPrefix = accessibilityPrefix
-        self.isCardRow = isCardRow
         self._totpVM = State(initialValue: TOTPViewModel(config: config, sessionKey: sessionKey))
     }
 
     var body: some View {
-        Group {
-            if isCardRow {
-                LabeledContent {
-                    HStack(spacing: Theme.Spacing.tileGap) {
-                        CountdownRing(progress: totpVM.progress, seconds: totpVM.secondsRemaining, showsSeconds: false)
-                            .frame(width: cardRingSize, height: cardRingSize)
-                            .accessibilityLabel(Text("\(totpVM.secondsRemaining) seconds remaining"))
-                        Text(totpVM.code)
-                            .font(Theme.Font.codeRow)
-                            .foregroundStyle(.tint)
-                            .contentTransition(.numericText())
-                            .accessibilityIdentifier("\(accessibilityPrefix).totp.code")
-                        CopyButton(text: totpVM.code, accessibilityID: "\(accessibilityPrefix).copy.totp")
-                    }
-                } label: {
-                    Text("One-Time Password")
-                }
-            } else {
-                Section("One-Time Password") {
-                    HStack {
-                        CountdownRing(progress: totpVM.progress, seconds: totpVM.secondsRemaining)
-                            .frame(width: 40, height: 40)
-
-                        Text(totpVM.code)
-                            .font(.title.monospaced().bold())
-                            .contentTransition(.numericText())
-                            .accessibilityIdentifier("\(accessibilityPrefix).totp.code")
-
-                        Spacer()
-
-                        CopyButton(text: totpVM.code, accessibilityID: "\(accessibilityPrefix).copy.totp")
-                    }
-                }
+        LabeledContent {
+            HStack(spacing: Theme.Spacing.tileGap) {
+                CountdownRing(progress: totpVM.progress, seconds: totpVM.secondsRemaining, showsSeconds: false)
+                    .frame(width: cardRingSize, height: cardRingSize)
+                    .accessibilityLabel(Text("\(totpVM.secondsRemaining) seconds remaining"))
+                Text(totpVM.code)
+                    .font(Theme.Font.codeRow)
+                    .foregroundStyle(.tint)
+                    .contentTransition(.numericText())
+                    .accessibilityIdentifier("\(accessibilityPrefix).totp.code")
+                CopyButton(text: totpVM.code, accessibilityID: "\(accessibilityPrefix).copy.totp")
             }
+        } label: {
+            Text("One-Time Password")
         }
         .onAppear {
             updateTOTP()
