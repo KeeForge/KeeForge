@@ -44,9 +44,7 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         splitView.isVertical = true
         splitView.dividerStyle = .thin
 
-        let sidebar = NSSplitViewItem(sidebarWithViewController: Self.host(session: session, presentation: presentation,
-            MacWorkspaceSidebarColumn(viewModel: session, presentation: presentation)
-        ))
+        let sidebar = NSSplitViewItem(sidebarWithViewController: MacSidebarViewController(session: session, presentation: presentation))
         sidebar.canCollapse = true
         sidebar.minimumThickness = 200
         sidebar.maximumThickness = 340

@@ -6,7 +6,7 @@
 
 - `SearchView` and `TagEntriesView` choose their list per shell: `../Entry/EntryListView.swift` on iOS, `../Entry/MacEntriesList.swift` on macOS. The Mac content column opens an entry by selection, and `EntryListView`'s button rows swallow the click a `List(selection:)` needs.
 - Search never has a screen of its own: it is a branch of `GroupListView` on iOS and of the workspace content column on macOS. The tag browser is a pushed screen on iOS and an inline branch on macOS.
-- `TagListRows` is drawn inside `GroupListView`'s own `List` on iOS; macOS lists tags in its sidebar (`MacTagRow`). `TagAccessibility` is the shared per-tag identifier suffix for every tag control in the app.
+- `TagListRows` is drawn inside `GroupListView`'s own `List` on iOS; macOS lists tags in its AppKit sidebar (`MacSidebarSnapshot`). `TagAccessibility` is the shared per-tag identifier suffix for every tag control in the app.
 - `MacQuickSearchView` renders over `MacQuickSearchViewModel`. Arrow keys and Return are handled by the panel's key monitor in `../../Services/AppSupport/MacQuickAccessController.swift`, so the field keeps focus while the selection moves.
 
 ## Invariants

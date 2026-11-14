@@ -69,8 +69,8 @@ keeps enrollment and its biometric observer mounted across lock/unlock. This
 embedding avoids replacing the window's presentation hierarchy; no content swap
 orders the window or assigns first responder.
 
-`MacSidebarViewController` is the AppKit sidebar, built and unit-tested but not
-yet installed in the split (the SwiftUI column still is). It renders
+The split's sidebar item is `MacSidebarViewController`, an AppKit controller; the
+entries and detail items each host one SwiftUI column. It renders
 `MacSidebarSnapshot` in a source-list `NSOutlineView` (Library, Groups and Tags
 headers; the Recycle Bin a top-level row) with the status card beneath. One
 `MacObservation` rebuilds the snapshot and applies it per parent with insert,
@@ -79,6 +79,11 @@ so expansion and selection survive edits. Selection writes the workspace and
 follows it back (unfolding ancestors); expansion is the presentation's
 `collapsedGroupIDs`, kept for the window's life. Group-row menus come from
 `MacSidebarGroupActions` and set the same presentation state the host presents.
+The status card shows only while `MacDatabaseStatus` has lines and carries no
+actions; Sync Now, Retry Save and Merge stay in the toolbar and banners. The
+outline is disabled while saving and takes its appearance from the window, which
+the root host's `preferredColorScheme` sets from the in-app setting. Focus and
+keyboard come from the outline as first responder; nothing routes focus to it.
 
 The sidebar is collapsible (200–340 pt), the entries column is 260–460 pt, and
 the detail takes the remaining width. `NSSplitView` autosave owns widths and
@@ -137,7 +142,7 @@ The search field and `DatabaseViewModel.searchText` are bound both ways through
 the toolbar's observation. Edit ▸ Find (`findEntry:`) calls
 `MacWorkspaceToolbar.focusSearch()`, which begins the search item's interaction.
 Title bridging is off; AppKit observation owns
-the database title and group/tag/search subtitle. Column roots apply saving
+the database title and group/tag/search subtitle. The SwiftUI column roots apply saving
 disablement and appearance explicitly across hosting boundaries.
 
 ## Status

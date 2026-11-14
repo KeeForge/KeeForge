@@ -57,28 +57,6 @@ final class GroupIconViewTests: XCTestCase {
         XCTAssertEqual(actual, expected)
     }
 
-    #if os(macOS)
-    func testMacSidebarNodeCarriesCustomImageAlongsideItsStoredStandardIcon() {
-        let uuid = UUID()
-        let data = Data([1, 2, 3])
-        let group = KPGroup(name: "Banking", iconID: 0, customIconUUID: uuid)
-        let node = MacGroupNode(group: group, recycleBinUUID: nil, customIcons: [uuid: data])
-
-        XCTAssertEqual(node.iconID, 0)
-        XCTAssertEqual(node.customIconData, data)
-        XCTAssertNil(MacGroupNode(group: group, recycleBinUUID: nil, customIcons: [:]).customIconData)
-    }
-
-    func testMacRecycleBinNodeKeepsTrashIconDespiteACustomImage() {
-        let uuid = UUID()
-        let group = KPGroup(name: "Recycle Bin", iconID: 0, customIconUUID: uuid)
-        let node = MacGroupNode(group: group, recycleBinUUID: group.id, customIcons: [uuid: Data([1])])
-
-        XCTAssertEqual(node.iconID, 43)
-        XCTAssertNil(node.customIconData)
-    }
-    #endif
-
     private func render(_ view: some View) throws -> CGImage {
         let renderer = ImageRenderer(content: view
             .font(.system(size: 18))

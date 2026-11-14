@@ -154,7 +154,44 @@ final class DatabaseWindowControllerTests: XCTestCase {
         XCTAssertEqual(closeRequests.value.count, 1)
     }
 
+    /// The root host's `preferredColorScheme` sets the window's appearance, and
+    /// the AppKit sidebar and toolbar inherit it from the window.
+    func testTheWindowAndItsSidebarFollowTheInAppAppearanceSetting() async throws {
+        let key = SettingsService.appearanceModeDefaultsKey
+        let saved = UserDefaults.standard.object(forKey: key)
+        addTeardownBlock { @MainActor in UserDefaults.standard.set(saved, forKey: key) }
+        UserDefaults.standard.set(SettingsService.AppearanceMode.dark.rawValue, forKey: key)
+        let session = try makeSession()
+        let controller = try load(DatabaseWindowController(session: session, windowRegistry: registry(),
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false))
+        let window = try XCTUnwrap(controller.window)
+        await session.unlock(password: "testpassword123")
+        addTeardownBlock { @MainActor in session.lockRequest(force: true) }
+        await settle()
+        let sidebar = try XCTUnwrap(controller.workspaceSplitViewController?.splitViewItems.first?.viewController
+            as? MacSidebarViewController)
+        XCTAssertTrue(sidebar.outlineView.window === window, "The outline is in the database window")
+
+        for (mode, expected) in [(SettingsService.AppearanceMode.dark, NSAppearance.Name.darkAqua), (.light, .aqua),
+                                 (.dark, .darkAqua)] {
+            UserDefaults.standard.set(mode.rawValue, forKey: key)
+            await waitUntil { Self.match(window.effectiveAppearance) == expected }
+            XCTAssertEqual(Self.match(window.effectiveAppearance), expected, mode.rawValue)
+            XCTAssertEqual(Self.match(sidebar.outlineView.effectiveAppearance), expected, mode.rawValue)
+        }
+    }
+
     // MARK: - Helpers
+
+    private static func match(_ appearance: NSAppearance) -> NSAppearance.Name? {
+        appearance.bestMatch(from: [.aqua, .darkAqua])
+    }
+
+    private func waitUntil(_ condition: @MainActor () -> Bool) async {
+        for _ in 0..<100 where condition() == false {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
 
     private func load(_ controller: DatabaseWindowController) throws -> DatabaseWindowController {
         controller.loadWindow()

@@ -17,6 +17,10 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         let sidebar = controller.splitViewItems[0]
         let entries = controller.splitViewItems[1]
         XCTAssertEqual(sidebar.behavior, .sidebar)
+        let outline = try XCTUnwrap(sidebar.viewController as? MacSidebarViewController)
+        XCTAssertTrue(outline.session === session)
+        let stack = try XCTUnwrap(outline.view as? NSStackView)
+        XCTAssertTrue(stack.arrangedSubviews.last === outline.statusCard, "The status card sits under the outline")
         XCTAssertTrue(sidebar.canCollapse)
         XCTAssertEqual(sidebar.minimumThickness, 200)
         XCTAssertEqual(sidebar.maximumThickness, 340)
