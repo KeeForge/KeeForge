@@ -86,14 +86,47 @@ final class PendingLocalSaveTests: XCTestCase {
         let source = try seedAcceptedSource(Data("encrypted snapshot".utf8), for: id)
         XCTAssertFalse(try PendingLocalSaveStore.revokeForRemoval(id))
         let owner = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(id.uuidString)")
-        for file in [source.fileURL, owner.appendingPathComponent("owner.json"), owner.appendingPathComponent(".tombstone"), owner.appendingPathComponent(".lock")] {
+        let files = [source.fileURL, owner.appendingPathComponent("owner.json"), owner.appendingPathComponent(".tombstone"), owner.appendingPathComponent(".lock")]
+        for file in files {
             let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
             XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600, file.lastPathComponent)
-            #if os(iOS)
-            XCTAssertEqual(attributes[.protectionKey] as? FileProtectionType, .complete, file.lastPathComponent)
-            #endif
         }
         XCTAssertEqual(try Data(contentsOf: source.fileURL), Data("encrypted snapshot".utf8))
+        #if os(iOS)
+        func protection(_ file: URL) throws -> String? {
+            let raw = try FileManager.default.attributesOfItem(atPath: file.path)[.protectionKey]
+            if let value = raw as? FileProtectionType { return value.rawValue }
+            if let value = raw as? String { return value }
+            guard raw == nil else { throw CocoaError(.fileReadCorruptFile) }
+            return nil
+        }
+        let control = owner.appendingPathComponent("protection-control")
+        defer { try? FileManager.default.removeItem(at: control) }
+        try Data("independent complete protection".utf8).write(to: control, options: [.atomic, .completeFileProtection])
+        let controlProtection = try protection(control)
+        let actual = try files.map(protection)
+        #if targetEnvironment(simulator)
+        if controlProtection == nil, actual.allSatisfy({ $0 == nil }) {
+            throw XCTSkip("Simulator exposes no protection attribute even for an independent complete-protection write; modes/bytes were verified, device class-A validation remains required")
+        }
+        #endif
+        XCTAssertEqual(controlProtection, FileProtectionType.complete.rawValue)
+        for (file, value) in zip(files, actual) { XCTAssertEqual(value, FileProtectionType.complete.rawValue, file.lastPathComponent) }
+        #endif
+    }
+
+    func testHealthyPendingSourcesAllowConflictReloadButAdmissionStillBlocksIt() throws {
+        let url = try makeScratchDatabaseCopy()
+        let reference = try DatabaseListStore.add(url: url)
+        let bytes = try Data(contentsOf: url)
+        let source = try seedAcceptedSource(bytes, for: reference.id)
+        XCTAssertFalse(PendingLocalSaveStore.requiresConflictRecovery(for: reference))
+        let snapshot = try PendingLocalSaveStore.recovery(for: reference.id)
+        _ = try PendingLocalSaveStore.admit(snapshot.receipts, for: reference.id,
+            target: LocalDatabaseSaver.captureTarget(for: reference), baseline: FileDigest.sha512(bytes), masterKeyChangedAt: nil)
+        XCTAssertTrue(PendingLocalSaveStore.requiresConflictRecovery(for: reference))
+        XCTAssertEqual(try Data(contentsOf: source.fileURL), bytes)
+        XCTAssertTrue(PendingLocalSaveStore.hasSaves(for: reference.id))
     }
 
     func testExclusiveSourceIdentityNeverReplacesAnExistingSnapshot() throws {
@@ -124,7 +157,7 @@ final class PendingLocalSaveTests: XCTestCase {
         try PendingLocalSaveStore.discard(confirmed)
         XCTAssertFalse(FileManager.default.fileExists(atPath: first.fileURL.path))
         XCTAssertEqual(try Data(contentsOf: later.fileURL), Data("B".utf8))
-        XCTAssertEqual(PendingLocalSaveStore.saves(for: id), [later])
+        assertSavesEqual(PendingLocalSaveStore.saves(for: id), [later])
     }
 
     func testRevocationFencesAReplacementAndPreventsSourceAndReferenceResurrection() throws {
@@ -191,7 +224,7 @@ final class PendingLocalSaveTests: XCTestCase {
             return writer
         }
         XCTAssertEqual(PendingLocalSaveStore.activateSource(prepared, io: io), .acceptedWithoutConfirmedDurability)
-        XCTAssertEqual(PendingLocalSaveStore.saves(for: id), [prepared.save], "Publication is visible despite its failed flush")
+        assertSavesEqual(PendingLocalSaveStore.saves(for: id), [prepared.save], "Publication is visible despite its failed flush")
         XCTAssertEqual(try PendingLocalSaveStore.export(prepared.receipt, for: id), bytes)
     }
 
@@ -290,7 +323,7 @@ final class PendingLocalSaveTests: XCTestCase {
         XCTAssertEqual(LocalDatabaseSaver.completePendingMerge(commit, reference: setup.reference, io: io), .resolvedVisibleWithoutConfirmedDurability)
         XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.reference.id).admission)
         XCTAssertFalse(FileManager.default.fileExists(atPath: setup.source.fileURL.path))
-        XCTAssertEqual(PendingLocalSaveStore.saves(for: setup.reference.id), [later])
+        assertSavesEqual(PendingLocalSaveStore.saves(for: setup.reference.id), [later])
         XCTAssertEqual(LocalDatabaseSaver.completePendingMerge(commit, reference: setup.reference), .retainedForRecovery, "A stale callback cannot resolve a new state")
         // A crash can revive the old checkpoint, but its durably removed sources stay missing.
         try writeAtomicallyAndDurably(oldCheckpoint, to: ownerURL)
@@ -439,8 +472,10 @@ final class PendingLocalSaveTests: XCTestCase {
             try FileManager.default.removeItem(at: url)
         }
         XCTAssertEqual(LocalDatabaseSaver.completePendingMerge(try XCTUnwrap(receipt), reference: setup.reference, io: io), .retainedForRecovery)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: setup.sources[0].fileURL.path))
-        XCTAssertEqual(try Data(contentsOf: setup.sources[1].fileURL), setup.original)
+        let admitted = setup.token.admission.sources
+        let sourceDirectory = AppGroupContainer.url.appendingPathComponent("pending-local-saves/\(setup.reference.id.uuidString)")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sourceDirectory.appendingPathComponent(admitted[0].relativePath).path))
+        XCTAssertEqual(try Data(contentsOf: sourceDirectory.appendingPathComponent(admitted[1].relativePath)), setup.original)
         let restarted = try PendingLocalSaveStore.recovery(for: setup.reference.id)
         XCTAssertEqual(restarted.admission?.operationID, setup.token.admission.operationID)
         XCTAssertTrue(restarted.needsRecovery)
@@ -474,7 +509,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let second = try seedAcceptedSource(Data("second".utf8), for: databaseID, now: earlier.addingTimeInterval(60))
         let first = try seedAcceptedSource(Data("first".utf8), for: databaseID, now: earlier)
 
-        XCTAssertEqual(PendingLocalSaveStore.saves(for: databaseID), [first, second])
+        assertSavesEqual(PendingLocalSaveStore.saves(for: databaseID), [first, second])
         XCTAssertEqual(try Data(contentsOf: first.fileURL), Data("first".utf8))
         XCTAssertEqual(try Data(contentsOf: second.fileURL), Data("second".utf8))
         XCTAssertTrue(PendingLocalSaveStore.saves(for: UUID()).isEmpty)
@@ -494,7 +529,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let second = try seedAcceptedSource(Data("second".utf8), for: databaseID, now: now)
 
         XCTAssertNotEqual(first.fileURL, second.fileURL)
-        XCTAssertEqual(PendingLocalSaveStore.saves(for: databaseID), [first, second])
+        assertSavesEqual(PendingLocalSaveStore.saves(for: databaseID), [first, second])
         XCTAssertEqual(try Data(contentsOf: first.fileURL), Data("first".utf8))
     }
 
@@ -740,6 +775,7 @@ final class PendingLocalSaveTests: XCTestCase {
     func testAutoFillSaveOfABookmarkedDatabaseLandsWhereTheExtensionCanWrite() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        DatabaseListStore.update(reference)
         let original = try Data(contentsOf: databaseURL)
         try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
         let sessionKey = SymmetricKey(size: .bits256)
@@ -1193,6 +1229,16 @@ final class PendingLocalSaveTests: XCTestCase {
         try writeAtomicallyAndDurably(data, to: cache, directoryAnchor: AppGroupContainer.url)
         guard PendingLocalSaveStore.activateSource(prepared) == .accepted else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
         return prepared.save
+    }
+
+    private func assertSavesEqual(_ actual: [PendingLocalSaveStore.PendingSave], _ expected: [PendingLocalSaveStore.PendingSave],
+        _ message: String = "", file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertEqual(actual.count, expected.count, message, file: file, line: line)
+        for (observed, captured) in zip(actual, expected) {
+            XCTAssertEqual(observed.databaseID, captured.databaseID, message, file: file, line: line)
+            XCTAssertEqual(try PendingLocalSaveStore.targetIdentity(at: observed.fileURL),
+                try PendingLocalSaveStore.targetIdentity(at: captured.fileURL), message, file: file, line: line)
+        }
     }
 
     private struct SaveContext {

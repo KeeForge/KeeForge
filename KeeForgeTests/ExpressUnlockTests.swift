@@ -530,6 +530,7 @@ final class ExpressUnlockTests: XCTestCase {
         environment.endBackgroundTask = { _ in }
         environment.cacheURL = { _ in cacheURL }
         environment.backupDirectoryURL = { _ in backupDirectory }
+        environment.createDirectory = { url in try createDurableDirectory(at: url, anchor: cacheURL.deletingLastPathComponent()) }
         environment.pruneBackups = { _, _ in }
         environment.getMetadata = { _ in
             CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 100), contentHash: nil, size: 0, rev: "rev-1")

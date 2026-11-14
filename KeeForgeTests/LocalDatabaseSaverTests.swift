@@ -1123,7 +1123,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(FileDigest.sha512(try Data(contentsOf: cacheURL)), newSHA512)
     }
 
-    func testSaveFinishingWhileAnotherEncryptsConflictsInsteadOfOverwritingIt() async throws {
+    func testSaveFinishingAfterAnotherCapturedBaselineConflictsInsteadOfOverwritingIt() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try makeRegisteredReference(for: databaseURL)
         let pausedContext = try makeDirtySaveContext(databaseURL: databaseURL, entryTitle: "Paused Writer Entry")
@@ -1132,11 +1132,11 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let pausedWriterEncrypted = DispatchSemaphore(value: 0)
         let resumePausedWriter = DispatchSemaphore(value: 0)
         var pausedEnvironment = LocalDatabaseSaver.Environment.live
-        let liveEncrypt = pausedEnvironment.encryptDraft
-        pausedEnvironment.encryptDraft = { draft, compositeKey, header, kdfPolicy in
-            let data = try liveEncrypt(draft, compositeKey, header, kdfPolicy)
+        let liveRead = pausedEnvironment.readData
+        pausedEnvironment.readData = { url in
+            let data = try liveRead(url)
             pausedWriterEncrypted.signal()
-            resumePausedWriter.wait()
+            guard resumePausedWriter.wait(timeout: .now() + 30) == .success else { throw CocoaError(.userCancelled) }
             return data
         }
 
@@ -1150,20 +1150,23 @@ final class LocalDatabaseSaverTests: XCTestCase {
                 environment: pausedEnvironment
             )
         }
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global().async {
-                pausedWriterEncrypted.wait()
-                continuation.resume()
-            }
-        }
-
-        let finishingResult = try await LocalDatabaseSaver.save(
+        let waitForEntry: @Sendable () -> DispatchTimeoutResult = { pausedWriterEncrypted.wait(timeout: .now() + 15) }
+        let entered = await Task.detached { waitForEntry() }.value
+        XCTAssertEqual(entered, .success)
+        let finishingResult: SaveResult
+        do {
+            finishingResult = try await LocalDatabaseSaver.save(
             draft: finishingContext.draft,
             reference: reference,
             compositeKey: finishingContext.compositeKey,
             openTimeSHA512: finishingContext.openTimeSHA512,
             kdfPolicy: .mainApp
         )
+        } catch {
+            resumePausedWriter.signal()
+            _ = try? await pausedSave.value
+            throw error
+        }
         resumePausedWriter.signal()
         let pausedResult = try await pausedSave.value
 
@@ -1181,6 +1184,56 @@ final class LocalDatabaseSaverTests: XCTestCase {
             .allEntries.map(\.title)
         XCTAssertTrue(titles.contains("Finishing Writer Entry"))
         XCTAssertFalse(titles.contains("Paused Writer Entry"))
+    }
+
+    func testAdmittedEncryptingSaverExcludesAnotherSaveAndStillRefusesExternalReplacement() async throws {
+        let url = try makeScratchDatabaseCopy()
+        let reference = try makeRegisteredReference(for: url)
+        let paused = try makeDirtySaveContext(databaseURL: url, entryTitle: "Paused writer")
+        let external = try makeDirtySaveContext(databaseURL: url, entryTitle: "External writer")
+        let ready = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        var environment = LocalDatabaseSaver.Environment.live
+        let live = environment
+        environment.encryptDraft = { draft, key, header, policy in
+            let output = try live.encryptDraft(draft, key, header, policy)
+            ready.signal()
+            guard release.wait(timeout: .now() + 30) == .success else { throw CocoaError(.userCancelled) }
+            return output
+        }
+        let worker = Task { try await LocalDatabaseSaver.save(draft: paused.draft, reference: reference,
+            compositeKey: paused.compositeKey, openTimeSHA512: paused.openTimeSHA512, environment: environment) }
+        let waitForEntry: @Sendable () -> DispatchTimeoutResult = { ready.wait(timeout: .now() + 15) }
+        let entered = await Task.detached { waitForEntry() }.value
+        XCTAssertEqual(entered, .success)
+        let installed: Data
+        do {
+            var contender = live
+            contender.encryptDraft = { _, _, _, _ in XCTFail("An owned admission must reject before a second encryption"); throw CocoaError(.userCancelled) }
+            do { _ = try await LocalDatabaseSaver.save(draft: external.draft, reference: reference,
+                compositeKey: external.compositeKey, openTimeSHA512: external.openTimeSHA512, environment: contender)
+                XCTFail("A second local admission cannot pass an encrypting owner")
+            } catch { XCTAssertTrue(error is LocalSaveBeforeReplacementFailure) }
+            installed = try await Task.detached {
+                let original = try Data(contentsOf: url)
+                let header = try live.extractHeader(original, external.compositeKey, .mainApp)
+                let bytes = try live.encryptDraft(external.draft, external.compositeKey, header, .mainApp).data
+                let outcome = try LocalDatabaseSaver.replaceFileAtomically(bytes, at: url, expectedSHA512: external.openTimeSHA512)
+                guard case .replaced = outcome else { throw CocoaError(.fileWriteUnknown) }
+                return bytes
+            }.value
+        } catch {
+            release.signal()
+            _ = try? await worker.value
+            throw error
+        }
+        release.signal()
+        let result = try await worker.value
+        guard case .conflict(let sha, let bytes) = result else { return XCTFail("Final replacement must reject an external coordinated writer") }
+        XCTAssertEqual(bytes, installed)
+        XCTAssertEqual(sha, FileDigest.sha512(installed))
+        XCTAssertEqual(try Data(contentsOf: url), installed)
+        XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
     }
 
     func testSaveRemoteChangedSinceOpenReturnsConflictDoesNotWrite() async throws {
@@ -1262,6 +1315,33 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: databaseURL), strangerData)
     }
 
+    func testBookmarkRenewalDuringResolutionCannotSilentlyUpgradeACapturedReadOrCacheLease() throws {
+        let oldURL = try makeScratchDatabaseCopy()
+        let reference = try makeRegisteredReference(for: oldURL)
+        let bytes = try Data(contentsOf: oldURL)
+        let lease = try PendingLocalSaveStore.captureCacheReadLease(for: reference)
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
+        let renamed = oldURL.deletingLastPathComponent().appendingPathComponent("renewed-bookmark.kdbx")
+        try FileManager.default.moveItem(at: oldURL, to: renamed)
+        let resolved = DatabaseListStore.locateDatabaseFile(for: reference, resolveBookmark: { _ in (renamed, true) })
+        guard case .available(let actual)? = resolved else { return XCTFail("Controlled stale resolution must remain readable") }
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertNotEqual(current.bookmarkData, reference.bookmarkData, "The control needs a real field-specific renewal")
+        XCTAssertEqual(current.lastMasterKeyChangeAt, reference.lastMasterKeyChangeAt)
+        XCTAssertEqual(current.keyFileBookmarkData, reference.keyFileBookmarkData)
+        let read = PendingLocalSaveStore.ReadKeyPublication(lease: lease,
+            target: try PendingLocalSaveStore.targetIdentity(at: actual), sha512: FileDigest.sha512(bytes), sharedCopy: false)
+        var keysPublished = false
+        XCTAssertThrowsError(try DatabaseListStore.withLocalReadKeyPublication(for: reference, read: read) { keysPublished = true })
+        XCTAssertFalse(keysPublished)
+        XCTAssertThrowsError(try LocalDatabaseSaver.cacheLocalSnapshot(bytes, for: reference, lease: lease)) { error in
+            XCTAssertEqual(error as? PendingLocalSaveStore.OwnershipError, .sourceChanged)
+        }
+        XCTAssertEqual(try Data(contentsOf: cache), bytes)
+        XCTAssertEqual(try Data(contentsOf: renamed), bytes)
+    }
+
     func testSaveOnReadOnlyFilesystemThrowsAndLeavesOriginalIntact() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let directoryURL = databaseURL.deletingLastPathComponent()
@@ -1276,6 +1356,20 @@ final class LocalDatabaseSaverTests: XCTestCase {
         defer {
             try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directoryURL.path)
         }
+
+        let probe = directoryURL.appendingPathComponent("permission-control-\(UUID().uuidString)")
+        var bypassesWriteDenial = false
+        do {
+            try Data("permission control".utf8).write(to: probe, options: .withoutOverwriting)
+            bypassesWriteDenial = true
+            try FileManager.default.removeItem(at: probe)
+        } catch {
+            let cocoa = error as NSError
+            guard (error as? CocoaError)?.code == .fileWriteNoPermission
+                || (cocoa.domain == NSPOSIXErrorDomain && cocoa.code == Int(EACCES)) else { throw error }
+        }
+        XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
+        if bypassesWriteDenial { throw XCTSkip("The independent directory-create control bypassed chmod write denial on this host") }
 
         do {
             _ = try await LocalDatabaseSaver.save(

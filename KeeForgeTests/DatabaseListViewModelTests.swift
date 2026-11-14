@@ -166,21 +166,27 @@ final class DatabaseListViewModelTests: XCTestCase {
                 return try await Task.detached { try SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true) }.value
             })
             let pending = Task { try await firstWindow.setKeyFile(url: setup.firstKeyURL, for: setup.reference) }
-            await gate.firstCallStarted()
-            if newer == "selection" { try await DatabaseListViewModel().setKeyFile(url: setup.secondKeyURL, for: setup.reference) }
-            else if newer == "rekey" {
-                try await setup.database.changeMasterKey(newPassword: "a later epoch", newKeyFileData: setup.keyFileData,
-                    newKeyFileBookmarkData: setup.reference.keyFileBookmarkData, newKeyFileFilename: setup.reference.keyFileFilename)
-            } else { XCTAssertTrue(DatabaseListStore.remove(id: setup.reference.id)) }
-            let currentRegistry = try Data(contentsOf: AppGroupContainer.url.appendingPathComponent("database-list.json"))
-            let version = try PendingLocalSaveStore.recovery(for: setup.reference.id).associationVersion
-            await gate.releaseFirstCall()
-            do { try await pending.value; XCTFail("Stale select must be rejected") }
-            catch { XCTAssertTrue(error is DatabaseListStore.KeyFilePreferenceError) }
-            XCTAssertEqual(try Data(contentsOf: AppGroupContainer.url.appendingPathComponent("database-list.json")), currentRegistry)
-            XCTAssertEqual(try PendingLocalSaveStore.recovery(for: setup.reference.id).associationVersion, version)
-            XCTAssertEqual(setup.effects.withLock { $0.encryptions }, newer == "rekey" ? 2 : 1)
-            XCTAssertEqual(setup.effects.withLock { $0.providers }, 0)
+            do {
+                try await gate.firstCallStarted(for: pending)
+                if newer == "selection" { try await DatabaseListViewModel().setKeyFile(url: setup.secondKeyURL, for: setup.reference) }
+                else if newer == "rekey" {
+                    try await setup.database.changeMasterKey(newPassword: "a later epoch", newKeyFileData: setup.keyFileData,
+                        newKeyFileBookmarkData: setup.reference.keyFileBookmarkData, newKeyFileFilename: setup.reference.keyFileFilename)
+                } else { XCTAssertTrue(DatabaseListStore.remove(id: setup.reference.id)) }
+                let currentRegistry = try Data(contentsOf: AppGroupContainer.url.appendingPathComponent("database-list.json"))
+                let version = try PendingLocalSaveStore.recovery(for: setup.reference.id).associationVersion
+                await gate.releaseFirstCall()
+                do { try await pending.value; XCTFail("Stale select must be rejected") }
+                catch { XCTAssertTrue(error is DatabaseListStore.KeyFilePreferenceError) }
+                XCTAssertEqual(try Data(contentsOf: AppGroupContainer.url.appendingPathComponent("database-list.json")), currentRegistry)
+                XCTAssertEqual(try PendingLocalSaveStore.recovery(for: setup.reference.id).associationVersion, version)
+                XCTAssertEqual(setup.effects.withLock { $0.encryptions }, newer == "rekey" ? 2 : 1)
+                XCTAssertEqual(setup.effects.withLock { $0.providers }, 0)
+            } catch {
+                await gate.releaseFirstCall()
+                _ = await pending.result
+                throw error
+            }
         }
     }
 
@@ -234,20 +240,26 @@ final class DatabaseListViewModelTests: XCTestCase {
             return try await Task.detached { try SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true) }.value
         })
         let first = Task { try await preferences.setKeyFile(url: setup.firstKeyURL, for: setup.reference) }
-        await gate.firstCallStarted()
-        preferences.cancelKeyFilePreference(for: setup.reference.id)
-        XCTAssertFalse(preferences.isChangingKeyFile(for: setup.reference.id))
-        first.cancel()
-        try await preferences.setKeyFile(url: setup.secondKeyURL, for: setup.reference)
-        let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == setup.reference.id })
-        await gate.releaseFirstCall()
-        do { try await first.value; XCTFail("Cancelled selection must not publish") }
-        catch { XCTAssertTrue(error is CancellationError) }
-        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == stored.id }?.keyFileBookmarkData, stored.keyFileBookmarkData)
-        XCTAssertEqual(stored.keyFileFilename, setup.secondKeyURL.lastPathComponent)
-        XCTAssertFalse(preferences.isChangingKeyFile(for: stored.id))
-        XCTAssertNil(try PendingLocalSaveStore.recovery(for: stored.id).preferenceIntent)
-        XCTAssertEqual(setup.effects.withLock { $0.encryptions }, 1)
+        do {
+            try await gate.firstCallStarted(for: first)
+            preferences.cancelKeyFilePreference(for: setup.reference.id)
+            XCTAssertFalse(preferences.isChangingKeyFile(for: setup.reference.id))
+            first.cancel()
+            try await preferences.setKeyFile(url: setup.secondKeyURL, for: setup.reference)
+            let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == setup.reference.id })
+            await gate.releaseFirstCall()
+            do { try await first.value; XCTFail("Cancelled selection must not publish") }
+            catch { XCTAssertTrue(error is CancellationError) }
+            XCTAssertEqual(DatabaseListStore.databases.first { $0.id == stored.id }?.keyFileBookmarkData, stored.keyFileBookmarkData)
+            XCTAssertEqual(stored.keyFileFilename, setup.secondKeyURL.lastPathComponent)
+            XCTAssertFalse(preferences.isChangingKeyFile(for: stored.id))
+            XCTAssertNil(try PendingLocalSaveStore.recovery(for: stored.id).preferenceIntent)
+            XCTAssertEqual(setup.effects.withLock { $0.encryptions }, 1)
+        } catch {
+            await gate.releaseFirstCall()
+            _ = await first.result
+            throw error
+        }
     }
 
     func testPreferenceRejectsAnActiveSourceAdmissionAndLegacySelectionInventsNoEpoch() async throws {
