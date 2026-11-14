@@ -156,7 +156,6 @@ struct MacWorkspacePresentationHost<Content: View>: View {
                     DatabaseSavingOverlay()
                 }
             }
-            .saveConflictAlert(viewModel: viewModel)
     }
 }
 #endif

@@ -9,12 +9,12 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
 
     enum Item {
         static let toggleSidebar = NSToolbarItem.Identifier("sidebar.left")
-        static let lock = NSToolbarItem.Identifier("lock.button")
-        static let cloudSync = NSToolbarItem.Identifier("database.cloud-sync-status")
         static let readOnly = NSToolbarItem.Identifier("database.read-only-indicator")
         static let add = NSToolbarItem.Identifier("entry-list.add-entry")
-        static let details = NSToolbarItem.Identifier("database-details.button")
-        static let settings = NSToolbarItem.Identifier("settings.button")
+        static let databaseStatus = NSToolbarItem.Identifier("workspace.database-status")
+        static let databaseSettings = NSToolbarItem.Identifier("database-details.button")
+        static let syncNow = NSToolbarItem.Identifier("database.cloud-sync-now")
+        static let lock = NSToolbarItem.Identifier("lock.button")
         static let edit = NSToolbarItem.Identifier("entry-detail.edit")
         static let search = NSToolbarItem.Identifier("workspace.search")
         static let sidebarSeparator = NSToolbarItem.Identifier("workspace.sidebar-separator")
@@ -22,16 +22,21 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
     }
 
     /// The boards' layout: the sidebar toggle over the sidebar, search and New
-    /// Entry over the entry list (between the split's tracking separators),
-    /// and the database's items and Edit over the detail.
+    /// Entry (the glasses in a read-only database) over the entry list, between
+    /// the split's tracking separators, and Edit over the detail. The status
+    /// card's line and buttons join the detail only while the sidebar is hidden.
     static let itemIdentifiers: [NSToolbarItem.Identifier] = [
-        Item.toggleSidebar, Item.sidebarSeparator, Item.search, Item.add, Item.listSeparator,
-        Item.lock, Item.cloudSync, Item.readOnly, Item.details, Item.settings, .flexibleSpace, Item.edit,
+        Item.toggleSidebar, Item.sidebarSeparator, Item.search, Item.add, Item.readOnly, Item.listSeparator,
+        Item.databaseStatus, .flexibleSpace, Item.edit, Item.databaseSettings, Item.syncNow, Item.lock,
+    ]
+    static let statusItemIdentifiers: [NSToolbarItem.Identifier] = [
+        Item.databaseStatus, Item.databaseSettings, Item.syncNow, Item.lock,
     ]
 
     let session: DatabaseViewModel
     let toolbar = NSToolbar(identifier: MacWorkspaceToolbar.identifier)
     let searchItem = NSSearchToolbarItem(itemIdentifier: Item.search)
+    let statusLineView = MacStatusLineView()
     private(set) var items: [NSToolbarItem.Identifier: NSToolbarItem] = [:]
     private let presentation: MacWorkspacePresentation
     private let observation = MacObservation()
@@ -92,9 +97,9 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
 
     private struct State {
         var isSaving: Bool
-        var canLock: Bool
         var isReadOnly: Bool
-        var showsCloudSync: Bool
+        var status: MacDatabaseStatus
+        var isSidebarCollapsed: Bool
         var canNewEntry: Bool
         var showsEdit: Bool
         var canEditEntry: Bool
@@ -107,9 +112,9 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         let showsEdit = session.workspace.selectedEntryID.map { session.entry(withID: $0) != nil } ?? false
         return State(
             isSaving: session.isSaving,
-            canLock: commands.canLock,
             isReadOnly: session.isReadOnly,
-            showsCloudSync: CloudSyncControls.isVisible(for: session),
+            status: MacDatabaseStatus.make(session: session, presentation: presentation),
+            isSidebarCollapsed: presentation.isSidebarCollapsed,
             canNewEntry: commands.canNewEntry,
             showsEdit: showsEdit && session.isReadOnly == false,
             canEditEntry: commands.canEditEntry,
@@ -121,10 +126,14 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
     private func apply(_ state: State) {
         for control in controls { control.isEnabled = state.isSaving == false }
         searchItem.searchField.isEnabled = state.isSaving == false
-        enable(Item.lock, state.canLock && state.isSaving == false)
         enable(Item.add, state.canNewEntry && state.isSaving == false)
         enable(Item.edit, state.canEditEntry && state.isSaving == false)
-        items[Item.cloudSync]?.isHidden = state.showsCloudSync == false
+        enable(Item.databaseSettings, state.status.canShowSettings)
+        enable(Item.syncNow, state.status.canSyncNow)
+        enable(Item.lock, state.status.canLock)
+        for identifier in Self.statusItemIdentifiers { items[identifier]?.isHidden = state.isSidebarCollapsed == false }
+        if state.status.offersSyncNow == false { items[Item.syncNow]?.isHidden = true }
+        statusLineView.update(state.status.line, short: true)
         items[Item.readOnly]?.isHidden = state.isReadOnly == false
         items[Item.add]?.isHidden = state.isReadOnly
         items[Item.edit]?.isHidden = state.showsEdit == false
@@ -148,30 +157,21 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
 
     // MARK: - Actions
 
-    @objc private func lockDatabase(_ sender: Any?) { DatabaseCommands(session: session).lock() }
-    @objc private func newEntry(_ sender: Any?) { DatabaseCommands(session: session).newEntry() }
-    @objc private func showDatabaseDetails(_ sender: Any?) { presentation.isShowingDatabaseDetails = true }
-    @objc private func syncCloudNow(_ sender: Any?) {
-        let session = session
-        Task { await session.syncCloudNow() }
+    private var statusActions: MacDatabaseStatusActions {
+        MacDatabaseStatusActions(session: session, presentation: presentation)
     }
+
+    @objc private func lockDatabase(_ sender: Any?) { statusActions.lock() }
+    @objc private func newEntry(_ sender: Any?) { DatabaseCommands(session: session).newEntry() }
+    @objc private func showDatabaseSettings(_ sender: Any?) { statusActions.showSettings() }
+    @objc private func syncCloudNow(_ sender: Any?) { statusActions.syncNow() }
 
     @objc private func editEntry(_ sender: Any?) {
         guard let entryID = session.workspace.selectedEntryID else { return }
         presentation.beginEntryEdit(entryID: entryID, in: session)
     }
 
-    @objc private func explainReadOnly(_ sender: Any?) {
-        let alert = NSAlert()
-        alert.messageText = String(localized: "Read-Only Database")
-        alert.informativeText = session.readOnlyExplanation
-        alert.addButton(withTitle: String(localized: "OK"))
-        if let window = toolbarWindow {
-            alert.beginSheetModal(for: window, completionHandler: nil)
-        } else {
-            alert.runModal()
-        }
-    }
+    @objc private func explainReadOnly(_ sender: Any?) { statusActions.explainReadOnly(from: toolbarWindow) }
 
     private var toolbarWindow: NSWindow? {
         items.values.lazy.compactMap { $0.view?.window }.first ?? NSApp.keyWindow
@@ -186,14 +186,18 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
             identifier: Item.listSeparator, splitView: splitView, dividerIndex: 1)
         addButton(Item.toggleSidebar, symbol: "sidebar.left", label: String(localized: "Show Sidebar"),
                   target: nil, action: #selector(NSSplitViewController.toggleSidebar(_:)))
+
+        let statusItem = NSToolbarItem(itemIdentifier: Item.databaseStatus)
+        statusItem.view = statusLineView
+        statusItem.label = String(localized: "Status")
+        statusLineView.setAccessibilityIdentifier(Item.databaseStatus.rawValue)
+        items[Item.databaseStatus] = statusItem
+        addButton(Item.databaseSettings, symbol: "slider.horizontal.3", label: String(localized: "Database Settings"),
+                  target: self, action: #selector(showDatabaseSettings(_:)))
+        addButton(Item.syncNow, symbol: "arrow.triangle.2.circlepath", label: String(localized: "Sync Now"),
+                  target: self, action: #selector(syncCloudNow(_:)))
         addButton(Item.lock, symbol: "lock.fill", label: String(localized: "Lock Database"),
                   target: self, action: #selector(lockDatabase(_:)))
-
-        let cloud = NSToolbarItem(itemIdentifier: Item.cloudSync)
-        cloud.view = NSHostingView(rootView: CloudSyncToolbarControls(session: session))
-        cloud.label = String(localized: "Cloud Sync")
-        cloud.menuFormRepresentation = menuItem(String(localized: "Sync Now"), action: #selector(syncCloudNow(_:)))
-        items[Item.cloudSync] = cloud
 
         let readOnly = addButton(Item.readOnly, symbol: "eyeglasses", label: String(localized: "Read-only database"),
                                  target: self, action: #selector(explainReadOnly(_:)))
@@ -201,10 +205,6 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
 
         addButton(Item.add, symbol: "plus", label: String(localized: "New Entry"),
                   target: self, action: #selector(newEntry(_:)))
-        addButton(Item.details, symbol: "info.circle", label: String(localized: "Database Details"),
-                  target: self, action: #selector(showDatabaseDetails(_:)))
-        addButton(Item.settings, symbol: "gearshape", label: String(localized: "Settings"),
-                  target: nil, action: #selector(AppDelegate.showSettings(_:)))
 
         let editLabel = String(localized: "Edit")
         let edit = NSButton(title: editLabel, target: self, action: #selector(editEntry(_:)))
@@ -254,16 +254,5 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
         return item
-    }
-}
-
-/// Observes saving itself: the hosting view's root is built once.
-private struct CloudSyncToolbarControls: View {
-    let session: DatabaseViewModel
-
-    var body: some View {
-        CloudSyncControls(viewModel: session)
-            .disabled(session.isSaving)
-            .modifier(MacHostingAppearance())
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 
+#if !os(macOS)
 struct SaveConflictAlertModifier: ViewModifier {
     @Bindable var viewModel: DatabaseViewModel
     @State private var isPresented = false
@@ -103,8 +104,16 @@ struct SaveConflictAlertModifier: ViewModifier {
     }
 }
 
+#endif
+
 extension View {
+    /// On macOS the open workspace's `MacWorkspaceAlerts` presents these natively.
+    @ViewBuilder
     func saveConflictAlert(viewModel: DatabaseViewModel) -> some View {
+        #if os(macOS)
+        self
+        #else
         modifier(SaveConflictAlertModifier(viewModel: viewModel))
+        #endif
     }
 }

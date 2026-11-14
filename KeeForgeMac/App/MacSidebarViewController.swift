@@ -116,6 +116,7 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        statusCard.onControl = { [weak self] in self?.perform($0) }
         observation.start(reading: { [weak self] in
             self?.readState()
         }, onChange: { [weak self] state in
@@ -129,6 +130,19 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         if outlineView.selectedRow >= 0 { outlineView.scrollRowToVisible(outlineView.selectedRow) }
     }
 
+    private func perform(_ control: MacSidebarStatusCardView.Control) {
+        let actions = MacDatabaseStatusActions(session: session, presentation: presentation)
+        switch control {
+        case .settings: actions.showSettings()
+        case .syncNow: actions.syncNow()
+        case .lock: actions.lock()
+        case .readOnly: actions.explainReadOnly(from: view.window)
+        case .action:
+            guard let action = statusCard.status?.action else { return }
+            actions.perform(action, from: view.window)
+        }
+    }
+
     func item(for id: MacSidebarItemID) -> MacSidebarOutlineItem? {
         items[id]
     }
@@ -140,7 +154,7 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         var collapsedGroupIDs: Set<UUID>
         var collapsedSections: Set<MacSidebarSnapshot.SectionKind>
         var isSaving: Bool
-        var status: MacDatabaseStatus?
+        var status: MacDatabaseStatus
         var selection: MacSidebarSelection?
     }
 
@@ -150,7 +164,7 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
             collapsedGroupIDs: presentation.collapsedGroupIDs,
             collapsedSections: presentation.collapsedSidebarSections,
             isSaving: session.isSaving,
-            status: MacDatabaseStatus.make(session: session),
+            status: MacDatabaseStatus.make(session: session, presentation: presentation),
             selection: MacSidebarSelection(workspace: session.workspace)
         )
     }
@@ -853,88 +867,5 @@ final class MacSidebarCellView: NSTableCellView {
         }
         image.isTemplate = false
         return image
-    }
-}
-
-// MARK: - Status card
-
-/// The sidebar's status lines (`MacDatabaseStatus`), hidden when there are none.
-final class MacSidebarStatusCardView: NSView {
-    static let identifier = "sidebar.status-card"
-
-    private(set) var status: MacDatabaseStatus?
-    private let box = NSBox()
-    private let stack = NSStackView()
-
-    init() {
-        super.init(frame: .zero)
-        isHidden = true
-        setAccessibilityElement(true)
-        setAccessibilityRole(.group)
-        setAccessibilityIdentifier(Self.identifier)
-
-        box.boxType = .custom
-        box.borderWidth = 0
-        box.cornerRadius = 8
-        box.fillColor = .quaternarySystemFill
-        box.contentViewMargins = NSSize(width: 10, height: 8)
-        box.translatesAutoresizingMaskIntoConstraints = false
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 6
-        box.contentView = stack
-        addSubview(box)
-        NSLayoutConstraint.activate([
-            box.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
-            box.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
-            box.topAnchor.constraint(equalTo: topAnchor, constant: 6),
-            box.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
-        ])
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    /// One row per status line: its symbol and its text.
-    var lineViews: [(symbol: NSImageView, text: NSTextField)] {
-        stack.arrangedSubviews.compactMap { row in
-            guard let row = row as? NSStackView, row.arrangedSubviews.count == 2,
-                  let symbol = row.arrangedSubviews[0] as? NSImageView,
-                  let text = row.arrangedSubviews[1] as? NSTextField else { return nil }
-            return (symbol, text)
-        }
-    }
-
-    func update(_ status: MacDatabaseStatus?) {
-        guard status != self.status else { return }
-        self.status = status
-        isHidden = status == nil
-        for view in stack.arrangedSubviews { view.removeFromSuperview() }
-        for line in status?.lines ?? [] {
-            let symbol = NSImageView(image: NSImage(systemSymbolName: line.systemImage, accessibilityDescription: nil)
-                ?? NSImage())
-            symbol.contentTintColor = switch line.tone {
-            case .warning: NSColor(Theme.State.warning)
-            case .neutral: .secondaryLabelColor
-            }
-            symbol.setContentHuggingPriority(.required, for: .horizontal)
-            let text = NSTextField(wrappingLabelWithString: line.text)
-            text.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-            text.textColor = .secondaryLabelColor
-            let row = NSStackView(views: [symbol, text])
-            row.orientation = .horizontal
-            row.alignment = .firstBaseline
-            row.spacing = 6
-            stack.addArrangedSubview(row)
-        }
-        setAccessibilityLabel(status?.lines.map(\.text).joined(separator: "\n"))
-        needsLayout = true
-    }
-
-    override func layout() {
-        super.layout()
-        for (_, text) in lineViews where text.preferredMaxLayoutWidth != text.frame.width {
-            text.preferredMaxLayoutWidth = text.frame.width
-        }
     }
 }

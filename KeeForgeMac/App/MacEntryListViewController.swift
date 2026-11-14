@@ -16,6 +16,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     let scrollView = NSScrollView()
     let emptyView = MacEntryListEmptyView()
     let header = MacEntryListHeaderView()
+    let notices = MacWorkspaceNoticesView()
     let resultCountField = NSTextField(labelWithString: "")
     let footerField = NSTextField(wrappingLabelWithString: "")
     /// Whether a click extends the selection; reads the current event's modifiers.
@@ -32,6 +33,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     private let loadFavicon: @MainActor (String) async -> PlatformImage?
     private let passwordCopyAction = EntrySecretAction()
     private let observation = MacObservation()
+    private let noticeObservation = MacObservation()
     private let codeClock: MacVerificationCodeClock
     /// The one timer that redraws the visible codes while Verification Codes is on screen.
     private(set) var verificationCodeTimer: Timer?
@@ -164,16 +166,19 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         content.setContentHuggingPriority(.defaultLow, for: .vertical)
         footer.setContentHuggingPriority(.required, for: .vertical)
 
-        // The header sits under the toolbar, so the rows below it need no titlebar inset.
+        // The notices and header sit under the toolbar, so the rows below need no titlebar inset.
         let container = NSView()
-        for view in [header, stack] as [NSView] {
+        for view in [notices, header, stack] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             container.addSubview(view)
         }
         NSLayoutConstraint.activate([
+            notices.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            notices.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            notices.topAnchor.constraint(equalTo: container.safeAreaLayoutGuide.topAnchor),
+            notices.bottomAnchor.constraint(equalTo: header.topAnchor),
             header.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             header.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            header.topAnchor.constraint(equalTo: container.safeAreaLayoutGuide.topAnchor),
             stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             stack.topAnchor.constraint(equalTo: header.bottomAnchor),
@@ -189,6 +194,17 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         }, onChange: { [weak self] state in
             guard let state else { return }
             self?.apply(state)
+        })
+        notices.onAction = { [weak self] action in
+            guard let self else { return }
+            MacDatabaseStatusActions(session: session, presentation: presentation).perform(action, from: view.window)
+        }
+        noticeObservation.start(reading: { [weak self] () -> [MacDatabaseStatus.Notice]? in
+            guard let self else { return nil }
+            return MacDatabaseStatus.make(session: session, presentation: presentation).notices
+        }, onChange: { [weak self] notices in
+            guard let notices else { return }
+            self?.notices.update(notices)
         })
     }
 

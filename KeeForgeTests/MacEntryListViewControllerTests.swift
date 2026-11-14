@@ -948,6 +948,45 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertNil(presentation.copyFeedback.copied, "Lock clears the tick")
     }
 
+    // MARK: - Notices
+
+    func testNoticesSitAboveTheHeaderAndALocalDatabaseHasNone() async throws {
+        let (controller, _, _, _) = try await makeController()
+        XCTAssertTrue(controller.notices.superview === controller.header.superview)
+        XCTAssertTrue(controller.notices.isHidden)
+        XCTAssertEqual(controller.notices.noticeViews.count, 0)
+    }
+
+    func testNoticeCardsCarryTheirIdentifiersAndForwardTheirActions() {
+        let notices = MacWorkspaceNoticesView()
+        var performed: [MacDatabaseStatus.Notice.Action] = []
+        notices.onAction = { performed.append($0) }
+        notices.update([
+            .init(kind: .reconnect, text: "Reconnect WebDAV to save changes.", action: .reconnect(provider: "WebDAV"),
+                  isWarning: true, isActionEnabled: false),
+            .init(kind: .uploadConflict, text: "Merge it.", action: .mergePendingUploads, isWarning: true),
+            .init(kind: .cloud, text: CloudSyncResolution.offlineCachedBannerMessage),
+        ])
+
+        XCTAssertFalse(notices.isHidden)
+        let views = notices.noticeViews
+        XCTAssertEqual(views.map { $0.accessibilityIdentifier() },
+                       ["cloud-reauth-banner", "pending-upload-banner", "cloud-sync-notice"])
+        XCTAssertEqual(views.map(\.textField.stringValue),
+                       ["Reconnect WebDAV to save changes.", "Merge it.", CloudSyncResolution.offlineCachedBannerMessage])
+        XCTAssertEqual(views[0].actionButton.title, String(localized: "Reconnect \("WebDAV")"))
+        XCTAssertFalse(views[0].actionButton.isEnabled, "A reconnect in flight dims the button")
+        XCTAssertEqual(views[1].actionButton.accessibilityIdentifier(), "pending-upload-banner.merge")
+        XCTAssertTrue(views[2].actionButton.isHidden, "The offline notice has no action")
+
+        views[1].actionButton.performClick(nil)
+        XCTAssertEqual(performed, [.mergePendingUploads])
+
+        notices.update([])
+        XCTAssertTrue(notices.isHidden)
+        XCTAssertEqual(notices.noticeViews.count, 0)
+    }
+
     // MARK: - Helpers
 
     private static let fakeTOTP = TOTPConfig(secret: EncryptedValue(sealedData: Data([0]), hasValue: true))

@@ -460,103 +460,236 @@ final class MacSidebarGroupActionsTests: MacSidebarSessionTestCase {
 
 @MainActor
 final class MacDatabaseStatusTests: MacSidebarSessionTestCase {
-    func testACleanLocalWritableSessionHasNoStatus() async throws {
-        let session = try await makeSidebarSession(root: KPGroup(name: "Root", groups: [KPGroup(name: "Child")]))
-
-        XCTAssertNil(MacDatabaseStatus.make(session: session))
+    private func make(_ session: DatabaseViewModel) -> MacDatabaseStatus {
+        MacDatabaseStatus.make(session: session, presentation: MacWorkspacePresentation())
     }
 
-    func testADirtyDraftReportsUnsavedChanges() async throws {
+    private func cloudState(_ configure: (inout MacDatabaseStatus.State) -> Void = { _ in }) -> MacDatabaseStatus.State {
+        var state = MacDatabaseStatus.State()
+        state.name = "Personal"
+        state.storage = .cloud(provider: "WebDAV")
+        state.canSyncNow = true
+        state.canLock = true
+        state.canShowSettings = true
+        configure(&state)
+        return state
+    }
+
+    func testACleanLocalSessionShowsItsFileOnThisMacWithoutSyncNow() async throws {
+        let session = try await makeSidebarSession(root: KPGroup(name: "Root", groups: [KPGroup(name: "Child")]))
+
+        let status = make(session)
+
+        XCTAssertEqual(status.name, session.databaseDisplayName)
+        XCTAssertEqual(status.line, .init(storage: session.databaseFilename, state: String(localized: "On This Mac")))
+        XCTAssertEqual(status.line.text, "\(session.databaseFilename) · \(String(localized: "On This Mac"))")
+        XCTAssertNil(status.line.dot)
+        XCTAssertNil(status.action)
+        XCTAssertFalse(status.offersSyncNow)
+        XCTAssertFalse(status.isReadOnly)
+        XCTAssertTrue(status.canLock)
+        XCTAssertTrue(status.canShowSettings)
+        XCTAssertEqual(status.notices, [])
+    }
+
+    func testADirtyDraftOffersRetrySave() async throws {
         let child = KPGroup(name: "Child")
         let session = try await makeSidebarSession(root: KPGroup(name: "Root", groups: [child]))
         try session.applyEntryEdit(.createEntry(parentGroupID: child.id, draft: EntryDraftPayload(title: "New")))
         XCTAssertTrue(session.isDirty)
 
-        let status = try XCTUnwrap(MacDatabaseStatus.make(session: session))
+        let status = make(session)
 
-        XCTAssertEqual(status.lines.map(\.kind), [.unsavedChanges])
-        XCTAssertEqual(status.lines.first?.text, String(localized: "Changes not saved"))
-        XCTAssertEqual(status.lines.first?.tone, .warning)
+        XCTAssertEqual(status.line, .init(state: String(localized: "Changes not saved"), dot: .warning))
+        XCTAssertEqual(status.line.text, String(localized: "Changes not saved"), "The board drops the storage here")
+        XCTAssertEqual(status.action, .retrySave)
+        XCTAssertEqual(status.action?.title, String(localized: "Retry Save"))
+        XCTAssertEqual(status.action?.accessibilityIdentifier, "database.unsaved-indicator")
+        XCTAssertTrue(status.isActionEnabled)
     }
 
-    func testAReadOnlySessionSaysSo() async throws {
+    func testAReadOnlySessionCarriesTheBadge() async throws {
         let session = try await makeSidebarSession(root: KPGroup(name: "Root", groups: [KPGroup(name: "Child")]))
         session.setReadOnly(true)
 
-        let status = try XCTUnwrap(MacDatabaseStatus.make(session: session))
+        let status = make(session)
 
-        XCTAssertEqual(status.lines.map(\.kind), [.readOnly])
-        XCTAssertEqual(status.lines.first?.text, String(localized: "Read-only database"))
-        XCTAssertEqual(status.lines.first?.systemImage, "eyeglasses")
+        XCTAssertTrue(status.isReadOnly)
+        XCTAssertEqual(status.line.state, String(localized: "On This Mac"))
     }
 
-    func testALocalSessionReportsNoCloudState() async throws {
-        let session = try await makeSidebarSession(root: KPGroup(name: "Root", groups: [KPGroup(name: "Child")]))
+    func testSavingSpeaksForEverythingAndDimsTheButtons() {
+        let status = MacDatabaseStatus(cloudState {
+            $0.isSaving = true
+            $0.isDirty = true
+            $0.hasSaveConflict = true
+            $0.hasPendingUploadConflict = true
+        })
 
-        let state = MacDatabaseStatus.State(session: session)
-
-        XCTAssertNil(state.cloudSync)
-        XCTAssertFalse(state.showsPendingUploadNote)
-        XCTAssertFalse(state.hasPendingUploadConflict)
+        XCTAssertEqual(status.line, .init(storage: "WebDAV", state: String(localized: "Saving…"), dot: .neutral))
+        XCTAssertNil(status.action)
+        XCTAssertFalse(status.canSyncNow)
+        XCTAssertFalse(status.canLock)
+        XCTAssertFalse(status.canShowSettings)
+        XCTAssertEqual(status.notices.map(\.kind), [], "The upload notice waits for the save")
     }
 
-    func testSavingSpeaksForTheDraftAndTheConflict() throws {
-        var state = MacDatabaseStatus.State()
-        state.isSaving = true
-        state.isDirty = true
-        state.hasPendingUploadConflict = true
+    func testASaveConflictOffersResolve() {
+        let status = MacDatabaseStatus(cloudState {
+            $0.hasSaveConflict = true
+            $0.isDirty = true
+        })
 
-        let status = try XCTUnwrap(MacDatabaseStatus(state))
-
-        XCTAssertEqual(status.lines.map(\.kind), [.saving])
-        XCTAssertEqual(status.lines.first?.text, String(localized: "Saving…"))
-        XCTAssertEqual(status.lines.first?.tone, .neutral)
+        XCTAssertEqual(status.line.text, "WebDAV · \(String(localized: "Save conflict"))")
+        XCTAssertEqual(status.line.dot, .warning)
+        XCTAssertEqual(status.action, .resolveConflict)
+        XCTAssertEqual(status.action?.title, String(localized: "Resolve…"))
+        XCTAssertEqual(status.action?.accessibilityIdentifier, "save-conflict.resolve")
     }
 
-    func testAnUploadConflictUsesTheBannerText() throws {
-        var state = MacDatabaseStatus.State()
-        state.hasPendingUploadConflict = true
+    func testARejectedSignInOffersReconnectInTheCardAndAboveTheList() {
+        var status = MacDatabaseStatus(cloudState {
+            $0.needsReconnect = true
+            $0.isDirty = true
+        })
 
-        let status = try XCTUnwrap(MacDatabaseStatus(state))
+        XCTAssertEqual(status.line.text, "WebDAV · \(String(localized: "Reconnect needed"))")
+        XCTAssertEqual(status.action, .reconnect(provider: "WebDAV"))
+        XCTAssertEqual(status.action?.title, String(localized: "Reconnect \("WebDAV")"))
+        let notice = status.notices.first
+        XCTAssertEqual(notice?.kind, .reconnect)
+        XCTAssertEqual(notice?.text, String(localized: "Reconnect \("WebDAV") to save changes."))
+        XCTAssertEqual(notice?.action, .reconnect(provider: "WebDAV"))
+        XCTAssertEqual(notice?.accessibilityIdentifier, "cloud-reauth-banner")
+        XCTAssertEqual(notice?.actionAccessibilityIdentifier, "cloud-reauth-banner.reconnect")
+        XCTAssertTrue(status.isActionEnabled)
 
-        XCTAssertEqual(status.lines.map(\.kind), [.uploadConflict])
-        XCTAssertEqual(status.lines.first?.text, String(
+        status = MacDatabaseStatus(cloudState {
+            $0.needsReconnect = true
+            $0.isReconnectInFlight = true
+        })
+        XCTAssertFalse(status.isActionEnabled)
+        XCTAssertEqual(status.notices.first?.isActionEnabled, false)
+    }
+
+    func testAnUploadConflictCountsInTheCardAndOffersMergeAboveTheList() {
+        let status = MacDatabaseStatus(cloudState {
+            $0.hasPendingUploadConflict = true
+            $0.pendingUploads = .init(waiting: 0, conflicts: 1)
+        })
+
+        XCTAssertEqual(status.line.text, "WebDAV · \(String(localized: "\(1) pending upload conflicts"))")
+        XCTAssertEqual(status.line.dot, .warning)
+        XCTAssertNil(status.action)
+        XCTAssertEqual(status.notices.map(\.kind), [.uploadConflict])
+        XCTAssertEqual(status.notices.first?.text, String(
             localized: "A change saved through AutoFill couldn’t be uploaded because the cloud copy changed. Merge it into this database to upload it."
         ))
-        XCTAssertEqual(status.lines.first?.tone, .warning)
+        XCTAssertEqual(status.notices.first?.action, .mergePendingUploads)
+        XCTAssertEqual(status.notices.first?.action?.title, String(localized: "Merge Changes"))
+        XCTAssertEqual(status.notices.first?.actionAccessibilityIdentifier, "pending-upload-banner.merge")
     }
 
-    func testCloudSyncingAndWarningCarryTheToolbarTitle() throws {
-        var state = MacDatabaseStatus.State()
-        state.cloudSync = .syncing("Checking WebDAV for changes…")
-        let syncing = try XCTUnwrap(MacDatabaseStatus(state)).lines
-        XCTAssertEqual(syncing.map(\.kind), [.cloudSyncing])
-        XCTAssertEqual(syncing.first?.text, "Checking WebDAV for changes…")
-        XCTAssertEqual(syncing.first?.tone, .neutral)
+    func testWaitingUploadsOfferPush() {
+        let status = MacDatabaseStatus(cloudState { $0.pendingUploads = .init(waiting: 2, conflicts: 0) })
 
-        state.cloudSync = .warning("Opened without checking WebDAV for changes.")
-        state.showsPendingUploadNote = true
-        let warning = try XCTUnwrap(MacDatabaseStatus(state)).lines
-        XCTAssertEqual(warning.map(\.kind), [.cloudSyncWarning, .pendingUpload])
-        XCTAssertEqual(warning.first?.tone, .warning)
-        XCTAssertEqual(
-            warning.last?.text,
-            String(localized: "Changes saved through AutoFill are still waiting to upload.")
-        )
+        XCTAssertEqual(status.line.text, "WebDAV · \(String(localized: "\(2) changes waiting to upload"))")
+        XCTAssertEqual(status.line.dot, .warning)
+        XCTAssertEqual(status.action, .pushPendingUploads)
+        XCTAssertEqual(status.action?.title, String(localized: "Push Pending Changes"))
     }
 
-    func testLinesKeepTheirOrder() throws {
-        var state = MacDatabaseStatus.State()
-        state.isDirty = true
-        state.hasPendingUploadConflict = true
-        state.cloudSync = .warning("Sync failed")
-        state.isReadOnly = true
+    func testSyncedStatesFollowTheLastSync() throws {
+        let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        var status = MacDatabaseStatus(cloudState { $0.lastSyncedAt = now.addingTimeInterval(-20) }, now: now)
+        XCTAssertEqual(status.line, .init(storage: "WebDAV", state: String(localized: "Synced just now"), dot: .synced))
+        XCTAssertEqual(status.line.shortText, String(localized: "Synced just now"))
+        XCTAssertTrue(status.offersSyncNow)
+        XCTAssertTrue(status.canSyncNow)
 
-        XCTAssertEqual(
-            try XCTUnwrap(MacDatabaseStatus(state)).lines.map(\.kind),
-            [.unsavedChanges, .uploadConflict, .cloudSyncWarning, .readOnly]
-        )
-        XCTAssertNil(MacDatabaseStatus(MacDatabaseStatus.State()))
+        let twoHoursAgo = now.addingTimeInterval(-7200)
+        status = MacDatabaseStatus(cloudState { $0.lastSyncedAt = twoHoursAgo }, now: now)
+        XCTAssertEqual(status.line.state, MacDatabaseStatus.syncedText(at: twoHoursAgo, now: now))
+        XCTAssertNotEqual(status.line.state, String(localized: "Synced just now"))
+
+        status = MacDatabaseStatus(cloudState {
+            $0.lastSyncedAt = twoHoursAgo
+            $0.isRefreshPending = true
+        }, now: now)
+        XCTAssertEqual(status.line.dot, .neutral, "Opened without checking: not shown as synced")
+        XCTAssertEqual(status.notices.map(\.text), [String(localized: "Opened without checking \("WebDAV") for changes.")])
+
+        status = MacDatabaseStatus(cloudState(), now: now)
+        XCTAssertEqual(status.line, .init(storage: "WebDAV", dot: .neutral), "Never synced: no claim")
+
+        status = MacDatabaseStatus(cloudState { $0.isSyncing = true }, now: now)
+        XCTAssertEqual(status.line, .init(storage: "WebDAV", state: String(localized: "Syncing…"), dot: .neutral))
+    }
+
+    func testCachedCopiesAndFailedSyncs() {
+        let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let twoHoursAgo = now.addingTimeInterval(-7200)
+        var status = MacDatabaseStatus(cloudState {
+            $0.cachedCopy = .offline
+            $0.lastSyncedAt = twoHoursAgo
+        }, now: now)
+        XCTAssertEqual(status.line.text, [
+            "WebDAV", String(localized: "Offline"), MacDatabaseStatus.syncedText(at: twoHoursAgo, now: now),
+        ].joined(separator: " · "))
+        XCTAssertEqual(status.line.dot, .neutral, "Grey, not amber")
+        XCTAssertEqual(status.notices.map(\.text), [CloudSyncResolution.offlineCachedBannerMessage])
+        XCTAssertEqual(status.notices.first?.isWarning, false)
+        XCTAssertNil(status.notices.first?.action)
+
+        status = MacDatabaseStatus(cloudState { $0.cachedCopy = .disconnected })
+        XCTAssertEqual(status.line.text, "WebDAV · \(String(localized: "Reconnect needed"))")
+        XCTAssertNil(status.action)
+        XCTAssertEqual(status.notices.map(\.text), [CloudSyncResolution.disconnectedCachedBannerMessage])
+
+        status = MacDatabaseStatus(cloudState { $0.cachedCopy = .failed("Server said no") })
+        XCTAssertEqual(status.line.text, "WebDAV · \(String(localized: "Sync failed"))")
+        XCTAssertEqual(status.notices.map(\.text), ["Server said no"])
+
+        status = MacDatabaseStatus(cloudState { $0.syncResult = .failed })
+        XCTAssertEqual(status.line.text, "WebDAV · \(String(localized: "Sync failed"))")
+        XCTAssertEqual(status.notices, [], "A failed Sync Now is an alert")
+
+        status = MacDatabaseStatus(cloudState { $0.syncResult = .waits("Newer copy waits") })
+        XCTAssertEqual(status.notices.map(\.kind), [.syncResult])
+        XCTAssertEqual(status.notices.first?.action, .dismissSyncResult)
+        XCTAssertEqual(status.notices.first?.action?.title, String(localized: "Dismiss"))
+    }
+
+    func testProblemsKeepTheBoardsPrecedence() {
+        let state = cloudState {
+            $0.hasSaveConflict = true
+            $0.needsReconnect = true
+            $0.isDirty = true
+            $0.hasPendingUploadConflict = true
+            $0.pendingUploads = .init(waiting: 3, conflicts: 1)
+            $0.cachedCopy = .offline
+        }
+        XCTAssertEqual(MacDatabaseStatus(state).action, .resolveConflict)
+        XCTAssertEqual(MacDatabaseStatus(state).notices.map(\.kind), [.reconnect, .uploadConflict, .cloud])
+        var next = state
+        next.hasSaveConflict = false
+        XCTAssertEqual(MacDatabaseStatus(next).action, .reconnect(provider: "WebDAV"))
+        next.needsReconnect = false
+        XCTAssertEqual(MacDatabaseStatus(next).action, .retrySave)
+        next.isDirty = false
+        XCTAssertNil(MacDatabaseStatus(next).action, "Upload conflicts are merged from the notice")
+        next.hasPendingUploadConflict = false
+        XCTAssertEqual(MacDatabaseStatus(next).action, .pushPendingUploads)
+    }
+
+    func testALocalStateHasNoNoticesOrSync() {
+        var state = MacDatabaseStatus.State()
+        state.storage = .local(filename: "Personal.kdbx")
+        state.hasSaveConflict = true
+        let status = MacDatabaseStatus(state)
+        XCTAssertEqual(status.line.text, "Personal.kdbx · \(String(localized: "Save conflict"))")
+        XCTAssertFalse(status.offersSyncNow)
+        XCTAssertEqual(status.notices, [])
     }
 }
 #endif

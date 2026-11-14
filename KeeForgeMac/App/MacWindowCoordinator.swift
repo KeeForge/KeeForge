@@ -332,6 +332,19 @@ final class MacWindowCoordinator {
             controller.requestGuardedClose()
         }
         controller.onWillClose = { [weak self] in self?.windowWillClose($0) }
+        let listViewModel = listViewModel
+        controller.workspacePresentation.pendingUploads = MacPendingUploads(
+            counts: { databaseID in
+                guard let reference = listViewModel.databases.first(where: { $0.id == databaseID }) else { return .init() }
+                let status = listViewModel.status(for: reference)
+                let conflicts = status.pendingUploadConflictCount
+                return .init(waiting: max(status.pendingUploadCount - conflicts, 0), conflicts: conflicts)
+            },
+            push: { databaseID in
+                guard let reference = listViewModel.databases.first(where: { $0.id == databaseID }) else { return }
+                await listViewModel.pushPendingChanges(for: reference)
+            }
+        )
         controller.loadWindow()
         guard let window = controller.window else { return }
         if let restoredFrame {

@@ -10,10 +10,11 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         defer { window.close() }
         XCTAssertEqual(toolbar.toolbar.items.map(\.itemIdentifier.rawValue), [
             "sidebar.left", "workspace.sidebar-separator", "workspace.search", "entry-list.add-entry",
-            "workspace.list-separator", "lock.button", "database.cloud-sync-status", "database.read-only-indicator",
-            "database-details.button", "settings.button", NSToolbarItem.Identifier.flexibleSpace.rawValue,
-            "entry-detail.edit",
+            "database.read-only-indicator", "workspace.list-separator", "workspace.database-status",
+            NSToolbarItem.Identifier.flexibleSpace.rawValue, "entry-detail.edit", "database-details.button",
+            "database.cloud-sync-now", "lock.button",
         ])
+        XCTAssertNil(toolbar.items[NSToolbarItem.Identifier("settings.button")], "App Settings is ⌘, and the app menu")
         let separators = [MacWorkspaceToolbar.Item.sidebarSeparator, MacWorkspaceToolbar.Item.listSeparator]
             .compactMap { toolbar.items[$0] as? NSTrackingSeparatorToolbarItem }
         XCTAssertEqual(separators.map(\.dividerIndex), [0, 1], "Search and New Entry sit over the entry list")
@@ -22,7 +23,7 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         let labels = [
             "sidebar.left": "Show Sidebar", "lock.button": "Lock Database",
             "database.read-only-indicator": "Read-only database", "entry-list.add-entry": "New Entry",
-            "database-details.button": "Database Details", "settings.button": "Settings",
+            "database-details.button": "Database Settings", "database.cloud-sync-now": "Sync Now",
             "entry-detail.edit": "Edit",
         ]
         for (identifier, label) in labels {
@@ -62,15 +63,40 @@ final class MacWorkspaceToolbarTests: XCTestCase {
             XCTAssertTrue(edit.isHidden)
             XCTAssertEqual(toolbar.items[MacWorkspaceToolbar.Item.add]?.isHidden, readOnly)
             XCTAssertEqual(toolbar.items[MacWorkspaceToolbar.Item.readOnly]?.isHidden, !readOnly)
-            XCTAssertEqual(toolbar.items[MacWorkspaceToolbar.Item.cloudSync]?.isHidden, true)
             session.workspace.selectedEntryID = try XCTUnwrap(session.rootGroup?.allEntries.first).id
             await Task { @MainActor in }.value
             let commands = DatabaseCommands(session: session)
             XCTAssertEqual(edit.isHidden, readOnly)
             XCTAssertEqual((edit.view as? NSControl)?.isEnabled, commands.canEditEntry)
-            XCTAssertEqual((toolbar.items[MacWorkspaceToolbar.Item.lock]?.view as? NSControl)?.isEnabled, commands.canLock)
             XCTAssertEqual((toolbar.items[MacWorkspaceToolbar.Item.add]?.view as? NSControl)?.isEnabled, commands.canNewEntry)
         }
+    }
+
+    func testTheStatusItemsShowOnlyWhileTheSidebarIsHidden() async throws {
+        let presentation = MacWorkspacePresentation()
+        let (toolbar, window, _) = try await makeToolbarAndSplitView(presentation: presentation)
+        defer { window.close() }
+        let statusItems = MacWorkspaceToolbar.statusItemIdentifiers.compactMap { toolbar.items[$0] }
+        XCTAssertEqual(statusItems.count, 4)
+        XCTAssertTrue(statusItems.allSatisfy(\.isHidden), "The sidebar's card has them")
+
+        presentation.isSidebarCollapsed = true
+        await Task { @MainActor in }.value
+        XCTAssertFalse(toolbar.items[MacWorkspaceToolbar.Item.databaseStatus]?.isHidden ?? true)
+        XCTAssertFalse(toolbar.items[MacWorkspaceToolbar.Item.databaseSettings]?.isHidden ?? true)
+        XCTAssertFalse(toolbar.items[MacWorkspaceToolbar.Item.lock]?.isHidden ?? true)
+        XCTAssertEqual(toolbar.items[MacWorkspaceToolbar.Item.syncNow]?.isHidden, true, "A local database has no Sync Now")
+        XCTAssertEqual(toolbar.statusLineView.textField.stringValue, String(localized: "On This Mac"))
+        XCTAssertEqual(toolbar.statusLineView.accessibilityIdentifier(), "workspace.database-status")
+        XCTAssertEqual((toolbar.items[MacWorkspaceToolbar.Item.lock]?.view as? NSControl)?.isEnabled,
+                       DatabaseCommands(session: toolbar.session).canLock)
+
+        (toolbar.items[MacWorkspaceToolbar.Item.databaseSettings]?.view as? NSButton)?.performClick(nil)
+        XCTAssertTrue(presentation.isShowingDatabaseDetails)
+
+        presentation.isSidebarCollapsed = false
+        await Task { @MainActor in }.value
+        XCTAssertTrue(statusItems.allSatisfy(\.isHidden))
     }
 
     func testNewEntryIsOneButtonThatCreatesAnEntry() async throws {
@@ -88,7 +114,9 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         return (toolbar, window)
     }
 
-    private func makeToolbarAndSplitView(readOnly: Bool = false) async throws -> (MacWorkspaceToolbar, NSWindow, NSSplitView) {
+    private func makeToolbarAndSplitView(
+        readOnly: Bool = false, presentation: MacWorkspacePresentation = MacWorkspacePresentation()
+    ) async throws -> (MacWorkspaceToolbar, NSWindow, NSSplitView) {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
         var reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
         reference.isReadOnly = readOnly
@@ -101,7 +129,7 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         let splitView = NSSplitView()
         splitView.isVertical = true
         for _ in 0..<3 { splitView.addArrangedSubview(NSView()) }
-        let toolbar = MacWorkspaceToolbar(session: session, presentation: MacWorkspacePresentation(), splitView: splitView)
+        let toolbar = MacWorkspaceToolbar(session: session, presentation: presentation, splitView: splitView)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 700),
                               styleMask: [.titled, .resizable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false

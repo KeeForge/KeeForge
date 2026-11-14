@@ -28,6 +28,12 @@ final class MacWorkspacePresentation {
     var isShowingDatabaseDetails = false
     var presentedSaveError: DatabaseSaveError?
     var isCloudReconnectInFlight = false
+    /// Bumped by the status card's Resolve…, which brings the Save Conflict alert back.
+    private(set) var saveConflictPromptRequestID = 0
+    /// Set once by the window's owner; the database list holds the markers.
+    @ObservationIgnored var pendingUploads = MacPendingUploads.none
+    /// Advanced every minute while the workspace is shown, so "Synced 5 minutes ago" keeps up.
+    private(set) var statusClockTick = 0
     /// The list's copy ticks, and the detail pane's later.
     let copyFeedback = MacCopyFeedback()
     private(set) var lifetimeID = UUID()
@@ -124,6 +130,14 @@ final class MacWorkspacePresentation {
         case nil:
             return
         }
+    }
+
+    func advanceStatusClock() {
+        statusClockTick += 1
+    }
+
+    func requestSaveConflictPrompt() {
+        saveConflictPromptRequestID += 1
     }
 
     @discardableResult

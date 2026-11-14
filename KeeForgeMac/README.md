@@ -65,8 +65,11 @@ and selection changes keep the same controller and hosting roots.
 
 One outer `MacWorkspacePresentationHost` remains in `MacDatabaseWorkspaceView`,
 around the native split representable, inside the always-mounted root host.
-It owns workspace sheets, dialogs, alerts, and the saving overlay; the banners
-sit at the top of the detail column.
+It owns workspace sheets, dialogs, SwiftUI alerts, and the saving overlay; the
+detail column has no banners. The save-conflict family (Save Conflict with
+Cancel on Escape, Changes Merged, Couldn't Merge Changes) and the failed Sync Now
+alert are `NSAlert`s from `MacWorkspaceAlerts`, which the split controller owns
+and starts once it has a window; releasing it on lock ends any alert still up.
 Column revisions never replace it. It resets presentation state on workspace
 disappearance and rejects old cloud reconnect completions. `MacDatabaseRootView`
 keeps enrollment and its biometric observer mounted across lock/unlock. This
@@ -92,8 +95,13 @@ so expansion and selection survive edits. Selection writes the workspace and
 follows it back (unfolding ancestors); expansion is the presentation's
 `collapsedGroupIDs`, kept for the window's life. Group-row menus come from
 `MacSidebarGroupActions` and set the same presentation state the host presents.
-The status card shows only while `MacDatabaseStatus` has lines and carries no
-actions; Sync Now, Retry Save and Merge stay in the toolbar and banners. The
+The status card is always shown for an unlocked database: its name (with the
+Read-Only badge), Database Settings, Sync Now (cloud only) and Lock, the
+storage and state line from `MacDatabaseStatus`, and the state's one recovery
+action (Retry Save, Resolve…, Reconnect, Push Pending Changes). Sync and upload
+notices sit above the entry list (`MacWorkspaceNoticesView`). Both act through
+`MacDatabaseStatusActions`; pending upload counts and Push come from the
+database list through `MacWorkspacePresentation.pendingUploads`. The
 outline is disabled while saving and takes its appearance from the window, which
 the root host's `preferredColorScheme` sets from the in-app setting. Focus and
 keyboard come from the outline as first responder; nothing routes focus to it.
@@ -186,12 +194,13 @@ bridging back on for the unlock screen. One source owns the bar in each state.
 Column hosts never bridge.
 
 Each item's identifier is also its view's accessibility identifier. Tracking
-separators on the split's two dividers put the search field and New Entry over
-the entry list and the database's items and Edit over the detail; the window
-title is hidden while this toolbar is installed, as the list header shows it. Each item has a menu form for the overflow menu. The cloud sync controls
-are the shared SwiftUI view in a hosting view; the others are AppKit controls.
-Enablement comes from `DatabaseCommands` where a rule exists, and the whole bar
-is disabled while saving.
+separators on the split's two dividers put the search field and New Entry (the
+read-only glasses instead in a read-only database) over the entry list and Edit
+over the detail; the window title is hidden while this toolbar is installed, as
+the list header shows it. The status card's line, Database Settings, Sync Now
+and Lock join the detail only while the sidebar is collapsed. Each item has a
+menu form for the overflow menu. Enablement comes from `DatabaseCommands` and
+`MacDatabaseStatus`, and the whole bar is disabled while saving.
 
 The search field and `DatabaseViewModel.searchText` are bound both ways through
 the toolbar's observation. Edit ▸ Find (`findEntry:`) calls

@@ -412,14 +412,22 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
             return .saved(newSHA512: hash)
         })
         let card = controller.statusCard
-        XCTAssertTrue(card.isHidden)
+        XCTAssertFalse(card.isHidden, "Always shown for an open database")
         XCTAssertEqual(card.accessibilityIdentifier(), "sidebar.status-card")
+        XCTAssertEqual(card.nameField.stringValue, session.databaseDisplayName)
+        XCTAssertEqual(card.lineView.textField.stringValue,
+                       "\(session.databaseFilename) · \(String(localized: "On This Mac"))")
+        XCTAssertTrue(card.lineView.dotView.isHidden)
+        XCTAssertTrue(card.actionButton.isHidden)
+        XCTAssertTrue(card.syncButton.isHidden, "A database on this Mac has no Sync Now")
 
         try session.createGroup(named: "Draft", in: tree.work.id)
         await settle()
-        XCTAssertFalse(card.isHidden)
-        XCTAssertEqual(card.lineViews.map(\.text.stringValue), [String(localized: "Changes not saved")])
-        XCTAssertNotEqual(card.lineViews.first?.symbol.contentTintColor, .secondaryLabelColor, "Warning tone")
+        XCTAssertEqual(card.lineView.textField.stringValue, String(localized: "Changes not saved"))
+        XCTAssertFalse(card.lineView.dotView.isHidden)
+        XCTAssertFalse(card.actionButton.isHidden)
+        XCTAssertEqual(card.actionButton.title, String(localized: "Retry Save"))
+        XCTAssertEqual(card.actionButton.accessibilityIdentifier(), "database.unsaved-indicator")
         let menuItems = controller.contextMenuItems(forGroupID: tree.work.id)
 
         let save = try XCTUnwrap(DatabaseCommands(session: session).save())
@@ -428,22 +436,60 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertTrue(session.isSaving)
         XCTAssertFalse(controller.outlineView.isEnabled)
         XCTAssertTrue(menuItems.allSatisfy { controller.validateMenuItem($0) == false })
-        XCTAssertEqual(card.lineViews.map(\.text.stringValue), [String(localized: "Saving…")])
-        XCTAssertEqual(card.lineViews.first?.symbol.contentTintColor, .secondaryLabelColor)
+        XCTAssertEqual(card.lineView.textField.stringValue,
+                       "\(session.databaseFilename) · \(String(localized: "Saving…"))")
+        XCTAssertTrue(card.actionButton.isHidden)
+        XCTAssertFalse(card.lockButton.isEnabled)
+        XCTAssertFalse(card.settingsButton.isEnabled)
 
         await gate.open()
         await save.value
         await settle()
         XCTAssertTrue(controller.outlineView.isEnabled)
-        XCTAssertTrue(card.isHidden)
-        XCTAssertNil(card.status)
+        XCTAssertEqual(card.lineView.textField.stringValue,
+                       "\(session.databaseFilename) · \(String(localized: "On This Mac"))")
+        XCTAssertTrue(card.lockButton.isEnabled)
     }
 
-    func testAReadOnlySessionShowsItsLineAndOffersNoGroupMenu() async throws {
+    func testCardButtonsKeepTheirIdentifiersAndActOnTheSession() async throws {
+        let tree = Tree()
+        let (controller, session, presentation) = try await makeController(tree)
+        let card = controller.statusCard
+        XCTAssertEqual(card.settingsButton.accessibilityIdentifier(), "database-details.button")
+        XCTAssertEqual(card.syncButton.accessibilityIdentifier(), "database.cloud-sync-now")
+        XCTAssertEqual(card.lockButton.accessibilityIdentifier(), "lock.button")
+        XCTAssertEqual(card.settingsButton.accessibilityLabel(), String(localized: "Database Settings"))
+        XCTAssertEqual(card.lockButton.accessibilityLabel(), String(localized: "Lock Database"))
+        XCTAssertEqual(card.syncButton.accessibilityLabel(), String(localized: "Sync Now"))
+        XCTAssertTrue(card.readOnlyBadge.isHidden)
+
+        card.settingsButton.performClick(nil)
+        XCTAssertTrue(presentation.isShowingDatabaseDetails)
+
+        try session.createGroup(named: "Draft", in: tree.work.id)
+        await settle()
+        card.lockButton.performClick(nil)
+        XCTAssertEqual(session.pendingLockRequest?.reason, .draft, "Lock goes through the guarded lock request")
+    }
+
+    func testTheCardFillIsVisibleInLightAndDark() {
+        let card = MacSidebarStatusCardView()
+        for (name, minimumAlpha) in [(NSAppearance.Name.aqua, 0.5), (.darkAqua, 0.05)] {
+            let appearance = try? XCTUnwrap(NSAppearance(named: name))
+            var alpha: CGFloat = 0
+            appearance?.performAsCurrentDrawingAppearance {
+                alpha = card.box.fillColor.usingColorSpace(.deviceRGB)?.alphaComponent ?? 0
+            }
+            XCTAssertGreaterThanOrEqual(alpha, minimumAlpha, name.rawValue)
+        }
+        XCTAssertEqual(card.box.borderWidth, 0.5)
+    }
+
+    func testAReadOnlySessionShowsTheBadgeAndOffersNoGroupMenu() async throws {
         let tree = Tree()
         let (controller, _, _) = try await makeController(tree, readOnly: true)
-        XCTAssertFalse(controller.statusCard.isHidden)
-        XCTAssertEqual(controller.statusCard.lineViews.map(\.text.stringValue), [String(localized: "Read-only database")])
+        XCTAssertFalse(controller.statusCard.readOnlyBadge.isHidden)
+        XCTAssertEqual(controller.statusCard.readOnlyBadge.accessibilityLabel(), String(localized: "Read-only database"))
         XCTAssertEqual(controller.contextMenuItems(forGroupID: tree.work.id), [])
     }
 
