@@ -1,4 +1,5 @@
 #if os(macOS)
+import AppKit
 import SwiftUI
 
 /// The editor's Generate popover (EditEntry board): its own `PasswordGeneratorModel`, whose
@@ -105,12 +106,12 @@ struct MacPasswordGeneratorControls: View {
                 .accessibilityLabel(Text("Suggested Password"))
                 .accessibilityValue(Text(verbatim: model.suggestion))
                 .accessibilityIdentifier("password-generator.password")
-            Picker("Generation Mode", selection: $model.options.mode) {
-                Text("Password").tag(PasswordGenerator.Mode.characters)
-                Text("Passphrase").tag(PasswordGenerator.Mode.passphrase)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            MacFillingSegmentedControl(
+                selection: $model.options.mode,
+                segments: [(PasswordGenerator.Mode.characters, String(localized: "Password")),
+                           (PasswordGenerator.Mode.passphrase, String(localized: "Passphrase"))],
+                accessibilityLabel: String(localized: "Generation Mode")
+            )
             .accessibilityIdentifier("password-generator.mode")
             if isPassphrase {
                 passphraseOptions
@@ -225,6 +226,41 @@ struct MacPasswordGeneratorControls: View {
         .toggleStyle(.checkbox)
         .accessibilityLabel(Text(label))
         .accessibilityIdentifier("password-generator.charset-toggle.\(id)")
+    }
+}
+/// A segmented control whose segments share the full width (Generator board). SwiftUI's segmented
+/// picker sizes to its content on macOS whatever frame it gets.
+struct MacFillingSegmentedControl<Value: Hashable>: NSViewRepresentable {
+    @Binding var selection: Value
+    let segments: [(value: Value, title: String)]
+    let accessibilityLabel: String
+
+    func makeNSView(context: Context) -> NSSegmentedControl {
+        let control = NSSegmentedControl(labels: segments.map(\.title), trackingMode: .selectOne,
+                                         target: context.coordinator, action: #selector(Coordinator.changed(_:)))
+        control.segmentDistribution = .fillEqually
+        control.setAccessibilityLabel(accessibilityLabel)
+        control.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        return control
+    }
+
+    func updateNSView(_ control: NSSegmentedControl, context: Context) {
+        context.coordinator.parent = self
+        control.selectedSegment = segments.firstIndex { $0.value == selection } ?? -1
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        var parent: MacFillingSegmentedControl
+
+        init(parent: MacFillingSegmentedControl) { self.parent = parent }
+
+        @objc func changed(_ sender: NSSegmentedControl) {
+            guard parent.segments.indices.contains(sender.selectedSegment) else { return }
+            parent.selection = parent.segments[sender.selectedSegment].value
+        }
     }
 }
 #endif

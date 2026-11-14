@@ -108,12 +108,17 @@ struct KPEntry: Identifiable, Sendable {
         self.attachments = attachments
     }
 
-    /// Additional URLs from KeePass2Android KP2A_URL_* custom fields, sorted by key
-    var additionalURLs: [String] {
-        customFields.filter { $0.key.hasPrefix("KP2A_URL_") }
+    /// Additional URLs from non-empty KeePass2Android KP2A_URL_* custom fields, sorted by key. A
+    /// protected one is a protected custom field instead: never shown, copied, opened or matched as a URL.
+    var additionalURLFields: [(key: String, value: String)] {
+        customFields
+            .filter { $0.key.hasPrefix("KP2A_URL_") && !$0.value.isEmpty && !protectedStringKeys.contains($0.key) }
             .sorted { $0.key < $1.key }
-            .map(\.value)
-            .filter { !$0.isEmpty }
+            .map { (key: $0.key, value: $0.value) }
+    }
+
+    var additionalURLs: [String] {
+        additionalURLFields.map(\.value)
     }
 
     /// Passkey credential parsed from KPEX_PASSKEY_* custom fields plus the

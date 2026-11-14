@@ -653,9 +653,13 @@ final class MacWindowCoordinator {
         return .terminateLater
     }
 
+    /// Also removes the plaintext attachment previews: a quit does not close the windows, so their
+    /// own cleanup never runs.
     private func prepareForTermination() {
         recordTopology()
         restorationStore?.beginTermination()
+        for controller in databaseWindows.values { controller.attachmentPreview.windowClosed() }
+        AttachmentPreviewFileStore.removeAll()
     }
 
     /// Every answer is collected before anything is written, so a later

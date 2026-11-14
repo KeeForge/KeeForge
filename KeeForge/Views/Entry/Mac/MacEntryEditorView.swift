@@ -34,6 +34,10 @@ struct MacEntryEditorView: View {
     }
 
     private var metrics: MacDetailMetrics { .forWidth(width) }
+    private var isPresentingChild: Bool {
+        showGenerator || showTOTPSetup || showCustomFieldOrder || showAttachmentImporter
+            || showDiscardConfirmation || showRemoveTOTPConfirmation
+    }
     private var coordinator: DatabaseEditorCoordinator { session.coordinator }
     private var pendingLockRequest: DatabaseViewModel.PendingLockRequest? { coordinator.pendingLockRequest }
 
@@ -67,6 +71,9 @@ struct MacEntryEditorView: View {
         .modifier(EntryCustomFieldOrderSheet(isPresented: $showCustomFieldOrder, form: form))
         .fileImporter(isPresented: $showAttachmentImporter, allowedContentTypes: [.item],
                       allowsMultipleSelection: true, onCompletion: importAttachments)
+        .onChange(of: isPresentingChild, initial: true) { _, isPresenting in
+            session.isPresentingChild = isPresenting
+        }
         .onAppear {
             guard session.hasFocusedTitle == false else { return }
             session.hasFocusedTitle = true
@@ -146,6 +153,7 @@ struct MacEntryEditorView: View {
             Button("Cancel", action: cancelTapped)
                 .keyboardShortcut(.cancelAction)
                 .buttonStyle(.bordered)
+                .macNeutralTint()
                 .buttonBorderShape(.capsule)
                 .controlSize(.large)
                 .disabled(coordinator.isSavingInProgress)
@@ -239,6 +247,7 @@ struct MacEntryEditorView: View {
             .disabled(session.isAuthenticating)
             .accessibilityIdentifier("entry-edit.password-visibility-button")
             Button("Generate") { showGenerator = true }
+                .macNeutralTint()
                 .frame(width: 92)
                 .accessibilityIdentifier("entry-edit.password-generator-button")
                 .popover(isPresented: $showGenerator, arrowEdge: .bottom) {
@@ -330,6 +339,7 @@ struct MacEntryEditorView: View {
             } else {
                 HStack(spacing: 10) {
                     Button("Set Up…") { showTOTPSetup = true }
+                        .macNeutralTint()
                         .accessibilityIdentifier("entry-edit.totp.enter-link")
                     Text("Paste a setup link or setup key")
                         .font(.caption)
@@ -612,10 +622,12 @@ struct MacEntryEditorView: View {
             Button { form.addCustomField() } label: {
                 Label("Add Field", systemImage: "plus")
             }
+            .macNeutralTint()
             .accessibilityIdentifier("entry-edit.custom-field.add")
             Button { showAttachmentImporter = true } label: {
                 Label("Add Attachment…", systemImage: "plus")
             }
+            .macNeutralTint()
             .disabled(session.attachmentLoads.isLoading)
             .accessibilityIdentifier("entry-edit.attachment.add")
             if session.attachmentLoads.isLoading {
@@ -660,6 +672,7 @@ struct MacEntryEditorView: View {
     // MARK: - Actions
 
     private func cancelTapped() {
+        guard session.isPresentingChild == false else { return }
         if form.isDirty {
             showDiscardConfirmation = true
         } else {
@@ -719,7 +732,7 @@ private struct MacEntryEditorLifecycle: ViewModifier {
             .onChange(of: form.totpSecret) { session.secretsChanged() }
             .onChange(of: form.customFields) { session.secretsChanged() }
             .onChange(of: session.coordinator.pendingLockRequest != nil) { _, isPending in
-                if isPending { dismissPresentations() }
+                if isPending, session.lockRequestArrived() { dismissPresentations() }
             }
             .onChange(of: totpPeriodText) { _, newValue in
                 if let period = Int(newValue), period > 0 { form.totpPeriod = period }
@@ -749,7 +762,7 @@ private struct MacEntryEditorAlerts: ViewModifier {
     func body(content: Content) -> some View {
         content
             .alert("Save your changes before locking?", isPresented: Binding(
-                get: { pendingLockRequest != nil },
+                get: { pendingLockRequest != nil && session.isPresentingChild == false },
                 set: { _ in }
             )) {
                 Button("Save and Lock") {

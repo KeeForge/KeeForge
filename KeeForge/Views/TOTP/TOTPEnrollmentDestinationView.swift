@@ -5,9 +5,10 @@ import SwiftUI
 /// the verification code to an existing entry, or create a new entry in a
 /// chosen group. Either path opens the normal entry editor with the code
 /// already applied, so the user reviews and saves through the standard flow.
-/// On iOS saving finishes the whole flow and cancelling the editor returns
-/// here, so a wrong destination pick does not destroy the incoming code. On
-/// Mac the pick finishes this sheet and opens the window's inline editor.
+/// Saving finishes the whole flow and cancelling the editor returns here, so a
+/// wrong destination pick does not destroy the incoming code. On Mac the pick
+/// closes this sheet for the window's inline editor (`onEditorOpened`), and
+/// the editor's end comes back through `onEditorFinished`.
 struct TOTPEnrollmentDestinationView: View {
     /// Navigation inside the sheet, driven by one path: group picker →
     /// editor is a normal two-element stack. The editor payload hashes by
@@ -19,6 +20,10 @@ struct TOTPEnrollmentDestinationView: View {
 
     let databaseViewModel: DatabaseViewModel
     let onFinished: () -> Void
+    #if os(macOS)
+    let onEditorOpened: () -> Void
+    let onEditorFinished: @MainActor (EntryEditCompletion) -> Void
+    #endif
 
     @State private var model: TOTPEnrollmentViewModel
     @State private var path: [EnrollmentStep] = []
@@ -27,6 +32,21 @@ struct TOTPEnrollmentDestinationView: View {
     #endif
     @State private var replaceCandidate: TOTPEnrollmentViewModel.EntryCandidate?
 
+    #if os(macOS)
+    init(
+        databaseViewModel: DatabaseViewModel,
+        uri: OTPAuthURI,
+        onFinished: @escaping () -> Void,
+        onEditorOpened: @escaping () -> Void,
+        onEditorFinished: @escaping @MainActor (EntryEditCompletion) -> Void
+    ) {
+        self.databaseViewModel = databaseViewModel
+        self.onFinished = onFinished
+        self.onEditorOpened = onEditorOpened
+        self.onEditorFinished = onEditorFinished
+        _model = State(initialValue: TOTPEnrollmentViewModel(uri: uri, database: databaseViewModel))
+    }
+    #else
     init(
         databaseViewModel: DatabaseViewModel,
         uri: OTPAuthURI,
@@ -36,6 +56,7 @@ struct TOTPEnrollmentDestinationView: View {
         self.onFinished = onFinished
         _model = State(initialValue: TOTPEnrollmentViewModel(uri: uri, database: databaseViewModel))
     }
+    #endif
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -263,8 +284,9 @@ struct TOTPEnrollmentDestinationView: View {
 
     private func present(editor: EntryEditViewModel) {
         #if os(macOS)
-        guard presentation?.beginEnrollmentEditor(editor, in: databaseViewModel) == true else { return }
-        onFinished()
+        guard presentation?.beginEnrollmentEditor(editor, in: databaseViewModel, onComplete: onEditorFinished) == true
+        else { return }
+        onEditorOpened()
         #else
         path.append(.editor(editor))
         #endif

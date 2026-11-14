@@ -63,6 +63,12 @@ enum AttachmentPreviewFileStore: AttachmentPreviewFileStoring {
         try? FileManager.default.removeItem(at: directory)
     }
 
+    /// Removes every preview file on a normal quit, whichever session wrote it.
+    static func removeAll() {
+        trackedURLs = [:]
+        try? FileManager.default.removeItem(at: directory)
+    }
+
     /// Removes only the owning session's previews on lock or reload.
     static func clear(owner: UUID) {
         for url in trackedURLs.removeValue(forKey: owner) ?? [] {

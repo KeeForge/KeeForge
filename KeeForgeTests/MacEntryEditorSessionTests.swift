@@ -215,6 +215,54 @@ final class MacEntryEditorSessionTests: XCTestCase {
                        try original.passkeyPrivateKey?.decryptData(using: originalKey))
     }
 
+    func testWhileASheetOrPopoverIsUpNothingSavesOrClosesTheEditorBehindIt() async throws {
+        let entry = KPEntry(title: "Mail")
+        let session = try await TestDatabaseSupport.makeUnlockedSession(
+            root: KPGroup(name: "Root", entries: [entry]), bundle: Bundle(for: Self.self)
+        )
+        defer { session.lockRequest(force: true) }
+        let presentation = MacWorkspacePresentation()
+        session.workspace.selectedEntryID = entry.id
+        presentation.beginEntryEdit(entryID: entry.id, in: session)
+        let editor = try XCTUnwrap(presentation.entryEditor)
+        let commands = MacWorkspaceCommands(session: session, presentation: presentation)
+        editor.form.title = "Mail, edited"
+        editor.coordinator.synchronizeUnsavedChanges()
+        XCTAssertTrue(commands.canSave)
+
+        editor.isPresentingChild = true
+        XCTAssertFalse(editor.canSave)
+        XCTAssertFalse(commands.canSave, "File > Save (Cmd-S) is off while the Set Up sheet is up")
+        XCTAssertNil(commands.save())
+        XCTAssertNil(presentation.saveEntryEditor())
+
+        let requests: [@MainActor () -> Void] = [
+            { session.lockRequest(manuallyTriggered: true) }, { _ = session.requestWindowClose() },
+        ]
+        for request in requests {
+            request()
+            XCTAssertNotNil(editor.coordinator.pendingLockRequest)
+            XCTAssertFalse(editor.lockRequestArrived(), "Lock and Close Window wait for the sheet")
+            for _ in 0..<20 where session.pendingLockRequest != nil { await Task.yield() }
+            XCTAssertNil(session.pendingLockRequest)
+            XCTAssertEqual(session.state, .unlocked)
+            XCTAssertTrue(presentation.entryEditor === editor)
+        }
+        XCTAssertEqual(editor.form.title, "Mail, edited")
+
+        editor.form.title = "Mail"
+        editor.coordinator.synchronizeUnsavedChanges()
+        XCTAssertTrue(session.hasUnsavedEditor, "A clean form with pending sheet input still asks before a lock")
+        session.lockRequest(manuallyTriggered: true)
+        XCTAssertFalse(editor.lockRequestArrived())
+        for _ in 0..<20 where session.pendingLockRequest != nil { await Task.yield() }
+        XCTAssertEqual(session.state, .unlocked, "A manual lock never drops it silently")
+
+        session.lockRequest()
+        XCTAssertTrue(editor.lockRequestArrived(), "An automatic lock closes the sheet")
+        XCTAssertNotEqual(session.state, .unlocked, "and, with nothing else unsaved, locks")
+    }
+
     private func settle(_ editor: MacEntryEditorSession) async {
         for _ in 0..<200 where editor.isAuthenticating { await Task.yield() }
         await Task { @MainActor in }.value

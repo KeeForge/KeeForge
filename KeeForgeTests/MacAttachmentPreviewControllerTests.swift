@@ -34,6 +34,25 @@ final class MacAttachmentPreviewControllerTests: XCTestCase {
         XCTAssertEqual(controller.numberOfPreviewItems(in: nil), 0)
     }
 
+    func testThePanelClosedByItsOwnControlRemovesTheFileWhileStillInControl() async throws {
+        let (session, entry) = try await makeSession()
+        defer { session.lockRequest(force: true) }
+        let panel = RecordingPreviewPanel()
+        let controller = makeController(session, panel: panel)
+
+        await controller.preview(attachmentAt: 0, ofEntry: entry.id)?.value
+        await settle()
+        panel.hide()
+        XCTAssertNotNil(controller.previews.previewURL, "Before taking control the panel is not this window's")
+
+        controller.beginPreviewPanelControl(nil)
+        let url = try XCTUnwrap(controller.previews.previewURL)
+        panel.hide()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertEqual(controller.previews.state, .idle)
+        XCTAssertTrue(controller.isControllingPanel, "Quick Look has not handed control back")
+    }
+
     func testSpaceTogglesThePreviewFromTheRowAndFromThePanel() async throws {
         let (session, entry) = try await makeSession()
         defer { session.lockRequest(force: true) }
@@ -95,14 +114,17 @@ final class MacAttachmentPreviewControllerTests: XCTestCase {
         let (session, entry) = try await makeSession()
         defer { session.lockRequest(force: true) }
         var presented: [(URL, NSView)] = []
+        let pickers = PickerSequence()
         let controller = MacAttachmentPreviewController(
             database: session,
             previews: AttachmentPreviewSession(currentSession: { session }),
             panel: RecordingPreviewPanel(),
-            presentSharePicker: { url, anchor, _ in presented.append((url, anchor)) }
+            presentSharePicker: { url, anchor, _ in
+                presented.append((url, anchor))
+                return pickers.next()
+            }
         )
         let anchor = NSView()
-        let picker = NSSharingServicePicker(items: [])
 
         await controller.share(attachmentAt: 0, ofEntry: entry.id, from: anchor)?.value
         await settle()
@@ -111,6 +133,7 @@ final class MacAttachmentPreviewControllerTests: XCTestCase {
         XCTAssertTrue(presented.first?.1 === anchor, "The picker opens from the row's Share button")
         await settle()
         XCTAssertEqual(presented.count, 1, "One picker per share")
+        var picker = try XCTUnwrap(pickers.last)
         controller.sharingServicePicker(picker, didChoose: nil)
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path), "Cancelling the picker removes the file")
 
@@ -118,6 +141,7 @@ final class MacAttachmentPreviewControllerTests: XCTestCase {
         await controller.share(attachmentAt: 0, ofEntry: entry.id, from: anchor)?.value
         await settle()
         url = try XCTUnwrap(controller.previews.shareURL)
+        picker = try XCTUnwrap(pickers.last)
         XCTAssertTrue(controller.sharingServicePicker(picker, delegateFor: service) === controller)
         controller.sharingServicePicker(picker, didChoose: service)
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path), "The chosen service still needs the file")
@@ -130,6 +154,40 @@ final class MacAttachmentPreviewControllerTests: XCTestCase {
         controller.sharingService(service, didFailToShareItems: [url], error: CocoaError(.userCancelled))
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
         XCTAssertEqual(controller.previews.state, .idle)
+    }
+
+    func testALateCallbackFromAnEarlierShareOrPickerLeavesTheNewerShare() async throws {
+        let (session, entry) = try await makeSession()
+        defer { session.lockRequest(force: true) }
+        let pickers = PickerSequence()
+        let controller = MacAttachmentPreviewController(
+            database: session,
+            previews: AttachmentPreviewSession(currentSession: { session }),
+            panel: RecordingPreviewPanel(),
+            presentSharePicker: { _, _, _ in pickers.next() }
+        )
+        let service = NSSharingService(title: "Test", image: NSImage(), alternateImage: nil) {}
+        let anchor = NSView()
+
+        await controller.share(attachmentAt: 0, ofEntry: entry.id, from: anchor)?.value
+        await settle()
+        let first = try XCTUnwrap(controller.previews.shareURL)
+        let firstPicker = try XCTUnwrap(pickers.last)
+        controller.sharingServicePicker(firstPicker, didChoose: service)
+
+        await controller.share(attachmentAt: 0, ofEntry: entry.id, from: anchor)?.value
+        await settle()
+        let second = try XCTUnwrap(controller.previews.shareURL)
+        XCTAssertNotEqual(first, second)
+
+        controller.sharingService(service, didShareItems: [first as NSURL])
+        controller.sharingService(service, didFailToShareItems: [first as NSURL], error: CocoaError(.userCancelled))
+        controller.sharingServicePicker(firstPicker, didChoose: nil)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: second.path), "The newer share keeps its file")
+        XCTAssertEqual(controller.previews.shareURL, second)
+
+        controller.sharingService(service, didShareItems: [second as NSURL])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: second.path))
     }
 
     func testInstallPutsTheControllerRightAfterTheWindowInItsResponderChain() async throws {
@@ -156,7 +214,7 @@ final class MacAttachmentPreviewControllerTests: XCTestCase {
         _ session: DatabaseViewModel, panel: RecordingPreviewPanel = RecordingPreviewPanel()
     ) -> MacAttachmentPreviewController {
         MacAttachmentPreviewController(database: session, previews: AttachmentPreviewSession(currentSession: { session }),
-                                       panel: panel, presentSharePicker: { _, _, _ in })
+                                       panel: panel, presentSharePicker: { _, _, _ in nil })
     }
 
     /// The controller observes on the next main-actor turn.
@@ -175,8 +233,22 @@ final class MacAttachmentPreviewControllerTests: XCTestCase {
     }
 }
 
+/// Hands out a new picker per share, never shown.
+@MainActor
+private final class PickerSequence {
+    private(set) var all: [NSSharingServicePicker] = []
+    var last: NSSharingServicePicker? { all.last }
+
+    func next() -> NSSharingServicePicker {
+        let picker = NSSharingServicePicker(items: [])
+        all.append(picker)
+        return picker
+    }
+}
+
 @MainActor
 final class RecordingPreviewPanel: MacPreviewPanelPresenting {
+    var onHide: (@MainActor () -> Void)?
     private(set) var shown = 0
     private(set) var reloaded = 0
     private(set) var closed = 0
@@ -184,6 +256,8 @@ final class RecordingPreviewPanel: MacPreviewPanelPresenting {
     func show() { shown += 1 }
     func reload() { reloaded += 1 }
     func close(controlledBy controller: AnyObject) { closed += 1 }
+    /// The panel's own close control, or the system, hides it.
+    func hide() { onHide?() }
 }
 
 extension MacAttachmentPreviewController {
@@ -191,7 +265,7 @@ extension MacAttachmentPreviewController {
     static func unshown(_ database: DatabaseViewModel) -> MacAttachmentPreviewController {
         MacAttachmentPreviewController(database: database,
                                        previews: AttachmentPreviewSession(currentSession: { database }),
-                                       panel: RecordingPreviewPanel(), presentSharePicker: { _, _, _ in })
+                                       panel: RecordingPreviewPanel(), presentSharePicker: { _, _, _ in nil })
     }
 }
 #endif

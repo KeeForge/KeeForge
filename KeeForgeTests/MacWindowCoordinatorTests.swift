@@ -660,6 +660,34 @@ final class MacWindowCoordinatorTests: XCTestCase {
         XCTAssertTrue(prompts.windows.isEmpty)
     }
 
+    func testAQuitRemovesThePlaintextAttachmentPreviewsOnlyOnceItGoesAhead() async throws {
+        makeRestoringCoordinator()
+        start()
+        coordinator.open(references[0])
+        let controller = try XCTUnwrap(coordinator.databaseWindows[references[0].id])
+        await controller.session.unlock(password: "testpassword123")
+        let preview = try AttachmentPreviewFileStore.write(Data("plaintext".utf8), suggestedName: "report.txt",
+                                                           owner: controller.session.attachmentPreviewOwnerID)
+        defer { AttachmentPreviewFileStore.clear(owner: controller.session.attachmentPreviewOwnerID) }
+        try makeDirty(controller.session, title: "Unsaved")
+        prompts.choices = [.cancel]
+
+        let cancelled = try await terminate()
+        XCTAssertEqual(cancelled, false)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: preview.path), "A cancelled quit keeps an open preview")
+
+        prompts.choices = [.discard]
+        let settled = try await terminate()
+        XCTAssertEqual(settled, true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: preview.path))
+
+        controller.session.lockRequest(force: true)
+        let clean = try AttachmentPreviewFileStore.write(Data("plaintext".utf8), suggestedName: "clean.txt",
+                                                         owner: controller.session.attachmentPreviewOwnerID)
+        XCTAssertEqual(coordinator.requestTermination { _ in XCTFail("No reply for an immediate quit") }, .terminateNow)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: clean.path), "A clean quit removes them too")
+    }
+
     func testCancelledQuitWithTwoDirtyWindowsKeepsEveryWindowSessionAndTheRecord() async throws {
         makeRestoringCoordinator()
         start()

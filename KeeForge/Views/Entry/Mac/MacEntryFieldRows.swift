@@ -106,9 +106,12 @@ struct MacDetailRow<Value: View, Trailing: View>: View {
                     .padding(.top, alignsTop ? 1 : 0)
                 value
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
+                // Icon buttons and badges keep their size; the value takes the rest.
                 HStack(spacing: 2) {
                     trailing
                 }
+                .fixedSize()
             }
             .padding(.horizontal, metrics.rowPadding)
             .padding(.vertical, alignsTop ? 9 : 4)
@@ -118,6 +121,13 @@ struct MacDetailRow<Value: View, Trailing: View>: View {
 }
 
 // MARK: - Buttons
+
+extension View {
+    /// The boards' plain grey push buttons: the window's accent tint would colour their text and fill.
+    func macNeutralTint() -> some View {
+        tint(Color(nsColor: .labelColor))
+    }
+}
 
 /// A 28 pt borderless icon button with a hover background, labelled and with the same help tag.
 struct MacDetailIconButton: View {
@@ -610,7 +620,7 @@ struct MacAttachmentRow: View {
         MacDetailRow(label: label, isFirst: isFirst) {
             Button(action: preview) {
                 HStack(spacing: 8) {
-                    Image(systemName: "doc")
+                    Image(systemName: "paperclip")
                         .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
                     Text(name)

@@ -60,6 +60,9 @@ final class TOTPEnrollmentCoordinator {
 
     private(set) var pendingEnrollment: PendingTOTPEnrollment?
     private(set) var presentedEnrollment: PendingTOTPEnrollment?
+    /// Handed to the Mac window's inline editor: the sheet is closed, and the code is kept until
+    /// the editor saves, so Cancel brings the destination choice back.
+    private(set) var editingEnrollment: PendingTOTPEnrollment?
     var enrollmentAlert: TOTPEnrollmentAlert?
     private(set) var deferredPresentation: DeferredPresentation?
     private(set) var destination: Session?
@@ -101,9 +104,10 @@ final class TOTPEnrollmentCoordinator {
         if newSession?.isUnlocked == true {
             guard !discardExpiredEnrollment() else { return }
             deferEnrollment()
-        } else if let presentedEnrollment {
-            pendingEnrollment = presentedEnrollment
-            self.presentedEnrollment = nil
+        } else if let parked = presentedEnrollment ?? editingEnrollment {
+            pendingEnrollment = parked
+            presentedEnrollment = nil
+            editingEnrollment = nil
         }
     }
 
@@ -111,6 +115,7 @@ final class TOTPEnrollmentCoordinator {
         session = destination
         self.destination = destination
         presentedEnrollment = nil
+        editingEnrollment = nil
         deferredPresentation = nil
         enrollmentAlert = nil
         let enrollment = PendingTOTPEnrollment(uri: uri, createdAt: now())
@@ -148,6 +153,25 @@ final class TOTPEnrollmentCoordinator {
         deferredPresentation = nil
     }
 
+    /// The Mac destination sheet opened the inline editor for this enrollment and closes.
+    func handOffToEditor(id: UUID, session expectedSession: Session?) {
+        guard session == expectedSession, let enrollment = presentedEnrollment, enrollment.id == id else { return }
+        presentedEnrollment = nil
+        editingEnrollment = enrollment
+    }
+
+    /// The inline editor ended: a save finishes the enrollment; a cancel shows the destination choice again.
+    func editorFinished(id: UUID, completion: EntryEditCompletion, session expectedSession: Session?) {
+        guard session == expectedSession, let enrollment = editingEnrollment, enrollment.id == id else { return }
+        editingEnrollment = nil
+        guard completion == .cancelled else { return }
+        if enrollment.isExpired(at: now()) {
+            deferAlert(.linkExpired)
+        } else if session?.isUnlocked == true {
+            presentedEnrollment = enrollment
+        }
+    }
+
     @discardableResult
     func discardExpiredEnrollment() -> Bool {
         guard let pendingEnrollment, pendingEnrollment.isExpired(at: now()) else { return false }
@@ -183,6 +207,7 @@ final class TOTPEnrollmentCoordinator {
     func discardEnrollment() {
         pendingEnrollment = nil
         presentedEnrollment = nil
+        editingEnrollment = nil
         deferredPresentation = nil
         destination = nil
     }

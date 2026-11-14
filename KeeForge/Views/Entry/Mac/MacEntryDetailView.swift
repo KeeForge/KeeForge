@@ -164,6 +164,7 @@ struct MacEntryDetailView: View {
                             presentation.beginEntryEdit(entryID: entryID, in: viewModel)
                         }
                         .buttonStyle(.bordered)
+                        .macNeutralTint()
                         .buttonBorderShape(.capsule)
                         .controlSize(.large)
                         .disabled(DatabaseCommands(session: viewModel).canEditEntry == false)

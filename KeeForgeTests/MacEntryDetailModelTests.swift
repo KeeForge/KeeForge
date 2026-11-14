@@ -274,6 +274,48 @@ final class MacEntryDetailModelTests: XCTestCase {
                        "A version that is gone shows nothing")
     }
 
+    func testAProtectedExtraURLIsAProtectedFieldInTheLiveDetailAndInAVersion() async throws {
+        let harness = SecretAccessGateHarness(gracePeriod: .alwaysAsk)
+        let version = KPEntry(title: "Old", customFields: ["KP2A_URL_1": "https://old-secret.example"],
+                              protectedStringKeys: ["KP2A_URL_1"])
+        let entry = KPEntry(
+            title: "Hidden", url: "https://example.com",
+            customFields: ["KP2A_URL_1": "https://secret.example", "KP2A_URL_2": "https://plain.example"],
+            history: [version], protectedStringKeys: ["KP2A_URL_1"]
+        )
+        let session = try await makeSession(entries: [entry], secretAccess: harness.gate)
+        defer { session.lockRequest(force: true) }
+        var copied: [String] = []
+
+        for (source, secret) in [(EntrySource.live(entry.id), "https://secret.example"),
+                                 (.history(entryID: entry.id, index: 0), "https://old-secret.example")] {
+            let model = makeModel(source, session: session) { copied.append($0) }
+            model.appeared()
+            let plainValues = model.fields.compactMap { field -> String? in
+                if case .plain(let value) = field.display { return value }
+                return nil
+            }
+            XCTAssertFalse(plainValues.contains(secret), "\(source): never shown as plain text")
+            let field = try XCTUnwrap(model.fields.first { $0.kind == .custom("KP2A_URL_1") })
+            XCTAssertEqual(field.display, .concealed)
+            XCTAssertTrue(field.isProtected)
+            XCTAssertNil(field.openableURL)
+            XCTAssertTrue(model.fields.allSatisfy { $0.openableURL?.absoluteString != secret })
+
+            harness.promptSucceeds = false
+            for kind in model.fields.map(\.kind) where kind != .password {
+                await model.copy(kind)?.value
+            }
+            XCTAssertFalse(copied.contains(secret), "\(source): a declined prompt copies nothing")
+            harness.promptSucceeds = true
+            await model.copy(.custom("KP2A_URL_1"))?.value
+            XCTAssertEqual(copied.last, secret, "\(source): copied after the gate")
+        }
+        let live = makeModel(.live(entry.id), session: session)
+        XCTAssertEqual(live.fields.filter { if case .website = $0.kind { true } else { false } }.map(\.display),
+                       [.plain("https://example.com"), .plain("https://plain.example")])
+    }
+
     func testHeaderFooterAttachmentsAndTags() async throws {
         let created = Date(timeIntervalSince1970: 1_700_000_000)
         let entry = KPEntry(

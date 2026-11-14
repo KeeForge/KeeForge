@@ -158,23 +158,25 @@ final class MacSmokeUITests: MacUITestCase {
         let search = window.searchFields.firstMatch
         XCTAssertFalse(search.isEnabled, "The search field stayed enabled while the editor was open")
 
+        app.typeText("ZZZ Newly Saved Entry")
         let setUp = window.buttons["entry-edit.totp.enter-link"].firstMatch
         scrollIntoView(setUp)
         setUp.click()
         let linkField = window.sheets.textViews["entry-edit.totp.link-field"].firstMatch
         XCTAssertTrue(linkField.waitForExistence(timeout: 5), "Set Up… did not open its sheet")
         XCTAssertTrue(waitForKeyboardFocus(linkField), "The Set Up sheet did not focus its field")
-        // A sheet over the editor keeps File > Save from saving the entry behind it.
+        app.typeText("JBSWY3DPEHPK3PXP")
+        // With a savable form, a sheet over the editor keeps File > Save from saving the entry behind it.
         typeCommandShortcut("s")
         RunLoop.current.run(until: Date().addingTimeInterval(1))
         XCTAssertTrue(linkField.exists, "⌘S closed the Set Up sheet")
+        XCTAssertEqual(linkField.value as? String, "JBSWY3DPEHPK3PXP", "⌘S dropped the sheet's input")
         XCTAssertTrue(titleField.exists, "⌘S saved the entry behind the Set Up sheet")
         app.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(linkField.waitForNonExistence(timeout: 5), "Escape did not close the Set Up sheet")
         XCTAssertTrue(titleField.exists, "Escape in the Set Up sheet also closed the editor")
+        XCTAssertEqual(titleField.value as? String, "ZZZ Newly Saved Entry")
 
-        titleField.click()
-        app.typeText("ZZZ Newly Saved Entry")
         typeCommandShortcut("s")
         XCTAssertTrue(titleField.waitForNonExistence(timeout: 15), "⌘S did not save the new entry")
         XCTAssertTrue(waitForDisplayText("ZZZ Newly Saved Entry", identifier: "entry.navlink"),
@@ -534,9 +536,15 @@ final class MacSmokeUITests: MacUITestCase {
         window.buttons["entry-edit.password-generator-button"].firstMatch.click()
         let use = app.buttons["password-generator.use"].firstMatch
         XCTAssertTrue(use.waitForExistence(timeout: 5), "Generate did not open the popover")
+        // The popover's suggestion is not in the form yet, so File > Save waits for it to close.
         typeCommandShortcut("s")
-        XCTAssertTrue(titleField.waitForNonExistence(timeout: 15), "⌘S in the generator popover did not save the entry")
-        XCTAssertFalse(use.exists, "The popover outlived its editor")
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
+        XCTAssertTrue(use.exists, "⌘S closed the generator popover")
+        XCTAssertTrue(titleField.exists, "⌘S saved the entry behind the generator popover")
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(use.waitForNonExistence(timeout: 5), "Escape did not close the generator popover")
+        typeCommandShortcut("s")
+        XCTAssertTrue(titleField.waitForNonExistence(timeout: 15), "⌘S did not save the entry")
 
         // The table reconfigures the row in place; its title field carries the new title.
         XCTAssertTrue(

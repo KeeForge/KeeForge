@@ -69,9 +69,16 @@ final class MacEntryEditorSession {
         return String(localized: "This entry can no longer be edited. It may have been deleted, or the database may have been reopened read-only.")
     }
 
+    /// A sheet, popover or alert of the editor is up (Set Up, the generator, Reorder Fields, a
+    /// confirmation). Nothing saves or closes the editor behind it.
+    var isPresentingChild: Bool {
+        get { coordinator.hasPresentedChild }
+        set { coordinator.hasPresentedChild = newValue }
+    }
+
     var canSave: Bool {
         form.canSave && coordinator.isSavingInProgress == false && attachmentLoads.isLoading == false
-            && cannotSaveReason == nil
+            && cannotSaveReason == nil && isPresentingChild == false
     }
 
     var canSaveAndLock: Bool {
@@ -87,6 +94,23 @@ final class MacEntryEditorSession {
     func discard(resuming request: DatabaseViewModel.PendingLockRequest? = nil) {
         concealAll()
         coordinator.discard(resuming: request, onComplete: onComplete)
+    }
+
+    /// A lock or window close is waiting on the editor. Returns whether the view closes its child
+    /// presentations for the prompt: a manual request is declined while one is up, so the user
+    /// finishes it first; an automatic lock closes it, and with a clean form locks at once.
+    @discardableResult
+    func lockRequestArrived() -> Bool {
+        guard let request = coordinator.pendingLockRequest else { return false }
+        guard isPresentingChild else { return true }
+        if request.manuallyTriggered {
+            let coordinator = coordinator
+            Task { await coordinator.continueEditingAfterLockRequest() }
+            return false
+        }
+        isPresentingChild = false
+        if form.isDirty == false { database.resumeLockRequest(request) }
+        return true
     }
 
     func completeAfterConflictIfSettled() {

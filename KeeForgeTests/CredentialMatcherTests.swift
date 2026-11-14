@@ -26,6 +26,17 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertEqual(candidate.urls.first, "https://example.com")
     }
 
+    func testAProtectedExtraURLIsNeitherAWebURLNorACandidateURL() {
+        var entry = makeEntry(title: "Work", url: "https://example.com", customFields: [
+            "KP2A_URL_1": "https://secret.example.com",
+            "KP2A_URL_2": "https://intranet.example.com",
+        ])
+        entry.protectedStringKeys = ["KP2A_URL_1"]
+        XCTAssertEqual(entry.additionalURLs, ["https://intranet.example.com"])
+        XCTAssertEqual(CredentialMatcher.webURLs(of: entry), ["https://example.com", "https://intranet.example.com"])
+        XCTAssertEqual(CredentialMatcher.candidate(entry).urls, ["https://example.com", "https://intranet.example.com"])
+    }
+
     func testWebURLsDropStoredAppIDs() {
         let entry = makeEntry(title: "MyBank", url: "A1B2C3D4E5.com.mybank.app", customFields: ["KP2A_URL_1": "https://mybank.app"])
         XCTAssertEqual(CredentialMatcher.webURLs(of: entry), ["https://mybank.app"])

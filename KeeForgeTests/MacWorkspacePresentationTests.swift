@@ -243,20 +243,33 @@ final class MacWorkspacePresentationTests: XCTestCase {
         let key = try XCTUnwrap(database.sessionKey)
         let form = EntryEditViewModel(editing: try XCTUnwrap(database.entry(withID: entry.id)), sessionKey: key)
         form.title = "Mail with a code"
+        var completions: [EntryEditCompletion] = []
 
-        XCTAssertTrue(presentation.beginEnrollmentEditor(form, in: database))
+        XCTAssertTrue(presentation.beginEnrollmentEditor(form, in: database) { completions.append($0) })
         XCTAssertTrue(presentation.entryEditor?.form === form)
         XCTAssertEqual(database.workspace.selectedGroupID, work.id)
         XCTAssertEqual(database.workspace.selectedEntryID, entry.id, "The edited entry is selected under the editor")
         let other = EntryEditViewModel(createIn: work.id)
-        XCTAssertFalse(presentation.beginEnrollmentEditor(other, in: database), "One editor per window")
+        XCTAssertFalse(presentation.beginEnrollmentEditor(other, in: database) { completions.append($0) },
+                       "One editor per window")
         XCTAssertTrue(presentation.entryEditor?.form === form)
-        presentation.closeEntryEditor()
+        presentation.entryEditor?.discard()
+        XCTAssertNil(presentation.entryEditor)
+        XCTAssertEqual(completions, [.cancelled], "Cancel reaches the enrollment, which shows its destinations again")
+
+        let again = EntryEditViewModel(editing: try XCTUnwrap(database.entry(withID: entry.id)), sessionKey: key)
+        again.title = "Mail with a code"
+        XCTAssertTrue(presentation.beginEnrollmentEditor(again, in: database) { completions.append($0) })
+        await presentation.saveEntryEditor()?.value
+        XCTAssertEqual(completions, [.cancelled, .saved])
+        presentation.beginNewEntry(in: database)
+        presentation.entryEditor?.discard()
+        XCTAssertEqual(completions.count, 2, "Only the enrollment's own editor reports to it")
 
         let readOnly = try await makeDatabase(readOnly: true)
         defer { readOnly.lock() }
         XCTAssertFalse(presentation.beginEnrollmentEditor(EntryEditViewModel(createIn: try XCTUnwrap(readOnly.visibleRootGroupID)),
-                                                          in: readOnly))
+                                                          in: readOnly) { _ in })
     }
 
     func testTheGroupPathWalksUpTheDepthFirstOptions() {

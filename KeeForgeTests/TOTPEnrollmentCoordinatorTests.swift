@@ -196,6 +196,48 @@ final class TOTPEnrollmentCoordinatorTests: XCTestCase {
         XCTAssertNil(routing.presentedEnrollment)
     }
 
+    func testTheMacInlineEditorKeepsTheCodeUntilItSavesAndCancelShowsTheDestinationsAgain() throws {
+        let owner = NSObject()
+        var now = Date(timeIntervalSince1970: 1_000)
+        let routing = TOTPEnrollmentCoordinator(now: { now })
+        let unlocked = session(owner)
+        routing.updateSession(unlocked)
+        routing.receiveEnrollment(try makeURI(account: "incoming"), destination: unlocked)
+        let enrollment = try XCTUnwrap(routing.presentedEnrollment)
+        routing.enrollmentDidAppear(id: enrollment.id, session: unlocked)
+
+        routing.handOffToEditor(id: enrollment.id, session: unlocked)
+        XCTAssertNil(routing.presentedEnrollment, "The sheet closes for the inline editor")
+        routing.editorFinished(id: enrollment.id, completion: .cancelled, session: unlocked)
+        XCTAssertEqual(routing.presentedEnrollment?.id, enrollment.id, "Cancel brings the destination choice back")
+        XCTAssertEqual(routing.presentedEnrollment?.uri, enrollment.uri)
+
+        routing.handOffToEditor(id: enrollment.id, session: unlocked)
+        routing.updateSession(session(owner, lockCycleID: 1, isUnlocked: false))
+        XCTAssertEqual(routing.pendingEnrollment?.id, enrollment.id, "A lock closes the editor and parks the code")
+        let reopened = session(owner, lockCycleID: 1)
+        routing.updateSession(reopened)
+        try completeDeferred(routing)
+        XCTAssertEqual(routing.presentedEnrollment?.id, enrollment.id)
+        routing.enrollmentDidAppear(id: enrollment.id, session: reopened)
+
+        routing.handOffToEditor(id: enrollment.id, session: reopened)
+        routing.editorFinished(id: enrollment.id, completion: .saved, session: reopened)
+        XCTAssertNil(routing.presentedEnrollment)
+        XCTAssertNil(routing.pendingEnrollment)
+        routing.editorFinished(id: enrollment.id, completion: .cancelled, session: reopened)
+        XCTAssertNil(routing.presentedEnrollment, "Saving consumed the code")
+
+        routing.receiveEnrollment(try makeURI(account: "late"), destination: reopened)
+        let late = try XCTUnwrap(routing.presentedEnrollment)
+        routing.handOffToEditor(id: late.id, session: reopened)
+        now = now.addingTimeInterval(PendingTOTPEnrollment.lifetime + 1)
+        routing.editorFinished(id: late.id, completion: .cancelled, session: reopened)
+        XCTAssertNil(routing.presentedEnrollment, "An expired code is not offered again")
+        try completeDeferred(routing)
+        XCTAssertEqual(routing.enrollmentAlert, .linkExpired)
+    }
+
     private func completeDeferred(_ routing: TOTPEnrollmentCoordinator) throws {
         routing.completeDeferredPresentation(id: try XCTUnwrap(routing.deferredPresentation?.id))
     }

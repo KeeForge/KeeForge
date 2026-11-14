@@ -222,7 +222,11 @@ protected field, directly or through other references: the entry list and quick
 search show it as the concealed mask, the detail view shows it as a protected
 field, and Copy Username or Copy URL waits on the same prompt and rechecks as
 Copy Password. Ungated paths resolve only unprotected targets
-([FieldReferenceResolver](../KeeForge/Models/FieldReferenceResolver.swift)). With
+([FieldReferenceResolver](../KeeForge/Models/FieldReferenceResolver.swift)).
+A protected `KP2A_URL_*` field is a protected custom field, not a website: the
+live detail, a History version and its comparison show it concealed with gated
+reveal and copy, and it is never opened, listed as a website, used for AutoFill
+matching or published as a suggestion ([KPEntry.additionalURLFields](../KeeForge/Models/Entry.swift)). With
 the Authentication Grace Period setting at its default, Always Ask, every such
 action prompts. A longer setting (at most five minutes) skips the prompt for that
 long after an unlock or a successful authentication. The grant is held in memory
@@ -508,8 +512,14 @@ or Share on an attachment row, holds at most one per window, and removes it when
 the Quick Look panel gives up control, when the share picker is cancelled or the
 chosen service reports success or failure, when the selected entry changes or
 that attachment changes, when the window closes, and on lock (the session's
-`clear(owner:)` stays as the backstop). A service that never reports back keeps
-its file until one of those triggers. Quick Look's Open with… and the share
+`clear(owner:)` stays as the backstop). Quick Look closing by its own close
+control or the system counts as an end even while the panel keeps this window as
+its controller; hiding while the app is inactive does not. A share callback
+carries the shared file's URL (a picker's cancel, the picker itself), so a late
+callback from an earlier share never removes a newer one. A quit that goes ahead,
+after the unsaved-work prompts, closes every window's preview and removes the
+whole preview directory, since AppKit does not close windows on quit. A service
+that never reports back keeps its file until one of those triggers. Quick Look's Open with… and the share
 recipient may retain their own copies outside KeeForge's control.
 
 The session validates its request after asynchronous loading and immediately

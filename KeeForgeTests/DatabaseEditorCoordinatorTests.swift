@@ -564,6 +564,45 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
         XCTAssertEqual(database.workspace.selectedGroupID, rootID)
     }
 
+    /// Save, conflict, cancel its alert, edit again, then Resolve > Merge Changes and acknowledge.
+    func testInputChangedAfterAConflictedSaveSurvivesTheMergeInAnOpenDirtyEditor() async throws {
+        let remoteData = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        let firstSave = FirstSaveConflicts()
+        let database = try await makeDatabase { _, _, _, hash, reconciledHash, _, _ in
+            if let reconciledHash { return .saved(newSHA512: reconciledHash) }
+            guard await firstSave.isFirst() else { return .saved(newSHA512: hash) }
+            return .conflict(remoteSHA512: FileDigest.sha512(remoteData), remoteData: remoteData)
+        }
+        defer { database.lock() }
+        let entry = try XCTUnwrap(database.rootGroup?.allEntries.first)
+        let form = EntryEditViewModel(editing: entry, sessionKey: try XCTUnwrap(database.sessionKey))
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        var completions: [EntryEditCompletion] = []
+        form.username = "first-attempt"
+
+        await editor.save { completions.append($0) }
+        XCTAssertNotNil(database.saveConflict)
+        form.username = "newer-input"
+        form.password = "newer-password"
+        editor.synchronizeUnsavedChanges()
+
+        try await database.mergeAndSave()
+        database.acknowledgeMergeSummary()
+        editor.completeAfterConflictIfSettled { completions.append($0) }
+
+        XCTAssertTrue(completions.isEmpty, "The editor stays open")
+        XCTAssertEqual(form.username, "newer-input")
+        XCTAssertTrue(form.isDirty)
+        XCTAssertTrue(database.hasUnsavedEditor, "A lock or quit still asks about the newer input")
+        XCTAssertEqual(database.entry(withID: entry.id)?.username, "first-attempt")
+
+        await editor.save { completions.append($0) }
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertEqual(database.entry(withID: entry.id)?.username, "newer-input")
+        XCTAssertFalse(database.isDirty)
+    }
+
     func testGroupConflictWaitsForSuccessfulMergeAndSummaryAcknowledgement() async throws {
         let remoteData = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
         let database = try await makeDatabase { _, _, _, _, reconciledHash, _, _ in
@@ -718,6 +757,14 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
     private final class SaveAction {
         var operation: () -> Void = {}
         func run() { operation() }
+    }
+
+    private actor FirstSaveConflicts {
+        private var count = 0
+        func isFirst() -> Bool {
+            count += 1
+            return count == 1
+        }
     }
 
     private actor SaveAttempts {

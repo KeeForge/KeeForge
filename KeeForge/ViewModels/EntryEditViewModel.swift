@@ -378,24 +378,16 @@ final class EntryEditViewModel {
 
     /// The custom fields left for the Custom Fields section, here and on the
     /// detail screen, once the ones shown as URL rows are taken out.
+    /// An empty `KP2A_URL_*` field stays a custom field so a save never drops it unasked, and a
+    /// protected one stays there to keep its value concealed (`KPEntry.additionalURLFields`).
     static func customFieldsOutsideURLRows(of entry: KPEntry) -> [String: String] {
-        entry.displayCustomFields.filter { isAdditionalURL(key: $0.key, value: $0.value, in: entry) == false }
+        let urlKeys = Set(entry.additionalURLFields.map(\.key))
+        return entry.displayCustomFields.filter { urlKeys.contains($0.key) == false }
     }
 
     /// In `KPEntry.additionalURLs` order, so row numbers match the detail screen.
     private static func additionalURLs(of entry: KPEntry) -> [AdditionalURL] {
-        entry.customFields
-            .filter { isAdditionalURL(key: $0.key, value: $0.value, in: entry) }
-            .sorted { $0.key < $1.key }
-            .map { AdditionalURL(key: $0.key, value: $0.value) }
-    }
-
-    /// An empty field stays a custom field so a save never drops it unasked,
-    /// and a protected one stays there to keep its value concealed.
-    private static func isAdditionalURL(key: String, value: String, in entry: KPEntry) -> Bool {
-        key.hasPrefix(additionalURLKeyPrefix)
-            && value.isEmpty == false
-            && entry.protectedStringKeys.contains(key) == false
+        entry.additionalURLFields.map { AdditionalURL(key: $0.key, value: $0.value) }
     }
 
     private static func written(_ additionalURLs: [AdditionalURL]) -> [AdditionalURL] {

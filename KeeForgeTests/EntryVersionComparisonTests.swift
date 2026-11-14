@@ -106,6 +106,19 @@ final class EntryVersionComparisonTests: XCTestCase {
         XCTAssertEqual(comparison.current(.website(1)), .text("https://docs.github.com"))
     }
 
+    func testAProtectedExtraURLIsComparedAsAConcealedCustomFieldNotAWebsite() throws {
+        var current = try makeEntry()
+        current.customFields["KP2A_URL_2"] = "https://secret.example"
+        current.protectedStringKeys.insert("KP2A_URL_2")
+        var version = current
+        version.customFields["KP2A_URL_2"] = "https://old-secret.example"
+
+        let comparison = compare(version, current)
+
+        XCTAssertEqual(comparison.differences.map(\.field), [.custom("KP2A_URL_2")])
+        XCTAssertEqual(comparison.current(.custom("KP2A_URL_2")), .concealed)
+    }
+
     func testCustomFieldsOnlyOneSideHasAreDifferencesInCurrentOrderThenTheVersions() throws {
         let current = try makeEntry()
         var version = current

@@ -4,6 +4,8 @@ import Quartz
 /// The system Quick Look panel, behind a seam so tests never show it.
 @MainActor
 protocol MacPreviewPanelPresenting: AnyObject {
+    /// The panel went off screen by any route: its own close control, the system, or `close`.
+    var onHide: (@MainActor () -> Void)? { get set }
     func show()
     func reload()
     /// Closes the panel if `controller` controls it.
@@ -12,10 +14,48 @@ protocol MacPreviewPanelPresenting: AnyObject {
 
 @MainActor
 final class MacSystemPreviewPanel: MacPreviewPanelPresenting {
+    var onHide: (@MainActor () -> Void)?
+    private var observers: [NSObjectProtocol] = []
+    private var isAppActive = true
+
     func show() {
         guard let panel = QLPreviewPanel.shared() else { return }
+        observeHiding(of: panel)
         panel.updateController()
         panel.makeKeyAndOrderFront(nil)
+    }
+
+    /// Quick Look may keep its controller while hidden, so control ending is not enough: a close
+    /// posts `willClose`, an order-out only changes occlusion. The panel also hides while the app
+    /// is inactive and comes back with it, which is not an end.
+    private func observeHiding(of panel: QLPreviewPanel) {
+        guard observers.isEmpty else { return }
+        let center = NotificationCenter.default
+        let hidden: @Sendable (Notification) -> Void = { [weak self] notification in
+            let closing = notification.name == NSWindow.willCloseNotification
+            let window = notification.object as? NSWindow
+            MainActor.assumeIsolated {
+                guard let self, closing || (self.isAppActive && window?.isVisible == false) else { return }
+                self.onHide?()
+            }
+        }
+        let activity: @Sendable (Notification) -> Void = { [weak self] notification in
+            let active = notification.name == NSApplication.didBecomeActiveNotification
+            MainActor.assumeIsolated { self?.isAppActive = active }
+        }
+        observers = [
+            center.addObserver(forName: NSWindow.willCloseNotification, object: panel, queue: .main, using: hidden),
+            center.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: panel, queue: .main,
+                               using: hidden),
+            center.addObserver(forName: NSApplication.willResignActiveNotification, object: nil, queue: .main,
+                               using: activity),
+            center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main,
+                               using: activity),
+        ]
+    }
+
+    isolated deinit {
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
     }
 
     func reload() {
@@ -37,7 +77,8 @@ final class MacSystemPreviewPanel: MacPreviewPanelPresenting {
 @MainActor
 final class MacAttachmentPreviewController: NSResponder, QLPreviewPanelDataSource, QLPreviewPanelDelegate,
     NSSharingServicePickerDelegate, NSSharingServiceDelegate {
-    typealias SharePickerPresenter = @MainActor (URL, NSView, MacAttachmentPreviewController) -> Void
+    /// Returns the picker it showed, whose callbacks then belong to that share.
+    typealias SharePickerPresenter = @MainActor (URL, NSView, MacAttachmentPreviewController) -> NSSharingServicePicker?
 
     let previews: AttachmentPreviewSession
     private let database: DatabaseViewModel
@@ -47,6 +88,8 @@ final class MacAttachmentPreviewController: NSResponder, QLPreviewPanelDataSourc
     private weak var window: NSWindow?
     private weak var shareAnchor: NSView?
     private var presentedShareURL: URL?
+    /// The picker shown for `presentedShareURL`; an older picker's cancel is ignored.
+    private weak var presentedSharePicker: NSSharingServicePicker?
     private(set) var isControllingPanel = false
 
     /// `previews` belongs to `database`'s window; `currentSession` is that window's while it owns it.
@@ -61,6 +104,7 @@ final class MacAttachmentPreviewController: NSResponder, QLPreviewPanelDataSourc
         self.panel = panel
         self.presentSharePicker = presentSharePicker
         super.init()
+        panel.onHide = { [weak self] in self?.panelHid() }
         observation.start(reading: { [weak self] in
             self?.readState()
         }, onChange: { [weak self] _ in
@@ -145,20 +189,23 @@ final class MacAttachmentPreviewController: NSResponder, QLPreviewPanelDataSourc
             guard presentedShareURL != url else { return }
             presentedShareURL = url
             guard let anchor = shareAnchor ?? window?.contentView else {
-                previews.shareFinished()
+                previews.shareFinished(url)
                 return
             }
-            presentSharePicker(url, anchor, self)
+            presentedSharePicker = presentSharePicker(url, anchor, self)
         case .idle, .loading, .unavailable:
             presentedShareURL = nil
             panel.close(controlledBy: self)
         }
     }
 
-    static func showSystemSharePicker(_ url: URL, from anchor: NSView, delegate: MacAttachmentPreviewController) {
+    static func showSystemSharePicker(
+        _ url: URL, from anchor: NSView, delegate: MacAttachmentPreviewController
+    ) -> NSSharingServicePicker? {
         let picker = NSSharingServicePicker(items: [url])
         picker.delegate = delegate
         picker.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
+        return picker
     }
 
     // MARK: - QLPreviewPanelController
@@ -181,12 +228,22 @@ final class MacAttachmentPreviewController: NSResponder, QLPreviewPanelDataSourc
             isControllingPanel = false
             if panel?.dataSource === self { panel?.dataSource = nil }
             if panel?.delegate === self { panel?.delegate = nil }
-            switch previews.state {
-            case .loading(let request) where request.purpose == .preview:
-                previews.close()
-            default:
-                previews.previewEnded()
-            }
+            endPreview()
+        }
+    }
+
+    /// The panel left the screen while this window's preview was in it.
+    private func panelHid() {
+        guard isControllingPanel else { return }
+        endPreview()
+    }
+
+    private func endPreview() {
+        switch previews.state {
+        case .loading(let request) where request.purpose == .preview:
+            previews.close()
+        default:
+            previews.previewEnded()
         }
     }
 
@@ -221,18 +278,26 @@ final class MacAttachmentPreviewController: NSResponder, QLPreviewPanelDataSourc
 
     nonisolated func sharingServicePicker(_ sharingServicePicker: NSSharingServicePicker, didChoose service: NSSharingService?) {
         let cancelled = service == nil
+        let picker = ObjectIdentifier(sharingServicePicker)
         MainActor.assumeIsolated {
-            if cancelled { previews.shareFinished() }
+            guard cancelled, presentedSharePicker.map(ObjectIdentifier.init) == picker,
+                  let url = presentedShareURL else { return }
+            previews.shareFinished(url)
         }
     }
 
     // MARK: - NSSharingServiceDelegate
 
     func sharingService(_ sharingService: NSSharingService, didShareItems items: [Any]) {
-        previews.shareFinished()
+        shareFinished(items)
     }
 
     func sharingService(_ sharingService: NSSharingService, didFailToShareItems items: [Any], error: any Error) {
-        previews.shareFinished()
+        shareFinished(items)
+    }
+
+    /// A service's callback carries the items it was given, which name the share's file.
+    private func shareFinished(_ items: [Any]) {
+        for case let url as URL in items { previews.shareFinished(url) }
     }
 }

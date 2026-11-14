@@ -129,10 +129,6 @@ struct EntryVersionComparison: Equatable {
 
     /// The entry's URL, then its extra URL rows as `KPEntry.additionalURLs` orders them, with their storage keys.
     private static func websites(of entry: KPEntry) -> [(key: String, value: String)] {
-        let extra = entry.customFields
-            .filter { $0.key.hasPrefix(EntryEditViewModel.additionalURLKeyPrefix) && $0.value.isEmpty == false }
-            .sorted { $0.key < $1.key }
-            .map { (key: $0.key, value: $0.value) }
-        return [(key: "URL", value: entry.url)] + extra
+        [(key: "URL", value: entry.url)] + entry.additionalURLFields
     }
 }

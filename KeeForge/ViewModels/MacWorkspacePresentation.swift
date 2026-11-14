@@ -7,8 +7,15 @@ final class MacWorkspacePresentation {
     /// The inline entry editor in the detail column. While it is open the lists, search, New
     /// Entry and the commands that would leave it are frozen (`freezesWorkspace`).
     private(set) var entryEditor: MacEntryEditorSession? {
-        didSet { if entryEditor == nil { selectsCreatedEntryInPlace = false } }
+        didSet {
+            if entryEditor == nil {
+                selectsCreatedEntryInPlace = false
+                enrollmentCompletion = nil
+            }
+        }
     }
+    /// The enrollment that opened the editor hears how it ended.
+    @ObservationIgnored private var enrollmentCompletion: (@MainActor (EntryEditCompletion) -> Void)?
     /// A duplicate made from search results or a tag selects the copy where the
     /// list is, instead of revealing it in its group.
     private(set) var selectsCreatedEntryInPlace = false
@@ -79,15 +86,22 @@ final class MacWorkspacePresentation {
 
     /// A verification code from an `otpauth://` link, applied to a form the enrollment sheet
     /// built: an edit selects its entry first, so the column and the commands agree on it.
+    /// `onComplete` hears a save, or a cancel, which returns to the destination choice.
     @discardableResult
-    func beginEnrollmentEditor(_ editor: EntryEditViewModel, in database: DatabaseViewModel) -> Bool {
+    func beginEnrollmentEditor(
+        _ editor: EntryEditViewModel,
+        in database: DatabaseViewModel,
+        onComplete: @escaping @MainActor (EntryEditCompletion) -> Void
+    ) -> Bool {
         guard entryEditor == nil, database.state == .unlocked, database.isReadOnly == false else { return false }
         if case .edit(let entryID) = editor.mode {
             guard database.entry(withID: entryID) != nil else { return false }
             database.workspace.endEntrySelection()
             database.revealEntry(entryID)
         }
-        return openEntryEditor(editor, in: database)
+        guard openEntryEditor(editor, in: database) else { return false }
+        enrollmentCompletion = onComplete
+        return true
     }
 
     @discardableResult
@@ -111,7 +125,9 @@ final class MacWorkspacePresentation {
            database.entry(withID: entryID) == nil {
             database.workspace.selectedEntryID = nil
         }
+        let enrollmentCompletion = enrollmentCompletion
         closeEntryEditor()
+        enrollmentCompletion?(completion)
     }
 
     /// Closes the editor without saving, dropping its registration, imports and reveals.

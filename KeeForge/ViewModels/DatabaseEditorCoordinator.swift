@@ -8,6 +8,11 @@ final class DatabaseEditorCoordinator {
         case group(GroupEditViewModel)
     }
 
+    private enum SubmittedForm: Equatable {
+        case entry(EntryDraftPayload)
+        case group(GroupDraftPayload)
+    }
+
     private struct StagedCreation {
         let entryID: UUID
         var parentGroupID: UUID
@@ -22,8 +27,16 @@ final class DatabaseEditorCoordinator {
     private var activatedLockCycle = 0
     private var completionGate = EntryEditCompletionGate()
     private var stagedCreation: StagedCreation?
+    /// The form as the last save applied it, so a conflict's held completion never closes newer input.
+    /// It holds no more than the open form does and goes when the editor deactivates.
+    private var submittedForm: SubmittedForm?
     private(set) var isSubmitting = false
     var errorMessage: String?
+    /// A sheet or popover over the editor holds input the form does not have yet, so a lock,
+    /// close or quit asks the editor even while the form itself is clean.
+    var hasPresentedChild = false {
+        didSet { synchronizeUnsavedChanges() }
+    }
 
     init(entry: EntryEditViewModel, database: DatabaseViewModel) {
         form = .entry(entry)
@@ -52,7 +65,7 @@ final class DatabaseEditorCoordinator {
     var isSavingInProgress: Bool { isSubmitting || database.isSaving }
 
     var pendingLockRequest: DatabaseViewModel.PendingLockRequest? {
-        guard isDirty, let request = database.pendingLockRequest,
+        guard isDirty || hasPresentedChild, let request = database.pendingLockRequest,
               request.reason == .openEditor else { return nil }
         return request
     }
@@ -77,13 +90,14 @@ final class DatabaseEditorCoordinator {
 
     func synchronizeUnsavedChanges() {
         guard isActive else { return }
-        database.setEditorHasUnsavedChanges(isDirty, editorID: editorID)
+        database.setEditorHasUnsavedChanges(isDirty || hasPresentedChild, editorID: editorID)
     }
 
     func deactivate() {
         isActive = false
         lifetime = UUID()
         completionGate = EntryEditCompletionGate()
+        submittedForm = nil
         database.setEditorHasUnsavedChanges(false, editorID: editorID)
     }
 
@@ -104,7 +118,20 @@ final class DatabaseEditorCoordinator {
     func completeAfterConflictIfSettled(onComplete: (EntryEditCompletion) -> Void) {
         guard isActive, database.lockCycleID == activatedLockCycle, isSubmitting == false,
               let completion = completionGate.conflictSettled(conflictHasSettled) else { return }
+        // Edited again after the conflicted save: the merge wrote the earlier fields, so the editor
+        // stays open and dirty with the newer ones.
+        guard submittedForm == currentForm else {
+            synchronizeUnsavedChanges()
+            return
+        }
         onComplete(completion)
+    }
+
+    private var currentForm: SubmittedForm {
+        switch form {
+        case .entry(let entry): .entry(entry.entryDraftPayload)
+        case .group(let group): .group(group.makeDraftPayload())
+        }
     }
 
     func save(
@@ -132,6 +159,7 @@ final class DatabaseEditorCoordinator {
         }
 
         // Once applied, unsaved changes belong to the database draft.
+        submittedForm = currentForm
         database.setEditorHasUnsavedChanges(false, editorID: editorID)
         let completion: EntryEditCompletion
         if request == nil, let stagedCreation {

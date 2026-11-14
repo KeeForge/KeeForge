@@ -96,7 +96,10 @@ struct MacEntryHistorySheet: View {
                                     .foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 0)
-                            StatusBadge(text: String(localized: "Current"), tone: .accent)
+                            Text("Current")
+                                .font(.caption2.weight(.bold))
+                                .textCase(.uppercase)
+                                .kerning(0.4)
                         }
                         .selectionDisabled()
                         .accessibilityElement(children: .combine)
@@ -279,7 +282,7 @@ private struct MacHistoryCard: View {
 }
 
 /// One version field: its value (masked while protected and not revealed), the "Now:" line and
-/// the Changed badge when it differs, and Show and Copy, which take the gate.
+/// the Changed badge when it differs, and for a protected value Show and Copy, which take the gate.
 private struct MacHistoryFieldRow: View {
     let field: MacEntryField
     let model: MacEntryDetailModel
@@ -302,7 +305,8 @@ private struct MacHistoryFieldRow: View {
                 .accessibilityIdentifier(field.kind == .password ? "entry-history.password.reveal"
                                          : "entry-history.protected-field.\(normalizedLabel).reveal")
             }
-            if field.canCopy && field.kind != .verificationCode {
+            // Plain values are selectable text; only a protected one has a (gated) copy button.
+            if field.isProtected && field.canCopy {
                 MacCopyButton(kind: field.kind, label: String(localized: "Copy \(field.label)"),
                               identifier: "entry-history.copy.\(copyKey)", model: model)
             }

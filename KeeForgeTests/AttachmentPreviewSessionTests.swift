@@ -22,7 +22,7 @@ final class AttachmentPreviewSessionTests: XCTestCase {
         XCTAssertEqual(url.lastPathComponent, "report.txt")
         XCTAssertNil(previews.shareURL)
 
-        previews.shareFinished()
+        previews.shareFinished(url)
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path), "Only a share's end removes a shared file")
         previews.previewEnded()
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
@@ -43,7 +43,9 @@ final class AttachmentPreviewSessionTests: XCTestCase {
 
         previews.previewEnded()
         XCTAssertTrue(FileManager.default.fileExists(atPath: shared.path))
-        previews.shareFinished()
+        previews.shareFinished(preview)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: shared.path), "An earlier file's callback leaves this share")
+        previews.shareFinished(shared)
         XCTAssertFalse(FileManager.default.fileExists(atPath: shared.path))
         XCTAssertEqual(previews.state, .idle)
     }

@@ -90,9 +90,10 @@ final class AttachmentPreviewSession {
         if case .previewing = state { close() }
     }
 
-    /// The share picker or the chosen service finished, successfully or not.
-    func shareFinished() {
-        if case .sharing = state { close() }
+    /// The share of the file at `url` finished, successfully or not. A late callback from an
+    /// earlier share names that share's file, so it never removes a newer one.
+    func shareFinished(_ url: URL) {
+        if case .sharing(_, url) = state { close() }
     }
 
     /// Called when the lock cycle, the selected entry, the window's session or the entry's content

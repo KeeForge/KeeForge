@@ -52,9 +52,14 @@ private struct MacEnrollmentPresentation: ViewModifier {
         content
             .sheet(item: presentedEnrollment) { pending in
                 if enrollment.canApplyEnrollment(id: pending.id, session: routingSession) {
-                    TOTPEnrollmentDestinationView(databaseViewModel: session, uri: pending.uri) {
-                        enrollment.cancelEnrollment(id: pending.id, session: routingSession)
-                    }
+                    TOTPEnrollmentDestinationView(
+                        databaseViewModel: session, uri: pending.uri,
+                        onFinished: { enrollment.cancelEnrollment(id: pending.id, session: routingSession) },
+                        onEditorOpened: { enrollment.handOffToEditor(id: pending.id, session: routingSession) },
+                        onEditorFinished: {
+                            enrollment.editorFinished(id: pending.id, completion: $0, session: routingSession)
+                        }
+                    )
                     .onAppear { enrollment.enrollmentDidAppear(id: pending.id, session: routingSession) }
                     .id("\(pending.id)-\(session.lockCycleID)")
                     .macSheetFrame()
