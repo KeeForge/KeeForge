@@ -2852,6 +2852,17 @@ final class DatabaseViewModel {
         switch saveResult {
         case .saved(let newSHA512, _, let localCommit),
              .committedWithoutConfirmedDurability(let newSHA512, _, let localCommit, _):
+            // Preserve this session's known ciphertext even when registry publication is unavailable.
+            if !databaseReference.isCloudBacked, let localCommit,
+               localCommit.databaseID == databaseReference.id, localCommit.sha512 == newSHA512,
+               localCommit.encryptedSnapshot != nil, expectedLockCycleID == lockCycleID,
+               keyCommitPublicationActionID == actionID, case .unlocked = state {
+                rememberCommittedCiphertext(localCommit)
+                self.compositeKey = newCompositeKey
+                sessionKeyFileData = newKeyFileData
+                self.openTimeSHA512 = newSHA512
+                quickUnlockItemHoldsSessionKey = false
+            }
             // Keychain and reference reflect the on-disk file, so they update
             // even if the session locked mid-flight; the in-memory secrets must
             // not resurrect behind the lock screen. The express item belonged
@@ -3151,6 +3162,21 @@ final class DatabaseViewModel {
         }
     }
 
+    nonisolated static func verifyRecoveryExport(_ bytes: Data, draft: DatabaseDraft, compositeKey: SymmetricKey) throws {
+        guard let expectedPool = draft.binaryPoolFields else { throw SaveError.saveContextUnavailable }
+        let opened = try KDBXParser.parse(data: bytes, compositeKey: compositeKey,
+            sessionKey: draft.writerSessionKey, kdfPolicy: .mainApp)
+        let expected = try KDBXWriter.document(rootGroup: draft.rootGroup, meta: draft.meta, sessionKey: draft.writerSessionKey)
+        let actual = try KDBXWriter.document(rootGroup: opened.rootGroup, meta: opened.meta, sessionKey: draft.writerSessionKey)
+        // Compare the representable XML, including the writer's timestamp precision.
+        let comparisonKey = try SecureRandom.data(count: 64)
+        let expectedXML = try expected.serialized(innerStream: .chaCha20, innerStreamKey: comparisonKey)
+        let actualXML = try actual.serialized(innerStream: .chaCha20, innerStreamKey: comparisonKey)
+        guard expectedXML == actualXML, expectedPool == opened.header.innerHeaderBinaryFields else {
+            throw SaveError.reencryptionVerificationFailed
+        }
+    }
+
     func makeLocalRecoveryExport() async throws -> DatabaseExportService.ExportPayload {
         guard !isReadOnly else { throw SaveError.databaseIsReadOnly }
         guard !databaseReference.isCloudBacked, case .unlocked = state,
@@ -3163,14 +3189,7 @@ final class DatabaseViewModel {
             guard !Task.isCancelled, cycle == lockCycleID, revision == contentRevision, case .unlocked = state else { throw SaveError.saveContextUnavailable }
             let bytes = try await encrypt(draft, compositeKey, source)
             try await Task.detached {
-                guard let expectedPool = draft.binaryPoolFields else { throw SaveError.saveContextUnavailable }
-                let opened = try KDBXParser.parse(data: bytes, compositeKey: compositeKey,
-                    sessionKey: draft.writerSessionKey, kdfPolicy: .mainApp)
-                let expected = try KDBXWriter.document(rootGroup: draft.rootGroup, meta: draft.meta, sessionKey: draft.writerSessionKey)
-                let actual = try KDBXWriter.document(rootGroup: opened.rootGroup, meta: opened.meta, sessionKey: draft.writerSessionKey)
-                guard expected == actual, expectedPool == opened.header.innerHeaderBinaryFields else {
-                    throw SaveError.reencryptionVerificationFailed
-                }
+                try Self.verifyRecoveryExport(bytes, draft: draft, compositeKey: compositeKey)
             }.value
             guard !Task.isCancelled, cycle == lockCycleID, revision == contentRevision, case .unlocked = state else { throw SaveError.saveContextUnavailable }
             let copyName = DatabaseExportService.currentCopyFilename(for: reference, date: conflictCopyDateProvider(), timeZone: .current)

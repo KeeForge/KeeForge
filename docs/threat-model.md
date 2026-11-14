@@ -268,3 +268,5 @@ expiry deletes Keychain items only after releasing it. Missing-date and interval
 policies are unchanged. Separate app/extension processes still do not share that
 mutex: shared-UserDefaults RMW remains nontransactional across processes, and no
 atomic Keychain/date update or persistence-after-power-loss guarantee is claimed.
+
+Local recovery export compares the complete canonical KDBX XML representation and its binary pool; an in-memory fractional timestamp alone is not evidence that an export lost data. A known installed local rekey receipt can preserve its originating unlocked session’s key/SHA/ciphertext when registry publication is unavailable, while persistent key/association effects retain current-owner authorization and lock/new-session revocation. Healthy idle pending sources remain owned across a conflict Reload; only verified durable merge retirement permits publication of the corresponding merged shared copy.

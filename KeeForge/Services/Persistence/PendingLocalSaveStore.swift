@@ -444,9 +444,16 @@ enum PendingLocalSaveStore {
                 try requireNotRemoved(databaseID)
                 let state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
                 if case .known(let date, _) = state.epoch, date != reference.lastMasterKeyChangeAt { return true }
-                let hasPayload = try !sourceURLs(databaseID).isEmpty
-                return state.operation != .idle || state.retirementID != nil || state.keyEvidence != nil
-                    || !state.sources.isEmpty || hasPayload
+                guard state.operation == .idle, state.retirementID == nil, state.keyEvidence == nil else { return true }
+                let urls = try sourceURLs(databaseID)
+                for url in urls {
+                    let current = try receipt(at: url, databaseID: databaseID)
+                    try validateEligible(current, state: state, databaseID: databaseID)
+                }
+                return state.sources.contains { source in
+                    guard case .eligible(let expected) = source.phase else { return true }
+                    return !urls.contains { relativePath($0, databaseID: databaseID) == expected.relativePath }
+                }
             }
         } catch { return true }
     }

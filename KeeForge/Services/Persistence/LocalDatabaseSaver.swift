@@ -754,6 +754,11 @@ enum LocalDatabaseSaver {
                 }, io: io)
             }
             guard completion == .resolved else { return completion }
+            if receipt.purpose == .merge, let bytes = receipt.encryptedSnapshot,
+               FileDigest.sha512(bytes) == receipt.sha512 {
+                do { try cacheLocalSnapshot(bytes, for: reference) }
+                catch { invalidateOlderLocalCache(for: reference, installedSHA512: receipt.sha512) }
+            }
             return retireSettledKeyWitness(for: reference, io: io)
         } catch { return .retainedForRecovery }
     }
