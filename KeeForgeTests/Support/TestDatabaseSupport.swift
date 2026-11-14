@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import XCTest
 @testable import KeeForge
@@ -8,6 +9,36 @@ enum TestDatabaseSupport {
             return rootGroup.groups[0].id
         }
         return rootGroup.id
+    }
+
+    /// A session unlocked from the bundled `test` database whose reloads give `root` instead of its tree.
+    @MainActor
+    static func makeUnlockedSession(
+        root: KPGroup,
+        key: SymmetricKey = SymmetricKey(size: .bits256),
+        binaryPool: BinaryPool = BinaryPool(rawFields: []),
+        secretAccess: SecretAccessGate = SecretAccessGate(),
+        bundle: Bundle
+    ) async throws -> DatabaseViewModel {
+        let reference = try makeReference(for: fixtureURL(named: "test", bundle: bundle), autoFillEnabled: false)
+        let session = DatabaseViewModel(
+            databaseReference: reference,
+            localSaveOperation: { _, _, _, hash, _, _, _ in .saved(newSHA512: hash) },
+            reloadOperation: { reference, _ in
+                DatabaseViewModel.ReloadedDatabase(
+                    reference: reference, rootGroup: root,
+                    meta: KPMeta(recycleBin: root.recycleBinUUID.map { .group($0) }),
+                    formatVersion: .kdbx4(minor: 1), sessionKey: key,
+                    openTimeSHA512: Data("injected-tree".utf8), binaryPool: binaryPool
+                )
+            },
+            quickUnlockKeyPersistOperation: { _, _, _ in false },
+            storedKeyPresenceCheck: { _ in false },
+            secretAccess: secretAccess
+        )
+        await session.unlock(password: "testpassword123")
+        try await session.reloadDiscardingDraft()
+        return session
     }
 
     static func fixtureURL(

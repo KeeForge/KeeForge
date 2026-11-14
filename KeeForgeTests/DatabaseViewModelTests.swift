@@ -4677,6 +4677,28 @@ final class DatabaseViewModelTests: XCTestCase {
         )
     }
 
+    func testInheritedTagSourcesNameTheRootMostGroupCarryingEachTag() async throws {
+        let entry = KPEntry(title: "Deploy", tags: ["own", "shared"], hasTagsElement: true)
+        let atRoot = KPEntry(title: "At Root")
+        let clientWork = KPGroup(name: "Client / Work", tags: ["billable", "team", "shared"], hasTagsElement: true,
+                                 entries: [entry])
+        let projects = KPGroup(name: "Projects", tags: ["team"], hasTagsElement: true, groups: [clientWork])
+        let root = KPGroup(name: "Root", entries: [atRoot], groups: [projects])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(vm.inheritedTagSources(forEntryID: entry.id), [
+            DatabaseViewModel.InheritedTagSource(tag: "team", groupID: projects.id, groupName: "Projects"),
+            DatabaseViewModel.InheritedTagSource(tag: "billable", groupID: clientWork.id, groupName: "Client / Work"),
+        ], "Same order as the inherited chips; a tag the entry owns is not inherited")
+        XCTAssertEqual(vm.inheritedTagSources(forEntryID: entry.id).map(\.tag), vm.detailTags(forEntryID: entry.id).inherited)
+        XCTAssertEqual(vm.inheritedTagSources(forEntryID: atRoot.id), [])
+        XCTAssertEqual(vm.inheritedTagSources(forEntryID: UUID()), [])
+        XCTAssertEqual(vm.folderPathComponents(forEntryID: entry.id), ["Projects", "Client / Work"],
+                       "A group name holding the separator stays one component")
+        XCTAssertEqual(vm.folderPath(forEntryID: entry.id), "Projects / Client / Work")
+        XCTAssertNil(vm.folderPathComponents(forEntryID: atRoot.id))
+    }
+
     func testRootGroupTagReachesAllLiveEntries() async throws {
         let atRoot = KPEntry(title: "At Root")
         let nested = KPEntry(title: "Nested")

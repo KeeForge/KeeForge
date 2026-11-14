@@ -619,7 +619,7 @@ final class DatabaseViewModel {
     private var entryParentGroupIDs: [UUID: UUID] = [:]
     /// Ancestor group names below the visible root per entry, joined with
     /// " / ". Entries sitting directly under the visible root are absent.
-    private var entryFolderPaths: [UUID: String] = [:]
+    private var entryFolderPaths: [UUID: [String]] = [:]
     private var recycleBinEntryIDs: Set<UUID> = []
     private var recycleBinGroupIDs: Set<UUID> = []
     /// Groups whose resolved `<EnableSearching>` is false, including the ones
@@ -1509,6 +1509,40 @@ final class DatabaseViewModel {
         return (own, Array(effective.dropFirst(own.count)))
     }
 
+    struct InheritedTagSource: Equatable {
+        let tag: String
+        let groupID: UUID
+        let groupName: String
+    }
+
+    /// `detailTags(forEntryID:).inherited`, each with the root-most ancestor group carrying it:
+    /// the one whose occurrence `effectiveTags` keeps. Empty for an unknown entry.
+    func inheritedTagSources(forEntryID entryID: UUID) -> [InheritedTagSource] {
+        _ = contentRevision
+        let inherited = detailTags(forEntryID: entryID).inherited
+        guard inherited.isEmpty == false, let root = currentRootGroup,
+              let parentID = entryParentGroupIDs[entryID],
+              let chain = Self.groupChain(to: parentID, in: root) else { return [] }
+        var sources: [String: KPGroup] = [:]
+        for group in chain {
+            for tag in TagNormalizer.tags(from: group.tags) where sources[tag] == nil {
+                sources[tag] = group
+            }
+        }
+        return inherited.compactMap { tag in
+            sources[tag].map { InheritedTagSource(tag: tag, groupID: $0.id, groupName: $0.name) }
+        }
+    }
+
+    /// The groups from `root` down to `groupID`, both included.
+    private static func groupChain(to groupID: UUID, in root: KPGroup) -> [KPGroup]? {
+        if root.id == groupID { return [root] }
+        for child in root.groups {
+            if let chain = groupChain(to: groupID, in: child) { return [root] + chain }
+        }
+        return nil
+    }
+
     /// Decoded image data of the entry's custom icon, if the database defines
     /// one for it in `Meta/CustomIcons`.
     func customIconData(for entry: KPEntry) -> Data? {
@@ -1600,6 +1634,11 @@ final class DatabaseViewModel {
     /// ("Parent / Child"). `nil` for entries sitting directly under the
     /// visible root and for unknown IDs.
     func folderPath(forEntryID entryID: UUID) -> String? {
+        folderPathComponents(forEntryID: entryID).map { $0.joined(separator: " / ") }
+    }
+
+    /// `folderPath(forEntryID:)` as group names, so a name containing " / " stays one component.
+    func folderPathComponents(forEntryID entryID: UUID) -> [String]? {
         _ = contentRevision
         return entryFolderPaths[entryID]
     }
@@ -4209,7 +4248,7 @@ final class DatabaseViewModel {
         var nextTagEntryIDs: [String: [UUID]] = [:]
         var nextGroupInheritedTags: [UUID: [String]] = [:]
         var nextEntryParentGroupIDs: [UUID: UUID] = [:]
-        var nextEntryFolderPaths: [UUID: String] = [:]
+        var nextEntryFolderPaths: [UUID: [String]] = [:]
         var nextRecycleBinEntryIDs = Set<UUID>()
         var nextRecycleBinGroupIDs = Set<UUID>()
         var nextAutoFillExcludedGroupIDs = Set<UUID>()
@@ -4260,7 +4299,7 @@ final class DatabaseViewModel {
                 nextEntryIndex[entry.id] = entry
                 nextEntryParentGroupIDs[entry.id] = group.id
                 if folderPath.isEmpty == false {
-                    nextEntryFolderPaths[entry.id] = folderPath.joined(separator: " / ")
+                    nextEntryFolderPaths[entry.id] = folderPath
                 }
                 totalEntryCount += 1
                 if includeInSearch {

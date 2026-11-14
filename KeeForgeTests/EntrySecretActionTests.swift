@@ -369,6 +369,42 @@ final class EntrySecretActionTests: XCTestCase {
         }
     }
 
+    func testDiscloseEntrySecretAlsoNeedsTheCallersCheckAndAValueAfterAuthentication() async throws {
+        let session = try await makeCommandSession()
+        defer { session.lockRequest(force: true) }
+        let entryID = try XCTUnwrap(session.workspace.selectedEntryID)
+        let action = EntrySecretAction()
+        var stillShown = true
+        var disclosed: [String] = []
+        func disclose(value: String?, duringPrompt: () -> Void = {}) async throws -> Task<Void, Never> {
+            let authentication = SuspendedAuthentication()
+            let task = try XCTUnwrap(DatabaseCommands.discloseEntrySecret(
+                entryID: entryID, in: session, action: action, reason: "Test",
+                currentSession: { session }, authenticate: authentication.authenticate,
+                isCurrent: { stillShown }, value: { _ in value }, disclose: { disclosed.append($0) }
+            ))
+            await authentication.waitUntilRequested()
+            XCTAssertTrue(disclosed.isEmpty, "Nothing before authentication")
+            duringPrompt()
+            authentication.complete()
+            return task
+        }
+
+        try await disclose(value: "secret", duringPrompt: { stillShown = false }).value
+        XCTAssertTrue(disclosed.isEmpty, "The caller's own check failing after the prompt discloses nothing")
+        stillShown = true
+        try await disclose(value: nil).value
+        XCTAssertTrue(disclosed.isEmpty, "A value that is gone by then discloses nothing")
+        try await disclose(value: "secret").value
+        XCTAssertEqual(disclosed, ["secret"])
+        XCTAssertFalse(action.isAuthenticating)
+        stillShown = false
+        XCTAssertNil(DatabaseCommands.discloseEntrySecret(
+            entryID: entryID, in: session, action: action, reason: "Test", currentSession: { session },
+            authenticate: {}, isCurrent: { stillShown }, value: { _ in "secret" }, disclose: { disclosed.append($0) }
+        ), "A failing check starts no prompt")
+    }
+
     private func makeCommandSession() async throws -> DatabaseViewModel {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
         let session = DatabaseViewModel(databaseReference: try TestDatabaseSupport.makeReference(for: url))

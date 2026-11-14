@@ -70,6 +70,45 @@ final class MacCopyFeedbackTests: XCTestCase {
         XCTAssertNil(presentation.copyFeedback.copied, "The workspace host resets on lock")
     }
 
+    func testDetailPaneFieldsKeepTheirOwnTickAndLabel() {
+        let feedback = MacCopyFeedback(sleep: { _ in try await Task.sleep(for: .seconds(60)) })
+        let entryID = UUID()
+        feedback.show(.customField("Deploy Token"), for: entryID)
+        XCTAssertEqual(feedback.field(copiedFor: entryID), .customField("Deploy Token"))
+        XCTAssertNotEqual(feedback.field(copiedFor: entryID), .customField("Hostname"))
+        feedback.show(.additionalURL(1), for: entryID)
+        XCTAssertNotEqual(feedback.field(copiedFor: entryID), .url, "The first URL's tick stays on its own row")
+        feedback.clear()
+
+        XCTAssertEqual(MacCopyFeedback.Field.additionalURL(2).copiedLabel, String(localized: "URL copied"))
+        XCTAssertEqual(MacCopyFeedback.Field.customField("Port").copiedLabel, String(localized: "\("Port") copied"))
+        XCTAssertEqual(MacCopyFeedback.Field.passkeyRelyingParty.copiedLabel, String(localized: "Relying party copied"))
+        XCTAssertEqual(MacCopyFeedback.Field.passkeyUsername.copiedLabel, String(localized: "Passkey username copied"))
+    }
+
+    func testNoTickWhenTheGateDeclinesAProtectedCopy() async throws {
+        let feedback = MacCopyFeedback(sleep: { _ in try await Task.sleep(for: .seconds(60)) })
+        let entry = KPEntry(title: "Entry", customFields: ["Token": "s3cret"], protectedStringKeys: ["Token"])
+        let session = try await TestDatabaseSupport.makeUnlockedSession(root: KPGroup(name: "Root", entries: [entry]),
+                                                                        bundle: Bundle(for: Self.self))
+        defer { session.lockRequest(force: true) }
+        var copied: [String] = []
+        let record = feedback.recording(.customField("Token"), for: entry.id) { copied.append($0) }
+        let action = EntrySecretAction()
+
+        await DatabaseCommands.copyEntryValue(entryID: entry.id, in: session, action: action, isProtected: true,
+                                              raw: { $0.customFields["Token"] }, currentSession: { session },
+                                              authenticate: { throw CancellationError() }, copy: record)?.value
+        XCTAssertTrue(copied.isEmpty)
+        XCTAssertNil(feedback.copied, "A declined prompt shows no tick")
+
+        await DatabaseCommands.copyEntryValue(entryID: entry.id, in: session, action: action, isProtected: true,
+                                              raw: { $0.customFields["Token"] }, currentSession: { session },
+                                              authenticate: {}, copy: record)?.value
+        XCTAssertEqual(copied, ["s3cret"])
+        XCTAssertEqual(feedback.field(copiedFor: entry.id), .customField("Token"))
+    }
+
     @MainActor
     private final class Sleeper {
         private(set) var durations: [Duration] = []

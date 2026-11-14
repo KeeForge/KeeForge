@@ -31,10 +31,12 @@ struct DatabaseCommands {
     var canCopyPassword: Bool { commandEntryID.map { canCopyPassword(entryID: $0) } ?? false }
     var canCopyURL: Bool { commandEntryID.map { canCopyURL(entryID: $0) } ?? false }
     var canCopyVerificationCode: Bool { commandEntryID.map { canCopyVerificationCode(entryID: $0) } ?? false }
+    var canShowPasswordInLargeType: Bool { commandEntryID.map { canShowPasswordInLargeType(entryID: $0) } ?? false }
     func canCopyUsername(entryID: UUID) -> Bool { entry(withID: entryID)?.username.isEmpty == false }
     func canCopyPassword(entryID: UUID) -> Bool {
         entry(withID: entryID)?.hasPassword == true && !passwordCopyAction.isAuthenticating
     }
+    func canShowPasswordInLargeType(entryID: UUID) -> Bool { canCopyPassword(entryID: entryID) }
     func canCopyURL(entryID: UUID) -> Bool { entry(withID: entryID)?.url.isEmpty == false }
     func canCopyVerificationCode(entryID: UUID) -> Bool {
         entry(withID: entryID)?.totpConfig != nil && session?.sessionKey != nil
@@ -102,6 +104,18 @@ struct DatabaseCommands {
         }
         copy(TOTPGenerator.generateCode(config: config, sessionKey: sessionKey))
     }
+    @discardableResult
+    func showPasswordInLargeType(
+        entryID: UUID,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        present: @escaping @MainActor (String) -> Void
+    ) -> Task<Void, Never>? {
+        guard let session, isUnlocked else { return nil }
+        return Self.showEntryPasswordInLargeType(entryID: entryID, in: session, action: passwordCopyAction,
+                                                 currentSession: currentSession, authenticate: authenticate,
+                                                 present: present)
+    }
     func editEntry() { session?.requestEntryEdit() }
     func deleteSelection() { session?.requestDeleteSelection() }
     func lock() { session?.lockRequest(manuallyTriggered: true) }
@@ -119,10 +133,27 @@ struct DatabaseCommands {
         copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
     ) -> Task<Void, Never>? {
         guard viewModel.entry(withID: entryID)?.hasPassword == true else { return nil }
-        return copyEntrySecret(entryID: entryID, in: viewModel, action: action, reason: String(localized: "Copy password"),
-                               currentSession: currentSession, authenticate: authenticate, copy: copy) { entry in
-            viewModel.resolvedPassword(for: entry)
-        }
+        return discloseEntrySecret(entryID: entryID, in: viewModel, action: action,
+                                   reason: String(localized: "Copy password"),
+                                   currentSession: currentSession, authenticate: authenticate,
+                                   value: { viewModel.resolvedPassword(for: $0) }, disclose: copy)
+    }
+
+    /// Large Type takes the password's reveal gate and rechecks; `present` gets the plaintext only after them.
+    @discardableResult
+    static func showEntryPasswordInLargeType(
+        entryID: UUID,
+        in viewModel: DatabaseViewModel,
+        action: EntrySecretAction,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        present: @escaping @MainActor (String) -> Void
+    ) -> Task<Void, Never>? {
+        guard viewModel.entry(withID: entryID)?.hasPassword == true else { return nil }
+        return discloseEntrySecret(entryID: entryID, in: viewModel, action: action,
+                                   reason: String(localized: "View password"),
+                                   currentSession: currentSession, authenticate: authenticate,
+                                   value: { viewModel.resolvedPassword(for: $0) }, disclose: present)
     }
 
     /// A plain field copies at once; one whose field references reach a protected value
@@ -137,29 +168,50 @@ struct DatabaseCommands {
         authenticate: (@MainActor () async throws -> Void)? = nil,
         copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
     ) -> Task<Void, Never>? {
-        guard let entry = viewModel.entry(withID: entryID) else { return nil }
-        switch viewModel.fieldReferenceResolution(of: entry[keyPath: field]) {
-        case .resolved(let value):
-            copy(value)
-            return nil
-        case .needsProtectedValue:
-            return copyEntrySecret(entryID: entryID, in: viewModel, action: action,
-                                   reason: String(localized: "Copy protected field"),
-                                   currentSession: currentSession, authenticate: authenticate, copy: copy) { entry in
-                viewModel.resolvingFieldReferencesIncludingProtectedValues(entry[keyPath: field])
-            }
-        }
+        copyEntryValue(entryID: entryID, in: viewModel, action: action, isProtected: false,
+                       raw: { $0[keyPath: field] }, currentSession: currentSession,
+                       authenticate: authenticate, copy: copy)
     }
 
-    private static func copyEntrySecret(
+    /// `copyEntryField` for any stored string `raw` reads from the entry (an extra URL, a custom
+    /// or passkey field, a history version's field). A protected field always takes the gate.
+    @discardableResult
+    static func copyEntryValue(
+        entryID: UUID,
+        in viewModel: DatabaseViewModel,
+        action: EntrySecretAction,
+        isProtected: Bool,
+        raw: @escaping @MainActor (KPEntry) -> String?,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
+    ) -> Task<Void, Never>? {
+        guard let entry = viewModel.entry(withID: entryID), let rawValue = raw(entry) else { return nil }
+        if isProtected == false, case .resolved(let value) = viewModel.fieldReferenceResolution(of: rawValue) {
+            copy(value)
+            return nil
+        }
+        return discloseEntrySecret(entryID: entryID, in: viewModel, action: action,
+                                   reason: String(localized: "Copy protected field"),
+                                   currentSession: currentSession, authenticate: authenticate,
+                                   value: { raw($0).map(viewModel.resolvingFieldReferencesIncludingProtectedValues) },
+                                   disclose: copy)
+    }
+
+    /// The one disclosure path for a protected value: the session's device-owner gate, then the
+    /// origin's session, lock cycle, content and selection, then `isCurrent`, all rechecked after
+    /// authentication. `value` reads the entry as it is then; nil discloses nothing.
+    @discardableResult
+    static func discloseEntrySecret(
         entryID: UUID,
         in viewModel: DatabaseViewModel,
         action: EntrySecretAction,
         reason: String,
         currentSession: @escaping @MainActor () -> DatabaseViewModel?,
-        authenticate: (@MainActor () async throws -> Void)?,
-        copy: @escaping @MainActor (String) -> Void,
-        value: @escaping @MainActor (KPEntry) -> String
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        isCurrent: @escaping @MainActor () -> Bool = { true },
+        value: @escaping @MainActor (KPEntry) -> String?,
+        disclose: @escaping @MainActor (String) -> Void
     ) -> Task<Void, Never>? {
         let isCurrentSession = EntrySecretAction.currentSession(viewModel)
         let secretAccess = viewModel.secretAccess
@@ -169,10 +221,10 @@ struct DatabaseCommands {
                     try await secretAccess.authenticate(reason: reason)
                 }
             },
-            isCurrent: { currentSession() === viewModel && isCurrentSession() },
+            isCurrent: { currentSession() === viewModel && isCurrentSession() && isCurrent() },
             disclose: {
-                guard let entry = viewModel.entry(withID: entryID) else { return }
-                copy(value(entry))
+                guard let entry = viewModel.entry(withID: entryID), let secret = value(entry) else { return }
+                disclose(secret)
             }
         )
     }

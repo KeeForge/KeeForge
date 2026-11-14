@@ -11,13 +11,21 @@ final class MacCopyFeedback {
         case password
         case url
         case verificationCode
+        /// The detail pane's second and later website rows; 1 is the first URL after `url`.
+        case additionalURL(Int)
+        case customField(String)
+        case passkeyRelyingParty
+        case passkeyUsername
 
         var copiedLabel: String {
             switch self {
             case .username: String(localized: "Username copied")
             case .password: String(localized: "Password copied")
-            case .url: String(localized: "URL copied")
+            case .url, .additionalURL: String(localized: "URL copied")
             case .verificationCode: String(localized: "Verification code copied")
+            case .customField(let name): String(localized: "\(name) copied")
+            case .passkeyRelyingParty: String(localized: "Relying party copied")
+            case .passkeyUsername: String(localized: "Passkey username copied")
             }
         }
     }

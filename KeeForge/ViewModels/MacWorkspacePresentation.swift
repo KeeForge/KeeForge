@@ -36,8 +36,10 @@ final class MacWorkspacePresentation {
     private(set) var pushAlert: PendingUploadAlert?
     /// Advanced every minute while the workspace is shown, so "Synced 5 minutes ago" keeps up.
     private(set) var statusClockTick = 0
-    /// The list's copy ticks, and the detail pane's later.
+    /// The list's and the detail pane's copy ticks.
     let copyFeedback = MacCopyFeedback()
+    /// Replaced when the selected entry or session changes, which conceals what the old one revealed.
+    @ObservationIgnored private var currentDetailModel: MacEntryDetailModel?
     private(set) var lifetimeID = UUID()
 
     func beginNewEntry(in database: DatabaseViewModel) {
@@ -79,6 +81,22 @@ final class MacWorkspacePresentation {
         } else {
             database.revealEntry(entryID)
         }
+    }
+
+    /// The selected entry's detail model, kept while that entry stays selected.
+    func detailModel(
+        for entryID: UUID,
+        in database: DatabaseViewModel,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?
+    ) -> MacEntryDetailModel {
+        if let model = currentDetailModel, model.source == .live(entryID), model.session === database {
+            return model
+        }
+        currentDetailModel?.invalidate()
+        let model = MacEntryDetailModel(source: .live(entryID), session: database, copyFeedback: copyFeedback,
+                                        currentSession: currentSession)
+        currentDetailModel = model
+        return model
     }
 
     func beginGroupEdit(groupID: UUID, in database: DatabaseViewModel) {
@@ -199,6 +217,8 @@ final class MacWorkspacePresentation {
         isCloudReconnectInFlight = false
         pushAlert = nil
         copyFeedback.clear()
+        currentDetailModel?.invalidate()
+        currentDetailModel = nil
     }
 }
 #endif

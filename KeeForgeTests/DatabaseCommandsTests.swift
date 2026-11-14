@@ -211,6 +211,93 @@ final class DatabaseCommandsTests: XCTestCase {
         XCTAssertEqual(copied, ["plain", "hunter2"])
     }
 
+    func testLargeTypePresentsThePasswordOnlyAfterTheGateAndItsRechecks() async throws {
+        let harness = SecretAccessGateHarness(gracePeriod: .alwaysAsk)
+        let key = SymmetricKey(size: .bits256)
+        let entry = KPEntry(title: "Entry", password: try EncryptedValue.encrypt("hunter2", using: key))
+        let other = KPEntry(title: "Other", username: "plain")
+        let session = try makeSession(root: KPGroup(name: "Root", entries: [entry, other]), key: key,
+                                      secretAccess: harness.gate)
+        await session.unlock(password: "testpassword123")
+        try await session.reloadDiscardingDraft()
+        defer { session.lockRequest(force: true) }
+        let action = EntrySecretAction()
+        let commands = DatabaseCommands(session: session, passwordCopyAction: action)
+        session.workspace.selectedEntryID = entry.id
+        XCTAssertTrue(commands.canShowPasswordInLargeType)
+        XCTAssertFalse(commands.canShowPasswordInLargeType(entryID: other.id))
+        var presented: [String] = []
+
+        XCTAssertNil(commands.showPasswordInLargeType(entryID: other.id, currentSession: { session }) {
+            presented.append($0)
+        }, "No password, no prompt")
+        harness.promptSucceeds = false
+        await commands.showPasswordInLargeType(entryID: entry.id, currentSession: { session }) {
+            presented.append($0)
+        }?.value
+        XCTAssertEqual(harness.promptReasons, [String(localized: "View password")])
+        XCTAssertTrue(presented.isEmpty, "A declined prompt shows nothing")
+
+        harness.promptSucceeds = true
+        harness.duringPrompt = { session.workspace.selectedEntryID = other.id }
+        await commands.showPasswordInLargeType(entryID: entry.id, currentSession: { session }) {
+            presented.append($0)
+        }?.value
+        XCTAssertTrue(presented.isEmpty, "A selection change during the prompt shows nothing")
+
+        session.workspace.selectedEntryID = entry.id
+        harness.duringPrompt = nil
+        XCTAssertNil(commands.showPasswordInLargeType(entryID: entry.id, currentSession: { nil }) {
+            presented.append($0)
+        }, "A window that lost its session starts no prompt")
+        let pending = try XCTUnwrap(commands.showPasswordInLargeType(entryID: entry.id, currentSession: { session }) {
+            presented.append($0)
+        })
+        XCTAssertFalse(commands.canShowPasswordInLargeType, "One prompt at a time")
+        await pending.value
+        XCTAssertEqual(presented, ["hunter2"])
+
+        session.lockRequest(force: true)
+        XCTAssertFalse(commands.canShowPasswordInLargeType(entryID: entry.id))
+        XCTAssertNil(commands.showPasswordInLargeType(entryID: entry.id, currentSession: { session }) {
+            presented.append($0)
+        })
+    }
+
+    func testCopyEntryValueGatesProtectedAndReferenceProtectedValuesOfAnyField() async throws {
+        let key = SymmetricKey(size: .bits256)
+        let source = KPEntry(title: "Source", password: try EncryptedValue.encrypt("hunter2", using: key))
+        let entry = KPEntry(
+            title: "Entry",
+            customFields: ["Host": "db.local", "Token": "s3cret", "Alias": "{REF:P@T:Source}"],
+            protectedStringKeys: ["Token"]
+        )
+        let session = try makeSession(root: KPGroup(name: "Root", entries: [source, entry]), key: key)
+        await session.unlock(password: "testpassword123")
+        try await session.reloadDiscardingDraft()
+        defer { session.lockRequest(force: true) }
+        let action = EntrySecretAction()
+        var copied: [String] = []
+        func copy(_ key: String, isProtected: Bool, authenticate: @escaping @MainActor () async throws -> Void)
+            -> Task<Void, Never>? {
+            DatabaseCommands.copyEntryValue(entryID: entry.id, in: session, action: action, isProtected: isProtected,
+                                            raw: { $0.customFields[key] }, currentSession: { session },
+                                            authenticate: authenticate, copy: { copied.append($0) })
+        }
+
+        XCTAssertNil(copy("Host", isProtected: false, authenticate: { XCTFail("No prompt for a plain value") }))
+        XCTAssertNil(copy("Missing", isProtected: false, authenticate: {}), "A missing value copies nothing")
+        XCTAssertEqual(copied, ["db.local"])
+
+        await copy("Token", isProtected: true, authenticate: { throw CancellationError() })?.value
+        await copy("Alias", isProtected: false, authenticate: { throw CancellationError() })?.value
+        XCTAssertEqual(copied, ["db.local"], "Declined prompts copy nothing")
+
+        await copy("Token", isProtected: true, authenticate: {})?.value
+        await copy("Alias", isProtected: false, authenticate: {})?.value
+        XCTAssertEqual(copied, ["db.local", "s3cret", "hunter2"])
+    }
+
     private func waitUntilIdle(_ action: EntrySecretAction) async {
         for _ in 0..<50 where action.isAuthenticating {
             await Task { @MainActor in }.value
