@@ -14,7 +14,7 @@ struct EntryRowDuplicateAction: View {
 
     var body: some View {
         if isAvailable {
-            Button("Duplicate") {
+            Button("Duplicate", systemImage: "plus.square.on.square") {
                 guard let editor = makeEditor() else { return }
                 onDuplicate(editor)
             }

@@ -15,7 +15,7 @@ struct EntryRowMoveAction: View {
     var body: some View {
         RestoreRowAction(item: .entry(entryID), viewModel: viewModel, onChooseDestination: onMove)
         if Self.isAvailable(entryID: entryID, viewModel: viewModel) {
-            Button("Move to Group") {
+            Button("Move to Group", systemImage: "folder") {
                 onMove(.entry(entryID))
             }
             .accessibilityIdentifier("entry-row.move-context")

@@ -13,6 +13,7 @@
 
 - Search results and tag entries share the session's bulk selection. An inline list leaves the selection bar to its host; a pushed tag list hosts its own bar.
 - Wherever one of these screens renders inline, it passes `onRequestDeletion` through to its list so the confirmation is raised to the container's host (the one-alert rule in `../AGENTS.md`). Where it is pushed (the iOS tag browser), the closure stays nil and the list hosts its own alert.
+- On iOS the pushed tag browser carries Lock (`lock.button`, the shared `DatabaseLockButton`) and the entry count as its subtitle, like the group screens. macOS leaves Lock to the sidebar.
 - `TagEntriesView` derives its entries from the view model on every render, never from a push-time snapshot. A tag whose last carrier is edited away shows the empty state instead of crashing or popping.
 - Tag chips on entry detail are `Button`s in every shell, never `NavigationLink`s (the one-link-per-row rule in `../AGENTS.md`). `TagBrowserUITests` asserts which tag opens.
 - Container and row identifiers (`search.results`, `tag-entries.list`, `search.entry.navlink`) are the same on both platforms although the lists differ.

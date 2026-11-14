@@ -59,7 +59,7 @@ An entry in any list: icon, title, username, optional folder path, and trailing 
 - Title in `row-title` `label` ("(untitled)" when empty); username in `subhead` `label-secondary`; folder path in `footnote` `label-secondary`, one line, truncated at the head, shown in collections and search.
 - Trailing, in this order: an Expired `StatusBadge` (danger), then `RowBadge` circles for a passkey (`person.badge.key.fill`) and a verification code (`timer`).
 - A row badge is a `caption-2` semibold glyph in the tint on a `size-badge` circle of `accent-soft`.
-- Long-press opens the row menu (copy actions, Duplicate, Move to Group, Select Entries, Delete).
+- Long-press opens the row menu: the copy actions (Username, Password, Verification Code), then Duplicate, Move to Group, Change Icon and Select Entries, then Delete, with a divider between the three groups and an icon on every item.
 
 ### The consumer provides
 The entry, its resolved username, an optional custom icon and folder path.

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### New Features
+
+- On iPhone and iPad, an entry's long-press menu offers Copy Verification Code and Change Icon, with icons and the copy, edit, and delete actions in separate groups. This works in every entry list: groups, All Entries, tags, and search.
+- A tag's entry list on iPhone and iPad has a Lock button and shows how many entries carry the tag.
+- Edit Group on iPhone and iPad shows the icon beside the name and the tags in the same card, and explains what hiding a group from Search & AutoFill does.
+- AutoFill on iPhone and iPad unlocks in a sheet that names the database and its file, with the master password field, Face ID, and Unlock, instead of a system alert.
+- Change Master Key shows the strength of the new password, as New Database does.
+- On iPhone and iPad, the Recycle Bin shows which group each item came from and when it was deleted, and tells you to touch and hold an item to restore or delete it.
+- On iPhone, iPad, and Mac, Restore to Group… puts a recycled item back in a group you choose, next to Restore, which returns it to its original group.
+- In the entry editor on iPhone and iPad, each custom field is one row with its name and value. Protect Field and Remove Field are in the row's menu, and Reorder Fields moves them.
+
 ### Changes
 
 - AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:
