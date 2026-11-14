@@ -3577,6 +3577,7 @@ final class DatabaseViewModel {
         }
 
         let reference = databaseReference
+        var completedMergeReference: DatabaseReference?
         let expectedLockCycleID = lockCycleID
         let pendingSaves: [PendingLocalSaveStore.PendingSave]
         do {
@@ -3706,9 +3707,13 @@ final class DatabaseViewModel {
             binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
             self.openTimeSHA512 = newSHA512
             draft = draftReplayingEditsArriving(after: localDraft, onto: mergedDraft)
-            if let renewal = localCommit?.mergeCompletion?.bookmark,
+            if let localCommit, localCommit.databaseID == reference.id,
+               localCommit.operationID == token.admission.operationID, localCommit.sha512 == newSHA512,
+               localCommit.targetDurabilityConfirmed, let renewal = localCommit.mergeCompletion?.bookmark,
+               localCommit.installedTarget == renewal.target, renewal.after.id == reference.id,
                PendingLocalSaveStore.PreferenceObservation(reference).matches(renewal.before), databaseReference == reference {
                 databaseReference.bookmarkData = renewal.after.bookmarkData
+                completedMergeReference = databaseReference
             }
             populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
             if saveResult.hasUnconfirmedDurability {
@@ -3734,17 +3739,18 @@ final class DatabaseViewModel {
         // pending. Bring it up to the file, unless another AutoFill save has
         // arrived in the meantime.
         let failure = localPublicationFailure
+        let tailReference = completedMergeReference ?? reference
         await Task.detached(priority: .userInitiated) {
-            guard PendingLocalSaveStore.hasSaves(for: reference.id) == false else { return }
+            guard PendingLocalSaveStore.hasSaves(for: tailReference.id) == false else { return }
             var stage = "lease"
             do {
-                let lease = try PendingLocalSaveStore.captureCacheReadLease(for: reference)
+                let lease = try PendingLocalSaveStore.captureCacheReadLease(for: tailReference)
                 stage = "location"
-                guard let url = DatabaseListStore.resolveDatabaseURL(for: reference, renewBookmark: false) else { throw SaveError.databaseLocationUnavailable }
+                guard let url = DatabaseListStore.resolveDatabaseURL(for: tailReference, renewBookmark: false) else { throw SaveError.databaseLocationUnavailable }
                 stage = "read"
                 let data = try Self.readSecurityScopedData(from: url)
                 let renewed = lease.bookmarkRenewal != nil
-                try LocalDatabaseSaver.cacheLocalSnapshot(data, for: reference, lease: lease, onFailure: { phase, _ in
+                try LocalDatabaseSaver.cacheLocalSnapshot(data, for: tailReference, lease: lease, onFailure: { phase, _ in
                     stage = "cache-" + phase.rawValue + (renewed ? "-renewed" : "-original")
                 })
             } catch { failure("merge-tail-" + stage, error) }

@@ -1319,6 +1319,156 @@ final class PendingLocalSaveTests: XCTestCase {
         )
     }
 
+    func testMovedMergeOwnBookmarkRefreshesTailCacheAfterDivergedBackup() async throws {
+        try await exerciseOwnMergeBookmarkTail(fault: nil)
+    }
+
+    func testMergeTailCannotUseOwnBookmarkForChangedOrUnprovenAuthority() async throws {
+        for fault in ["new-source", "provisional", "foreign-reference", "epoch", "removal", "missing-receipt", "foreign-receipt", "unconfirmed"] {
+            try await exerciseOwnMergeBookmarkTail(fault: fault)
+        }
+    }
+
+    func testOwnMergeTailReferenceCannotPublishAfterActualSettledRekey() async throws {
+        try await exerciseOwnMergeBookmarkTail(fault: "settled-rekey")
+    }
+
+    private func exerciseOwnMergeBookmarkTail(fault: String?) async throws {
+        let old = try makeScratchDatabaseCopy()
+        let reference = try DatabaseListStore.add(url: old)
+        let original = try Data(contentsOf: old)
+        let moved = old.deletingLastPathComponent().appendingPathComponent("moved-tail-\(UUID().uuidString).kdbx")
+        try FileManager.default.moveItem(at: old, to: moved)
+        let diverged = try makeVariantData(of: original,
+            binaryPoolFields: [Data([0]) + Data("diverged-attachment".utf8)]) { root in
+                var entry = KPEntry(title: "Diverged Tail Source")
+                entry.attachments = [KPAttachment(name: "note.txt", ref: 0)]
+                root.entries.append(entry)
+            }
+        let mergeable = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "Tail Passkey")) }
+        try seedPendingSave(diverged, for: reference, now: Date(timeIntervalSince1970: 1_800_000_000))
+        _ = try seedAcceptedSource(mergeable, for: reference.id, now: Date(timeIntervalSince1970: 1_800_000_060))
+        let oldCache = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        let observations = TailMergeObservations()
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
+        let live = LocalDatabaseSaver.Environment.live
+        let vm = DatabaseViewModel(databaseReference: reference, localDatabaseReadOperation: { ref in
+            let read = try await DatabaseViewModel.readLocalDatabase(reference: ref, resolveBookmark: { _ in (moved, true) })
+            XCTAssertNil(read.bookmarkRenewal, "Existing sources must defer the initial renewal")
+            return read
+        }, localPublicationFailure: { trace.record($0, $1) }, localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
+            var environment = live
+            environment.resolveLocation = { _ in .init(url: moved, usesSecurityScope: false, awaitsWriteBack: false) }
+            environment.localPublicationFailure = { trace.record($0, $1) }
+            if fault == "unconfirmed" {
+                environment.replaceFileAtomically = { bytes, target, baseline, authorization in
+                    var io = LocalDatabaseSaver.ReplacementIO()
+                    io.synchronize = { _ in throw POSIXError(.EIO) }
+                    return try LocalDatabaseSaver.replaceFileAtomically(bytes, at: target, expectedSHA512: baseline,
+                        authorization: authorization, io: io)
+                }
+            }
+            let result = try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+            if newKey != nil || settings != nil { return result }
+            guard case .saved(let outputSHA, let express, let receipt) = result else { return result }
+            let commit = try XCTUnwrap(receipt)
+            let renewal = try XCTUnwrap(commit.mergeCompletion?.bookmark)
+            XCTAssertEqual(renewal.before.bookmarkData, reference.bookmarkData)
+            XCTAssertNotEqual(renewal.before.bookmarkData, renewal.after.bookmarkData,
+                "Moved pathname plus real replacement must produce the deterministic R0/R1 distinction")
+            XCTAssertEqual(commit.mergeCompletion?.resolution, .resolved)
+            XCTAssertEqual(commit.installedTarget, renewal.target)
+            observations.record(renewal)
+            switch fault {
+            case "new-source":
+                let cache = DatabaseListStore.cacheLocation(for: ref)
+                let prepared = try PendingLocalSaveStore.prepareSource(mergeable, for: ref.id,
+                    baseCacheSHA512: FileDigest.sha512(Data(contentsOf: cache)))
+                try writeAtomicallyAndDurably(mergeable, to: cache, directoryAnchor: AppGroupContainer.url)
+                guard PendingLocalSaveStore.activateSource(prepared) == .accepted else {
+                    throw PendingLocalSaveStore.OwnershipError.recoveryRequired
+                }
+            case "provisional":
+                _ = try PendingLocalSaveStore.prepareSource(mergeable, for: reference.id,
+                    baseCacheSHA512: FileDigest.sha512(Data(contentsOf: DatabaseListStore.cacheLocation(for: ref))))
+            case "foreign-reference":
+                let other = try SecurityScopedBookmarkManager.makeBookmarkData(for: old.deletingLastPathComponent())
+                var changed = renewal.after
+                changed.bookmarkData = other
+                DatabaseListStore.update(changed)
+            case "epoch":
+                var changed = renewal.after
+                changed.lastMasterKeyChangeAt = Date(timeIntervalSince1970: 2_000_000_000)
+                DatabaseListStore.update(changed)
+            case "removal":
+                XCTAssertFalse(DatabaseListStore.remove(id: ref.id), "Unarchived source prevents deletion, but revokes its owner")
+                XCTAssertTrue(PendingLocalSaveStore.isRevoked(ref.id))
+            case "missing-receipt": return .saved(newSHA512: outputSHA, expressKey: express)
+            case "foreign-receipt":
+                var foreign = PendingLocalSaveStore.CommitReceipt(databaseID: UUID(), admission: commit.admission,
+                    sha512: commit.sha512, operationID: commit.operationID)
+                foreign.targetCommit = commit.targetCommit
+                foreign.encryptedSnapshot = commit.encryptedSnapshot
+                foreign.mergeCompletion = commit.mergeCompletion
+                return .saved(newSHA512: outputSHA, expressKey: express, localCommit: foreign)
+            default: break
+            }
+            return result
+        }, localReadKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in },
+            storedKeyPresenceCheck: { _ in false }, storedKeyStoreOperation: { _, _ in })
+        defer { vm.lock() }
+        await vm.unlock(password: fixturePassword)
+        let installed = try Data(contentsOf: moved)
+        XCTAssertTrue(try entryTitles(in: installed).contains("Tail Passkey"), "\(fault ?? "positive"): " + trace.summary)
+        let cache = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        if fault == nil || fault == "settled-rekey" {
+            let renewal = try XCTUnwrap(observations.renewal)
+            XCTAssertEqual(vm.databaseReference.bookmarkData, renewal.after.bookmarkData)
+            XCTAssertEqual(cache, installed, trace.summary)
+            XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
+        } else if fault == "new-source" {
+            XCTAssertEqual(cache, mergeable, "A later accepted source owns the cache")
+            XCTAssertTrue(PendingLocalSaveStore.hasSaves(for: reference.id))
+        } else {
+            XCTAssertEqual(cache, oldCache, "Rejected or incomplete tail must not overwrite retained ciphertext: \(fault ?? "")")
+        }
+        if fault == "unconfirmed" || fault == "removal" || fault == "missing-receipt" {
+            let retained = try PendingLocalSaveStore.recovery(for: reference.id)
+            if fault == "missing-receipt" {
+                XCTAssertEqual(vm.pendingUploadMergeFailure, .localSaveBookkeeping)
+                XCTAssertTrue(PendingLocalSaveStore.hasSaves(for: reference.id))
+            } else { XCTAssertTrue(retained.needsRecovery || retained.isRevoked) }
+            XCTAssertTrue(retained.receipts.contains(where: { (try? PendingLocalSaveStore.export($0, for: reference.id)) == diverged }))
+        } else {
+            let backup = try XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first { (try? Data(contentsOf: $0)) == diverged })
+            XCTAssertEqual(try Data(contentsOf: backup), diverged)
+            guard case .attachmentsDivergedFromFile(let reported)? = vm.pendingUploadMergeFailure else {
+                return XCTFail("Exact divergent backup must remain actionable: \(fault ?? "positive") " + trace.summary)
+            }
+            XCTAssertEqualFilePaths(reported, backup)
+        }
+        if fault == "settled-rekey" {
+            let tailReference = vm.databaseReference
+            let lease = try PendingLocalSaveStore.captureCacheReadLease(for: tailReference)
+            try await vm.changeMasterKey(newPassword: "tail epoch B", newKeyFileData: nil,
+                newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+            let rekeyed = try Data(contentsOf: moved)
+            _ = try KDBXParser.parse(data: rekeyed, password: "tail epoch B", sessionKey: SymmetricKey(size: .bits256))
+            XCTAssertThrowsError(try LocalDatabaseSaver.cacheLocalSnapshot(installed, for: tailReference, lease: lease))
+            XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), rekeyed)
+            XCTAssertEqual(try Data(contentsOf: moved), rekeyed)
+        }
+    }
+
+    private final class TailMergeObservations: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: DatabaseListStore.DatabaseBookmarkRenewal?
+        var renewal: DatabaseListStore.DatabaseBookmarkRenewal? { lock.withLock { value } }
+        func record(_ renewal: DatabaseListStore.DatabaseBookmarkRenewal) { lock.withLock { value = renewal } }
+    }
+
     func testAPendingSaveWithDivergedAttachmentsMovesToTheBackupsAndIsReported() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
