@@ -21,6 +21,11 @@ final class MacWorkspacePresentationTests: XCTestCase {
         XCTAssertEqual(presentation.commandEditor?.mode, .create(parentGroupID: rootID))
 
         presentation.commandEditor = nil
+        database.workspace.selectedCollection = .verificationCodes
+        presentation.beginNewEntry(in: database)
+        XCTAssertEqual(presentation.commandEditor?.mode, .create(parentGroupID: rootID), "A collection creates in the root")
+
+        presentation.commandEditor = nil
         database.workspace.selectedGroupID = UUID()
         presentation.beginNewEntry(in: database)
         XCTAssertNil(presentation.commandEditor, "A vanished target must not open an unusable editor")
@@ -127,6 +132,21 @@ final class MacWorkspacePresentationTests: XCTestCase {
         XCTAssertNil(presentation.groupCreationErrorMessage)
         presentation.dismissNewGroup()
         XCTAssertFalse(presentation.isShowingNewGroupSheet)
+    }
+
+    func testNewGroupWithACollectionSelectedCreatesInTheVisibleRoot() async throws {
+        let child = KPGroup(name: "Child")
+        let database = try await makeDatabase(root: KPGroup(name: "Root", groups: [child, KPGroup(name: "Sibling")]))
+        defer { database.lock() }
+        let rootID = try XCTUnwrap(database.visibleRootGroupID)
+        let presentation = MacWorkspacePresentation()
+        database.workspace.selectedCollection = .allEntries
+        presentation.beginNewGroup()
+        presentation.createGroup(named: "From Collection", in: database)
+        XCTAssertFalse(presentation.isShowingNewGroupSheet)
+        let root = try XCTUnwrap(database.group(withID: rootID))
+        XCTAssertTrue(root.groups.contains { $0.name == "From Collection" })
+        XCTAssertEqual(database.group(withID: child.id)?.groups.isEmpty, true)
     }
 
     func testResetClearsSessionPresentationsWithoutTouchingAnotherWindow() async throws {

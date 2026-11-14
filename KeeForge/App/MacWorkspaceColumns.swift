@@ -17,30 +17,17 @@ struct MacWorkspaceSidebarColumn: View {
         )
     }
 
-    /// Bridges the sidebar's single native selection onto the two mutually
-    /// exclusive selections the view model already owns. A `nil` write is
-    /// ignored: clicking the list's empty area must not leave the workspace
-    /// with nothing selected and an empty content column.
+    /// A `nil` write is ignored: clicking the list's empty area must not
+    /// leave the workspace with nothing selected and an empty content column.
     private var macSidebarSelection: Binding<MacSidebarSelection?> {
         Binding(
-            get: {
-                if let tag = viewModel.workspace.selectedTag { return .tag(tag) }
-                if let groupID = viewModel.workspace.selectedGroupID { return .group(groupID) }
-                return nil
-            },
+            get: { MacSidebarSelection(workspace: viewModel.workspace) },
             set: { newValue in
+                guard let newValue else { return }
+                newValue.apply(to: viewModel.workspace)
                 // An accessibility click can change the selection without making
                 // the list first responder, so each write takes focus as well.
-                switch newValue {
-                case .group(let groupID):
-                    viewModel.workspace.selectedGroupID = groupID
-                    isMacSidebarFocused = true
-                case .tag(let tag):
-                    viewModel.workspace.selectedTag = tag
-                    isMacSidebarFocused = true
-                case nil:
-                    break
-                }
+                isMacSidebarFocused = true
             }
         )
     }
@@ -186,15 +173,6 @@ struct MacWorkspaceDetailColumn: View {
 
 }
 
-/// What the macOS sidebar's native `List(selection:)` carries. The two cases
-/// mirror `DatabaseViewModel.workspace.selectedGroupID` / `selectedTag`, which stay the
-/// source of truth; this type only exists because one list needs one selection
-/// value.
-enum MacSidebarSelection: Hashable {
-    case group(UUID)
-    case tag(String)
-}
-
 /// The macOS content column: the selected group's entries in a native
 /// `List(selection:)` bound to `DatabaseViewModel.workspace.selectedEntryID`, so arrow
 /// keys, type-select, and the focus ring come from AppKit rather than being
@@ -218,27 +196,27 @@ private struct MacGroupEntriesList: View {
     let onRequestDuplicate: (EntryEditViewModel) -> Void
     let onRequestDeletion: (PendingDeletion) -> Void
 
-    private var resolvedGroup: KPGroup? {
-        guard let groupID = viewModel.workspace.selectedGroupID ?? viewModel.visibleRootGroupID else { return nil }
-        return viewModel.group(withID: groupID)
+    /// A selected collection, else the selected group, else the visible root.
+    private var resolvedSelection: MacSidebarSelection? {
+        if let collection = viewModel.workspace.selectedCollection { return .collection(collection) }
+        guard let groupID = viewModel.workspace.selectedGroupID ?? viewModel.visibleRootGroupID,
+              viewModel.group(withID: groupID) != nil else { return nil }
+        return .group(groupID)
     }
 
     var body: some View {
         @Bindable var workspace = viewModel.workspace
-        if let group = resolvedGroup {
-            let entries = viewModel.sortedEntries(group.entries)
+        if let selection = resolvedSelection {
+            let entries = viewModel.entries(for: selection)
             Group {
                 if entries.isEmpty {
-                    ContentUnavailableView(
-                        "No Entries",
-                        systemImage: "tray",
-                        description: Text("This group has no entries.")
-                    )
+                    emptyState(for: selection)
                 } else {
                     List(entries, selection: $workspace.selectedEntryID) { entry in
                         MacEntryRow(
                             entry: entry,
                             viewModel: viewModel,
+                            showsFolderPath: selection.isCollection,
                             isListFocused: $isListFocused,
                             onOpenEntry: onOpenEntry,
                             onRequestMove: onRequestMove,
@@ -262,6 +240,36 @@ private struct MacGroupEntriesList: View {
                 description: Text("Choose a group to view its entries.")
             )
         }
+    }
+
+    @ViewBuilder
+    private func emptyState(for selection: MacSidebarSelection) -> some View {
+        switch selection {
+        case .collection(.verificationCodes):
+            ContentUnavailableView(
+                "No Verification Codes",
+                systemImage: DatabaseCollection.verificationCodes.systemImage,
+                description: Text("Entries with a verification code appear here.")
+            )
+        case .collection:
+            ContentUnavailableView(
+                "No Entries",
+                systemImage: "tray",
+                description: Text("This database has no entries.")
+            )
+        case .group, .tag:
+            ContentUnavailableView(
+                "No Entries",
+                systemImage: "tray",
+                description: Text("This group has no entries.")
+            )
+        }
+    }
+}
+
+private extension MacSidebarSelection {
+    var isCollection: Bool {
+        if case .collection = self { true } else { false }
     }
 }
 

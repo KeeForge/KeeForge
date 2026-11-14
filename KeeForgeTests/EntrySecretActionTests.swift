@@ -187,6 +187,10 @@ final class EntrySecretActionTests: XCTestCase {
         let session = DatabaseViewModel(databaseReference: try TestDatabaseSupport.makeReference(for: url))
         await session.unlock(password: "testpassword123")
         defer { session.lockRequest(force: true) }
+        session.workspace.selectedCollection = .allEntries
+        let beforeCollectionChange = EntrySecretAction.currentSession(session)
+        session.workspace.selectedCollection = .verificationCodes
+        XCTAssertFalse(beforeCollectionChange())
         let current = EntrySecretAction.currentSession(session)
         XCTAssertTrue(current())
 

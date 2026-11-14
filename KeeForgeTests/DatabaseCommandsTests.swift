@@ -112,6 +112,26 @@ final class DatabaseCommandsTests: XCTestCase {
         XCTAssertEqual(session.workspace.deleteSelectionRequestID, 2)
     }
 
+    func testACollectionSelectionKeepsCreationAndOffersOnlyEntryDeletion() async throws {
+        let entry = KPEntry(title: "Listed")
+        let group = KPGroup(name: "Work", entries: [entry])
+        let session = try makeSession(root: KPGroup(name: "Root", groups: [group]))
+        await session.unlock(password: "testpassword123")
+        try await session.reloadDiscardingDraft()
+        defer { session.lockRequest(force: true) }
+        let commands = DatabaseCommands(session: session)
+        session.workspace.selectedCollection = .allEntries
+        XCTAssertTrue(commands.canNewEntry)
+        XCTAssertTrue(commands.canNewGroup)
+        XCTAssertFalse(commands.canDelete, "A collection is not a group to delete")
+        XCTAssertNil(session.deletableSelection)
+
+        session.workspace.selectedEntryID = entry.id
+        XCTAssertTrue(commands.canEditEntry)
+        XCTAssertTrue(commands.canDelete)
+        XCTAssertEqual(session.deletableSelection, .entry(entry.id))
+    }
+
     func testManualLockLocksAndClearsCommandAvailability() async throws {
         let session = try makeSession()
         await session.unlock(password: "testpassword123")

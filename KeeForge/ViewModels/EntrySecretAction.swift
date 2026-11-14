@@ -13,6 +13,7 @@ final class EntrySecretAction {
         let selectedEntryID = viewModel.workspace.selectedEntryID
         let selectedGroupID = viewModel.workspace.selectedGroupID
         let selectedTag = viewModel.workspace.selectedTag
+        let selectedCollection = viewModel.workspace.selectedCollection
         let navigationPath = viewModel.workspace.navigationPath
         return {
             viewModel.state == .unlocked && viewModel.sessionKey != nil && viewModel.lockCycleID == lockCycleID
@@ -20,6 +21,7 @@ final class EntrySecretAction {
                 && viewModel.workspace.selectedEntryID == selectedEntryID
                 && viewModel.workspace.selectedGroupID == selectedGroupID
                 && viewModel.workspace.selectedTag == selectedTag
+                && viewModel.workspace.selectedCollection == selectedCollection
                 && viewModel.workspace.navigationPath == navigationPath
         }
     }

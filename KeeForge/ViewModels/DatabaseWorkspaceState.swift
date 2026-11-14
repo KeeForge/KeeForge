@@ -115,6 +115,7 @@ final class DatabaseWorkspaceState {
                 selectedEntryID = nil
                 if selectedGroupID != nil {
                     selectedTag = nil
+                    selectedCollection = nil
                 }
             }
             onInteraction?()
@@ -126,6 +127,21 @@ final class DatabaseWorkspaceState {
                 selectedEntryID = nil
                 if selectedTag != nil {
                     selectedGroupID = nil
+                    selectedCollection = nil
+                }
+            }
+            onInteraction?()
+        }
+    }
+    /// A database-wide list selected in the Mac sidebar in place of a group
+    /// or a tag. iOS opens collections as `DatabaseRoute.collection` instead.
+    var selectedCollection: DatabaseCollection? {
+        didSet {
+            if oldValue != selectedCollection {
+                selectedEntryID = nil
+                if selectedCollection != nil {
+                    selectedGroupID = nil
+                    selectedTag = nil
                 }
             }
             onInteraction?()
@@ -198,6 +214,7 @@ final class DatabaseWorkspaceState {
     func clearSelection() {
         selectedGroupID = nil
         selectedTag = nil
+        selectedCollection = nil
         selectedEntryID = nil
         entrySelection = nil
     }
@@ -314,7 +331,7 @@ final class DatabaseWorkspaceState {
         }
         if let selectedGroupID, groupExists(selectedGroupID) == false {
             self.selectedGroupID = visibleRootGroupID
-        } else if selectedGroupID == nil, selectedTag == nil {
+        } else if selectedGroupID == nil, selectedTag == nil, selectedCollection == nil {
             selectedGroupID = visibleRootGroupID
         }
         // The detail host clears a vanished entry after its editor dismisses.

@@ -26,6 +26,57 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         XCTAssertNil(workspace.selectedEntryID)
     }
 
+    func testCollectionIsExclusiveWithGroupAndTagAndClearsTheEntry() {
+        let workspace = DatabaseWorkspaceState()
+        let groupID = UUID()
+        let entryID = UUID()
+        workspace.selectedGroupID = groupID
+        workspace.selectedEntryID = entryID
+
+        workspace.selectedCollection = .allEntries
+        XCTAssertNil(workspace.selectedGroupID)
+        XCTAssertNil(workspace.selectedEntryID)
+        workspace.selectedEntryID = entryID
+        workspace.selectedCollection = .allEntries
+        XCTAssertEqual(workspace.selectedEntryID, entryID, "Reselecting the same collection keeps the entry")
+
+        workspace.selectedCollection = .verificationCodes
+        XCTAssertNil(workspace.selectedEntryID)
+
+        workspace.selectedTag = "Work"
+        XCTAssertNil(workspace.selectedCollection)
+        workspace.selectedCollection = .allEntries
+        XCTAssertNil(workspace.selectedTag)
+        workspace.selectedGroupID = groupID
+        XCTAssertNil(workspace.selectedCollection)
+    }
+
+    func testReconciliationKeepsACollectionAndClearSelectionDropsIt() {
+        let workspace = DatabaseWorkspaceState()
+        let rootID = UUID()
+        workspace.selectedCollection = .verificationCodes
+        workspace.reconcileSelection(
+            visibleRootGroupID: rootID,
+            groupExists: { $0 == rootID },
+            tagExists: { _ in false },
+            entryIsSelectable: { _ in true }
+        )
+        XCTAssertEqual(workspace.selectedCollection, .verificationCodes)
+        XCTAssertNil(workspace.selectedGroupID, "A collection is a selection; the root fallback must not replace it")
+
+        workspace.reconcileSelection(
+            visibleRootGroupID: nil,
+            groupExists: { _ in false },
+            tagExists: { _ in false },
+            entryIsSelectable: { _ in true }
+        )
+        XCTAssertNil(workspace.selectedCollection)
+
+        workspace.selectedCollection = .allEntries
+        workspace.resetForLock()
+        XCTAssertNil(workspace.selectedCollection)
+    }
+
     func testReconciliationPreservesTagUntilItsLastCarrierDisappears() {
         let workspace = DatabaseWorkspaceState()
         let rootID = UUID()

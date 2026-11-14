@@ -2531,6 +2531,77 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.workspace.selectedEntryID)
     }
 
+    func testRevealEntryLeavesASelectedCollectionForTheEntrysGroup() async throws {
+        let target = KPEntry(title: "Target")
+        let work = KPGroup(name: "Work", entries: [target])
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", groups: [work]))
+        vm.workspace.selectedCollection = .allEntries
+
+        vm.revealEntry(target.id)
+
+        XCTAssertNil(vm.workspace.selectedCollection)
+        XCTAssertEqual(vm.workspace.selectedGroupID, work.id)
+        XCTAssertEqual(vm.workspace.selectedEntryID, target.id)
+    }
+
+    func testSelectedCollectionSurvivesEditsAndClearsOnLock() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Collection Selection")
+        let rootID = try XCTUnwrap(vm.visibleRootGroupID)
+        vm.workspace.selectedCollection = .verificationCodes
+        XCTAssertNil(vm.workspace.selectedGroupID)
+
+        try vm.applyEntryEdit(.createEntry(parentGroupID: rootID, draft: EntryDraftPayload(title: "Unrelated")))
+
+        XCTAssertEqual(vm.workspace.selectedCollection, .verificationCodes)
+        XCTAssertNil(vm.workspace.selectedGroupID, "The root fallback must not replace a selected collection")
+
+        vm.lock()
+        XCTAssertNil(vm.workspace.selectedCollection)
+    }
+
+    #if os(macOS)
+    func testEntriesForASidebarSelectionUseTheCollectionGroupOrTag() async throws {
+        let totpConfig = TOTPConfig(secret: EncryptedValue(sealedData: Data([0]), hasValue: true))
+        let recycleBin = KPGroup(
+            name: "Recycle Bin",
+            entries: [KPEntry(title: "Recycled Code", tags: ["Work"], totpConfig: totpConfig)]
+        )
+        let work = KPGroup(name: "Work", entries: [
+            KPEntry(title: "Zulu Code", tags: ["Work"], totpConfig: totpConfig),
+            KPEntry(title: "Alpha Plain"),
+        ])
+        let root = KPGroup(
+            name: "Root",
+            entries: [KPEntry(title: "Mike Root", tags: ["Work"])],
+            groups: [work, recycleBin],
+            recycleBinUUID: recycleBin.id
+        )
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        let all = vm.entries(for: .collection(.allEntries))
+        XCTAssertEqual(Set(all.map(\.title)), ["Zulu Code", "Alpha Plain", "Mike Root"])
+        XCTAssertEqual(all.map(\.id), vm.sortedEntries(vm.allEntries).map(\.id), "Collections follow the sort order")
+        XCTAssertEqual(vm.entries(for: .collection(.verificationCodes)).map(\.title), ["Zulu Code"])
+        XCTAssertTrue(vm.entries(for: .collection(.tags)).isEmpty)
+        XCTAssertTrue(vm.entries(for: .collection(.recycleBin)).isEmpty)
+        XCTAssertEqual(vm.entries(for: .group(work.id)).map(\.id), vm.sortedEntries(work.entries).map(\.id))
+        XCTAssertTrue(vm.entries(for: .group(UUID())).isEmpty)
+        XCTAssertEqual(Set(vm.entries(for: .tag("Work")).map(\.title)), ["Zulu Code", "Mike Root"])
+    }
+
+    func testSidebarSelectionMirrorsTheWorkspace() {
+        let workspace = DatabaseWorkspaceState()
+        XCTAssertNil(MacSidebarSelection(workspace: workspace))
+        let groupID = UUID()
+        for selection: MacSidebarSelection in [.group(groupID), .tag("Work"), .collection(.allEntries), .group(groupID)] {
+            selection.apply(to: workspace)
+            XCTAssertEqual(MacSidebarSelection(workspace: workspace), selection)
+        }
+        XCTAssertNil(workspace.selectedCollection)
+        XCTAssertNil(workspace.selectedTag)
+    }
+    #endif
+
     // MARK: - Entry row Move to Group gate (#134)
 
     /// `EntryRowMoveAction.isAvailable` is the one gate every entry row's Move

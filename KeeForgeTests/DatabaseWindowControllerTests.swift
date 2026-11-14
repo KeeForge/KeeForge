@@ -92,6 +92,12 @@ final class DatabaseWindowControllerTests: XCTestCase {
         let group = try XCTUnwrap(first.group(withID: try XCTUnwrap(first.visibleRootGroupID)))
         XCTAssertEqual(windowA.subtitle, group.name)
         XCTAssertEqual(windowB.subtitle, "")
+        first.workspace.selectedCollection = .verificationCodes
+        await settle()
+        XCTAssertEqual(windowA.subtitle, DatabaseCollection.verificationCodes.title)
+        first.workspace.selectedGroupID = group.id
+        await settle()
+        XCTAssertEqual(windowA.subtitle, group.name)
 
         await second.unlock(password: "testpassword123")
         await settle()
