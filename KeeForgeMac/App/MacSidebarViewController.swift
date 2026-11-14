@@ -397,7 +397,7 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         }
         let cell = outlineView.makeView(withIdentifier: MacSidebarCellView.reuseIdentifier, owner: self)
             as? MacSidebarCellView ?? MacSidebarCellView()
-        cell.configure(item.content, customIcons: session.currentMeta?.customIcons ?? [:])
+        cell.configure(item.content)
         return cell
     }
 
@@ -570,7 +570,6 @@ final class MacSidebarCellView: NSTableCellView {
 
     let countField = NSTextField(labelWithString: "")
     private var icon: MacSidebarIcon?
-    private var customIcons: [UUID: Data] = [:]
 
     init() {
         super.init(frame: .zero)
@@ -612,9 +611,8 @@ final class MacSidebarCellView: NSTableCellView {
         didSet { refreshIcon() }
     }
 
-    func configure(_ content: MacSidebarOutlineItem.Content, customIcons: [UUID: Data]) {
+    func configure(_ content: MacSidebarOutlineItem.Content) {
         icon = content.icon
-        self.customIcons = customIcons
         textField?.stringValue = content.title
         countField.stringValue = content.count?.formatted() ?? ""
         countField.isHidden = content.count == nil
@@ -628,20 +626,20 @@ final class MacSidebarCellView: NSTableCellView {
 
     private func refreshIcon() {
         imageView?.image = icon.flatMap {
-            Self.image(for: $0, customIcons: customIcons, emphasized: backgroundStyle == .emphasized)
+            Self.image(for: $0, emphasized: backgroundStyle == .emphasized)
         }
     }
 
     /// Standard icons keep `StandardIconView`'s palette, white on a selected row;
     /// the recycle bin and missing custom images fall back as `GroupIconView` does.
-    static func image(for icon: MacSidebarIcon, customIcons: [UUID: Data], emphasized: Bool) -> NSImage? {
+    static func image(for icon: MacSidebarIcon, emphasized: Bool) -> NSImage? {
         switch icon {
         case .symbol(let name):
             return NSImage(systemSymbolName: name, accessibilityDescription: nil)
         case .standard(let iconID):
             return standardImage(iconID, emphasized: emphasized)
-        case .custom(let uuid, let standardIconID):
-            guard let data = customIcons[uuid], let image = NSImage(data: data) else {
+        case .custom(let data, let standardIconID):
+            guard let image = NSImage(data: data) else {
                 return standardImage(standardIconID, emphasized: emphasized)
             }
             image.size = NSSize(width: iconSize, height: iconSize)

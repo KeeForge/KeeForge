@@ -67,9 +67,10 @@ enum MacSidebarItemID: Hashable {
 /// What a sidebar cell draws as its icon; the cell resolves it to an image.
 enum MacSidebarIcon: Hashable {
     case standard(Int)
-    /// A custom icon from `KPMeta.customIcons`, with the stored standard icon
-    /// for when its image data does not decode.
-    case custom(UUID, standardIconID: Int)
+    /// A custom icon's image data from `KPMeta.customIcons`, so a merge that
+    /// replaces the image changes the value; the standard icon is for data that
+    /// does not decode.
+    case custom(Data, standardIconID: Int)
     case symbol(String)
 }
 
@@ -131,8 +132,8 @@ struct MacSidebarSnapshot: Equatable {
             let isRecycleBin = group.id == recycleBinID
             let icon: MacSidebarIcon = if isRecycleBin {
                 .standard(43)
-            } else if let customIconID = group.customIconUUID, customIcons[customIconID] != nil {
-                .custom(customIconID, standardIconID: group.iconID)
+            } else if let customIconID = group.customIconUUID, let data = customIcons[customIconID] {
+                .custom(data, standardIconID: group.iconID)
             } else {
                 .standard(group.iconID)
             }
@@ -217,7 +218,7 @@ struct MacSidebarGroupActions: Equatable {
         let isEditable = session.currentRootGroup?.recycleBinUUID != groupID && isInRecycleBin == false
         self.init(
             canAddSubgroup: isEditable,
-            canEdit: isEditable,
+            canEdit: isEditable && session.isSyntheticRootGroup(groupID: groupID) == false,
             canRestore: session.canRestore(.group(groupID)),
             canMove: isEditable && isProtected == false,
             canDelete: isProtected == false,

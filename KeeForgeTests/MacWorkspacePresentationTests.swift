@@ -178,6 +178,36 @@ final class MacWorkspacePresentationTests: XCTestCase {
         XCTAssertEqual(database.workspace.selectedGroupID, root.id, "Deleting the selection fell back to the Recycle Bin")
     }
 
+    func testGroupEditRefusesTheSyntheticRootWhoseFieldsAreNotSaved() async throws {
+        let work = KPGroup(name: "Work")
+        let root = KPGroup(name: "Root", groups: [work, KPGroup(name: "Home")])
+        let database = try await makeDatabase(root: root)
+        defer { database.lock() }
+        let presentation = MacWorkspacePresentation()
+
+        presentation.beginGroupEdit(groupID: root.id, in: database)
+        XCTAssertNil(presentation.groupEditor)
+        presentation.beginGroupEdit(groupID: work.id, in: database)
+        XCTAssertEqual(presentation.groupEditor?.name, "Work")
+    }
+
+    func testImportIntoTheWorkspaceRootOfAWrapperHoldingOnlyTheBinSucceeds() async throws {
+        let recycleBin = KPGroup(name: "Recycle Bin")
+        let root = KPGroup(name: "Root", groups: [recycleBin], recycleBinUUID: recycleBin.id)
+        let database = try await makeDatabase(root: root)
+        defer { database.lock() }
+        let drafts = try ApplePasswordsCSVImporter.preview(
+            from: Data("Title,URL,Username,Password,Notes,OTPAuth\nImported,https://a.example,user,secret,,\n".utf8)
+        ).items.map(\.draft)
+        let destination = try XCTUnwrap(database.workspaceRootGroupID)
+
+        let outcome = try await database.importEntries(drafts, into: destination)
+
+        XCTAssertEqual(outcome, .saved)
+        XCTAssertEqual(database.group(withID: root.id)?.entries.map(\.title), ["Imported"])
+        XCTAssertEqual(database.group(withID: recycleBin.id)?.entries.isEmpty, true)
+    }
+
     func testResetClearsSessionPresentationsWithoutTouchingAnotherWindow() async throws {
         let group = KPGroup(name: "Group")
         let database = try await makeDatabase(root: KPGroup(name: "Root", groups: [group]))

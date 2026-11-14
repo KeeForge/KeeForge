@@ -274,7 +274,7 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
             String(localized: "New Subgroup"), String(localized: "Edit Group"),
             String(localized: "Move to Group"), String(localized: "Delete"),
         ])
-        XCTAssertEqual(identifiers(tree.root.id), ["group-row.new-subgroup", "group-row.edit-context"])
+        XCTAssertEqual(identifiers(tree.root.id), ["group-row.new-subgroup"], "The wrapper's fields are not saved")
         XCTAssertEqual(identifiers(tree.recycleBin.id), [])
         XCTAssertEqual(identifiers(tree.old.id), ["group-row.restore-context", "group-row.delete-permanent"])
         XCTAssertEqual(controller.contextMenuItems(forGroupID: tree.old.id).last?.title,
@@ -418,28 +418,57 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
     }
 
     func testIconsResolveStandardCustomAndSymbolImages() throws {
-        let png = try XCTUnwrap(NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
-            NSColor.green.setFill()
+        let png = try Self.png(.green)
+
+        let custom = try XCTUnwrap(MacSidebarCellView.image(for: .custom(png, standardIconID: 0), emphasized: false))
+        XCTAssertEqual(custom.size, NSSize(width: MacSidebarCellView.iconSize, height: MacSidebarCellView.iconSize))
+        XCTAssertFalse(custom.isTemplate)
+        let fallback = MacSidebarCellView.image(for: .custom(Data([0, 1, 2]), standardIconID: 0), emphasized: false)
+        XCTAssertNotNil(fallback)
+        XCTAssertNotEqual(fallback?.size, custom.size)
+        XCTAssertNotNil(MacSidebarCellView.image(for: .standard(43), emphasized: false))
+        XCTAssertNotNil(MacSidebarCellView.image(for: .standard(-1), emphasized: true))
+        XCTAssertEqual(MacSidebarCellView.image(for: .symbol("tag"), emphasized: false)?.isTemplate, true)
+    }
+
+    func testAMergedReplacementImageUnderTheSameUUIDRedrawsTheCell() async throws {
+        let tree = Tree()
+        let (controller, session, _) = try await makeController(tree)
+        let customID = UUID()
+        let red = try Self.png(.red)
+        let blue = try Self.png(.blue)
+        func useIcon(_ data: Data) throws {
+            let root = tree.root.deepCopy()
+            root.groups.first { $0.id == tree.work.id }?.customIconUUID = customID
+            session.draft = DatabaseDraft(
+                rootGroup: root,
+                meta: KPMeta(recycleBin: .group(tree.recycleBin.id), customIcons: [customID: data]),
+                sessionKey: try XCTUnwrap(session.sessionKey)
+            )
+        }
+        func cellImageData() throws -> Data? {
+            let view = try XCTUnwrap(cell(controller.outlineView, controller.item(for: .group(tree.work.id))))
+            return view.imageView?.image?.tiffRepresentation
+        }
+
+        try useIcon(red)
+        await settle()
+        let redImage = try cellImageData()
+        try useIcon(blue)
+        await settle()
+
+        XCTAssertNotNil(redImage)
+        XCTAssertNotEqual(try cellImageData(), redImage)
+        XCTAssertEqual(try cellImageData(),
+                       MacSidebarCellView.image(for: .custom(blue, standardIconID: 0), emphasized: false)?.tiffRepresentation)
+    }
+
+    private static func png(_ color: NSColor) throws -> Data {
+        try XCTUnwrap(NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+            color.setFill()
             rect.fill()
             return true
         }.tiffRepresentation.flatMap { NSBitmapImageRep(data: $0)?.representation(using: .png, properties: [:]) })
-        let customID = UUID()
-
-        let custom = try XCTUnwrap(MacSidebarCellView.image(
-            for: .custom(customID, standardIconID: 0), customIcons: [customID: png], emphasized: false
-        ))
-        XCTAssertEqual(custom.size, NSSize(width: MacSidebarCellView.iconSize, height: MacSidebarCellView.iconSize))
-        XCTAssertFalse(custom.isTemplate)
-        for data in [nil, Data([0, 1, 2])] as [Data?] {
-            let fallback = MacSidebarCellView.image(
-                for: .custom(customID, standardIconID: 0), customIcons: data.map { [customID: $0] } ?? [:], emphasized: false
-            )
-            XCTAssertNotNil(fallback)
-            XCTAssertNotEqual(fallback?.size, custom.size)
-        }
-        XCTAssertNotNil(MacSidebarCellView.image(for: .standard(43), customIcons: [:], emphasized: false))
-        XCTAssertNotNil(MacSidebarCellView.image(for: .standard(-1), customIcons: [:], emphasized: true))
-        XCTAssertEqual(MacSidebarCellView.image(for: .symbol("tag"), customIcons: [:], emphasized: false)?.isTemplate, true)
     }
 
     // MARK: - Helpers

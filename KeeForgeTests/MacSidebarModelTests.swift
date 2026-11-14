@@ -202,9 +202,28 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
         let snapshot = MacSidebarSnapshot.make(session: session)
         let children = try XCTUnwrap(snapshot.section(.groups)?.nodes.first?.children)
 
-        XCTAssertEqual(children.first { $0.title == "Banking" }?.icon, .custom(customID, standardIconID: 0))
+        XCTAssertEqual(children.first { $0.title == "Banking" }?.icon, .custom(Data([1, 2, 3]), standardIconID: 0))
         XCTAssertEqual(children.first { $0.title == "Missing" }?.icon, .standard(5))
         XCTAssertEqual(snapshot.section(.recycleBin)?.nodes.first?.icon, .standard(43))
+    }
+
+    func testReplacingACustomIconsImageUnderItsUUIDChangesTheSnapshot() async throws {
+        let customID = UUID()
+        let banking = KPGroup(name: "Banking", iconID: 0, customIconUUID: customID)
+        let root = KPGroup(name: "Root", groups: [banking, KPGroup(name: "Other")])
+        let session = try await makeSidebarSession(root: root, customIcons: [customID: Data([1, 2, 3])])
+        let before = MacSidebarSnapshot.make(session: session)
+
+        session.draft = DatabaseDraft(
+            rootGroup: root.deepCopy(),
+            meta: KPMeta(customIcons: [customID: Data([4, 5, 6])]),
+            sessionKey: try XCTUnwrap(session.sessionKey)
+        )
+        let after = MacSidebarSnapshot.make(session: session)
+
+        XCTAssertNotEqual(after, before)
+        XCTAssertEqual(after.section(.groups)?.nodes.first?.children.first { $0.title == "Banking" }?.icon,
+                       .custom(Data([4, 5, 6]), standardIconID: 0))
     }
 
     func testItemIDsMapSectionsToNoSelection() {
@@ -256,14 +275,37 @@ final class MacSidebarGroupActionsTests: MacSidebarSessionTestCase {
         XCTAssertEqual(actions.deleteAccessibilityIdentifier, "group-row.delete-context")
     }
 
-    func testProtectedRootsCanBeEditedButNeitherMovedNorDeleted() async throws {
+    func testProtectedRootsCanBeExtendedButNeitherMovedNorDeleted() async throws {
         let tree = Tree()
         let session = try await makeSidebarSession(root: tree.root)
 
         for groupID in [tree.visibleRoot.id, tree.root.id] {
             let actions = MacSidebarGroupActions(groupID: groupID, session: session)
             XCTAssertTrue(actions.canAddSubgroup)
-            XCTAssertTrue(actions.canEdit)
+            XCTAssertFalse(actions.canMove)
+            XCTAssertFalse(actions.canDelete)
+        }
+        XCTAssertTrue(MacSidebarGroupActions(groupID: tree.visibleRoot.id, session: session).canEdit)
+    }
+
+    func testTheSyntheticRootCannotBeEditedBecauseItsFieldsAreNotSaved() async throws {
+        let recycleBin = KPGroup(name: "Recycle Bin")
+        let binOnly = KPGroup(name: "Root", groups: [recycleBin], recycleBinUUID: recycleBin.id)
+        let multiChild = KPGroup(name: "Root", groups: [KPGroup(name: "Work"), KPGroup(name: "Home")])
+        let withEntries = KPGroup(name: "Root", entries: [KPEntry(title: "Loose")], groups: [KPGroup(name: "Work")])
+
+        let session = try await makeSidebarSession(root: binOnly)
+        for root in [binOnly, multiChild, withEntries] {
+            session.draft = DatabaseDraft(
+                rootGroup: root,
+                meta: KPMeta(recycleBin: root.recycleBinUUID.map { .group($0) }),
+                sessionKey: try XCTUnwrap(session.sessionKey)
+            )
+            XCTAssertEqual(session.workspaceRootGroupID, root.id, "The wrapper is the Groups root")
+            XCTAssertTrue(session.isSyntheticRootGroup(groupID: root.id))
+            let actions = MacSidebarGroupActions(groupID: root.id, session: session)
+            XCTAssertFalse(actions.canEdit)
+            XCTAssertTrue(actions.canAddSubgroup, "Its children are saved")
             XCTAssertFalse(actions.canMove)
             XCTAssertFalse(actions.canDelete)
         }

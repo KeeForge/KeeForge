@@ -933,6 +933,12 @@ final class DatabaseViewModel {
         #endif
     }
 
+    /// The parser's wrapper: the writer keeps only its children, so its own
+    /// fields cannot persist.
+    func isSyntheticRootGroup(groupID: UUID) -> Bool {
+        groupID == currentRootGroup?.id
+    }
+
     var hasSavedFile: Bool {
         databaseReference.isCloudBacked ||
         databaseReference.bookmarkData != nil ||

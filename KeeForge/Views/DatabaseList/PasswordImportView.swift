@@ -16,7 +16,7 @@ struct PasswordImportView: View {
         self.sessionViewModel = sessionViewModel
         _viewModel = State(
             initialValue: PasswordImportViewModel(
-                destinationGroupID: sessionViewModel.visibleRootGroupID ?? UUID(),
+                destinationGroupID: sessionViewModel.workspaceRootGroupID ?? UUID(),
                 duplicateCandidates: { [weak sessionViewModel] in
                     sessionViewModel?.importDuplicateCandidates ?? []
                 },
