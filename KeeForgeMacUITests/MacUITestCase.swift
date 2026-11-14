@@ -331,26 +331,28 @@ class MacUITestCase: XCTestCase {
         clickRow(identifier: "group.navlink", containing: name, rowKind: "Group", file: file, line: line)
     }
 
-    /// Clicks the named entry row; the detail pane shows the entry.
+    /// Clicks the named entry row and waits for the detail column to show it.
     func openEntry(named name: String, file: StaticString = #filePath, line: UInt = #line) {
-        clickRow(identifier: "entry.navlink", containing: name, rowKind: "Entry", file: file, line: line)
+        guard let title = clickRow(identifier: "entry.navlink", containing: name, rowKind: "Entry", file: file,
+                                   line: line) else { return }
+        XCTAssertTrue(waitForDisplayText(title, identifier: "entry-detail.title"),
+                      "Clicking '\(title)' did not show it in the detail column", file: file, line: line)
     }
 
     /// Clicks the first HITTABLE row matching the identifier and visible text.
     ///
-    /// Not restricted to `.button`: a sidebar row's identifier sits on its title
-    /// text in the AppKit outline, because XCUITest drops a table cell's own
-    /// identifier, and the content columns are native `List(selection:)` whose
-    /// text lands in `value` rather than `label`, so the predicate accepts either. The hittability and height
-    /// filters skip the zero-sized wrappers and stale navigation layers SwiftUI
-    /// copies row identifiers onto (XCUITest fails with "Unable to find hit point").
+    /// Sidebar and entry rows are AppKit table cells. XCUITest drops a cell's own
+    /// identifier, so each row's identifier sits on its title text field, whose
+    /// `value` is the title alone: `name` matches the title, never the username or
+    /// folder line. The hittability and height filters skip rows scrolled out of view.
+    @discardableResult
     private func clickRow(
         identifier: String,
         containing name: String,
         rowKind: String,
         file: StaticString = #filePath,
         line: UInt = #line
-    ) {
+    ) -> String? {
         let query = app.descendants(matching: .any).matching(
             NSPredicate(
                 format: "identifier == %@ AND (label CONTAINS[c] %@ OR value CONTAINS[c] %@)",
@@ -363,17 +365,19 @@ class MacUITestCase: XCTestCase {
             if let row = query.allElementsBoundByIndex.first(where: {
                 $0.exists && $0.isHittable && $0.frame.height > 1
             }) {
+                let title = displayText(of: row)
                 row.click()
-                return
+                return title
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         } while Date() < deadline
 
         XCTFail("\(rowKind) '\(name)' was not clickable within 15 seconds", file: file, line: line)
+        return nil
     }
 
-    /// Any element carrying a vault row identifier, regardless of element type
-    /// (see `clickRow` for why the type is not pinned).
+    /// Every element carrying a row identifier; for table rows that is each
+    /// row's title text field (see `clickRow`).
     func rowQuery(identifier: String) -> XCUIElementQuery {
         app.descendants(matching: .any).matching(identifier: identifier)
     }
@@ -409,10 +413,8 @@ class MacUITestCase: XCTestCase {
         return false
     }
 
-    /// Clicks the first hittable row carrying `identifier`, whatever it says.
-    /// The name-matching `clickRow` cannot be used where the point of the test
-    /// is that it does not care which row it lands on — only that the next
-    /// keystroke moves off it.
+    /// Clicks the first hittable row carrying `identifier`, whatever it says, and
+    /// returns its title. For tests that do not care which row they land on.
     @discardableResult
     func clickFirstRow(
         identifier: String,

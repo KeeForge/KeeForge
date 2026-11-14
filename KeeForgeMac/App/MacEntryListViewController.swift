@@ -970,22 +970,22 @@ final class MacEntrySelectionBarView: NSView {
         moveButton.target = self
         moveButton.action = #selector(move(_:))
         moveButton.setAccessibilityIdentifier("entry-selection.move")
-        countField.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .medium)
+        countField.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
+        countField.textColor = .secondaryLabelColor
         countField.alignment = .center
         countField.lineBreakMode = .byTruncatingTail
-        countField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         countField.setAccessibilityIdentifier("entry-selection.count")
-        for button in [cancelButton, moveButton] {
-            button.setContentCompressionResistancePriority(.required, for: .horizontal)
-            button.setContentHuggingPriority(.required, for: .horizontal)
-        }
         let separator = NSBox()
         separator.boxType = .separator
-        let row = NSStackView(views: [cancelButton, countField, moveButton])
-        row.orientation = .horizontal
-        row.spacing = 8
-        row.distribution = .fill
-        for view in [separator, row] {
+        // The count sits above the buttons: beside them it truncates in the column's default width.
+        let buttons = NSStackView(views: [cancelButton, moveButton])
+        buttons.orientation = .horizontal
+        buttons.distribution = .equalSpacing
+        let stack = NSStackView(views: [countField, buttons])
+        stack.orientation = .vertical
+        stack.alignment = .centerX
+        stack.spacing = 6
+        for view in [separator, stack] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
@@ -993,10 +993,12 @@ final class MacEntrySelectionBarView: NSView {
             separator.leadingAnchor.constraint(equalTo: leadingAnchor),
             separator.trailingAnchor.constraint(equalTo: trailingAnchor),
             separator.topAnchor.constraint(equalTo: topAnchor),
-            row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-            row.topAnchor.constraint(equalTo: separator.bottomAnchor, constant: 8),
-            row.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            stack.topAnchor.constraint(equalTo: separator.bottomAnchor, constant: 6),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
+            buttons.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            countField.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor),
         ])
     }
 

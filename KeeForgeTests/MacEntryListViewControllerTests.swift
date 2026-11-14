@@ -142,6 +142,25 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertTrue(controller.selectionBar.isHidden)
     }
 
+    func testTheSelectionBarFitsItsTextsInTheDefaultColumnWidth() {
+        let bar = MacEntrySelectionBarView()
+        bar.update(selection: Set((0..<12).map { _ in UUID() }), isReadOnly: false, isSaving: false)
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 200))
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(bar)
+        NSLayoutConstraint.activate([
+            bar.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            bar.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            bar.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+        container.layoutSubtreeIfNeeded()
+        for view in [bar.countField, bar.cancelButton, bar.moveButton] {
+            XCTAssertGreaterThanOrEqual(view.frame.width + 0.5, view.intrinsicContentSize.width,
+                                        "\(view) is truncated")
+        }
+        XCTAssertLessThanOrEqual(bar.moveButton.frame.maxX, bar.frame.width)
+    }
+
     func testTableSelectionWritesTheWorkspaceExtendingAndFiltering() async throws {
         let (controller, session, _, tree) = try await makeController()
         let table = controller.tableView
@@ -307,6 +326,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
     func testMenuActionsSetThePresentationAndCopyThroughTheCommands() async throws {
         let (controller, session, presentation, tree) = try await makeController(configure: { _, entries in
             entries[1].username = "{REF:U@T:Account 00}"
+            entries[2].tags = ["Shared"]
         })
         var copied: [String] = []
         controller.copyToClipboard = { copied.append($0) }
@@ -345,6 +365,21 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         try perform(item(EntryRowActions.duplicateIdentifier))
         XCTAssertNotNil(presentation.commandEditor)
         XCTAssertTrue(presentation.selectsCreatedEntryInPlace, "Search keeps the list and selects the copy in place")
+        presentation.commandEditor = nil
+
+        session.searchText = ""
+        session.workspace.selectedTag = "Shared"
+        await settle()
+        let tagged = tree.work.entries[2]
+        XCTAssertEqual(controller.tableView.numberOfRows, 1)
+        try perform(item(EntryRowActions.deleteIdentifier, for: tagged.id))
+        guard case .entry(let tagDeletion) = presentation.pendingDeletion else { return XCTFail("No tag deletion") }
+        XCTAssertEqual(tagDeletion.entryID, tagged.id)
+        XCTAssertTrue(tagDeletion.sendToRecycleBin)
+        presentation.pendingDeletion?.performDeletion(viewModel: session)
+        await settle()
+        XCTAssertTrue(session.isEntryInRecycleBin(entryID: tagged.id))
+        XCTAssertEqual(controller.tableView.numberOfRows, 0, "A recycled carrier leaves the tag list")
     }
 
     func testPasswordCopyWaitsForAuthenticationAndIsRejectedAfterALock() async throws {

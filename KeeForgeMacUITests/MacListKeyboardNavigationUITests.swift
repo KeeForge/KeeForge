@@ -1,19 +1,13 @@
 import XCTest
 
-/// Keyboard navigation in the two macOS content-column lists that are not a
-/// group's entries: search results and the tag browser.
+/// Arrow keys in search results. Every entry list (group, Library, tag,
+/// search) is the one `MacEntryListViewController` table, so this case and
+/// `MacSmokeUITests.testDownArrowMovesTheEntrySelection` stand for all of them;
+/// which rows each mode shows is unit-tested in `MacEntryListModelTests`. It
+/// asserts only that a keystroke moves the selection, never where it lands, so
+/// it does not re-encode the fixture's sort order.
 ///
-/// Both used to render the shared iOS `EntryListView`, whose rows are `Button`s
-/// — and a button consumes the click a native `List(selection:)` needs to move
-/// its selection, so the list never became first responder and the arrow keys
-/// went nowhere. They now render `MacEntriesList`. These tests are what catch a
-/// regression back to the button rows: they assert only that a keystroke moves
-/// the selection, never which entry it lands on, so they do not re-encode the
-/// fixture's sort order.
-///
-/// `kitchen-sink.kdbx` rather than the default `test.kdbx`: it is the only
-/// bundled database with entry tags, so it is the only one whose sidebar has a
-/// Tags section to browse (`TestFixtures/README.md`).
+/// `kitchen-sink.kdbx`: it has several entries matching "Login".
 @MainActor
 final class MacListKeyboardNavigationUITests: MacUITestCase {
     override var databaseFixtures: [DatabaseFixture] {
@@ -33,61 +27,28 @@ final class MacListKeyboardNavigationUITests: MacUITestCase {
             "The search needs at least two results for an arrow key to have somewhere to go"
         )
 
-        clickFirstRow(identifier: "search.entry.navlink")
-
-        let firstTitle = waitForAnyDetailTitle()
-        XCTAssertFalse(firstTitle.isEmpty, "Clicking a search result did not open it in the detail column")
+        // The row's identifier is on its title field, so the clicked text is the entry's title.
+        let clicked = clickFirstRow(identifier: "search.entry.navlink")
+        XCTAssertFalse(clicked.isEmpty, "Could not read the title of the clicked result")
+        XCTAssertTrue(waitForDisplayText(clicked, identifier: "entry-detail.title"),
+                      "Clicking a search result did not open it in the detail column")
 
         app.typeKey(XCUIKeyboardKey.downArrow, modifierFlags: [])
 
         XCTAssertNotNil(
-            waitForDetailTitleToChange(from: firstTitle),
+            waitForDetailTitleToChange(from: clicked),
             "Arrow-key navigation did not move the selection within the search results"
-        )
-    }
-
-    func testDownArrowMovesTheTagResultSelection() {
-        unlockSuccessfully()
-
-        // `shared` is carried by two entries in the fixture, which is the
-        // minimum for a downward move to land anywhere.
-        let tagRow = app.descendants(matching: .any)
-            .matching(identifier: "tag-list.row.shared")
-            .firstMatch
-        XCTAssertTrue(
-            tagRow.waitForExistence(timeout: 15),
-            "The macOS sidebar did not show the 'shared' tag row"
-        )
-        tagRow.click()
-
-        clickFirstRow(identifier: "search.entry.navlink")
-
-        let firstTitle = waitForAnyDetailTitle()
-        XCTAssertFalse(firstTitle.isEmpty, "Clicking a tag result did not open it in the detail column")
-
-        app.typeKey(XCUIKeyboardKey.downArrow, modifierFlags: [])
-
-        XCTAssertNotNil(
-            waitForDetailTitleToChange(from: firstTitle),
-            "Arrow-key navigation did not move the selection within the tag results"
         )
     }
 }
 
-/// Deleting from the two content-column lists that render `MacEntriesList`.
-///
-/// Both render inline in the workspace's content column, which already hosts a
-/// `PendingDeletion`, so the list must raise its confirmation there instead of
-/// adding a second `.alert(item:)` — two siblings on one presentation context
-/// collide and SwiftUI silently drops one. That is what broke the same flow on
-/// iOS (#118); on macOS it would have shipped the row's Delete doing nothing.
-/// Each case asserts the confirmation actually appears, because the failure is
-/// silent rather than an error.
+/// A search result's Delete item raises the workspace host's confirmation,
+/// and confirming it recycles the entry. The menu and its gates are unit-tested
+/// (`MacEntryListViewControllerTests`); only the running app shows the table's
+/// menu reaching the SwiftUI host's dialog and the result list updating.
 @MainActor
 final class MacSearchResultsDeleteUITests: MacUITestCase {
-    /// `kitchen-sink.kdbx` for the same reason the class above uses it: it is
-    /// the only bundled database with entry tags, so the only one whose sidebar
-    /// has a Tags section to delete from.
+    /// `kitchen-sink.kdbx`: several entries match "Login", and it has a Recycle Bin.
     override var databaseFixtures: [DatabaseFixture] {
         [DatabaseFixture(resourceName: "kitchen-sink", injectedFilename: "kitchen-sink.kdbx")]
     }
@@ -117,58 +78,18 @@ final class MacSearchResultsDeleteUITests: MacUITestCase {
             waitForRowToDisappear(title: title, identifier: "search.entry.navlink"),
             "Confirmed delete left '\(title)' in the search results"
         )
-    }
 
-    func testDeletingATagResultConfirmsAndRecyclesTheEntry() {
-        unlockSuccessfully()
-
-        let tagRow = app.descendants(matching: .any)
-            .matching(identifier: "tag-list.row.own-tag")
-            .firstMatch
-        XCTAssertTrue(tagRow.waitForExistence(timeout: 15), "The macOS sidebar did not show the 'own-tag' row")
-        tagRow.click()
-
-        let row = firstHittableRow(identifier: "search.entry.navlink")
-        row.rightClick()
-
-        clickContextMenuItem(titled: "Delete")
-
-        let confirmDelete = databaseWindow.buttons["Delete"].firstMatch
-        XCTAssertTrue(
-            confirmDelete.waitForExistence(timeout: 10),
-            "Delete confirmation did not present from the tag browser"
-        )
-        confirmDelete.click()
-
-        // The tag's only carrier is gone, so the browser falls to its empty state.
-        XCTAssertTrue(
-            waitForNoRow(identifier: "search.entry.navlink"),
-            "Confirmed delete left the entry in the tag results"
-        )
-    }
-
-    func testCancellingADeleteFromSearchResultsKeepsTheEntry() {
-        unlockSuccessfully()
-
-        typeCommandShortcut("f")
-        app.typeText("Login")
-        XCTAssertGreaterThanOrEqual(searchResultCount(), 2, "Expected several matches for 'Login'")
-
-        let row = firstHittableRow(identifier: "search.entry.navlink")
-        let title = displayText(of: row)
-        XCTAssertFalse(title.isEmpty, "Could not read the title of the row under test")
-        row.rightClick()
-
-        clickContextMenuItem(titled: "Delete")
-
-        let cancelButton = databaseWindow.buttons["Cancel"].firstMatch
-        XCTAssertTrue(cancelButton.waitForExistence(timeout: 10), "Delete confirmation did not present")
-        cancelButton.click()
-
-        XCTAssertTrue(
-            waitForDisplayText(title, identifier: "search.entry.navlink"),
-            "Cancelling the confirmation removed '\(title)' anyway"
-        )
+        // Clear the search, which wins over the sidebar, once the save that disables it ends.
+        let searchField = databaseWindow.searchFields.firstMatch
+        waitUntilEnabled(searchField, timeout: 30)
+        searchField.click()
+        typeCommandShortcut("a")
+        app.typeKey(XCUIKeyboardKey.delete, modifierFlags: [])
+        XCTAssertTrue(app.staticTexts["search.results.count"].waitForNonExistence(timeout: 10), "The search did not clear")
+        // The bin is the sidebar's last row, below the fold of this tall sidebar.
+        databaseWindow.outlines[Self.sidebarOutlineIdentifier].scroll(byDeltaX: 0, deltaY: -2000)
+        openGroup(named: "Recycle Bin")
+        XCTAssertTrue(waitForDisplayText(title, identifier: "entry.navlink"), "'\(title)' did not reach the Recycle Bin")
     }
 
     /// Clicks a row context-menu item by title.
@@ -217,17 +138,6 @@ final class MacSearchResultsDeleteUITests: MacUITestCase {
 
         XCTFail("No hittable '\(identifier)' row within \(Int(timeout)) seconds", file: file, line: line)
         return rowQuery(identifier: identifier).firstMatch
-    }
-
-    private func waitForNoRow(identifier: String, timeout: TimeInterval = 15) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        repeat {
-            let remaining = rowQuery(identifier: identifier).allElementsBoundByIndex
-                .filter { $0.exists && $0.frame.height > 1 }
-            if remaining.isEmpty { return true }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
-        } while Date() < deadline
-        return false
     }
 
     private func waitForRowToDisappear(

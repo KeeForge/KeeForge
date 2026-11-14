@@ -426,7 +426,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         settle()
         await snap("02-unlock")
 
-        // 3. Unlocked vault root (three-column: groups / entries / detail)
+        // 3. Unlocked vault root (sidebar / entry table / detail)
         unlockSuccessfully(in: personalWindow)
         settle()
         await snap("03-vault-root")
@@ -436,11 +436,37 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         settle()
         await snap("03b-sidebar-all-entries")
 
+        // 3c. Library > Verification Codes: live code rows with their countdown rings.
+        clickFirstRow(identifier: "sidebar.collection.verificationCodes")
+        if app.buttons["verification-code-row.copy"].firstMatch.waitForExistence(timeout: 8) {
+            settle()
+            await snap("03c-verification-codes")
+        } else {
+            noteSkip("03c-verification-codes", reason: "no verification-code row appeared")
+        }
+
         // 4. A group with an entry selected, so all three columns have content.
         openGroup(named: "Social")
         openEntry(named: "Discord")
         settle()
         await snap("04-group-selected")
+
+        // 4b. A native multiple selection (⌘-click) with the selection bar; Escape ends it.
+        let twitter = rowQuery(identifier: "entry.navlink").matching(NSPredicate(format: "value == 'Twitter'"))
+            .allElementsBoundByIndex.first { $0.isHittable && $0.frame.height > 1 }
+        if waitForStableForeground(), let twitter {
+            XCUIElement.perform(withKeyModifiers: .command) { twitter.click() }
+            if app.buttons["entry-selection.move"].firstMatch.waitForExistence(timeout: 5) {
+                settle()
+                await snap("04b-multi-select")
+            } else {
+                noteSkip("04b-multi-select", reason: "the selection bar never appeared")
+            }
+            app.typeKey(.escape, modifierFlags: [])
+            settle(0.4)
+        } else {
+            noteSkip("04b-multi-select", reason: "the 'Twitter' row was not hittable")
+        }
 
         // 5. Entry detail — entry rows live in the content column only after a
         //    group is selected.
@@ -506,6 +532,19 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         if closeWork.exists { closeWork.click() }
         if workWindow.waitForNonExistence(timeout: 10) == false {
             noteSkip("12-close-second-window", reason: "the Work window did not close")
+        }
+        // The Databases window, ordered above Personal when Work opened, is now in front.
+        let windowMenu = app.menuBars.menuBarItems["Window"].firstMatch
+        windowMenu.click()
+        let personalItem = windowMenu.menuItems.matching(
+            NSPredicate(format: "title == 'Personal' OR title BEGINSWITH 'Personal ('")
+        ).firstMatch
+        if personalItem.waitForExistence(timeout: 5) {
+            personalItem.click()
+        } else {
+            // An open menu would stall every later step and the teardown.
+            app.typeKey(.escape, modifierFlags: [])
+            noteSkip("12-front-personal", reason: "the Window menu did not list Personal")
         }
 
         // 8. Entry edit sheet (⌘N) — last, because presenting/dismissing it can
@@ -605,7 +644,75 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         settle()
         await snap("10-minimum-width")
 
+        // 10a. Code rows at the minimum width.
+        clickFirstRow(identifier: "sidebar.collection.verificationCodes")
+        if app.buttons["verification-code-row.copy"].firstMatch.waitForExistence(timeout: 8) {
+            clickFirstRow(identifier: "entry.navlink")
+            settle()
+            await snap("10a-minimum-width-codes")
+        } else {
+            noteSkip("10a-minimum-width-codes", reason: "no verification-code row appeared")
+        }
+
+        // 4a. The unsaved-changes banner at the top of the detail column. Last,
+        //     because it relaunches writable with a save conflict injected.
+        await captureUnsavedBanner()
+
         attachCaptureReport()
+    }
+
+    /// Relaunches writable at the default size with one injected save conflict
+    /// and deletes a group with an entry open. The conflict alert leaves the
+    /// draft unsaved, so the banner shows at the top of the detail column
+    /// behind it. The macOS alert offers no Cancel, so Reload ends it.
+    private func captureUnsavedBanner() async {
+        let name = "04a-unsaved-banner"
+        app.terminate()
+        app.launchEnvironment["UI_TEST_DATABASE_READ_ONLY"] = nil
+        app.launchEnvironment["UI_TEST_LOCAL_SAVE_CONFLICT_COUNT"] = "1"
+        if let index = app.launchArguments.firstIndex(of: Self.windowSizeArgument) {
+            app.launchArguments[index + 1] = Self.sizeValue(Self.databaseWindowSize)
+        }
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+        unlockSuccessfully(in: openDatabase(named: "Personal"))
+        openGroup(named: "Social")
+        openEntry(named: "Twitter")
+        guard waitForStableForeground(),
+              let emptyGroup = rowQuery(identifier: "group.navlink").matching(NSPredicate(format: "value == 'Empty'"))
+                .allElementsBoundByIndex.first(where: { $0.isHittable && $0.frame.height > 1 }) else {
+            noteSkip(name, reason: "the 'Empty' group row was not available")
+            return
+        }
+        emptyGroup.rightClick()
+        let delete = app.menuItems.matching(identifier: "group-row.delete-context").firstMatch
+        guard delete.waitForExistence(timeout: 3) else {
+            app.typeKey(.escape, modifierFlags: [])
+            noteSkip(name, reason: "the group context menu never opened")
+            return
+        }
+        delete.click()
+        let confirm = personalWindow.buttons["Delete"].firstMatch
+        guard confirm.waitForExistence(timeout: 5) else {
+            noteSkip(name, reason: "the delete confirmation never appeared")
+            return
+        }
+        confirm.click()
+        guard personalWindow.staticTexts["Save Conflict"].waitForExistence(timeout: 10) else {
+            noteSkip(name, reason: "the injected save conflict never appeared")
+            return
+        }
+        if rowQuery(identifier: "database.unsaved-indicator").firstMatch.waitForExistence(timeout: 5) == false {
+            noteSkip(name, reason: "the unsaved-changes banner never appeared")
+        }
+        settle(0.6)
+        await snap(name)
+        // Quitting with an unsaved draft asks first, which would stall the teardown.
+        let reload = personalWindow.buttons["save-conflict.reload"].firstMatch
+        if reload.waitForExistence(timeout: 3) { reload.click() }
+        if rowQuery(identifier: "database.unsaved-indicator").firstMatch.waitForNonExistence(timeout: 10) == false {
+            noteSkip("\(name)-cleanup", reason: "the draft stayed unsaved")
+        }
     }
 
     func testCaptureTOTPSetupLink() async {
@@ -721,6 +828,10 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         let emptyGroup = rowQuery(identifier: "group.navlink").matching(NSPredicate(format: "value == 'Empty'"))
             .allElementsBoundByIndex.first { $0.isHittable && $0.frame.height > 1 }
         if waitForStableForeground(), let emptyGroup {
+            // The entry column's empty state, before the group is deleted.
+            emptyGroup.click()
+            settle()
+            await snap("03d-empty-group")
             emptyGroup.rightClick()
             let delete = app.menuItems.matching(identifier: "group-row.delete-context").firstMatch
             if delete.waitForExistence(timeout: 3) {
@@ -742,6 +853,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
                 app.typeKey(.escape, modifierFlags: [])
             }
         } else {
+            noteSkip("03d-empty-group", reason: "the app or the 'Empty' group row was not available")
             noteSkip(menuName, reason: "the app or the 'Empty' group row was not available")
             noteSkip(binName, reason: "no group was deleted")
         }

@@ -49,39 +49,36 @@ final class MacSmokeUITests: MacUITestCase {
     func testRestoreEntryFromRecycleBinContextMenu() {
         unlockSuccessfully()
         openGroup(named: "Social")
-        restoreTestRow(identifier: "entry.navlink", named: "Discord").rightClick()
+        titledRow(identifier: "entry.navlink", named: "Discord").rightClick()
         clickRestoreTestMenu("entry-row.delete-context")
         let delete = databaseWindow.buttons["Delete"].firstMatch
         XCTAssertTrue(delete.waitForExistence(timeout: 5))
         delete.click()
         openGroup(named: "Recycle Bin")
-        restoreTestRow(identifier: "entry.navlink", named: "Discord").rightClick()
+        titledRow(identifier: "entry.navlink", named: "Discord").rightClick()
         clickRestoreTestMenu("entry-row.restore-context")
         openGroup(named: "Social")
-        XCTAssertTrue(restoreTestRow(identifier: "entry.navlink", named: "Discord").waitForExistence(timeout: 10))
+        XCTAssertTrue(titledRow(identifier: "entry.navlink", named: "Discord").waitForExistence(timeout: 10))
     }
 
     func testRestoreGroupFromRecycleBinContextMenu() {
         unlockSuccessfully()
-        restoreTestRow(identifier: "group.navlink", named: "Work").rightClick()
+        titledRow(identifier: "group.navlink", named: "Work").rightClick()
         clickRestoreTestMenu("group-row.delete-context")
         let delete = databaseWindow.buttons["Delete"].firstMatch
         XCTAssertTrue(delete.waitForExistence(timeout: 5))
         delete.click()
         openGroup(named: "Recycle Bin")
-        restoreTestRow(identifier: "group.navlink", named: "Work").rightClick()
+        titledRow(identifier: "group.navlink", named: "Work").rightClick()
         clickRestoreTestMenu("group-row.restore-context")
         openGroup(named: "Work")
-        XCTAssertTrue(restoreTestRow(identifier: "entry.navlink", named: "Email").waitForExistence(timeout: 10))
+        XCTAssertTrue(titledRow(identifier: "entry.navlink", named: "Email").waitForExistence(timeout: 10))
     }
 
-    private func restoreTestRow(identifier: String, named name: String) -> XCUIElement {
-        rowQuery(identifier: identifier).matching(NSPredicate(
-            format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", name, name
-        )).allElementsBoundByIndex.first { $0.isHittable && $0.frame.height > 10 }
-            ?? rowQuery(identifier: identifier).matching(NSPredicate(
-                format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", name, name
-            )).firstMatch
+    /// The sidebar or entry row titled `name`: its title field, which carries the row identifier.
+    private func titledRow(identifier: String, named name: String) -> XCUIElement {
+        let rows = rowQuery(identifier: identifier).matching(NSPredicate(format: "value == %@", name))
+        return rows.allElementsBoundByIndex.first { $0.isHittable && $0.frame.height > 1 } ?? rows.firstMatch
     }
 
     private func clickRestoreTestMenu(_ identifier: String) {
@@ -92,7 +89,8 @@ final class MacSmokeUITests: MacUITestCase {
         item?.click()
     }
 
-    // Selection and sheet dismissal need the native split view.
+    // The host's editor sheet, the table's row insertion and the detail column
+    // following the new selection meet only in the running app.
     func testNewEntryIsSelectedAfterSaving() {
         unlockSuccessfully()
         openGroup(named: "Work")
@@ -105,7 +103,10 @@ final class MacSmokeUITests: MacUITestCase {
         let save = app.buttons["entry-edit.save"].firstMatch
         save.click()
         XCTAssertTrue(save.waitForNonExistence(timeout: 15))
-        XCTAssertTrue(waitForDisplayText("ZZZ Newly Saved Entry", identifier: "entry-detail.title"))
+        XCTAssertTrue(waitForDisplayText("ZZZ Newly Saved Entry", identifier: "entry.navlink"),
+                      "The saved entry has no row in its group")
+        XCTAssertTrue(waitForDisplayText("ZZZ Newly Saved Entry", identifier: "entry-detail.title"),
+                      "The saved entry is not the selected one")
     }
 
     // MARK: - Unlock
@@ -163,8 +164,7 @@ final class MacSmokeUITests: MacUITestCase {
     }
 
     // `MacSidebarSnapshotTests` owns which rows appear; only the running app
-    // shows the outline rendering them and the SwiftUI entries column
-    // following a Library row.
+    // shows the outline rendering them and the entry table following a Library row.
     func testSidebarShowsItsSectionsAndAllEntriesListsEveryGroup() throws {
         unlockSuccessfully()
         let outline = databaseWindow.outlines[Self.sidebarOutlineIdentifier]
@@ -261,19 +261,14 @@ final class MacSmokeUITests: MacUITestCase {
         )
     }
 
-    /// The vault columns are native `List(selection:)`, so the arrow keys are
-    /// AppKit's, not something the app implements. These two tests are what
-    /// catch a regression back to hand-rolled button rows, where nothing moved.
+    /// The sidebar and entry list are native tables, so the arrow keys are
+    /// AppKit's. Only the running app shows a real click making the table first
+    /// responder and the detail column following the moved selection.
     func testDownArrowMovesTheEntrySelection() {
         unlockSuccessfully()
         openGroup(named: "Work")
         // Title-ascending is the default sort, so Email precedes GitHub.
         openEntry(named: "Email")
-
-        XCTAssertTrue(
-            waitForDisplayText("Email", identifier: "entry-detail.title"),
-            "Entry detail did not open on 'Email'"
-        )
 
         app.typeKey(XCUIKeyboardKey.downArrow, modifierFlags: [])
 
@@ -317,6 +312,8 @@ final class MacSmokeUITests: MacUITestCase {
         typeCommandShortcut("f")
         app.typeText("GitHub")
 
+        XCTAssertTrue(waitForDisplayText("GitHub", identifier: "search.entry.navlink"),
+                      "The search results did not list 'GitHub'")
         let resultsCount = app.staticTexts["search.results.count"]
         XCTAssertTrue(resultsCount.waitForExistence(timeout: 15), "Search results count overlay missing")
 
@@ -351,7 +348,11 @@ final class MacSmokeUITests: MacUITestCase {
                     continue
                 }
                 let identifier = element.identifier
+                let column = element.frame
+                // XCUITest can report an AppKit scroll view (the sidebar's) as containing a sheet's
+                // control, so a candidate must also span the element horizontally.
                 let scrollView = app.scrollViews.allElementsBoundByIndex
+                    .filter { $0.frame.minX <= column.minX && $0.frame.maxX >= column.maxX }
                     .filter { $0.descendants(matching: .any).matching(identifier: identifier).firstMatch.exists }
                     .min { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
                     ?? app.scrollViews.firstMatch
@@ -454,51 +455,33 @@ final class MacSmokeUITests: MacUITestCase {
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5), "Save button missing")
         saveButton.click()
 
-        // The renamed entry surfaces as a content-column row. Matching is done
-        // in Swift over the identifier query rather than with a CONTAINS
-        // predicate: a broad `descendants(.any)` + CONTAINS scan over the
-        // three-column hierarchy times out the accessibility query on macOS.
+        // The table reconfigures the row in place; its title field carries the new title.
         XCTAssertTrue(
             waitForDisplayText("Discord Renamed", identifier: "entry.navlink", timeout: 30),
             "Renamed entry did not appear after save"
         )
+        XCTAssertFalse(rowQuery(identifier: "entry.navlink").allElementsBoundByIndex.contains {
+            displayText(of: $0) == "Discord"
+        }, "The old title is still listed")
     }
 
-    /// Double-clicking a row opens the editor. Paired with
-    /// `testDownArrowMovesTheEntrySelection`, which single-clicks a row and
-    /// asserts the detail pane follows: the row carries only a two-click
-    /// gesture, so a single click has to reach the native `List(selection:)`
-    /// and a double click still has to open the editor.
+    /// The table's `doubleAction` opens the clicked row in the workspace's one
+    /// editor. Unit tests reach `openEntry(atRow:)` but cannot synthesize
+    /// `clickedRow`, so only a real double-click proves the wiring.
     func testDoubleClickingAnEntryRowOpensTheEditor() {
         unlockSuccessfully()
         openGroup(named: "Social")
 
-        let query = app.descendants(matching: .any).matching(
-            NSPredicate(
-                format: "identifier == %@ AND (label CONTAINS[c] %@ OR value CONTAINS[c] %@)",
-                "entry.navlink", "Discord", "Discord"
-            )
-        )
-
-        let deadline = Date().addingTimeInterval(15)
-        var clicked = false
-        repeat {
-            if let row = query.allElementsBoundByIndex.first(where: {
-                $0.exists && $0.isHittable && $0.frame.height > 1
-            }) {
-                row.doubleClick()
-                clicked = true
-                break
-            }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
-        } while Date() < deadline
-        XCTAssertTrue(clicked, "Entry 'Discord' was not clickable within 15 seconds")
+        let row = titledRow(identifier: "entry.navlink", named: "Discord")
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "Entry 'Discord' is not listed")
+        row.doubleClick()
 
         let titleField = app.textFields["entry-edit.title-field"]
         XCTAssertTrue(
             titleField.waitForExistence(timeout: 15),
             "Double-clicking the entry row did not open the editor"
         )
+        XCTAssertEqual(titleField.value as? String, "Discord", "The editor opened another entry")
     }
 
     // MARK: - Menu-bar commands
