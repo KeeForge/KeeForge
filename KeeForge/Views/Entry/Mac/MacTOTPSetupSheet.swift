@@ -28,7 +28,8 @@ struct MacTOTPSetupSheet: View {
                         .font(.system(size: 12, design: .monospaced))
                         .scrollContentBackground(.hidden)
                         .padding(4)
-                        .frame(height: 58)
+                        // Four lines: a typical otpauth:// link wraps to four at this width.
+                        .frame(height: 74)
                         .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 5))
                         .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color(nsColor: .separatorColor)))
                         .overlay(alignment: .topLeading) {
