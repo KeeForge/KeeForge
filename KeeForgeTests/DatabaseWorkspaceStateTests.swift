@@ -159,6 +159,33 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         XCTAssertNil(workspace.entrySelection)
     }
 
+    func testSettingTheEntrySelectionEntersAndReplacesSelectionMode() {
+        let workspace = DatabaseWorkspaceState()
+        let first = UUID()
+        let second = UUID()
+        let third = UUID()
+        workspace.selectedEntryID = first
+        XCTAssertEqual(workspace.commandEntryID, first)
+
+        workspace.setEntrySelection([first, second])
+        XCTAssertEqual(workspace.entrySelection, [first, second])
+        XCTAssertNil(workspace.commandEntryID, "bulk selection disables the single-entry commands")
+        XCTAssertEqual(workspace.selectedEntryID, first, "the detail keeps its entry")
+
+        workspace.setEntrySelection([third])
+        XCTAssertEqual(workspace.entrySelection, [third], "the set replaces, it does not merge")
+        workspace.toggleEntrySelection(first)
+        XCTAssertEqual(workspace.entrySelection, [first, third])
+        workspace.setEntrySelection([])
+        XCTAssertEqual(workspace.entrySelection, [], "an empty set keeps the mode")
+
+        workspace.endEntrySelection()
+        XCTAssertEqual(workspace.commandEntryID, first)
+        workspace.setEntrySelection([second, third])
+        workspace.resetForLock()
+        XCTAssertNil(workspace.entrySelection)
+    }
+
     func testReconciliationDropsEntriesThatCanNoLongerBeSelected() {
         let workspace = DatabaseWorkspaceState()
         let rootID = UUID()
@@ -244,6 +271,7 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
             { workspace.beginEntrySelection(with: UUID()) },
             { workspace.beginEntrySelection() },
             { workspace.toggleEntrySelection(UUID()) },
+            { workspace.setEntrySelection([UUID(), UUID()]) },
             { workspace.endEntrySelection() },
         ]
         for action in actions {

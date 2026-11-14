@@ -2604,8 +2604,8 @@ final class DatabaseViewModelTests: XCTestCase {
 
     // MARK: - Entry row Move to Group gate (#134)
 
-    /// `EntryRowMoveAction.isAvailable` is the one gate every entry row's Move
-    /// to Group item — and, through it, Duplicate — reads, so each condition
+    /// `EntryRowActions.canMove` is the one gate every entry row's Move
+    /// to Group item — and, through it, Duplicate and Select — reads, so each condition
     /// is pinned here rather than per shell.
     func testEntryRowMoveIsOfferedForAWritableEntryOutsideTheRecycleBin() async throws {
         let target = KPEntry(title: "Movable")
@@ -2614,7 +2614,7 @@ final class DatabaseViewModelTests: XCTestCase {
         ])
         let vm = try await makeInjectedViewModel(rootGroup: root)
 
-        XCTAssertTrue(EntryRowMoveAction.isAvailable(entryID: target.id, viewModel: vm))
+        XCTAssertTrue(EntryRowActions(entryID: target.id, session: vm).canMove)
     }
 
     func testEntryRowMoveIsWithheldForARecycledEntry() async throws {
@@ -2627,7 +2627,7 @@ final class DatabaseViewModelTests: XCTestCase {
         try vm.deleteEntry(target.id, sendToRecycleBin: true)
 
         XCTAssertTrue(vm.isEntryInRecycleBin(entryID: target.id))
-        XCTAssertFalse(EntryRowMoveAction.isAvailable(entryID: target.id, viewModel: vm))
+        XCTAssertFalse(EntryRowActions(entryID: target.id, session: vm).canMove)
     }
 
     func testEntryRowMoveIsWithheldInAReadOnlyDatabase() async throws {
@@ -2641,7 +2641,55 @@ final class DatabaseViewModelTests: XCTestCase {
         vm.setReadOnly(true)
 
         XCTAssertTrue(vm.isReadOnly)
-        XCTAssertFalse(EntryRowMoveAction.isAvailable(entryID: target.id, viewModel: vm))
+        XCTAssertFalse(EntryRowActions(entryID: target.id, session: vm).canMove)
+    }
+
+    func testEntryRowActionsGateCopyDuplicateRestoreAndDeletePerEntry() async throws {
+        let target = KPEntry(title: "Target", username: "user", password: .empty)
+        let empty = KPEntry(title: "Empty")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [target, empty]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        let live = EntryRowActions(entryID: target.id, session: vm)
+        XCTAssertTrue(live.canCopyUsername)
+        XCTAssertFalse(live.canCopyPassword, "no password to copy")
+        XCTAssertTrue(live.canDuplicate)
+        XCTAssertTrue(live.canSelect)
+        XCTAssertFalse(live.canRestore)
+        XCTAssertTrue(live.canDelete)
+        XCTAssertEqual(live.deleteTitle, String(localized: "Delete"))
+        XCTAssertEqual(live.deleteAccessibilityIdentifier, "entry-row.delete-context")
+        guard case .entry(let deletion) = live.pendingDeletion else { return XCTFail("Expected an entry deletion") }
+        XCTAssertEqual(deletion.entryID, target.id)
+        XCTAssertTrue(deletion.sendToRecycleBin)
+        XCTAssertFalse(EntryRowActions(entryID: empty.id, session: vm).canCopyUsername)
+        let editor = try XCTUnwrap(live.makeDuplicateEditor())
+        XCTAssertEqual(editor.username, "user")
+
+        var withPassword = target
+        withPassword.password = try EncryptedValue.encrypt("secret", using: try XCTUnwrap(vm.sessionKey))
+        XCTAssertTrue(EntryRowActions(entry: withPassword, session: vm).canCopyPassword,
+                      "a row's own entry value drives the copy gates")
+
+        var copied: [String] = []
+        live.copyUsername { copied.append($0) }
+        XCTAssertEqual(copied, ["user"])
+
+        try vm.deleteEntry(target.id, sendToRecycleBin: true)
+        let recycled = EntryRowActions(entryID: target.id, session: vm)
+        XCTAssertFalse(recycled.canDuplicate)
+        XCTAssertFalse(recycled.canSelect)
+        XCTAssertTrue(recycled.canRestore)
+        XCTAssertTrue(recycled.canDelete)
+        XCTAssertEqual(recycled.deleteTitle, String(localized: "Delete Permanently"))
+        XCTAssertEqual(recycled.deleteAccessibilityIdentifier, "entry-row.delete-permanent")
+        guard case .entry(let permanent) = recycled.pendingDeletion else { return XCTFail("Expected an entry deletion") }
+        XCTAssertFalse(permanent.sendToRecycleBin)
+
+        vm.lock()
+        XCTAssertFalse(EntryRowActions(entryID: empty.id, session: vm).canDuplicate, "duplicating needs the session key")
     }
 
     func testSearchExclusionIsInheritedBySubgroups() async throws {

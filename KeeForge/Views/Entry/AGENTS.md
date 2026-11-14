@@ -7,9 +7,9 @@
 - `EntryEditViewModel` owns fields and payloads; `DatabaseEditorCoordinator` owns dirty registration, submission, completion, and Save and Lock (`../../ViewModels/AGENTS.md`). `EntryEditView` forwards appearance, dirty, and conflict changes and turns completion into dismissal. Every presenter closes through `onComplete`.
 - `RestoreRowAction` shares entry/group recovery across all shells through `PendingMove.restoreOrChooseDestination`, which the Mac sidebar menu also calls; `PendingMove.restore` hosts the fallback destination picker with a recovery title. Cancellation stages nothing.
 - `PendingRowActions.swift` is the one source of delete-confirmation wording and move state for the iOS group list, `EntryListView`, `MacEntriesList`, and the macOS workspace. The Mac menu-bar Delete builds the same `PendingDeletion`; no path deletes without it.
-- Entry-row context-menu items are the shared `EntryRowCopyActions`, `EntryRowDuplicateAction`, and `EntryRowMoveAction`. Add or change an item there, not per shell. They hand an editor or `PendingMove` back to the caller instead of presenting, because the host differs per shell.
+- Entry-row context-menu gates and effects live in `EntryRowActions` (`../../ViewModels/`); `EntryRowCopyActions`, `EntryRowDuplicateAction`, `EntryRowMoveAction`, and `EntryRowSelectAction` are thin SwiftUI items over it. Add or change an item there, not per shell. They hand an editor or `PendingMove` back to the caller instead of presenting, because the host differs per shell.
 - A duplicate saved from the search results or tag browser opens like a new entry: iOS pushes or selects it once its sheet has dismissed, macOS selects it.
-- `EntryRowMoveAction.isAvailable` (writable, not in the recycle bin) is the shared ordinary move/duplicate gate; Restore uses the session’s separate recovery eligibility. The group-row move keeps its own gate in `../Group/GroupListView.swift` on purpose.
+- `EntryRowActions.canMove` (writable, not in the recycle bin) is the shared ordinary move/duplicate/select gate; Restore uses the session’s separate recovery eligibility. The group-row move keeps its own gate in `../Group/GroupListView.swift` on purpose.
 - Three entry lists: `EntryListView` (iOS search results and tag browser), `MacEntriesList` (the same two on macOS), and `MacGroupEntriesList` in the Mac workspace columns (the Mac group column). The Mac two share `MacEntryRow`.
 
 ## Invariants
@@ -65,7 +65,7 @@
 
 ## Tests
 
-- Search-results delete and move: `SearchResultsDeleteUITests` and `SearchResultsMoveUITests`, both in `KeeForgeUITests/EntryEditUITests.swift`. The move gate itself: `testEntryRowMove...` in `DatabaseViewModelTests`.
+- Search-results delete and move: `SearchResultsDeleteUITests` and `SearchResultsMoveUITests`, both in `KeeForgeUITests/EntryEditUITests.swift`. The move gate itself: `testEntryRowMove...` in `DatabaseViewModelTests`, the other row gates `testEntryRowActions...` there.
 - Row menu: `EntryRowCopyUITests`, `EntryDuplicateUITests`. Editor: `EntryEditSmokeUITests`; its custom-field cases cover moving, protection toggles, and reopening, with counterparts in `MacSmokeUITests`. `ProtectedCustomFieldEditorAuthUITests` covers the reveal and protection-removal authentication gates. Tags shown on detail: `InheritedTagsUITests`.
 - Attachments: `EntryAttachmentsSmokeUITests` and `EntryAttachmentFileLoaderTests` (size budget). The system file picker is exercised by hand.
 - History: `EntryHistoryUITests` on iOS. The Mac shell is only captured, as `08b-entry-history` in `MacScreenshotAuditUITests`.

@@ -189,6 +189,12 @@ final class DatabaseWorkspaceState {
         entrySelection = []
     }
 
+    /// Replaces the picked entries wholesale, entering selection mode if needed;
+    /// the Mac entry table's extended selection maps onto it.
+    func setEntrySelection(_ entryIDs: Set<UUID>) {
+        entrySelection = entryIDs
+    }
+
     func toggleEntrySelection(_ entryID: UUID) {
         guard var selection = entrySelection else { return }
         if selection.remove(entryID) == nil {

@@ -112,7 +112,7 @@ struct GroupListView: View {
         case .tags, .recycleBin: []
         case nil: visibleEntries
         }
-        return entries.map(\.id).filter { EntryRowMoveAction.isAvailable(entryID: $0, viewModel: viewModel) }
+        return entries.map(\.id).filter { EntryRowActions(entryID: $0, session: viewModel).canSelect }
     }
 
     /// An app built with the iOS 27 SDK folds trailing bar items into an

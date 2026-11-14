@@ -130,7 +130,7 @@ struct MacEntryRow: View {
         // the row offers nothing else. An entry that cannot be moved keeps
         // behaving as a plain row.
         let selection = viewModel.workspace.entrySelection
-        let isSelectable = selection != nil && EntryRowMoveAction.isAvailable(entryID: entry.id, viewModel: viewModel)
+        let isSelectable = selection != nil && EntryRowActions(entryID: entry.id, session: viewModel).canSelect
         let isSelected = selection?.contains(entry.id) == true
         HStack(spacing: 8) {
             if isSelectable {
@@ -194,25 +194,13 @@ struct MacEntryRow: View {
 
         EntryRowSelectAction(entryID: entry.id, viewModel: viewModel)
 
-        if viewModel.isReadOnly == false {
-            Button(sendToRecycleBin ? "Delete" : "Delete Permanently", role: .destructive) {
-                onRequestDeletion(
-                    .entry(
-                        PendingEntryDeletion(
-                            entryID: entry.id,
-                            sendToRecycleBin: sendToRecycleBin
-                        )
-                    )
-                )
+        let actions = EntryRowActions(entryID: entry.id, session: viewModel)
+        if actions.canDelete {
+            Button(actions.deleteTitle, role: .destructive) {
+                onRequestDeletion(actions.pendingDeletion)
             }
-            .accessibilityIdentifier(
-                sendToRecycleBin ? "entry-row.delete-context" : "entry-row.delete-permanent"
-            )
+            .accessibilityIdentifier(actions.deleteAccessibilityIdentifier)
         }
-    }
-
-    private var sendToRecycleBin: Bool {
-        viewModel.isEntryInRecycleBin(entryID: entry.id) == false
     }
 }
 #endif

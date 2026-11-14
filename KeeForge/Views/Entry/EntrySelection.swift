@@ -14,11 +14,12 @@ struct EntryRowSelectAction: View {
     let viewModel: DatabaseViewModel
 
     var body: some View {
-        if EntryRowMoveAction.isAvailable(entryID: entryID, viewModel: viewModel) {
+        let actions = EntryRowActions(entryID: entryID, session: viewModel)
+        if actions.canSelect {
             Button("Select Entries") {
-                viewModel.workspace.beginEntrySelection(with: entryID)
+                actions.beginSelection()
             }
-            .accessibilityIdentifier("entry-row.select-context")
+            .accessibilityIdentifier(EntryRowActions.selectIdentifier)
         }
     }
 }
@@ -45,7 +46,7 @@ struct EntrySelectionRow<Row: View>: View {
     @ViewBuilder let row: Row
 
     var body: some View {
-        let isSelectable = EntryRowMoveAction.isAvailable(entryID: entryID, viewModel: viewModel)
+        let isSelectable = EntryRowActions(entryID: entryID, session: viewModel).canSelect
         let isSelected = viewModel.workspace.entrySelection?.contains(entryID) == true
         Button {
             viewModel.workspace.toggleEntrySelection(entryID)

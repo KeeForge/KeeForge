@@ -85,6 +85,60 @@ final class DatabaseCommandsTests: XCTestCase {
         }
     }
 
+    func testPerEntryCopyActsOnTheNamedEntryWithoutAPromptOnlyWhileUnlocked() async throws {
+        let key = SymmetricKey(size: .bits256)
+        let config = TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: key))
+        let source = KPEntry(title: "Source", username: "alice")
+        let target = KPEntry(
+            title: "Target",
+            username: "{REF:U@T:Source}",
+            password: try EncryptedValue.encrypt("secret", using: key),
+            url: "https://example.com",
+            totpConfig: config
+        )
+        let session = try makeSession(root: KPGroup(name: "Root", entries: [source, target]), key: key)
+        await session.unlock(password: "testpassword123")
+        try await session.reloadDiscardingDraft()
+        defer { session.lockRequest(force: true) }
+        // The named entry is neither selected nor the command entry.
+        session.workspace.selectedEntryID = source.id
+        session.workspace.beginEntrySelection(with: source.id)
+        let commands = DatabaseCommands(session: session)
+
+        XCTAssertTrue(commands.canCopyUsername(entryID: target.id))
+        XCTAssertTrue(commands.canCopyPassword(entryID: target.id))
+        XCTAssertTrue(commands.canCopyURL(entryID: target.id))
+        XCTAssertTrue(commands.canCopyVerificationCode(entryID: target.id))
+        XCTAssertFalse(commands.canCopyPassword(entryID: source.id))
+        XCTAssertFalse(commands.canCopyURL(entryID: source.id))
+        XCTAssertFalse(commands.canCopyVerificationCode(entryID: source.id))
+        XCTAssertFalse(commands.canCopyUsername(entryID: UUID()))
+
+        var copied: [String] = []
+        commands.copyUsername(entryID: target.id) { copied.append($0) }
+        commands.copyURL(entryID: target.id) { copied.append($0) }
+        let before = TOTPGenerator.generateCode(config: config, sessionKey: try XCTUnwrap(session.sessionKey))
+        commands.copyVerificationCode(entryID: target.id) { copied.append($0) }
+        let after = TOTPGenerator.generateCode(config: config, sessionKey: try XCTUnwrap(session.sessionKey))
+        commands.copyUsername(entryID: UUID()) { copied.append($0) }
+        XCTAssertEqual(Array(copied.prefix(2)), ["alice", "https://example.com"])
+        XCTAssertEqual(copied.count, 3)
+        XCTAssertTrue([before, after].contains(copied[2]))
+
+        session.lockRequest(force: true)
+        let locked = DatabaseCommands(session: session)
+        XCTAssertFalse(locked.canCopyUsername(entryID: target.id))
+        XCTAssertFalse(locked.canCopyPassword(entryID: target.id))
+        XCTAssertFalse(locked.canCopyURL(entryID: target.id))
+        XCTAssertFalse(locked.canCopyVerificationCode(entryID: target.id))
+        locked.copyUsername(entryID: target.id) { copied.append($0) }
+        locked.copyURL(entryID: target.id) { copied.append($0) }
+        locked.copyVerificationCode(entryID: target.id) { copied.append($0) }
+        locked.copyPassword(entryID: target.id, currentSession: { session })
+        XCTAssertEqual(copied.count, 3)
+        XCTAssertFalse(locked.passwordCopyAction.isAuthenticating)
+    }
+
     func testDeleteVariantForActiveAndRecycledEntriesAndGroups() async throws {
         let activeEntry = KPEntry(title: "Active")
         let recycledEntry = KPEntry(title: "Recycled")
