@@ -655,7 +655,7 @@ enum LocalDatabaseSaver {
                 guard lease.epochID == nil, let legacy = SharedVaultStore.legacyCachedDatabaseURL,
                       canonicalPath(of: legacy) == canonicalPath(of: legacyMigrationSource) else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
                 resolved = ResolvedLocation(url: legacyMigrationSource, usesSecurityScope: false)
-            } else { resolved = resolveLocation(for: reference, renewBookmark: PendingLocalSaveStore.cacheCommit == nil) }
+            } else { resolved = resolveLocation(for: reference, renewBookmark: false) }
             guard let location = resolved, let anchor = AppGroupContainer.resolvedURL else { throw SaveError.databaseLocationUnavailable }
             if lease.bookmarkRenewal == nil { lease.bookmarkRenewal = location.bookmarkRenewal }
             let cache = DatabaseListStore.cacheLocation(for: reference)

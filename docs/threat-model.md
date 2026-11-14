@@ -285,3 +285,10 @@ An early session update from a known local rekey receipt does not advance the
 registry observation used to remove legacy metadata. Cleanup uses the captured
 pre-save observation with the existing field CAS after the fenced Keychain effect;
 a later registry change can reject cleanup without undoing or repeating that effect.
+
+Auxiliary no-renew local resolution is also no-heal: it does not create ownership
+state, rebind Documents references or reseed caches. Valid moved locations remain
+readable; known Trash remains distinct from unavailable. The shipped default heal
+is retained without claiming a durable registry transaction or issuing a renewal
+receipt. Actual authenticated read renewal keeps its historical reference through
+the final fence and applies only the same action’s bookmark after authorization.

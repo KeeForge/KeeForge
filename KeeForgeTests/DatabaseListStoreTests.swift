@@ -962,6 +962,87 @@ final class DatabaseListStoreTests: XCTestCase {
 
     // MARK: - Documents-resident rebinding
 
+    func testNoRenewResolutionKeepsRegistryCacheAndOwnerUntouchedForBrokenTrashAndMovedBookmarks() throws {
+        for mode in ["broken", "trash", "moved"] {
+            let documents = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: documents, withIntermediateDirectories: true)
+            DatabaseListStore.documentsDirectoryOverride = documents
+            defer {
+                DatabaseListStore.documentsDirectoryOverride = nil
+                try? FileManager.default.removeItem(at: documents)
+            }
+            let originalURL = documents.appendingPathComponent("resident.kdbx")
+            let original = Self.kdbxMagic + Data("original".utf8)
+            let replacement = Self.kdbxMagic + Data("replacement".utf8)
+            try original.write(to: originalURL)
+            var reference = try TestDatabaseSupport.makeReference(for: originalURL)
+            reference.isDocumentsResident = true
+            let observedURL: URL
+            if mode == "trash" {
+                let trash = documents.appendingPathComponent(".Trash", isDirectory: true)
+                try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: true)
+                observedURL = trash.appendingPathComponent("resident.kdbx")
+                try FileManager.default.moveItem(at: originalURL, to: observedURL)
+                try replacement.write(to: originalURL)
+                reference.bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: observedURL)
+            } else if mode == "moved" {
+                observedURL = documents.appendingPathComponent("moved.kdbx")
+                try FileManager.default.moveItem(at: originalURL, to: observedURL)
+            } else {
+                observedURL = originalURL
+                reference.bookmarkData = Data("broken-bookmark".utf8)
+            }
+            DatabaseListStore.databases = DatabaseListStore.databases + [reference]
+            let cache = DatabaseListStore.cacheLocation(for: reference)
+            try FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let oldCache = Data("unchanged encrypted-cache fixture".utf8)
+            try oldCache.write(to: cache, options: .atomicProtected)
+            let registry = AppGroupContainer.url.appendingPathComponent("Library/Application Support/database-list.json")
+            let owner = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(reference.id.uuidString)")
+            let registryBefore = try Data(contentsOf: registry)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: owner.path))
+            var receipt: DatabaseListStore.DatabaseBookmarkRenewal?
+            let resolver: (Data) -> (url: URL, isStale: Bool)? = { _ in
+                mode == "broken" ? nil : (observedURL, true)
+            }
+            let result = DatabaseListStore.locateDatabaseFile(for: reference, resolveBookmark: resolver,
+                renewBookmark: false, onBookmarkRenewal: { receipt = $0 })
+            switch mode {
+            case "broken": XCTAssertNil(result)
+            case "trash":
+                guard case .inTrash(let url)? = result else { XCTFail("Known Trash must not become missing or trigger heal"); continue }
+                XCTAssertEqualFilePaths(url, observedURL)
+            default:
+                guard case .available(let url)? = result else { XCTFail("A resolvable moved target remains readable"); continue }
+                XCTAssertEqualFilePaths(url, observedURL)
+            }
+            XCTAssertNil(receipt)
+            XCTAssertEqual(try Data(contentsOf: registry), registryBefore)
+            XCTAssertEqual(try Data(contentsOf: cache), oldCache)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: owner.path), "No-renew resolution must not create owner locks or records")
+            XCTAssertEqual(try Data(contentsOf: observedURL), original)
+            if mode == "trash" { XCTAssertEqual(try Data(contentsOf: originalURL), replacement) }
+
+            let normal = DatabaseListStore.locateDatabaseFile(for: reference, resolveBookmark: resolver,
+                onBookmarkRenewal: { receipt = $0 })
+            guard case .available(let url)? = normal else { XCTFail("The normal path retains supported resolution/heal"); continue }
+            let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            XCTAssertEqual(stored.id, reference.id)
+            XCTAssertEqual(stored.lastMasterKeyChangeAt, reference.lastMasterKeyChangeAt)
+            XCTAssertEqual(stored.keyFileBookmarkData, reference.keyFileBookmarkData)
+            if mode == "moved" {
+                XCTAssertEqualFilePaths(url, observedURL)
+                XCTAssertNotNil(receipt, "Only the real durable renewal CAS provides a receipt")
+                XCTAssertEqual(try Data(contentsOf: cache), oldCache)
+            } else {
+                XCTAssertEqualFilePaths(url, originalURL)
+                XCTAssertNil(receipt, "Shipped heal does not claim a durable renewal receipt")
+                XCTAssertNotEqual(stored.bookmarkData, reference.bookmarkData)
+                XCTAssertEqual(try Data(contentsOf: cache), mode == "trash" ? replacement : original)
+            }
+        }
+    }
+
     func testLocateDatabaseFileRebindsDocumentsResidentReferenceWithBrokenBookmark() throws {
         let documentsDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

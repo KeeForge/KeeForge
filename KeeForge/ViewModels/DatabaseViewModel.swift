@@ -3733,10 +3733,9 @@ final class DatabaseViewModel {
             guard PendingLocalSaveStore.hasSaves(for: reference.id) == false else { return }
             var stage = "lease"
             do {
-                var lease = try PendingLocalSaveStore.captureCacheReadLease(for: reference)
+                let lease = try PendingLocalSaveStore.captureCacheReadLease(for: reference)
                 stage = "location"
-                guard let url = DatabaseListStore.resolveDatabaseURL(for: reference,
-                    onBookmarkRenewal: { lease.bookmarkRenewal = $0 }) else { throw SaveError.databaseLocationUnavailable }
+                guard let url = DatabaseListStore.resolveDatabaseURL(for: reference, renewBookmark: false) else { throw SaveError.databaseLocationUnavailable }
                 stage = "read"
                 let data = try Self.readSecurityScopedData(from: url)
                 let renewed = lease.bookmarkRenewal != nil
@@ -4342,8 +4341,8 @@ final class DatabaseViewModel {
                         }
                     }
                 } else {
-                    guard let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) else { return }
                     let lease = try PendingLocalSaveStore.captureCacheReadLease(for: databaseReference)
+                    guard let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference, renewBookmark: false) else { return }
                     data = try Self.readSecurityScopedData(from: url)
                     guard PendingLocalSaveStore.permitsPublishingReadCopy(sha512: FileDigest.sha512(data), for: databaseReference.id) else { return }
                     try LocalDatabaseSaver.cacheLocalSnapshot(data, for: databaseReference, lease: lease)
@@ -4834,9 +4833,6 @@ final class DatabaseViewModel {
         guard expectedCycle == lockCycleID, keyCommitPublicationActionID == actionID,
               case .unlocked = state else { return false }
         let reference = databaseReference
-        if let renewal = read.lease.bookmarkRenewal, databaseReference == renewal.before {
-            databaseReference.bookmarkData = renewal.after.bookmarkData
-        }
         keyCommitPublicationPermit?.close()
         let permit = DatabaseListStore.KeyCommitPublicationPermit(actionID: actionID, lockCycleID: expectedCycle)
         keyCommitPublicationPermit = permit
@@ -4861,10 +4857,17 @@ final class DatabaseViewModel {
                 && keyCommitPublicationActionID == actionID && state == .unlocked
         }
         guard expectedCycle == lockCycleID, keyCommitPublicationActionID == actionID,
-              case .unlocked = state else { return false }
+              databaseReference == reference, case .unlocked = state else { return false }
+        if let renewal = read.lease.bookmarkRenewal, reference == renewal.before {
+            databaseReference.bookmarkData = renewal.after.bookmarkData
+        }
         quickUnlockItemHoldsSessionKey = stored && !sessionUsesHardwareKey
         DatabaseListStore.markDatabaseOpened(id: reference.id)
-        refreshDatabaseReference()
+        if let current = DatabaseListStore.databases.first(where: { $0.id == reference.id }),
+           PendingLocalSaveStore.PreferenceObservation(databaseReference).matches(current),
+           databaseReference.hardwareKey == current.hardwareKey {
+            databaseReference = current
+        }
         if let rootGroup { populateCredentialStoreIfNeeded(root: rootGroup) }
         return true
     }
@@ -4978,7 +4981,7 @@ final class DatabaseViewModel {
             )
         }
 
-        guard let url = DatabaseListStore.resolveDatabaseURL(for: reference) else {
+        guard let url = DatabaseListStore.resolveDatabaseURL(for: reference, renewBookmark: false) else {
             throw SaveError.databaseLocationUnavailable
         }
 
@@ -5378,7 +5381,7 @@ final class DatabaseViewModel {
         return siblingPath.hasPrefix("/") ? siblingPath : "/\(siblingPath)"
     }
 
-    private static func reloadDatabase(
+    static func reloadDatabase(
         reference: DatabaseReference,
         compositeKey: SymmetricKey
     ) async throws -> ReloadedDatabase {
@@ -5398,7 +5401,7 @@ final class DatabaseViewModel {
             updatedReference = resolution.reference
             cloudSyncStatus = resolution.status
         } else {
-            guard let location = DatabaseListStore.locateDatabaseFile(for: reference) else {
+            guard let location = DatabaseListStore.locateDatabaseFile(for: reference, renewBookmark: false) else {
                 throw SaveError.databaseLocationUnavailable
             }
             guard case .available(let url) = location else {

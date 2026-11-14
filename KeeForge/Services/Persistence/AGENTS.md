@@ -106,3 +106,5 @@
 - Publication permits distinguish observed worker completion without claim from a pending or claimed effect. Only confirmed no-claim completion can release a transient UI latch; timeout or closing permission alone never proves worker termination.
 
 - Ordinary completion inside a live save reuses that operation’s already granted resolved location before any new bookmark resolution. Its receipt still must prove the actual installed identity and bytes. Diagnostics distinguish an outer coordination error after an accessor result from accessor failure; observers run after registry/owner resource release and do not change outcomes.
+
+- `renewBookmark: false` resolves a valid location without stale-bookmark renewal, Documents fallback heal, cache reseeding or ownership creation. Broken resolution returns unavailable; a known Trash location stays Trash. Auxiliaries that retain the original reference (cache publication, fingerprints and reload) use this mode. Default resolution still supports shipped Documents heal, whose visible field-specific registry write does not mint a durable renewal receipt or a transactional proof.

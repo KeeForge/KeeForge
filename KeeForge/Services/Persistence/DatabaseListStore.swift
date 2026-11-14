@@ -523,6 +523,13 @@ enum DatabaseListStore {
         }
     }
 
+    static func localReferenceEqualityDiagnostic(_ expected: DatabaseReference, current: DatabaseReference?) -> String {
+        guard let current else { return "registered=false id=false bookmark=false date=false keyBookmark=false keyFilename=false cloud=false hardware=false filename=false legacy=false" }
+        let observed = PendingLocalSaveStore.PreferenceObservation(current)
+        let before = PendingLocalSaveStore.PreferenceObservation(expected)
+        return "registered=true id=\(current.id == expected.id) bookmark=\(current.bookmarkData == expected.bookmarkData) date=\(current.lastMasterKeyChangeAt == expected.lastMasterKeyChangeAt) keyBookmark=\(current.keyFileBookmarkData == expected.keyFileBookmarkData) keyFilename=\(current.keyFileFilename == expected.keyFileFilename) cloud=\(observed.cloudIdentity == before.cloudIdentity) hardware=\(current.hardwareKey == expected.hardwareKey) filename=\(current.filename == expected.filename) legacy=\(current.legacyKeychainFilename == expected.legacyKeychainFilename)"
+    }
+
     static func currentSameEpochPreference(for reference: DatabaseReference,
         onFailure: (String, Error) -> Void = { _, _ in }
     ) throws -> PendingLocalSaveStore.KeyFilePreference {
@@ -531,8 +538,10 @@ enum DatabaseListStore {
             let owner = try PendingLocalSaveStore.recovery(for: reference.id)
             guard !owner.ownerUnavailable, !owner.isRevoked else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
             if owner.keyEvidence == nil {
-                phase = "same-epoch-reference"
-                guard let current = databases.first(where: { $0.id == reference.id }) else { return PendingLocalSaveStore.KeyFilePreference(reference) }
+                let current = databases.first(where: { $0.id == reference.id })
+                phase = "same-epoch-reference " + localReferenceEqualityDiagnostic(reference, current: current)
+                    + " ownerUnavailable=\(owner.ownerUnavailable) revoked=\(owner.isRevoked) unresolved=\(owner.needsRecovery)"
+                guard let current else { return PendingLocalSaveStore.KeyFilePreference(reference) }
                 let preference = PendingLocalSaveStore.KeyFilePreference(current)
                 guard PendingLocalSaveStore.PreferenceObservation(reference).matches(current, preference: preference) else {
                     throw PendingLocalSaveStore.OwnershipError.sourceChanged
@@ -546,8 +555,9 @@ enum DatabaseListStore {
                 NSFileCoordinator().coordinate(readingItemAt: databaseListURL, options: [], error: &error) { url in
                     result = Result {
                         let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: url))
-                        guard let current = references.first(where: { $0.id == reference.id }),
-                              PendingLocalSaveStore.PreferenceObservation(reference).matches(current,
+                        let current = references.first(where: { $0.id == reference.id })
+                        phase = "same-epoch-accessor " + localReferenceEqualityDiagnostic(reference, current: current)
+                        guard let current, PendingLocalSaveStore.PreferenceObservation(reference).matches(current,
                                   preference: PendingLocalSaveStore.KeyFilePreference(current)) else {
                             throw PendingLocalSaveStore.OwnershipError.sourceChanged
                         }
@@ -1183,10 +1193,10 @@ enum DatabaseListStore {
         bookmarkRenewalIO: DurableFileWriteIO = .init(),
         onBookmarkRenewal: (DatabaseBookmarkRenewal) -> Void = { _ in }
     ) -> LocalDatabaseFileLocation? {
-        let lease = try? PendingLocalSaveStore.captureCacheReadLease(for: reference)
+        let lease = renewBookmark ? (try? PendingLocalSaveStore.captureCacheReadLease(for: reference)) : nil
         guard let bookmarkData = reference.bookmarkData,
               let resolved = resolveBookmark(bookmarkData) else {
-            return reboundDocumentsResidentLocation(for: reference)
+            return renewBookmark ? reboundDocumentsResidentLocation(for: reference) : nil
         }
 
         let url = resolved.url
@@ -1198,7 +1208,7 @@ enum DatabaseListStore {
         }
 
         if SecurityScopedBookmarkManager.isInTrashDirectory(url) {
-            if let rebound = reboundDocumentsResidentLocation(for: reference) {
+            if renewBookmark, let rebound = reboundDocumentsResidentLocation(for: reference) {
                 return rebound
             }
             return .inTrash(url)

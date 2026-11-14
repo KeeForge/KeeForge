@@ -399,9 +399,9 @@ with real storage; signed external-file sandbox grants remain device validation.
 
 During an ordinary save, completion observes the already granted resolved location
 of that same operation rather than choosing another location through a new bookmark
-resolution. A pending-merge follow-up read preserves only an actual durable renewal
-receipt from its own resolver; all source, epoch, target and reference guards still
-apply. Read-only replacement errors after entry can remain indeterminate with intact
+resolution. Pending-merge follow-up reads and cache/fingerprint/reload auxiliaries resolve
+without renewal or Documents heal, so they cannot invalidate their own captured
+reference; all source, epoch, target and reference guards still apply. Read-only replacement errors after entry can remain indeterminate with intact
 observable bytes and a retained admission: permission error types alone are not
 affirmative proof that replacement never happened, and a retry cannot encrypt again.
 
@@ -410,3 +410,17 @@ Legacy metadata cleanup still compares its captured pre-save registry observatio
 after the authorized Keychain effect, never the already updated RAM factors/date.
 The comparison may fail honestly after a concurrent change; it does not adopt that
 change or remove a newer alias.
+
+No-renew resolution performs no ownership capture or persistence. It can return a
+valid moved target, but a broken bookmark requiring Documents fallback returns
+unavailable and a resolved Trash location remains Trash. Neither outcome authorizes
+overwrite, cache removal or a fictitious missing-file conclusion. Default resolution
+retains the shipped Documents heal; that visible field-specific registry update has
+no established fsync proof and does not construct a durable renewal receipt.
+
+An authenticated opening read retains its historical reference through final
+publication. Its own receipt may update only that bookmark in the originating RAM
+session after the owner/target/reference fence succeeds and the action/cycle/current
+reference still match. Normal registry metadata refresh cannot supply a different
+bookmark, master-key date, key-file association or hardware configuration as new
+authority.
