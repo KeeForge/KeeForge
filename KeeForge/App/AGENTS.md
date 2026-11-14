@@ -49,7 +49,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 - Opening or closing an iPhone Duo, and resizing an iPad window, flips the size class and rebuilds every view under the root. `AppRootView` applies the new layout one update behind the size class, after `DatabaseWorkspaceState.adaptNavigation(toRegularLayout:)` has carried the place across, and passes its applied size class down so no view sees the next layout early.
 - Anything that must survive the switch lives on `DatabaseWorkspaceState`, never in a shell's `@State`: the navigation path (compact stack or regular sidebar), the selected entry, search, selection mode, and the open editor (`openEditor`). Both shells present `openEditor`: compact pushes it as the path's `.editor` route, regular hosts it in the detail column and keeps `.editor` and entries out of its sidebar path. Never present the compact editor with `navigationDestination(item:)` at the stack's root: popping it replaces the path, dropping the user back to the vault root.
 - A layout switch is not a scene-phase change. It never locks or shows the capture shield unless iOS also backgrounds the app.
-- `-ui-testing-layout-switch` shows a control that switches layouts in-app; no simulator can open or close a Duo from a test (`../../KeeForgeUITests/AGENTS.md`).
+- `-ui-testing-layout-switch` (DEBUG only) shows a control that switches layouts in-app; no simulator can open or close a Duo from a test (`../../KeeForgeUITests/AGENTS.md`).
 
 ### macOS workspace lists
 
