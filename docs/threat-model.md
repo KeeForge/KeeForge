@@ -298,3 +298,10 @@ its owner admission requires no recorded or filesystem sources in addition to th
 existing idle/epoch/revocation checks. Deferral preserves valid file reading and
 leaves the reference unchanged; it neither authorizes stale keys nor releases
 source/admission barriers. Default heal remains the separately documented limit.
+
+A source can arrive after bookmark-renewal admission. Read-key publication still
+rejects that window. A bookmark-only reconciliation may preserve the same read’s
+durable transition after exact authenticated target/reference/epoch checks, accepting
+only verified eligible sources. Session action/cycle checks prevent late RAM promotion;
+merge obtains new ownership and a new installed receipt. Failed proof retains sources
+for explicit recovery and never adopts another actor’s current factors or epoch.

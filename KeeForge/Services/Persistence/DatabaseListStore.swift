@@ -1083,6 +1083,46 @@ enum DatabaseListStore {
         throw coordinatorError ?? CocoaError(.fileReadUnknown)
     }
 
+    static func authenticatedBookmarkRenewalForMerge(
+        for expected: DatabaseReference, read: PendingLocalSaveStore.ReadKeyPublication,
+        io: KeyCommitPublicationIO = .init()
+    ) throws -> DatabaseBookmarkRenewal {
+        guard let renewal = read.lease.bookmarkRenewal, let authenticated = read.encryptedSnapshot,
+              !read.sharedCopy, FileDigest.sha512(authenticated) == read.sha512,
+              renewal.target == read.target else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
+        let observed = try withStateLock {
+            let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
+            guard let current = references.first(where: { $0.id == expected.id }) else { throw PendingLocalSaveStore.OwnershipError.removed }
+            guard renewal.matches(expected, current: current, lease: read.lease), !current.isCloudBacked else {
+                throw PendingLocalSaveStore.OwnershipError.sourceChanged
+            }
+            return current
+        }
+        guard let bookmark = observed.bookmarkData, let resolved = io.resolve(bookmark) else {
+            throw PendingLocalSaveStore.OwnershipError.targetChanged
+        }
+        let access = resolved.url.startAccessingSecurityScopedResource()
+        defer { if access { resolved.url.stopAccessingSecurityScopedResource() } }
+        var result: Result<DatabaseBookmarkRenewal, Error>?
+        try io.coordinate(resolved.url, databaseListURL) { target, registry in
+            result = Result {
+                let identity = try PendingLocalSaveStore.targetIdentity(at: target)
+                let bytes = try io.read(target)
+                guard identity == read.target, bytes == authenticated else { throw PendingLocalSaveStore.OwnershipError.targetChanged }
+                guard stateLock.try() else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+                defer { stateLock.unlock() }
+                let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
+                guard references.first(where: { $0.id == expected.id }) == observed else {
+                    throw PendingLocalSaveStore.OwnershipError.sourceChanged
+                }
+                try PendingLocalSaveStore.validateBookmarkRenewalForMerge(read)
+                return renewal
+            }
+        }
+        guard let result else { throw CocoaError(.fileReadUnknown) }
+        return try result.get()
+    }
+
     static func withLocalCacheReference<T>(
         _ expected: DatabaseReference, allowNewReference: Bool,
         lease: PendingLocalSaveStore.CacheReadLease? = nil, _ publish: () throws -> T

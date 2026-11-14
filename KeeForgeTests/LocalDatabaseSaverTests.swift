@@ -1348,12 +1348,18 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: renamed), bytes)
     }
 
-    private func makeRenewedSnapshot(io: DurableFileWriteIO = .init()) throws -> (
+    private func makeRenewedSnapshot(io: DurableFileWriteIO = .init(), initializeEpoch: Bool = false) throws -> (
         reference: DatabaseReference, lease: PendingLocalSaveStore.CacheReadLease, url: URL, bytes: Data,
         renewal: DatabaseListStore.DatabaseBookmarkRenewal?
     ) {
         let source = try makeScratchDatabaseCopy()
         let reference = try makeRegisteredReference(for: source)
+        if initializeEpoch {
+            let token = try PendingLocalSaveStore.admit([], for: reference.id,
+                target: PendingLocalSaveStore.targetIdentity(at: source), baseline: FileDigest.sha512(Data(contentsOf: source)),
+                masterKeyChangedAt: reference.lastMasterKeyChangeAt, purpose: .ordinarySave)
+            XCTAssertEqual(PendingLocalSaveStore.releaseAfterProvenNoReplacement(token), .resolved)
+        }
         let lease = try PendingLocalSaveStore.captureCacheReadLease(for: reference)
         let bytes = try Data(contentsOf: source)
         let moved = source.deletingLastPathComponent().appendingPathComponent("renewal-\(UUID().uuidString).kdbx")
@@ -1435,8 +1441,8 @@ final class LocalDatabaseSaverTests: XCTestCase {
     }
 
     func testRenewalCannotPublishAcrossTargetAuthorityOwnershipOrPermissionChanges() async throws {
-        for change in ["inode", "ciphertext", "factors", "hardware", "source", "admission", "removal", "foreign-receipt", "closed"] {
-            let setup = try makeRenewedSnapshot()
+        for change in ["inode", "ciphertext", "factors", "master-key-date", "hardware", "source", "provisional", "owner-unreadable", "admission", "retirement", "removal", "foreign-receipt", "closed"] {
+            let setup = try makeRenewedSnapshot(initializeEpoch: true)
             var lease = setup.lease
             lease.bookmarkRenewal = try XCTUnwrap(setup.renewal)
             let target = try PendingLocalSaveStore.targetIdentity(at: setup.url)
@@ -1450,15 +1456,35 @@ final class LocalDatabaseSaverTests: XCTestCase {
                 try handle.close()
                 XCTAssertEqual(try PendingLocalSaveStore.targetIdentity(at: setup.url), target)
             case "factors": current.keyFileFilename = "different.keyx"; current.keyFileBookmarkData = Data([0x74]); DatabaseListStore.update(current)
+            case "master-key-date": current.lastMasterKeyChangeAt = .now; DatabaseListStore.update(current)
             case "hardware": current.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two); DatabaseListStore.update(current)
             case "source":
                 let prepared = try PendingLocalSaveStore.prepareSource(readBytes, for: current.id,
                     masterKeyChangedAt: current.lastMasterKeyChangeAt, baseCacheSHA512: FileDigest.sha512(readBytes))
                 try writeAtomicallyAndDurably(readBytes, to: PendingLocalSaveStore.sharedCopyURL(for: current.id), directoryAnchor: AppGroupContainer.url)
                 XCTAssertEqual(PendingLocalSaveStore.activateSource(prepared), .accepted)
+            case "provisional":
+                _ = try PendingLocalSaveStore.prepareSource(readBytes, for: current.id,
+                    masterKeyChangedAt: current.lastMasterKeyChangeAt, baseCacheSHA512: FileDigest.sha512(readBytes))
+            case "owner-unreadable":
+                let owner = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(current.id.uuidString)/owner.json")
+                try FileManager.default.removeItem(at: owner)
+                try FileManager.default.createDirectory(at: owner, withIntermediateDirectories: false)
+                XCTAssertThrowsError(try Data(contentsOf: owner))
             case "admission":
                 _ = try PendingLocalSaveStore.admit([], for: current.id, target: target, baseline: FileDigest.sha512(readBytes),
                     masterKeyChangedAt: current.lastMasterKeyChangeAt, purpose: .ordinarySave)
+            case "retirement":
+                let writes = WriteCounter()
+                var storage = PendingLocalSaveStore.StorageIO()
+                storage.fileIO = { _ in
+                    writes.increment()
+                    var writer = DurableFileWriteIO()
+                    if writes.count == 2 { writer.write = { _, _, _ in 0 } }
+                    return writer
+                }
+                XCTAssertEqual(try PendingLocalSaveStore.discard(PendingLocalSaveStore.recovery(for: current.id), io: storage), .retainedForRecovery)
+                XCTAssertNotNil(try PendingLocalSaveStore.recovery(for: current.id).retirementID)
             case "removal": DatabaseListStore.remove(id: current.id)
             case "foreign-receipt": lease.bookmarkRenewal = try XCTUnwrap(makeRenewedSnapshot().renewal)
             default: break
@@ -1478,9 +1504,22 @@ final class LocalDatabaseSaverTests: XCTestCase {
                     }
                 }.value
                 XCTFail("Changed \(change) must reject publication")
-            } catch { XCTAssertTrue(error is PendingLocalSaveStore.OwnershipError, "\(change): \(error)") }
+            } catch {
+                if change == "owner-unreadable" { XCTAssertTrue(error is CocoaError, "\(change): \(error)") }
+                else { XCTAssertTrue(error is PendingLocalSaveStore.OwnershipError, "\(change): \(error)") }
+            }
             XCTAssertEqual(effects.withLock { $0 }, 0, change)
             if change != "closed" {
+                do {
+                    let reconciled = try await Task.detached {
+                        try DatabaseListStore.authenticatedBookmarkRenewalForMerge(for: setup.reference, read: read, io: publicationIO)
+                    }.value
+                    if change == "source" { XCTAssertEqual(reconciled, setup.renewal) }
+                    else { XCTFail("Changed \(change) must also reject bookmark-only reconciliation") }
+                } catch {
+                    XCTAssertNotEqual(change, "source", "Healthy sources permit only bookmark reconciliation: \(error)")
+                    XCTAssertTrue(error is PendingLocalSaveStore.OwnershipError || error is CocoaError, "\(change): \(error)")
+                }
                 XCTAssertThrowsError(try LocalDatabaseSaver.cacheLocalSnapshot(readBytes, for: setup.reference, lease: lease), change)
             }
         }

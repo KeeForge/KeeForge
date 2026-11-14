@@ -777,6 +777,30 @@ enum PendingLocalSaveStore {
         }
     }
 
+    static func validateBookmarkRenewalForMerge(_ read: ReadKeyPublication) throws {
+        try withLock(for: read.lease.databaseID) {
+            try requireNotRemoved(read.lease.databaseID)
+            let state = try loadState(read.lease.databaseID) ?? OwnerState(version: 1, removed: false)
+            guard let renewal = read.lease.bookmarkRenewal, !read.sharedCopy,
+                  renewal.before.id == read.lease.databaseID, renewal.target == read.target,
+                  renewal.epochID == read.lease.epochID, read.lease.reference.matches(renewal.before),
+                  state.epoch.id == read.lease.epochID, state.operation == .idle,
+                  state.retirementID == nil, state.keyEvidence?.pending == nil else { throw OwnershipError.recoveryRequired }
+            if case .known(let date, _) = state.epoch, date != read.lease.masterKeyChangedAt { throw OwnershipError.sourceChanged }
+            if let evidence = state.keyEvidence {
+                try validateKeyTarget(evidence, target: read.target, sha512: read.sha512, sharedCopy: false, state: state)
+            }
+            let urls = try sourceURLs(read.lease.databaseID)
+            for url in urls {
+                try validateEligible(receipt(at: url, databaseID: read.lease.databaseID), state: state, databaseID: read.lease.databaseID)
+            }
+            guard state.sources.allSatisfy({ source in
+                guard case .eligible(let expected) = source.phase else { return false }
+                return urls.contains { relativePath($0, databaseID: read.lease.databaseID) == expected.relativePath }
+            }) else { throw OwnershipError.recoveryRequired }
+        }
+    }
+
     static func withReferenceEpochAuthorization<T>(_ lease: CacheReadLease, _ publish: () throws -> T) throws -> T {
         try withLock(for: lease.databaseID) {
             try requireNotRemoved(lease.databaseID)

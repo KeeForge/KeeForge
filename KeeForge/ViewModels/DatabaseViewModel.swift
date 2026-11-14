@@ -3578,8 +3578,10 @@ final class DatabaseViewModel {
         let pendingSaves: [PendingLocalSaveStore.PendingSave]
         do {
             let loaded = try await Task.detached(priority: .userInitiated) {
-                let recovery = try PendingLocalSaveStore.recovery(for: reference.id)
-                return (recovery, recovery.needsRecovery ? [] : PendingLocalSaveStore.saves(for: reference.id))
+                try DatabaseListStore.withLocalCacheReference(reference, allowNewReference: false) {
+                    let recovery = try PendingLocalSaveStore.recovery(for: reference.id)
+                    return (recovery, recovery.needsRecovery ? [] : PendingLocalSaveStore.saves(for: reference.id))
+                }
             }.value
             guard expectedLockCycleID == lockCycleID, databaseReference == reference,
                   self.compositeKey == compositeKey, self.sessionKey == sessionKey, self.openTimeSHA512 == openTimeSHA512,
@@ -4853,8 +4855,31 @@ final class DatabaseViewModel {
         } catch {
             let interrupted = error is CoordinatedFileReader.TimeoutError || error is CancellationError
             localPublicationFailure(permit.state == .claimed ? "read-key-unconfirmed" : interrupted ? "read-key-interrupted" : "read-key", error)
-            return !interrupted && permit.state != .claimed && expectedCycle == lockCycleID
-                && keyCommitPublicationActionID == actionID && state == .unlocked
+            guard !interrupted, permit.state != .claimed, expectedCycle == lockCycleID,
+                  keyCommitPublicationActionID == actionID, state == .unlocked else {
+                if read.lease.bookmarkRenewal != nil, expectedCycle == lockCycleID,
+                   keyCommitPublicationActionID == actionID, state == .unlocked {
+                    pendingUploadMergeFailure = .localSourceRecovery
+                }
+                return false
+            }
+            if read.lease.bookmarkRenewal != nil {
+                do {
+                    let renewal = try await CoordinatedFileReader.performBlocking(timeout: localReadPublicationTimeout) {
+                        try DatabaseListStore.authenticatedBookmarkRenewalForMerge(for: reference, read: read, io: io)
+                    }
+                    guard expectedCycle == lockCycleID, keyCommitPublicationActionID == actionID,
+                          databaseReference == reference, case .unlocked = state else { return false }
+                    databaseReference.bookmarkData = renewal.after.bookmarkData
+                } catch {
+                    localPublicationFailure("read-bookmark-for-merge", error)
+                    if expectedCycle == lockCycleID, keyCommitPublicationActionID == actionID, state == .unlocked {
+                        pendingUploadMergeFailure = .localSourceRecovery
+                    }
+                    return false
+                }
+            }
+            return true
         }
         guard expectedCycle == lockCycleID, keyCommitPublicationActionID == actionID,
               databaseReference == reference, case .unlocked = state else { return false }

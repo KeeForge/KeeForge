@@ -21,6 +21,23 @@ final class PendingLocalSaveTests: XCTestCase {
     }
 
     func testMovedPendingSourceDefersRenewalUntilMergeAndLeavesFutureSaveAndRekeyUsable() async throws {
+        try await exerciseMovedPendingRenewal(sourceAfterRenewal: false)
+    }
+
+    func testSourceArrivingAfterDurableRenewalMergesWithoutPublishingOldReadKeys() async throws {
+        try await exerciseMovedPendingRenewal(sourceAfterRenewal: true)
+    }
+
+    func testLockAfterBookmarkOnlyProofCannotPromoteReferenceOrConsumeSources() async throws {
+        try await exerciseMovedPendingRenewal(sourceAfterRenewal: true, lockDuringReconciliation: true)
+    }
+
+    func testNewSourceEpochAfterRenewalRequiresRecoveryWithoutAutomaticMergeRetry() async throws {
+        try await exerciseMovedPendingRenewal(sourceAfterRenewal: true, initializeEpochBeforeRenewal: false)
+    }
+
+    private func exerciseMovedPendingRenewal(sourceAfterRenewal: Bool, lockDuringReconciliation: Bool = false,
+        initializeEpochBeforeRenewal: Bool = true) async throws {
         let previousInterval = SettingsService.quickUnlockPasswordInterval
         SettingsService.quickUnlockPasswordInterval = .always
         defer { SettingsService.quickUnlockPasswordInterval = previousInterval }
@@ -28,7 +45,16 @@ final class PendingLocalSaveTests: XCTestCase {
         let reference = try DatabaseListStore.add(url: oldURL)
         let original = try Data(contentsOf: oldURL)
         let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "Pending Before Renewal")) }
-        let source = try seedAcceptedSource(pending, for: reference.id)
+        let source: PendingLocalSaveStore.PendingSave?
+        if sourceAfterRenewal {
+            source = nil
+            if initializeEpochBeforeRenewal {
+                let token = try PendingLocalSaveStore.admit([], for: reference.id,
+                    target: PendingLocalSaveStore.targetIdentity(at: oldURL), baseline: FileDigest.sha512(original),
+                    masterKeyChangedAt: nil, purpose: .ordinarySave)
+                XCTAssertEqual(PendingLocalSaveStore.releaseAfterProvenNoReplacement(token), .resolved)
+            }
+        } else { source = try seedAcceptedSource(pending, for: reference.id) }
         let moved = oldURL.deletingLastPathComponent().appendingPathComponent("moved-with-pending.kdbx")
         try FileManager.default.moveItem(at: oldURL, to: moved)
         let encryptions = PendingEffectCounter()
@@ -36,16 +62,45 @@ final class PendingLocalSaveTests: XCTestCase {
         let registryPublications = PendingEffectCounter()
         let policyChecks = PendingEffectCounter()
         let trace = TestDatabaseSupport.LocalPublicationTrace()
+        let reconcileReady = lockDuringReconciliation ? expectation(description: "bookmark-only proof completed off actor") : nil
+        let releaseReconciliation = DispatchSemaphore(value: 0)
+        let coordinates = PendingEffectCounter()
+        let publicationLive = DatabaseListStore.KeyCommitPublicationIO()
+        var publication = publicationLive
+        publication.coordinate = { target, registry, accessor in
+            coordinates.increment()
+            try publicationLive.coordinate(target, registry, accessor)
+            if lockDuringReconciliation, coordinates.count == 2 {
+                reconcileReady?.fulfill()
+                guard releaseReconciliation.wait(timeout: .now() + 15) == .success else { throw CancellationError() }
+            }
+        }
         let live = LocalDatabaseSaver.Environment.live
         let vm = DatabaseViewModel(databaseReference: reference, localDatabaseReadOperation: { ref in
             var io = DurableFileWriteIO()
             io.afterPublication = { _ in registryPublications.increment() }
             let read = try await DatabaseViewModel.readLocalDatabase(reference: ref,
                 resolveBookmark: { _ in (moved, true) }, bookmarkRenewalIO: io)
-            XCTAssertNil(read.bookmarkRenewal, "A pending source must defer the actual registry CAS, not only its RAM application")
-            XCTAssertEqual(DatabaseListStore.databases.first { $0.id == ref.id }?.bookmarkData, reference.bookmarkData)
+            if sourceAfterRenewal {
+                let renewal = try XCTUnwrap(read.bookmarkRenewal)
+                XCTAssertEqual(renewal.before, reference)
+                XCTAssertEqual(DatabaseListStore.databases.first { $0.id == ref.id }, renewal.after)
+                // The real read and renewal have returned and released their locks before the other writer runs.
+                try await Task.detached {
+                    let cache = PendingLocalSaveStore.sharedCopyURL(for: reference.id)
+                    let prepared = try PendingLocalSaveStore.prepareSource(pending, for: reference.id,
+                        baseCacheSHA512: FileDigest.sha512(Data(contentsOf: cache)))
+                    try writeAtomicallyAndDurably(pending, to: cache, directoryAnchor: AppGroupContainer.url)
+                    guard PendingLocalSaveStore.activateSource(prepared) == .accepted else {
+                        throw PendingLocalSaveStore.OwnershipError.recoveryRequired
+                    }
+                }.value
+            } else {
+                XCTAssertNil(read.bookmarkRenewal, "A pending source must defer the actual registry CAS, not only its RAM application")
+                XCTAssertEqual(DatabaseListStore.databases.first { $0.id == ref.id }?.bookmarkData, reference.bookmarkData)
+            }
             return read
-        }, localPublicationFailure: { trace.record($0, $1) }, localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
+        }, localPublicationFailure: { trace.record($0, $1) }, localReadPublicationIO: publication, localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
             var environment = live
             environment.localPublicationFailure = { trace.record($0, $1) }
             environment.encryptDraft = { draft, key, header, policy in
@@ -68,18 +123,65 @@ final class PendingLocalSaveTests: XCTestCase {
         defer { vm.lock() }
         var phase = "unlock-and-pending-merge"
         do {
+            if let reconcileReady {
+                let finished = expectation(description: "complete original unlock task after lock")
+                let password = fixturePassword
+                let unlocking = Task { defer { finished.fulfill() }; await vm.unlock(password: password) }
+                let entered = await XCTWaiter.fulfillment(of: [reconcileReady], timeout: 120)
+                vm.lock()
+                unlocking.cancel()
+                releaseReconciliation.signal()
+                let joined = await XCTWaiter.fulfillment(of: [finished], timeout: 30)
+                guard joined == .completed else {
+                    XCTFail("Bookmark reconciliation task did not terminate after lock/cancel/release; stage=join timeout=30")
+                    // Do not tear down the shared store under an unquiesced test worker.
+                    fatalError("Unquiesced bookmark reconciliation test task")
+                }
+                await unlocking.value
+                XCTAssertEqual(entered, .completed)
+                XCTAssertEqual(vm.state, .locked)
+                XCTAssertEqual(vm.databaseReference.bookmarkData, reference.bookmarkData)
+                XCTAssertTrue(PendingLocalSaveStore.hasSaves(for: reference.id))
+                XCTAssertEqual(try Data(contentsOf: moved), original)
+                XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), pending)
+                XCTAssertEqual(policyChecks.count, 0)
+                XCTAssertEqual(encryptions.count, 0)
+                XCTAssertEqual(replacements.count, 0)
+                return
+            }
             await vm.unlock(password: fixturePassword)
             XCTAssertEqual(vm.state, .unlocked, trace.summary)
+            if sourceAfterRenewal, !initializeEpochBeforeRenewal {
+                XCTAssertEqual(vm.pendingUploadMergeFailure, .localSourceRecovery, trace.summary)
+                XCTAssertEqual(vm.databaseReference.bookmarkData, reference.bookmarkData)
+                XCTAssertNotEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.bookmarkData, reference.bookmarkData)
+                await vm.mergePendingLocalSaves()
+                await vm.mergePendingLocalSaves()
+                let recovery = try PendingLocalSaveStore.recovery(for: reference.id)
+                XCTAssertEqual(recovery.receipts.count, 1)
+                XCTAssertNil(recovery.admission)
+                XCTAssertEqual(try Data(contentsOf: moved), original)
+                XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), pending)
+                XCTAssertEqual(policyChecks.count, 0)
+                XCTAssertEqual(encryptions.count, 0)
+                XCTAssertEqual(replacements.count, 0)
+                return
+            }
             XCTAssertNil(vm.pendingUploadMergeFailure, trace.summary)
             XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
-            XCTAssertFalse(FileManager.default.fileExists(atPath: source.fileURL.path))
+            XCTAssertTrue(try PendingLocalSaveStore.recovery(for: reference.id).receipts.isEmpty)
+            XCTAssertTrue(try PendingLocalSaveStore.recovery(for: reference.id).entries.isEmpty)
+            if let source { XCTAssertFalse(FileManager.default.fileExists(atPath: source.fileURL.path)) }
             XCTAssertTrue(vm.rootGroup?.allEntries.contains { $0.title == "Pending Before Renewal" } == true)
             XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), try Data(contentsOf: moved))
-            XCTAssertEqual(vm.databaseReference.bookmarkData, reference.bookmarkData)
-            XCTAssertEqual(registryPublications.count, 0)
+            if sourceAfterRenewal {
+                XCTAssertNotEqual(vm.databaseReference.bookmarkData, reference.bookmarkData)
+                XCTAssertEqual(vm.databaseReference.bookmarkData, DatabaseListStore.databases.first { $0.id == reference.id }?.bookmarkData)
+            } else { XCTAssertEqual(vm.databaseReference.bookmarkData, reference.bookmarkData) }
+            XCTAssertEqual(registryPublications.count, sourceAfterRenewal ? 1 : 0)
             XCTAssertEqual(encryptions.count, 1)
             XCTAssertEqual(replacements.count, 1)
-            XCTAssertEqual(policyChecks.count, 1)
+            XCTAssertEqual(policyChecks.count, sourceAfterRenewal ? 0 : 1)
             await vm.mergePendingLocalSaves()
             XCTAssertEqual(encryptions.count, 1)
             try vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(vm.rootGroup)),

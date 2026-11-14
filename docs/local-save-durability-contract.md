@@ -434,3 +434,15 @@ registry therefore keep the same bookmark through merge/save/consume; a later fr
 read can renew after ownership is idle. Admission, retirement, key-publication,
 owner-read and revocation failures continue to reject renewal without inventing
 quiescence or changing source ownership.
+
+Sources may arrive after the durable renewal accessor returns. That renewal remains
+a bookmark transition, not permission to publish old read keys. A separate read-only
+reconciliation validates its exact before/after reference, captured owner epoch,
+coordinated target identity and authenticated ciphertext. Healthy eligible sources
+may remain during this check; provisional, missing, unknown, admitted, retiring or
+revoked ownership rejects it. The unchanged session action/cycle may then apply only
+its own bookmark field before the normal merge obtains a fresh admission and new
+installed commit receipt. Neither the old renewal target nor this observation grants
+a write, cache refresh or source consumption. If proof fails or times out, sources
+remain owned and local recovery is presented; no merge is attempted with the stale
+reference. The pre-renewal empty-source gate and final read-key/cache guards remain.
