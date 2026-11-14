@@ -240,8 +240,12 @@ Initial admission publication retains its ownership token on observed rename wit
 unconfirmed sync/coordinator completion, stopping the action before encryption and
 showing recovery rather than promising retry. Rekey Keychain publication holds the
 current installed receipt/operation/epoch/revocation fence through keychain-only
-effects, including invalidation; a stale callback cannot overwrite or delete a
-newer epoch's items. Unknown callbacks lack that authority. Legacy reference
+effects, including invalidation. Combined target/registry coordination precedes
+owner flock and protects an exact comparison of current target identity/bytes
+with the receipt ciphertext through the effect. A stale callback cannot overwrite
+or delete newer items, including after same-epoch witness retirement and an
+in-place restore with unchanged inode; fresh authenticated restored-file reads
+remain allowed after retirement, without a permanent antirollback pin. Unknown callbacks lack that authority. Legacy reference
 cleanup stays outside owner flock and uses field CAS. A created session also
 receives its already-authenticated creation ciphertext in the single current RAM
 context, so draft export remains available before a first backup or after a failed

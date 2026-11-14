@@ -718,7 +718,8 @@ enum PendingLocalSaveStore {
     }
 
     static func withKeyCommitPublicationAuthorization<T>(
-        _ receipt: CommitReceipt, reference: DatabaseReference, _ publish: () throws -> T
+        _ receipt: CommitReceipt, reference: DatabaseReference,
+        observeTarget: () throws -> (TargetIdentity, Data), _ publish: () throws -> T
     ) throws -> T {
         try withLock(for: receipt.databaseID) {
             try requireNotRemoved(receipt.databaseID)
@@ -741,6 +742,9 @@ enum PendingLocalSaveStore {
                     throw OwnershipError.sourceChanged
                 }
             }
+            guard let installedBytes = receipt.encryptedSnapshot else { throw OwnershipError.sourceChanged }
+            let (target, bytes) = try observeTarget()
+            guard target == commit.snapshot.target, bytes == installedBytes else { throw OwnershipError.targetChanged }
             return try publish()
         }
     }

@@ -905,13 +905,42 @@ enum DatabaseListStore {
     ) throws -> T {
         try withStateLock {
             let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
-            guard let current = references.first(where: { $0.id == expected.id }), current.id == receipt.databaseID,
-                  !current.isCloudBacked, !expected.isCloudBacked,
-                  current.bookmarkData == expected.bookmarkData, current.hardwareKey == expected.hardwareKey,
-                  current.legacyKeychainFilename == expected.legacyKeychainFilename else {
+            guard let observed = references.first(where: { $0.id == expected.id }), observed.id == receipt.databaseID,
+                  !observed.isCloudBacked, !expected.isCloudBacked,
+                  observed.bookmarkData == expected.bookmarkData, observed.hardwareKey == expected.hardwareKey,
+                  observed.legacyKeychainFilename == expected.legacyKeychainFilename else {
                 throw PendingLocalSaveStore.OwnershipError.sourceChanged
             }
-            return try PendingLocalSaveStore.withKeyCommitPublicationAuthorization(receipt, reference: current, publish)
+            let target: URL
+            if let bookmark = observed.bookmarkData {
+                guard let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmark) else {
+                    throw PendingLocalSaveStore.OwnershipError.targetChanged
+                }
+                target = resolved.url
+            } else { target = cacheLocation(for: observed) }
+            let access = observed.bookmarkData != nil && target.startAccessingSecurityScopedResource()
+            defer { if access { target.stopAccessingSecurityScopedResource() } }
+            var coordinatorError: NSError?
+            var result: Result<T, Error>?
+            NSFileCoordinator().coordinate(readingItemAt: target, options: [], writingItemAt: databaseListURL,
+                options: [], error: &coordinatorError) { protectedTarget, registry in
+                result = Result {
+                    let currentReferences = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
+                    guard let current = currentReferences.first(where: { $0.id == expected.id }),
+                          PendingLocalSaveStore.PreferenceObservation(observed).matches(current),
+                          current.hardwareKey == observed.hardwareKey,
+                          current.legacyKeychainFilename == observed.legacyKeychainFilename else {
+                        throw PendingLocalSaveStore.OwnershipError.sourceChanged
+                    }
+                    let identity = try PendingLocalSaveStore.targetIdentity(at: protectedTarget)
+                    let bytes = try Data(contentsOf: protectedTarget)
+                    return try PendingLocalSaveStore.withKeyCommitPublicationAuthorization(receipt, reference: current,
+                        observeTarget: { (identity, bytes) }, publish)
+                }
+            }
+            // An outer coordinator error cannot undo Keychain effects observed inside the protected accessor.
+            if let result { return try result.get() }
+            throw coordinatorError ?? CocoaError(.fileReadUnknown)
         }
     }
 

@@ -182,13 +182,22 @@ key barrier before replacement. Sources arriving during it keep their original
 ciphertext/epoch and cannot automatically drain under the new key.
 
 A rekey completion can publish or invalidate Keychain items only while its actual
-installed commit still owns the current admission or settled epoch. The registry
-reference and owner are checked under list-lock then owner-lock, held through the
-keychain-only effect; legacy field cleanup runs afterwards by CAS. A late receipt
+installed commit still owns the current admission or settled epoch and its exact
+ciphertext remains the current target. The registry reference, target identity
+and ciphertext are checked under list-lock then combined target/registry
+coordination then owner-lock, held through the keychain-only effect. The byte
+comparison uses the ciphertext already carried in the nonpersisted commit receipt,
+with no KDF, parsing or hashing in this fence; legacy field cleanup runs afterwards
+by CAS. Epoch/factor equality or inode equality alone does not authorize a completion.
+The same boundary protects the final session-application check after asynchronous
+association settlement. A late receipt
 from an earlier rekey cannot overwrite or delete a later epoch's composite or
 express key. Unknown local outcomes have no receipt authority to mutate those
 items. Association publication and later session application also reject a
 superseded receipt; a lock cycle alone is not cross-session authority.
+After durable witness retirement, a fresh authenticated read of a restored file
+still follows main semantics. Only an old completion must match its own current
+receipt bytes; this check introduces no persistent target pin or restore barrier.
 
 Target evidence is one typed state: confirmed, unconfirmed, planned or
 ready-to-retire. Live completion and recovery share the same final transition;

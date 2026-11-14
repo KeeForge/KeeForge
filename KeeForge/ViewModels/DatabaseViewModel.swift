@@ -2790,7 +2790,7 @@ final class DatabaseViewModel {
                     nil
                 )
             }
-        } catch SaveError.rekeyAppliedRemotely {
+        } catch SaveError.rekeyAppliedRemotely where databaseReference.isCloudBacked {
             // The upload landed, so the cloud file already requires the new
             // key even though the local apply failed. Point keychain and
             // association at the key the remote now needs — the stale local
