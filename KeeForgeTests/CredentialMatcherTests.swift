@@ -143,4 +143,18 @@ final class CredentialMatcherTests: XCTestCase {
             expired, for: [ASCredentialServiceIdentifier(identifier: "gitlab.com", type: .domain)]
         ))
     }
+
+    /// A strict match accepts a stored subdomain; a suggestion published for
+    /// the parent host must not fill an entry that moved to that subdomain.
+    func testListsRequestedSiteRequiresTheSuggestedHostItself() {
+        let moved = KPEntry(title: "Admin", url: "https://admin.example.com")
+        let parent = [ASCredentialServiceIdentifier(identifier: "example.com", type: .domain)]
+        XCTAssertFalse(CredentialMatcher.strictMatchedEntries(from: [moved], for: parent).isEmpty)
+        XCTAssertFalse(CredentialMatcher.listsRequestedSite(moved, for: parent))
+
+        let www = KPEntry(title: "Example", url: "https://www.example.com/login")
+        XCTAssertTrue(CredentialMatcher.listsRequestedSite(
+            www, for: [ASCredentialServiceIdentifier(identifier: "https://example.com", type: .URL)]
+        ))
+    }
 }

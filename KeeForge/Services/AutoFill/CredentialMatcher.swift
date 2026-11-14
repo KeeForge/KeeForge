@@ -29,10 +29,13 @@ enum CredentialMatcher {
         return eligible.filter { ids.contains($0.id) }
     }
 
-    /// Whether `entry` still lists a requested site, expired or not: the
-    /// check behind a suggestion, whose expiry the caller handles itself.
+    /// Whether `entry` still lists a requested host itself, expired or not:
+    /// the check behind a suggestion, whose expiry the caller handles itself.
+    /// A suggestion carries the host it was published for, so a subdomain the
+    /// entry moved to no longer counts, unlike in `strictMatchedEntries`.
     static func listsRequestedSite(_ entry: KPEntry, for identifiers: [ASCredentialServiceIdentifier]) -> Bool {
-        !SiteMatcher.strictMatches([candidate(entry)], for: identifiers.map(SiteRequest.init)).isEmpty
+        let stored = Set(webURLs(of: entry).compactMap { SiteHost($0) })
+        return identifiers.compactMap { SiteRequest($0).host }.contains(where: stored.contains)
     }
 
     static func hasWebHost(_ identifiers: [ASCredentialServiceIdentifier]) -> Bool {
