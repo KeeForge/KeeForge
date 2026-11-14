@@ -3485,6 +3485,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             let original = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
             try seedDatabaseBytes(original, for: database)
             let (coordinator, presenter) = makeCoordinator()
+            defer { coordinator.cleanup() }
             let promptPresented = expectation(description: "unlock prompt presented")
             presenter.onUnlockPromptPresented = { promptPresented.fulfill() }
             coordinator.prepareCredentialList(for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)])
@@ -3496,8 +3497,22 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             let parsedOldRead = expectation(description: "old snapshot reaches KDF")
             let resume = DispatchSemaphore(value: 0)
             defer { resume.signal() }
+            let lifecycle = OSAllocatedUnfairLock(initialState: (kdfEntered: false, kdfExited: false, taskFinished: false, publicationFinished: false))
+            let completed = expectation(description: "actual unlock Task completed")
+            let drained = expectation(description: "actual unlock Task completed after cleanup")
+            let published = expectation(description: "actual read publication worker completed")
+            let publicationDrained = expectation(description: "actual read publication worker completed after cleanup")
+            var readIO = DatabaseListStore.KeyCommitPublicationIO()
+            readIO.didFinish = {
+                lifecycle.withLock { $0.publicationFinished = true }
+                published.fulfill()
+                publicationDrained.fulfill()
+            }
+            coordinator.localReadPublicationIO = readIO
             coordinator.memoryBudgetOverride = 512 * 1024 * 1024
             coordinator.keyDerivationOverride = { key, parameters, policy in
+                lifecycle.withLock { $0.kdfEntered = true }
+                defer { lifecycle.withLock { $0.kdfExited = true } }
                 parsedOldRead.fulfill()
                 guard resume.wait(timeout: .now() + 60) == .success else { throw CancellationError() }
                 return try KDBXKeyDerivation.deriveKey(compositeKey: key, parameters: parameters, policy: policy)
@@ -3510,7 +3525,34 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             }
             prompt.onSubmitPassword("testpassword123")
             let loading = try XCTUnwrap(coordinator.unlockTask)
+            Task {
+                await loading.value
+                lifecycle.withLock { $0.taskFinished = true }
+                completed.fulfill()
+                drained.fulfill()
+            }
+            func cleanupAndJoin(at stage: String) async {
+                let publicationMayHaveStarted = lifecycle.withLock { $0.kdfExited }
+                // Revoking the generation before KDF return prevents publication from starting afterwards.
+                coordinator.cleanup()
+                loading.cancel()
+                resume.signal()
+                let pending = publicationMayHaveStarted ? [drained, publicationDrained] : [drained]
+                let result = await XCTWaiter.fulfillment(of: pending, timeout: 7)
+                let observed = lifecycle.withLock { $0 }
+                guard result == .completed, observed.taskFinished,
+                      !publicationMayHaveStarted || observed.publicationFinished else {
+                    let failure = "testLateOldLocalUnlock stage=\(stage) cleanupJoinTimeout=7 waiter=\(result) kdfEntered=\(observed.kdfEntered) kdfExited=\(observed.kdfExited) taskFinished=\(observed.taskFinished) publicationFinished=\(observed.publicationFinished)"
+                    XCTFail(failure)
+                    // An unquiesced worker must not race tearDown or another test's shared-store reset.
+                    fatalError(failure)
+                }
+            }
             await fulfillment(of: [parsedOldRead], timeout: 60)
+            guard lifecycle.withLock({ $0.kdfEntered }) else {
+                await cleanupAndJoin(at: "KDF-entry")
+                return
+            }
             let live = LocalDatabaseSaver.Environment.live
             let app = DatabaseViewModel(databaseReference: database, localPublicationFailure: { trace.record($0, $1) }, localSaveOperation: { draft, ref, key, hash, reconciled, newKey, settings in
                 var environment = live
@@ -3545,7 +3587,13 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
                 presenter.onSearchViewPresented = { shown.fulfill() }
                 resume.signal()
                 await fulfillment(of: [shown], timeout: 60)
-                await loading.value
+                let completion = await XCTWaiter.fulfillment(of: [completed, published], timeout: 7)
+                let observed = lifecycle.withLock { $0 }
+                guard completion == .completed, observed.taskFinished, observed.publicationFinished else {
+                    XCTFail("Full unlock/publication completion unproven; waiter=\(completion) taskFinished=\(observed.taskFinished) publicationFinished=\(observed.publicationFinished)")
+                    await cleanupAndJoin(at: "normal-completion")
+                    return
+                }
                 XCTAssertEqual(latePublications.withLock { $0 }, 0)
                 XCTAssertEqual(stored.withLock { $0.composite }, newComposite)
                 XCTAssertNil(stored.withLock { $0.express })
@@ -3576,9 +3624,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
                 }
             } catch {
                 XCTFail(trace.failure(error, at: stage))
-                resume.signal()
-                await loading.value
-                coordinator.cleanup()
+                await cleanupAndJoin(at: stage)
                 throw error
             }
 

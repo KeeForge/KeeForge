@@ -1566,6 +1566,10 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
         let cache = DatabaseListStore.cacheLocation(for: reference)
         try DatabaseListStore.cacheDatabaseCopy(originalData, for: reference)
+        defer {
+            XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
+            XCTAssertEqual(try Data(contentsOf: cache), originalData)
+        }
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directoryURL.path)
         defer {
             try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directoryURL.path)
@@ -1601,11 +1605,16 @@ final class LocalDatabaseSaverTests: XCTestCase {
             }
             return try LocalDatabaseSaver.replaceFileAtomically(data, at: target, expectedSHA512: baseline, authorization: authorization, io: io)
         }
+        let first: Result<SaveResult, Error>
         do {
-            let outcome = try await LocalDatabaseSaver.save(draft: context.draft, reference: reference,
-                compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512, environment: environment)
+            first = .success(try await LocalDatabaseSaver.save(draft: context.draft, reference: reference,
+                compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512, environment: environment))
+        } catch { first = .failure(error) }
+        switch first {
+        case .success(let outcome):
             guard case .indeterminate(let scope) = outcome else {
-                return XCTFail("Read-only replacement must not claim success/conflict: \(saveOutcomeDescription(outcome)); observed=\(observed.withLock { $0 })")
+                XCTFail("Read-only replacement must not claim success/conflict: \(saveOutcomeDescription(outcome)); observed=\(observed.withLock { $0 })")
+                break
             }
             XCTAssertEqual(scope, .databaseFile)
             let admission = try XCTUnwrap(PendingLocalSaveStore.recovery(for: reference.id).admission)
@@ -1623,12 +1632,39 @@ final class LocalDatabaseSaverTests: XCTestCase {
             XCTAssertEqual(try PendingLocalSaveStore.recovery(for: reference.id).admission, admission)
             XCTAssertEqual(effects.withLock { $0.crypto }, 1)
             XCTAssertEqual(effects.withLock { $0.replacement }, 1)
-        } catch {
-            XCTAssertTrue(error is LocalSaveBeforeReplacementFailure,
-                "Only affirmative pre-replacement evidence may throw as retryable: \((error as NSError).domain):\((error as NSError).code)")
+        case .failure(let error):
+            let observations = observed.withLock { $0 }
+            let counts = effects.withLock { $0 }
+            XCTAssertLessThanOrEqual(counts.crypto, 1, "A pre-replacement failure must not hide internal encryption retries")
+            XCTAssertLessThanOrEqual(counts.replacement, 1)
+            let replacementObserved = observations.contains { $0.hasPrefix("replacement:") }
+            XCTAssertFalse(replacementObserved, "An entered replacement MUST return indeterminate and retain admission, never a retryable wrapper")
+            let beforeReplacement = counts.replacement == 0 || observations.contains {
+                $0.hasPrefix("baseline:") || $0.hasPrefix("staging:") || $0.hasPrefix("owner:")
+            }
+            XCTAssertTrue(beforeReplacement && !replacementObserved,
+                "Thrown needs an observed pre-replacement phase; observed=\(observations)")
+            guard beforeReplacement && !replacementObserved else { break }
+            let failure = try XCTUnwrap(error as? LocalSaveBeforeReplacementFailure)
+            let recovery = try PendingLocalSaveStore.recovery(for: reference.id)
+            if failure.underlying is SavePreReplacementRecoveryWarning {
+                let admission = try XCTUnwrap(recovery.admission)
+                XCTAssertEqual(admission.purpose, .ordinarySave)
+                XCTAssertTrue(admission.sources.isEmpty)
+                XCTAssertNil(admission.knownTarget)
+                do {
+                    _ = try await LocalDatabaseSaver.save(draft: context.draft, reference: reference,
+                        compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512, environment: environment)
+                    XCTFail("Unresolved pre-replacement cleanup cannot retry encryption")
+                } catch { XCTAssertTrue(error is LocalSaveBeforeReplacementFailure) }
+                XCTAssertEqual(try PendingLocalSaveStore.recovery(for: reference.id).admission, admission)
+            } else {
+                XCTAssertNil(recovery.admission, "Affirmative pre-replacement failure must durably release its admission")
+                XCTAssertFalse(recovery.needsRecovery)
+            }
+            XCTAssertEqual(effects.withLock { $0.crypto }, counts.crypto)
+            XCTAssertEqual(effects.withLock { $0.replacement }, counts.replacement)
         }
-        XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
-        XCTAssertEqual(try Data(contentsOf: cache), originalData)
     }
 
     private func saveOutcomeDescription(_ result: SaveResult) -> String {
