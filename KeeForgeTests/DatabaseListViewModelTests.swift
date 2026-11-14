@@ -145,7 +145,7 @@ final class DatabaseListViewModelTests: XCTestCase {
                 XCTAssertEqual(settled.keyEvidence?.association.filename, setup.secondKeyURL.lastPathComponent)
                 let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == setup.reference.id })
                 XCTAssertEqual(stored.keyFileFilename, setup.secondKeyURL.lastPathComponent)
-                let restarted = DatabaseViewModel(databaseReference: stored, quickUnlockKeyPersistOperation: { _, _, _ in false })
+                let restarted = DatabaseViewModel(databaseReference: stored, localReadKeyPersistOperation: { _, _, _ in false })
                 await restarted.unlock(password: "preference epoch key", keyFileData: setup.keyFileData)
                 XCTAssertEqual(restarted.state, .unlocked)
                 restarted.lock()
@@ -332,7 +332,7 @@ final class DatabaseListViewModelTests: XCTestCase {
                 newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
         }, cloudSaveOperation: { _, _, _, _, _, _, _, _ in
             effects.withLock { $0.providers += 1 }; throw SaveError.saveContextUnavailable
-        }, quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false })
+        }, localReadKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false })
         await database.unlock(password: fixture.password)
         do {
             try await database.changeMasterKey(newPassword: "preference epoch key", newKeyFileData: keyFileData,

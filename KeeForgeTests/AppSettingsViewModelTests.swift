@@ -213,7 +213,7 @@ final class AppSettingsViewModelTests: XCTestCase {
             )
             let session = DatabaseViewModel(
                 databaseReference: reference,
-                quickUnlockKeyPersistOperation: { _, _, _ in false },
+                localReadKeyPersistOperation: { _, _, _ in false },
                 storedKeyPresenceCheck: { _ in false },
                 nowProvider: { now }
             )

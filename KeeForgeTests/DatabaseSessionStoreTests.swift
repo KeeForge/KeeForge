@@ -374,7 +374,7 @@ final class DatabaseSessionStoreTests: XCTestCase {
     ) async throws -> DatabaseViewModel {
         let session = DatabaseViewModel(
             databaseReference: try makeReference(),
-            quickUnlockKeyPersistOperation: { _, _, _ in false },
+            localReadKeyPersistOperation: { _, _, _ in false },
             storedKeyPresenceCheck: { _ in false },
             nowProvider: nowProvider
         )

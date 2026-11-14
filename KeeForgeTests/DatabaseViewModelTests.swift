@@ -7139,13 +7139,13 @@ final class DatabaseViewModelTests: XCTestCase {
             }.value
             await gate.parkFirstCall()
             return read
-        }, quickUnlockKeyPersistOperation: { keys, _, _ in
+        }, localReadKeyPersistOperation: { keys, _, _ in
             lateCalls.withLock { $0 += 1 }; stored.withLock { $0 = keys.storedKey }; return true
         })
         let oldUnlock = Task { await old.unlock(password: fixturePassword) }
         do {
             try await gate.firstCallStarted(for: oldUnlock)
-            let fresh = DatabaseViewModel(databaseReference: reference, quickUnlockKeyPersistOperation: { _, _, _ in false },
+            let fresh = DatabaseViewModel(databaseReference: reference, localReadKeyPersistOperation: { _, _, _ in false },
                 expressUnlockKeySaveOperation: { _, _ in }, storedKeyPresenceCheck: { _ in true },
                 storedKeyStoreOperation: { key, _ in stored.withLock { $0 = key } })
             defer { old.lock(); fresh.lock() }
@@ -7167,7 +7167,7 @@ final class DatabaseViewModelTests: XCTestCase {
             try original.write(to: url, options: .atomic)
             let restored = DatabaseViewModel(databaseReference: current, localPublicationFailure: { stage, error in
                 TestDatabaseSupport.reportLocalPublicationFailure(stage, error, reference: current)
-            }, quickUnlockKeyPersistOperation: { keys, _, _ in
+            }, localReadKeyPersistOperation: { keys, _, _ in
                 stored.withLock { $0 = keys.storedKey }; return true
             })
             defer { restored.lock() }
@@ -7262,7 +7262,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 let result = try await save(draft, ref, key, sha, reconciled, newKey, settings)
                 if pauses { await gate.parkFirstCall() }
                 return result
-            }, quickUnlockKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { key, _ in
+            }, localReadKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { key, _ in
                 keys.withLock { $0.express = key; $0.writes += 1 }
             }, storedKeyPresenceCheck: { _ in true }, storedKeyStoreOperation: { key, _ in
                 keys.withLock { $0.composite = key; $0.writes += 1 }
@@ -7340,7 +7340,7 @@ final class DatabaseViewModelTests: XCTestCase {
                         await gate.parkFirstCall()
                     }
                     return result
-                }, quickUnlockKeyPersistOperation: { parsedKeys, _, _ in
+                }, localReadKeyPersistOperation: { parsedKeys, _, _ in
                     guard publishesRead else { return false }
                     keys.withLock { $0.composite = parsedKeys.storedKey; $0.express = parsedKeys.expressKey; $0.writes += 1 }
                     return true
@@ -7429,7 +7429,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let writes = OSAllocatedUnfairLock(initialState: 0)
         let vm = DatabaseViewModel(databaseReference: reference, localSaveOperation: { _, _, _, _, _, _, _ in
             throw SaveError.rekeyAppliedRemotely
-        }, quickUnlockKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in
+        }, localReadKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in
             writes.withLock { $0 += 1 }
         }, storedKeyPresenceCheck: { _ in true }, storedKeyStoreOperation: { _, _ in
             writes.withLock { $0 += 1 }
@@ -7484,7 +7484,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
                         openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
                         newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
-                }, quickUnlockKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in
+                }, localReadKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in
                     XCTAssertFalse(Thread.isMainThread)
                     effects.withLock { $0.keys += 1 }
                 }, storedKeyPresenceCheck: { _ in true }, storedKeyStoreOperation: { key, _ in
@@ -7545,7 +7545,7 @@ final class DatabaseViewModelTests: XCTestCase {
         io.read = { url in try pause.wait(); return try native.read(url) }
         io.didFinish = { pause.finished.fulfill() }
         let vm = DatabaseViewModel(databaseReference: reference, keyCommitPublicationIO: io,
-            keyCommitPublicationTimeout: .seconds(2), quickUnlockKeyPersistOperation: { _, _, _ in false },
+            keyCommitPublicationTimeout: .seconds(2), localReadKeyPersistOperation: { _, _, _ in false },
             expressUnlockKeySaveOperation: { _, _ in effects.withLock { $0 += 1 } },
             storedKeyPresenceCheck: { _ in true }, storedKeyStoreOperation: { _, _ in effects.withLock { $0 += 1 } })
         defer { vm.lock(); pause.resume(); holder.resume() }
@@ -7585,7 +7585,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 newCompositeKey: newKey, encryptionSettings: settings)
             await gate.parkFirstCall()
             return result
-        }, quickUnlockKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in
+        }, localReadKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in
             effects.withLock { $0.keys += 1 }
         }, storedKeyPresenceCheck: { _ in true }, storedKeyStoreOperation: { _, _ in effects.withLock { $0.keys += 1 } })
         defer { vm.lock() }
@@ -7627,7 +7627,7 @@ final class DatabaseViewModelTests: XCTestCase {
             receipt.withLock { $0 = actual }
             await gate.parkFirstCall()
             return result
-        }, quickUnlockKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in },
+        }, localReadKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in },
             storedKeyPresenceCheck: { _ in false })
         defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
@@ -7716,17 +7716,124 @@ final class DatabaseViewModelTests: XCTestCase {
         }
     }
 
+    func testControlledDurableBookmarkRenewalUsesTheLocalWorkerForAuthenticatedKeysAndCache() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let old = folder.appendingPathComponent("old.kdbx")
+        let moved = folder.appendingPathComponent("moved.kdbx")
+        let bytes = try Data(contentsOf: fixtureURL())
+        try bytes.write(to: old)
+        let reference = try DatabaseListStore.add(url: old)
+        try FileManager.default.moveItem(at: old, to: moved)
+        let publications = OSAllocatedUnfairLock(initialState: [QuickUnlockKeys]())
+        let vm = DatabaseViewModel(databaseReference: reference, localDatabaseReadOperation: { ref in
+            try await DatabaseViewModel.readLocalDatabase(reference: ref, resolveBookmark: { _ in (moved, true) })
+        }, localReadKeyPersistOperation: { keys, _, _ in
+            XCTAssertFalse(Thread.isMainThread)
+            publications.withLock { $0.append(keys) }
+            return true
+        }, quickUnlockKeyPersistOperation: { _, _, _ in XCTFail("A local read must not call the cloud persistence seam"); return false })
+        defer { vm.lock() }
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertEqual(publications.withLock { $0.count }, 1)
+        XCTAssertEqual(publications.withLock { $0.first?.storedKey }, KDBXCrypto.compositeKey(password: fixturePassword))
+        XCTAssertNotNil(publications.withLock { $0.first?.expressKey })
+        XCTAssertNotEqual(vm.databaseReference.bookmarkData, reference.bookmarkData)
+        XCTAssertEqual(vm.databaseReference.lastMasterKeyChangeAt, reference.lastMasterKeyChangeAt)
+        XCTAssertEqual(vm.databaseReference.keyFileBookmarkData, reference.keyFileBookmarkData)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+        XCTAssertEqual(try Data(contentsOf: moved), bytes)
+    }
+
+    func testLocalReadProviderPauseKeepsMainActorResponsiveAndRevokesPendingEffects() async throws {
+        for interruption in ["lock", "cancel", "timeout"] {
+            let reference = try makeReference()
+            let entered = expectation(description: "read publication enters provider")
+            let finished = expectation(description: "read publication worker joined")
+            let returned = expectation(description: "unlock returns without waiting for provider")
+            let release = DispatchSemaphore(value: 0)
+            defer { release.signal() }
+            let effects = OSAllocatedUnfairLock(initialState: 0)
+            let live = DatabaseListStore.KeyCommitPublicationIO()
+            var io = live
+            io.coordinate = { target, registry, accessor in
+                XCTAssertFalse(Thread.isMainThread)
+                entered.fulfill()
+                guard release.wait(timeout: .now() + 15) == .success else { throw CancellationError() }
+                try live.coordinate(target, registry, accessor)
+            }
+            io.didFinish = { finished.fulfill() }
+            let vm = DatabaseViewModel(databaseReference: reference, localReadPublicationIO: io,
+                localReadPublicationTimeout: interruption == "timeout" ? .seconds(1) : .seconds(5),
+                localReadKeyPersistOperation: { _, _, _ in effects.withLock { $0 += 1 }; return true })
+            let unlock = Task { await vm.unlock(password: fixturePassword); returned.fulfill() }
+            await fulfillment(of: [entered], timeout: 30)
+            XCTAssertTrue(Thread.isMainThread)
+            if interruption == "lock" { vm.lock() }
+            if interruption == "cancel" { unlock.cancel() }
+            await fulfillment(of: [returned], timeout: 7)
+            if interruption == "lock" {
+                XCTAssertEqual(vm.state, .locked)
+                XCTAssertNil(vm.compositeKey)
+                XCTAssertNil(vm.sessionKey)
+            }
+            release.signal()
+            await fulfillment(of: [finished], timeout: 7)
+            await unlock.value
+            XCTAssertEqual(effects.withLock { $0 }, 0, interruption)
+            vm.lock()
+        }
+    }
+
+    func testClaimedLocalReadTimeoutIsUnconfirmedAndCannotRestoreSessionAfterLock() async throws {
+        let reference = try makeReference()
+        let entered = expectation(description: "keychain-only effect claimed")
+        let returned = expectation(description: "unlock reports unconfirmed publication")
+        let joined = expectation(description: "claimed worker joins")
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+        let effects = OSAllocatedUnfairLock(initialState: 0)
+        let phases = OSAllocatedUnfairLock(initialState: [String]())
+        var io = DatabaseListStore.KeyCommitPublicationIO()
+        io.didFinish = { joined.fulfill() }
+        let vm = DatabaseViewModel(databaseReference: reference,
+            localPublicationFailure: { phase, _ in phases.withLock { $0.append(phase) } },
+            localReadPublicationIO: io, localReadPublicationTimeout: .seconds(1),
+            localReadKeyPersistOperation: { _, _, _ in
+                entered.fulfill()
+                XCTAssertEqual(release.wait(timeout: .now() + 15), .success)
+                effects.withLock { $0 += 1 }
+                return true
+            })
+        let unlock = Task { await vm.unlock(password: fixturePassword); returned.fulfill() }
+        await fulfillment(of: [entered], timeout: 30)
+        await fulfillment(of: [returned], timeout: 7)
+        XCTAssertEqual(phases.withLock { $0 }, ["read-key-unconfirmed"])
+        vm.lock()
+        XCTAssertNil(vm.compositeKey)
+        XCTAssertNil(vm.sessionKey)
+        release.signal()
+        await fulfillment(of: [joined], timeout: 7)
+        await unlock.value
+        XCTAssertEqual(effects.withLock { $0 }, 1, "Claimed IO may complete; cancellation did not prove no effect")
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertNil(vm.rootGroup)
+        XCTAssertNil(vm.compositeKey)
+    }
+
     func testUnregisteredReferenceCanReadButCannotPublishKeysOrResurrectItsRegistryEntry() async throws {
         let reference = try TestDatabaseSupport.makeReference(for: fixtureURL())
-        var publications = 0
-        let vm = DatabaseViewModel(databaseReference: reference, quickUnlockKeyPersistOperation: { _, _, _ in
-            publications += 1
+        let publications = OSAllocatedUnfairLock(initialState: 0)
+        let vm = DatabaseViewModel(databaseReference: reference, localReadKeyPersistOperation: { _, _, _ in
+            publications.withLock { $0 += 1 }
             return true
         })
         defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
         XCTAssertEqual(vm.state, .unlocked)
-        XCTAssertEqual(publications, 0)
+        XCTAssertEqual(publications.withLock { $0 }, 0)
         XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
     }
 
@@ -7971,7 +8078,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(details.targetNeedsRecovery)
         let oldKeyStores = OSAllocatedUnfairLock(initialState: 0)
         let restarted = DatabaseViewModel(databaseReference: updated, localSaveOperation: operation,
-            quickUnlockKeyPersistOperation: { _, _, _ in oldKeyStores.withLock { $0 += 1 }; return true })
+            localReadKeyPersistOperation: { _, _, _ in oldKeyStores.withLock { $0 += 1 }; return true })
         await restarted.unlock(password: fixturePassword)
         XCTAssertEqual(restarted.state, .unlocked, "A valid older file remains readable")
         XCTAssertEqual(oldKeyStores.withLock { $0 }, 0, "An older read cannot replace the saved new quick-unlock key")
@@ -8601,7 +8708,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 biometricCompositeKeyOperation: { reference, _ in
                     QuickUnlockKeys(storedKey: try XCTUnwrap(keys.withLock { $0[reference.id] }))
                 },
-                quickUnlockKeyPersistOperation: { _, _, _ in false },
+                localReadKeyPersistOperation: { _, _, _ in false },
                 expressUnlockKeySaveOperation: { _, reference in
                     expressRemovals.withLock { $0.append(reference.id) }
                 },

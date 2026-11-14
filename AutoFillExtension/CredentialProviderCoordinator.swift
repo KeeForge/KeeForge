@@ -305,7 +305,7 @@ final class CredentialProviderCoordinator {
     private var didFinishRequest = false
     private var requestGeneration = 0
     private var pickerGeneration = 0
-    private var unlockTask: Task<Void, Never>?
+    private(set) var unlockTask: Task<Void, Never>?
 
     private struct RequestNoLongerActive: Error {}
 
@@ -355,12 +355,17 @@ final class CredentialProviderCoordinator {
         )
     }
 
-    /// Writes an unlock's keys back and returns whether the quick-unlock item
-    /// now holds the stored key. Injectable so tests can observe the write.
+    /// Cloud persistence keeps its existing UI-actor boundary.
     var persistQuickUnlockKeys: @MainActor (QuickUnlockKeys, DatabaseReference, Bool) -> Bool = { keys, reference, masterKeyEntered in
-        if reference.isCloudBacked { return QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered) }
-        return QuickUnlockKeychain.persistKeychainItems(keys, for: reference, masterKeyEntered: masterKeyEntered) == .stored
+        QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered)
     }
+
+    var persistLocalQuickUnlockKeys: @Sendable (QuickUnlockKeys, DatabaseReference, Bool) -> Bool = { keys, reference, entered in
+        QuickUnlockKeychain.persistKeychainItems(keys, for: reference, masterKeyEntered: entered) == .stored
+    }
+    var localReadPublicationIO = DatabaseListStore.KeyCommitPublicationIO()
+    var localReadPublicationTimeout: Duration = .seconds(10)
+    private var localReadPublicationPermit: DatabaseListStore.KeyCommitPublicationPermit?
 
     /// Save environment for every write this extension makes; injectable so
     /// unit tests can record the save and drive the conflict/error paths.
@@ -397,6 +402,8 @@ final class CredentialProviderCoordinator {
     // MARK: - Request entry points (forwarded by the shell)
 
     private func beginRequest() {
+        localReadPublicationPermit?.close()
+        localReadPublicationPermit = nil
         requestGeneration &+= 1
         pickerGeneration &+= 1
         unlockTask?.cancel()
@@ -707,11 +714,12 @@ final class CredentialProviderCoordinator {
                     generation: generation
                 )
                 guard self.isRequestActive(generation) else { return }
-                self.persistQuickUnlockKeysIfPossible(
+                await self.persistQuickUnlockKeysIfPossible(
                     QuickUnlockKeys(storedKey: keys.storedKey, expressKey: expressKey),
                     for: databaseReference,
                     masterKeyEntered: false
                 )
+                guard self.isRequestActive(generation) else { return }
                 self.recordSuccessfulUnlock(for: databaseReference)
                 let passwordEntries = self.parsedEntries.filter { $0.hasPassword && !$0.isExpired() }
 
@@ -902,11 +910,12 @@ final class CredentialProviderCoordinator {
                     generation: generation
                 )
                 guard self.isRequestActive(generation) else { return }
-                self.persistQuickUnlockKeysIfPossible(
+                await self.persistQuickUnlockKeysIfPossible(
                     QuickUnlockKeys(storedKey: keys.storedKey, expressKey: expressKey),
                     for: databaseReference,
                     masterKeyEntered: false
                 )
+                guard self.isRequestActive(generation) else { return }
                 self.recordSuccessfulUnlock(for: databaseReference)
                 try self.completePasskeyRequest(request)
             } catch {
@@ -1140,6 +1149,7 @@ final class CredentialProviderCoordinator {
     /// only when there is something to switch to). Databases with AutoFill
     /// disabled are never listed — the extension treats them as nonexistent.
     private func makeDatabaseSwitcherContext() -> CredentialProviderDatabaseSwitcherContext? {
+        guard localReadPublicationPermit == nil else { return nil }
         let enabledDatabases = DatabaseListStore.autoFillEnabledDatabases
         guard enabledDatabases.count >= 2 else { return nil }
         return CredentialProviderDatabaseSwitcherContext(
@@ -1277,11 +1287,12 @@ final class CredentialProviderCoordinator {
             generation: generation
         )
         guard isRequestActive(generation) else { return }
-        persistQuickUnlockKeysIfPossible(
+        await persistQuickUnlockKeysIfPossible(
             QuickUnlockKeys(storedKey: compositeKey, expressKey: expressKey),
             for: databaseReference,
             masterKeyEntered: true
         )
+        guard isRequestActive(generation) else { return }
         recordSuccessfulUnlock(for: databaseReference)
         afterUnlock()
     }
@@ -1302,11 +1313,12 @@ final class CredentialProviderCoordinator {
         )
         guard isRequestActive(generation) else { return }
         AutoFillDiagnostics.log("unlock ok entries=\(parsedEntries.count)")
-        persistQuickUnlockKeysIfPossible(
+        await persistQuickUnlockKeysIfPossible(
             QuickUnlockKeys(storedKey: keys.storedKey, expressKey: expressKey),
             for: databaseReference,
             masterKeyEntered: false
         )
+        guard isRequestActive(generation) else { return }
         recordSuccessfulUnlock(for: databaseReference)
         afterUnlock()
     }
@@ -1417,37 +1429,48 @@ final class CredentialProviderCoordinator {
         // load, so there is nothing to fall back to anymore.
         pendingSwitchPreviousDatabaseReference = nil
         activeDatabaseReference = databaseReference
-        DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
+        if localReadPublicationPermit == nil { DatabaseListStore.markDatabaseOpened(id: databaseReference.id) }
     }
 
     private var localReadKeyPublication: PendingLocalSaveStore.ReadKeyPublication?
 
     private func persistQuickUnlockKeysIfPossible(
-        _ keys: QuickUnlockKeys,
-        for databaseReference: DatabaseReference,
-        masterKeyEntered: Bool
-    ) {
+        _ keys: QuickUnlockKeys, for databaseReference: DatabaseReference, masterKeyEntered: Bool
+    ) async {
+        let generation = requestGeneration
         let persisted: Bool
         if databaseReference.isCloudBacked {
             persisted = persistQuickUnlockKeys(keys, databaseReference, masterKeyEntered)
         } else {
-            guard let read = localReadKeyPublication, read.lease.reference.matches(databaseReference) else { return }
-            persisted = (try? DatabaseListStore.withLocalReadKeyPublication(for: databaseReference, read: read) {
-                persistQuickUnlockKeys(keys, databaseReference, masterKeyEntered)
-            }) ?? false
+            guard let read = localReadKeyPublication, read.lease.reference.matches(databaseReference),
+                  isRequestActive(generation) else { return }
+            localReadPublicationPermit?.close()
+            let permit = DatabaseListStore.KeyCommitPublicationPermit(actionID: UUID(), lockCycleID: generation)
+            localReadPublicationPermit = permit
+            let effect = persistLocalQuickUnlockKeys
+            let io = localReadPublicationIO
+            do {
+                persisted = try await CoordinatedFileReader.performBlocking(timeout: localReadPublicationTimeout,
+                    onInterruption: { permit.close() }) {
+                    defer { io.didFinish() }
+                    let stored = try DatabaseListStore.withLocalReadKeyPublication(for: databaseReference, read: read,
+                        permit: permit, io: io) { effect(keys, databaseReference, masterKeyEntered) }
+                    if stored { _ = DatabaseListStore.clearLegacyKeychainFilename(for: read.lease.bookmarkRenewal?.after ?? databaseReference) }
+                    return stored
+                }
+                if localReadPublicationPermit === permit { localReadPublicationPermit = nil }
+            } catch {
+                // A claimed timeout cannot revoke Keychain IO already in progress.
+                permit.close()
+                return
+            }
         }
-        guard persisted, databaseReference.legacyKeychainFilename != nil else { return }
-        DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference)
-        // The store dropped the legacy item. Re-read the pinned reference by
-        // id so the in-session copy drops its legacy keychain filename too.
-        // The active pointer may legitimately be a different database now
-        // that requests resolve their owning database, so it must not be
-        // consulted here.
+        guard isRequestActive(generation), persisted, databaseReference.legacyKeychainFilename != nil else { return }
+        if databaseReference.isCloudBacked { DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference) }
         activeDatabaseReference = DatabaseListStore.databases.first { $0.id == databaseReference.id }
-            ?? databaseReference
+        localReadKeyPublication = nil
     }
 
-    // Leaving an unreadable key file out would report a correct password as wrong.
     private func loadAssociatedKeyFileData(for databaseReference: DatabaseReference) throws -> Data? {
         guard databaseReference.hasAssociatedKeyFile else { return nil }
         guard let url = DatabaseListStore.resolveKeyFileURL(for: databaseReference),
@@ -1482,7 +1505,7 @@ final class CredentialProviderCoordinator {
         generation: Int
     ) async throws -> ExpressUnlockKey? {
         localReadKeyPublication = nil
-        let lease = databaseReference.isCloudBacked ? nil : await Task.detached {
+        var lease = databaseReference.isCloudBacked ? nil : await Task.detached {
             try? PendingLocalSaveStore.captureCacheReadLease(for: databaseReference)
         }.value
         let loaded = try await loadDatabaseData(for: databaseReference)
@@ -1514,8 +1537,9 @@ final class CredentialProviderCoordinator {
             throw RequestNoLongerActive()
         }
 
+        lease?.bookmarkRenewal = loaded.bookmarkRenewal
         if let lease, let target = loaded.target {
-            localReadKeyPublication = .init(lease: lease, target: target, sha512: dataSHA512, sharedCopy: loaded.sharedCopy)
+            localReadKeyPublication = .init(lease: lease, target: target, sha512: dataSHA512, sharedCopy: loaded.sharedCopy, encryptedSnapshot: data)
         }
         self.sessionKey = key
         self.compositeKey = compositeKey
@@ -1565,6 +1589,7 @@ final class CredentialProviderCoordinator {
         let sharedCopyDate: Date?
         let target: PendingLocalSaveStore.TargetIdentity?
         let sharedCopy: Bool
+        var bookmarkRenewal: DatabaseListStore.DatabaseBookmarkRenewal? = nil
     }
 
     nonisolated private static func readDatabaseSnapshot(at url: URL, sharedCopyDate: Date?, sharedCopy: Bool) throws -> LoadedDatabaseData {
@@ -1619,13 +1644,17 @@ final class CredentialProviderCoordinator {
             throw bookmarkedReadTimeout
         }
 
-        guard let bookmarkedURL = DatabaseListStore.resolveDatabaseURL(for: databaseReference) else {
-            throw NSError(domain: ASExtensionErrorDomain, code: ASExtensionError.failed.rawValue)
+        return try await CoordinatedFileReader.performBlocking(timeout: .seconds(10)) {
+            var renewal: DatabaseListStore.DatabaseBookmarkRenewal?
+            guard let bookmarkedURL = DatabaseListStore.resolveDatabaseURL(for: databaseReference, onBookmarkRenewal: { renewal = $0 }) else {
+                throw NSError(domain: ASExtensionErrorDomain, code: ASExtensionError.failed.rawValue)
+            }
+            let access = bookmarkedURL.startAccessingSecurityScopedResource()
+            defer { if access { bookmarkedURL.stopAccessingSecurityScopedResource() } }
+            var result = try Self.readDatabaseSnapshot(at: bookmarkedURL, sharedCopyDate: nil, sharedCopy: false)
+            result.bookmarkRenewal = renewal
+            return result
         }
-
-        let access = bookmarkedURL.startAccessingSecurityScopedResource()
-        defer { if access { bookmarkedURL.stopAccessingSecurityScopedResource() } }
-        return try await Task.detached { try Self.readDatabaseSnapshot(at: bookmarkedURL, sharedCopyDate: nil, sharedCopy: false) }.value
     }
 
     #if os(iOS)
@@ -2075,7 +2104,8 @@ final class CredentialProviderCoordinator {
     /// Whether picker actions that write to the database may be offered: the
     /// reference is not read-only and the open file can be saved from here.
     private var canWriteActiveDatabase: Bool {
-        guard let reference = activeDatabaseReference else { return false }
+        guard localReadPublicationPermit == nil,
+              let reference = activeDatabaseReference else { return false }
         return reference.isReadOnly == false && writeRefusalMessage == nil
     }
 
@@ -2576,11 +2606,12 @@ final class CredentialProviderCoordinator {
                     generation: generation
                 )
                 guard self.isRequestActive(generation) else { return }
-                self.persistQuickUnlockKeysIfPossible(
+                await self.persistQuickUnlockKeysIfPossible(
                     QuickUnlockKeys(storedKey: keys.storedKey, expressKey: expressKey),
                     for: databaseReference,
                     masterKeyEntered: false
                 )
+                guard self.isRequestActive(generation) else { return }
                 self.recordSuccessfulUnlock(for: databaseReference)
 
                 if #available(iOS 18.0, macOS 15.0, *) {
@@ -2691,6 +2722,12 @@ final class CredentialProviderCoordinator {
     /// state. Every completion helper below calls this before handing a
     /// credential or error to the shell.
     func cleanup() {
+        requestGeneration &+= 1
+        localReadPublicationPermit?.close()
+        localReadPublicationPermit = nil
+        unlockTask?.cancel()
+        unlockTask = nil
+        isUnlockInProgress = false
         pickerGeneration &+= 1
         parsedEntries = []
         parsedRootGroup = nil

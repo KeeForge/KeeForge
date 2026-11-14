@@ -706,6 +706,7 @@ enum PendingLocalSaveStore {
         let epochID: UUID?
         let masterKeyChangedAt: Date?
         let reference: PreferenceObservation
+        var bookmarkRenewal: DatabaseListStore.DatabaseBookmarkRenewal? = nil
     }
 
     static func captureCacheReadLease(for reference: DatabaseReference) throws -> CacheReadLease {
@@ -722,6 +723,7 @@ enum PendingLocalSaveStore {
         let target: TargetIdentity
         let sha512: Data
         let sharedCopy: Bool
+        var encryptedSnapshot: Data? = nil
     }
 
     static func withKeyCommitPublicationAuthorization<T>(
@@ -761,6 +763,11 @@ enum PendingLocalSaveStore {
             try requireNotRemoved(read.lease.databaseID)
             let state = try loadState(read.lease.databaseID) ?? OwnerState(version: 1, removed: false)
             guard state.epoch.id == read.lease.epochID, state.operation == .idle, state.retirementID == nil else { throw OwnershipError.recoveryRequired }
+            if let renewal = read.lease.bookmarkRenewal {
+                guard renewal.before.id == read.lease.databaseID, renewal.epochID == read.lease.epochID,
+                      read.lease.reference.matches(renewal.before), renewal.target == read.target, !read.sharedCopy,
+                      state.sources.isEmpty, try sourceURLs(read.lease.databaseID).isEmpty else { throw OwnershipError.sourceChanged }
+            }
             if case .known(let date, _) = state.epoch, date != read.lease.masterKeyChangedAt { throw OwnershipError.sourceChanged }
             if let evidence = state.keyEvidence {
                 guard evidence.pending == nil else { throw OwnershipError.recoveryRequired }
@@ -789,6 +796,11 @@ enum PendingLocalSaveStore {
             let state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
             if let lease {
                 guard lease.databaseID == databaseID, lease.epochID == state.epoch.id else { throw OwnershipError.sourceChanged }
+                if let renewal = lease.bookmarkRenewal {
+                    guard renewal.before.id == databaseID, renewal.epochID == lease.epochID,
+                          renewal.before.lastMasterKeyChangeAt == lease.masterKeyChangedAt,
+                          lease.reference.matches(renewal.before) else { throw OwnershipError.sourceChanged }
+                }
                 if case .known(let date, _) = state.epoch, date != lease.masterKeyChangedAt { throw OwnershipError.sourceChanged }
             }
             if let admission = state.operation.admission, admission.purpose.isMasterKeyChange {

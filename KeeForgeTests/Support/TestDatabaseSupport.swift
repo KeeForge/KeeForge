@@ -5,6 +5,12 @@ import XCTest
 enum TestDatabaseSupport {
     static func reportLocalPublicationFailure(_ stage: String, _ error: Error, reference: DatabaseReference,
         file: StaticString = #filePath, line: UInt = #line) {
+        if stage.hasPrefix("read-key") {
+            let cause = (error as? PendingLocalSaveStore.OwnershipError).map { String(describing: $0) }
+                ?? "\((error as NSError).domain):\((error as NSError).code)"
+            XCTFail("Local publication rejected stage=\(stage) cause=\(cause); registry observation omitted while another accessor may own it", file: file, line: line)
+            return
+        }
         let current = DatabaseListStore.databases.first { $0.id == reference.id }
         let cause = (error as? PendingLocalSaveStore.OwnershipError).map { String(describing: $0) }
             ?? "\((error as NSError).domain):\((error as NSError).code)"
