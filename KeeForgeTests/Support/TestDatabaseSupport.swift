@@ -14,8 +14,11 @@ enum TestDatabaseSupport {
         var summary: String { lock.lock(); defer { lock.unlock() }; return observations.joined(separator: ",") }
         func failure(_ error: Error, at phase: String) -> String {
             let escaped = Self.describe(error, phase: phase)
-            lock.lock(); defer { lock.unlock() }
-            return escaped + "; boundaries=" + observations.joined(separator: ",")
+            lock.lock()
+            let diagnostic = escaped + "; boundaries=" + observations.joined(separator: ",")
+            lock.unlock()
+            print(diagnostic)
+            return diagnostic
         }
         private static func describe(_ error: Error, phase: String) -> String {
             if let failure = error as? LocalSaveBeforeReplacementFailure {

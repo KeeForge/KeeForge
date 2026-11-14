@@ -6946,7 +6946,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 draft: EntryDraftPayload(title: "Local Before Merge", password: "local")))
             stage = "external-write"
             try await writeSameKeyExternalChange(setup, title: "External Before Merge")
-            stage = "save"
+            stage = "save-before-merge"
             try await setup.vm.save()
             XCTAssertEqual(setup.vm.saveConflict?.requiresLocalRecovery, false)
             stage = "merge-and-save"
@@ -6958,7 +6958,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 draft: EntryDraftPayload(title: "Deliberately Discard This Draft", password: "discard")))
             stage = "external-write"
             try await writeSameKeyExternalChange(setup, title: "External Before Reload")
-            stage = "save"
+            stage = "save-before-reload"
             try await setup.vm.save()
             XCTAssertEqual(setup.vm.saveConflict?.requiresLocalRecovery, false)
             stage = "reload"
@@ -6968,7 +6968,7 @@ final class DatabaseViewModelTests: XCTestCase {
             XCTAssertTrue(setup.vm.rootGroup?.allEntries.contains { $0.title == "External Before Reload" } == true)
             try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
                 draft: EntryDraftPayload(title: "Explicit After Reload", password: "save")))
-            stage = "save"
+            stage = "save-after-reload"
             try await setup.vm.save()
             let parsed = try KDBXParser.parse(data: Data(contentsOf: setup.url), compositeKey: XCTUnwrap(setup.vm.compositeKey),
                 sessionKey: XCTUnwrap(setup.vm.sessionKey), kdfPolicy: .mainApp)
@@ -7129,28 +7129,20 @@ final class DatabaseViewModelTests: XCTestCase {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
-        let url = folder.appendingPathComponent("late-app-read.kdbx")
+        let initialURL = folder.appendingPathComponent("late-app-read.kdbx")
+        let url = folder.appendingPathComponent("moved-late-app-read.kdbx")
         let original = try Data(contentsOf: fixtureURL())
-        try original.write(to: url)
-        var reference = try DatabaseListStore.add(url: url)
+        try original.write(to: initialURL)
+        var reference = try DatabaseListStore.add(url: initialURL)
+        try FileManager.default.moveItem(at: initialURL, to: url)
         reference.legacyKeychainFilename = "late-app-legacy-\(UUID().uuidString).kdbx"
         DatabaseListStore.update(reference)
         let gate = InFlightSaveGate()
         let stored = OSAllocatedUnfairLock(initialState: Optional<SymmetricKey>.none)
         let lateCalls = OSAllocatedUnfairLock(initialState: 0)
         let old = DatabaseViewModel(databaseReference: reference, localDatabaseReadOperation: { reference in
-            let read = try await Task.detached {
-                let source = try XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: reference))
-                var error: NSError?
-                var result: DatabaseViewModel.LocalDatabaseReadResult?
-                NSFileCoordinator().coordinate(readingItemAt: source, options: [], error: &error) { url in
-                    if let bytes = try? Data(contentsOf: url), let identity = try? PendingLocalSaveStore.targetIdentity(at: url) {
-                        result = .init(url: url, data: bytes, sourceIdentity: identity)
-                    }
-                }
-                if let error { throw error }
-                return try XCTUnwrap(result)
-            }.value
+            let read = try await DatabaseViewModel.readLocalDatabase(reference: reference,
+                resolveBookmark: { _ in (url, true) })
             await gate.parkFirstCall()
             return read
         }, localReadKeyPersistOperation: { keys, _, _ in
@@ -7175,6 +7167,9 @@ final class DatabaseViewModelTests: XCTestCase {
             XCTAssertNotNil(old.rootGroup)
             XCTAssertEqual(old.openTimeSHA512, FileDigest.sha512(original))
             XCTAssertEqual(lateCalls.withLock { $0 }, 0)
+            XCTAssertEqual(old.databaseReference.bookmarkData, reference.bookmarkData,
+                "The rejected late action cannot apply even its own earlier renewal after a different epoch wins")
+            XCTAssertEqual(old.databaseReference.lastMasterKeyChangeAt, reference.lastMasterKeyChangeAt)
             XCTAssertEqual(stored.withLock { $0 }, newKey)
             let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
             XCTAssertNil(current.legacyKeychainFilename)
@@ -7759,6 +7754,18 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.databaseReference.keyFileBookmarkData, reference.keyFileBookmarkData)
         XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
         XCTAssertEqual(try Data(contentsOf: moved), bytes)
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(vm.databaseReference.bookmarkData, current.bookmarkData)
+        try vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(vm.rootGroup)),
+            draft: EntryDraftPayload(title: "Save After Own Renewal", password: "preserved")))
+        try await vm.save()
+        let saved = try Data(contentsOf: moved)
+        let parsed = try KDBXParser.parse(data: saved, compositeKey: XCTUnwrap(vm.compositeKey),
+            sessionKey: XCTUnwrap(vm.sessionKey), kdfPolicy: .mainApp)
+        XCTAssertTrue(parsed.rootGroup.allEntries.contains { $0.title == "Save After Own Renewal" })
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: current)), saved)
+        XCTAssertEqual(publications.withLock { $0.count }, 1)
+
     }
 
     func testLocalReadProviderPauseKeepsMainActorResponsiveAndRevokesPendingEffects() async throws {
@@ -7954,11 +7961,27 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testCreatedAppOnlyDraftExportsFromItsAuthenticatedCreationCiphertextWithoutDiskOrBackup() async throws {
         let trace = TestDatabaseSupport.LocalPublicationTrace()
+        var verifiedCases = Set<Bool>()
         for attemptsFirstSave in [false, true] {
-            let created = try await DatabaseCreationService.create(request: DatabaseCreationRequest(
-                displayName: "Creation Recovery", destination: .appOnlyAcknowledged, password: "created key"))
+            let created: CreatedDatabase
+            do {
+                created = try await DatabaseCreationService.create(request: DatabaseCreationRequest(
+                displayName: attemptsFirstSave ? "Creation Recovery After Failed Save" : "Creation Recovery Before Save",
+                    destination: .appOnlyAcknowledged, password: "created key"))
+            } catch {
+                let diagnostic = trace.failure(error, at: "create attemptsFirstSave=\(attemptsFirstSave)")
+                XCTFail(diagnostic)
+                throw error
+            }
             let cache = DatabaseListStore.cacheLocation(for: created.reference)
-            XCTAssertEqual(created.encryptedSnapshot, try Data(contentsOf: cache))
+            let initialBytes: Data
+            do { initialBytes = try Data(contentsOf: cache) }
+            catch {
+                let diagnostic = trace.failure(error, at: "read-created-cache attemptsFirstSave=\(attemptsFirstSave)")
+                XCTFail(diagnostic)
+                throw error
+            }
+            XCTAssertEqual(created.encryptedSnapshot, initialBytes)
             let live = LocalDatabaseSaver.Environment.live
             let vm = DatabaseViewModel(createdDatabase: created, localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
                 var environment = live
@@ -8002,12 +8025,16 @@ final class DatabaseViewModelTests: XCTestCase {
                 XCTAssertFalse(FileManager.default.fileExists(atPath: cache.path))
                 vm.lock()
                 XCTAssertFalse(vm.canExportLocalRecoveryDraft)
+                verifiedCases.insert(attemptsFirstSave)
             } catch {
-                XCTFail(trace.failure(error, at: stage))
+                let diagnostic = trace.failure(error, at: stage + " attemptsFirstSave=\(attemptsFirstSave)")
+                XCTFail(diagnostic)
                 throw error
             }
 
         }
+        XCTAssertEqual(verifiedCases, Set([false, true]))
+
     }
 
     func testKeeForgeOnlyUnconfirmedRekeyRetiresAfterExplicitDurableSameEpochSave() async throws {
@@ -9654,41 +9681,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 progress: { _ in }
             )
         },
-        reloadOperation: @escaping DatabaseViewModel.ReloadOperation = { reference, compositeKey in
-            let data: Data
-            let updatedReference: DatabaseReference
-
-            if reference.isCloudBacked {
-                let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: reference)
-                data = resolution.data
-                updatedReference = resolution.reference
-            } else {
-                guard let url = DatabaseListStore.resolveDatabaseURL(for: reference) else {
-                    throw SaveError.databaseLocationUnavailable
-                }
-                data = try Data(contentsOf: url)
-                updatedReference = reference
-            }
-
-            let sessionKey = SymmetricKey(size: .bits256)
-            let parsed = try await Task.detached {
-                try KDBXParser.parseWithMetaAndHeader(
-                    data: data,
-                    compositeKey: compositeKey,
-                    sessionKey: sessionKey
-                )
-            }.value
-
-            return DatabaseViewModel.ReloadedDatabase(
-                reference: updatedReference,
-                rootGroup: parsed.rootGroup,
-                meta: parsed.meta,
-                formatVersion: parsed.header.formatVersion,
-                sessionKey: sessionKey,
-                openTimeSHA512: FileDigest.sha512(data),
-                binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
-            )
-        },
+        reloadOperation: @escaping DatabaseViewModel.ReloadOperation = DatabaseViewModel.reloadDatabase,
         biometricCompositeKeyOperation: @escaping DatabaseViewModel.BiometricCompositeKeyOperation = { reference, reason in
             let context = try await BiometricService.authenticate(reason: reason)
             return try QuickUnlockKeychain.retrieve(for: reference, context: context)

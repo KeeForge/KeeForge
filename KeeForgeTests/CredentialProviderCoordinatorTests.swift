@@ -3607,9 +3607,13 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
                     let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == database.id })
                     XCTAssertNil(try PendingLocalSaveStore.recovery(for: database.id).keyEvidence)
                     stage = "restore-original"
-                    try original.write(to: XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: current)), options: .atomic)
+                    try original.write(to: XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: current, renewBookmark: false)), options: .atomic)
                     stage = "restore-cache"
-                    try LocalDatabaseSaver.cacheLocalSnapshot(original, for: current)
+                    try LocalDatabaseSaver.cacheLocalSnapshot(original, for: current, onFailure: { phase, error in
+                        let stored = DatabaseListStore.databases.first { $0.id == current.id }
+                        trace.record("restore-cache-" + phase.rawValue + " "
+                            + DatabaseListStore.localReferenceEqualityDiagnostic(current, current: stored), error)
+                    })
                     let (fresh, freshPresenter) = makeCoordinator()
                     defer { fresh.cleanup() }
                     let freshWrites = OSAllocatedUnfairLock(initialState: 0)

@@ -1097,6 +1097,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
+        DatabaseListStore.update(reference)
         let trace = TestDatabaseSupport.LocalPublicationTrace()
         let vm = diagnosticViewModel(reference, trace: trace)
         defer { vm.lock() }
@@ -1104,7 +1105,6 @@ final class PendingLocalSaveTests: XCTestCase {
         let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
         try seedPendingSave(pending, for: reference)
 
-        DatabaseListStore.update(vm.databaseReference)
         do {
             try await vm.changeMasterKey(
                 newPassword: "rotated-master",
@@ -1131,6 +1131,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
+        DatabaseListStore.update(reference)
         let trace = TestDatabaseSupport.LocalPublicationTrace()
         let vm = diagnosticViewModel(reference, trace: trace)
         defer { vm.lock() }
@@ -1141,7 +1142,6 @@ final class PendingLocalSaveTests: XCTestCase {
         try changedElsewhere.write(to: databaseURL, options: .atomic)
 
         do {
-            DatabaseListStore.update(vm.databaseReference)
             try await vm.changeMasterKey(
                 newPassword: "rotated-master",
                 newKeyFileData: nil,
@@ -1167,8 +1167,7 @@ final class PendingLocalSaveTests: XCTestCase {
         // change as the baseline, and the retry merges the save and rekeys.
         do {
             try await vm.reloadDiscardingDraft()
-            DatabaseListStore.update(vm.databaseReference)
-            try await vm.changeMasterKey(
+                try await vm.changeMasterKey(
                 newPassword: "rotated-master",
                 newKeyFileData: nil,
                 newKeyFileBookmarkData: nil,
